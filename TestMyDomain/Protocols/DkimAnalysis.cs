@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace TestMyDomain.Protocols {
@@ -19,6 +16,7 @@ namespace TestMyDomain.Protocols {
 
             // create a single string from the list of DnsResult objects
             foreach (var record in dkimRecordList) {
+                analysis.Name = record.Name;
                 foreach (var data in record.Data) {
                     analysis.DkimRecord += data;
                 }
@@ -70,6 +68,7 @@ namespace TestMyDomain.Protocols {
     }
 
     public class DkimRecordAnalysis {
+        public string Name { get; set; }
         public string DkimRecord { get; set; }
         public bool DkimRecordExists { get; set; }
         public bool StartsCorrectly { get; set; }
