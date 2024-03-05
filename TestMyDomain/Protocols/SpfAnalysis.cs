@@ -20,6 +20,8 @@ namespace TestMyDomain.Protocols {
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsTotalCharacterLimit { get; private set; } // should be false
         public bool ExceedsCharacterLimit { get; private set; } // should be false
+
+        public List<string> DnsLookups { get; private set; } = new List<string>();
         public int DnsLookupsCount { get; private set; }
         public bool ExceedsDnsLookups { get; private set; } // should be false
         public bool MultipleAllMechanisms { get; private set; } // should be false
@@ -98,6 +100,9 @@ namespace TestMyDomain.Protocols {
                 if (part.StartsWith("include:") || part.StartsWith("redirect=")) {
                     var domain = part.Substring(part.IndexOf(":") + 1);
                     if (domain != "") {
+                        // Add the domain to the DnsLookups list
+                        DnsLookups.Add(domain);
+
                         // TODO: change provider/protocol to use DOH or DNS based on user choices
                         var dnsResults = await DomainHealthCheck.QueryDNS(domain, "TXT", "DNS", "SPF1");
                         dnsLookups++; // count the DNS lookup
@@ -110,14 +115,16 @@ namespace TestMyDomain.Protocols {
                         }
                     }
                 } else if (part.StartsWith("a:") || part.StartsWith("mx:") || part.StartsWith("ptr:")) {
+                    var domain = part.Substring(part.IndexOf(":") + 1);
+                    if (domain != "") {
+                        // Add the domain to the DnsLookups list
+                        DnsLookups.Add(domain);
+                    }
                     dnsLookups++; // count the DNS lookup, but don't check the results
                 }
             }
             return dnsLookups;
         }
-
-
-
 
         private int CountAllMechanisms(string[] parts) {
             return parts.Count(part => part.EndsWith("all"));
