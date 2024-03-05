@@ -51,5 +51,21 @@ namespace TestMyDomain.Tests {
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == true);
         }
+
+        [Fact]
+        public async Task QueryDomainBySPF() {
+            var healthCheck6 = new DomainHealthCheck();
+            await healthCheck6.Verify("evotec.pl", [HealthCheckType.SPF]);
+
+            Assert.True(healthCheck6.SpfAnalysis.SpfRecordExists);
+            Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
+            Assert.True(healthCheck6.SpfAnalysis.HasNullLookups == false);
+            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups == false);
+            Assert.True(healthCheck6.SpfAnalysis.MultipleAllMechanisms == false);
+            Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
+            Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
+            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
+            Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == false);
+        }
     }
 }
