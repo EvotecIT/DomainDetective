@@ -9,70 +9,63 @@ namespace TestMyDomain.Protocols {
     public class DkimAnalysis {
         public Dictionary<string, DkimRecordAnalysis> AnalysisResults { get; private set; } = new Dictionary<string, DkimRecordAnalysis>();
 
-        public string DkimRecord { get; private set; }
-        public bool DkimRecordExists { get; private set; } // should be true
-        public bool StartsCorrectly { get; private set; } // should be true
-        public bool PublicKeyExists { get; private set; } // should be true
-        public bool KeyTypeExists { get; private set; } // should be true
+        public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+            await Task.Yield(); // To avoid warning about lack of 'await'
 
-        // short versions of the tags
-        public string PublicKey { get; private set; }
-        public string ServiceType { get; private set; }
-        public string Flags { get; private set; }
-        public string KeyType { get; private set; }
-        public string HashAlgorithm { get; private set; }
-
-        public async Task AnalyzeDkimRecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
             var dkimRecordList = dnsResults.ToList();
-            DkimRecordExists = dkimRecordList.Any();
+            var analysis = new DkimRecordAnalysis {
+                DkimRecordExists = dkimRecordList.Any(),
+            };
 
             // create a single string from the list of DnsResult objects
             foreach (var record in dkimRecordList) {
                 foreach (var data in record.Data) {
-                    DkimRecord = data;
+                    analysis.DkimRecord += data;
                 }
             }
 
-            logger.WriteVerbose($"Analyzing DKIM record {DkimRecord}");
+            logger.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
 
-            if (DkimRecord == null) {
+            if (analysis.DkimRecord == null) {
                 return;
             }
 
             // check the DKIM record starts correctly
-            StartsCorrectly = DkimRecord.StartsWith("v=DKIM1");
+            analysis.StartsCorrectly = analysis.DkimRecord.StartsWith("v=DKIM1");
 
             // loop through the tags of the DKIM record
-            var tags = DkimRecord.Split(';');
+            var tags = analysis.DkimRecord.Split(';');
             foreach (var tag in tags) {
-                var keyValue = tag.Split('=');
+                var keyValue = tag.Split(new[] { '=' }, 2);
                 if (keyValue.Length == 2) {
                     var key = keyValue[0].Trim();
                     var value = keyValue[1].Trim();
                     switch (key) {
                         case "p":
-                            PublicKey = value;
+                            analysis.PublicKey = value;
                             break;
                         case "s":
-                            ServiceType = value;
+                            analysis.ServiceType = value;
                             break;
                         case "t":
-                            Flags = value;
+                            analysis.Flags = value;
                             break;
                         case "k":
-                            KeyType = value;
+                            analysis.KeyType = value;
                             break;
                         case "h":
-                            HashAlgorithm = value;
+                            analysis.HashAlgorithm = value;
                             break;
                     }
                 }
             }
 
             // check the public key exists
-            PublicKeyExists = !string.IsNullOrEmpty(PublicKey);
+            analysis.PublicKeyExists = !string.IsNullOrEmpty(analysis.PublicKey);
             // check the service type exists
-            KeyTypeExists = !string.IsNullOrEmpty(KeyType);
+            analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
+
+            AnalysisResults[selector] = analysis;
         }
     }
 
@@ -80,7 +73,12 @@ namespace TestMyDomain.Protocols {
         public string DkimRecord { get; set; }
         public bool DkimRecordExists { get; set; }
         public bool StartsCorrectly { get; set; }
-        // ... other properties ...
+        public bool PublicKeyExists { get; set; }
+        public bool KeyTypeExists { get; set; }
+        public string PublicKey { get; set; }
+        public string ServiceType { get; set; }
+        public string Flags { get; set; }
+        public string KeyType { get; set; }
+        public string HashAlgorithm { get; set; }
     }
-
 }
