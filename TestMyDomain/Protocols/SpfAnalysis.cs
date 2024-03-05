@@ -20,7 +20,6 @@ namespace TestMyDomain.Protocols {
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsTotalCharacterLimit { get; private set; } // should be false
         public bool ExceedsCharacterLimit { get; private set; } // should be false
-
         public int DnsLookupsCount { get; private set; }
         public bool ExceedsDnsLookups { get; private set; } // should be false
         public bool MultipleAllMechanisms { get; private set; } // should be false
