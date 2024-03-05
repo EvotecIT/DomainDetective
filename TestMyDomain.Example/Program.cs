@@ -6,7 +6,9 @@ using TestMyDomain;
 public static partial class Program {
     public static async Task Main() {
         // run the analysis of SPF
-        await ExampleAnalyseSPF();
+        //await ExampleAnalyseSPF();
+        // run the analysis of DMARC
+        await ExampleAnalyseDMARC();
     }
 
     public static void ShowProperties(string analysisOf, object obj) {
