@@ -8,6 +8,14 @@ using DnsOverHttps;
 using TestMyDomain.Protocols;
 
 namespace TestMyDomain {
+    public enum HealthCheckType {
+        DMARC,
+        SPF,
+        DKIM,
+        MX,
+        CAA
+    }
+
     public class DomainHealthCheck : Settings {
         /// <summary>
         /// Gets the dmarc analysis.
@@ -25,19 +33,66 @@ namespace TestMyDomain {
         /// </value>
         public SpfAnalysis SpfAnalysis { get; private set; } = new SpfAnalysis();
 
+        public DkimAnalysis DKIMAnalysis { get; private set; } = new DkimAnalysis();
+
+        public MXAnalysis MXAnalysis { get; private set; } = new MXAnalysis();
+
+        public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
         public List<Answer> Answers;
 
-        public async Task Verify(string domainName) {
-            // var spf = await QueryDNS(domainName, "TXT", "DOH", "SPF1");
-            var spf = await QueryDNS(domainName, "TXT", "DNS", "SPF1");
-            await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+        public async Task VerifyDKIM(string domainName, string[] selectors) {
+            foreach (var selector in selectors) {
+                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", "DOH", "DKIM1");
+                await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
+            }
+        }
+
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null) {
+            if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
+                healthCheckTypes = new[]                {
+                    HealthCheckType.DMARC,
+                    HealthCheckType.SPF,
+                    HealthCheckType.DKIM,
+                    HealthCheckType.MX,
+                    HealthCheckType.CAA
+                };
+            }
+
+            foreach (var healthCheckType in healthCheckTypes) {
+                switch (healthCheckType) {
+                    case HealthCheckType.DMARC:
+                        var dmarc = await QueryDNS("_dmarc." + domainName, "TXT", "DOH", "DMARC1");
+                        await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger);
+                        break;
+                    case HealthCheckType.SPF:
+                        var spf = await QueryDNS(domainName, "TXT", "DOH", "SPF1");
+                        //var spf = await QueryDNS(domainName, "TXT", "DNS", "SPF1");
+                        await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+                        break;
+                    case HealthCheckType.DKIM:
+                        if (dkimSelectors != null) {
+                            foreach (var selector in dkimSelectors) {
+                                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", "DOH", "DKIM1");
+                                await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
+                            }
+                        }
+                        break;
+                    case HealthCheckType.MX:
+                        var mx = await QueryDNS(domainName, "MX", "DOH", "");
+                        await MXAnalysis.AnalyzeMxRecords(mx, _logger);
+                        break;
+                    case HealthCheckType.CAA:
+                        var caa = await QueryDNS(domainName, "CAA", "DOH", "");
+                        await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
+                        break;
+                }
+            }
         }
 
         public async Task CheckDMARC(string dmarcRecord) {
             await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsResult> {
-                new DnsResult
-                {
+                new DnsResult {
                     Data = new[] {dmarcRecord},
                     DataJoined = dmarcRecord
                 }
@@ -46,10 +101,36 @@ namespace TestMyDomain {
 
         public async Task CheckSPF(string spfRecord) {
             await SpfAnalysis.AnalyzeSpfRecords(new List<DnsResult> {
-                new DnsResult
-                {
+                new DnsResult {
                     Data = new[] {spfRecord},
                     DataJoined = spfRecord
+                }
+            }, _logger);
+        }
+
+        public async Task CheckDKIM(string dkimRecord, string selector = "default") {
+            await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsResult> {
+                new DnsResult {
+                    Data = new[] {dkimRecord},
+                    DataJoined = dkimRecord
+                }
+            }, _logger);
+        }
+
+        public async Task CheckMX(string mxRecord) {
+            await MXAnalysis.AnalyzeMxRecords(new List<DnsResult> {
+                new DnsResult {
+                    Data = new[] {mxRecord},
+                    DataJoined = mxRecord
+                }
+            }, _logger);
+        }
+
+        public async Task CheckCAA(string caaRecord) {
+            await CAAAnalysis.AnalyzeCAARecords(new List<DnsResult> {
+                new DnsResult {
+                    Data = new[] {caaRecord},
+                    DataJoined = caaRecord
                 }
             }, _logger);
         }
