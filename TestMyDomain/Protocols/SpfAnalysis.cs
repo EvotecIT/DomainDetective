@@ -99,6 +99,7 @@ namespace TestMyDomain.Protocols {
                 if (part.StartsWith("include:") || part.StartsWith("redirect=")) {
                     var domain = part.Substring(part.IndexOf(":") + 1);
                     if (domain != "") {
+                        // TODO: change provider/protocol to use DOH or DNS based on user choices
                         var dnsResults = await DomainHealthCheck.QueryDNS(domain, "TXT", "DNS", "SPF1");
                         dnsLookups++; // count the DNS lookup
                         if (dnsResults != null) {
