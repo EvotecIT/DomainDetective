@@ -4,7 +4,6 @@ using System.Net;
 using System.Threading.Tasks;
 using DnsClient;
 using DnsClientX;
-using DomainDetective.Protocols;
 
 namespace DomainDetective {
     public enum HealthCheckType {
@@ -42,7 +41,7 @@ namespace DomainDetective {
 
         public async Task VerifyDKIM(string domainName, string[] selectors) {
             foreach (var selector in selectors) {
-                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", "DOH", "DKIM1");
+                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", DnsProvider.DnsOverHttps, "DKIM1");
                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
             }
         }
@@ -61,28 +60,28 @@ namespace DomainDetective {
             foreach (var healthCheckType in healthCheckTypes) {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
-                        var dmarc = await QueryDNS("_dmarc." + domainName, "TXT", "DOH", "DMARC1");
+                        var dmarc = await QueryDNS("_dmarc." + domainName, "TXT", DnsProvider.DnsOverHttps, "DMARC1");
                         await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger);
                         break;
                     case HealthCheckType.SPF:
-                        var spf = await QueryDNS(domainName, "TXT", "DOH", "SPF1");
+                        var spf = await QueryDNS(domainName, "TXT", DnsProvider.DnsOverHttps, "SPF1");
                         //var spf = await QueryDNS(domainName, "TXT", "DNS", "SPF1");
                         await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
                         break;
                     case HealthCheckType.DKIM:
                         if (dkimSelectors != null) {
                             foreach (var selector in dkimSelectors) {
-                                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", "DOH", "DKIM1");
+                                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", DnsProvider.DnsOverHttps, "DKIM1");
                                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                             }
                         }
                         break;
                     case HealthCheckType.MX:
-                        var mx = await QueryDNS(domainName, "MX", "DOH", "");
+                        var mx = await QueryDNS(domainName, "MX", DnsProvider.DnsOverHttps, "");
                         await MXAnalysis.AnalyzeMxRecords(mx, _logger);
                         break;
                     case HealthCheckType.CAA:
-                        var caa = await QueryDNS(domainName, "CAA", "DOH", "");
+                        var caa = await QueryDNS(domainName, "CAA", DnsProvider.DnsOverHttps, "");
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
                         break;
                 }
@@ -134,11 +133,11 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        internal static async Task<IEnumerable<DnsResult>> QueryDNS(string domainName, string dnsType, string provider, string filter, DnsEndpoint? dohEndpoint = null, string serverName = "") {
-            if (provider == "DOH") {
+        internal static async Task<IEnumerable<DnsResult>> QueryDNS(string domainName, string dnsType, DnsProvider provider, string filter, DnsEndpoint? dohEndpoint = null, string serverName = "") {
+            if (provider == DnsProvider.DnsOverHttps) {
                 var queryResponseDOH = await QueryDOH(domainName, (DnsRecordType)Enum.Parse(typeof(DnsRecordType), dnsType));
                 return DnsResult.TranslateFromDohResponse(queryResponseDOH, dnsType, filter);
-            } else if (provider == "DNS") {
+            } else if (provider == DnsProvider.Standard) {
                 var queryResponse = await QueryDNSServer(domainName, (QueryType)Enum.Parse(typeof(QueryType), dnsType));
                 return DnsResult.TranslateFromDnsQueryResponse(queryResponse, dnsType, filter);
             } else {
@@ -168,10 +167,9 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<DnsResponse> QueryDOH(string domainName, DnsRecordType queryType, DnsEndpoint? dohEndpoint = DnsEndpoint.Cloudflare) {
-            dohEndpoint ??= DnsEndpoint.Cloudflare;
-            _logger.WriteVerbose($"Querying for {domainName} of type {queryType} using {dohEndpoint.Value}");
-            var client = new DnsClientX.DnsClientX(dohEndpoint.Value);
+        private static async Task<DnsResponse> QueryDOH(string domainName, DnsRecordType queryType, DnsEndpoint dohEndpoint = DnsEndpoint.Google) {
+            _logger.WriteVerbose($"Querying for {domainName} of type {queryType} using {dohEndpoint}");
+            var client = new DnsClientX.ClientX(dohEndpoint);
             var response = await client.Resolve(domainName, queryType);
             return response;
         }
