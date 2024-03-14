@@ -44,7 +44,7 @@ namespace DomainDetective {
                 var dnsResult = new DnsResult {
                     Name = answer.Name,
                     Data = answer.DataStringsEscaped,
-                    DataJoined = data
+                    DataJoined = answer.Data
                 };
                 yield return dnsResult;
             }
