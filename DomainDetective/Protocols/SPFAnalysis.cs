@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace DomainDetective.Protocols {
+namespace DomainDetective {
     /// <summary>
     ///
     /// To validate an SPF record according to the RFC 7208 standard, you would need to check for several things.Here are some of the key points:
@@ -104,7 +104,7 @@ namespace DomainDetective.Protocols {
                         DnsLookups.Add(domain);
 
                         // TODO: change provider/protocol to use DOH or DNS based on user choices
-                        var dnsResults = await DomainHealthCheck.QueryDNS(domain, "TXT", "DNS", "SPF1");
+                        var dnsResults = await DomainHealthCheck.QueryDNS(domain, "TXT", DnsProvider.DnsOverHttps, "SPF1");
                         dnsLookups++; // count the DNS lookup
                         if (dnsResults != null) {
                             // recursively analyze the results of the DNS lookup

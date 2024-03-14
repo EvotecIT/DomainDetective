@@ -3,7 +3,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
-namespace DomainDetective.Protocols {
+namespace DomainDetective {
     /// <summary>
     ///
     ///
@@ -38,15 +38,15 @@ namespace DomainDetective.Protocols {
             // loop through the MX records for remaining checks
             foreach (var mxRecord in MxRecords) {
                 // check if the MX record points to a CNAME
-                var cnameResults = await DomainHealthCheck.QueryDNS(mxRecord, "CNAME", "DNS", "");
+                var cnameResults = await DomainHealthCheck.QueryDNS(mxRecord, "CNAME", DnsProvider.DnsOverHttps, "");
                 PointsToCname = cnameResults != null && cnameResults.Any();
 
                 // check if the MX record points to an IP address
                 PointsToIpAddress = IPAddress.TryParse(mxRecord, out _);
 
                 // check if the MX record points to a non-existent domain
-                var aResults = await DomainHealthCheck.QueryDNS(mxRecord, "A", "DNS", "");
-                var aaaaResults = await DomainHealthCheck.QueryDNS(mxRecord, "AAAA", "DNS", "");
+                var aResults = await DomainHealthCheck.QueryDNS(mxRecord, "A", DnsProvider.DnsOverHttps, "");
+                var aaaaResults = await DomainHealthCheck.QueryDNS(mxRecord, "AAAA", DnsProvider.DnsOverHttps, "");
                 PointsToNonExistentDomain = (aResults == null || !aResults.Any()) && (aaaaResults == null || !aaaaResults.Any());
 
                 // check if the MX record points to a domain without an A or AAAA record
