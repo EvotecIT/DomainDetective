@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace DomainDetective.Protocols;
+namespace DomainDetective;
 
 public class CAAAnalysis {
     public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();

@@ -1,4 +1,4 @@
-﻿namespace DomainDetective.Protocols {
+﻿namespace DomainDetective {
     internal class DANEAnalysis {
     }
 }
