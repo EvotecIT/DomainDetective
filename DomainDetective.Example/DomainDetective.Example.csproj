@@ -8,6 +8,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <PackageReference Include="Spectre.Console" Version="0.48.0" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
 	</ItemGroup>
 
