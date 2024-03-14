@@ -17,6 +17,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DomainDetective.Tests", "Do
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DnsClientX", "..\DnsClientX\DnsClientX\DnsClientX.csproj", "{28B4D581-FD21-4129-9ADA-145E6D1A1C4C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DomainDetective.PowerShell", "DomainDetective.PowerShell\DomainDetective.PowerShell.csproj", "{140A5CF2-5088-4030-BF0F-D87744D93F60}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{28B4D581-FD21-4129-9ADA-145E6D1A1C4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{28B4D581-FD21-4129-9ADA-145E6D1A1C4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{28B4D581-FD21-4129-9ADA-145E6D1A1C4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{140A5CF2-5088-4030-BF0F-D87744D93F60}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{140A5CF2-5088-4030-BF0F-D87744D93F60}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{140A5CF2-5088-4030-BF0F-D87744D93F60}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{140A5CF2-5088-4030-BF0F-D87744D93F60}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
