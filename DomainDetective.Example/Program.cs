@@ -1,18 +1,12 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Spectre.Console;
-using Spectre.Console.Rendering;
+﻿using System.Threading.Tasks;
 
 namespace DomainDetective.Example;
 
 public static partial class Program {
     public static async Task Main() {
         // run the analysis of SPF
-        await ExampleAnalyseByDnsSPF();
-        await ExampleAnalyseByStringSPF();
+        //await ExampleAnalyseByDnsSPF();
+        //await ExampleAnalyseByStringSPF();
         // run the analysis of DMARC
         //await ExampleAnalyseByStringDMARC();
         //await ExampleAnalyseByDomainDMARC();
@@ -24,5 +18,6 @@ public static partial class Program {
         // run the analysis of CAA
         await ExampleAnalyseByDomainCAA();
         await ExampleAnalyseByStringCAA();
+        await ExampleAnalysByListCAA();
     }
 }
