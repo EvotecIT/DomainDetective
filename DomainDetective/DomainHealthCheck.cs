@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using DnsClient;
@@ -131,6 +132,14 @@ namespace DomainDetective {
                     DataJoined = caaRecord
                 }
             }, _logger);
+        }
+        public async Task CheckCAA(List<string> caaRecords) {
+            var dnsResults = caaRecords.Select(record => new DnsResult {
+                Data = new[] { record },
+                DataJoined = record
+            }).ToList();
+
+            await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
         }
 
         internal static async Task<IEnumerable<DnsResult>> QueryDNS(string domainName, string dnsType, DnsProvider provider, string filter, DnsEndpoint? dohEndpoint = null, string serverName = "") {
