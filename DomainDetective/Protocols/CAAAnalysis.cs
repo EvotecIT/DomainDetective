@@ -26,6 +26,26 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         public List<string> CanIssueCertificatesForDomain { get; set; } = new List<string>();
         public List<string> CanIssueWildcardCertificatesForDomain { get; set; } = new List<string>();
 
+        public List<string> CanIssueMail { get; set; } = new List<string>();
+
+        public List<string> ReportViolationEmail { get; set; } = new List<string>();
+
+        public bool Conflicting { get; set; }
+
+        public bool ConflictingMailIssuance { get; set; }
+        public bool ConflictingCertificateIssuance { get; set; }
+        public bool ConflictingWildcardCertificateIssuance { get; set; }
+
+        public bool Valid {
+            get {
+                if (!Conflicting && InvalidRecords == 0) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
         public async Task AnalyzeCAARecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
@@ -58,9 +78,9 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         // Validate tag and set the Tag property
                         var validTags = new Dictionary<string, CAATagType> {
                             { "issue", CAATagType.Issue },
-                            { "issuewild", CAATagType.Issuewild },
+                            { "issuewild", CAATagType.IssueWildcard },
                             { "iodef", CAATagType.Iodef },
-                            { "issuemail", CAATagType.Issuemail }
+                            { "issuemail", CAATagType.IssueMail }
                         };
                         if (validTags.TryGetValue(tag, out var tagType)) {
                             analysis.Tag = tagType;
@@ -96,7 +116,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         }
 
                         // Additional validation for issue, issuewild, and issuemail tags
-                        if (tagType == CAATagType.Issue || tagType == CAATagType.Issuewild || tagType == CAATagType.Issuemail) {
+                        if (tagType == CAATagType.Issue || tagType == CAATagType.IssueWildcard || tagType == CAATagType.IssueMail) {
                             var isValueOnlySemicolon = value == ";";
                             if (isValueOnlySemicolon) {
                                 analysis.Value = value;
@@ -119,7 +139,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                                 }
                             }
 
-                            analysis.CAName = domainName;
+                            analysis.Issuer = domainName;
 
                             // Parse additional parameters
                             var parameters = new Dictionary<string, string>();
@@ -136,8 +156,6 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                                     }
                                 }
                             }
-
-
 
                             analysis.Parameters = parameters;
                         }
@@ -157,30 +175,92 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     analysis.Invalid = false;
                 }
 
+                if (analysis.Tag == CAATagType.IssueMail) {
+                    if (analysis.Value == ";") {
+                        analysis.DenyMailCertificateIssuance = true;
+                    } else {
+                        analysis.AllowMailCertificateIssuance = true;
+                    }
+                } else if (analysis.Tag == CAATagType.Issue) {
+                    if (analysis.Value == ";") {
+                        analysis.DenyCertificateIssuance = true;
+                    } else {
+                        analysis.AllowCertificateIssuance = true;
+                    }
+                } else if (analysis.Tag == CAATagType.IssueWildcard) {
+                    if (analysis.Value == ";") {
+                        analysis.DenyWildcardCertificateIssuance = true;
+                    } else {
+                        analysis.AllowWildcardCertificateIssuance = true;
+                    }
+                } else if (analysis.Tag == CAATagType.Iodef) {
+                    analysis.IsContactRecord = true;
+                }
+
                 AnalysisResults.Add(analysis);
             }
 
-            GenerateSummary();
+            CheckForConflicts();
+            GenerateLists();
         }
-        public void GenerateSummary() {
-            // var summary = new StringBuilder();
-            // summary.AppendLine($"Interpreted CAA records\nHere's what the found CAA records mean.\n");
-            // summary.AppendLine($"The following Certificate Authorities can issue certificates for the domain evotec.pl.\n");
+        public void GenerateLists() {
+            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue)) {
+                if (analysis.Value == ";") {
+                    // Do nothing
+                } else {
+                    CanIssueCertificatesForDomain.Add(analysis.Issuer);
+                }
+            }
+            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard)) {
+                if (analysis.Value == ";") {
+                    // Do nothing
+                } else {
+                    CanIssueWildcardCertificatesForDomain.Add(analysis.Issuer);
+                }
+            }
+            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail)) {
+                if (analysis.Value == ";") {
 
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters)) {
-                //   summary.AppendLine(analysis.Value);
-                CanIssueCertificatesForDomain.Add(analysis.CAName);
+                } else {
+                    CanIssueMail.Add(analysis.Value);
+                }
+            }
+            foreach (var analysis in AnalysisResults.Where(a => a.IsContactRecord)) {
+                ReportViolationEmail.Add(analysis.Value);
+            }
+        }
+
+        public void CheckForConflicts() {
+            var allowCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowCertificateIssuance);
+            var denyCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyCertificateIssuance);
+            var conflictingCertificateIssuance = allowCertificateIssuanceRecords.Any() && denyCertificateIssuanceRecords.Any();
+
+            var allowWildcardCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowWildcardCertificateIssuance);
+            var denyWildcardCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyWildcardCertificateIssuance);
+            var conflictingWildcardCertificateIssuance = allowWildcardCertificateIssuanceRecords.Any() && denyWildcardCertificateIssuanceRecords.Any();
+
+            var allowMailCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowMailCertificateIssuance);
+            var denyMailCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyMailCertificateIssuance);
+            var conflictingMailCertificateIssuance = allowMailCertificateIssuanceRecords.Any() && denyMailCertificateIssuanceRecords.Any();
+
+            if (conflictingCertificateIssuance || conflictingWildcardCertificateIssuance || conflictingMailCertificateIssuance) {
+                Conflicting = true;
             }
 
-            // summary.AppendLine($"The following Certificate Authorities can issue wildcard certificates (*.evotec.pl).\n");
-
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issuewild)) {
-                //   summary.AppendLine(analysis.Value);
-                CanIssueWildcardCertificatesForDomain.Add(analysis.CAName);
+            if (conflictingCertificateIssuance) {
+                ConflictingCertificateIssuance = true;
             }
 
-            // return summary.ToString();
+            if (conflictingWildcardCertificateIssuance) {
+                ConflictingWildcardCertificateIssuance = true;
+            }
+
+            if (conflictingMailCertificateIssuance) {
+                ConflictingMailIssuance = true;
+            }
         }
+
+
     }
 
     public class CAARecordAnalysis {
@@ -188,22 +268,28 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         public string Flag { get; set; }
         public CAATagType Tag { get; set; }
         public string Value { get; set; }
-        public string CAName { get; set; }
-
+        public string Issuer { get; set; }
         public bool Invalid { get; set; }
         public bool InvalidFlag { get; set; }
         public bool InvalidTag { get; set; }
         public bool InvalidValueUnescapedQuotes { get; set; }
         public bool InvalidValueWrongDomain { get; set; }
         public bool InvalidValueWrongParameters { get; set; }
-        public Dictionary<string, string> Parameters { get; set; }
+        public bool DenyCertificateIssuance { get; set; }
+        public bool DenyWildcardCertificateIssuance { get; set; }
+        public bool DenyMailCertificateIssuance { get; set; }
+        public bool AllowCertificateIssuance { get; set; }
+        public bool AllowWildcardCertificateIssuance { get; set; }
+        public bool AllowMailCertificateIssuance { get; set; }
+        public bool IsContactRecord { get; set; }
+        public Dictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();
     }
 
     public enum CAATagType {
         Unknown,
         Issue,
-        Issuewild,
+        IssueWildcard,
         Iodef,
-        Issuemail
+        IssueMail
     }
 }
