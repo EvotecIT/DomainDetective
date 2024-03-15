@@ -36,9 +36,6 @@ namespace DomainDetective.Example {
                     var obj = entry.Value;
                     var properties = obj.GetType().GetProperties();
                     foreach (var property in properties) {
-                        //table.AddColumn(property.Name);
-
-
                         var value = property.GetValue(obj);
                         if (value is IList listValue) {
                             var listString = string.Join(", ", listValue.Cast<object>());
@@ -60,7 +57,20 @@ namespace DomainDetective.Example {
                             var listString = string.Join(", ", listValue.Cast<object>());
                             table.AddRow(property.Name, listString);
                         } else {
-                            table.AddRow(property.Name, value?.ToString() ?? "null");
+                            if (value is IDictionary dictionaryValue) {
+                                var nestedTable = new Table().Border(TableBorder.Rounded);
+                                nestedTable.AddColumn("Key");
+                                nestedTable.AddColumn("Value");
+
+                                foreach (DictionaryEntry entry in dictionaryValue) {
+                                    var escapedKey = Markup.Escape(entry.Key.ToString());
+                                    var escapedValue = Markup.Escape(entry.Value?.ToString() ?? "null");
+                                    nestedTable.AddRow(escapedKey, escapedValue);
+                                }
+                                table.AddRow(new Markup(property.Name), nestedTable);
+                            } else {
+                                table.AddRow(property.Name, value?.ToString() ?? "null");
+                            }
                         }
                     }
                 }
