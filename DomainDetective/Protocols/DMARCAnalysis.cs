@@ -125,11 +125,14 @@ namespace DomainDetective {
         private string TranslateAlignment(string alignment) {
             switch (alignment) {
                 case "s":
-                    return "strict";
+                    return "Strict";
                 case "r":
-                    return "relaxed";
+                    return "Relaxed";
+                case null:
+                case "":
+                    return "Relaxed (default)"; // default to relaxed if no value is provided
                 default:
-                    return "relaxed (default)"; // default to relaxed if no value is provided
+                    return "Unknown";
             }
         }
 
