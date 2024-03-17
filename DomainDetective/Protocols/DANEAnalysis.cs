@@ -14,6 +14,7 @@ namespace DomainDetective {
         public List<DANERecordAnalysis> AnalysisResults { get; private set; } = new List<DANERecordAnalysis>();
         public int NumberOfRecords { get; private set; }
         public bool HasDuplicateRecords { get; private set; }
+        public bool HasInvalidRecords { get; set; }
 
 
         public async Task AnalyzeDANERecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
@@ -112,9 +113,11 @@ namespace DomainDetective {
                 // Add the analysis to the results
                 AnalysisResults.Add(analysis);
             }
+
+            HasInvalidRecords = AnalysisResults.Any(x => !x.ValidDANERecord);
         }
 
-        public bool ValidateUsage(string usage) {
+        private bool ValidateUsage(string usage) {
             bool isNumeric = int.TryParse(usage, out var usageValue);
 
             if (!isNumeric) {
@@ -131,8 +134,7 @@ namespace DomainDetective {
                     return false;
             }
         }
-
-        public bool ValidateSelector(string selector) {
+        private bool ValidateSelector(string selector) {
             bool isNumeric = int.TryParse(selector, out var selectorValue);
 
             if (!isNumeric) {
@@ -147,7 +149,7 @@ namespace DomainDetective {
                     return false;
             }
         }
-        public string TranslateUsage(int usage) {
+        private string TranslateUsage(int usage) {
             switch (usage) {
                 case 0:
                     return "PKIX-TA: CA Constraint";
@@ -162,7 +164,7 @@ namespace DomainDetective {
             }
         }
 
-        public string TranslateSelector(int selector) {
+        private string TranslateSelector(int selector) {
             switch (selector) {
                 case 0:
                     return "Cert: Full Certificate";
@@ -173,7 +175,7 @@ namespace DomainDetective {
             }
         }
 
-        public string TranslateMatchingType(int matchingType) {
+        private string TranslateMatchingType(int matchingType) {
             switch (matchingType) {
                 case 0:
                     return "Full: Full Certificate or SPKI";
@@ -186,7 +188,7 @@ namespace DomainDetective {
             }
         }
 
-        public bool IsHexadecimal(string input) {
+        private bool IsHexadecimal(string input) {
             return System.Text.RegularExpressions.Regex.IsMatch(input, @"\A\b[0-9a-fA-F]+\b\Z");
         }
     }
