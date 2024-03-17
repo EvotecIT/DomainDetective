@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using DnsClient;
@@ -9,6 +10,8 @@ namespace DomainDetective {
         public string Name { get; set; }
         public string[] Data { get; set; }
         public string DataJoined { get; set; }
+
+        internal ServiceType ServiceType { get; set; }
 
         public static IEnumerable<DnsResult> TranslateFromDnsQueryResponse(IDnsQueryResponse response, string type, string filter) {
             if (response == null || response.Answers == null) {
