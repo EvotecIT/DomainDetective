@@ -1,4 +1,4 @@
-﻿using DnsClient.Protocol;
+using DnsClient.Protocol;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -17,7 +17,7 @@ public static partial class Program {
         Helpers.ShowPropertiesTable(analysisOf: "CAA Example by String", objs: healthCheck.CAAAnalysis.AnalysisResults);
     }
 
-    public static async Task ExampleAnalysByListCAA() {
+    public static async Task ExampleAnalyseByListCAA() {
         List<string> caaRecords = new List<string> {
             "0 issue \"digicert.com; cansignhttpexchanges=yes\"",
             "0 issue \"letsencrypt.org;validationmethods=dns-01\"",
