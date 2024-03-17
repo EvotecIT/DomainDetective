@@ -1,21 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Threading.Tasks;
-using DnsClient;
 using DnsClientX;
 
 namespace DomainDetective {
-    public enum HealthCheckType {
-        DMARC,
-        SPF,
-        DKIM,
-        MX,
-        CAA
-    }
-
-    public class DomainHealthCheck : Settings {
+    public partial class DomainHealthCheck : Settings {
         /// <summary>
         /// Gets the dmarc analysis.
         /// </summary>
@@ -38,6 +28,8 @@ namespace DomainDetective {
 
         public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
+        public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
+
         public List<DnsAnswer> Answers;
 
         public async Task VerifyDKIM(string domainName, string[] selectors) {
@@ -47,14 +39,15 @@ namespace DomainDetective {
             }
         }
 
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null) {
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null) {
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
                     HealthCheckType.DMARC,
                     HealthCheckType.SPF,
                     HealthCheckType.DKIM,
                     HealthCheckType.MX,
-                    HealthCheckType.CAA
+                    HealthCheckType.CAA,
+                    HealthCheckType.DANE,
                 };
             }
 
@@ -75,6 +68,9 @@ namespace DomainDetective {
                                 var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", DnsProvider.DnsOverHttps, "DKIM1");
                                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                             }
+                        } else {
+                            // lets guess DKIM selectors based on common ones - first lets create a list of common selectors
+                            // TODO: Add more common selectors, and maybe guess based on MX/SPF records
                         }
                         break;
                     case HealthCheckType.MX:
@@ -84,6 +80,9 @@ namespace DomainDetective {
                     case HealthCheckType.CAA:
                         var caa = await QueryDNS(domainName, "CAA", DnsProvider.DnsOverHttps, "");
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
+                        break;
+                    case HealthCheckType.DANE:
+                        await VerifyDANE(domainName, daneServiceType);
                         break;
                 }
             }
@@ -142,45 +141,62 @@ namespace DomainDetective {
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
         }
 
-        internal static async Task<IEnumerable<DnsResult>> QueryDNS(string domainName, string dnsType, DnsProvider provider, string filter, DnsEndpoint? dohEndpoint = null, string serverName = "") {
-            if (provider == DnsProvider.DnsOverHttps) {
-                var queryResponseDOH = await QueryDOH(domainName, (DnsRecordType)Enum.Parse(typeof(DnsRecordType), dnsType));
-                return DnsResult.TranslateFromDohResponse(queryResponseDOH, dnsType, filter);
-            } else if (provider == DnsProvider.Standard) {
-                var queryResponse = await QueryDNSServer(domainName, (QueryType)Enum.Parse(typeof(QueryType), dnsType));
-                return DnsResult.TranslateFromDnsQueryResponse(queryResponse, dnsType, filter);
-            } else {
-                throw new Exception("Invalid provider");
-            }
+        public async Task CheckDANE(string daneRecord) {
+            await DaneAnalysis.AnalyzeDANERecords(new List<DnsResult> {
+                new DnsResult {
+                    Data = new[] {daneRecord},
+                    DataJoined = daneRecord
+                }
+            }, _logger);
         }
 
-        private static async Task<IDnsQueryResponse> QueryDNSServer(string domainName, QueryType queryType, string serverName = "") {
-            LookupClientOptions options;
-            if (serverName == "") {
-                _logger.WriteVerbose($"Querying for {domainName} of type {queryType}");
-                options = new LookupClientOptions();
-            } else {
-                _logger.WriteVerbose($"Querying for {domainName} of type {queryType} using {serverName}");
-                var endpoint = new IPEndPoint(IPAddress.Parse(serverName), 0);
-                options = new LookupClientOptions(endpoint);
+        public async Task VerifyDANE(string domainName, int[] ports) {
+            var allDaneRecords = new List<DnsResult>();
+            foreach (var port in ports) {
+                var dane = await QueryDNS($"_{port}._tcp.{domainName}", "TLSA", DnsProvider.DnsOverHttps, "");
+                allDaneRecords.AddRange(dane);
             }
-            options.Timeout = TimeSpan.FromSeconds(2);
-            var lookup = new LookupClient(options);
 
-            try {
-                var result = await lookup.QueryAsync(domainName, queryType);
-                return result;
-            } catch (DnsResponseException ex) {
-                _logger.WriteWarning($"DNS query for {domainName} of type {queryType} failed: {ex.Message}");
-                return null; // or handle the exception in another appropriate way
-            }
+            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
 
-        private static async Task<DnsResponse> QueryDOH(string domainName, DnsRecordType queryType, DnsEndpoint dohEndpoint = DnsEndpoint.Google) {
-            _logger.WriteVerbose($"Querying for {domainName} of type {queryType} using {dohEndpoint}");
-            var client = new DnsClientX.ClientX(dohEndpoint);
-            var response = await client.Resolve(domainName, queryType);
-            return response;
+        public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes) {
+            if (serviceTypes == null || serviceTypes.Length == 0) {
+                serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
+            }
+
+            var allDaneRecords = new List<DnsResult>();
+            foreach (var serviceType in serviceTypes) {
+                string service;
+                int port;
+                switch (serviceType) {
+                    case ServiceType.SMTP:
+                        service = "MX";
+                        port = (int)ServiceType.SMTP;
+                        break;
+                    case ServiceType.HTTPS:
+                        service = "A";
+                        port = (int)ServiceType.HTTPS;
+                        break;
+                    default:
+                        throw new System.Exception("Service type not implemented.");
+                }
+
+                var records = await QueryDNS(domainName, service, DnsProvider.DnsOverHttps, "");
+                var recordData = records.SelectMany(x => x.Data).ToList();
+                foreach (var record in recordData) {
+                    var domain = service == "MX" ? record.Split(' ')[1] : record;
+                    var dan = await QueryDNS($"_{port}._tcp.{domain}", "TLSA", DnsProvider.DnsOverHttps, "");
+                    if (dan.Any()) {
+                        var dane = dan.ToList();
+                        for (int i = 0; i < dane.Count; i++) {
+                            dane[i].ServiceType = serviceType;
+                        }
+                        allDaneRecords.AddRange(dane);
+                    }
+                }
+            }
+            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
     }
 }
