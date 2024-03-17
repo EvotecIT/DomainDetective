@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace DomainDetective.Example;
 
@@ -16,8 +16,11 @@ public static partial class Program {
         // run the analysis of MX
         //await ExampleAnalyseMX();
         // run the analysis of CAA
-        await ExampleAnalyseByDomainCAA();
-        await ExampleAnalyseByStringCAA();
-        await ExampleAnalysByListCAA();
+        //await ExampleAnalyseByDomainCAA();
+        //await ExampleAnalyseByStringCAA();
+        //await ExampleAnalysByListCAA();
+
+        await ExampleAnalyseByDomainDANE();
+        await ExampleAnalyseByStringDANE();
     }
 }
