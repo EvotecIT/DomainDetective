@@ -6,7 +6,6 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="DnsClient" Version="1.7.0" />
 		<PackageReference Include="MailKit" Version="4.4.0" />
 	</ItemGroup>
 
