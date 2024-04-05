@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -17,10 +18,10 @@ namespace DomainDetective {
         public bool HasInvalidRecords { get; set; }
 
 
-        public async Task AnalyzeDANERecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             var daneRecordList = dnsResults.ToList();
 
-            var duplicateRecords = daneRecordList.GroupBy(x => x.DataJoined).Where(g => g.Count() > 1).ToList();
+            var duplicateRecords = daneRecordList.GroupBy(x => x.Data).Where(g => g.Count() > 1).ToList();
             if (duplicateRecords.Any()) {
                 HasDuplicateRecords = true;
             }
@@ -30,11 +31,11 @@ namespace DomainDetective {
             foreach (var record in daneRecordList) {
                 var analysis = new DANERecordAnalysis();
                 analysis.DomainName = record.Name;
-                analysis.DANERecord = record.DataJoined;
-                logger.WriteVerbose($"Analyzing DANE record {record.DataJoined}");
+                analysis.DANERecord = record.Data;
+                logger.WriteVerbose($"Analyzing DANE record {record.Data}");
 
                 // Split the DANE record into its components
-                var components = record.DataJoined.Split(' ');
+                var components = record.Data.Split(' ');
 
                 // Validate the components according to the rules defined in RFC 6698
                 // For example, the first component should be a usage field, the second should be a selector field, etc.
@@ -90,22 +91,22 @@ namespace DomainDetective {
                     analysis.ValidMatchingType = false;
                 }
 
-                analysis.ServiceType = record.ServiceType;
+                //analysis.ServiceType = record.ServiceType;
 
-                // Check if the DANE record is appropriate for the service type
-                switch (record.ServiceType) {
-                    case ServiceType.SMTP:
-                        // Perform checks specific to MX services
-                        analysis.IsValidChoiceForSmtp = usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
-                        break;
-                    case ServiceType.HTTPS:
-                        // Perform checks specific to WWW services
+                //// Check if the DANE record is appropriate for the service type
+                //switch (record.ServiceType) {
+                //    case ServiceType.SMTP:
+                //        // Perform checks specific to MX services
+                //        analysis.IsValidChoiceForSmtp = usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
+                //        break;
+                //    case ServiceType.HTTPS:
+                //        // Perform checks specific to WWW services
 
-                        break;
-                    default:
-                        //throw new Exception($"Unsupported service type: {record.ServiceType}");
-                        break;
-                }
+                //        break;
+                //    default:
+                //        //throw new Exception($"Unsupported service type: {record.ServiceType}");
+                //        break;
+                //}
 
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
