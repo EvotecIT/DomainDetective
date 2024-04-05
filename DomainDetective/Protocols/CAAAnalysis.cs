@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective {
 
@@ -48,7 +49,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
-        public async Task AnalyzeCAARecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             var caaRecordList = dnsResults.ToList();
 
             DomainName = caaRecordList.First().Name;
@@ -56,115 +57,113 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             foreach (var record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();
 
-                foreach (var data in record.Data) {
-                    var caaRecord = data;
+                var caaRecord = record.Data;
 
-                    logger.WriteVerbose($"Analyzing CAA record {caaRecord}");
+                logger.WriteVerbose($"Analyzing CAA record {caaRecord}");
 
-                    analysis.CAARecord = caaRecord;
+                analysis.CAARecord = caaRecord;
 
-                    var properties = caaRecord.Split(new[] { ' ' }, 3); // Split into 3 parts at most
-                    if (properties.Length == 3) {
-                        var flag = int.Parse(properties[0].Trim());
-                        var tag = properties[1].Trim();
-                        var value = properties[2];
+                var properties = caaRecord.Split(new[] { ' ' }, 3); // Split into 3 parts at most
+                if (properties.Length == 3) {
+                    var flag = int.Parse(properties[0].Trim());
+                    var tag = properties[1].Trim();
+                    var value = properties[2];
 
-                        // Validate flag
-                        analysis.Flag = flag.ToString();
-                        if (flag < 0 || flag > 255) {
-                            analysis.InvalidFlag = true;
-                        }
+                    // Validate flag
+                    analysis.Flag = flag.ToString();
+                    if (flag < 0 || flag > 255) {
+                        analysis.InvalidFlag = true;
+                    }
 
-                        // Validate tag and set the Tag property
-                        var validTags = new Dictionary<string, CAATagType> {
+                    // Validate tag and set the Tag property
+                    var validTags = new Dictionary<string, CAATagType> {
                             { "issue", CAATagType.Issue },
                             { "issuewild", CAATagType.IssueWildcard },
                             { "iodef", CAATagType.Iodef },
                             { "issuemail", CAATagType.IssueMail }
                         };
-                        if (validTags.TryGetValue(tag, out var tagType)) {
-                            analysis.Tag = tagType;
-                        } else {
-                            analysis.Tag = CAATagType.Unknown;
-                            analysis.InvalidTag = true;
-                            //continue;
-                        }
+                    if (validTags.TryGetValue(tag, out var tagType)) {
+                        analysis.Tag = tagType;
+                    } else {
+                        analysis.Tag = CAATagType.Unknown;
+                        analysis.InvalidTag = true;
+                        //continue;
+                    }
 
-                        // Validate value
-                        // Validate value
-                        bool isValueQuoted = value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"';
-                        if (isValueQuoted || !value.Contains(" ")) {
-                            if (isValueQuoted) {
-                                // Remove the wrapping double quotes
-                                value = value.Substring(1, value.Length - 2);
+                    // Validate value
+                    // Validate value
+                    bool isValueQuoted = value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"';
+                    if (isValueQuoted || !value.Contains(" ")) {
+                        if (isValueQuoted) {
+                            // Remove the wrapping double quotes
+                            value = value.Substring(1, value.Length - 2);
 
-                                // Check for unescaped inner double quotes
-                                if (value.Contains("\"")) {
-                                    analysis.InvalidValueUnescapedQuotes = true;
-                                    //  continue;
-                                }
-
-                                // Replace escaped double quotes with actual double quotes
-                                value = value.Replace("\\\"", "\"");
+                            // Check for unescaped inner double quotes
+                            if (value.Contains("\"")) {
+                                analysis.InvalidValueUnescapedQuotes = true;
+                                //  continue;
                             }
 
-                            // Existing code for additional validation...
-                            analysis.Value = value; // Move this line outside the if block
-                        } else {
-                            analysis.InvalidValueUnescapedQuotes = true;
-                            //continue;
+                            // Replace escaped double quotes with actual double quotes
+                            value = value.Replace("\\\"", "\"");
                         }
 
-                        // Additional validation for issue, issuewild, and issuemail tags
-                        if (tagType == CAATagType.Issue || tagType == CAATagType.IssueWildcard || tagType == CAATagType.IssueMail) {
-                            var isValueOnlySemicolon = value == ";";
-                            if (isValueOnlySemicolon) {
-                                analysis.Value = value;
-                                continue;
+                        // Existing code for additional validation...
+                        analysis.Value = value; // Move this line outside the if block
+                    } else {
+                        analysis.InvalidValueUnescapedQuotes = true;
+                        //continue;
+                    }
+
+                    // Additional validation for issue, issuewild, and issuemail tags
+                    if (tagType == CAATagType.Issue || tagType == CAATagType.IssueWildcard || tagType == CAATagType.IssueMail) {
+                        var isValueOnlySemicolon = value == ";";
+                        if (isValueOnlySemicolon) {
+                            analysis.Value = value;
+                            continue;
+                        }
+                        var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
+                        var domainName = parts[0].Trim();
+                        if (string.IsNullOrEmpty(domainName)) {
+                            // The domain name can be left empty, which must be indicated providing just ";" as a value
+                            if (parts.Length > 1) {
+                                analysis.InvalidValueWrongParameters = true;
+                                // continue;
                             }
-                            var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
-                            var domainName = parts[0].Trim();
-                            if (string.IsNullOrEmpty(domainName)) {
-                                // The domain name can be left empty, which must be indicated providing just ";" as a value
-                                if (parts.Length > 1) {
+
+                        } else {
+                            // It must contain a domain name
+                            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                                analysis.InvalidValueWrongDomain = true;
+                                // continue;
+                            }
+                        }
+
+                        analysis.Issuer = domainName;
+
+                        // Parse additional parameters
+                        var parameters = new Dictionary<string, string>();
+                        if (parts.Length > 1) {
+                            var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                            for (int i = 0; i < paramParts.Length; i++) {
+                                var trimmedPart = paramParts[i].Trim();
+                                var keyValue = trimmedPart.Split('=');
+                                if (keyValue.Length == 2) {
+                                    parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
+                                } else {
                                     analysis.InvalidValueWrongParameters = true;
                                     // continue;
                                 }
-
-                            } else {
-                                // It must contain a domain name
-                                if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
-                                    analysis.InvalidValueWrongDomain = true;
-                                    // continue;
-                                }
                             }
-
-                            analysis.Issuer = domainName;
-
-                            // Parse additional parameters
-                            var parameters = new Dictionary<string, string>();
-                            if (parts.Length > 1) {
-                                var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                                for (int i = 0; i < paramParts.Length; i++) {
-                                    var trimmedPart = paramParts[i].Trim();
-                                    var keyValue = trimmedPart.Split('=');
-                                    if (keyValue.Length == 2) {
-                                        parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
-                                    } else {
-                                        analysis.InvalidValueWrongParameters = true;
-                                        // continue;
-                                    }
-                                }
-                            }
-
-                            analysis.Parameters = parameters;
                         }
-                        analysis.Value = value;
-                    } else {
-                        analysis.InvalidFlag = true;
-                        analysis.InvalidTag = true;
-                        analysis.InvalidValueUnescapedQuotes = true;
+
+                        analysis.Parameters = parameters;
                     }
+                    analysis.Value = value;
+                } else {
+                    analysis.InvalidFlag = true;
+                    analysis.InvalidTag = true;
+                    analysis.InvalidValueUnescapedQuotes = true;
                 }
 
                 if (analysis.InvalidFlag || analysis.InvalidTag || analysis.InvalidValueUnescapedQuotes || analysis.InvalidValueWrongDomain || analysis.InvalidValueWrongParameters) {
