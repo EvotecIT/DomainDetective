@@ -20,22 +20,34 @@ namespace DomainDetective {
         /// <value>
         /// The SPF analysis.
         /// </value>
-        public SpfAnalysis SpfAnalysis { get; private set; } = new SpfAnalysis();
+        public SpfAnalysis SpfAnalysis { get; private set; } = new SpfAnalysis() {
+            DnsConfiguration = new DnsConfiguration()
+        };
 
         public DkimAnalysis DKIMAnalysis { get; private set; } = new DkimAnalysis();
 
-        public MXAnalysis MXAnalysis { get; private set; } = new MXAnalysis();
+        public MXAnalysis MXAnalysis { get; private set; } = new MXAnalysis() {
+            DnsConfiguration = new DnsConfiguration()
+        };
 
         public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
 
+        public DNSBLAnalysis DNSBLAnalysis { get; private set; } = new DNSBLAnalysis() {
+            DnsConfiguration = new DnsConfiguration()
+        };
+
+        public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
+
         public List<DnsAnswer> Answers;
+
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         public async Task VerifyDKIM(string domainName, string[] selectors) {
             foreach (var selector in selectors) {
-                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", DnsProvider.DnsOverHttps, "DKIM1");
-                await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
+                var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1");
+                await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, logger: _logger);
             }
         }
 
@@ -48,24 +60,24 @@ namespace DomainDetective {
                     HealthCheckType.MX,
                     HealthCheckType.CAA,
                     HealthCheckType.DANE,
+                    HealthCheckType.DNSBL
                 };
             }
 
             foreach (var healthCheckType in healthCheckTypes) {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
-                        var dmarc = await QueryDNS("_dmarc." + domainName, "TXT", DnsProvider.DnsOverHttps, "DMARC1");
+                        var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1");
                         await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger);
                         break;
                     case HealthCheckType.SPF:
-                        var spf = await QueryDNS(domainName, "TXT", DnsProvider.DnsOverHttps, "SPF1");
-                        //var spf = await QueryDNS(domainName, "TXT", "DNS", "SPF1");
+                        var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
                         await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
                         break;
                     case HealthCheckType.DKIM:
                         if (dkimSelectors != null) {
                             foreach (var selector in dkimSelectors) {
-                                var dkim = await QueryDNS($"{selector}._domainkey.{domainName}", "TXT", DnsProvider.DnsOverHttps, "DKIM1");
+                                var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1");
                                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                             }
                         } else {
@@ -74,86 +86,83 @@ namespace DomainDetective {
                         }
                         break;
                     case HealthCheckType.MX:
-                        var mx = await QueryDNS(domainName, "MX", DnsProvider.DnsOverHttps, "");
+                        var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
                         await MXAnalysis.AnalyzeMxRecords(mx, _logger);
                         break;
                     case HealthCheckType.CAA:
-                        var caa = await QueryDNS(domainName, "CAA", DnsProvider.DnsOverHttps, "");
+                        var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA);
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
                         break;
                     case HealthCheckType.DANE:
                         await VerifyDANE(domainName, daneServiceType);
+                        break;
+                    case HealthCheckType.DNSBL:
+                        var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        await DNSBLAnalysis.AnalyzeDNSBLRecords(mxRecords, _logger);
                         break;
                 }
             }
         }
 
         public async Task CheckDMARC(string dmarcRecord) {
-            await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {dmarcRecord},
-                    DataJoined = dmarcRecord
+            await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = dmarcRecord,
                 }
             }, _logger);
         }
 
         public async Task CheckSPF(string spfRecord) {
-            await SpfAnalysis.AnalyzeSpfRecords(new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {spfRecord},
-                    DataJoined = spfRecord
+            await SpfAnalysis.AnalyzeSpfRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = spfRecord
                 }
             }, _logger);
         }
 
         public async Task CheckDKIM(string dkimRecord, string selector = "default") {
-            await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {dkimRecord},
-                    DataJoined = dkimRecord
+            await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = dkimRecord
                 }
             }, _logger);
         }
 
         public async Task CheckMX(string mxRecord) {
-            await MXAnalysis.AnalyzeMxRecords(new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {mxRecord},
-                    DataJoined = mxRecord
+            await MXAnalysis.AnalyzeMxRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = mxRecord
                 }
             }, _logger);
         }
 
         public async Task CheckCAA(string caaRecord) {
-            await CAAAnalysis.AnalyzeCAARecords(new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {caaRecord},
-                    DataJoined = caaRecord
+            await CAAAnalysis.AnalyzeCAARecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = caaRecord
                 }
             }, _logger);
         }
         public async Task CheckCAA(List<string> caaRecords) {
-            var dnsResults = caaRecords.Select(record => new DnsResult {
-                Data = new[] { record },
-                DataJoined = record
+            var dnsResults = caaRecords.Select(record => new DnsAnswer {
+                DataRaw = record,
             }).ToList();
 
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
         }
 
         public async Task CheckDANE(string daneRecord) {
-            await DaneAnalysis.AnalyzeDANERecords(new List<DnsResult> {
-                new DnsResult {
-                    Data = new[] {daneRecord},
-                    DataJoined = daneRecord
+            await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = daneRecord
                 }
             }, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports) {
-            var allDaneRecords = new List<DnsResult>();
+            var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
-                var dane = await QueryDNS($"_{port}._tcp.{domainName}", "TLSA", DnsProvider.DnsOverHttps, "");
+                var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA);
                 allDaneRecords.AddRange(dane);
             }
 
@@ -165,38 +174,46 @@ namespace DomainDetective {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
             }
 
-            var allDaneRecords = new List<DnsResult>();
+            var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {
-                string service;
+                DnsRecordType service;
                 int port;
                 switch (serviceType) {
                     case ServiceType.SMTP:
-                        service = "MX";
+                        service = DnsRecordType.MX;
                         port = (int)ServiceType.SMTP;
                         break;
                     case ServiceType.HTTPS:
-                        service = "A";
+                        service = DnsRecordType.A;
                         port = (int)ServiceType.HTTPS;
                         break;
                     default:
                         throw new System.Exception("Service type not implemented.");
                 }
 
-                var records = await QueryDNS(domainName, service, DnsProvider.DnsOverHttps, "");
-                var recordData = records.SelectMany(x => x.Data).ToList();
-                foreach (var record in recordData) {
-                    var domain = service == "MX" ? record.Split(' ')[1] : record;
-                    var dan = await QueryDNS($"_{port}._tcp.{domain}", "TLSA", DnsProvider.DnsOverHttps, "");
-                    if (dan.Any()) {
-                        var dane = dan.ToList();
-                        for (int i = 0; i < dane.Count; i++) {
-                            dane[i].ServiceType = serviceType;
-                        }
-                        allDaneRecords.AddRange(dane);
-                    }
-                }
+                var records = await DnsConfiguration.QueryDNS(domainName, service);
+                //var recordData = records.SelectMany(x => x.Data).ToList();
+                //foreach (var record in recordData) {
+                //    var domain = service == DnsRecordType.MX ? record.Split(' ')[1] : record;
+                //    var dan = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domain}", DnsRecordType.TLSA);
+                //    if (dan.Any()) {
+                //        var dane = dan.ToList();
+                //        //for (int i = 0; i < dane.Count; i++) {
+                //        //    dane[i].ServiceType = serviceType;
+                //        //}
+                //        allDaneRecords.AddRange(dane);
+                //    }
+                //}
             }
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+        }
+
+        public async Task VerifyWebsiteCertificate(string url, int port = 443) {
+            await CertificateAnalysis.AnalyzeUrl(url, port, _logger);
+        }
+
+        public async Task CheckDNSBL(string ipAddress) {
+            await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress);
         }
     }
 }
