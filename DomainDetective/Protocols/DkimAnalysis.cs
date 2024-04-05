@@ -1,12 +1,13 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective {
     public class DkimAnalysis {
         public Dictionary<string, DkimRecordAnalysis> AnalysisResults { get; private set; } = new Dictionary<string, DkimRecordAnalysis>();
 
-        public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield(); // To avoid warning about lack of 'await'
 
             var dkimRecordList = dnsResults.ToList();
