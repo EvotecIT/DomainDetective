@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -13,6 +14,7 @@ namespace DomainDetective {
     /// 5.  The SPF record should not have more than 255 characters in a single string.
     /// </summary>
     public class SpfAnalysis {
+        internal DnsConfiguration DnsConfiguration { get; set; }
         public string SpfRecord { get; private set; }
         public List<string> SpfRecords { get; private set; } = new List<string>();
         public bool SpfRecordExists { get; private set; } // should be true
@@ -45,19 +47,24 @@ namespace DomainDetective {
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
 
-        public async Task AnalyzeSpfRecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;
 
             // create a list of strings from the list of DnsResult objects
+            // we use DataStringsEscaped to get the escaped strings, as provided by DnsClientX
+            // this will allow us to test if the record length exceeds 255 characters
             foreach (var record in spfRecordList) {
-                foreach (var data in record.Data) {
-                    SpfRecords.Add(data);
-                }
+                SpfRecords.AddRange(record.DataStringsEscaped);
             }
-            // create a single string from the list of strings so that we give user a single string to work with
-            SpfRecord = string.Join("", SpfRecords);
+            // However for analysis we only need the Data, as provided by DnsClientX
+            if (dnsResults.Count() == 1) {
+                SpfRecord = dnsResults.First().Data;
+            } else {
+                // if there are multiple records, we need to join them together to analyze them
+                SpfRecord = string.Join(" ", SpfRecords);
+            }
 
             logger.WriteVerbose($"Analyzing SPF record {SpfRecord}");
 
@@ -104,12 +111,12 @@ namespace DomainDetective {
                         DnsLookups.Add(domain);
 
                         // TODO: change provider/protocol to use DOH or DNS based on user choices
-                        var dnsResults = await DomainHealthCheck.QueryDNS(domain, "TXT", DnsProvider.DnsOverHttps, "SPF1");
+                        var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                         dnsLookups++; // count the DNS lookup
                         if (dnsResults != null) {
                             // recursively analyze the results of the DNS lookup
                             foreach (var dnsResult in dnsResults) {
-                                var resultParts = dnsResult.DataJoined.Split(' ');
+                                var resultParts = dnsResult.Data.Split(' ');
                                 dnsLookups += await CountDnsLookups(resultParts);
                             }
                         }
@@ -138,13 +145,11 @@ namespace DomainDetective {
             }
         }
 
-        private void CheckCharacterLimits(IEnumerable<DnsResult> spfRecords) {
+        private void CheckCharacterLimits(IEnumerable<DnsAnswer> spfRecords) {
             int totalLength = 0;
             foreach (var record in spfRecords) {
-                foreach (var data in record.Data) {
-                    totalLength += data.Length;
-                    ExceedsCharacterLimit = ExceedsCharacterLimit || data.Length > 255;
-                }
+                totalLength += record.Data.Length;
+                ExceedsCharacterLimit = ExceedsCharacterLimit || record.Data.Length > 255;
             }
             ExceedsTotalCharacterLimit = totalLength > 2048;
         }
