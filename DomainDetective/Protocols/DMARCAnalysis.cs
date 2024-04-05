@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -44,15 +45,14 @@ namespace DomainDetective {
         public int? Pct { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
-        public async Task AnalyzeDmarcRecords(IEnumerable<DnsResult> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
 
             // create a single string from the list of DnsResult objects
+            // TODO: check this logic for creating a single string from the list of DnsResult objects
             foreach (var record in dmarcRecordList) {
-                foreach (var data in record.Data) {
-                    DmarcRecord = data;
-                }
+                DmarcRecord = record.Data;
             }
 
             if (DmarcRecord == null) {
