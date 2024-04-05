@@ -1,10 +1,7 @@
-﻿using Spectre.Console;
+using Spectre.Console;
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DomainDetective.Example {
     internal class Helpers {
@@ -24,6 +21,49 @@ namespace DomainDetective.Example {
                 }
             }
         }
+
+        private static void AddPropertiesTable(Table table, object obj, bool listAsString = false) {
+            if (obj == null) {
+                return;
+            }
+            var properties = obj.GetType().GetProperties();
+            foreach (var property in properties) {
+                var value = property.GetValue(obj);
+                if (value is IList listValue) {
+                    if (listAsString || value is byte[]) {
+                        var listString = string.Join(", ", listValue.Cast<object>());
+                        table.AddRow(property.Name, listString);
+                    } else {
+                        var nestedTable = new Table().Border(TableBorder.Rounded);
+                        nestedTable.AddColumn("Index");
+                        nestedTable.AddColumn("Value");
+
+                        for (int i = 0; i < listValue.Count; i++) {
+                            nestedTable.AddRow(i.ToString(), Markup.Escape(listValue[i]?.ToString() ?? "null"));
+                        }
+
+                        table.AddRow(new Markup(property.Name), nestedTable);
+
+                    }
+                } else {
+                    if (value is IDictionary dictionaryValue) {
+                        var nestedTable = new Table().Border(TableBorder.Rounded);
+                        nestedTable.AddColumn("Key");
+                        nestedTable.AddColumn("Value");
+
+                        foreach (DictionaryEntry entry in dictionaryValue) {
+                            var escapedKey = Markup.Escape(entry.Key.ToString());
+                            var escapedValue = Markup.Escape(entry.Value?.ToString() ?? "null");
+                            nestedTable.AddRow(escapedKey, escapedValue);
+                        }
+                        table.AddRow(new Markup(property.Name), nestedTable);
+                    } else {
+                        table.AddRow(Markup.Escape(property.Name), Markup.Escape(value?.ToString() ?? "null"));
+                    }
+                }
+            }
+        }
+
         public static void ShowPropertiesTable(string analysisOf, object objs, bool perProperty = false) {
             var table = new Table();
             table.Border(TableBorder.Rounded);
@@ -39,9 +79,9 @@ namespace DomainDetective.Example {
                         var value = property.GetValue(obj);
                         if (value is IList listValue) {
                             var listString = string.Join(", ", listValue.Cast<object>());
-                            table.AddRow($"{entry.Key}.{property.Name}", listString);
+                            table.AddRow(Markup.Escape($"{entry.Key}.{property.Name}"), Markup.Escape(listString));
                         } else {
-                            table.AddRow($"{entry.Key}.{property.Name}", value?.ToString() ?? "null");
+                            table.AddRow(Markup.Escape($"{entry.Key}.{property.Name}"), Markup.Escape(value?.ToString() ?? "null"));
                         }
                     }
                 }
@@ -50,71 +90,12 @@ namespace DomainDetective.Example {
                 table.AddColumn("Value");
 
                 foreach (var obj in list) {
-                    var properties = obj.GetType().GetProperties();
-                    foreach (var property in properties) {
-                        var value = property.GetValue(obj);
-                        if (value is IList listValue) {
-                            var listString = string.Join(", ", listValue.Cast<object>());
-                            table.AddRow(property.Name, listString);
-                        } else {
-                            if (value is IDictionary dictionaryValue) {
-                                var nestedTable = new Table().Border(TableBorder.Rounded);
-                                nestedTable.AddColumn("Key");
-                                nestedTable.AddColumn("Value");
-
-                                foreach (DictionaryEntry entry in dictionaryValue) {
-                                    var escapedKey = Markup.Escape(entry.Key.ToString());
-                                    var escapedValue = Markup.Escape(entry.Value?.ToString() ?? "null");
-                                    nestedTable.AddRow(escapedKey, escapedValue);
-                                }
-                                table.AddRow(new Markup(property.Name), nestedTable);
-                            } else {
-                                table.AddRow(property.Name, value?.ToString() ?? "null");
-                            }
-                        }
-                    }
+                    AddPropertiesTable(table, obj);
                 }
             } else {
-                if (perProperty == false) {
-                    table.AddColumn("Property");
-                    table.AddColumn("Value");
-
-                    var properties = objs.GetType().GetProperties();
-                    foreach (var property in properties) {
-                        var value = property.GetValue(objs);
-                        if (value is IList listValue) {
-                            var nestedTable = new Table().Border(TableBorder.Rounded);
-                            nestedTable.AddColumn("Index");
-                            nestedTable.AddColumn("Value");
-                            for (int i = 0; i < listValue.Count; i++) {
-                                nestedTable.AddRow(new Markup(i.ToString()), new Markup(listValue[i]?.ToString() ?? "null"));
-                            }
-                            table.AddRow(new Markup(property.Name), nestedTable);
-                        } else {
-                            table.AddRow(property.Name, value?.ToString() ?? "null");
-                        }
-
-
-
-                    }
-                } else {
-                    var properties = objs.GetType().GetProperties();
-                    foreach (var property in properties) {
-                        table.AddColumn(property.Name);
-                    }
-
-                    var row = new List<string>();
-                    foreach (var property in properties) {
-                        var value = property.GetValue(objs);
-                        if (value is IList listValue) {
-                            var listString = string.Join(", ", listValue.Cast<object>());
-                            row.Add(listString);
-                        } else {
-                            row.Add(value?.ToString() ?? "null");
-                        }
-                    }
-                    table.AddRow(row.ToArray());
-                }
+                table.AddColumn("Property");
+                table.AddColumn("Value");
+                AddPropertiesTable(table, objs);
             }
 
             var panel = new Panel(table)
