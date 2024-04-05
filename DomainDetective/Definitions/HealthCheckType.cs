@@ -6,5 +6,7 @@ namespace DomainDetective {
         MX,
         CAA,
         DANE,
+        DNSBL,
+        CERT,
     }
 }
