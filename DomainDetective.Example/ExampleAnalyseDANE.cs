@@ -1,4 +1,3 @@
-using DnsClient.Protocol;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
