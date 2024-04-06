@@ -8,5 +8,6 @@ namespace DomainDetective {
         DANE,
         DNSBL,
         CERT,
+        SECURITYTXT
     }
 }
