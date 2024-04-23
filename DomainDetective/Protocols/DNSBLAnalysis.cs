@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+
 using DnsClientX;
 
 namespace DomainDetective {
@@ -212,13 +213,8 @@ namespace DomainDetective {
 
         internal async Task AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
             Logger = logger;
+            Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var results = await QueryDNSBL(DNSBLLists, ipAddressOrHostname);
-
-            //DNSQueryResult queryResult = new DNSQueryResult {
-            //    Host = ipAddressOrHostname,
-            //    DNSBLRecords = results,
-            //};
-            //Results[ipAddressOrHostname] = queryResult;
             ConvertToResults(ipAddressOrHostname, results);
         }
 
@@ -260,7 +256,7 @@ namespace DomainDetective {
                         Answer = "",
                     };
                     results.Add(dnsblRecord);
-                    Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
+                    //Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
                 } else {
                     foreach (var record in dnsResponse.Answers) {
                         var dnsblRecord = new DNSBLRecord {
@@ -297,7 +293,7 @@ namespace DomainDetective {
                         }
 
                         results.Add(dnsblRecord);
-                        Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
+                        //Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
                     }
 
                 }
