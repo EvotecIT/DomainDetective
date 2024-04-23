@@ -2,10 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+
 using DnsClientX;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
+        public DnsEndpoint DnsEndpoint {
+            get => DnsConfiguration.DnsEndpoint;
+            set {
+                _logger.WriteVerbose("Setting DnsEndpoint to {0}", value);
+                DnsConfiguration.DnsEndpoint = value;
+            }
+        }
+
+        public DnsSelectionStrategy DnsSelectionStrategy {
+            get => DnsConfiguration.DnsSelectionStrategy;
+            set {
+                _logger.WriteVerbose("Setting DnsSelectionStrategy to {0}", value);
+                DnsConfiguration.DnsSelectionStrategy = value;
+            }
+        }
+
         /// <summary>
         /// Gets the dmarc analysis.
         /// </summary>
@@ -20,29 +37,49 @@ namespace DomainDetective {
         /// <value>
         /// The SPF analysis.
         /// </value>
-        public SpfAnalysis SpfAnalysis { get; private set; } = new SpfAnalysis() {
-            DnsConfiguration = new DnsConfiguration()
-        };
+        public SpfAnalysis SpfAnalysis { get; private set; }
 
         public DkimAnalysis DKIMAnalysis { get; private set; } = new DkimAnalysis();
 
-        public MXAnalysis MXAnalysis { get; private set; } = new MXAnalysis() {
-            DnsConfiguration = new DnsConfiguration()
-        };
+        public MXAnalysis MXAnalysis { get; private set; }
 
         public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
 
-        public DNSBLAnalysis DNSBLAnalysis { get; private set; } = new DNSBLAnalysis() {
-            DnsConfiguration = new DnsConfiguration()
-        };
+        public DNSBLAnalysis DNSBLAnalysis { get; private set; }
 
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
+
+        public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
 
         public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+
+        public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.System, InternalLogger internalLogger = null) {
+            if (internalLogger != null) {
+                _logger = internalLogger;
+            }
+            DnsEndpoint = dnsEndpoint;
+            DnsSelectionStrategy = DnsSelectionStrategy.First;
+
+            SpfAnalysis = new SpfAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            MXAnalysis = new MXAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            DNSBLAnalysis = new DNSBLAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            _logger.WriteVerbose("DomainHealthCheck initialized.");
+            _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
+            _logger.WriteVerbose("DnsSelectionStrategy: {0}", DnsSelectionStrategy);
+        }
 
         public async Task VerifyDKIM(string domainName, string[] selectors) {
             foreach (var selector in selectors) {
@@ -97,8 +134,12 @@ namespace DomainDetective {
                         await VerifyDANE(domainName, daneServiceType);
                         break;
                     case HealthCheckType.DNSBL:
-                        var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
-                        await DNSBLAnalysis.AnalyzeDNSBLRecords(mxRecords, _logger);
+                        await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
+                        break;
+                    case HealthCheckType.SECURITYTXT:
+                        // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
+                        SecurityTXTAnalysis = new SecurityTXTAnalysis();
+                        await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
                         break;
                 }
             }
@@ -213,7 +254,12 @@ namespace DomainDetective {
         }
 
         public async Task CheckDNSBL(string ipAddress) {
-            await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress);
+            await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger);
+        }
+
+        public async Task CheckDNSBL(string[] ipAddresses) {
+            var tasks = ipAddresses.Select(ip => DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger));
+            await Task.WhenAll(tasks);
         }
     }
 }
