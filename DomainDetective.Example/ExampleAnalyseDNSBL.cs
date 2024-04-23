@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace DomainDetective.Example;
 
@@ -11,6 +13,15 @@ public static partial class Program {
         Helpers.ShowPropertiesTable(analysisOf: "DNSBL by String", objs: healthCheck.DNSBLAnalysis);
         Helpers.ShowPropertiesTable(analysisOf: "DNSBL by String", objs: healthCheck.DNSBLAnalysis.Results);
     }
+
+    public static async Task ExampleAnalyseByArrayDNSBL() {
+        var healthCheck = new DomainHealthCheck();
+        healthCheck.Verbose = false;
+        await healthCheck.CheckDNSBL(["89.74.48.96", "evotec.pl"]);
+        Helpers.ShowPropertiesTable(analysisOf: "DNSBL by String", objs: healthCheck.DNSBLAnalysis);
+        Helpers.ShowPropertiesTable(analysisOf: "DNSBL by String", objs: healthCheck.DNSBLAnalysis.Results);
+    }
+
 
     public static async Task ExampleAnalyseByDomainDNSBL() {
         var healthCheck = new DomainHealthCheck();
