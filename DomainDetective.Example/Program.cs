@@ -27,8 +27,9 @@ public static partial class Program {
         //await ExampleAnalyseByStringDANE();
 
         await ExampleAnalyseByStringDNSBL();
-        // await ExampleAnalyseByDomainDNSBL();
-
+        await ExampleAnalyseByArrayDNSBL();
+        //await ExampleAnalyseByDomainDNSBL();
+        //await ExampleAnalyseSecurityTXT();
 
         //await ExampleQueryDNS();
     }
