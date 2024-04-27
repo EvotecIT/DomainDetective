@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+
 using DnsClientX;
 
 namespace DomainDetective {
@@ -22,7 +23,6 @@ namespace DomainDetective {
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsTotalCharacterLimit { get; private set; } // should be false
         public bool ExceedsCharacterLimit { get; private set; } // should be false
-
         public List<string> DnsLookups { get; private set; } = new List<string>();
         public int DnsLookupsCount { get; private set; }
         public bool ExceedsDnsLookups { get; private set; } // should be false
