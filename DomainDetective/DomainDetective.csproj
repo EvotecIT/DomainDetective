@@ -6,10 +6,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="DnsClientX" Version="0.2.0" />
 		<PackageReference Include="MailKit" Version="4.4.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <ProjectReference Include="..\..\DnsClientX\DnsClientX\DnsClientX.csproj" />
 	</ItemGroup>
 </Project>
