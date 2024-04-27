@@ -209,8 +209,6 @@ namespace DomainDetective {
             }
         }
 
-
-
         internal async Task AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
             Logger = logger;
             Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
