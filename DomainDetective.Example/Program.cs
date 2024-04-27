@@ -23,11 +23,11 @@ public static partial class Program {
         //await ExampleCertificateVerificationByHealthCheck();
 
 
-        //await ExampleAnalyseByDomainDANE();
+        await ExampleAnalyseByDomainDANE();
         //await ExampleAnalyseByStringDANE();
 
-        await ExampleAnalyseByStringDNSBL();
-        await ExampleAnalyseByArrayDNSBL();
+        //await ExampleAnalyseByStringDNSBL();
+        //await ExampleAnalyseByArrayDNSBL();
         //await ExampleAnalyseByDomainDNSBL();
         //await ExampleAnalyseSecurityTXT();
 
