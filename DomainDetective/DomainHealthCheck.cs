@@ -200,6 +200,12 @@ namespace DomainDetective {
             }, _logger);
         }
 
+
+        public async Task VerifySPF(string domainName) {
+            var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
+            await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+        }
+
         public async Task VerifyDANE(string domainName, int[] ports) {
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
@@ -245,6 +251,16 @@ namespace DomainDetective {
                 //        allDaneRecords.AddRange(dane);
                 //    }
                 //}
+                var recordData = records.Select(x => x.Data);
+                foreach (var record in recordData) {
+                    var domain = service == DnsRecordType.MX ? record.Split(' ')[1].Trim('.') : record;
+                    var daneRecord = $"_{port}._tcp.{domain}";
+                    var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA);
+                    if (dane.Any()) {
+                        allDaneRecords.AddRange(dane);
+                    }
+                }
+
             }
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
