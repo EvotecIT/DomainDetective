@@ -53,6 +53,8 @@ namespace DomainDetective {
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
 
+        public WhoisAnalysis WhoisAnalysis { get; private set; } = new WhoisAnalysis();
+
         public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -275,6 +277,11 @@ namespace DomainDetective {
 
         public async Task CheckDNSBL(string[] ipAddresses) {
             var tasks = ipAddresses.Select(ip => DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger));
+            await Task.WhenAll(tasks);
+        }
+
+        public async Task CheckWHOIS(string domain) {
+            var tasks = WhoisAnalysis.QueryWhoisServer(domain);
             await Task.WhenAll(tasks);
         }
     }

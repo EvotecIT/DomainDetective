@@ -23,7 +23,7 @@ public static partial class Program {
         //await ExampleCertificateVerificationByHealthCheck();
 
 
-        await ExampleAnalyseByDomainDANE();
+        // await ExampleAnalyseByDomainDANE();
         //await ExampleAnalyseByStringDANE();
 
         //await ExampleAnalyseByStringDNSBL();
@@ -32,5 +32,7 @@ public static partial class Program {
         //await ExampleAnalyseSecurityTXT();
 
         //await ExampleQueryDNS();
+
+        await ExampleAnalyseByStringWHOIS();
     }
 }
