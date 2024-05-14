@@ -281,6 +281,7 @@ namespace DomainDetective {
         }
 
         public async Task CheckWHOIS(string domain) {
+            WhoisAnalysis = new WhoisAnalysis();
             var tasks = WhoisAnalysis.QueryWhoisServer(domain);
             await Task.WhenAll(tasks);
         }

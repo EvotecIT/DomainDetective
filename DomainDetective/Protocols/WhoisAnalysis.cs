@@ -5,14 +5,35 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 
+using Org.BouncyCastle.Tls.Crypto;
+
 namespace DomainDetective;
 
 public class WhoisAnalysis {
-    public string Domain { get; set; }
-    public string WhoisData { get; set; }
+    private string TLD { get; set; }
+    public string DomainName {
+        get => _domainName?.ToLower();
+        set => _domainName = value;
+    }
+    private string _domainName;
 
-    private Dictionary<string, string> whoisServers = GetWhoisServers();
-    public static Dictionary<string, string> GetWhoisServers() {
+    public string Registrar { get; set; }
+    public string CreationDate { get; set; }
+    public string ExpiryDate { get; set; }
+    public List<string> NameServers { get; set; } = new List<string>();
+    public string RegistrantType { get; set; }
+    public string LastModified { get; set; }
+    public string DnsSec { get; set; }
+    public string DS { get; set; }
+    public string RegistrarAddress { get; set; }
+    public string RegistrarTel { get; set; }
+    public string RegistrarWebsite { get; set; }
+    public string RegistrarEmail { get; set; }
+    public string WhoisData { get; set; }
+    public WhoisAnalysis() { }
+
+    private readonly Dictionary<string, string> WhoisServers = GetWhoisServers();
+    private static Dictionary<string, string> GetWhoisServers() {
         return new Dictionary<string, string> {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
@@ -245,16 +266,23 @@ public class WhoisAnalysis {
         {"za.com","whois.centralnic.com"}
     };
     }
+    private string GetWhoisServer(string domain) {
+        var domainParts = domain.Split('.');
+        var tld = string.Join(".", domainParts.Skip(1)); // Get the entire TLD
+        TLD = tld;
 
-    public WhoisAnalysis() { }
+        // Check for two-part TLDs first
+        if (WhoisServers.ContainsKey(tld)) {
+            return WhoisServers[tld];
+        }
 
-    public string GetWhoisServer(string domain) {
-        var tld = domain.Split('.').Last();
-        return whoisServers.ContainsKey(tld) ? whoisServers[tld] : null;
+        // If not found, check for single-part TLDs
+        tld = domainParts.Last();
+        return WhoisServers.ContainsKey(tld) ? WhoisServers[tld] : null;
     }
 
     public async Task QueryWhoisServer(string domain) {
-        //string whoisData = string.Empty;
+        //string WhoisData = string.Empty;
 
         var whoisServer = GetWhoisServer(domain);
         if (whoisServer == null) {
@@ -274,8 +302,174 @@ public class WhoisAnalysis {
                     }
                 }
             }
+            ParseWhoisData(WhoisData);
         } catch (Exception ex) {
             Console.WriteLine("Error querying WHOIS server: " + ex.Message);
         }
     }
+
+    private void ParseWhoisData(string whoisData) {
+        // Parse the WHOIS data. This is a simplified example and might not work for all WHOIS data formats.
+        if (TLD == "xyz") {
+            ParseWhoisDataXYZ(whoisData);
+        } else if (TLD == "pl") {
+            ParseWhoisDataPL(whoisData);
+        } else if (TLD == "com") {
+            ParseWhoisDataCOM(whoisData);
+        } else if (TLD == "co.uk") {
+            ParseWhoisDataCOUK(whoisData);
+        } else {
+            ParseWhoisDataDefault(whoisData);
+        }
+    }
+
+    private void ParseWhoisDataCOUK(string whoisData) {
+        // Normalize line endings to \n
+        whoisData = whoisData.Replace("\r\n", "\n");
+        WhoisData = whoisData;
+
+        string currentSection = null;
+        foreach (var line in whoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+            if (trimmedLine.EndsWith(":")) {
+                currentSection = trimmedLine.TrimEnd(':');
+            } else if (!string.IsNullOrWhiteSpace(trimmedLine)) {
+                switch (currentSection) {
+                    case "Domain name":
+                        DomainName = trimmedLine;
+                        break;
+                    case "Registrar":
+                        if (Registrar == null) {
+                            Registrar = trimmedLine;
+                        } else if (trimmedLine.StartsWith("URL:")) {
+                            RegistrarWebsite = trimmedLine.Substring("URL:".Length).Trim();
+                        }
+                        break;
+                    case "Relevant dates":
+                        if (trimmedLine.StartsWith("Registered on:")) {
+                            CreationDate = trimmedLine.Substring("Registered on:".Length).Trim();
+                        } else if (trimmedLine.StartsWith("Expiry date:")) {
+                            ExpiryDate = trimmedLine.Substring("Expiry date:".Length).Trim();
+                        } else if (trimmedLine.StartsWith("Last updated:")) {
+                            LastModified = trimmedLine.Substring("Last updated:".Length).Trim();
+                        }
+                        break;
+                    case "Name servers":
+
+                        NameServers.Add(trimmedLine);
+                        break;
+                }
+            }
+        }
+    }
+
+    private void ParseWhoisDataCOM(string whoisData) {
+        // Normalize line endings to \n
+        whoisData = whoisData.Replace("\r\n", "\n");
+        WhoisData = whoisData;
+
+        foreach (var line in whoisData.Split('\n')) {
+            if (line.StartsWith("   Domain Name:")) {
+                DomainName = line.Substring("   Domain Name:".Length).Trim();
+            } else if (line.StartsWith("   Registrar:")) {
+                Registrar = line.Substring("   Registrar:".Length).Trim();
+            } else if (line.StartsWith("   Creation Date:")) {
+                CreationDate = line.Substring("   Creation Date:".Length).Trim();
+            } else if (line.StartsWith("   Registry Expiry Date:")) {
+                ExpiryDate = line.Substring("   Registry Expiry Date:".Length).Trim();
+            } else if (line.StartsWith("   Name Server:")) {
+                NameServers.Add(line.Substring("   Name Server:".Length).Trim());
+            } else if (line.StartsWith("   Registrar Abuse Contact Email:")) {
+                RegistrarEmail = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
+            } else if (line.StartsWith("   Registrar Abuse Contact Phone:")) {
+                RegistrarTel = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+            }
+        }
+    }
+
+
+
+    private void ParseWhoisDataDefault(string whoisData) {
+        // Parse WHOIS data for most TLDs
+        foreach (var line in whoisData.Split('\n')) {
+            if (line.StartsWith("Domain Name:")) {
+                DomainName = line.Substring("Domain Name:".Length).Trim();
+            } else if (line.StartsWith("Registrar:")) {
+                Registrar = line.Substring("Registrar:".Length).Trim();
+            } else if (line.StartsWith("Creation Date:")) {
+                CreationDate = line.Substring("Creation Date:".Length).Trim();
+            } else if (line.StartsWith("Registry Expiry Date:")) {
+                ExpiryDate = line.Substring("Registry Expiry Date:".Length).Trim();
+            } else if (line.StartsWith("Name Server:")) {
+                NameServers.Add(line.Substring("Name Server:".Length).Trim());
+            }
+        }
+    }
+
+    private void ParseWhoisDataXYZ(string whoisData) {
+        // Parse WHOIS data for .xyz domains
+        foreach (var line in whoisData.Split('\n')) {
+            if (line.StartsWith("Domain Name:")) {
+                DomainName = line.Substring("Domain Name:".Length).Trim();
+            } else if (line.StartsWith("Registrar:")) {
+                Registrar = line.Substring("Registrar:".Length).Trim();
+            } else if (line.StartsWith("Creation Date:")) {
+                CreationDate = line.Substring("Creation Date:".Length).Trim();
+            } else if (line.StartsWith("Registry Expiry Date:")) {
+                ExpiryDate = line.Substring("Registry Expiry Date:".Length).Trim();
+            } else if (line.StartsWith("Name Server:")) {
+                NameServers.Add(line.Substring("Name Server:".Length).Trim());
+            }
+        }
+    }
+
+    private void ParseWhoisDataPL(string whoisData) {
+        // Parse WHOIS data for .pl domains
+        whoisData = whoisData.Replace("\r\r\n", "\n");
+        WhoisData = whoisData;
+
+        bool isParsingNameServers = false;
+        bool isParsingRegistrar = false;
+
+        foreach (var line in whoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+
+            if (trimmedLine.StartsWith("DOMAIN NAME:")) {
+                DomainName = trimmedLine.Substring("DOMAIN NAME:".Length).Trim();
+            } else if (trimmedLine.StartsWith("created:")) {
+                CreationDate = trimmedLine.Substring("created:".Length).Trim();
+            } else if (trimmedLine.StartsWith("renewal date:")) {
+                ExpiryDate = trimmedLine.Substring("renewal date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("registrant type:")) {
+                RegistrantType = trimmedLine.Substring("registrant type:".Length).Trim();
+            } else if (trimmedLine.StartsWith("last modified:")) {
+                LastModified = trimmedLine.Substring("last modified:".Length).Trim();
+            } else if (trimmedLine.StartsWith("dnssec:")) {
+                DnsSec = trimmedLine.Substring("dnssec:".Length).Trim();
+            } else if (trimmedLine.StartsWith("DS:")) {
+                DS = trimmedLine.Substring("DS:".Length).Trim();
+            } else if (trimmedLine.StartsWith("nameservers:")) {
+                isParsingNameServers = true;
+                NameServers.Add(trimmedLine.Substring("nameservers:".Length).Trim());
+            } else if (isParsingNameServers) {
+                if (trimmedLine.EndsWith(".")) {
+                    NameServers.Add(trimmedLine);
+                } else {
+                    isParsingNameServers = false;
+                }
+            } else if (trimmedLine.StartsWith("REGISTRAR:")) {
+                isParsingRegistrar = true;
+                Registrar = trimmedLine.Substring("REGISTRAR:".Length).Trim();
+            } else if (isParsingRegistrar) {
+                if (trimmedLine.StartsWith("Tel:")) {
+                    RegistrarTel = trimmedLine.Substring("Tel:".Length).Trim();
+                } else if (trimmedLine.StartsWith("https://")) {
+                    RegistrarWebsite = trimmedLine;
+                } else {
+                    RegistrarAddress = trimmedLine;
+                }
+            }
+        }
+    }
+
 }
