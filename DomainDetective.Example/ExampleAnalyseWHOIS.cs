@@ -5,30 +5,23 @@ namespace DomainDetective.Example;
 
 public static partial class Program {
     public static async Task ExampleAnalyseByStringWHOIS() {
-        var domainName = "evotec.xyz";
+        string[] domainNames = [
+            //"evotec.xyz",
+            //"evotec.pl",
+            //"evotec.com",
+            //"evotec.net",
+            //"google.com",
+            "google.co.uk",
+            "evotec.be",
+            "evotec.cz",
+            //"evotec.de",
+        ];
         var healthCheck = new DomainHealthCheck();
         healthCheck.Verbose = false;
-        await healthCheck.CheckWHOIS(domainName);
-        //foreach (var selector in healthCheck.DKIMAnalysis.AnalysisResults.Keys) {
-        //    ShowProperties($"DKIM for EXAMPLE1 {dkimRecord} [Selector: {selector}]", healthCheck.DKIMAnalysis.AnalysisResults[selector]);
-        //}
-
-        Console.WriteLine(healthCheck.WhoisAnalysis.WhoisData);
-        Console.WriteLine("----");
-        domainName = "evotec.pl";
-        await healthCheck.CheckWHOIS(domainName);
-        Console.WriteLine(healthCheck.WhoisAnalysis.WhoisData);
-        Console.WriteLine("----");
-        domainName = "microsoft.com";
-        await healthCheck.CheckWHOIS(domainName);
-        Console.WriteLine(healthCheck.WhoisAnalysis.WhoisData);
-
-        Console.WriteLine("----");
-        domainName = "google.co.uk";
-        await healthCheck.CheckWHOIS(domainName);
-        Console.WriteLine(healthCheck.WhoisAnalysis.WhoisData);
-
-        //Helpers.ShowPropertiesTable(analysisOf: "WHOIS for EXAMPLE by String", objs: healthCheck.WhoisAnalysis);
+        foreach (var domain in domainNames) {
+            await healthCheck.CheckWHOIS(domain);
+            Helpers.ShowPropertiesTable(analysisOf: $"WHOIS for {domain}", objs: healthCheck.WhoisAnalysis);
+        }
     }
 
     public static async Task ExampleAnalyseByDomainWHOIS() {

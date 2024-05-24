@@ -9,4 +9,8 @@
 		<PackageReference Include="DnsClientX" Version="0.2.1" />
 		<PackageReference Include="MailKit" Version="4.5.0" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Dictionaries\" />
+	</ItemGroup>
 </Project>

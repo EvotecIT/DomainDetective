@@ -11,30 +11,28 @@ namespace DomainDetective;
 
 public class WhoisAnalysis {
     private string TLD { get; set; }
+    private string _domainName;
     public string DomainName {
         get => _domainName?.ToLower();
         set => _domainName = value;
     }
-    private string _domainName;
-
     public string Registrar { get; set; }
     public string CreationDate { get; set; }
     public string ExpiryDate { get; set; }
+    public string LastUpdated { get; set; }
+    public string RegisteredTo { get; set; }
     public List<string> NameServers { get; set; } = new List<string>();
     public string RegistrantType { get; set; }
-    public string LastModified { get; set; }
+    public string Country { get; set; }
     public string DnsSec { get; set; }
-    public string DS { get; set; }
+    public string DnsRecord { get; set; }
     public string RegistrarAddress { get; set; }
     public string RegistrarTel { get; set; }
     public string RegistrarWebsite { get; set; }
     public string RegistrarEmail { get; set; }
     public string WhoisData { get; set; }
-    public WhoisAnalysis() { }
 
-    private readonly Dictionary<string, string> WhoisServers = GetWhoisServers();
-    private static Dictionary<string, string> GetWhoisServers() {
-        return new Dictionary<string, string> {
+    private readonly Dictionary<string, string> WhoisServers = new Dictionary<string, string> {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
         {"ae", "whois.aeda.net.ae"},
@@ -88,7 +86,8 @@ public class WhoisAnalysis {
         {"coop", "whois.nic.coop"},
         {"cx", "whois.nic.cx"},
         {"cy", "whois.ripe.net"},
-        {"cz", "whois.nic.cz"},
+        //{"cz", "whois.nic.cz"},
+        {"cz", "cz.whois-servers.net" },
         {"de", "whois.denic.de"},
         {"dk", "whois.dk-hostmaster.dk"},
         {"dm", "whois.nic.cx"},
@@ -265,7 +264,9 @@ public class WhoisAnalysis {
         {"yu","whois.ripe.net"},
         {"za.com","whois.centralnic.com"}
     };
-    }
+
+    public WhoisAnalysis() { }
+
     private string GetWhoisServer(string domain) {
         var domainParts = domain.Split('.');
         var tld = string.Join(".", domainParts.Skip(1)); // Get the entire TLD
@@ -282,8 +283,7 @@ public class WhoisAnalysis {
     }
 
     public async Task QueryWhoisServer(string domain) {
-        //string WhoisData = string.Empty;
-
+        DomainName = domain;
         var whoisServer = GetWhoisServer(domain);
         if (whoisServer == null) {
             throw new Exception($"No WHOIS server found for domain {domain}");
@@ -302,34 +302,38 @@ public class WhoisAnalysis {
                     }
                 }
             }
-            ParseWhoisData(WhoisData);
+            ParseWhoisData();
         } catch (Exception ex) {
             Console.WriteLine("Error querying WHOIS server: " + ex.Message);
         }
     }
 
-    private void ParseWhoisData(string whoisData) {
-        // Parse the WHOIS data. This is a simplified example and might not work for all WHOIS data formats.
+    private void ParseWhoisData() {
         if (TLD == "xyz") {
-            ParseWhoisDataXYZ(whoisData);
+            ParseWhoisDataXYZ();
         } else if (TLD == "pl") {
-            ParseWhoisDataPL(whoisData);
-        } else if (TLD == "com") {
-            ParseWhoisDataCOM(whoisData);
+            ParseWhoisDataPL();
+        } else if (TLD == "com" || TLD == "net") {
+            ParseWhoisDataCOM();
         } else if (TLD == "co.uk") {
-            ParseWhoisDataCOUK(whoisData);
+            ParseWhoisDataCOUK();
+        } else if (TLD == "de") {
+            ParseWhoisDataDE();
+        } else if (TLD == "cz") {
+            ParseWhoisDataCZ();
+        } else if (TLD == "be") {
+            ParseWhoisDataBE();
         } else {
-            ParseWhoisDataDefault(whoisData);
+            ParseWhoisDataDefault();
         }
     }
 
-    private void ParseWhoisDataCOUK(string whoisData) {
+    private void ParseWhoisDataCOUK() {
         // Normalize line endings to \n
-        whoisData = whoisData.Replace("\r\n", "\n");
-        WhoisData = whoisData;
+        WhoisData = WhoisData.Replace("\r\n", "\n");
 
         string currentSection = null;
-        foreach (var line in whoisData.Split('\n')) {
+        foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
             if (trimmedLine.EndsWith(":")) {
                 currentSection = trimmedLine.TrimEnd(':');
@@ -351,24 +355,166 @@ public class WhoisAnalysis {
                         } else if (trimmedLine.StartsWith("Expiry date:")) {
                             ExpiryDate = trimmedLine.Substring("Expiry date:".Length).Trim();
                         } else if (trimmedLine.StartsWith("Last updated:")) {
-                            LastModified = trimmedLine.Substring("Last updated:".Length).Trim();
+                            LastUpdated = trimmedLine.Substring("Last updated:".Length).Trim();
                         }
                         break;
                     case "Name servers":
-
                         NameServers.Add(trimmedLine);
                         break;
+                }
+            } else {
+                currentSection = null; // Reset current section when encountering an empty line
+            }
+        }
+    }
+
+    private void ParseWhoisDataCZ1() {
+        //domain:       evotec.cz
+        // registrant:   OVH53D75C9A1TJC
+        // admin-c:      OVH62C49158JLW8
+        // nsset:        OVH60FA6C8B0BGVL1XZ29I766H1
+        // keyset:       AUTO-S0TOTEZKRVB3CFV787RP8ZWIQ
+        // registrar:    REG-OVH
+        // registered:   29.07.2014 10:34:38
+        // changed:      05.07.2022 21:30:33
+        // expire:       29.07.2024
+        // 
+        // contact:      OVH53D75C9A1TJC
+        // org:          Evotec Przemyslaw Klys
+        // name:         Klys Przemek
+        // address:      ul. Strzelców Bytomskich 23A/10
+        // address:      Katowice
+        // address:      40-308
+        // address:      PL
+        // registrar:    REG-OVH
+        // created:      29.07.2014 10:34:35
+        // changed:      06.07.2019 09:42:25
+        // 
+        // contact:      OVH62C49158JLW8
+        // org:          Evotec Services Sp. z o.o.
+        // name:         Przemyslaw Klys
+        // address:      Drozdów 6
+        // address:      Mikolów
+        // address:      43-190
+        // address:      PL
+        // registrar:    REG-OVH
+        // created:      05.07.2022 21:30:32
+        // 
+        // nsset:        OVH60FA6C8B0BGVL1XZ29I766H1
+        // nserver:      gwen.ns.cloudflare.com
+        // nserver:      pablo.ns.cloudflare.com
+        // tech-c:       OVH-DEFAULT
+        // registrar:    REG-OVH
+        // created:      23.07.2021 09:15:23
+        // 
+        // contact:      OVH-DEFAULT
+        // org:          OVH
+        // name:         Octave Klaba
+        // address:      2 rue Kellermann
+        // address:      Roubaix
+        // address:      59100
+        // address:      FR
+        // registrar:    REG-OVH
+        // created:      17.11.2008 19:52:09
+        // changed:      02.11.2022 13:03:23
+        // 
+        // keyset:       AUTO-S0TOTEZKRVB3CFV787RP8ZWIQ
+        // dnskey:       257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==
+        // tech-c:       CZ-NIC
+        // registrar:    REG-CZNIC
+        // created:      07.02.2022 15:10:39
+        // 
+        // contact:      CZ-NIC
+        // org:          CZ.NIC, z.s.p.o.
+        // name:         CZ.NIC, z.s.p.o.
+        // address:      Milesovska 1136/5
+        // address:      Praha 3
+        // address:      130 00
+        // address:      CZ
+        // registrar:    REG-CZNIC
+        // created:      17.10.2008 12:08:21
+        // changed:      15.05.2018 21:32:00
+        // 
+
+        // Normalize line endings to \n
+        WhoisData = WhoisData.Replace("\r\n", "\n");
+
+        bool isParsingNameServers = false;
+
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+
+            if (trimmedLine.StartsWith("domain:")) {
+                DomainName = trimmedLine.Substring("domain:".Length).Trim();
+            } else if (trimmedLine.StartsWith("registered:")) {
+                CreationDate = trimmedLine.Substring("registered:".Length).Trim();
+            } else if (trimmedLine.StartsWith("expire:")) {
+                ExpiryDate = trimmedLine.Substring("expire:".Length).Trim();
+            } else if (trimmedLine.StartsWith("registrar:")) {
+                Registrar = trimmedLine.Substring("registrar:".Length).Trim();
+            } else if (trimmedLine.StartsWith("nserver:")) {
+                NameServers.Add(trimmedLine.Substring("nserver:".Length).Trim());
+            } else if (trimmedLine.StartsWith("dnskey:")) {
+                DnsSec = trimmedLine.Substring("dnskey:".Length).Trim();
+            }
+        }
+
+    }
+
+    private void ParseWhoisDataCZ() {
+        // Normalize line endings to \n
+        WhoisData = WhoisData.Replace("\r\n", "\n");
+
+        bool isParsingDomainSection = true;
+        bool isParsingRegistrantSection = false;
+        string registrantId = "";
+
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+
+            if (string.IsNullOrWhiteSpace(trimmedLine)) {
+                isParsingDomainSection = false; // Stop parsing the domain section when encountering an empty line
+                isParsingRegistrantSection = false; // Stop parsing the registrant section when encountering an empty line
+            }
+
+            if (isParsingDomainSection) {
+                if (trimmedLine.StartsWith("domain:")) {
+                    DomainName = trimmedLine.Substring("domain:".Length).Trim();
+                } else if (trimmedLine.StartsWith("registrant:")) {
+                    CreationDate = trimmedLine.Substring("registrant:".Length).Trim();
+                } else if (trimmedLine.StartsWith("expire:")) {
+                    ExpiryDate = trimmedLine.Substring("expire:".Length).Trim();
+                } else if (trimmedLine.StartsWith("registrar:")) {
+                    Registrar = trimmedLine.Substring("registrar:".Length).Trim();
+                } else if (trimmedLine.StartsWith("registrant:")) {
+                    registrantId = trimmedLine.Substring("registrant:".Length).Trim();
+                }
+            } else if (trimmedLine.StartsWith("contact:") && trimmedLine.Substring("contact:".Length).Trim() == registrantId) {
+                isParsingRegistrantSection = true;
+            } else if (isParsingRegistrantSection) {
+                if (trimmedLine.StartsWith("org:")) {
+                    RegistrantType = trimmedLine.Substring("org:".Length).Trim();
+                } else if (trimmedLine.StartsWith("name:")) {
+                    RegisteredTo = trimmedLine.Substring("name:".Length).Trim();
+                } else if (trimmedLine.StartsWith("address:")) {
+                    RegistrarAddress = trimmedLine.Substring("address:".Length).Trim();
+                }
+            } else {
+                if (trimmedLine.StartsWith("nserver:")) {
+                    NameServers.Add(trimmedLine.Substring("nserver:".Length).Trim());
+                } else if (trimmedLine.StartsWith("dnskey:")) {
+                    DnsSec = trimmedLine.Substring("dnskey:".Length).Trim();
                 }
             }
         }
     }
 
-    private void ParseWhoisDataCOM(string whoisData) {
-        // Normalize line endings to \n
-        whoisData = whoisData.Replace("\r\n", "\n");
-        WhoisData = whoisData;
 
-        foreach (var line in whoisData.Split('\n')) {
+    private void ParseWhoisDataCOM() {
+        // Normalize line endings to \n
+        WhoisData = WhoisData.Replace("\r\n", "\n");
+
+        foreach (var line in WhoisData.Split('\n')) {
             if (line.StartsWith("   Domain Name:")) {
                 DomainName = line.Substring("   Domain Name:".Length).Trim();
             } else if (line.StartsWith("   Registrar:")) {
@@ -377,21 +523,25 @@ public class WhoisAnalysis {
                 CreationDate = line.Substring("   Creation Date:".Length).Trim();
             } else if (line.StartsWith("   Registry Expiry Date:")) {
                 ExpiryDate = line.Substring("   Registry Expiry Date:".Length).Trim();
+            } else if (line.Contains("Updated Date:")) {
+                LastUpdated = line.Substring("   Updated Date:".Length).Trim();
             } else if (line.StartsWith("   Name Server:")) {
                 NameServers.Add(line.Substring("   Name Server:".Length).Trim());
             } else if (line.StartsWith("   Registrar Abuse Contact Email:")) {
                 RegistrarEmail = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
             } else if (line.StartsWith("   Registrar Abuse Contact Phone:")) {
                 RegistrarTel = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+            } else if (line.StartsWith("   DNSSEC:")) {
+                DnsSec = line.Substring("   DNSSEC:".Length).Trim();
             }
         }
     }
 
-
-
-    private void ParseWhoisDataDefault(string whoisData) {
+    private void ParseWhoisDataDefault() {
         // Parse WHOIS data for most TLDs
-        foreach (var line in whoisData.Split('\n')) {
+        Console.Write(WhoisData);
+
+        foreach (var line in WhoisData.Split('\n')) {
             if (line.StartsWith("Domain Name:")) {
                 DomainName = line.Substring("Domain Name:".Length).Trim();
             } else if (line.StartsWith("Registrar:")) {
@@ -406,32 +556,57 @@ public class WhoisAnalysis {
         }
     }
 
-    private void ParseWhoisDataXYZ(string whoisData) {
-        // Parse WHOIS data for .xyz domains
-        foreach (var line in whoisData.Split('\n')) {
-            if (line.StartsWith("Domain Name:")) {
-                DomainName = line.Substring("Domain Name:".Length).Trim();
-            } else if (line.StartsWith("Registrar:")) {
-                Registrar = line.Substring("Registrar:".Length).Trim();
-            } else if (line.StartsWith("Creation Date:")) {
-                CreationDate = line.Substring("Creation Date:".Length).Trim();
-            } else if (line.StartsWith("Registry Expiry Date:")) {
-                ExpiryDate = line.Substring("Registry Expiry Date:".Length).Trim();
-            } else if (line.StartsWith("Name Server:")) {
-                NameServers.Add(line.Substring("Name Server:".Length).Trim());
+    private void ParseWhoisDataDE() {
+        foreach (var line in WhoisData.Split('\n')) {
+            if (line.StartsWith("DOMAIN:")) {
+                DomainName = line.Substring("DOMAIN:".Length).Trim();
+            } else if (line.StartsWith("CHANGED:")) {
+                LastUpdated = line.Substring("CHANGED:".Length).Trim();
+            } else if (line.StartsWith("NSERVER:")) {
+                NameServers.Add(line.Substring("NSERVER:".Length).Trim());
             }
         }
     }
 
-    private void ParseWhoisDataPL(string whoisData) {
+    private void ParseWhoisDataXYZ() {
+        // Normalize line endings to \n
+        WhoisData = WhoisData.Replace("\r\n", "\n");
+
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+
+            if (trimmedLine.StartsWith("Domain Name:")) {
+                DomainName = trimmedLine.Substring("Domain Name:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar:")) {
+                Registrar = trimmedLine.Substring("Registrar:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Creation Date:")) {
+                CreationDate = trimmedLine.Substring("Creation Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registry Expiry Date:")) {
+                ExpiryDate = trimmedLine.Substring("Registry Expiry Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Updated Date:")) {
+                LastUpdated = trimmedLine.Substring("Updated Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Name Server:")) {
+                NameServers.Add(trimmedLine.Substring("Name Server:".Length).Trim());
+            } else if (trimmedLine.StartsWith("Registrant Organization:")) {
+                RegisteredTo = trimmedLine.Substring("Registrant Organization:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrant Country:")) {
+                Country = trimmedLine.Substring("Registrant Country:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
+                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
+                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+            }
+        }
+    }
+
+    private void ParseWhoisDataPL() {
         // Parse WHOIS data for .pl domains
-        whoisData = whoisData.Replace("\r\r\n", "\n");
-        WhoisData = whoisData;
+        WhoisData = WhoisData.Replace("\r\r\n", "\n");
 
         bool isParsingNameServers = false;
         bool isParsingRegistrar = false;
 
-        foreach (var line in whoisData.Split('\n')) {
+        foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
 
             if (trimmedLine.StartsWith("DOMAIN NAME:")) {
@@ -443,11 +618,11 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("registrant type:")) {
                 RegistrantType = trimmedLine.Substring("registrant type:".Length).Trim();
             } else if (trimmedLine.StartsWith("last modified:")) {
-                LastModified = trimmedLine.Substring("last modified:".Length).Trim();
+                LastUpdated = trimmedLine.Substring("last modified:".Length).Trim();
             } else if (trimmedLine.StartsWith("dnssec:")) {
                 DnsSec = trimmedLine.Substring("dnssec:".Length).Trim();
             } else if (trimmedLine.StartsWith("DS:")) {
-                DS = trimmedLine.Substring("DS:".Length).Trim();
+                DnsRecord = trimmedLine.Substring("DS:".Length).Trim();
             } else if (trimmedLine.StartsWith("nameservers:")) {
                 isParsingNameServers = true;
                 NameServers.Add(trimmedLine.Substring("nameservers:".Length).Trim());
@@ -468,6 +643,44 @@ public class WhoisAnalysis {
                 } else {
                     RegistrarAddress = trimmedLine;
                 }
+            }
+        }
+    }
+
+    private void ParseWhoisDataBE() {
+        // Normalize line endings to \n
+        WhoisData = WhoisData.Replace("\r\n", "\n");
+
+        bool isParsingNameServers = false;
+        bool isParsingRegistrar = false;
+
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+
+            if (trimmedLine.StartsWith("Domain:")) {
+                DomainName = trimmedLine.Substring("Domain:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registered:")) {
+                CreationDate = trimmedLine.Substring("Registered:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar:")) {
+                isParsingRegistrar = true;
+            } else if (isParsingRegistrar) {
+                if (trimmedLine.StartsWith("Name:")) {
+                    Registrar = trimmedLine.Substring("Name:".Length).Trim();
+                } else if (trimmedLine.StartsWith("Website:")) {
+                    RegistrarWebsite = trimmedLine.Substring("Website:".Length).Trim();
+                } else {
+                    isParsingRegistrar = false;
+                }
+            } else if (trimmedLine.StartsWith("Nameservers:")) {
+                isParsingNameServers = true;
+            } else if (isParsingNameServers) {
+                if (!string.IsNullOrWhiteSpace(trimmedLine)) {
+                    NameServers.Add(trimmedLine);
+                } else {
+                    isParsingNameServers = false;
+                }
+            } else if (trimmedLine.StartsWith("Flags:")) {
+                DnsSec = trimmedLine.Substring("Flags:".Length).Trim();
             }
         }
     }
