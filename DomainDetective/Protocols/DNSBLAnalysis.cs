@@ -31,6 +31,19 @@ namespace DomainDetective {
         public bool IsBlacklisted => Listed > 0;
     }
 
+    public class DnsblEntry {
+        public string Domain { get; set; }
+        public bool Enabled { get; set; } = true;
+        public string Comment { get; set; }
+
+        public DnsblEntry() {}
+        public DnsblEntry(string domain, bool enabled = true, string comment = null) {
+            Domain = domain;
+            Enabled = enabled;
+            Comment = comment;
+        }
+    }
+
     public class DNSBLAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
 
@@ -46,121 +59,127 @@ namespace DomainDetective {
         /// <value>
         /// The DNSBL lists.
         /// </value>
-        internal List<string> DNSBLLists { get; } = [
-            "all.s5h.net",
-            "auth.spamrats.com",
-            "b.barracudacentral.org",
-            "bad.virusfree.cz",
-            "badconf.rhsbl.sorbs.net",
-            "bip.virusfree.cz",
-            "bl.0spam.org",
-            "bl.blocklist.de",
-            "bl.deadbeef.com",
-            "bl.mailspike.org",
-            "bl.nordspam.com",
-            "bl.spamcop.net",
-            "black.dnsbl.brukalai.lt",
-            "black.mail.abusix.zone",
-            "blackholes.five-ten-sg.com",
-            "blacklist.woody.ch",
-            "block.dnsbl.sorbs.net",
-            "bogons.cymru.com",
-            "cbl.abuseat.org",
-            "combined.abuse.ch",
-            "combined.mail.abusix.zone",
-            "combined.rbl.msrbl.net",
-            "db.wpbl.info",
-            "dbl.0spam.org",
-            "dbl.nordspam.com",
-            "dbl.spamhaus.org",
-            "dblack.mail.abusix.zone",
-            "diskhash.mail.abusix.zone",
-            "dnsbl.cyberlogic.net",
-            "dnsbl.dronebl.org",
-            "dnsbl.inps.de",
-            "dnsbl.justspam.org",
-            "dnsbl.sorbs.net",
-            "dnsbl-1.uceprotect.net",
-            "dnsbl-2.uceprotect.net",
-            "dnsbl-3.uceprotect.net",
-            "drone.abuse.ch",
-            "duinv.aupads.org",
-            "dul.dnsbl.sorbs.net",
-            "dul.ru",
-            "dyna.spamrats.com",
-            "dynamic.mail.abusix.zone",
-            "escalations.dnsbl.sorbs.net",
-            "exploit.mail.abusix.zone",
-            "hbl.spamhaus.org",
-            "hostkarma.junkemailfilter.com",
-            "http.dnsbl.sorbs.net",
-            "images.rbl.msrbl.net",
-            "ips.backscatterer.org",
-            "ix.dnsbl.manitu.net",
-            "key.authbl.dq.spamhaus.net",
-            "korea.services.net",
-            "misc.dnsbl.sorbs.net",
-            "nbl.0spam.org",
-            "new.spam.dnsbl.sorbs.net",
-            "nod.mail.abusix.zone",
-            "nomail.rhsbl.sorbs.net",
-            "noptr.spamrats.com",
-            "noservers.dnsbl.sorbs.net",
-            "ohps.dnsbl.net.au",
-            "old.spam.dnsbl.sorbs.net",
-            "omrs.dnsbl.net.au",
-            "orvedb.aupads.org",
-            "osps.dnsbl.net.au",
-            "osrs.dnsbl.net.au",
-            "owfs.dnsbl.net.au",
-            "owps.dnsbl.net.au",
-            "pbl.spamhaus.org",
-            "phishing.rbl.msrbl.net",
-            "probes.dnsbl.net.au",
-            "proxy.bl.gweep.ca",
-            "proxy.block.transip.nl",
-            "psbl.surriel.com",
-            "rbl.0spam.org",
-            "rbl.interserver.net",
-            "rbl.metunet.com",
-            "rdts.dnsbl.net.au",
-            "recent.spam.dnsbl.sorbs.net",
-            "relays.bl.gweep.ca",
-            "relays.bl.kundenserver.de",
-            "relays.nether.net",
-            "residential.block.transip.nl",
-            "rhsbl.sorbs.net",
-            "ricn.dnsbl.net.au",
-            "rmst.dnsbl.net.au",
-            "safe.dnsbl.sorbs.net",
-            "sbl.spamhaus.org",
-            "short.rbl.jp",
-            "shorthash.mail.abusix.zone",
-            "singular.ttk.pte.hu",
-            "smtp.dnsbl.sorbs.net",
-            "socks.dnsbl.sorbs.net",
-            "spam.abuse.ch",
-            "spam.dnsbl.anonmails.de",
-            "spam.dnsbl.sorbs.net",
-            "spam.rbl.msrbl.net",
-            "spam.spamrats.com",
-            "spambot.bls.digibase.ca",
-            "spamlist.or.kr",
-            "spamrbl.imp.ch",
-            "spamsources.fabel.dk",
-            "t3direct.dnsbl.net.au",
-            "ubl.lashback.com",
-            "ubl.unsubscore.com",
-            "virbl.bit.nl",
-            "virus.rbl.jp",
-            "virus.rbl.msrbl.net",
-            "web.dnsbl.sorbs.net",
-            "wormrbl.imp.ch",
-            "xbl.spamhaus.org",
-            "z.mailspike.net",
-            "zen.spamhaus.org",
-            "zombie.dnsbl.sorbs.net"
-        ];
+        internal List<DnsblEntry> DnsblEntries { get; } = new()
+        {
+            new("all.s5h.net"),
+            new("auth.spamrats.com"),
+            new("b.barracudacentral.org"),
+            new("bad.virusfree.cz"),
+            new("badconf.rhsbl.sorbs.net"),
+            new("bip.virusfree.cz"),
+            new("bl.0spam.org"),
+            new("bl.blocklist.de"),
+            new("bl.deadbeef.com"),
+            new("bl.mailspike.org"),
+            new("bl.nordspam.com"),
+            new("bl.spamcop.net"),
+            new("black.dnsbl.brukalai.lt"),
+            new("black.mail.abusix.zone"),
+            new("blackholes.five-ten-sg.com"),
+            new("blacklist.woody.ch"),
+            new("block.dnsbl.sorbs.net"),
+            new("bogons.cymru.com"),
+            new("cbl.abuseat.org"),
+            new("combined.abuse.ch"),
+            new("combined.mail.abusix.zone"),
+            new("combined.rbl.msrbl.net"),
+            new("db.wpbl.info"),
+            new("dbl.0spam.org"),
+            new("dbl.nordspam.com"),
+            new("dbl.spamhaus.org"),
+            new("dblack.mail.abusix.zone"),
+            new("diskhash.mail.abusix.zone"),
+            new("dnsbl.cyberlogic.net"),
+            new("dnsbl.dronebl.org"),
+            new("dnsbl.inps.de"),
+            new("dnsbl.justspam.org"),
+            new("dnsbl.sorbs.net", false),
+            new("dnsbl-1.uceprotect.net"),
+            new("dnsbl-2.uceprotect.net"),
+            new("dnsbl-3.uceprotect.net"),
+            new("drone.abuse.ch"),
+            new("duinv.aupads.org"),
+            new("dul.dnsbl.sorbs.net"),
+            new("dul.ru"),
+            new("dyna.spamrats.com"),
+            new("dynamic.mail.abusix.zone"),
+            new("escalations.dnsbl.sorbs.net"),
+            new("exploit.mail.abusix.zone"),
+            new("hbl.spamhaus.org"),
+            new("hostkarma.junkemailfilter.com"),
+            new("http.dnsbl.sorbs.net", false),
+            new("images.rbl.msrbl.net"),
+            new("ips.backscatterer.org"),
+            new("ix.dnsbl.manitu.net"),
+            new("key.authbl.dq.spamhaus.net"),
+            new("korea.services.net"),
+            new("misc.dnsbl.sorbs.net", false),
+            new("nbl.0spam.org"),
+            new("new.spam.dnsbl.sorbs.net"),
+            new("nod.mail.abusix.zone"),
+            new("nomail.rhsbl.sorbs.net"),
+            new("noptr.spamrats.com"),
+            new("noservers.dnsbl.sorbs.net"),
+            new("ohps.dnsbl.net.au"),
+            new("old.spam.dnsbl.sorbs.net"),
+            new("omrs.dnsbl.net.au"),
+            new("orvedb.aupads.org"),
+            new("osps.dnsbl.net.au"),
+            new("osrs.dnsbl.net.au"),
+            new("owfs.dnsbl.net.au"),
+            new("owps.dnsbl.net.au"),
+            new("pbl.spamhaus.org"),
+            new("phishing.rbl.msrbl.net"),
+            new("probes.dnsbl.net.au"),
+            new("proxy.bl.gweep.ca"),
+            new("proxy.block.transip.nl"),
+            new("psbl.surriel.com"),
+            new("rbl.0spam.org"),
+            new("rbl.interserver.net"),
+            new("rbl.metunet.com"),
+            new("rdts.dnsbl.net.au"),
+            new("recent.spam.dnsbl.sorbs.net"),
+            new("relays.bl.gweep.ca"),
+            new("relays.bl.kundenserver.de"),
+            new("relays.nether.net"),
+            new("residential.block.transip.nl"),
+            new("rhsbl.sorbs.net"),
+            new("ricn.dnsbl.net.au"),
+            new("rmst.dnsbl.net.au"),
+            new("safe.dnsbl.sorbs.net"),
+            new("sbl.spamhaus.org"),
+            new("short.rbl.jp"),
+            new("shorthash.mail.abusix.zone"),
+            new("singular.ttk.pte.hu"),
+            new("smtp.dnsbl.sorbs.net", false),
+            new("socks.dnsbl.sorbs.net", false),
+            new("spam.abuse.ch"),
+            new("spam.dnsbl.anonmails.de"),
+            new("spam.dnsbl.sorbs.net", false),
+            new("spam.rbl.msrbl.net"),
+            new("spam.spamrats.com"),
+            new("spambot.bls.digibase.ca"),
+            new("spamlist.or.kr"),
+            new("spamrbl.imp.ch"),
+            new("spamsources.fabel.dk"),
+            new("t3direct.dnsbl.net.au"),
+            new("ubl.lashback.com"),
+            new("ubl.unsubscore.com"),
+            new("virbl.bit.nl"),
+            new("virus.rbl.jp"),
+            new("virus.rbl.msrbl.net"),
+            new("web.dnsbl.sorbs.net", false),
+            new("wormrbl.imp.ch"),
+            new("xbl.spamhaus.org"),
+            new("z.mailspike.net"),
+            new("zen.spamhaus.org"),
+            new("zombie.dnsbl.sorbs.net", false)
+        };
+
+        internal List<string> DNSBLLists => DnsblEntries
+            .Where(e => e.Enabled)
+            .Select(e => e.Domain)
+            .ToList();
 
         public bool IsBlacklisted => Results.Any(r => r.Value.IsBlacklisted);
         public int RecordChecked => Results.Count;
@@ -225,7 +244,7 @@ namespace DomainDetective {
             Results[ipAddressOrHostname] = queryResult;
         }
 
-        private async Task<IEnumerable<DNSBLRecord>> QueryDNSBL(List<string> dnsblList, string ipAddressOrHostname) {
+        private async Task<IEnumerable<DNSBLRecord>> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
             List<DNSBLRecord> results = new List<DNSBLRecord>();
 
             // Check if the input is an IP address or a hostname
@@ -300,11 +319,14 @@ namespace DomainDetective {
             return results.OrderByDescending(r => r.IsBlackListed).ToList();
         }
 
-        public void AddDNSBL(string dnsbl)
+        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null)
         {
-            if (!string.IsNullOrWhiteSpace(dnsbl) && !DNSBLLists.Contains(dnsbl))
+            if (string.IsNullOrWhiteSpace(dnsbl))
+                return;
+
+            if (!DnsblEntries.Any(e => e.Domain == dnsbl))
             {
-                DNSBLLists.Add(dnsbl);
+                DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
             }
         }
 
@@ -318,15 +340,16 @@ namespace DomainDetective {
 
         public void RemoveDNSBL(string dnsbl)
         {
-            if (DNSBLLists.Contains(dnsbl))
+            var entry = DnsblEntries.FirstOrDefault(e => e.Domain == dnsbl);
+            if (entry != null)
             {
-                DNSBLLists.Remove(dnsbl);
+                DnsblEntries.Remove(entry);
             }
         }
 
         public void ClearDNSBL()
         {
-            DNSBLLists.Clear();
+            DnsblEntries.Clear();
         }
 
         public void LoadDNSBL(string filePath, bool clearExisting = false)
@@ -336,16 +359,39 @@ namespace DomainDetective {
                 throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
             }
 
-            var lines = File.ReadAllLines(filePath)
-                .Select(l => l.Trim())
-                .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#"));
+            var lines = File.ReadAllLines(filePath);
 
             if (clearExisting)
             {
                 ClearDNSBL();
             }
 
-            AddDNSBL(lines);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrWhiteSpace(trimmed))
+                    continue;
+
+                bool enabled = true;
+                if (trimmed.StartsWith("#"))
+                {
+                    enabled = false;
+                    trimmed = trimmed.Substring(1).Trim();
+                }
+
+                string comment = null;
+                var commentIndex = trimmed.IndexOf('#');
+                if (commentIndex >= 0)
+                {
+                    comment = trimmed.Substring(commentIndex + 1).Trim();
+                    trimmed = trimmed.Substring(0, commentIndex).Trim();
+                }
+
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    AddDNSBL(trimmed, enabled, comment);
+                }
+            }
         }
     }
 }

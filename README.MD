@@ -37,7 +37,7 @@ Current capabilities include:
 - [ ] Other things that I haven't thought of yet
 
 ### DNSBL Configuration
-DNSBL lists used for blacklist checks can be customized. Use the following methods on `DNSBLAnalysis`:
+DNSBL lists used for blacklist checks can be customized. Lines beginning with `#` in `dnsbl.txt` are disabled. Entries are loaded into objects that expose `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:
 
 - `AddDNSBL`/`AddDNSBL(IEnumerable<string>)`
 - `RemoveDNSBL`

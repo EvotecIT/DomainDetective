@@ -30,7 +30,7 @@ dnsbl.cyberlogic.net
 dnsbl.dronebl.org
 dnsbl.inps.de
 dnsbl.justspam.org
-dnsbl.sorbs.net
+# dnsbl.sorbs.net
 dnsbl-1.uceprotect.net
 dnsbl-2.uceprotect.net
 dnsbl-3.uceprotect.net
@@ -44,13 +44,13 @@ escalations.dnsbl.sorbs.net
 exploit.mail.abusix.zone
 hbl.spamhaus.org
 hostkarma.junkemailfilter.com
-http.dnsbl.sorbs.net
+# http.dnsbl.sorbs.net
 images.rbl.msrbl.net
 ips.backscatterer.org
 ix.dnsbl.manitu.net
 key.authbl.dq.spamhaus.net
 korea.services.net
-misc.dnsbl.sorbs.net
+# misc.dnsbl.sorbs.net
 nbl.0spam.org
 new.spam.dnsbl.sorbs.net
 nod.mail.abusix.zone
@@ -88,11 +88,11 @@ sbl.spamhaus.org
 short.rbl.jp
 shorthash.mail.abusix.zone
 singular.ttk.pte.hu
-smtp.dnsbl.sorbs.net
-socks.dnsbl.sorbs.net
+# smtp.dnsbl.sorbs.net
+# socks.dnsbl.sorbs.net
 spam.abuse.ch
 spam.dnsbl.anonmails.de
-spam.dnsbl.sorbs.net
+# spam.dnsbl.sorbs.net
 spam.rbl.msrbl.net
 spam.spamrats.com
 spambot.bls.digibase.ca
@@ -105,10 +105,10 @@ ubl.unsubscore.com
 virbl.bit.nl
 virus.rbl.jp
 virus.rbl.msrbl.net
-web.dnsbl.sorbs.net
+# web.dnsbl.sorbs.net
 wormrbl.imp.ch
 xbl.spamhaus.org
 z.mailspike.net
 zen.spamhaus.org
-zombie.dnsbl.sorbs.net
+# zombie.dnsbl.sorbs.net
 
