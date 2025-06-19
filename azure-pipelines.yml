@@ -2,33 +2,9 @@
 # Add steps that publish symbols, save build artifacts, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/apps/windows/dot-net
 
-trigger:
-  batch: true
-  branches:
-    include:
-      - master
-  paths:
-    exclude:
-      - docs
-      - .github
-      - .vs
-      - Assets
-      - README.md
-      - CHANGELOG.MD
-
-pr:
-  autoCancel: true
-  branches:
-    include:
-      - '*'
-  paths:
-    exclude:
-      - docs
-      - .github
-      - .vs
-      - Assets
-      - README.md
-      - CHANGELOG.MD
+# Pipeline disabled - replaced by GitHub Actions
+trigger: none
+pr: none
 
 pool:
   vmImage: 'windows-latest'
