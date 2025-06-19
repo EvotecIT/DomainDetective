@@ -37,7 +37,7 @@ namespace DomainDetective {
                 // Split the DANE record into its four components as defined in
                 // RFC 6698 section 2: certificate usage, selector, matching
                 // type and certificate association data.
-                var components = record.Data.Split(' ');
+                var components = record.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                 analysis.NumberOfFields = components.Length;
                 // A TLSA record must contain exactly four fields as per RFC 6698
@@ -54,17 +54,15 @@ namespace DomainDetective {
                 var matchingPart = components[2];
                 var associationData = components[3];
 
-                analysis.ValidUsage = ValidateUsage(usagePart);
-                analysis.ValidSelector = ValidateSelector(selectorPart);
+                bool usageParsed = int.TryParse(usagePart, out int usageValue);
+                bool selectorParsed = int.TryParse(selectorPart, out int selectorValue);
+                bool matchingParsed = int.TryParse(matchingPart, out int matchingTypeValue);
+
+                analysis.ValidUsage = usageParsed && ValidateUsage(usageValue);
+                analysis.ValidSelector = selectorParsed && ValidateSelector(selectorValue);
                 analysis.ValidCertificateAssociationData = IsHexadecimal(associationData);
 
-                int usageValue;
-                int selectorValue;
-                int matchingTypeValue;
-
-                if (!int.TryParse(usagePart, out usageValue) ||
-                    !int.TryParse(selectorPart, out selectorValue) ||
-                    !int.TryParse(matchingPart, out matchingTypeValue)) {
+                if (!usageParsed || !selectorParsed || !matchingParsed) {
                     analysis.ValidMatchingType = false;
                     AnalysisResults.Add(analysis);
                     continue;
@@ -130,13 +128,7 @@ namespace DomainDetective {
             HasInvalidRecords = AnalysisResults.Any(x => !x.ValidDANERecord);
         }
 
-        private bool ValidateUsage(string usage) {
-            bool isNumeric = int.TryParse(usage, out var usageValue);
-
-            if (!isNumeric) {
-                return false;
-            }
-
+        private bool ValidateUsage(int usageValue) {
             switch (usageValue) {
                 case 0:
                 case 1:
@@ -147,13 +139,7 @@ namespace DomainDetective {
                     return false;
             }
         }
-        private bool ValidateSelector(string selector) {
-            bool isNumeric = int.TryParse(selector, out var selectorValue);
-
-            if (!isNumeric) {
-                return false;
-            }
-
+        private bool ValidateSelector(int selectorValue) {
             switch (selectorValue) {
                 case 0:
                 case 1:
