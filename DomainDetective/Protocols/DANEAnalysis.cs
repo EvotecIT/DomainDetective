@@ -34,50 +34,62 @@ namespace DomainDetective {
                 analysis.DANERecord = record.Data;
                 logger.WriteVerbose($"Analyzing DANE record {record.Data}");
 
-                // Split the DANE record into its components
+                // Split the DANE record into its four components as defined in
+                // RFC 6698 section 2: certificate usage, selector, matching
+                // type and certificate association data.
                 var components = record.Data.Split(' ');
 
-                // Validate the components according to the rules defined in RFC 6698
-                // For example, the first component should be a usage field, the second should be a selector field, etc.
-                // You would need to implement these validation methods
-                analysis.ValidUsage = ValidateUsage(components[0]);
-                analysis.ValidSelector = ValidateSelector(components[1]);
-
-                // Check if the DANE record has the correct number of fields
+                analysis.NumberOfFields = components.Length;
+                // A TLSA record must contain exactly four fields as per RFC 6698
+                // (usage, selector, matching type and certificate data).
                 analysis.CorrectNumberOfFields = components.Length == 4;
 
-                // Check if the Certificate Association Data is a valid hexadecimal string
-                analysis.ValidCertificateAssociationData = IsHexadecimal(components[3]);
-
-                // Check the length of the Certificate Association Data
-                int expectedLength;
-                switch (int.Parse(components[2])) {
-                    case 0:
-                        expectedLength = 256;
-                        break;
-                    case 1:
-                        expectedLength = 64;
-                        break;
-                    case 2:
-                        expectedLength = 128;
-                        break;
-                    default:
-                        expectedLength = 0;
-                        break;
+                if (!analysis.CorrectNumberOfFields) {
+                    AnalysisResults.Add(analysis);
+                    continue;
                 }
-                analysis.CorrectLengthOfCertificateAssociationData = components[3].Length == expectedLength;
-                analysis.LengthOfCertificateAssociationData = components[3].Length;
-                analysis.ValidMatchingType = int.Parse(components[2]) >= 0 && int.Parse(components[2]) <= 2;
-                analysis.NumberOfFields = components.Length;
 
-                var usageValue = int.Parse(components[0]);
-                var selectorValue = int.Parse(components[1]);
-                var matchingTypeValue = int.Parse(components[2]);
+                var usagePart = components[0];
+                var selectorPart = components[1];
+                var matchingPart = components[2];
+                var associationData = components[3];
 
-                analysis.CertificateUsage = TranslateUsage(int.Parse(components[0]));
-                analysis.SelectorField = TranslateSelector(int.Parse(components[1]));
-                analysis.MatchingTypeField = TranslateMatchingType(int.Parse(components[2]));
-                analysis.CertificateAssociationData = components[3]; // This is typically a hex string, so no translation is needed
+                analysis.ValidUsage = ValidateUsage(usagePart);
+                analysis.ValidSelector = ValidateSelector(selectorPart);
+                analysis.ValidCertificateAssociationData = IsHexadecimal(associationData);
+
+                int usageValue;
+                int selectorValue;
+                int matchingTypeValue;
+
+                if (!int.TryParse(usagePart, out usageValue) ||
+                    !int.TryParse(selectorPart, out selectorValue) ||
+                    !int.TryParse(matchingPart, out matchingTypeValue)) {
+                    analysis.ValidMatchingType = false;
+                    AnalysisResults.Add(analysis);
+                    continue;
+                }
+
+                // Matching type defines how certificate association data is
+                // interpreted.  For digest-based types we verify the expected
+                // length of the hexadecimal string (SHA-256 => 64 hex chars,
+                // SHA-512 => 128 hex chars).  For type 0 the data is the full
+                // certificate and length is implementation specific.
+                int expectedLength = matchingTypeValue switch {
+                    0 => 256,
+                    1 => 64,
+                    2 => 128,
+                    _ => 0
+                };
+
+                analysis.CorrectLengthOfCertificateAssociationData = associationData.Length == expectedLength;
+                analysis.LengthOfCertificateAssociationData = associationData.Length;
+                analysis.ValidMatchingType = matchingTypeValue >= 0 && matchingTypeValue <= 2;
+
+                analysis.CertificateUsage = TranslateUsage(usageValue);
+                analysis.SelectorField = TranslateSelector(selectorValue);
+                analysis.MatchingTypeField = TranslateMatchingType(matchingTypeValue);
+                analysis.CertificateAssociationData = associationData; // This is typically a hex string, so no translation is needed
 
                 // Check for correct usage of the Cert and SPKI selectors
                 if ((analysis.SelectorField == "Cert" && (analysis.CertificateUsage != "PKIX-TA" && analysis.CertificateUsage != "PKIX-EE")) ||
