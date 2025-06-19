@@ -10,13 +10,13 @@ $PSDInformation = Import-PowerShellDataFile -Path $PrimaryModule.FullName
 $RequiredModules = @(
     'Pester'
     'PSWriteColor'
-    'ImagePlayground'
+    'DomainDetective'
     if ($PSDInformation.RequiredModules) {
         $PSDInformation.RequiredModules
     }
 )
 foreach ($Module in $RequiredModules) {
-    if ($Module -eq 'ImagePlayground') {
+    if ($Module -eq 'DomainDetective') {
         continue
     }
     if ($Module -is [System.Collections.IDictionary]) {
