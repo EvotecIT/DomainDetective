@@ -2,7 +2,7 @@
     public class TestDMARCAnalysis {
 
         [Fact]
-        public async void TestDMARCByString() {
+        public async Task TestDMARCByString() {
             var dmarcRecord = "v=DMARC1; p=reject; rua=mailto:1012c7e7df7b474cb85c1c8d00cc1c1a@dmarc-reports.cloudflare.net,mailto:7kkoc19n@ag.eu.dmarcian.com,mailto:dmarc@evotec.pl; adkim=s; aspf=s;";
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = true;
@@ -18,7 +18,7 @@
         }
 
         [Fact]
-        public async void TestDMARCByDomain() {
+        public async Task TestDMARCByDomain() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = true;
             await healthCheck.Verify("evotec.pl", [HealthCheckType.DMARC]);
@@ -33,7 +33,7 @@
         }
 
         [Fact]
-        public async void TestPercentOutOfRange() {
+        public async Task TestPercentOutOfRange() {
             var dmarcRecord = "v=DMARC1; p=none; pct=150";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);

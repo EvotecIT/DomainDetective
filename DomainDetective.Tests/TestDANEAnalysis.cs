@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests {
     public class TestDANEnalysis {
         [Fact]
-        public async void TestDANERecordByDomain() {
+        public async Task TestDANERecordByDomain() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
             };
@@ -30,7 +30,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async void TestDANERecordByString() {
+        public async Task TestDANERecordByString() {
             var daneRecord = "3 1 1 0C72AC70B745AC19998811B131D662C9AC69DBDBE7CB23E5B514B566 64C5D3D6";
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
