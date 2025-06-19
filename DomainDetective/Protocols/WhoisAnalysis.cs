@@ -539,19 +539,33 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataDefault() {
         // Parse WHOIS data for most TLDs
-        Console.Write(WhoisData);
+        WhoisData = WhoisData.Replace("\r\n", "\n");
 
         foreach (var line in WhoisData.Split('\n')) {
-            if (line.StartsWith("Domain Name:")) {
-                DomainName = line.Substring("Domain Name:".Length).Trim();
-            } else if (line.StartsWith("Registrar:")) {
-                Registrar = line.Substring("Registrar:".Length).Trim();
-            } else if (line.StartsWith("Creation Date:")) {
-                CreationDate = line.Substring("Creation Date:".Length).Trim();
-            } else if (line.StartsWith("Registry Expiry Date:")) {
-                ExpiryDate = line.Substring("Registry Expiry Date:".Length).Trim();
-            } else if (line.StartsWith("Name Server:")) {
-                NameServers.Add(line.Substring("Name Server:".Length).Trim());
+            var trimmedLine = line.Trim();
+
+            if (trimmedLine.StartsWith("Domain Name:")) {
+                DomainName = trimmedLine.Substring("Domain Name:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar:")) {
+                Registrar = trimmedLine.Substring("Registrar:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Creation Date:")) {
+                CreationDate = trimmedLine.Substring("Creation Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registry Expiry Date:")) {
+                ExpiryDate = trimmedLine.Substring("Registry Expiry Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Updated Date:")) {
+                LastUpdated = trimmedLine.Substring("Updated Date:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Name Server:")) {
+                NameServers.Add(trimmedLine.Substring("Name Server:".Length).Trim());
+            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
+                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
+                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrant Organization:")) {
+                RegisteredTo = trimmedLine.Substring("Registrant Organization:".Length).Trim();
+            } else if (trimmedLine.StartsWith("Registrant Country:")) {
+                Country = trimmedLine.Substring("Registrant Country:".Length).Trim();
+            } else if (trimmedLine.StartsWith("DNSSEC:")) {
+                DnsSec = trimmedLine.Substring("DNSSEC:".Length).Trim();
             }
         }
     }
