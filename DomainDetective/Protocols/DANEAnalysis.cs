@@ -37,7 +37,7 @@ namespace DomainDetective {
                 // Split the DANE record into its four components as defined in
                 // RFC 6698 section 2: certificate usage, selector, matching
                 // type and certificate association data.
-                var components = record.Data.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var components = record.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
                 analysis.NumberOfFields = components.Length;
                 // A TLSA record must contain exactly four fields as per RFC 6698
