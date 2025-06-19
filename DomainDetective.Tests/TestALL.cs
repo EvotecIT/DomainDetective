@@ -1,7 +1,7 @@
 ﻿namespace DomainDetective.Tests {
     public class TestAll {
         [Fact]
-        public async void TestAllHealthChecks() {
+        public async Task TestAllHealthChecks() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
             };

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.Tests {
     public class TestCAAAnalysis {
         [Fact]
-        public async void TestCAARecordByList() {
+        public async Task TestCAARecordByList() {
             List<string> caaRecords = new List<string> {
                 // Test CAA record one by one
                 "0 issue \"digicert.com; cansignhttpexchanges=yes\"",
@@ -143,7 +143,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async void TestCAARecordByString() {
+        public async Task TestCAARecordByString() {
             var caaRecord = "128 issue letsencrypt.org";
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = false;
@@ -175,7 +175,7 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async void TestCAARecordByDomain() {
+        public async Task TestCAARecordByDomain() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = false;
             await healthCheck.Verify("evotec.pl", new[] { HealthCheckType.CAA });
