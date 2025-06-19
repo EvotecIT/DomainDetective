@@ -1,4 +1,4 @@
-﻿
+
 
 
 
@@ -9,7 +9,7 @@ Domain Detective is a C# library, Tool and PowerShell module in one project. It 
 While there are plenty of tools on the internet that can do this, most of them are web based and require you to enter the domain name into a web form.
 This is not ideal if you want to automate the process or if you are working with sensitive information.
 
-Current capatbilities include:
+Current capabilities include:
 - [x] Verify SPF
 - [x] Verify DMARC
 - [x] Verify DKIM
