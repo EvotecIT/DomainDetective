@@ -167,10 +167,14 @@ namespace DomainDetective {
         private string TranslatePercentage(string pct) {
             int pctValue;
             if (int.TryParse(pct, out pctValue)) {
+                if (pctValue < 0 || pctValue > 100) {
+                    return "Percentage value must be between 0 and 100.";
+                }
+
                 return $"{pctValue}% of messages are subjected to filtering.";
-            } else {
-                return "Invalid percentage value.";
             }
+
+            return "Invalid percentage value.";
         }
 
         private string TranslateReportingInterval(int interval) {
