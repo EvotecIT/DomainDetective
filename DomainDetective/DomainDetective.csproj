@@ -14,6 +14,6 @@
           <Folder Include="Dictionaries\" />
   </ItemGroup>
   <ItemGroup>
-      <None Include="Dictionaries/dnsbl.txt" CopyToOutputDirectory="PreserveNewest" />
+      <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
   </ItemGroup>
 </Project>

@@ -37,14 +37,14 @@ Current capabilities include:
 - [ ] Other things that I haven't thought of yet
 
 ### DNSBL Configuration
-DNSBL lists used for blacklist checks can be customized. When a `DNSBLAnalysis` instance is created, it automatically loads entries from `Dictionaries/dnsbl.txt`. Lines beginning with `#` in that file are disabled. Each entry exposes `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:
+DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes with a built-in list, but you can modify it at runtime. Each list entry exposes `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:
 
 - `AddDNSBL`/`AddDNSBL(IEnumerable<string>)`
 - `RemoveDNSBL`
 - `ClearDNSBL`
 - `LoadDNSBL`
 
-A sample configuration file is available at `Dictionaries/dnsbl.txt` and can be loaded using `LoadDNSBL`.
+You can load a custom list from a file using `LoadDNSBL`.
 
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
