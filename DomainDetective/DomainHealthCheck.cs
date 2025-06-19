@@ -59,7 +59,7 @@ namespace DomainDetective {
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
-        public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.System, InternalLogger internalLogger = null) {
+        public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.Cloudflare, InternalLogger internalLogger = null) {
             if (internalLogger != null) {
                 _logger = internalLogger;
             }
