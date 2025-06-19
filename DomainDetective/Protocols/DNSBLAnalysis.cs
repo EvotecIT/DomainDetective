@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.IO;
 using System.Threading.Tasks;
 
 using DnsClientX;
@@ -297,6 +298,54 @@ namespace DomainDetective {
                 }
             }
             return results.OrderByDescending(r => r.IsBlackListed).ToList();
+        }
+
+        public void AddDNSBL(string dnsbl)
+        {
+            if (!string.IsNullOrWhiteSpace(dnsbl) && !DNSBLLists.Contains(dnsbl))
+            {
+                DNSBLLists.Add(dnsbl);
+            }
+        }
+
+        public void AddDNSBL(IEnumerable<string> dnsbls)
+        {
+            foreach (var dnsbl in dnsbls)
+            {
+                AddDNSBL(dnsbl);
+            }
+        }
+
+        public void RemoveDNSBL(string dnsbl)
+        {
+            if (DNSBLLists.Contains(dnsbl))
+            {
+                DNSBLLists.Remove(dnsbl);
+            }
+        }
+
+        public void ClearDNSBL()
+        {
+            DNSBLLists.Clear();
+        }
+
+        public void LoadDNSBL(string filePath, bool clearExisting = false)
+        {
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
+            }
+
+            var lines = File.ReadAllLines(filePath)
+                .Select(l => l.Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l) && !l.StartsWith("#"));
+
+            if (clearExisting)
+            {
+                ClearDNSBL();
+            }
+
+            AddDNSBL(lines);
         }
     }
 }

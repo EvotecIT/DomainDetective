@@ -10,7 +10,10 @@
 		<PackageReference Include="MailKit" Version="4.12.1" />
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Folder Include="Dictionaries\" />
-	</ItemGroup>
+  <ItemGroup>
+          <Folder Include="Dictionaries\" />
+  </ItemGroup>
+  <ItemGroup>
+      <None Include="Dictionaries/dnsbl.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

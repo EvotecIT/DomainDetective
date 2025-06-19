@@ -36,6 +36,16 @@ Current capabilities include:
 - [ ] Check propagation of DNS records across the world/country/company
 - [ ] Other things that I haven't thought of yet
 
+### DNSBL Configuration
+DNSBL lists used for blacklist checks can be customized. Use the following methods on `DNSBLAnalysis`:
+
+- `AddDNSBL`/`AddDNSBL(IEnumerable<string>)`
+- `RemoveDNSBL`
+- `ClearDNSBL`
+- `LoadDNSBL`
+
+A sample configuration file is available at `Dictionaries/dnsbl.txt` and can be loaded using `LoadDNSBL`.
+
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
 
