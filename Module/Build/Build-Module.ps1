@@ -1,4 +1,4 @@
-﻿Import-Moddule PSPublishModule -Force
+﻿Import-Module PSPublishModule -Force
 
 Build-Module -ModuleName 'DomainDetective' {
     # Usual defaults as per standard module

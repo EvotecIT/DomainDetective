@@ -1,10 +1,4 @@
-
-
-
-
-
-
-
+[![codecov](https://codecov.io/gh/your-user/DomainDetective/branch/master/graph/badge.svg)](https://codecov.io/gh/your-user/DomainDetective)
 Domain Detective is a C# library, Tool and PowerShell module in one project. It is designed to help you find interesting information about a domain name.
 While there are plenty of tools on the internet that can do this, most of them are web based and require you to enter the domain name into a web form.
 This is not ideal if you want to automate the process or if you are working with sensitive information.
@@ -46,3 +40,8 @@ If you don't need to automate the process, or if you just want to quickly query 
 - [DMARC Analyzer](https://www.dmarcanalyzer.com/)
 - [DKIM Validator](https://dkimvalidator.com/)
 - [DKIM Core](https://www.dkimcore.org/tools/)
+
+## Continuous Integration
+
+This project uses GitHub Actions to run .NET and PowerShell tests on Windows, Linux and macOS.
+Code coverage results are published to [Codecov](https://codecov.io/gh/your-user/DomainDetective).

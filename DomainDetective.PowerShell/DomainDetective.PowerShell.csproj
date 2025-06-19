@@ -2,10 +2,10 @@
 
     <PropertyGroup>
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`Windows`))' ">
-            netstandard2.0;net472;net6.0;net7.0;net8.0
+            netstandard2.0;net472;net8.0
         </TargetFrameworks>
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`OSX`))'  Or '$([MSBuild]::IsOsPlatform(`Linux`))' ">
-            net6.0;net7.0;net8.0
+            net8.0
         </TargetFrameworks>
         <Description>PowerShell Module to analyze Domain Health</Description>
         <AssemblyName>DomainDetective.PowerShell</AssemblyName>
