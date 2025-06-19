@@ -31,5 +31,15 @@
             Assert.True(healthCheck.DmarcAnalysis.DkimAShort == "s");
             Assert.True(healthCheck.DmarcAnalysis.SpfAShort == "s");
         }
+
+        [Fact]
+        public async void TestPercentOutOfRange() {
+            var dmarcRecord = "v=DMARC1; p=none; pct=150";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.Equal(
+                "Percentage value must be between 0 and 100.",
+                healthCheck.DmarcAnalysis.Percent);
+        }
     }
 }
