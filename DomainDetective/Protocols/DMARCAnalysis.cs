@@ -83,13 +83,22 @@ namespace DomainDetective {
                             SubPolicyShort = value;
                             break;
                         case "ri":
-                            ReportingIntervalShort = int.Parse(value);
+                            // RFC 7489 section 6.3 defines 'ri' as the reporting
+                            // interval in seconds.  It must be a numeric value.
+                            if (int.TryParse(value, out var ri)) {
+                                ReportingIntervalShort = ri;
+                            }
                             break;
                         case "fo":
                             FoShort = value;
                             break;
                         case "pct":
-                            Pct = int.Parse(value);
+                            // RFC 7489 section 6.3 defines 'pct' as the
+                            // percentage of messages to which the DMARC policy
+                            // applies.  It should be a number between 0 and 100.
+                            if (int.TryParse(value, out var pct)) {
+                                Pct = pct;
+                            }
                             break;
                         case "adkim":
                             DkimAShort = value;

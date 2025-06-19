@@ -64,8 +64,10 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 analysis.CAARecord = caaRecord;
 
                 var properties = caaRecord.Split(new[] { ' ' }, 3); // Split into 3 parts at most
-                if (properties.Length == 3) {
-                    var flag = int.Parse(properties[0].Trim());
+                // RFC 6844 section 5 specifies that the flag field must be a
+                // single unsigned octet in the range 0-255.  We validate the
+                // numeric value before processing the remaining parts.
+                if (properties.Length == 3 && int.TryParse(properties[0].Trim(), out var flag)) {
                     var tag = properties[1].Trim();
                     var value = properties[2];
 
