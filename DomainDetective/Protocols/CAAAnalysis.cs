@@ -1,9 +1,9 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective {
 
@@ -70,7 +70,6 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
             foreach (var record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();
-
                 var caaRecord = record.Data;
 
                 logger.WriteVerbose($"Analyzing CAA record {caaRecord}");
@@ -136,44 +135,45 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         var isValueOnlySemicolon = value == ";";
                         if (isValueOnlySemicolon) {
                             analysis.Value = value;
-                            continue;
-                        }
-                        var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
-                        var domainName = parts[0].Trim();
-                        if (string.IsNullOrEmpty(domainName)) {
-                            // The domain name can be left empty, which must be indicated providing just ";" as a value
-                            if (parts.Length > 1) {
-                                analysis.InvalidValueWrongParameters = true;
-                                // continue;
-                            }
-
+                            // Don't continue here - we still need to add this analysis to the results
                         } else {
-                            // It must contain a domain name
-                            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
-                                analysis.InvalidValueWrongDomain = true;
-                                // continue;
-                            }
-                        }
-
-                        analysis.Issuer = domainName;
-
-                        // Parse additional parameters
-                        var parameters = new Dictionary<string, string>();
-                        if (parts.Length > 1) {
-                            var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                            for (int i = 0; i < paramParts.Length; i++) {
-                                var trimmedPart = paramParts[i].Trim();
-                                var keyValue = trimmedPart.Split('=');
-                                if (keyValue.Length == 2) {
-                                    parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
-                                } else {
+                            var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
+                            var domainName = parts[0].Trim();
+                            if (string.IsNullOrEmpty(domainName)) {
+                                // The domain name can be left empty, which must be indicated providing just ";" as a value
+                                if (parts.Length > 1) {
                                     analysis.InvalidValueWrongParameters = true;
                                     // continue;
                                 }
-                            }
-                        }
 
-                        analysis.Parameters = parameters;
+                            } else {
+                                // It must contain a domain name
+                                if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                                    analysis.InvalidValueWrongDomain = true;
+                                    // continue;
+                                }
+                            }
+
+                            analysis.Issuer = domainName;
+
+                            // Parse additional parameters
+                            var parameters = new Dictionary<string, string>();
+                            if (parts.Length > 1) {
+                                var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                                for (int i = 0; i < paramParts.Length; i++) {
+                                    var trimmedPart = paramParts[i].Trim();
+                                    var keyValue = trimmedPart.Split('=');
+                                    if (keyValue.Length == 2) {
+                                        parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
+                                    } else {
+                                        analysis.InvalidValueWrongParameters = true;
+                                        // continue;
+                                    }
+                                }
+                            }
+
+                            analysis.Parameters = parameters;
+                        }
                     }
                     analysis.Value = value;
                 } else {
