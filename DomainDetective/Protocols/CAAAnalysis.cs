@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -80,7 +81,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 // RFC 6844 section 5 specifies that the flag field must be a
                 // single unsigned octet in the range 0-255.  We validate the
                 // numeric value before processing the remaining parts.
-                if (properties.Length == 3 && int.TryParse(properties[0].Trim(), out var flag)) {
+                if (properties.Length == 3 && int.TryParse(properties[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var flag)) {
                     var tag = properties[1].Trim();
                     var value = properties[2];
 
@@ -91,7 +92,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     }
 
                     // Validate tag and set the Tag property
-                    var validTags = new Dictionary<string, CAATagType> {
+                    var validTags = new Dictionary<string, CAATagType>(StringComparer.OrdinalIgnoreCase) {
                             { "issue", CAATagType.Issue },
                             { "issuewild", CAATagType.IssueWildcard },
                             { "iodef", CAATagType.Iodef },
