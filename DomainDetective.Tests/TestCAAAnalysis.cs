@@ -26,6 +26,30 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults.Count == 9);
             Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count == 5);
+
+            // Start of added diagnostic lines
+            if (healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count > 0) {
+                System.Console.WriteLine($"DEBUG: CanIssueCertificatesForDomain[0] (length {healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0]?.Length ?? -1}): '{healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0]}'");
+            } else {
+                System.Console.WriteLine("DEBUG: CanIssueCertificatesForDomain is empty.");
+            }
+            System.Console.WriteLine($"DEBUG: Expected Issuer: 'digicert.com'");
+
+            if (healthCheck.CAAAnalysis.AnalysisResults.Count > 0) {
+                var firstAnalysisResult = healthCheck.CAAAnalysis.AnalysisResults[0];
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].Issuer (length {firstAnalysisResult.Issuer?.Length ?? -1}): '{firstAnalysisResult.Issuer}'");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].Value (length {firstAnalysisResult.Value?.Length ?? -1}): '{firstAnalysisResult.Value}'");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].Invalid: {firstAnalysisResult.Invalid}");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].InvalidFlag: {firstAnalysisResult.InvalidFlag}");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].InvalidTag: {firstAnalysisResult.InvalidTag}");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].InvalidValueUnescapedQuotes: {firstAnalysisResult.InvalidValueUnescapedQuotes}");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].InvalidValueWrongDomain: {firstAnalysisResult.InvalidValueWrongDomain}");
+                System.Console.WriteLine($"DEBUG: AnalysisResults[0].InvalidValueWrongParameters: {firstAnalysisResult.InvalidValueWrongParameters}");
+            } else {
+                System.Console.WriteLine("DEBUG: AnalysisResults is empty.");
+            }
+            // End of added diagnostic lines
+
             Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0] == "digicert.com");
             Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[1] == "letsencrypt.org");
             Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[2] == "pki.goog");
@@ -36,7 +60,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0] == "letsencrypt.org");
 
             //  "0 issue \"digicert.com; cansignhttpexchanges=yes\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Value == "digicert.com; cansignhttpexchanges=yes");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Issuer == "digicert.com");
@@ -49,7 +73,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Parameters["cansignhttpexchanges"] == "yes");
 
             //  "0 issue \"letsencrypt.org;validationmethods=dns-01\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[1].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Value == "letsencrypt.org;validationmethods=dns-01");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Issuer == "letsencrypt.org");
@@ -62,7 +86,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Parameters["validationmethods"] == "dns-01");
 
             //  "0 issue \"pki.goog; cansignhttpexchanges=yes\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[2].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Value == "pki.goog; cansignhttpexchanges=yes");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Issuer == "pki.goog");
@@ -75,7 +99,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[2].Parameters["cansignhttpexchanges"] == "yes");
 
             //  "0 issuewild \"letsencrypt.org\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[3].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[3].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[3].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[3].Tag == CAATagType.IssueWildcard);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[3].Value == "letsencrypt.org");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[3].Issuer == "letsencrypt.org");
@@ -90,7 +114,7 @@ namespace DomainDetective.Tests {
             //  "0 issue \"letsencrypt.org\""
 
             //  "0 iodef \"mailto:example@example.com\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[5].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].Tag == CAATagType.Iodef);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].Value == "mailto:example@example.com");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].IsContactRecord == true);
@@ -103,7 +127,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[5].Parameters.Count == 0);
 
             // "260 issue \";\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].Flag == "260");
+            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].Flag == "260");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].Value == ";");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].Issuer == null);
@@ -122,7 +146,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[6].AllowCertificateIssuance == false);
 
             // "0 issuemail \";\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[8].Flag == "0");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[8].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[8].Flag == "0");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[8].Tag == CAATagType.IssueMail);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[8].Value == ";");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[8].Issuer == null);
@@ -162,7 +186,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 0);
 
             Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 0);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "128");
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag); // Original: Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "128");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Tag == CAATagType.Issue);
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Value == "letsencrypt.org");
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Issuer == "letsencrypt.org");

@@ -14,12 +14,19 @@ namespace DomainDetective {
             var analysis = new DkimRecordAnalysis {
                 DkimRecordExists = dkimRecordList.Any(),
             };
+            // Initialize DkimRecord explicitly, though property initializer already does this.
+            // This ensures clarity if the property initializer is ever removed.
+            analysis.DkimRecord = string.Empty;
 
             // create a single string from the list of DnsResult objects
             foreach (var record in dkimRecordList) {
                 analysis.Name = record.Name;
-                foreach (var data in record.Data) {
-                    analysis.DkimRecord += data;
+                if (record.Data != null && record.Data.Any()) {
+                    foreach (var dataPart in record.Data) {
+                        analysis.DkimRecord += dataPart;
+                    }
+                } else if (!string.IsNullOrEmpty(record.DataRaw)) {
+                    analysis.DkimRecord = record.DataRaw; // Use assignment as per current subtask
                 }
             }
 
@@ -30,7 +37,7 @@ namespace DomainDetective {
             }
 
             // check the DKIM record starts correctly
-            analysis.StartsCorrectly = analysis.DkimRecord.StartsWith("v=DKIM1");
+            analysis.StartsCorrectly = analysis.DkimRecord.StartsWith("v=DKIM1", System.StringComparison.OrdinalIgnoreCase);
 
             // loop through the tags of the DKIM record
             var tags = analysis.DkimRecord.Split(';');
@@ -70,7 +77,7 @@ namespace DomainDetective {
 
     public class DkimRecordAnalysis {
         public string Name { get; set; }
-        public string DkimRecord { get; set; }
+    public string DkimRecord { get; set; } = string.Empty;
         public bool DkimRecordExists { get; set; }
         public bool StartsCorrectly { get; set; }
         public bool PublicKeyExists { get; set; }

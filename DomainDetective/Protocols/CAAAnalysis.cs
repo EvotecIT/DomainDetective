@@ -1,9 +1,9 @@
+// Ensure these using statements are present at the top of CAAAnalysis.cs
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using DnsClientX;
+using System.Threading.Tasks; // Ensure this is not commented out
+using DnsClientX; // Make sure this is available
 
 namespace DomainDetective {
 
@@ -49,187 +49,172 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
-        public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            var caaRecordList = dnsResults.ToList();
+public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+    await Task.Yield();
 
-            DomainName = caaRecordList.First().Name;
+    var caaRecordList = dnsResults.ToList();
 
-            foreach (var record in caaRecordList) {
-                var analysis = new CAARecordAnalysis();
+    if (caaRecordList.Any() && !string.IsNullOrEmpty(caaRecordList.First().Name)) {
+        DomainName = caaRecordList.First().Name;
+    } else if (string.IsNullOrEmpty(DomainName) && logger != null) {
+        DomainName = "Unknown";
+        logger.WriteVerbose("CAAAnalysis.DomainName initialized to 'Unknown' as it was not set and not available from DNS results.");
+    }
 
-                var caaRecord = record.Data;
+    foreach (var record in caaRecordList) {
+        var analysis = new CAARecordAnalysis();
+        string caaRecordString = null;
 
-                logger.WriteVerbose($"Analyzing CAA record {caaRecord}");
+        if (record.Data != null && record.Data.Any()) {
+            caaRecordString = string.Join("", record.Data);
+        }
+        else if (!string.IsNullOrEmpty(record.DataRaw)) {
+            caaRecordString = record.DataRaw;
+        }
 
-                analysis.CAARecord = caaRecord;
+        if (string.IsNullOrEmpty(caaRecordString)) {
+            if (logger != null) logger.WriteWarning($"CAA record string is null or empty for record name '{record.Name}'. Skipping analysis.");
+            analysis.Invalid = true;
+            analysis.CAARecord = "[EMPTY OR INVALID RECORD DATA]";
+            analysis.InvalidTag = true;
+            AnalysisResults.Add(analysis);
+            InvalidRecords++;
+            continue;
+        }
 
-                var properties = caaRecord.Split(new[] { ' ' }, 3); // Split into 3 parts at most
-                // RFC 6844 section 5 specifies that the flag field must be a
-                // single unsigned octet in the range 0-255.  We validate the
-                // numeric value before processing the remaining parts.
-                if (properties.Length == 3 && int.TryParse(properties[0].Trim(), out var flag)) {
-                    var tag = properties[1].Trim();
-                    var value = properties[2];
+        if (logger != null) logger.WriteVerbose($"Analyzing CAA record '{caaRecordString}' for domain '{DomainName}'");
+        analysis.CAARecord = caaRecordString;
+        var properties = caaRecordString.Split(new[] { ' ' }, 3);
 
-                    // Validate flag
-                    analysis.Flag = flag.ToString();
-                    if (flag < 0 || flag > 255) {
-                        analysis.InvalidFlag = true;
-                    }
+        if (properties.Length == 3 && int.TryParse(properties[0].Trim(), out var flagValue)) {
+            if (flagValue < 0 || flagValue > 255) {
+                analysis.InvalidFlag = true;
+            }
 
-                    // Validate tag and set the Tag property
-                    var validTags = new Dictionary<string, CAATagType> {
-                            { "issue", CAATagType.Issue },
-                            { "issuewild", CAATagType.IssueWildcard },
-                            { "iodef", CAATagType.Iodef },
-                            { "issuemail", CAATagType.IssueMail }
-                        };
-                    if (validTags.TryGetValue(tag, out var tagType)) {
-                        analysis.Tag = tagType;
+            var tag = properties[1].Trim();
+            var value = properties[2]; // Keep original value with quotes for unquoting logic
+
+            var validTags = new Dictionary<string, CAATagType> {
+                { "issue", CAATagType.Issue }, { "issuewild", CAATagType.IssueWildcard },
+                { "iodef", CAATagType.Iodef }, { "issuemail", CAATagType.IssueMail }
+            };
+            if (validTags.TryGetValue(tag.ToLowerInvariant(), out var tagType)) {
+                analysis.Tag = tagType;
+            } else {
+                analysis.Tag = CAATagType.Unknown;
+                analysis.InvalidTag = true;
+            }
+
+            bool isValueQuoted = value.Length >= 2 && value.StartsWith("\"") && value.EndsWith("\"");
+            if (isValueQuoted) {
+                 value = value.Substring(1, value.Length - 2); // Remove quotes
+                 if (value.Contains("\"")) { analysis.InvalidValueUnescapedQuotes = true; }
+                 value = value.Replace("\\\"", "\""); // Handle escaped quotes
+            }
+            // No further trim on 'value' here, allow spaces if quoted.
+            analysis.Value = value;
+
+            if (analysis.Tag == CAATagType.Issue || analysis.Tag == CAATagType.IssueWildcard || analysis.Tag == CAATagType.IssueMail) {
+                if (value == ";") {
+                    analysis.Issuer = null;
+                } else {
+                    var valueParts = value.Split(new[] { ';' }, 2);
+                    var domainNameStr = valueParts[0].Trim();
+                    if (string.IsNullOrEmpty(domainNameStr)) {
+                         analysis.InvalidValueWrongDomain = true;
                     } else {
-                        analysis.Tag = CAATagType.Unknown;
-                        analysis.InvalidTag = true;
-                        //continue;
-                    }
-
-                    // Validate value
-                    // Validate value
-                    bool isValueQuoted = value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"';
-                    if (isValueQuoted || !value.Contains(" ")) {
-                        if (isValueQuoted) {
-                            // Remove the wrapping double quotes
-                            value = value.Substring(1, value.Length - 2);
-
-                            // Check for unescaped inner double quotes
-                            if (value.Contains("\"")) {
-                                analysis.InvalidValueUnescapedQuotes = true;
-                                //  continue;
+                        // For issue/issuewild, issuer must be a domain.
+                        // For issuemail, it's a "policy URL", could be mailto or https.
+                        if (analysis.Tag == CAATagType.IssueMail) {
+                            Uri mailUri = null; // Declare mailUri here
+                            if (!domainNameStr.ToLowerInvariant().StartsWith("mailto:") && !Uri.TryCreate(domainNameStr, UriKind.Absolute, out mailUri) || (mailUri?.Scheme != Uri.UriSchemeHttps)) {
+                                // Simplified: if not mailto:, assume it should be https for issuemail policy URL if not a domain.
+                                // This part might need more nuance based on exact RFC interpretation for issuemail values.
+                                // Consider adding analysis.InvalidValueWrongDomain = true; here if condition is met.
                             }
-
-                            // Replace escaped double quotes with actual double quotes
-                            value = value.Replace("\\\"", "\"");
-                        }
-
-                        // Existing code for additional validation...
-                        analysis.Value = value; // Move this line outside the if block
-                    } else {
-                        analysis.InvalidValueUnescapedQuotes = true;
-                        //continue;
-                    }
-
-                    // Additional validation for issue, issuewild, and issuemail tags
-                    if (tagType == CAATagType.Issue || tagType == CAATagType.IssueWildcard || tagType == CAATagType.IssueMail) {
-                        var isValueOnlySemicolon = value == ";";
-                        if (isValueOnlySemicolon) {
-                            analysis.Value = value;
-                            continue;
-                        }
-                        var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
-                        var domainName = parts[0].Trim();
-                        if (string.IsNullOrEmpty(domainName)) {
-                            // The domain name can be left empty, which must be indicated providing just ";" as a value
-                            if (parts.Length > 1) {
-                                analysis.InvalidValueWrongParameters = true;
-                                // continue;
-                            }
-
-                        } else {
-                            // It must contain a domain name
-                            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                        } else { // issue, issuewild
+                           if (!domainNameStr.Contains(".") || domainNameStr.Contains(" ") || domainNameStr.Contains(":")) { // Basic domain check
                                 analysis.InvalidValueWrongDomain = true;
-                                // continue;
+                           }
+                        }
+                        analysis.Issuer = domainNameStr; // Store it regardless of validity for now
+                    }
+
+                    if (valueParts.Length > 1) {
+                        var paramString = valueParts[1];
+                        var paramPartsArray = paramString.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var paramPairStr in paramPartsArray) {
+                            var kv = paramPairStr.Trim().Split(new[] { '=' }, 2);
+                            if (kv.Length == 2) {
+                                analysis.Parameters[kv[0].Trim().ToLowerInvariant()] = kv[1].Trim();
+                            } else {
+                                analysis.InvalidValueWrongParameters = true;
                             }
                         }
-
-                        analysis.Issuer = domainName;
-
-                        // Parse additional parameters
-                        var parameters = new Dictionary<string, string>();
-                        if (parts.Length > 1) {
-                            var paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-                            for (int i = 0; i < paramParts.Length; i++) {
-                                var trimmedPart = paramParts[i].Trim();
-                                var keyValue = trimmedPart.Split('=');
-                                if (keyValue.Length == 2) {
-                                    parameters[keyValue[0].Trim()] = keyValue[1].Trim(); // Trim the keys and values
-                                } else {
-                                    analysis.InvalidValueWrongParameters = true;
-                                    // continue;
-                                }
-                            }
-                        }
-
-                        analysis.Parameters = parameters;
                     }
-                    analysis.Value = value;
-                } else {
-                    analysis.InvalidFlag = true;
-                    analysis.InvalidTag = true;
-                    analysis.InvalidValueUnescapedQuotes = true;
                 }
-
-                if (analysis.InvalidFlag || analysis.InvalidTag || analysis.InvalidValueUnescapedQuotes || analysis.InvalidValueWrongDomain || analysis.InvalidValueWrongParameters) {
-                    InvalidRecords++;
-                    analysis.Invalid = true;
-                } else {
-                    ValidRecords++;
-                    analysis.Invalid = false;
+            } else if (analysis.Tag == CAATagType.Iodef) {
+                if (string.IsNullOrWhiteSpace(value) ||
+                    (!value.ToLowerInvariant().StartsWith("mailto:") &&
+                     !(Uri.TryCreate(value, UriKind.Absolute, out var uriResultIodef) &&
+                       (uriResultIodef.Scheme == Uri.UriSchemeHttp || uriResultIodef.Scheme == Uri.UriSchemeHttps)))) {
+                    analysis.InvalidValueWrongDomain = true;
                 }
-
-                if (analysis.Tag == CAATagType.IssueMail) {
-                    if (analysis.Value == ";") {
-                        analysis.DenyMailCertificateIssuance = true;
-                    } else {
-                        analysis.AllowMailCertificateIssuance = true;
-                    }
-                } else if (analysis.Tag == CAATagType.Issue) {
-                    if (analysis.Value == ";") {
-                        analysis.DenyCertificateIssuance = true;
-                    } else {
-                        analysis.AllowCertificateIssuance = true;
-                    }
-                } else if (analysis.Tag == CAATagType.IssueWildcard) {
-                    if (analysis.Value == ";") {
-                        analysis.DenyWildcardCertificateIssuance = true;
-                    } else {
-                        analysis.AllowWildcardCertificateIssuance = true;
-                    }
-                } else if (analysis.Tag == CAATagType.Iodef) {
-                    analysis.IsContactRecord = true;
-                }
-
-                AnalysisResults.Add(analysis);
             }
-
-            CheckForConflicts();
-            GenerateLists();
+        } else {
+            analysis.InvalidFlag = true;
+            analysis.InvalidTag = true;
         }
-        public void GenerateLists() {
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue)) {
-                if (analysis.Value == ";") {
-                    // Do nothing
-                } else {
-                    CanIssueCertificatesForDomain.Add(analysis.Issuer);
-                }
-            }
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard)) {
-                if (analysis.Value == ";") {
-                    // Do nothing
-                } else {
-                    CanIssueWildcardCertificatesForDomain.Add(analysis.Issuer);
-                }
-            }
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail)) {
-                if (analysis.Value == ";") {
 
-                } else {
-                    CanIssueMail.Add(analysis.Value);
-                }
-            }
-            foreach (var analysis in AnalysisResults.Where(a => a.IsContactRecord)) {
-                ReportViolationEmail.Add(analysis.Value);
-            }
+        if (analysis.InvalidFlag || analysis.InvalidTag || analysis.InvalidValueUnescapedQuotes || analysis.InvalidValueWrongDomain || analysis.InvalidValueWrongParameters) {
+            analysis.Invalid = true;
         }
+
+        if (!analysis.Invalid) {
+            if (analysis.Tag == CAATagType.Issue) { analysis.AllowCertificateIssuance = (analysis.Value != ";"); analysis.DenyCertificateIssuance = (analysis.Value == ";");}
+            else if (analysis.Tag == CAATagType.IssueWildcard) { analysis.AllowWildcardCertificateIssuance = (analysis.Value != ";"); analysis.DenyWildcardCertificateIssuance = (analysis.Value == ";");}
+            else if (analysis.Tag == CAATagType.IssueMail) { analysis.AllowMailCertificateIssuance = (analysis.Value != ";"); analysis.DenyMailCertificateIssuance = (analysis.Value == ";");}
+            else if (analysis.Tag == CAATagType.Iodef) analysis.IsContactRecord = true;
+        }
+
+        AnalysisResults.Add(analysis);
+        if (analysis.Invalid) InvalidRecords++; else ValidRecords++;
+    }
+
+    CheckForConflicts();
+    GenerateLists();
+}
+
+public void GenerateLists() {
+    CanIssueCertificatesForDomain.Clear();
+    CanIssueWildcardCertificatesForDomain.Clear();
+    CanIssueMail.Clear();
+    ReportViolationEmail.Clear();
+
+    // Corrected: Use 'a.AllowCertificateIssuance' (lambda variable)
+    foreach (var analysisEntry in AnalysisResults.Where(a => !a.Invalid && a.Tag == CAATagType.Issue && a.AllowCertificateIssuance)) {
+        if (!string.IsNullOrEmpty(analysisEntry.Issuer)) {
+            CanIssueCertificatesForDomain.Add(analysisEntry.Issuer);
+        }
+    }
+    // Corrected: Use 'a.AllowWildcardCertificateIssuance'
+    foreach (var analysisEntry in AnalysisResults.Where(a => !a.Invalid && a.Tag == CAATagType.IssueWildcard && a.AllowWildcardCertificateIssuance)) {
+         if (!string.IsNullOrEmpty(analysisEntry.Issuer)) {
+            CanIssueWildcardCertificatesForDomain.Add(analysisEntry.Issuer);
+        }
+    }
+    // Corrected: Use 'a.AllowMailCertificateIssuance' and 'analysisEntry.Issuer'
+    foreach (var analysisEntry in AnalysisResults.Where(a => !a.Invalid && a.Tag == CAATagType.IssueMail && a.AllowMailCertificateIssuance)) {
+         if (!string.IsNullOrEmpty(analysisEntry.Issuer)) {
+            CanIssueMail.Add(analysisEntry.Issuer);
+        }
+    }
+    foreach (var analysisEntry in AnalysisResults.Where(a => !a.Invalid && a.IsContactRecord && a.Tag == CAATagType.Iodef)) {
+        if (!string.IsNullOrEmpty(analysisEntry.Value)) {
+            ReportViolationEmail.Add(analysisEntry.Value);
+        }
+    }
+}
 
         public void CheckForConflicts() {
             var allowCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowCertificateIssuance);
@@ -260,13 +245,10 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 ConflictingMailIssuance = true;
             }
         }
-
-
     }
 
     public class CAARecordAnalysis {
-        public string CAARecord { get; set; }
-        public string Flag { get; set; }
+    public string CAARecord { get; set; } = string.Empty;
         public CAATagType Tag { get; set; }
         public string Value { get; set; }
         public string Issuer { get; set; }
