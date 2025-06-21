@@ -31,7 +31,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
-    <ProjectReference Include="..\DomainDetective.CLI\DomainDetective.CLI.csproj" />
     <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
   </ItemGroup>
 
