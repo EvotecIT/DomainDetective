@@ -291,7 +291,13 @@ public class WhoisAnalysis {
 
         try {
             using (TcpClient tcpClient = new TcpClient()) {
-                await tcpClient.ConnectAsync(whoisServer, 43);
+                var serverParts = whoisServer.Split(':');
+                var host = serverParts[0];
+                var port = 43;
+                if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
+                    port = customPort;
+                }
+                await tcpClient.ConnectAsync(host, port);
 
                 using NetworkStream networkStream = tcpClient.GetStream();
                 using (var streamWriter = new StreamWriter(networkStream, System.Text.Encoding.ASCII, 1024, leaveOpen: true)) {

@@ -15,8 +15,9 @@ namespace DomainDetective.Tests {
             }
             var response = responseBuilder.ToString();
 
-            using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 43);
+            using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
             listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
             var serverTask = System.Threading.Tasks.Task.Run(async () => {
                 using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
@@ -30,7 +31,7 @@ namespace DomainDetective.Tests {
             var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
             Assert.NotNull(servers);
-            servers!["local"] = "localhost";
+            servers!["local"] = $"localhost:{port}";
 
             await whois.QueryWhoisServer("example.local");
 
