@@ -67,5 +67,25 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == false);
         }
+
+        [Fact]
+        public async Task DetectRedirectModifier() {
+            var spfRecord = "v=spf1 redirect=_spf.example.com";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
+            Assert.Equal("_spf.example.com", healthCheck.SpfAnalysis.RedirectValue);
+        }
+
+        [Fact]
+        public async Task DetectExpModifier() {
+            var spfRecord = "v=spf1 exp=explanation.domain.tld -all";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.HasExp);
+            Assert.Equal("explanation.domain.tld", healthCheck.SpfAnalysis.ExpValue);
+        }
     }
 }
