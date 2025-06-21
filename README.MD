@@ -11,7 +11,7 @@ Current capabilities include:
 - [x] Verify DMARC
 - [x] Verify DKIM
 - [x] Verify CAA
-- [ ] Verify NS Records
+- [x] Verify NS Records
 - [ ] Verify SOA Records
 - [ ] Verify MX Records
 - [ ] Verify DNSSEC
