@@ -113,14 +113,14 @@ namespace DomainDetective {
                         await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
                         break;
                     case HealthCheckType.DKIM:
-                        if (dkimSelectors != null) {
-                            foreach (var selector in dkimSelectors) {
-                                var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1");
-                                await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
-                            }
-                        } else {
-                            // lets guess DKIM selectors based on common ones - first lets create a list of common selectors
-                            // TODO: Add more common selectors, and maybe guess based on MX/SPF records
+                        var selectors = dkimSelectors;
+                        if (selectors == null || selectors.Length == 0) {
+                            selectors = Definitions.DKIMSelectors.GuessSelectors().ToArray();
+                        }
+
+                        foreach (var selector in selectors) {
+                            var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1");
+                            await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                         }
                         break;
                     case HealthCheckType.MX:

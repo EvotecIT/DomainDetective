@@ -1,47 +1,40 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DomainDetective.Definitions {
-    internal class DKIMSelectors {
-        //Google
-        // 
-        //     google
-        // 
-        // 
-        // Microsoft
-        // 
-        //     selector1
-        // 
-        //     selector2
-        // 
-        //     
-        // 
-        // Everlytic
-        // 
-        //     everlytickey1
-        // 
-        //     everlytickey2
-        // 
-        //     eversrv (OLD selector)
-        // 
-        //     
-        // 
-        // MailChimp / Mandrill
-        // 
-        //     k1
-        // 
-        //     
-        // 
-        // Global Micro 
-        // 
-        //     mxvault
-        // 
-        // 
-        // Hetzner
-        // 
-        //     dkim
+    internal static class DKIMSelectors {
+        internal static readonly string[] Google = new[] { "google" };
+
+        internal static readonly string[] Microsoft = new[] { "selector1", "selector2" };
+
+        internal static readonly string[] Everlytic = new[] { "everlytickey1", "everlytickey2", "eversrv" };
+
+        internal static readonly string[] MailChimp = new[] { "k1" };
+
+        internal static readonly string[] GlobalMicro = new[] { "mxvault" };
+
+        internal static readonly string[] Hetzner = new[] { "dkim" };
+
+        internal static readonly string[] SendGrid = new[] { "s1", "s2" };
+
+        internal static readonly string[] CPanel = new[] { "default", "mail" };
+
+        internal static readonly string[] Fastmail = new[] { "fm1", "fm2", "fm3" };
+
+        internal static readonly string[] AmazonSes = new[] { "amazonses" };
+
+        internal static IEnumerable<string> GuessSelectors() {
+            return Google
+                .Concat(Microsoft)
+                .Concat(Everlytic)
+                .Concat(MailChimp)
+                .Concat(GlobalMicro)
+                .Concat(Hetzner)
+                .Concat(SendGrid)
+                .Concat(CPanel)
+                .Concat(Fastmail)
+                .Concat(AmazonSes)
+                .Distinct();
+        }
     }
 }
