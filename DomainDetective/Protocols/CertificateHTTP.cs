@@ -12,6 +12,8 @@ namespace DomainDetective {
         public bool IsReachable { get; set; }
         public int DaysToExpire { get; set; }
 
+        public Version ProtocolVersion { get; private set; }
+
         public X509Certificate2 Certificate { get; set; }
 
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger) {
@@ -24,12 +26,12 @@ namespace DomainDetective {
                 };
                 using (var client = new HttpClient(handler)) {
                     try {
-                        HttpResponseMessage response = await client.GetAsync(url);
-                        if (response.IsSuccessStatusCode) {
-                            IsReachable = true;
-                        } else {
-                            IsReachable = false;
-                        }
+                        var request = new HttpRequestMessage(HttpMethod.Get, url) {
+                            Version = new Version(2, 0)
+                        };
+                        HttpResponseMessage response = await client.SendAsync(request);
+                        ProtocolVersion = response.Version;
+                        IsReachable = response.IsSuccessStatusCode;
                         if (Certificate != null) {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                         }
