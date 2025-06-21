@@ -122,5 +122,18 @@ namespace DomainDetective {
             }
             return result;
         }
+
+        public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
+            var comparison = new Dictionary<string, List<PublicDnsEntry>>();
+            foreach (var res in results.Where(r => r.Success)) {
+                var key = string.Join(",", res.Records.OrderBy(r => r));
+                if (!comparison.TryGetValue(key, out var list)) {
+                    list = new List<PublicDnsEntry>();
+                    comparison[key] = list;
+                }
+                list.Add(res.Server);
+            }
+            return comparison;
+        }
     }
 }

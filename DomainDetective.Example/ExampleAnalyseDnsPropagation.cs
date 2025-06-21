@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective.Example {
     internal class ExampleAnalyseDnsPropagationClass {
@@ -11,6 +12,11 @@ namespace DomainDetective.Example {
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, servers);
             foreach (var result in results) {
                 Console.WriteLine($"{result.Server.IPAddress} - Success:{result.Success} Records:{string.Join(',', result.Records)} Time:{result.Duration.TotalMilliseconds}ms");
+            }
+
+            var comparison = DnsPropagationAnalysis.CompareResults(results);
+            foreach (var kvp in comparison) {
+                Console.WriteLine($"Record set: {kvp.Key} seen by {kvp.Value.Count} servers");
             }
         }
     }

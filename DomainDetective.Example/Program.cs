@@ -40,7 +40,7 @@ public static partial class Program {
         //await ExampleQueryDNS();
         //await ExampleAnalyseByStringWHOIS();
     }
-}
+
     public static async Task ExampleAnalyseDnsPropagation() {
         await ExampleAnalyseDnsPropagationClass.Run();
     }

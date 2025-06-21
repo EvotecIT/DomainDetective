@@ -28,5 +28,30 @@ namespace DomainDetective.Tests {
             Assert.Single(results);
             Assert.False(results[0].Success);
         }
+
+        [Fact]
+        public void CompareResultsGroupsByRecordSet() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = new[] { "1.1.1.1" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    Records = new[] { "1.1.1.1" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "9.9.9.9" },
+                    Records = new[] { "2.2.2.2" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Equal(2, groups.Count);
+            Assert.Contains(groups, g => g.Value.Any(s => s.IPAddress == "9.9.9.9"));
+        }
     }
 }
