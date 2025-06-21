@@ -54,6 +54,8 @@ namespace DomainDetective {
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
 
+        public SOAAnalysis SOAAnalysis { get; private set; } = new SOAAnalysis();
+
         public WhoisAnalysis WhoisAnalysis { get; private set; } = new WhoisAnalysis();
 
         public List<DnsAnswer> Answers;
@@ -148,6 +150,10 @@ namespace DomainDetective {
                         SecurityTXTAnalysis = new SecurityTXTAnalysis();
                         await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
                         break;
+                    case HealthCheckType.SOA:
+                        var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA);
+                        await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
+                        break;
                 }
             }
         }
@@ -208,6 +214,15 @@ namespace DomainDetective {
             await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = daneRecord
+                }
+            }, _logger);
+        }
+
+        public async Task CheckSOA(string soaRecord) {
+            await SOAAnalysis.AnalyzeSoaRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = soaRecord,
+                    Type = DnsRecordType.SOA
                 }
             }, _logger);
         }

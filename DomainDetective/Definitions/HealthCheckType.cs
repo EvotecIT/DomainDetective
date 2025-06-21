@@ -9,6 +9,7 @@ namespace DomainDetective {
         DNSBL,
         MTASTS,
         CERT,
-        SECURITYTXT
+        SECURITYTXT,
+        SOA
     }
 }
