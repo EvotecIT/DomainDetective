@@ -216,6 +216,12 @@ namespace DomainDetective {
                             }
                         }
                     }
+                } else if (part.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
+                    var domain = part.Substring("exists:".Length);
+                    if (domain != string.Empty) {
+                        DnsLookups.Add(domain);
+                    }
+                    dnsLookups++;
                 } else if (part.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring(part.IndexOf(":") + 1);
                     if (domain != string.Empty) {

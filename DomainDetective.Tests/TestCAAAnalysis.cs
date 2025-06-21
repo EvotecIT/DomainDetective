@@ -191,5 +191,18 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.Valid);
             Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
         }
+
+        [Fact]
+        public async Task CaseInsensitiveTagParsing() {
+            var caaRecord = "0 ISSUE \"letsencrypt.org\"";
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.Verbose = false;
+            await healthCheck.CheckCAA(caaRecord);
+
+            Assert.Single(healthCheck.CAAAnalysis.AnalysisResults);
+            Assert.Equal(CAATagType.Issue, healthCheck.CAAAnalysis.AnalysisResults[0].Tag);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidTag);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag);
+        }
     }
 }

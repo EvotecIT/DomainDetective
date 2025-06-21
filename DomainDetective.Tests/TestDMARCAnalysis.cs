@@ -36,12 +36,45 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TestPercentOutOfRange() {
-            var dmarcRecord = "v=DMARC1; p=none; pct=150";
+            var dmarcRecord = "v=DMARC1; p=none; pct=500";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.Equal(100, healthCheck.DmarcAnalysis.Pct);
+            Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
             Assert.Equal(
                 "Percentage value must be between 0 and 100.",
                 healthCheck.DmarcAnalysis.Percent);
+        }
+
+        [Fact]
+        public async Task TestPercentNegative() {
+            var dmarcRecord = "v=DMARC1; p=none; pct=-1";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.Equal(0, healthCheck.DmarcAnalysis.Pct);
+            Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
+            Assert.Equal(
+                "Percentage value must be between 0 and 100.",
+                healthCheck.DmarcAnalysis.Percent);
+        }
+
+        [Fact]
+        public async Task TestInvalidPolicy() {
+            var dmarcRecord = "v=DMARC1; p=invalid";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.True(healthCheck.DmarcAnalysis.HasMandatoryTags);
+            Assert.False(healthCheck.DmarcAnalysis.IsPolicyValid);
+            Assert.Equal("invalid", healthCheck.DmarcAnalysis.PolicyShort);
+            Assert.Equal("Unknown policy", healthCheck.DmarcAnalysis.Policy);
+        }
+
+        [Fact]
+        public async Task TestMissingPolicyTag() {
+            var dmarcRecord = "v=DMARC1; rua=mailto:test@example.com";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.False(healthCheck.DmarcAnalysis.HasMandatoryTags);
         }
 
         [Fact]

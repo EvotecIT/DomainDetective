@@ -15,6 +15,10 @@ public static partial class Program {
 
         await ExampleAnalyseMX();
 
+        await ExampleAnalyseByStringNS();
+        await ExampleAnalyseByArrayNS();
+        await ExampleAnalyseByDomainNS();
+
         await ExampleAnalyseByDomainCAA();
         await ExampleAnalyseByStringCAA();
         await ExampleAnalyseByListCAA();

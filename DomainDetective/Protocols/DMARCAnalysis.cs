@@ -20,11 +20,13 @@ namespace DomainDetective {
         public bool DmarcRecordExists { get; private set; } // should be true
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsCharacterLimit { get; private set; } // should be false
+        public bool HasMandatoryTags { get; private set; }
+        public bool IsPolicyValid { get; private set; }
 
         public string Policy => TranslatePolicy(PolicyShort);
         public string SubPolicy => TranslatePolicy(SubPolicyShort);
         public string ReportingInterval => TranslateReportingInterval(ReportingIntervalShort);
-        public string Percent => TranslatePercentage(Pct.ToString());
+        public string Percent => TranslatePercentage();
         public string SpfAlignment => TranslateAlignment(SpfAShort);
         public string DkimAlignment => TranslateAlignment(DkimAShort);
         public string FailureReportingOptions => TranslateFailureReportingOptions(FoShort);
@@ -43,6 +45,7 @@ namespace DomainDetective {
         public string DkimAShort { get; private set; }
         public string SpfAShort { get; private set; }
         public int? Pct { get; private set; }
+        public bool IsPctValid { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
         public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
@@ -51,6 +54,9 @@ namespace DomainDetective {
             DmarcRecordExists = false;
             StartsCorrectly = false;
             ExceedsCharacterLimit = false;
+            HasMandatoryTags = false;
+            IsPolicyValid = false;
+            IsPctValid = true;
             Rua = null;
             MailtoRua = new List<string>();
             HttpRua = new List<string>();
@@ -86,6 +92,7 @@ namespace DomainDetective {
 
             // loop through the tags of the DMARC record
             var tags = DmarcRecord.Split(';');
+            var policyTagFound = false;
             foreach (var tag in tags) {
                 var keyValue = tag.Split('=');
                 if (keyValue.Length == 2) {
@@ -94,6 +101,8 @@ namespace DomainDetective {
                     switch (key) {
                         case "p":
                             PolicyShort = value;
+                            policyTagFound = true;
+                            IsPolicyValid = value == "none" || value == "quarantine" || value == "reject";
                             break;
                         case "sp":
                             SubPolicyShort = value;
@@ -113,7 +122,16 @@ namespace DomainDetective {
                             // percentage of messages to which the DMARC policy
                             // applies.  It should be a number between 0 and 100.
                             if (int.TryParse(value, out var pct)) {
+                                IsPctValid = pct >= 0 && pct <= 100;
+                                if (pct < 0) {
+                                    pct = 0;
+                                }
+                                if (pct > 100) {
+                                    pct = 100;
+                                }
                                 Pct = pct;
+                            } else {
+                                IsPctValid = false;
                             }
                             break;
                         case "adkim":
@@ -133,6 +151,8 @@ namespace DomainDetective {
                     }
                 }
             }
+            // verify mandatory tags
+            HasMandatoryTags = StartsCorrectly && policyTagFound;
             // set the default value for the pct tag if it is not present
             Pct ??= 100;
         }
@@ -189,17 +209,12 @@ namespace DomainDetective {
             }
         }
 
-        private string TranslatePercentage(string pct) {
-            int pctValue;
-            if (int.TryParse(pct, out pctValue)) {
-                if (pctValue < 0 || pctValue > 100) {
-                    return "Percentage value must be between 0 and 100.";
-                }
-
-                return $"{pctValue}% of messages are subjected to filtering.";
+        private string TranslatePercentage() {
+            if (!IsPctValid) {
+                return "Percentage value must be between 0 and 100.";
             }
 
-            return "Invalid percentage value.";
+            return $"{Pct}% of messages are subjected to filtering.";
         }
 
         private string TranslateReportingInterval(int interval) {

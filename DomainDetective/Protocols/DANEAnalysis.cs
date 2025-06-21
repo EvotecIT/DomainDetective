@@ -95,17 +95,8 @@ namespace DomainDetective {
                 analysis.MatchingTypeField = TranslateMatchingType(matchingTypeValue);
                 analysis.CertificateAssociationData = associationData; // This is typically a hex string, so no translation is needed
 
-                // Check for correct usage of the Cert and SPKI selectors
-                if ((analysis.SelectorField == "Cert" && (analysis.CertificateUsage != "PKIX-TA" && analysis.CertificateUsage != "PKIX-EE")) ||
-                    (analysis.SelectorField == "SPKI" && (analysis.CertificateUsage != "DANE-TA" && analysis.CertificateUsage != "DANE-EE"))) {
-                    analysis.ValidSelector = false;
-                }
-
-                // Check for correct usage of the Full, SHA-256, and SHA-512 matching types
-                if ((analysis.MatchingTypeField == "Full" && (analysis.CertificateUsage != "PKIX-TA" && analysis.CertificateUsage != "PKIX-EE")) ||
-                    ((analysis.MatchingTypeField == "SHA-256" || analysis.MatchingTypeField == "SHA-512") && (analysis.CertificateUsage != "DANE-TA" && analysis.CertificateUsage != "DANE-EE"))) {
-                    analysis.ValidMatchingType = false;
-                }
+                // RFC 6698 does not restrict selector or matching type based on
+                // certificate usage, so all combinations are considered valid.
 
                 // Check if the DANE record is appropriate for SMTP
                 // For SMTP, the recommended configuration is:

@@ -10,7 +10,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
             Assert.True(healthCheck6.SpfAnalysis.HasNullLookups, "Should have null lookups");
             Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups, "Exceeds lookups should be true, as we expect it over the board");
-            Assert.Equal(13, healthCheck6.SpfAnalysis.DnsLookupsCount);
+            Assert.Equal(14, healthCheck6.SpfAnalysis.DnsLookupsCount);
             Assert.False(healthCheck6.SpfAnalysis.MultipleAllMechanisms);
             Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
@@ -238,6 +238,29 @@ namespace DomainDetective.Tests {
             Assert.Contains("mx.test", healthCheck.SpfAnalysis.ResolvedMxRecords);
             Assert.Contains("10.10.10.10", healthCheck.SpfAnalysis.ResolvedIpv4Records);
             Assert.Contains("2001::1", healthCheck.SpfAnalysis.ResolvedIpv6Records);
+        }
+
+        [Fact]
+        public async Task ExistsMechanismCountsTowardsDnsLookups() {
+            var spfRecord = "v=spf1 exists:example.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Equal(1, healthCheck.SpfAnalysis.DnsLookupsCount);
+            Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
+        }
+
+        [Fact]
+        public async Task Rfc7208MultipleDomainExample() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["example.com"] = "v=spf1 -all";
+            healthCheck.SpfAnalysis.TestSpfRecords["example.net"] = "v=spf1 -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:example.com include:example.net -all");
+
+            Assert.Equal(2, healthCheck.SpfAnalysis.DnsLookupsCount);
+            Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
         }
     }
 }

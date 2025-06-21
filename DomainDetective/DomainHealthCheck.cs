@@ -44,13 +44,19 @@ namespace DomainDetective {
 
         public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
+        public NSAnalysis NSAnalysis { get; private set; } = new NSAnalysis();
+
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
 
         public DNSBLAnalysis DNSBLAnalysis { get; private set; }
 
+        public MTASTSAnalysis MTASTSAnalysis { get; private set; } = new MTASTSAnalysis();
+
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
+
+        public SOAAnalysis SOAAnalysis { get; private set; } = new SOAAnalysis();
 
         public WhoisAnalysis WhoisAnalysis { get; private set; } = new WhoisAnalysis();
 
@@ -70,6 +76,10 @@ namespace DomainDetective {
             };
 
             MXAnalysis = new MXAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
 
@@ -131,16 +141,28 @@ namespace DomainDetective {
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA);
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
                         break;
+                    case HealthCheckType.NS:
+                        var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS);
+                        await NSAnalysis.AnalyzeNsRecords(ns, _logger);
+                        break;
                     case HealthCheckType.DANE:
                         await VerifyDANE(domainName, daneServiceType);
                         break;
                     case HealthCheckType.DNSBL:
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
                         break;
+                    case HealthCheckType.MTASTS:
+                        MTASTSAnalysis = new MTASTSAnalysis();
+                        await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
+                        break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
                         SecurityTXTAnalysis = new SecurityTXTAnalysis();
                         await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
+                        break;
+                    case HealthCheckType.SOA:
+                        var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA);
+                        await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
                         break;
                 }
             }
@@ -198,6 +220,21 @@ namespace DomainDetective {
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
         }
 
+        public async Task CheckNS(string nsRecord) {
+            await NSAnalysis.AnalyzeNsRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = nsRecord,
+                    Type = DnsRecordType.NS
+                }
+            }, _logger);
+        }
+        public async Task CheckNS(List<string> nsRecords) {
+            var dnsResults = nsRecords.Select(record => new DnsAnswer {
+                DataRaw = record,
+            }).ToList();
+            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger);
+        }
+
         public async Task CheckDANE(string daneRecord) {
             await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
                 new DnsAnswer {
@@ -206,10 +243,24 @@ namespace DomainDetective {
             }, _logger);
         }
 
+        public async Task CheckSOA(string soaRecord) {
+            await SOAAnalysis.AnalyzeSoaRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = soaRecord,
+                    Type = DnsRecordType.SOA
+                }
+            }, _logger);
+        }
+
 
         public async Task VerifySPF(string domainName) {
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+        }
+
+        public async Task VerifyMTASTS(string domainName) {
+            MTASTSAnalysis = new MTASTSAnalysis();
+            await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports) {

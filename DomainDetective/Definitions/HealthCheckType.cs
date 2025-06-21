@@ -5,9 +5,12 @@ namespace DomainDetective {
         DKIM,
         MX,
         CAA,
+        NS,
         DANE,
         DNSBL,
+        MTASTS,
         CERT,
-        SECURITYTXT
+        SECURITYTXT,
+        SOA
     }
 }
