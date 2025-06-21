@@ -23,9 +23,9 @@ Current capabilities include:
   - [ ] Verify HTTP/2
   - [ ] Verify HTTP/3
   - [ ] Verify Certificate
-  - [ ] Verify Response Time
+  - [x] Verify Response Time
   - [ ] Verify Headers
-  - [ ] Verify HSTS
+  - [x] Verify HSTS
   - [ ] Verify HPKP
 - [ ] Verify SecurityTXT
 - [ ] Verify Open Relay (SMTP)

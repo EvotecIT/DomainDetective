@@ -66,6 +66,8 @@ namespace DomainDetective {
 
         public STARTTLSAnalysis StartTlsAnalysis { get; private set; } = new STARTTLSAnalysis();
 
+        public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
+
         public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -186,6 +188,9 @@ namespace DomainDetective {
                         var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
+                        break;
+                    case HealthCheckType.HTTP:
+                        await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
                         break;
                 }
             }
