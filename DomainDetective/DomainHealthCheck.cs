@@ -150,6 +150,7 @@ namespace DomainDetective {
             await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dmarcRecord,
+                    Type = DnsRecordType.TXT
                 }
             }, _logger);
         }
@@ -157,7 +158,8 @@ namespace DomainDetective {
         public async Task CheckSPF(string spfRecord) {
             await SpfAnalysis.AnalyzeSpfRecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = spfRecord
+                    DataRaw = spfRecord,
+                    Type = DnsRecordType.TXT
                 }
             }, _logger);
         }
@@ -165,7 +167,8 @@ namespace DomainDetective {
         public async Task CheckDKIM(string dkimRecord, string selector = "default") {
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = dkimRecord
+                    DataRaw = dkimRecord,
+                    Type = DnsRecordType.TXT
                 }
             }, _logger);
         }
@@ -173,7 +176,8 @@ namespace DomainDetective {
         public async Task CheckMX(string mxRecord) {
             await MXAnalysis.AnalyzeMxRecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = mxRecord
+                    DataRaw = mxRecord,
+                    Type = DnsRecordType.MX
                 }
             }, _logger);
         }
@@ -181,7 +185,8 @@ namespace DomainDetective {
         public async Task CheckCAA(string caaRecord) {
             await CAAAnalysis.AnalyzeCAARecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = caaRecord
+                    DataRaw = caaRecord,
+                    Type = DnsRecordType.CAA
                 }
             }, _logger);
         }
