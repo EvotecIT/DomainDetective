@@ -204,5 +204,25 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
             Assert.True(healthCheck.SpfAnalysis.ExceedsTotalCharacterLimit);
         }
+
+        [Fact]
+        public async Task DetectQuotedInclude() {
+            var spfRecord = "v=spf1 include:\"_spf.google.com\" -all";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("_spf.google.com", healthCheck.SpfAnalysis.IncludeRecords);
+            Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
+        }
+
+        [Fact]
+        public async Task DetectMacroRedirect() {
+            var spfRecord = "v=spf1 redirect=%{d}.spf.example.com";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
+            Assert.Equal("%{d}.spf.example.com", healthCheck.SpfAnalysis.RedirectValue);
+        }
     }
 }
