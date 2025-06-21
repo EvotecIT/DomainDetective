@@ -1,8 +1,8 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -27,6 +27,7 @@ namespace DomainDetective {
 
             var daneRecordList = dnsResults.ToList();
 
+            // Group by the correct data property for duplicate detection
             var duplicateRecords = daneRecordList.GroupBy(x => x.Data).Where(g => g.Count() > 1).ToList();
             if (duplicateRecords.Any()) {
                 HasDuplicateRecords = true;
@@ -106,23 +107,14 @@ namespace DomainDetective {
                     analysis.ValidMatchingType = false;
                 }
 
-                //analysis.ServiceType = record.ServiceType;
+                // Check if the DANE record is appropriate for SMTP
+                // For SMTP, the recommended configuration is:
+                // - Usage: 3 (DANE-EE: Domain Issued Certificate)
+                // - Selector: 1 (SPKI: SubjectPublicKeyInfo)
+                // - Matching Type: 1 (SHA-256: SHA-256 of Certificate or SPKI)
+                analysis.IsValidChoiceForSmtp = usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
 
-                //// Check if the DANE record is appropriate for the service type
-                //switch (record.ServiceType) {
-                //    case ServiceType.SMTP:
-                //        // Perform checks specific to MX services
-                //        analysis.IsValidChoiceForSmtp = usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
-                //        break;
-                //    case ServiceType.HTTPS:
-                //        // Perform checks specific to WWW services
-
-                //        break;
-                //    default:
-                //        //throw new Exception($"Unsupported service type: {record.ServiceType}");
-                //        break;
-                //}
-
+                // TODO: Check for HTTPS recommendations for WWWW services?
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
 
