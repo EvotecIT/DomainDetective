@@ -59,7 +59,7 @@ namespace DomainDetective {
                 var usagePart = components[0];
                 var selectorPart = components[1];
                 var matchingPart = components[2];
-                var associationData = components[3];
+                var associationData = components[3].Trim();
 
                 bool usageParsed = int.TryParse(usagePart, out int usageValue);
                 bool selectorParsed = int.TryParse(selectorPart, out int selectorValue);
