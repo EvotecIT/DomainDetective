@@ -16,7 +16,7 @@ namespace DomainDetective.Tests {
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000");
                 var buffer = Encoding.UTF8.GetBytes("ok");
-                await ctx.Response.OutputStream.WriteAsync(buffer);
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 ctx.Response.Close();
             });
 
