@@ -64,6 +64,8 @@ namespace DomainDetective {
 
         public OpenRelayAnalysis OpenRelayAnalysis { get; private set; } = new OpenRelayAnalysis();
 
+        public STARTTLSAnalysis StartTlsAnalysis { get; private set; } = new STARTTLSAnalysis();
+
         public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -180,6 +182,11 @@ namespace DomainDetective {
                             await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger);
                         }
                         break;
+                    case HealthCheckType.STARTTLS:
+                        var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
+                        break;
                 }
             }
         }
@@ -272,6 +279,10 @@ namespace DomainDetective {
             await OpenRelayAnalysis.AnalyzeServer(host, port, _logger);
         }
 
+        public async Task CheckStartTlsHost(string host, int port = 25) {
+            await StartTlsAnalysis.AnalyzeServer(host, port, _logger);
+        }
+
 
         public async Task VerifySPF(string domainName) {
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
@@ -281,6 +292,12 @@ namespace DomainDetective {
         public async Task VerifyMTASTS(string domainName) {
             MTASTSAnalysis = new MTASTSAnalysis();
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
+        }
+
+        public async Task VerifySTARTTLS(string domainName) {
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+            var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports) {

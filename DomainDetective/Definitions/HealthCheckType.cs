@@ -13,6 +13,7 @@ namespace DomainDetective {
         CERT,
         SECURITYTXT,
         SOA,
-        OPENRELAY
+        OPENRELAY,
+        STARTTLS
     }
 }
