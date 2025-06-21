@@ -49,8 +49,10 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.CAAAnalysis.ConflictingWildcardCertificateIssuance);
             Assert.False(healthCheck.CAAAnalysis.ConflictingCertificateIssuance);
             Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.True(healthCheck.CAAAnalysis.HasDuplicateIssuers);
+            Assert.NotEmpty(healthCheck.CAAAnalysis.DuplicateIssuers);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
         }
     }
 }

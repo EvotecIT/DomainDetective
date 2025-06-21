@@ -25,14 +25,15 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckCAA(caaRecords);
 
             Assert.Equal(9, healthCheck.CAAAnalysis.AnalysisResults.Count);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.True(healthCheck.CAAAnalysis.HasDuplicateIssuers);
+            Assert.Single(healthCheck.CAAAnalysis.DuplicateIssuers);
+            Assert.Contains("letsencrypt.org", healthCheck.CAAAnalysis.DuplicateIssuers);
             Assert.Equal("digicert.com", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0]);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[1]);
             Assert.Equal("pki.goog", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[2]);
-            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[3]);
-            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[4]);
 
-            Assert.Equal(1, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Single(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0]);
 
             //  "0 issue \"digicert.com; cansignhttpexchanges=yes\""
@@ -181,8 +182,8 @@ namespace DomainDetective.Tests {
             await healthCheck.Verify("evotec.pl", [HealthCheckType.CAA]);
 
             Assert.Equal(10, healthCheck.CAAAnalysis.AnalysisResults.Count);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
             Assert.False(healthCheck.CAAAnalysis.Conflicting);
             Assert.False(healthCheck.CAAAnalysis.ConflictingCertificateIssuance);
             Assert.False(healthCheck.CAAAnalysis.ConflictingWildcardCertificateIssuance);

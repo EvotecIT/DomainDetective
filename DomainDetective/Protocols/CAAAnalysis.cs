@@ -31,6 +31,9 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
         public List<string> ReportViolationEmail { get; set; } = new List<string>();
 
+        public bool HasDuplicateIssuers { get; private set; }
+        public List<string> DuplicateIssuers { get; private set; } = new List<string>();
+
         public bool Conflicting { get; set; }
 
         public bool ConflictingMailIssuance { get; set; }
@@ -62,6 +65,8 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             ConflictingMailIssuance = false;
             ConflictingCertificateIssuance = false;
             ConflictingWildcardCertificateIssuance = false;
+            HasDuplicateIssuers = false;
+            DuplicateIssuers = new List<string>();
             AnalysisResults = new List<CAARecordAnalysis>();
 
             var caaRecordList = dnsResults.ToList();
@@ -216,33 +221,46 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             }
 
             CheckForConflicts();
-            GenerateLists();
+            GenerateLists(logger);
         }
-        public void GenerateLists() {
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue)) {
-                if (analysis.Value == ";") {
-                    // Do nothing
-                } else {
-                    CanIssueCertificatesForDomain.Add(analysis.Issuer);
-                }
-            }
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard)) {
-                if (analysis.Value == ";") {
-                    // Do nothing
-                } else {
-                    CanIssueWildcardCertificatesForDomain.Add(analysis.Issuer);
-                }
-            }
-            foreach (var analysis in AnalysisResults.Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail)) {
-                if (analysis.Value == ";") {
+        public void GenerateLists(InternalLogger logger) {
+            var issueIssuers = AnalysisResults
+                .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue && a.Value != ";")
+                .Select(a => a.Issuer)
+                .ToList();
 
-                } else {
-                    CanIssueMail.Add(analysis.Value);
-                }
+            var wildcardIssuers = AnalysisResults
+                .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard && a.Value != ";")
+                .Select(a => a.Issuer)
+                .ToList();
+
+            var mailIssuers = AnalysisResults
+                .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail && a.Value != ";")
+                .Select(a => a.Value)
+                .ToList();
+
+            var contactEmails = AnalysisResults
+                .Where(a => a.IsContactRecord)
+                .Select(a => a.Value)
+                .ToList();
+
+            DuplicateIssuers =
+                issueIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key)
+                    .Concat(wildcardIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key))
+                    .Concat(mailIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key))
+                    .Distinct()
+                    .ToList();
+
+            HasDuplicateIssuers = DuplicateIssuers.Any();
+
+            if (HasDuplicateIssuers) {
+                logger?.WriteWarning($"Duplicate CAA issuers detected for {DomainName}: {string.Join(", ", DuplicateIssuers)}");
             }
-            foreach (var analysis in AnalysisResults.Where(a => a.IsContactRecord)) {
-                ReportViolationEmail.Add(analysis.Value);
-            }
+
+            CanIssueCertificatesForDomain = issueIssuers.Distinct().ToList();
+            CanIssueWildcardCertificatesForDomain = wildcardIssuers.Distinct().ToList();
+            CanIssueMail = mailIssuers.Distinct().ToList();
+            ReportViolationEmail = contactEmails.Distinct().ToList();
         }
 
         public void CheckForConflicts() {
