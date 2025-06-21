@@ -1,4 +1,4 @@
-﻿namespace DomainDetective {
+namespace DomainDetective {
     internal class TLSRPTAnalysis {
     }
 }
