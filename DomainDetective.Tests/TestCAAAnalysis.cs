@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -189,6 +189,17 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.ConflictingMailIssuance == false);
             Assert.True(healthCheck.CAAAnalysis.Valid == true);
             Assert.True(healthCheck.CAAAnalysis.CanIssueMail.Count == 0);
+        }
+
+        [Fact]
+        public async Task TestCAARecordByString() {
+            var caaRecord = "0 issue \"letsencrypt.org\"";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckCAA(caaRecord);
+
+            Assert.True(healthCheck.CAAAnalysis.AnalysisResults.Count == 1);
+            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count == 1);
+            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0] == "letsencrypt.org");
         }
     }
 }

@@ -150,7 +150,9 @@ namespace DomainDetective {
         public async Task CheckDMARC(string dmarcRecord) {
             await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsAnswer> {
                 new DnsAnswer {
+                    Data = dmarcRecord,
                     DataRaw = dmarcRecord,
+                    DataStringsEscaped = new[] { dmarcRecord },
                 }
             }, _logger);
         }
@@ -158,7 +160,9 @@ namespace DomainDetective {
         public async Task CheckSPF(string spfRecord) {
             await SpfAnalysis.AnalyzeSpfRecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = spfRecord
+                    Data = spfRecord,
+                    DataRaw = spfRecord,
+                    DataStringsEscaped = new[] { spfRecord }
                 }
             }, _logger);
         }
@@ -166,7 +170,9 @@ namespace DomainDetective {
         public async Task CheckDKIM(string dkimRecord, string selector = "default") {
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = dkimRecord
+                    Data = dkimRecord,
+                    DataRaw = dkimRecord,
+                    DataStringsEscaped = new[] { dkimRecord }
                 }
             }, _logger);
         }
@@ -174,7 +180,9 @@ namespace DomainDetective {
         public async Task CheckMX(string mxRecord) {
             await MXAnalysis.AnalyzeMxRecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = mxRecord
+                    Data = mxRecord,
+                    DataRaw = mxRecord,
+                    DataStringsEscaped = new[] { mxRecord }
                 }
             }, _logger);
         }
@@ -182,13 +190,17 @@ namespace DomainDetective {
         public async Task CheckCAA(string caaRecord) {
             await CAAAnalysis.AnalyzeCAARecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = caaRecord
+                    Data = caaRecord,
+                    DataRaw = caaRecord,
+                    DataStringsEscaped = new[] { caaRecord }
                 }
             }, _logger);
         }
         public async Task CheckCAA(List<string> caaRecords) {
             var dnsResults = caaRecords.Select(record => new DnsAnswer {
+                Data = record,
                 DataRaw = record,
+                DataStringsEscaped = new[] { record },
             }).ToList();
 
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
@@ -197,7 +209,9 @@ namespace DomainDetective {
         public async Task CheckDANE(string daneRecord) {
             await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
                 new DnsAnswer {
-                    DataRaw = daneRecord
+                    Data = daneRecord,
+                    DataRaw = daneRecord,
+                    DataStringsEscaped = new[] { daneRecord }
                 }
             }, _logger);
         }
