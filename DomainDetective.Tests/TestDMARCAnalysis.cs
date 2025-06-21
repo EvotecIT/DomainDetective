@@ -1,4 +1,4 @@
-﻿namespace DomainDetective.Tests {
+namespace DomainDetective.Tests {
     public class TestDMARCAnalysis {
 
         [Fact]
