@@ -1,6 +1,6 @@
+using DnsClientX;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
