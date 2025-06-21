@@ -25,12 +25,11 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckCAA(caaRecords);
 
             Assert.Equal(9, healthCheck.CAAAnalysis.AnalysisResults.Count);
-            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Equal(3, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
             Assert.Equal("digicert.com", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0]);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[1]);
             Assert.Equal("pki.goog", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[2]);
-            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[3]);
-            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[4]);
+            Assert.True(healthCheck.CAAAnalysis.HasDuplicateIssuers);
 
             Assert.Single(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0]);
@@ -189,6 +188,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.CAAAnalysis.ConflictingMailIssuance);
             Assert.True(healthCheck.CAAAnalysis.Valid);
             Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
+            Assert.False(healthCheck.CAAAnalysis.HasDuplicateIssuers);
         }
 
         [Fact]
