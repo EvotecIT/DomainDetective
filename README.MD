@@ -1,3 +1,5 @@
+[![.NET Tests](https://github.com/your-user/DomainDetective/actions/workflows/dotnet-tests.yml/badge.svg)](https://github.com/your-user/DomainDetective/actions/workflows/dotnet-tests.yml)
+[![PowerShell Tests](https://github.com/your-user/DomainDetective/actions/workflows/powershell-tests.yml/badge.svg)](https://github.com/your-user/DomainDetective/actions/workflows/powershell-tests.yml)
 [![codecov](https://codecov.io/gh/your-user/DomainDetective/branch/master/graph/badge.svg)](https://codecov.io/gh/your-user/DomainDetective)
 Domain Detective is a C# library, Tool and PowerShell module in one project. It is designed to help you find interesting information about a domain name.
 While there are plenty of tools on the internet that can do this, most of them are web based and require you to enter the domain name into a web form.
@@ -40,6 +42,39 @@ DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes w
 
 You can load a custom list from a file using `LoadDNSBL`.
 
+## Build and Test
+
+Use the [.NET SDK](https://dotnet.microsoft.com/) to restore dependencies, build the solution and execute tests:
+
+```bash
+dotnet restore
+dotnet build DomainDetective.sln
+dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+```
+
+PowerShell specific tests can be run with:
+
+```powershell
+pwsh ./Module/DomainDetective.Tests.ps1
+```
+
+### CLI Usage
+
+To invoke the command-line tool directly from the source tree:
+
+```bash
+dotnet run --project DomainDetective.CLI -- github.com
+```
+
+### PowerShell Module
+
+Import the module and call any of the testing cmdlets:
+
+```powershell
+Import-Module ./Module/DomainDetective.psd1 -Force
+Test-SpfRecord -DomainName "example.com"
+```
+
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
 
@@ -55,3 +90,9 @@ If you don't need to automate the process, or if you just want to quickly query 
 
 This project uses GitHub Actions to run .NET and PowerShell tests on Windows, Linux and macOS.
 Code coverage results are published to [Codecov](https://codecov.io/gh/your-user/DomainDetective).
+
+## Understanding Results
+
+Each analysis type returns an object exposing properties that map to fields described in the relevant RFCs. For example, SPF checks follow [RFC&nbsp;7208](https://datatracker.ietf.org/doc/html/rfc7208) and DMARC analysis references [RFC&nbsp;7489](https://datatracker.ietf.org/doc/html/rfc7489). DKIM validations follow [RFC&nbsp;6376](https://datatracker.ietf.org/doc/html/rfc6376) and DANE TLSA lookups follow [RFC&nbsp;6698](https://datatracker.ietf.org/doc/html/rfc6698).
+
+Boolean fields indicate whether a particular requirement was met. You can inspect the object returned from `DomainHealthCheck` or the PowerShell cmdlets to review these properties and make decisions in automation.
