@@ -1,19 +1,18 @@
 ﻿@{
     AliasesToExport      = @()
     Author               = 'Przemyslaw Klys'
-    CmdletsToExport      = @('*')
+    CmdletsToExport      = @('Test-DomainBlacklist', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-SpfRecord')
     CompanyName          = 'Evotec'
     CompatiblePSEditions = @('Desktop', 'Core')
-    Copyright            = '(c) 2011 - 2024 Przemyslaw Klys @ Evotec. All rights reserved.'
-    Description          = 'DnsClientX is PowerShell module that allows you to query DNS servers for information. It supports DNS over UDP, TCP and DNS over HTTPS (DoH). It supports multiple types of DNS queries and can be used to query public DNS servers, private DNS servers and has built-in DNS Providers.'
+    Copyright            = '(c) 2011 - 2025 Przemyslaw Klys @ Evotec. All rights reserved.'
+    Description          = 'DomainDetective is a PowerShell module that provides features to work with domains, DNS, and other related information.'
     FunctionsToExport    = @()
-    GUID                 = '77fa806c-70b7-48d9-8b88-942ed73f24ed'
-    ModuleVersion        = '0.1.0'
+    GUID                 = 'a2986f0d-da11-43f5-a252-f9e1d1699776'
+    ModuleVersion        = '0.2.0'
     PowerShellVersion    = '5.1'
     PrivateData          = @{
         PSData = @{
-            IconUri    = 'https://raw.githubusercontent.com/EvotecIT/DnsClientX/master/Assets/Icons/DnsClientX3_128x128.png'
-            ProjectUri = 'https://github.com/EvotecIT/DnsClientX'
+            ProjectUri = 'https://github.com/EvotecIT/DomainDetective'
             Tags       = @('Windows', 'MacOS', 'Linux')
         }
     }
