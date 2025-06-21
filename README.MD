@@ -40,6 +40,24 @@ DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes w
 
 You can load a custom list from a file using `LoadDNSBL`. Additionally, JSON files describing DNSBL providers can be imported with `LoadDnsblConfig`.
 
+Example usage in C#:
+
+```csharp
+var analysis = new DNSBLAnalysis();
+
+// add a provider
+analysis.AddDNSBL("dnsbl.example.com", comment: "custom");
+
+// remove a provider
+analysis.RemoveDNSBL("dnsbl.example.com");
+
+// clear all configured providers
+analysis.ClearDNSBL();
+
+// load providers from JSON configuration
+analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
+```
+
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
 
