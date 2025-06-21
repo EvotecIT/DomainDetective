@@ -26,12 +26,10 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.1" />
     </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
-    <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
   </ItemGroup>
 
 </Project>

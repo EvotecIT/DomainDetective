@@ -9,4 +9,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+  </ItemGroup>
+
 </Project>
