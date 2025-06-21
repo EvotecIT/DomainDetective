@@ -23,11 +23,20 @@ namespace DomainDetective {
                     return true;
                 };
                 using (var client = new HttpClient(handler)) {
-                    var response = await client.GetAsync(url);
-                    if (response.IsSuccessStatusCode) {
-                        IsReachable = true;
+                    try {
+                        HttpResponseMessage response = await client.GetAsync(url);
+                        if (response.IsSuccessStatusCode) {
+                            IsReachable = true;
+                        } else {
+                            IsReachable = false;
+                        }
+                        if (Certificate != null) {
+                            DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
+                        }
+                    } catch (Exception ex) {
+                        IsReachable = false;
+                        logger?.WriteError("Exception reaching {0}: {1}", url, ex.Message);
                     }
-                    DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                 }
             }
         }
