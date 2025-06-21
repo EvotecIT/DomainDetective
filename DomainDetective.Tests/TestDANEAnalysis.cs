@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DnsClientX;
 
 namespace DomainDetective.Tests {
     public class TestDANEnalysis {
@@ -79,6 +80,19 @@ namespace DomainDetective.Tests {
         public async Task HttpsQueriesAandAaaaRecords() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
+            };
+            await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
+
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
+        }
+
+        [Fact]
+        public async Task HttpsQueriesAandAaaaRecordsUsingSystemResolver() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false,
+                DnsEndpoint = DnsEndpoint.System
             };
             await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
 

@@ -12,7 +12,7 @@ Current capabilities include:
 - [x] Verify DKIM
 - [x] Verify CAA
 - [x] Verify NS Records
-- [ ] Verify SOA Records
+- [x] Verify SOA Records
 - [ ] Verify MX Records
 - [ ] Verify DNSSEC
 - [x] Verify DANE/TLSA
