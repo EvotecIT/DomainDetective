@@ -1,3 +1,5 @@
+using DnsClientX;
+
 namespace DomainDetective.Tests {
     public class TestDkimAnalysis {
         [Fact]
@@ -49,6 +51,28 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].StartsCorrectly);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].KeyTypeExists);
 
+        }
+
+        [Fact]
+        public async Task ConcatenateMultipleTxtChunks() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCB",
+                    Type = DnsRecordType.TXT
+                },
+                new DnsAnswer {
+                    DataRaw = "iQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new DkimAnalysis();
+            await analysis.AnalyzeDkimRecords("default", answers, new InternalLogger());
+
+            Assert.True(analysis.AnalysisResults["default"].DkimRecordExists);
+            Assert.Equal(
+                "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;",
+                analysis.AnalysisResults["default"].DkimRecord);
         }
     }
 }

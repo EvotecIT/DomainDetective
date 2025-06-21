@@ -18,8 +18,10 @@ namespace DomainDetective {
             // create a single string from the list of DnsResult objects
             foreach (var record in dkimRecordList) {
                 analysis.Name = record.Name;
-                foreach (var data in record.Data) {
-                    analysis.DkimRecord += data;
+                if (record.DataStringsEscaped != null && record.DataStringsEscaped.Length > 0) {
+                    analysis.DkimRecord += string.Join(string.Empty, record.DataStringsEscaped);
+                } else {
+                    analysis.DkimRecord += record.Data;
                 }
             }
 
