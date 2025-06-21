@@ -10,3 +10,4 @@ $ResultsMicrosoft | Format-Table
 
 $ResultsEvotec = Test-SpfRecord -DomainName 'evotec.pl' -Verbose
 $ResultsEvotec | Format-Table
+$ResultsEvotec | Format-List
