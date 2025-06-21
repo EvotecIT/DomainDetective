@@ -11,8 +11,8 @@ namespace DomainDetective {
     /// 1.	The SPF record must start with "v=spf1".
     /// 2.	The SPF record should not exceed 10 DNS lookups - SPF implementations MUST limit the number of mechanisms and modifiers that do DNS lookups to at most 10 per SPF check, including any lookups caused by the use of the "include" mechanism or the "redirect" modifier.  If this number is exceeded during a check, a PermError MUST be returned.  The "include", "a", "mx", "ptr", and "exists" mechanisms as well as the "redirect" modifier do count against this limit.  The "all", "ip4", and "ip6" mechanisms do not require DNS lookups and therefore do not count against this limit. The "exp" modifier does not count against this limit because the DNS lookup to fetch the explanation string occurs after the SPF record has been evaluated.
     /// 3.	The SPF record should not have more than one "all" mechanism.
-    /// 4.	The SPF record should not have more than 450 characters.
-    /// 5.  The SPF record should not have more than 255 characters in a single string.
+    /// 4.	The total length of the SPF record should stay below 512 bytes when possible.
+    /// 5.	Each TXT chunk of the SPF record must be 255 bytes or less.
     /// </summary>
     public class SpfAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
@@ -196,10 +196,12 @@ namespace DomainDetective {
         private void CheckCharacterLimits(IEnumerable<DnsAnswer> spfRecords) {
             int totalLength = 0;
             foreach (var record in spfRecords) {
-                totalLength += record.Data.Length;
-                ExceedsCharacterLimit = ExceedsCharacterLimit || record.Data.Length > 255;
+                foreach (var chunk in record.DataStringsEscaped) {
+                    totalLength += chunk.Length;
+                    ExceedsCharacterLimit = ExceedsCharacterLimit || chunk.Length > 255;
+                }
             }
-            ExceedsTotalCharacterLimit = totalLength > 2048;
+            ExceedsTotalCharacterLimit = totalLength > 512;
         }
 
         private void AddPartToList(string part) {
