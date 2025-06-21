@@ -1,3 +1,5 @@
+using DnsClientX;
+
 namespace DomainDetective.Tests {
     public class TestDMARCAnalysis {
 
@@ -40,6 +42,29 @@ namespace DomainDetective.Tests {
             Assert.Equal(
                 "Percentage value must be between 0 and 100.",
                 healthCheck.DmarcAnalysis.Percent);
+        }
+
+        [Fact]
+        public async Task ConcatenateMultipleTxtChunks() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none;",
+                    Type = DnsRecordType.TXT
+                },
+                new DnsAnswer {
+                    DataRaw = "rua=mailto:test@example.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.DmarcRecordExists);
+            Assert.Equal("v=DMARC1; p=none; rua=mailto:test@example.com", analysis.DmarcRecord);
+            Assert.Equal("none", analysis.PolicyShort);
+            Assert.Single(analysis.MailtoRua);
+            Assert.Equal("test@example.com", analysis.MailtoRua[0]);
         }
     }
 }
