@@ -43,6 +43,10 @@ namespace DomainDetective {
         public string RedirectValue { get; private set; }
         public string AllMechanism { get; private set; }
 
+        public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        public bool CycleDetected { get; private set; }
+        private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
@@ -65,6 +69,8 @@ namespace DomainDetective {
             HasNullLookups = false;
             HasRedirect = false;
             HasExp = false;
+            CycleDetected = false;
+            _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ARecords = new List<string>();
             Ipv4Records = new List<string>();
             Ipv6Records = new List<string>();
@@ -107,7 +113,7 @@ namespace DomainDetective {
             var parts = SpfRecord.Split(' ');
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts);
+            int dnsLookups = await CountDnsLookups(parts, _visitedDomains);
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 
@@ -132,50 +138,63 @@ namespace DomainDetective {
         }
 
 
-        private async Task<int> CountDnsLookups(string[] parts) {
+        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains) {
             int dnsLookups = 0;
             foreach (var part in parts) {
                 if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("include:".Length);
-                    if (domain != "") {
-                        // Add the domain to the DnsLookups list
-                        DnsLookups.Add(domain);
+                    if (domain != string.Empty) {
+                        if (!visitedDomains.Add(domain)) {
+                            CycleDetected = true;
+                            continue;
+                        }
 
-                        // TODO: change provider/protocol to use DOH or DNS based on user choices
-                        var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
-                        dnsLookups++; // count the DNS lookup
-                        if (dnsResults != null) {
-                            // recursively analyze the results of the DNS lookup
-                            foreach (var dnsResult in dnsResults) {
-                                var resultParts = dnsResult.Data.Split(' ');
-                                dnsLookups += await CountDnsLookups(resultParts);
+                        DnsLookups.Add(domain);
+                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
+                            dnsLookups++;
+                            var resultParts = fakeRecord.Split(' ');
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                        } else {
+                            var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            dnsLookups++;
+                            if (dnsResults != null) {
+                                foreach (var dnsResult in dnsResults) {
+                                    var resultParts = dnsResult.Data.Split(' ');
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                }
                             }
                         }
                     }
                 } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("redirect=".Length);
-                    if (domain != "") {
-                        // Add the domain to the DnsLookups list
-                        DnsLookups.Add(domain);
+                    if (domain != string.Empty) {
+                        if (!visitedDomains.Add(domain)) {
+                            CycleDetected = true;
+                            continue;
+                        }
 
-                        // TODO: change provider/protocol to use DOH or DNS based on user choices
-                        var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
-                        dnsLookups++; // count the DNS lookup
-                        if (dnsResults != null) {
-                            // recursively analyze the results of the DNS lookup
-                            foreach (var dnsResult in dnsResults) {
-                                var resultParts = dnsResult.Data.Split(' ');
-                                dnsLookups += await CountDnsLookups(resultParts);
+                        DnsLookups.Add(domain);
+                        if (TestSpfRecords.TryGetValue(domain, out var fakeRedirect)) {
+                            dnsLookups++;
+                            var resultParts = fakeRedirect.Split(' ');
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                        } else {
+                            var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            dnsLookups++;
+                            if (dnsResults != null) {
+                                foreach (var dnsResult in dnsResults) {
+                                    var resultParts = dnsResult.Data.Split(' ');
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                }
                             }
                         }
                     }
                 } else if (part.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring(part.IndexOf(":") + 1);
-                    if (domain != "") {
-                        // Add the domain to the DnsLookups list
+                    if (domain != string.Empty) {
                         DnsLookups.Add(domain);
                     }
-                    dnsLookups++; // count the DNS lookup, but don't check the results
+                    dnsLookups++;
                 }
             }
             return dnsLookups;

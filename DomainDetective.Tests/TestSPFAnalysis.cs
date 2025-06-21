@@ -132,6 +132,18 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task DetectCircularInclude() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 include:b.example.com -all";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 include:a.example.com -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com -all");
+
+            Assert.True(healthCheck.SpfAnalysis.CycleDetected);
+            Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
+        }
+      
+        [Fact]
         public async Task DomainEndingWithAllWithoutAllMechanism() {
             var spfRecord = "v=spf1 a:firewall";
             var healthCheck = new DomainHealthCheck();
