@@ -10,7 +10,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
             Assert.True(healthCheck6.SpfAnalysis.HasNullLookups == true);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups == true, "Exceeds lookups should be true, as we expect it over the board");
-            Assert.True(healthCheck6.SpfAnalysis.DnsLookupsCount == 13, "DNS lookups should be 15, as we did it on purpose and got: " + healthCheck6.SpfAnalysis.DnsLookupsCount);
+            Assert.True(healthCheck6.SpfAnalysis.DnsLookupsCount == 13, "DNS lookups should be 13, as we did it on purpose and got: " + healthCheck6.SpfAnalysis.DnsLookupsCount);
             Assert.True(healthCheck6.SpfAnalysis.MultipleAllMechanisms == false);
             Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
             Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
