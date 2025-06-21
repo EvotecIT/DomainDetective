@@ -80,13 +80,12 @@ namespace DomainDetective {
                 // SHA-512 => 128 hex chars).  For type 0 the data is the full
                 // certificate and length is implementation specific.
                 int expectedLength = matchingTypeValue switch {
-                    0 => 256,
                     1 => 64,
                     2 => 128,
                     _ => 0
                 };
 
-                analysis.CorrectLengthOfCertificateAssociationData = associationData.Length == expectedLength;
+                analysis.CorrectLengthOfCertificateAssociationData = matchingTypeValue == 0 || associationData.Length == expectedLength;
                 analysis.LengthOfCertificateAssociationData = associationData.Length;
                 analysis.ValidMatchingType = matchingTypeValue >= 0 && matchingTypeValue <= 2;
 

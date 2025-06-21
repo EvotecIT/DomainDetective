@@ -41,5 +41,23 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords == true);
             Assert.True(healthCheck.DaneAnalysis.NumberOfRecords == 1);
         }
+
+        [Fact]
+        public async Task TestType0RecordVariableLength() {
+            var daneRecord = "0 0 0 ABCDEF0123";
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+            await healthCheck.CheckDANE(daneRecord);
+
+            Assert.True(healthCheck.DaneAnalysis.HasDuplicateRecords == false);
+            Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords == false);
+            Assert.True(healthCheck.DaneAnalysis.NumberOfRecords == 1);
+
+            var analysis = healthCheck.DaneAnalysis.AnalysisResults[0];
+            Assert.True(analysis.ValidDANERecord);
+            Assert.True(analysis.CorrectLengthOfCertificateAssociationData);
+            Assert.Equal(10, analysis.LengthOfCertificateAssociationData);
+        }
     }
 }
