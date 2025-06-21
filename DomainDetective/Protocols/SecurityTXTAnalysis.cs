@@ -24,7 +24,7 @@ namespace DomainDetective {
         public List<string> Hiring { get; set; } = new List<string>();
 
         // Fields that should only appear once as string
-        public string Canonical { get; set; }
+        public List<string> Canonical { get; set; } = new List<string>();
         public string Expires { get; set; }
         public string SignatureEncryption { get; set; }
 
@@ -48,7 +48,7 @@ namespace DomainDetective {
             if (response != null) {
                 RecordPresent = true;
                 Url = url;
-                ParseSecurityTxt(response, pgpPublicKey);
+                ParseSecurityTxt(response, pgpPublicKey, url);
             }
         }
 
@@ -72,7 +72,7 @@ namespace DomainDetective {
         }
 
 
-        private void ParseSecurityTxt(string txt, string pgpPublicKey) {
+        private void ParseSecurityTxt(string txt, string pgpPublicKey, string currentUrl) {
             if (txt.Contains("-----BEGIN PGP SIGNED MESSAGE-----")) {
                 PGPSigned = true;
                 if (!string.IsNullOrEmpty(pgpPublicKey)) {
@@ -96,7 +96,6 @@ namespace DomainDetective {
             var lines = txt.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
             RecordValid = true;
-            bool hasSeenCanonical = false;
             bool hasSeenExpires = false;
             bool hasSeenSignatureEncryption = false;
 
@@ -139,12 +138,7 @@ namespace DomainDetective {
                             Hiring.Add(value);
                             break;
                         case "Canonical":
-                            if (hasSeenCanonical) {
-                                Logger.WriteWarning("Multiple Canonical fields found");
-                                RecordValid = false;
-                            }
-                            Canonical = value;
-                            hasSeenCanonical = true;
+                            Canonical.Add(value);
                             break;
                         case "Expires":
                             if (hasSeenExpires) {
@@ -166,6 +160,45 @@ namespace DomainDetective {
                     }
                 }
             }
+
+            if (ContactEmail.Count == 0 && ContactWebsite.Count == 0) {
+                Logger.WriteWarning("Missing required Contact field");
+                RecordValid = false;
+            }
+
+            if (!hasSeenExpires) {
+                Logger.WriteWarning("Missing required Expires field");
+                RecordValid = false;
+            } else {
+                if (!DateTime.TryParse(Expires, out DateTime expiresDate)) {
+                    Logger.WriteWarning("Invalid Expires date format");
+                    RecordValid = false;
+                } else {
+                    if (expiresDate < DateTime.UtcNow) {
+                        Logger.WriteWarning("Expires date is in the past");
+                        RecordValid = false;
+                    }
+                    if (expiresDate > DateTime.UtcNow.AddYears(1)) {
+                        Logger.WriteWarning("Expires date more than one year in the future");
+                        RecordValid = false;
+                    }
+                }
+            }
+
+            if (Canonical.Count > 0) {
+                foreach (var canonicalUrl in Canonical) {
+                    if (!canonicalUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                        Logger.WriteWarning("Canonical URL must start with https://");
+                        RecordValid = false;
+                    }
+                }
+
+                if (!Canonical.Exists(c => string.Equals(c.TrimEnd('/'), currentUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))) {
+                    Logger.WriteWarning("Canonical URL does not match retrieved file location");
+                    RecordValid = false;
+                }
+            }
+
             if (!RecordValid) {
                 Logger.WriteWarning("Invalid security.txt file");
             }
