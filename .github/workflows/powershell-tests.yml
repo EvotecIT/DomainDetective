@@ -23,25 +23,27 @@ jobs:
         runs-on: windows-latest
         steps:
             - name: Checkout code
-                uses: actions/checkout@v4
+              uses: actions/checkout@v4
 
             - name: Setup PowerShell modules
-                shell: pwsh
-                run: |
-                    Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
+              run: |
+                Install-Module PSPublishModule -Force -Scope CurrentUser -AllowClobber
+              shell: pwsh
+
 
             - name: Refresh module manifest
-                shell: pwsh
-                env:
-                    RefreshPSD1Only: 'true'
-                run: |
-                    .\Module\Build\Build-Module.ps1
+              env:
+                RefreshPSD1Only: 'true'
+              run: |
+                .\Module\Build\Build-Module.ps1
+              shell: pwsh
+
 
             - name: Upload refreshed manifest
-                uses: actions/upload-artifact@v4
-                with:
-                    name: psd1
-                    path: Module/DomainDetective.psd1
+              uses: actions/upload-artifact@v4
+              with:
+                name: psd1
+                path: Module/DomainDetective.psd1
 
     test-windows-ps5:
         needs: refresh-psd1
@@ -49,34 +51,36 @@ jobs:
         runs-on: windows-latest
         steps:
             - name: Checkout code
-                uses: actions/checkout@v4
+              uses: actions/checkout@v4
 
             - name: Download manifest
-                uses: actions/download-artifact@v4
-                with:
-                    name: psd1
-                    path: Module
+              uses: actions/download-artifact@v4
+              with:
+                name: psd1
+                path: Module
 
             - name: Setup .NET
-                uses: actions/setup-dotnet@v4
-                with:
-                    dotnet-version: ${{ env.DOTNET_VERSION }}
+              uses: actions/setup-dotnet@v4
+              with:
+                dotnet-version: ${{ env.DOTNET_VERSION }}
 
             - name: Install PowerShell modules
-                shell: powershell
-                run: |
-                    Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
-                    Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                    Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              run: |
+                Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              shell: powershell
+
 
             - name: Build .NET solution
-                run: |
-                    dotnet restore DomainDetective.sln
-                    dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+              run: |
+                dotnet restore DomainDetective.sln
+                dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run PowerShell tests
-                shell: powershell
-                run: ./Module/DomainDetective.Tests.ps1
+              run: ./Module/DomainDetective.Tests.ps1
+              shell: powershell
+
 
     test-windows-ps7:
         needs: refresh-psd1
@@ -84,76 +88,77 @@ jobs:
         runs-on: windows-latest
         steps:
             - name: Checkout code
-                uses: actions/checkout@v4
+              uses: actions/checkout@v4
 
             - name: Download manifest
-                uses: actions/download-artifact@v4
-                with:
-                    name: psd1
-                    path: Module
+              uses: actions/download-artifact@v4
+              with:
+                name: psd1
+                path: Module
 
             - name: Setup .NET
-                uses: actions/setup-dotnet@v4
-                with:
-                    dotnet-version: ${{ env.DOTNET_VERSION }}
+              uses: actions/setup-dotnet@v4
+              with:
+                dotnet-version: ${{ env.DOTNET_VERSION }}
 
             - name: Install PowerShell modules
-                shell: pwsh
-                run: |
-                    Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
-                    Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                    Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              run: |
+                Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              shell: pwsh
+
 
             - name: Build .NET solution
-                run: |
-                    dotnet restore DomainDetective.sln
-                    dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
+              run: |
+                dotnet restore DomainDetective.sln
+                dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
             - name: Run PowerShell tests
-                shell: pwsh
-                run: ./Module/DomainDetective.Tests.ps1
-
+              run: ./Module/DomainDetective.Tests.ps1
+              shell: pwsh
     test-ubuntu:
         needs: refresh-psd1
         name: 'Ubuntu PowerShell 7'
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
-                uses: actions/checkout@v4
+              uses: actions/checkout@v4
 
             - name: Download manifest
-                uses: actions/download-artifact@v4
-                with:
-                    name: psd1
-                    path: Module
+              uses: actions/download-artifact@v4
+              with:
+                name: psd1
+                path: Module
 
             - name: Setup .NET
-                uses: actions/setup-dotnet@v4
-                with:
-                    dotnet-version: ${{ env.DOTNET_VERSION }}
+              uses: actions/setup-dotnet@v4
+              with:
+                dotnet-version: ${{ env.DOTNET_VERSION }}
 
             - name: Install PowerShell
-                run: |
-                    curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-                    curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/microsoft.list
-                    sudo apt-get update
-                    sudo apt-get install -y powershell
+              run: |
+                curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+                curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list | sudo tee /etc/apt/sources.list.d/microsoft.list
+                sudo apt-get update
+                sudo apt-get install -y powershell
 
             - name: Install PowerShell modules
-                shell: pwsh
-                run: |
-                    Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
-                    Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                    Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              run: |
+                Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              shell: pwsh
+
 
             - name: Build .NET solution
-                run: |
-                    dotnet restore DomainDetective.sln
-                    dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
+              run: |
+                dotnet restore DomainDetective.sln
+                dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
             - name: Run PowerShell tests
-                shell: pwsh
-                run: ./Module/DomainDetective.Tests.ps1
+              run: ./Module/DomainDetective.Tests.ps1
+              shell: pwsh
+
+              run: ./Module/DomainDetective.Tests.ps1
 
     test-macos:
         needs: refresh-psd1
@@ -161,34 +166,35 @@ jobs:
         runs-on: macos-latest
         steps:
             - name: Checkout code
-                uses: actions/checkout@v4
+              uses: actions/checkout@v4
 
             - name: Download manifest
-                uses: actions/download-artifact@v4
-                with:
-                    name: psd1
-                    path: Module
+              uses: actions/download-artifact@v4
+              with:
+                name: psd1
+                path: Module
 
             - name: Setup .NET
-                uses: actions/setup-dotnet@v4
-                with:
-                    dotnet-version: ${{ env.DOTNET_VERSION }}
+              uses: actions/setup-dotnet@v4
+              with:
+                dotnet-version: ${{ env.DOTNET_VERSION }}
 
             - name: Install PowerShell
-                run: brew install --cask powershell
+              run: brew install --cask powershell
 
             - name: Install PowerShell modules
-                shell: pwsh
-                run: |
-                    Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
-                    Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
-                    Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              run: |
+                Write-Host "PowerShell Version: $($PSVersionTable.PSVersion)"
+                Install-Module -Name Pester -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+                Install-Module -Name PSWriteColor -Repository PSGallery -Force -SkipPublisherCheck -AllowClobber
+              shell: pwsh
+
 
             - name: Build .NET solution
-                run: |
-                    dotnet restore DomainDetective.sln
-                    dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
+              run: |
+                dotnet restore DomainDetective.sln
+                dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
             - name: Run PowerShell tests
-                shell: pwsh
-                run: ./Module/DomainDetective.Tests.ps1
+              run: ./Module/DomainDetective.Tests.ps1
+              shell: pwsh
+
