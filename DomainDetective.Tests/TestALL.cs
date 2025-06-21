@@ -51,6 +51,7 @@ namespace DomainDetective.Tests {
             Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
             Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
             Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.False(healthCheck.CAAAnalysis.HasDuplicateIssuers);
         }
     }
 }
