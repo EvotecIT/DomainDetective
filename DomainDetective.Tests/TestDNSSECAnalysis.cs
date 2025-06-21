@@ -7,6 +7,7 @@ namespace DomainDetective.Tests {
 
             Assert.NotEmpty(healthCheck.DNSSecAnalysis.DnsKeys);
             Assert.True(healthCheck.DNSSecAnalysis.AuthenticData);
+            Assert.True(healthCheck.DNSSecAnalysis.DsMatch);
         }
     }
 }
