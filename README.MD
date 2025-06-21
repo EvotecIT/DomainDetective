@@ -38,7 +38,7 @@ DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes w
 - `ClearDNSBL`
 - `LoadDNSBL`
 
-You can load a custom list from a file using `LoadDNSBL`.
+You can load a custom list from a file using `LoadDNSBL`. Additionally, JSON files describing DNSBL providers can be imported with `LoadDnsblConfig`.
 
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
