@@ -23,10 +23,7 @@ namespace DomainDetective.Tests {
             Assert.True(daneRecord.ValidMatchingType);
             Assert.True(daneRecord.ValidDANERecord);
             Assert.True(daneRecord.ValidSelector);
-            Assert.Equal("_25._tcp.mail.ietf.org", daneRecord.DomainName);
-
-
-
+            Assert.Equal("_25._tcp.mail2.ietf.org", daneRecord.DomainName);
         }
 
         [Fact]
