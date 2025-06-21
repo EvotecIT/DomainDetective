@@ -130,5 +130,17 @@ namespace DomainDetective.Tests {
             Assert.Contains("_spf.google.com", healthCheck.SpfAnalysis.IncludeRecords);
             Assert.Equal("-ALL", healthCheck.SpfAnalysis.AllMechanism);
         }
+
+        [Fact]
+        public async Task DetectCircularInclude() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 include:b.example.com -all";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 include:a.example.com -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com -all");
+
+            Assert.True(healthCheck.SpfAnalysis.CycleDetected);
+            Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
+        }
     }
 }
