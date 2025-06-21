@@ -41,14 +41,14 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.SpfAnalysis.StartsCorrectly);
             Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
 
-            Assert.Equal(8, healthCheck.CAAAnalysis.AnalysisResults.Count);
+            Assert.Equal(10, healthCheck.CAAAnalysis.AnalysisResults.Count);
             Assert.True(healthCheck.CAAAnalysis.Valid);
             Assert.False(healthCheck.CAAAnalysis.Conflicting);
             Assert.False(healthCheck.CAAAnalysis.ConflictingWildcardCertificateIssuance);
             Assert.False(healthCheck.CAAAnalysis.ConflictingCertificateIssuance);
-            Assert.Equal(0, healthCheck.CAAAnalysis.CanIssueMail.Count);
-            Assert.Equal(4, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
-            Assert.Equal(4, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
+            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
         }
     }
 }
