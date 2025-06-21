@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Text.Json;
 
@@ -262,8 +263,15 @@ namespace DomainDetective {
             // Check if the input is an IP address or a hostname
             string name;
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
-                // Reverse the IP address and append the DNSBL list
-                name = string.Join(".", ipAddress.ToString().Split('.').Reverse());
+                if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
+                    var hex = string.Concat(ipAddress
+                        .GetAddressBytes()
+                        .Select(b => b.ToString("x2")));
+                    name = string.Join(".", hex.Reverse());
+                } else {
+                    // Reverse the IPv4 address and append the DNSBL list
+                    name = string.Join(".", ipAddress.ToString().Split('.').Reverse());
+                }
             } else {
                 // Use the hostname and append the DNSBL list
                 name = ipAddressOrHostname;
