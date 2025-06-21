@@ -1,6 +1,6 @@
 [![.NET Tests](https://github.com/EvotecIT/DomainDetective/actions/workflows/dotnet-tests.yml/badge.svg)](https://github.com/EvotecIT/DomainDetective/actions/workflows/dotnet-tests.yml)
 [![PowerShell Tests](https://github.com/EvotecIT/DomainDetective/actions/workflows/powershell-tests.yml/badge.svg)](https://github.com/EvotecIT/DomainDetective/actions/workflows/powershell-tests.yml)
-[![codecov](https://codecov.io/gh/your-user/DomainDetective/branch/master/graph/badge.svg)](https://codecov.io/gh/your-user/DomainDetective)
+[![codecov](https://codecov.io/gh/EvotecIT/DomainDetective/branch/master/graph/badge.svg)](https://codecov.io/gh/EvotecIT/DomainDetective)
 
 Domain Detective is a C# library, Tool and PowerShell module in one project. It is designed to help you find interesting information about a domain name.
 While there are plenty of tools on the internet that can do this, most of them are web based and require you to enter the domain name into a web form.
