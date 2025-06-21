@@ -53,13 +53,13 @@ namespace DomainDetective {
 
             if (DnsKeys.Count > 0 && DsRecords.Count > 0) {
                 var ksk = DnsKeys.FirstOrDefault(k => k.StartsWith("257")) ?? DnsKeys[0];
-                DsMatch = VerifyDsMatch(ksk, DsRecords[0]);
+                DsMatch = VerifyDsMatch(ksk, DsRecords[0], domainName);
             }
 
             logger?.WriteVerbose("DNSSEC validation for {0}: {1}", domainName, AuthenticData);
         }
 
-        private static bool VerifyDsMatch(string dnskey, string dsRecord) {
+        private static bool VerifyDsMatch(string dnskey, string dsRecord, string domainName) {
             try {
                 var keyParts = dnskey.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (keyParts.Length < 4) {
@@ -99,7 +99,11 @@ namespace DomainDetective {
                     4 => SHA384.Create(),
                     _ => SHA256.Create(),
                 };
-                digestBytes = hasher.ComputeHash(rdata.ToArray());
+                byte[] nameWire = ToWireFormat(domainName);
+                var data = new byte[nameWire.Length + rdata.Count];
+                nameWire.CopyTo(data, 0);
+                rdata.ToArray().CopyTo(data, nameWire.Length);
+                digestBytes = hasher.ComputeHash(data);
                 var digestHex = BitConverter.ToString(digestBytes).Replace("-", string.Empty).ToLowerInvariant();
 
                 return digestHex.StartsWith(digest.ToLowerInvariant());
@@ -115,6 +119,18 @@ namespace DomainDetective {
             }
             ac += (ac >> 16) & 0xFFFF;
             return ac & 0xFFFF;
+        }
+
+        private static byte[] ToWireFormat(string domainName) {
+            domainName = domainName.TrimEnd('.').ToLowerInvariant();
+            var labels = domainName.Split('.');
+            List<byte> bytes = new();
+            foreach (var label in labels) {
+                bytes.Add((byte)label.Length);
+                bytes.AddRange(System.Text.Encoding.ASCII.GetBytes(label));
+            }
+            bytes.Add(0);
+            return bytes.ToArray();
         }
 
         private static int AlgorithmNumber(string name) => name.ToUpperInvariant() switch {
