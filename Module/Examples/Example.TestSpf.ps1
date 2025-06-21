@@ -7,6 +7,7 @@ $Results | Format-Table
 
 $ResultsMicrosoft = Test-SpfRecord -DomainName 'microsoft.com' -Verbose
 $ResultsMicrosoft | Format-Table
+$ResultsMicrosoft | Format-List
 
 $ResultsEvotec = Test-SpfRecord -DomainName 'evotec.pl' -Verbose
 $ResultsEvotec | Format-Table
