@@ -130,5 +130,27 @@ namespace DomainDetective.Tests {
             Assert.Contains("_spf.google.com", healthCheck.SpfAnalysis.IncludeRecords);
             Assert.Equal("-ALL", healthCheck.SpfAnalysis.AllMechanism);
         }
+
+        [Fact]
+        public async Task DomainEndingWithAllWithoutAllMechanism() {
+            var spfRecord = "v=spf1 a:firewall";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Null(healthCheck.SpfAnalysis.AllMechanism);
+            Assert.False(healthCheck.SpfAnalysis.MultipleAllMechanisms);
+            Assert.False(healthCheck.SpfAnalysis.ContainsCharactersAfterAll);
+        }
+
+        [Fact]
+        public async Task DomainEndingWithAllWithAllMechanism() {
+            var spfRecord = "v=spf1 include:firewall -all";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
+            Assert.False(healthCheck.SpfAnalysis.MultipleAllMechanisms);
+            Assert.False(healthCheck.SpfAnalysis.ContainsCharactersAfterAll);
+        }
     }
 }
