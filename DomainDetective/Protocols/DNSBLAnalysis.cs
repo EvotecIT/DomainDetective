@@ -6,8 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class DNSBLRecord {
@@ -286,20 +286,36 @@ namespace DomainDetective {
                 queries.Add(query);
             }
 
-            var result = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.A);
-            foreach (var dnsResponse in result) {
-                if (dnsResponse.Answers.Length == 0) {
+            var responses = new Dictionary<string, List<DnsAnswer>>();
+
+            var resultA = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.A);
+            foreach (var dnsResponse in resultA) {
+                responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+            }
+
+            if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6) {
+                var resultAaaa = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.AAAA);
+                foreach (var dnsResponse in resultAaaa) {
+                    if (!responses.ContainsKey(dnsResponse.Questions[0].Name)) {
+                        responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+                    } else {
+                        responses[dnsResponse.Questions[0].Name].AddRange(dnsResponse.Answers);
+                    }
+                }
+            }
+
+            foreach (var pair in responses) {
+                if (pair.Value.Count == 0) {
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
-                        FQDN = dnsResponse.Questions[0].Name,
-                        BlackList = dnsResponse.Questions[0].Name.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
+                        FQDN = pair.Key,
+                        BlackList = pair.Key.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
                         IsBlackListed = false,
-                        Answer = "",
+                        Answer = string.Empty,
                     };
                     results.Add(dnsblRecord);
-                    //Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
                 } else {
-                    foreach (var record in dnsResponse.Answers) {
+                    foreach (var record in pair.Value) {
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
                             FQDN = record.Name,
@@ -315,7 +331,7 @@ namespace DomainDetective {
                             // Return Code Zone Description
                             // 127.255.255.252 Any Typing error in DNSBL name
                             // 127.255.255.254 Any Query via public/open resolver
-                            // 127.255.255.255	Any Excessive number of queries
+                            // 127.255.255.255  Any Excessive number of queries
                             dnsblRecord.IsBlackListed = false;
                         }
 
@@ -334,9 +350,7 @@ namespace DomainDetective {
                         }
 
                         results.Add(dnsblRecord);
-                        //Logger.WriteVerbose($"Record {dnsblRecord.FQDN} on {dnsblRecord.BlackList}, is blacklisted: {dnsblRecord.IsBlackListed}");
                     }
-
                 }
             }
             return results.OrderByDescending(r => r.IsBlackListed).ToList();
