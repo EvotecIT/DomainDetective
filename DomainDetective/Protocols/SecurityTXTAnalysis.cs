@@ -145,9 +145,9 @@ namespace DomainDetective {
 
                     }
                 }
-                if (!RecordValid) {
-                    Logger.WriteWarning("Invalid security.txt file");
-                }
+            }
+            if (!RecordValid) {
+                Logger.WriteWarning("Invalid security.txt file");
             }
         }
 
