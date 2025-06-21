@@ -224,5 +224,20 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.SpfAnalysis.HasRedirect);
             Assert.Equal("%{d}.spf.example.com", healthCheck.SpfAnalysis.RedirectValue);
         }
+
+        [Fact]
+        public async Task NestedIncludesPopulateResolvedCollections() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 include:b.example.com a:host.test ip4:10.10.10.10 mx:mx.test -all";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 a:sub.test ip6:2001::1 -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com -all");
+
+            Assert.Contains("host.test", healthCheck.SpfAnalysis.ResolvedARecords);
+            Assert.Contains("sub.test", healthCheck.SpfAnalysis.ResolvedARecords);
+            Assert.Contains("mx.test", healthCheck.SpfAnalysis.ResolvedMxRecords);
+            Assert.Contains("10.10.10.10", healthCheck.SpfAnalysis.ResolvedIpv4Records);
+            Assert.Contains("2001::1", healthCheck.SpfAnalysis.ResolvedIpv6Records);
+        }
     }
 }
