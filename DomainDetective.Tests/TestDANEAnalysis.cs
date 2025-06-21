@@ -13,9 +13,9 @@ namespace DomainDetective.Tests {
             };
             await healthCheck.Verify("ietf.org", new[] { HealthCheckType.DANE });
 
-            Assert.True(healthCheck.DaneAnalysis.HasDuplicateRecords == false);
-            Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords == false);
-            Assert.True(healthCheck.DaneAnalysis.NumberOfRecords == 1);
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(1, healthCheck.DaneAnalysis.NumberOfRecords);
 
             var daneRecord = healthCheck.DaneAnalysis.AnalysisResults[0];
             Assert.True(daneRecord.ValidCertificateAssociationData);
@@ -23,7 +23,7 @@ namespace DomainDetective.Tests {
             Assert.True(daneRecord.ValidMatchingType);
             Assert.True(daneRecord.ValidDANERecord);
             Assert.True(daneRecord.ValidSelector);
-            Assert.True(daneRecord.DomainName == "_25._tcp.mail.ietf.org");
+            Assert.Equal("_25._tcp.mail.ietf.org", daneRecord.DomainName);
 
 
 
@@ -37,9 +37,9 @@ namespace DomainDetective.Tests {
             };
             await healthCheck.CheckDANE(daneRecord);
 
-            Assert.True(healthCheck.DaneAnalysis.HasDuplicateRecords == false);
-            Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords == true);
-            Assert.True(healthCheck.DaneAnalysis.NumberOfRecords == 1);
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(1, healthCheck.DaneAnalysis.NumberOfRecords);
         }
 
         [Fact]
@@ -50,9 +50,9 @@ namespace DomainDetective.Tests {
             };
             await healthCheck.CheckDANE(daneRecord);
 
-            Assert.True(healthCheck.DaneAnalysis.HasDuplicateRecords == false);
-            Assert.True(healthCheck.DaneAnalysis.HasInvalidRecords == false);
-            Assert.True(healthCheck.DaneAnalysis.NumberOfRecords == 1);
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(1, healthCheck.DaneAnalysis.NumberOfRecords);
 
             var analysis = healthCheck.DaneAnalysis.AnalysisResults[0];
             Assert.True(analysis.ValidDANERecord);
