@@ -11,7 +11,7 @@ Current capabilities include:
 - [x] Verify DMARC
 - [x] Verify DKIM
 - [x] Verify CAA
-- [ ] Verify NS Records
+- [x] Verify NS Records
 - [x] Verify SOA Records
 - [ ] Verify MX Records
 - [ ] Verify DNSSEC
@@ -93,14 +93,6 @@ PowerShell specific tests can be run with:
 
 ```powershell
 pwsh ./Module/DomainDetective.Tests.ps1
-```
-
-### CLI Usage
-
-To invoke the command-line tool directly from the source tree:
-
-```bash
-dotnet run --project DomainDetective.CLI -- github.com
 ```
 
 ### PowerShell Module

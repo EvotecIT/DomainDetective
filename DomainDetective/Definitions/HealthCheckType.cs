@@ -5,6 +5,7 @@ namespace DomainDetective {
         DKIM,
         MX,
         CAA,
+        NS,
         DANE,
         DNSBL,
         MTASTS,

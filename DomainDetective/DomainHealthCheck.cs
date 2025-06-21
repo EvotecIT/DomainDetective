@@ -44,6 +44,8 @@ namespace DomainDetective {
 
         public CAAAnalysis CAAAnalysis { get; private set; } = new CAAAnalysis();
 
+        public NSAnalysis NSAnalysis { get; private set; } = new NSAnalysis();
+
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
 
         public DNSBLAnalysis DNSBLAnalysis { get; private set; }
@@ -74,6 +76,10 @@ namespace DomainDetective {
             };
 
             MXAnalysis = new MXAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
 
@@ -134,6 +140,10 @@ namespace DomainDetective {
                     case HealthCheckType.CAA:
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA);
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
+                        break;
+                    case HealthCheckType.NS:
+                        var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS);
+                        await NSAnalysis.AnalyzeNsRecords(ns, _logger);
                         break;
                     case HealthCheckType.DANE:
                         await VerifyDANE(domainName, daneServiceType);
@@ -208,6 +218,21 @@ namespace DomainDetective {
             }).ToList();
 
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
+        }
+
+        public async Task CheckNS(string nsRecord) {
+            await NSAnalysis.AnalyzeNsRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = nsRecord,
+                    Type = DnsRecordType.NS
+                }
+            }, _logger);
+        }
+        public async Task CheckNS(List<string> nsRecords) {
+            var dnsResults = nsRecords.Select(record => new DnsAnswer {
+                DataRaw = record,
+            }).ToList();
+            await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger);
         }
 
         public async Task CheckDANE(string daneRecord) {
