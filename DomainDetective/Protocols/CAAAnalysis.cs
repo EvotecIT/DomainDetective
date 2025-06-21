@@ -113,13 +113,13 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     }
 
                     // Validate value
-                    // Validate value
-                    bool isValueQuoted = value.Length >= 2 && value[0] == '"' && value[value.Length - 1] == '"';
-                    if (isValueQuoted || !value.Contains(" ")) {
-                        if (isValueQuoted) {
-                            // Remove the wrapping double quotes
-                            value = value.Substring(1, value.Length - 2);
-
+                        bool isValueOnlySemicolon = value == ";";
+                            string[] parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
+                            string domainName = parts[0].Trim().TrimEnd('.').ToLowerInvariant();
+                            Dictionary<string, string> parameters = new Dictionary<string, string>();
+                                string[] paramParts = parts[1].Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+                                    string trimmedPart = paramParts[i].Trim();
+                                    string[] keyValue = trimmedPart.Split('=');
                             // Check for unescaped inner double quotes
                             if (value.Contains("\"")) {
                                 analysis.InvalidValueUnescapedQuotes = true;
