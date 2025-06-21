@@ -229,37 +229,29 @@ namespace DomainDetective {
 
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {
-                DnsRecordType service;
                 int port;
+                IEnumerable<DnsAnswer> records;
+                bool fromMx;
                 switch (serviceType) {
                     case ServiceType.SMTP:
-                        service = DnsRecordType.MX;
                         port = (int)ServiceType.SMTP;
+                        fromMx = true;
+                        records = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
                         break;
                     case ServiceType.HTTPS:
-                        service = DnsRecordType.A;
                         port = (int)ServiceType.HTTPS;
+                        fromMx = false;
+                        var aRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A);
+                        var aaaaRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA);
+                        records = (aRecords ?? Array.Empty<DnsAnswer>()).Concat(aaaaRecords ?? Array.Empty<DnsAnswer>());
                         break;
                     default:
                         throw new System.Exception("Service type not implemented.");
                 }
 
-                var records = await DnsConfiguration.QueryDNS(domainName, service);
-                //var recordData = records.SelectMany(x => x.Data).ToList();
-                //foreach (var record in recordData) {
-                //    var domain = service == DnsRecordType.MX ? record.Split(' ')[1] : record;
-                //    var dan = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domain}", DnsRecordType.TLSA);
-                //    if (dan.Any()) {
-                //        var dane = dan.ToList();
-                //        //for (int i = 0; i < dane.Count; i++) {
-                //        //    dane[i].ServiceType = serviceType;
-                //        //}
-                //        allDaneRecords.AddRange(dane);
-                //    }
-                //}
                 var recordData = records.Select(x => x.Data);
                 foreach (var record in recordData) {
-                    var domain = service == DnsRecordType.MX ? record.Split(' ')[1].Trim('.') : record;
+                    var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = $"_{port}._tcp.{domain}";
                     var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA);
                     if (dane.Any()) {
