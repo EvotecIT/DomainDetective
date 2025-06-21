@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace DomainDetective {
     public class DNSBLRecord {
@@ -339,6 +340,10 @@ namespace DomainDetective {
             }
         }
 
+        public IReadOnlyList<DnsblEntry> GetDNSBL() {
+            return DnsblEntries.AsReadOnly();
+        }
+
         public void AddDNSBL(IEnumerable<string> dnsbls) {
             foreach (var dnsbl in dnsbls) {
                 AddDNSBL(dnsbl);
@@ -387,6 +392,33 @@ namespace DomainDetective {
 
                 if (!string.IsNullOrWhiteSpace(trimmed)) {
                     AddDNSBL(trimmed, enabled, comment);
+                }
+            }
+        }
+
+        public void LoadDnsblConfig(string filePath, bool overwriteExisting = false, bool clearExisting = false) {
+            if (!File.Exists(filePath)) {
+                throw new FileNotFoundException($"DNSBL config file not found: {filePath}");
+            }
+
+            var json = File.ReadAllText(filePath);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
+
+            if (config == null || config.Providers == null)
+                return;
+
+            if (clearExisting) {
+                ClearDNSBL();
+            }
+
+            foreach (var provider in config.Providers) {
+                var existing = DnsblEntries.FirstOrDefault(e => e.Domain == provider.Domain);
+                if (existing == null) {
+                    DnsblEntries.Add(new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment));
+                } else if (overwriteExisting) {
+                    existing.Enabled = provider.Enabled;
+                    existing.Comment = provider.Comment;
                 }
             }
         }

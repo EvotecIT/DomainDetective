@@ -1,0 +1,6 @@
+{
+  "providers": [
+    { "domain": "bl.example.com", "enabled": true, "comment": "sample" },
+    { "domain": "dnsbl.example.org", "enabled": false, "comment": "optional" }
+  ]
+}
