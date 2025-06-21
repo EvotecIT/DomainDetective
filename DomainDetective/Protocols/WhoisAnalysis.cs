@@ -14,6 +14,7 @@ public class WhoisAnalysis {
         get => _domainName?.ToLower();
         set => _domainName = value;
     }
+    public string Tld => TLD;
     public string Registrar { get; set; }
     public string CreationDate { get; set; }
     public string ExpiryDate { get; set; }
@@ -277,6 +278,7 @@ public class WhoisAnalysis {
 
         // If not found, check for single-part TLDs
         tld = domainParts.Last();
+        TLD = tld;
         return WhoisServers.ContainsKey(tld) ? WhoisServers[tld] : null;
     }
 
@@ -284,7 +286,7 @@ public class WhoisAnalysis {
         DomainName = domain;
         var whoisServer = GetWhoisServer(domain);
         if (whoisServer == null) {
-            throw new Exception($"No WHOIS server found for domain {domain}");
+            throw new UnsupportedTldException(domain, TLD);
         }
 
         try {
