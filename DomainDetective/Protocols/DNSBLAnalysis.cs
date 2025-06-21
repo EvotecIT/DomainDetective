@@ -201,11 +201,13 @@ namespace DomainDetective {
 
         public Dictionary<string, DNSQueryResult> Results { get; set; } = new Dictionary<string, DNSQueryResult>();
 
+        public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
+
         internal InternalLogger Logger { get; set; }
 
         internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
             Logger = logger;
-            List<DNSBLRecord> allResults = new List<DNSBLRecord>();
+            AllResults = new List<DNSBLRecord>();
 
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
 
@@ -255,6 +257,7 @@ namespace DomainDetective {
                 DNSBLRecords = results,
             };
             Results[ipAddressOrHostname] = queryResult;
+            AllResults.AddRange(results);
         }
 
         private async Task<IEnumerable<DNSBLRecord>> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
