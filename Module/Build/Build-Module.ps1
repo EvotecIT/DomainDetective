@@ -3,7 +3,7 @@
 Build-Module -ModuleName 'DomainDetective' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
-        ModuleVersion        = '0.1.0'
+        ModuleVersion        = '0.2.0'
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'a2986f0d-da11-43f5-a252-f9e1d1699776'
         Author               = 'Przemyslaw Klys'
@@ -65,18 +65,23 @@ Build-Module -ModuleName 'DomainDetective' {
 
     $newConfigurationBuildSplat = @{
         Enable                            = $true
-        SignModule                        = $true
+        SignModule                        = if ($Env:COMPUTERNAME -eq 'EVOMONSTER') { $true } else { $false }
         MergeModuleOnBuild                = $true
         MergeFunctionsFromApprovedModules = $true
         CertificateThumbprint             = '483292C9E317AA13B07BB7A96AE9D1A5ED9E7703'
         NETProjectPath                    = "$PSScriptRoot\..\..\DomainDetective.PowerShell"
-        ResolveBinaryConflicts            = $false
+        ResolveBinaryConflicts            = $true
         ResolveBinaryConflictsName        = 'DomainDetective.PowerShell'
         NETProjectName                    = 'DomainDetective.PowerShell'
         NETBinaryModule                   = 'DomainDetective.PowerShell.dll'
         NETConfiguration                  = 'Release'
-        NETFramework                      = 'net472', 'net6.0'
+        NETFramework                      = 'net8.0', 'net472'
+        NETHandleAssemblyWithSameName     = $true
         DotSourceLibraries                = $true
+        DotSourceClasses                  = $true
+        DeleteTargetModuleBeforeBuild     = $true
+        RefreshPSD1Only                   = $true
+        NETBinaryModuleDocumenation       = $true
     }
 
     New-ConfigurationBuild @newConfigurationBuildSplat
