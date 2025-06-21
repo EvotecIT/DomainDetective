@@ -48,6 +48,8 @@ namespace DomainDetective {
 
         public DNSBLAnalysis DNSBLAnalysis { get; private set; }
 
+        public DNSSecAnalysis DNSSecAnalysis { get; private set; } = new DNSSecAnalysis();
+
         public MTASTSAnalysis MTASTSAnalysis { get; private set; } = new MTASTSAnalysis();
 
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
@@ -100,6 +102,7 @@ namespace DomainDetective {
                     HealthCheckType.MX,
                     HealthCheckType.CAA,
                     HealthCheckType.DANE,
+                    HealthCheckType.DNSSEC,
                     HealthCheckType.DNSBL
                 };
             }
@@ -135,6 +138,10 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.DANE:
                         await VerifyDANE(domainName, daneServiceType);
+                        break;
+                    case HealthCheckType.DNSSEC:
+                        DNSSecAnalysis = new DNSSecAnalysis();
+                        await DNSSecAnalysis.Analyze(domainName, _logger, DnsConfiguration);
                         break;
                     case HealthCheckType.DNSBL:
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);

@@ -7,6 +7,7 @@ namespace DomainDetective {
         CAA,
         DANE,
         DNSBL,
+        DNSSEC,
         MTASTS,
         CERT,
         SECURITYTXT
