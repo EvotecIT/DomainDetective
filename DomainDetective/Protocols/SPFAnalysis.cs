@@ -188,8 +188,10 @@ namespace DomainDetective {
                 IncludeRecords.Add(part.Substring(8));
             } else if (part.StartsWith("redirect=")) {
                 RedirectValue = part.Substring(9);
+                HasRedirect = true;
             } else if (part.StartsWith("exp=")) {
                 ExpValue = part.Substring(4);
+                HasExp = true;
             } else if (part.EndsWith("all")) {
                 AllMechanism = part;
             }
