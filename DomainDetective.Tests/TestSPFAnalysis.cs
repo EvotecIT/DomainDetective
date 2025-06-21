@@ -67,5 +67,20 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == false);
         }
+
+        [Fact]
+        public async Task TestSpfCheckTwiceDoesNotAccumulate() {
+            var spfRecord = "v=spf1 include:_spf.google.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+            var firstCount = healthCheck.SpfAnalysis.SpfRecords.Count;
+            var firstLookups = healthCheck.SpfAnalysis.DnsLookupsCount;
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Equal(firstCount, healthCheck.SpfAnalysis.SpfRecords.Count);
+            Assert.Equal(firstLookups, healthCheck.SpfAnalysis.DnsLookupsCount);
+        }
     }
 }

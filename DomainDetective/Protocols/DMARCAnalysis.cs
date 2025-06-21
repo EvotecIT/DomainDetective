@@ -46,6 +46,25 @@ namespace DomainDetective {
         public int ReportingIntervalShort { get; private set; }
 
         public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            // reset all properties so repeated calls don't accumulate data
+            DmarcRecord = null;
+            DmarcRecordExists = false;
+            StartsCorrectly = false;
+            ExceedsCharacterLimit = false;
+            Rua = null;
+            MailtoRua = new List<string>();
+            HttpRua = new List<string>();
+            Ruf = null;
+            MailtoRuf = new List<string>();
+            HttpRuf = new List<string>();
+            SubPolicyShort = null;
+            PolicyShort = null;
+            FoShort = null;
+            DkimAShort = null;
+            SpfAShort = null;
+            Pct = null;
+            ReportingIntervalShort = 0;
+
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
 

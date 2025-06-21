@@ -19,6 +19,12 @@ namespace DomainDetective {
 
 
         public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            // reset all properties so repeated calls don't accumulate data
+            AnalysisResults = new List<DANERecordAnalysis>();
+            NumberOfRecords = 0;
+            HasDuplicateRecords = false;
+            HasInvalidRecords = false;
+
             var daneRecordList = dnsResults.ToList();
 
             var duplicateRecords = daneRecordList.GroupBy(x => x.Data).Where(g => g.Count() > 1).ToList();
