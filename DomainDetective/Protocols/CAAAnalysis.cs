@@ -71,7 +71,8 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
             var caaRecordList = dnsResults.ToList();
 
-            DomainName = caaRecordList.First().Name;
+            var firstName = caaRecordList.First().Name;
+            DomainName = firstName == null ? string.Empty : firstName.TrimEnd('.').ToLowerInvariant();
 
             foreach (var record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();
@@ -143,7 +144,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                             // Don't continue here - we still need to add this analysis to the results
                         } else {
                             var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
-                            var domainName = parts[0].Trim();
+                            var domainName = parts[0].Trim().TrimEnd('.').ToLowerInvariant();
                             if (string.IsNullOrEmpty(domainName)) {
                                 // The domain name can be left empty, which must be indicated providing just ";" as a value
                                 if (parts.Length > 1) {
@@ -226,30 +227,34 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         public void GenerateLists(InternalLogger logger) {
             var issueIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue && a.Value != ";")
-                .Select(a => a.Issuer)
+                .Select(a => a.Issuer.ToLowerInvariant().TrimEnd('.'))
                 .ToList();
 
             var wildcardIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard && a.Value != ";")
-                .Select(a => a.Issuer)
+                .Select(a => a.Issuer.ToLowerInvariant().TrimEnd('.'))
                 .ToList();
 
             var mailIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail && a.Value != ";")
-                .Select(a => a.Value)
+                .Select(a => a.Value.ToLowerInvariant())
                 .ToList();
 
             var contactEmails = AnalysisResults
                 .Where(a => a.IsContactRecord)
-                .Select(a => a.Value)
+                .Select(a => a.Value.ToLowerInvariant())
                 .ToList();
 
-            DuplicateIssuers =
-                issueIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key)
-                    .Concat(wildcardIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key))
-                    .Concat(mailIssuers.GroupBy(i => i).Where(g => g.Count() > 1).Select(g => g.Key))
-                    .Distinct()
-                    .ToList();
+            var allIssuers = issueIssuers
+                .Concat(wildcardIssuers)
+                .Concat(mailIssuers)
+                .ToList();
+
+            DuplicateIssuers = allIssuers
+                .GroupBy(i => i)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
 
             HasDuplicateIssuers = DuplicateIssuers.Any();
 
