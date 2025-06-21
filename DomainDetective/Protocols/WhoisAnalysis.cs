@@ -291,16 +291,29 @@ public class WhoisAnalysis {
 
         try {
             using (TcpClient tcpClient = new TcpClient()) {
-                tcpClient.Connect(whoisServer, 43); // WHOIS services use port 43
-
-                using (StreamWriter streamWriter = new StreamWriter(tcpClient.GetStream())) {
-                    streamWriter.WriteLine(domain);
-                    streamWriter.Flush();
-
-                    using (StreamReader streamReader = new StreamReader(tcpClient.GetStream())) {
-                        WhoisData = streamReader.ReadToEnd();
-                    }
+                var serverParts = whoisServer.Split(':');
+                var host = serverParts[0];
+                var port = 43;
+                if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
+                    port = customPort;
                 }
+                await tcpClient.ConnectAsync(host, port);
+
+                using NetworkStream networkStream = tcpClient.GetStream();
+                using (var streamWriter = new StreamWriter(networkStream, System.Text.Encoding.ASCII, 1024, leaveOpen: true)) {
+                    await streamWriter.WriteLineAsync(domain);
+                    await streamWriter.FlushAsync();
+                }
+
+                using var streamReader = new StreamReader(networkStream);
+                var buffer = new char[4096];
+                var whoisBuilder = new System.Text.StringBuilder();
+                int read;
+                while ((read = await streamReader.ReadAsync(buffer, 0, buffer.Length)) > 0) {
+                    whoisBuilder.Append(buffer, 0, read);
+                }
+
+                WhoisData = whoisBuilder.ToString();
             }
             ParseWhoisData();
         } catch (Exception ex) {
