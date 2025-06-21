@@ -294,7 +294,7 @@ public class WhoisAnalysis {
                 await tcpClient.ConnectAsync(whoisServer, 43);
 
                 using NetworkStream networkStream = tcpClient.GetStream();
-                using (var streamWriter = new StreamWriter(networkStream)) {
+                using (var streamWriter = new StreamWriter(networkStream, System.Text.Encoding.ASCII, 1024, leaveOpen: true)) {
                     await streamWriter.WriteLineAsync(domain);
                     await streamWriter.FlushAsync();
                 }
