@@ -158,7 +158,6 @@ jobs:
               run: ./Module/DomainDetective.Tests.ps1
               shell: pwsh
 
-              run: ./Module/DomainDetective.Tests.ps1
 
     test-macos:
         needs: refresh-psd1
