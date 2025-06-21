@@ -126,7 +126,9 @@ namespace DomainDetective {
             }
 
             // check if the SPF record contains characters after "all"
-            ContainsCharactersAfterAll = parts.Any(part => part.EndsWith("all", StringComparison.OrdinalIgnoreCase) && !part.Equals(parts.Last()) && !part.StartsWith("+all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("-all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("~all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("?all", StringComparison.OrdinalIgnoreCase));
+            ContainsCharactersAfterAll = parts
+                .Where(part => IsAllMechanism(part))
+                .Any(part => !part.Equals(parts.Last(), StringComparison.OrdinalIgnoreCase));
 
             // check if the SPF record contains a PTR type
             HasPtrType = PtrRecords.Any();
@@ -199,7 +201,7 @@ namespace DomainDetective {
         }
 
         private int CountAllMechanisms(string[] parts) {
-            return parts.Count(part => part.EndsWith("all", StringComparison.OrdinalIgnoreCase));
+            return parts.Count(part => IsAllMechanism(part));
         }
 
         private void CheckForNullDnsLookups(string[] parts) {
@@ -240,9 +242,17 @@ namespace DomainDetective {
             } else if (part.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
                 ExpValue = part.Substring(4);
                 HasExp = true;
-            } else if (part.EndsWith("all", StringComparison.OrdinalIgnoreCase)) {
+            } else if (IsAllMechanism(part)) {
                 AllMechanism = part;
             }
+        }
+
+        private static bool IsAllMechanism(string part) {
+            return part.Equals("all", StringComparison.OrdinalIgnoreCase)
+                   || part.Equals("+all", StringComparison.OrdinalIgnoreCase)
+                   || part.Equals("~all", StringComparison.OrdinalIgnoreCase)
+                   || part.Equals("?all", StringComparison.OrdinalIgnoreCase)
+                   || part.Equals("-all", StringComparison.OrdinalIgnoreCase);
         }
     }
 
