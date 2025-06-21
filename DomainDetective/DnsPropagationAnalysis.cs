@@ -114,7 +114,7 @@ namespace DomainDetective {
                 sw.Stop();
                 result.Duration = sw.Elapsed;
                 result.Records = response.Answers.Select(a => a.Data);
-                result.Success = true;
+                result.Success = response.Answers.Any();
             } catch (Exception ex) {
                 sw.Stop();
                 result.Duration = sw.Elapsed;
