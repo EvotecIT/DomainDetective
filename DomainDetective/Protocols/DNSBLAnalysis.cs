@@ -1,12 +1,11 @@
+using DnsClientX;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
-using System.IO;
 using System.Threading.Tasks;
-
-using DnsClientX;
 
 namespace DomainDetective {
     public class DNSBLRecord {
