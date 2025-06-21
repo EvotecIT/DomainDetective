@@ -152,5 +152,45 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.SpfAnalysis.MultipleAllMechanisms);
             Assert.False(healthCheck.SpfAnalysis.ContainsCharactersAfterAll);
         }
+
+        [Fact]
+        public async Task ChunkLimitBoundary() {
+            var chunk = "v=spf1 " + new string('a', 248);
+            var spfRecord = $"\"{chunk}\"";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
+        }
+
+        [Fact]
+        public async Task ChunkLimitExceeded() {
+            var chunk = "v=spf1 " + new string('a', 249);
+            var spfRecord = $"\"{chunk}\"";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
+        }
+
+        [Fact]
+        public async Task TotalLengthBoundary() {
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"cc";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
+            Assert.False(healthCheck.SpfAnalysis.ExceedsTotalCharacterLimit);
+        }
+
+        [Fact]
+        public async Task TotalLengthExceeded() {
+            var spfRecord = $"\"{new string('a', 255)}\" \"{new string('b', 255)}\" \"ccc";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
+            Assert.True(healthCheck.SpfAnalysis.ExceedsTotalCharacterLimit);
+        }
     }
 }
