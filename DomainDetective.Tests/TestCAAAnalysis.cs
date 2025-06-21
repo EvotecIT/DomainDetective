@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,29 +24,29 @@ namespace DomainDetective.Tests {
             healthCheck.Verbose = false;
             await healthCheck.CheckCAA(caaRecords);
 
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults.Count == 9);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count == 5);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0] == "digicert.com");
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[1] == "letsencrypt.org");
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[2] == "pki.goog");
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[3] == "letsencrypt.org");
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[4] == "letsencrypt.org");
+            Assert.Equal(9, healthCheck.CAAAnalysis.AnalysisResults.Count);
+            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Equal("digicert.com", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[0]);
+            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[1]);
+            Assert.Equal("pki.goog", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[2]);
+            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[3]);
+            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[4]);
 
-            Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 1);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0] == "letsencrypt.org");
+            Assert.Equal(1, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0]);
 
             //  "0 issue \"digicert.com; cansignhttpexchanges=yes\""
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Flag == "0");
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Tag == CAATagType.Issue);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Value == "digicert.com; cansignhttpexchanges=yes");
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Issuer == "digicert.com");
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidTag == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueUnescapedQuotes == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueWrongDomain == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueWrongParameters == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Invalid == false);
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Parameters["cansignhttpexchanges"] == "yes");
+            Assert.Equal("0", healthCheck.CAAAnalysis.AnalysisResults[0].Flag);
+            Assert.Equal(CAATagType.Issue, healthCheck.CAAAnalysis.AnalysisResults[0].Tag);
+            Assert.Equal("digicert.com; cansignhttpexchanges=yes", healthCheck.CAAAnalysis.AnalysisResults[0].Value);
+            Assert.Equal("digicert.com", healthCheck.CAAAnalysis.AnalysisResults[0].Issuer);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidTag);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueUnescapedQuotes);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueWrongDomain);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidValueWrongParameters);
+            Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].Invalid);
+            Assert.Equal("yes", healthCheck.CAAAnalysis.AnalysisResults[0].Parameters["cansignhttpexchanges"]);
 
             //  "0 issue \"letsencrypt.org;validationmethods=dns-01\""
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[1].Flag == "0");
@@ -178,17 +178,17 @@ namespace DomainDetective.Tests {
         public async Task TestCAARecordByDomain() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = false;
-            await healthCheck.Verify("evotec.pl", new[] { HealthCheckType.CAA });
+            await healthCheck.Verify("evotec.pl", [HealthCheckType.CAA]);
 
-            Assert.True(healthCheck.CAAAnalysis.AnalysisResults.Count == 8);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count == 4);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count == 4);
-            Assert.True(healthCheck.CAAAnalysis.Conflicting == false);
-            Assert.True(healthCheck.CAAAnalysis.ConflictingCertificateIssuance == false);
-            Assert.True(healthCheck.CAAAnalysis.ConflictingWildcardCertificateIssuance == false);
-            Assert.True(healthCheck.CAAAnalysis.ConflictingMailIssuance == false);
-            Assert.True(healthCheck.CAAAnalysis.Valid == true);
-            Assert.True(healthCheck.CAAAnalysis.CanIssueMail.Count == 0);
+            Assert.Equal(10, healthCheck.CAAAnalysis.AnalysisResults.Count);
+            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueCertificatesForDomain.Count);
+            Assert.Equal(5, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.False(healthCheck.CAAAnalysis.Conflicting);
+            Assert.False(healthCheck.CAAAnalysis.ConflictingCertificateIssuance);
+            Assert.False(healthCheck.CAAAnalysis.ConflictingWildcardCertificateIssuance);
+            Assert.False(healthCheck.CAAAnalysis.ConflictingMailIssuance);
+            Assert.True(healthCheck.CAAAnalysis.Valid);
+            Assert.Empty(healthCheck.CAAAnalysis.CanIssueMail);
         }
     }
 }
