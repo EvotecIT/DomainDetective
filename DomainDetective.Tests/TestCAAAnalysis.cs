@@ -32,7 +32,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[3]);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueCertificatesForDomain[4]);
 
-            Assert.Equal(1, healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain.Count);
+            Assert.Single(healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain);
             Assert.Equal("letsencrypt.org", healthCheck.CAAAnalysis.CanIssueWildcardCertificatesForDomain[0]);
 
             //  "0 issue \"digicert.com; cansignhttpexchanges=yes\""

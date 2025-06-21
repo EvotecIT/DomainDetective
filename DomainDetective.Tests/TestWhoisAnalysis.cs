@@ -37,9 +37,9 @@ namespace DomainDetective.Tests {
                 await whois.QueryWhoisServer("example.local");
 
                 Assert.Equal("example.local", whois.DomainName);
-                Assert.Equal(
-                    response.ReplaceLineEndings("\n"),
-                    whois.WhoisData.ReplaceLineEndings("\n"));
+                var expected = response.Replace("\r\n", "\n").Replace("\r", "\n");
+                var actual = whois.WhoisData.Replace("\r\n", "\n").Replace("\r", "\n");
+                Assert.Equal(expected, actual);
             } finally {
                 listener.Stop();
                 await serverTask;
