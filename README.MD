@@ -95,14 +95,6 @@ PowerShell specific tests can be run with:
 pwsh ./Module/DomainDetective.Tests.ps1
 ```
 
-### CLI Usage
-
-To invoke the command-line tool directly from the source tree:
-
-```bash
-dotnet run --project DomainDetective.CLI -- github.com
-```
-
 ### PowerShell Module
 
 Import the module and call any of the testing cmdlets:
