@@ -48,6 +48,8 @@ namespace DomainDetective {
 
         public DNSBLAnalysis DNSBLAnalysis { get; private set; }
 
+        public MTASTSAnalysis MTASTSAnalysis { get; private set; } = new MTASTSAnalysis();
+
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
@@ -137,6 +139,10 @@ namespace DomainDetective {
                     case HealthCheckType.DNSBL:
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
                         break;
+                    case HealthCheckType.MTASTS:
+                        MTASTSAnalysis = new MTASTSAnalysis();
+                        await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
+                        break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
                         SecurityTXTAnalysis = new SecurityTXTAnalysis();
@@ -210,6 +216,11 @@ namespace DomainDetective {
         public async Task VerifySPF(string domainName) {
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+        }
+
+        public async Task VerifyMTASTS(string domainName) {
+            MTASTSAnalysis = new MTASTSAnalysis();
+            await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports) {
