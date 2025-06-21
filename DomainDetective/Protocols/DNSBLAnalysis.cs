@@ -402,7 +402,8 @@ namespace DomainDetective {
             }
 
             var json = File.ReadAllText(filePath);
-            var config = JsonSerializer.Deserialize<DnsblConfiguration>(json);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
 
             if (config == null || config.Providers == null)
                 return;
