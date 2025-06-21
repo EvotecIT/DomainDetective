@@ -16,6 +16,8 @@ namespace DomainDetective.Tests {
             Assert.Equal("s", healthCheck.DmarcAnalysis.DkimAShort);
             Assert.Equal("s", healthCheck.DmarcAnalysis.SpfAShort);
 
+            Assert.Equal(2, healthCheck.DKIMAnalysis.AnalysisResults.Count);
+
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].DkimRecordExists);
             Assert.Null(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].Flags);
             Assert.Null(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].HashAlgorithm);
