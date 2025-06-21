@@ -8,6 +8,7 @@ namespace DomainDetective {
         NS,
         DANE,
         DNSBL,
+        DNSSEC,
         MTASTS,
         CERT,
         SECURITYTXT,
