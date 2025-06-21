@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
             }
             var response = responseBuilder.ToString();
 
-            using var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
             listener.Start();
             var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
             var serverTask = System.Threading.Tasks.Task.Run(async () => {
@@ -27,19 +27,21 @@ namespace DomainDetective.Tests {
                 await writer.WriteAsync(response);
             });
 
-            var whois = new WhoisAnalysis();
-            var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
-            Assert.NotNull(servers);
-            servers!["local"] = $"localhost:{port}";
+            try {
+                var whois = new WhoisAnalysis();
+                var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+                Assert.NotNull(servers);
+                servers!["local"] = $"localhost:{port}";
 
-            await whois.QueryWhoisServer("example.local");
+                await whois.QueryWhoisServer("example.local");
 
-            listener.Stop();
-            await serverTask;
-
-            Assert.Equal("example.local", whois.DomainName);
-            Assert.Equal(response, whois.WhoisData);
+                Assert.Equal("example.local", whois.DomainName);
+                Assert.Equal(response, whois.WhoisData);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
         }
     }
 }
