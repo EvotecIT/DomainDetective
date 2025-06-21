@@ -86,5 +86,33 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
             Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
         }
+
+        [Fact]
+        public async Task AllCombinationsAreConsideredValid() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            var sha256 = new string('A', 64);
+            var sha512 = new string('A', 128);
+
+            for (var usage = 0; usage <= 3; usage++) {
+                for (var selector = 0; selector <= 1; selector++) {
+                    for (var matching = 0; matching <= 2; matching++) {
+                        var data = matching switch {
+                            0 => "ABCD",
+                            1 => sha256,
+                            2 => sha512,
+                            _ => ""
+                        };
+
+                        var record = $"{usage} {selector} {matching} {data}";
+                        await healthCheck.CheckDANE(record);
+                        var analysis = healthCheck.DaneAnalysis.AnalysisResults[0];
+                        Assert.True(analysis.ValidDANERecord, record);
+                    }
+                }
+            }
+        }
     }
 }
