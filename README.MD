@@ -100,7 +100,7 @@ pwsh ./Module/DomainDetective.Tests.ps1
 To invoke the command-line tool directly from the source tree:
 
 ```bash
-dotnet run --project DomainDetective.CLI -- ns example.com
+dotnet run --project DomainDetective.CLI -- github.com
 ```
 
 ### PowerShell Module
