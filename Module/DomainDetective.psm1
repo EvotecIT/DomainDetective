@@ -10,7 +10,7 @@ $AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\bin\Debug\net472 -File -Err
 # to speed up development adding direct path to binaries, instead of the the Lib folder
 $Development = $true
 $DevelopmentPath = "$PSScriptRoot\..\DomainDetective.PowerShell\bin\Debug"
-$DevelopmentFolderCore = "netstandard2.0"
+$DevelopmentFolderCore = "net8.0"
 $DevelopmentFolderDefault = "net472"
 $BinaryModules = @(
     "DomainDetective.PowerShell.dll"
@@ -99,7 +99,7 @@ $FoundErrors = @(
             }
         }
     }
-    Foreach ($Import in @($Assembly)) {
+    foreach ($Import in @($Assembly)) {
         try {
             Write-Verbose -Message $Import.FullName
             Add-Type -Path $Import.Fullname -ErrorAction Stop
@@ -123,10 +123,10 @@ $FoundErrors = @(
         }
     }
     #Dot source the files
-    Foreach ($Import in @($Classes + $Enums + $Private + $Public)) {
-        Try {
+    foreach ($Import in @($Classes + $Enums + $Private + $Public)) {
+        try {
             . $Import.Fullname
-        } Catch {
+        } catch {
             Write-Error -Message "Failed to import functions from $($import.Fullname): $_"
             $true
         }
