@@ -2,9 +2,10 @@
 
     <PropertyGroup>
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`Windows`))' ">
-            netstandard2.0;net472;net8.0
+            net472;net8.0
         </TargetFrameworks>
-        <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`OSX`))'  Or '$([MSBuild]::IsOsPlatform(`Linux`))' ">
+        <TargetFrameworks
+            Condition=" '$([MSBuild]::IsOsPlatform(`OSX`))'  Or '$([MSBuild]::IsOsPlatform(`Linux`))' ">
             net8.0
         </TargetFrameworks>
         <Description>PowerShell Module to analyze Domain Health</Description>
@@ -15,12 +16,42 @@
         <Company>Evotec</Company>
         <Authors>Przemyslaw Klys</Authors>
         <LangVersion>latest</LangVersion>
-
     </PropertyGroup>
-    <ItemGroup>
-        <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
-    </ItemGroup>
+
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+    </ItemGroup>
+
+    <PropertyGroup>
+        <!-- This is needed for XmlDoc2CmdletDoc to generate a PowerShell documentation file. -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+
+    <!-- We need to remove PowerShell conflicting libraries as it will break output -->
+    <Target Name="RemoveFilesAfterBuild" AfterTargets="Build">
+        <Delete Files="$(OutDir)System.Management.Automation.dll" />
+        <Delete Files="$(OutDir)System.Management.dll" />
+    </Target>
+
+    <ItemGroup>
+        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.6.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <!-- Copy help documentation to publish output after publish -->
+    <Target Name="CopyHelpDocumentationToPublishOutput" AfterTargets="Publish">
+        <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll-Help.xml"
+            DestinationFiles="$(PublishDir)$(AssemblyName).dll-Help.xml"
+            Condition="Exists('$(OutputPath)$(AssemblyName).dll-Help.xml')" />
+    </Target>
+
+    <ItemGroup>
+        <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
     </ItemGroup>
 </Project>
