@@ -36,12 +36,25 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task TestPercentOutOfRange() {
-            var dmarcRecord = "v=DMARC1; p=none; pct=150";
+            var dmarcRecord = "v=DMARC1; p=none; pct=500";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);
             Assert.Equal(100, healthCheck.DmarcAnalysis.Pct);
+            Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
             Assert.Equal(
-                "100% of messages are subjected to filtering.",
+                "Percentage value must be between 0 and 100.",
+                healthCheck.DmarcAnalysis.Percent);
+        }
+
+        [Fact]
+        public async Task TestPercentNegative() {
+            var dmarcRecord = "v=DMARC1; p=none; pct=-1";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.Equal(0, healthCheck.DmarcAnalysis.Pct);
+            Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
+            Assert.Equal(
+                "Percentage value must be between 0 and 100.",
                 healthCheck.DmarcAnalysis.Percent);
         }
 
