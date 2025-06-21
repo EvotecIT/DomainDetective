@@ -48,6 +48,35 @@ namespace DomainDetective {
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            // reset all properties so repeated calls don't accumulate data
+            SpfRecord = null;
+            SpfRecords = new List<string>();
+            SpfRecordExists = false;
+            MultipleSpfRecords = false;
+            StartsCorrectly = false;
+            ExceedsTotalCharacterLimit = false;
+            ExceedsCharacterLimit = false;
+            DnsLookups = new List<string>();
+            DnsLookupsCount = 0;
+            ExceedsDnsLookups = false;
+            MultipleAllMechanisms = false;
+            ContainsCharactersAfterAll = false;
+            HasPtrType = false;
+            HasNullLookups = false;
+            HasRedirect = false;
+            HasExp = false;
+            ARecords = new List<string>();
+            Ipv4Records = new List<string>();
+            Ipv6Records = new List<string>();
+            MxRecords = new List<string>();
+            PtrRecords = new List<string>();
+            IncludeRecords = new List<string>();
+            ExistsRecords = new List<string>();
+            ExpValue = null;
+            RedirectValue = null;
+            AllMechanism = null;
+            SpfPartAnalyses = new List<SpfPartAnalysis>();
+            SpfTestResults = new List<SpfTestResult>();
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;

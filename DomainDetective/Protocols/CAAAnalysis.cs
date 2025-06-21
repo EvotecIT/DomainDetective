@@ -50,6 +50,20 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
         public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            // reset all properties so repeated calls don't accumulate data
+            DomainName = null;
+            ValidRecords = 0;
+            InvalidRecords = 0;
+            CanIssueCertificatesForDomain = new List<string>();
+            CanIssueWildcardCertificatesForDomain = new List<string>();
+            CanIssueMail = new List<string>();
+            ReportViolationEmail = new List<string>();
+            Conflicting = false;
+            ConflictingMailIssuance = false;
+            ConflictingCertificateIssuance = false;
+            ConflictingWildcardCertificateIssuance = false;
+            AnalysisResults = new List<CAARecordAnalysis>();
+
             var caaRecordList = dnsResults.ToList();
 
             DomainName = caaRecordList.First().Name;
