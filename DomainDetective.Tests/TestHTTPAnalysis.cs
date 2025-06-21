@@ -1,0 +1,52 @@
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace DomainDetective.Tests {
+    public class TestHTTPAnalysis {
+        [Fact]
+        public async Task DetectStatusCodeAndHsts() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000");
+                var buffer = Encoding.UTF8.GetBytes("ok");
+                await ctx.Response.OutputStream.WriteAsync(buffer);
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger());
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(200, analysis.StatusCode);
+                Assert.True(analysis.ResponseTime > TimeSpan.Zero);
+                Assert.True(analysis.HstsPresent);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task UnreachableHostSetsIsReachableFalse() {
+            var analysis = new HttpAnalysis();
+            var url = $"http://localhost:{GetFreePort()}/";
+            await analysis.AnalyzeUrl(url, false, new InternalLogger());
+            Assert.False(analysis.IsReachable);
+        }
+
+        private static int GetFreePort() {
+            var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
+    }
+}
