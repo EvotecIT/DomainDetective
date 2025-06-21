@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -100,7 +101,7 @@ namespace DomainDetective {
             CheckCharacterLimits(spfRecordList);
 
             // check the SPF record starts correctly
-            StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1");
+            StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase);
 
             // loop through the parts of the SPF record for remaining checks
             var parts = SpfRecord.Split(' ');
@@ -119,7 +120,7 @@ namespace DomainDetective {
             }
 
             // check if the SPF record contains characters after "all"
-            ContainsCharactersAfterAll = parts.Any(part => part.EndsWith("all") && !part.Equals(parts.Last()) && !part.StartsWith("+all") && !part.StartsWith("-all") && !part.StartsWith("~all") && !part.StartsWith("?all"));
+            ContainsCharactersAfterAll = parts.Any(part => part.EndsWith("all", StringComparison.OrdinalIgnoreCase) && !part.Equals(parts.Last()) && !part.StartsWith("+all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("-all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("~all", StringComparison.OrdinalIgnoreCase) && !part.StartsWith("?all", StringComparison.OrdinalIgnoreCase));
 
             // check if the SPF record contains a PTR type
             HasPtrType = PtrRecords.Any();
@@ -132,7 +133,7 @@ namespace DomainDetective {
         private async Task<int> CountDnsLookups(string[] parts) {
             int dnsLookups = 0;
             foreach (var part in parts) {
-                if (part.StartsWith("include:")) {
+                if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("include:".Length);
                     if (domain != "") {
                         // Add the domain to the DnsLookups list
@@ -149,7 +150,7 @@ namespace DomainDetective {
                             }
                         }
                     }
-                } else if (part.StartsWith("redirect=")) {
+                } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("redirect=".Length);
                     if (domain != "") {
                         // Add the domain to the DnsLookups list
@@ -166,7 +167,7 @@ namespace DomainDetective {
                             }
                         }
                     }
-                } else if (part.StartsWith("a:") || part.StartsWith("mx:") || part.StartsWith("ptr:")) {
+                } else if (part.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring(part.IndexOf(":") + 1);
                     if (domain != "") {
                         // Add the domain to the DnsLookups list
@@ -179,12 +180,12 @@ namespace DomainDetective {
         }
 
         private int CountAllMechanisms(string[] parts) {
-            return parts.Count(part => part.EndsWith("all"));
+            return parts.Count(part => part.EndsWith("all", StringComparison.OrdinalIgnoreCase));
         }
 
         private void CheckForNullDnsLookups(string[] parts) {
             foreach (var part in parts) {
-                if ((part.StartsWith("ip4:") || part.StartsWith("include:") || part.StartsWith("a:") || part.StartsWith("mx:") || part.StartsWith("ptr:") || part.StartsWith("exists:") || part.StartsWith("ip6:")) && part.EndsWith(":")) {
+                if ((part.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("include:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("a:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("exists:", StringComparison.OrdinalIgnoreCase) || part.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) && part.EndsWith(":", StringComparison.Ordinal)) {
                     HasNullLookups = true;
                 }
             }
@@ -200,27 +201,27 @@ namespace DomainDetective {
         }
 
         private void AddPartToList(string part) {
-            if (part.StartsWith("a:")) {
+            if (part.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ARecords.Add(part.Substring(2));
-            } else if (part.StartsWith("mx:")) {
+            } else if (part.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
                 MxRecords.Add(part.Substring(3));
-            } else if (part.StartsWith("ptr:")) {
+            } else if (part.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                 PtrRecords.Add(part.Substring(4));
-            } else if (part.StartsWith("exists:")) {
+            } else if (part.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                 ExistsRecords.Add(part.Substring(7));
-            } else if (part.StartsWith("ip4:")) {
+            } else if (part.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
                 Ipv4Records.Add(part.Substring(4));
-            } else if (part.StartsWith("ip6:")) {
+            } else if (part.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
                 Ipv6Records.Add(part.Substring(4));
-            } else if (part.StartsWith("include:")) {
+            } else if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                 IncludeRecords.Add(part.Substring(8));
-            } else if (part.StartsWith("redirect=")) {
+            } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                 RedirectValue = part.Substring(9);
                 HasRedirect = true;
-            } else if (part.StartsWith("exp=")) {
+            } else if (part.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
                 ExpValue = part.Substring(4);
                 HasExp = true;
-            } else if (part.EndsWith("all")) {
+            } else if (part.EndsWith("all", StringComparison.OrdinalIgnoreCase)) {
                 AllMechanism = part;
             }
         }

@@ -102,7 +102,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectRedirectModifier() {
-            var spfRecord = "v=spf1 redirect=_spf.example.com";
+            var spfRecord = "v=spf1 ReDiRect=_spf.example.com";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
@@ -112,12 +112,23 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectExpModifier() {
-            var spfRecord = "v=spf1 exp=explanation.domain.tld -all";
+            var spfRecord = "v=spf1 EXP=explanation.domain.tld -all";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckSPF(spfRecord);
 
             Assert.True(healthCheck.SpfAnalysis.HasExp);
             Assert.Equal("explanation.domain.tld", healthCheck.SpfAnalysis.ExpValue);
+        }
+
+        [Fact]
+        public async Task CaseInsensitiveMechanisms() {
+            var spfRecord = "V=SPF1 INCLUDE:_spf.google.com -ALL";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.StartsCorrectly);
+            Assert.Contains("_spf.google.com", healthCheck.SpfAnalysis.IncludeRecords);
+            Assert.Equal("-ALL", healthCheck.SpfAnalysis.AllMechanism);
         }
     }
 }
