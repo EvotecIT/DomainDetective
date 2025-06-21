@@ -12,6 +12,7 @@ namespace DomainDetective {
         MTASTS,
         CERT,
         SECURITYTXT,
-        SOA
+        SOA,
+        OPENRELAY
     }
 }

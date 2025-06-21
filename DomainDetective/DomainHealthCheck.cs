@@ -62,6 +62,8 @@ namespace DomainDetective {
 
         public WhoisAnalysis WhoisAnalysis { get; private set; } = new WhoisAnalysis();
 
+        public OpenRelayAnalysis OpenRelayAnalysis { get; private set; } = new OpenRelayAnalysis();
+
         public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
@@ -171,6 +173,13 @@ namespace DomainDetective {
                         var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA);
                         await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
                         break;
+                    case HealthCheckType.OPENRELAY:
+                        var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        var hosts = mxRecordsForRelay.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        foreach (var host in hosts) {
+                            await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger);
+                        }
+                        break;
                 }
             }
         }
@@ -257,6 +266,10 @@ namespace DomainDetective {
                     Type = DnsRecordType.SOA
                 }
             }, _logger);
+        }
+
+        public async Task CheckOpenRelayHost(string host, int port = 25) {
+            await OpenRelayAnalysis.AnalyzeServer(host, port, _logger);
         }
 
 
