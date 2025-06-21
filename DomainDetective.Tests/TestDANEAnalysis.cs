@@ -74,5 +74,17 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.CorrectLengthOfCertificateAssociationData);
             Assert.Equal(64, analysis.LengthOfCertificateAssociationData);
         }
+
+        [Fact]
+        public async Task HttpsQueriesAandAaaaRecords() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+            await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
+
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
+        }
     }
 }
