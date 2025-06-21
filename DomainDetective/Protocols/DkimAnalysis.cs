@@ -1,7 +1,7 @@
+using DnsClientX;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective {
     public class DkimAnalysis {
