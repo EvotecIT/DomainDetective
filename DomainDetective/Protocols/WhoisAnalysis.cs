@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -300,20 +302,23 @@ public class WhoisAnalysis {
                 await tcpClient.ConnectAsync(host, port);
 
                 using NetworkStream networkStream = tcpClient.GetStream();
-                using (var streamWriter = new StreamWriter(networkStream, System.Text.Encoding.ASCII, 1024, leaveOpen: true)) {
+                using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
                     await streamWriter.WriteLineAsync(domain);
                     await streamWriter.FlushAsync();
                 }
 
-                using var streamReader = new StreamReader(networkStream);
-                var buffer = new char[4096];
-                var whoisBuilder = new System.Text.StringBuilder();
-                int read;
-                while ((read = await streamReader.ReadAsync(buffer, 0, buffer.Length)) > 0) {
-                    whoisBuilder.Append(buffer, 0, read);
+                await networkStream.FlushAsync();
+                using var memoryStream = new MemoryStream();
+                await networkStream.CopyToAsync(memoryStream);
+                var responseBytes = memoryStream.ToArray();
+
+                string response = Encoding.UTF8.GetString(responseBytes);
+                if (response.Contains('\uFFFD')) {
+                    response = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
                 }
 
-                WhoisData = whoisBuilder.ToString();
+                response = Regex.Replace(response, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
+                WhoisData = response;
             }
             ParseWhoisData();
         } catch (Exception ex) {
@@ -343,7 +348,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataCOUK() {
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         string currentSection = null;
         foreach (var line in WhoisData.Split('\n')) {
@@ -450,7 +455,7 @@ public class WhoisAnalysis {
         // 
 
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         bool isParsingNameServers = false;
 
@@ -476,7 +481,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataCZ() {
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         bool isParsingDomainSection = true;
         bool isParsingRegistrantSection = false;
@@ -525,7 +530,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataCOM() {
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         foreach (var line in WhoisData.Split('\n')) {
             if (line.StartsWith("   Domain Name:")) {
@@ -552,7 +557,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataDefault() {
         // Parse WHOIS data for most TLDs
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
@@ -597,7 +602,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataXYZ() {
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
@@ -628,7 +633,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataPL() {
         // Parse WHOIS data for .pl domains
-        WhoisData = WhoisData.Replace("\r\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         bool isParsingNameServers = false;
         bool isParsingRegistrar = false;
@@ -676,7 +681,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataBE() {
         // Normalize line endings to \n
-        WhoisData = WhoisData.Replace("\r\n", "\n");
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
 
         bool isParsingNameServers = false;
         bool isParsingRegistrar = false;
