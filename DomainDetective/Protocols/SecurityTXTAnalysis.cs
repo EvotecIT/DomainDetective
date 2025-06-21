@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
+using PgpCore;
+using PgpCore.Models;
+using System.IO;
 
 namespace DomainDetective {
     public class SecurityTXTAnalysis {
@@ -29,7 +32,7 @@ namespace DomainDetective {
         internal InternalLogger Logger { get; set; }
 
 
-        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger) {
+        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string pgpPublicKey = null) {
             Logger = logger;
 
             Domain = domainName;
@@ -45,7 +48,7 @@ namespace DomainDetective {
             if (response != null) {
                 RecordPresent = true;
                 Url = url;
-                ParseSecurityTxt(response);
+                ParseSecurityTxt(response, pgpPublicKey);
             }
         }
 
@@ -69,7 +72,27 @@ namespace DomainDetective {
         }
 
 
-        private void ParseSecurityTxt(string txt) {
+        private void ParseSecurityTxt(string txt, string pgpPublicKey) {
+            if (txt.Contains("-----BEGIN PGP SIGNED MESSAGE-----")) {
+                PGPSigned = true;
+                if (!string.IsNullOrEmpty(pgpPublicKey)) {
+                    try {
+                        var keys = new EncryptionKeys(pgpPublicKey);
+                        var pgp = new PGP(keys);
+                        VerificationResult result = pgp.VerifyAndReadClearArmoredString(txt);
+                        if (!result.IsVerified) {
+                            Logger.WriteWarning("PGP signature verification failed");
+                        }
+                        txt = result.ClearText;
+                    } catch (Exception ex) {
+                        Logger.WriteWarning($"PGP signature verification failed: {ex.Message}");
+                        txt = ExtractClearText(txt);
+                    }
+                } else {
+                    txt = ExtractClearText(txt);
+                }
+            }
+
             var lines = txt.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
             RecordValid = true;
@@ -115,9 +138,6 @@ namespace DomainDetective {
                         case "Hiring":
                             Hiring.Add(value);
                             break;
-                        case "-----BEGIN PGP SIGNED MESSAGE-----":
-                            PGPSigned = true;
-                            break;
                         case "Canonical":
                             if (hasSeenCanonical) {
                                 Logger.WriteWarning("Multiple Canonical fields found");
@@ -149,6 +169,26 @@ namespace DomainDetective {
             if (!RecordValid) {
                 Logger.WriteWarning("Invalid security.txt file");
             }
+        }
+
+        private string ExtractClearText(string signedText) {
+            const string header = "-----BEGIN PGP SIGNED MESSAGE-----";
+            const string signatureHeader = "-----BEGIN PGP SIGNATURE-----";
+            int headerIndex = signedText.IndexOf(header);
+            if (headerIndex == -1)
+                return signedText;
+
+            int headerEnd = signedText.IndexOf("\n\n", headerIndex);
+            if (headerEnd == -1)
+                headerEnd = signedText.IndexOf("\r\n\r\n", headerIndex);
+            if (headerEnd == -1)
+                return signedText;
+
+            int sigIndex = signedText.IndexOf(signatureHeader, headerEnd);
+            if (sigIndex == -1)
+                return signedText;
+
+            return signedText.Substring(headerEnd + 2, sigIndex - headerEnd - 2).Trim();
         }
 
     }

@@ -5,10 +5,11 @@
 		<LangVersion>Latest</LangVersion>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<PackageReference Include="DnsClientX" Version="0.4.0" />
-		<PackageReference Include="MailKit" Version="4.12.1" />
-	</ItemGroup>
+        <ItemGroup>
+                <PackageReference Include="DnsClientX" Version="0.4.0" />
+                <PackageReference Include="MailKit" Version="4.12.1" />
+                <PackageReference Include="PgpCore" Version="6.5.2" />
+        </ItemGroup>
 
   <ItemGroup>
           <Folder Include="Dictionaries\" />
