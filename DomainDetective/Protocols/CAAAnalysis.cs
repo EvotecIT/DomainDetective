@@ -305,7 +305,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
     public class CAARecordAnalysis {
         public string CAARecord { get; set; }
         public string Flag { get; set; }
-        public CAATagType Tag { get; set; }
+}
         public string Value { get; set; }
         public string Issuer { get; set; }
         public bool Invalid { get; set; }
