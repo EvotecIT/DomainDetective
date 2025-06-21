@@ -39,9 +39,29 @@ namespace DomainDetective.Tests {
             var dmarcRecord = "v=DMARC1; p=none; pct=150";
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.Equal(100, healthCheck.DmarcAnalysis.Pct);
             Assert.Equal(
-                "Percentage value must be between 0 and 100.",
+                "100% of messages are subjected to filtering.",
                 healthCheck.DmarcAnalysis.Percent);
+        }
+
+        [Fact]
+        public async Task TestInvalidPolicy() {
+            var dmarcRecord = "v=DMARC1; p=invalid";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.True(healthCheck.DmarcAnalysis.HasMandatoryTags);
+            Assert.False(healthCheck.DmarcAnalysis.IsPolicyValid);
+            Assert.Equal("invalid", healthCheck.DmarcAnalysis.PolicyShort);
+            Assert.Equal("Unknown policy", healthCheck.DmarcAnalysis.Policy);
+        }
+
+        [Fact]
+        public async Task TestMissingPolicyTag() {
+            var dmarcRecord = "v=DMARC1; rua=mailto:test@example.com";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.False(healthCheck.DmarcAnalysis.HasMandatoryTags);
         }
 
         [Fact]

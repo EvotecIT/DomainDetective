@@ -20,6 +20,8 @@ namespace DomainDetective {
         public bool DmarcRecordExists { get; private set; } // should be true
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsCharacterLimit { get; private set; } // should be false
+        public bool HasMandatoryTags { get; private set; }
+        public bool IsPolicyValid { get; private set; }
 
         public string Policy => TranslatePolicy(PolicyShort);
         public string SubPolicy => TranslatePolicy(SubPolicyShort);
@@ -51,6 +53,8 @@ namespace DomainDetective {
             DmarcRecordExists = false;
             StartsCorrectly = false;
             ExceedsCharacterLimit = false;
+            HasMandatoryTags = false;
+            IsPolicyValid = false;
             Rua = null;
             MailtoRua = new List<string>();
             HttpRua = new List<string>();
@@ -86,6 +90,7 @@ namespace DomainDetective {
 
             // loop through the tags of the DMARC record
             var tags = DmarcRecord.Split(';');
+            var policyTagFound = false;
             foreach (var tag in tags) {
                 var keyValue = tag.Split('=');
                 if (keyValue.Length == 2) {
@@ -94,6 +99,8 @@ namespace DomainDetective {
                     switch (key) {
                         case "p":
                             PolicyShort = value;
+                            policyTagFound = true;
+                            IsPolicyValid = value == "none" || value == "quarantine" || value == "reject";
                             break;
                         case "sp":
                             SubPolicyShort = value;
@@ -113,6 +120,12 @@ namespace DomainDetective {
                             // percentage of messages to which the DMARC policy
                             // applies.  It should be a number between 0 and 100.
                             if (int.TryParse(value, out var pct)) {
+                                if (pct < 0) {
+                                    pct = 0;
+                                }
+                                if (pct > 100) {
+                                    pct = 100;
+                                }
                                 Pct = pct;
                             }
                             break;
@@ -133,6 +146,8 @@ namespace DomainDetective {
                     }
                 }
             }
+            // verify mandatory tags
+            HasMandatoryTags = StartsCorrectly && policyTagFound;
             // set the default value for the pct tag if it is not present
             Pct ??= 100;
         }
