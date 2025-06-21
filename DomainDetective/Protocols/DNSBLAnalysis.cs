@@ -36,7 +36,7 @@ namespace DomainDetective {
         public bool Enabled { get; set; } = true;
         public string Comment { get; set; }
 
-        public DnsblEntry() {}
+        public DnsblEntry() { }
         public DnsblEntry(string domain, bool enabled = true, string comment = null) {
             Domain = domain;
             Enabled = enabled;
@@ -185,8 +185,7 @@ namespace DomainDetective {
             new("cdl.anti-spam.org.cn", enabled: false, comment: "Inactive")
         };
 
-        public DNSBLAnalysis()
-        {
+        public DNSBLAnalysis() {
         }
 
         internal List<string> DNSBLLists => DnsblEntries
@@ -332,76 +331,62 @@ namespace DomainDetective {
             return results.OrderByDescending(r => r.IsBlackListed).ToList();
         }
 
-        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null)
-        {
+        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null) {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
-            if (!DnsblEntries.Any(e => e.Domain == dnsbl))
-            {
+            if (!DnsblEntries.Any(e => e.Domain == dnsbl)) {
                 DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
             }
         }
 
-        public void AddDNSBL(IEnumerable<string> dnsbls)
-        {
-            foreach (var dnsbl in dnsbls)
-            {
+        public void AddDNSBL(IEnumerable<string> dnsbls) {
+            foreach (var dnsbl in dnsbls) {
                 AddDNSBL(dnsbl);
             }
         }
 
-        public void RemoveDNSBL(string dnsbl)
-        {
+        public void RemoveDNSBL(string dnsbl) {
             var entry = DnsblEntries.FirstOrDefault(e => e.Domain == dnsbl);
-            if (entry != null)
-            {
+            if (entry != null) {
                 DnsblEntries.Remove(entry);
             }
         }
 
-        public void ClearDNSBL()
-        {
+        public void ClearDNSBL() {
             DnsblEntries.Clear();
         }
 
-        public void LoadDNSBL(string filePath, bool clearExisting = false)
-        {
-            if (!File.Exists(filePath))
-            {
+        public void LoadDNSBL(string filePath, bool clearExisting = false) {
+            if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
             }
 
             var lines = File.ReadAllLines(filePath);
 
-            if (clearExisting)
-            {
+            if (clearExisting) {
                 ClearDNSBL();
             }
 
-            foreach (var line in lines)
-            {
+            foreach (var line in lines) {
                 var trimmed = line.Trim();
                 if (string.IsNullOrWhiteSpace(trimmed))
                     continue;
 
                 bool enabled = true;
-                if (trimmed.StartsWith("#"))
-                {
+                if (trimmed.StartsWith("#")) {
                     enabled = false;
                     trimmed = trimmed.Substring(1).Trim();
                 }
 
                 string comment = null;
                 var commentIndex = trimmed.IndexOf('#');
-                if (commentIndex >= 0)
-                {
+                if (commentIndex >= 0) {
                     comment = trimmed.Substring(commentIndex + 1).Trim();
                     trimmed = trimmed.Substring(0, commentIndex).Trim();
                 }
 
-                if (!string.IsNullOrWhiteSpace(trimmed))
-                {
+                if (!string.IsNullOrWhiteSpace(trimmed)) {
                     AddDNSBL(trimmed, enabled, comment);
                 }
             }
