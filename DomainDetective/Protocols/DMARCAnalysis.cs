@@ -68,11 +68,8 @@ namespace DomainDetective {
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
 
-            // create a single string from the list of DnsResult objects
-            // TODO: check this logic for creating a single string from the list of DnsResult objects
-            foreach (var record in dmarcRecordList) {
-                DmarcRecord = record.Data;
-            }
+            // concatenate all TXT chunks into a single string separated by spaces
+            DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
 
             if (DmarcRecord == null) {
                 logger.WriteVerbose("No DMARC record found.");
