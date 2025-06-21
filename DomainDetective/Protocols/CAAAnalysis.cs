@@ -201,17 +201,17 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     if (analysis.Value == ";") {
                         analysis.DenyMailCertificateIssuance = true;
                     } else {
-                        analysis.AllowMailCertificateIssuance = true;
-                    }
-                } else if (analysis.Tag == CAATagType.Issue) {
-                    if (analysis.Value == ";") {
-                        analysis.DenyCertificateIssuance = true;
-                    } else {
-                        analysis.AllowCertificateIssuance = true;
-                    }
-                } else if (analysis.Tag == CAATagType.IssueWildcard) {
-                    if (analysis.Value == ";") {
-                        analysis.DenyWildcardCertificateIssuance = true;
+            List<string> issueIssuersRaw = AnalysisResults
+            List<string> wildcardIssuersRaw = AnalysisResults
+            List<string> mailIssuersRaw = AnalysisResults
+            List<string> contactEmailsRaw = AnalysisResults
+            List<string> allIssuers = issueIssuersRaw
+                .Concat(wildcardIssuersRaw)
+                .Concat(mailIssuersRaw)
+            CanIssueCertificatesForDomain = issueIssuersRaw.Distinct().ToList();
+            CanIssueWildcardCertificatesForDomain = wildcardIssuersRaw.Distinct().ToList();
+            CanIssueMail = mailIssuersRaw.Distinct().ToList();
+            ReportViolationEmail = contactEmailsRaw.Distinct().ToList();
                     } else {
                         analysis.AllowWildcardCertificateIssuance = true;
                     }
