@@ -27,4 +27,3 @@ public static partial class Program {
         Helpers.ShowPropertiesTable("NS Example by Domain", healthCheck.NSAnalysis);
     }
 }
-
