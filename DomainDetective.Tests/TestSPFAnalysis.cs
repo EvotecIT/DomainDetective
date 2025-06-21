@@ -8,13 +8,13 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck6.SpfAnalysis.SpfRecordExists);
             Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
-            Assert.True(healthCheck6.SpfAnalysis.HasNullLookups == true);
-            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups == true, "Exceeds lookups should be true, as we expect it over the board");
-            Assert.True(healthCheck6.SpfAnalysis.DnsLookupsCount == 13, "DNS lookups should be 13, as we did it on purpose and got: " + healthCheck6.SpfAnalysis.DnsLookupsCount);
-            Assert.True(healthCheck6.SpfAnalysis.MultipleAllMechanisms == false);
-            Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
-            Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
-            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
+            Assert.True(healthCheck6.SpfAnalysis.HasNullLookups, "Should have null lookups");
+            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups, "Exceeds lookups should be true, as we expect it over the board");
+            Assert.Equal(13, healthCheck6.SpfAnalysis.DnsLookupsCount);
+            Assert.False(healthCheck6.SpfAnalysis.MultipleAllMechanisms);
+            Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
+            Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
+            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
         }
 
         [Fact]
@@ -43,13 +43,13 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck6.SpfAnalysis.SpfRecordExists);
             Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
-            Assert.True(healthCheck6.SpfAnalysis.HasNullLookups == false);
-            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups == true);
-            Assert.True(healthCheck6.SpfAnalysis.MultipleAllMechanisms == false);
-            Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
-            Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
-            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
-            Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == true);
+            Assert.False(healthCheck6.SpfAnalysis.HasNullLookups);
+            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups, "Should exceed DNS lookups due to many includes");
+            Assert.False(healthCheck6.SpfAnalysis.MultipleAllMechanisms);
+            Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
+            Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
+            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
+            Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit, "Should exceed character limit due to long record");
         }
 
         [Fact]
@@ -59,13 +59,13 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck6.SpfAnalysis.SpfRecordExists);
             Assert.False(healthCheck6.SpfAnalysis.MultipleSpfRecords);
-            Assert.True(healthCheck6.SpfAnalysis.HasNullLookups == false);
-            Assert.True(healthCheck6.SpfAnalysis.ExceedsDnsLookups == false);
-            Assert.True(healthCheck6.SpfAnalysis.MultipleAllMechanisms == false);
-            Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
-            Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
-            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
-            Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit == false);
+            Assert.False(healthCheck6.SpfAnalysis.HasNullLookups);
+            Assert.False(healthCheck6.SpfAnalysis.ExceedsDnsLookups);
+            Assert.False(healthCheck6.SpfAnalysis.MultipleAllMechanisms);
+            Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
+            Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
+            Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
+            Assert.False(healthCheck6.SpfAnalysis.ExceedsCharacterLimit);
         }
 
         [Fact]
@@ -82,7 +82,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(firstCount, healthCheck.SpfAnalysis.SpfRecords.Count);
             Assert.Equal(firstLookups, healthCheck.SpfAnalysis.DnsLookupsCount);
         }
-      
+
         [Fact]
         public async Task DetectRedirectModifier() {
             var spfRecord = "v=spf1 redirect=_spf.example.com";
