@@ -69,14 +69,14 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             DuplicateIssuers = new List<string>();
             AnalysisResults = new List<CAARecordAnalysis>();
 
-            var caaRecordList = dnsResults.ToList();
+            List<DnsAnswer> caaRecordList = dnsResults.ToList();
 
-            var firstName = caaRecordList.First().Name;
+            string? firstName = caaRecordList.First().Name;
             DomainName = firstName == null ? string.Empty : firstName.TrimEnd('.').ToLowerInvariant();
 
-            foreach (var record in caaRecordList) {
+            foreach (DnsAnswer record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();
-                var caaRecord = record.Data;
+                string caaRecord = record.Data;
 
                 logger.WriteVerbose($"Analyzing CAA record {caaRecord}");
 
@@ -97,7 +97,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     }
 
                     // Validate tag and set the Tag property
-                    var validTags = new Dictionary<string, CAATagType> {
+                    Dictionary<string, CAATagType> validTags = new Dictionary<string, CAATagType> {
                             { "issue", CAATagType.Issue },
                             { "issuewild", CAATagType.IssueWildcard },
                             { "iodef", CAATagType.Iodef },
@@ -225,27 +225,27 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             GenerateLists(logger);
         }
         public void GenerateLists(InternalLogger logger) {
-            var issueIssuers = AnalysisResults
+            List<string> issueIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue && a.Value != ";")
                 .Select(a => a.Issuer.ToLowerInvariant().TrimEnd('.'))
                 .ToList();
 
-            var wildcardIssuers = AnalysisResults
+            List<string> wildcardIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard && a.Value != ";")
                 .Select(a => a.Issuer.ToLowerInvariant().TrimEnd('.'))
                 .ToList();
 
-            var mailIssuers = AnalysisResults
+            List<string> mailIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueMail && a.Value != ";")
                 .Select(a => a.Value.ToLowerInvariant())
                 .ToList();
 
-            var contactEmails = AnalysisResults
+            List<string> contactEmails = AnalysisResults
                 .Where(a => a.IsContactRecord)
                 .Select(a => a.Value.ToLowerInvariant())
                 .ToList();
 
-            var allIssuers = issueIssuers
+            List<string> allIssuers = issueIssuers
                 .Concat(wildcardIssuers)
                 .Concat(mailIssuers)
                 .ToList();
