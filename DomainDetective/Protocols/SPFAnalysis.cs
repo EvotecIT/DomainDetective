@@ -104,8 +104,25 @@ namespace DomainDetective {
         private async Task<int> CountDnsLookups(string[] parts) {
             int dnsLookups = 0;
             foreach (var part in parts) {
-                if (part.StartsWith("include:") || part.StartsWith("redirect=")) {
-                    var domain = part.Substring(part.IndexOf(":") + 1);
+                if (part.StartsWith("include:")) {
+                    var domain = part.Substring("include:".Length);
+                    if (domain != "") {
+                        // Add the domain to the DnsLookups list
+                        DnsLookups.Add(domain);
+
+                        // TODO: change provider/protocol to use DOH or DNS based on user choices
+                        var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                        dnsLookups++; // count the DNS lookup
+                        if (dnsResults != null) {
+                            // recursively analyze the results of the DNS lookup
+                            foreach (var dnsResult in dnsResults) {
+                                var resultParts = dnsResult.Data.Split(' ');
+                                dnsLookups += await CountDnsLookups(resultParts);
+                            }
+                        }
+                    }
+                } else if (part.StartsWith("redirect=")) {
+                    var domain = part.Substring("redirect=".Length);
                     if (domain != "") {
                         // Add the domain to the DnsLookups list
                         DnsLookups.Add(domain);
