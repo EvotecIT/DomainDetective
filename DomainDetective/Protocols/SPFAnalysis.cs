@@ -153,6 +153,9 @@ namespace DomainDetective {
 
             // check if the SPF record contains exists: with no domain
             CheckForNullDnsLookups(parts);
+
+            // clear fake DNS entries after analysis to avoid cross-run contamination
+            TestSpfRecords.Clear();
         }
 
 
