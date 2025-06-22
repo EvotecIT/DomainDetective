@@ -367,12 +367,17 @@ namespace DomainDetective {
         }
 
         public async Task CheckDNSBL(string ipAddress, CancellationToken cancellationToken = default) {
-            await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger);
+            await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger)) {
+                // enumeration triggers processing
+            }
         }
 
         public async Task CheckDNSBL(string[] ipAddresses, CancellationToken cancellationToken = default) {
-            var tasks = ipAddresses.Select(ip => DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger));
-            await Task.WhenAll(tasks);
+            foreach (var ip in ipAddresses) {
+                await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
+                    // enumeration triggers processing
+                }
+            }
         }
 
         public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
