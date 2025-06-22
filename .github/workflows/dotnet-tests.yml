@@ -18,35 +18,27 @@ env:
     BUILD_CONFIGURATION: 'Release'
 
 jobs:
+    generate-matrix:
+        runs-on: ubuntu-latest
+        outputs:
+            testclasses: ${{ steps.collect.outputs.testclasses }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Collect test classes
+              id: collect
+              run: |
+                classes=$(grep -h "public class" DomainDetective.Tests/Test*.cs | sed -E 's/.*public class ([A-Za-z0-9_]+).*/\1/' | sort | jq -R -s -c 'split("\n")[:-1]')
+                echo "testclasses=$classes" >> "$GITHUB_OUTPUT"
+
     test-windows:
         name: 'Windows'
         runs-on: windows-latest
         strategy:
             matrix:
-                testclass:
-                    - TestAll
-                    - TestBimiAnalysis
-                    - TestCAAAnalysis
-                    - TestCertificateHTTP
-                    - TestDANEnalysis
-                    - TestDkimAnalysis
-                    - TestDkimGuess
-                    - TestDMARCAnalysis
-                    - TestDnsblConfig
-                    - TestDnsblIpv6
-                    - TestDnsblManual
-                    - TestDnssecAnalysis
-                    - TestDnsPropagation
-                    - TestHTTPAnalysis
-                    - TestMTASTSAnalysis
-                    - TestMXAnalysis
-                    - TestNSAnalysis
-                    - TestOpenRelayAnalysis
-                    - TestSMTPTLSAnalysis
-                    - TestSOAAnalysis
-                    - TestSpfAnalysis
-                    - TestSTARTTLSAnalysis
-                    - TestWhoisAnalysis
+                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+        needs: generate-matrix
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -91,30 +83,8 @@ jobs:
         runs-on: ubuntu-latest
         strategy:
             matrix:
-                testclass:
-                    - TestAll
-                    - TestBimiAnalysis
-                    - TestCAAAnalysis
-                    - TestCertificateHTTP
-                    - TestDANEnalysis
-                    - TestDkimAnalysis
-                    - TestDkimGuess
-                    - TestDMARCAnalysis
-                    - TestDnsblConfig
-                    - TestDnsblIpv6
-                    - TestDnsblManual
-                    - TestDnssecAnalysis
-                    - TestDnsPropagation
-                    - TestHTTPAnalysis
-                    - TestMTASTSAnalysis
-                    - TestMXAnalysis
-                    - TestNSAnalysis
-                    - TestOpenRelayAnalysis
-                    - TestSMTPTLSAnalysis
-                    - TestSOAAnalysis
-                    - TestSpfAnalysis
-                    - TestSTARTTLSAnalysis
-                    - TestWhoisAnalysis
+                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+        needs: generate-matrix
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
