@@ -39,7 +39,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
-            ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);
                 return data.Answers;
@@ -56,7 +56,7 @@ namespace DomainDetective {
             cancellationToken.ThrowIfCancellationRequested();
             List<DnsAnswer> allAnswers = new();
 
-            ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             DnsResponse[] data;
             if (filter != string.Empty) {
                 data = await client.ResolveFilter(names, recordType, filter);
