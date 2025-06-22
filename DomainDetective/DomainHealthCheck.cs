@@ -102,6 +102,9 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+            if (selectors == null || selectors.Length == 0) {
+                throw new ArgumentException("No DKIM selectors provided.", nameof(selectors));
+            }
             foreach (var selector in selectors) {
                 var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, logger: _logger);
