@@ -68,7 +68,17 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             HasDuplicateIssuers = false;
             AnalysisResults = new List<CAARecordAnalysis>();
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var caaRecordList = dnsResults.ToList();
+
+            if (!caaRecordList.Any()) {
+                logger?.WriteVerbose("No CAA record found.");
+                return;
+            }
 
             DomainName = caaRecordList.First().Name;
 

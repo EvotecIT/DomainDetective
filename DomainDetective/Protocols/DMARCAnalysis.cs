@@ -71,6 +71,11 @@ namespace DomainDetective {
             Pct = null;
             ReportingIntervalShort = 0;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
 

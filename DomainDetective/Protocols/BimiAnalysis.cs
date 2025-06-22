@@ -38,6 +38,11 @@ namespace DomainDetective {
             SvgFetched = false;
             SvgValid = false;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var recordList = dnsResults.ToList();
             BimiRecordExists = recordList.Any();
             if (!BimiRecordExists) {

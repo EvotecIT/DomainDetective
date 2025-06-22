@@ -29,6 +29,11 @@ namespace DomainDetective {
         public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             Reset();
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var daneRecordList = dnsResults.ToList();
 
             // Group by the correct data property for duplicate detection
