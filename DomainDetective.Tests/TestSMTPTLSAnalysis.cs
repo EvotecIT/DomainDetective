@@ -58,8 +58,8 @@ namespace DomainDetective.Tests {
         }
 
         private static X509Certificate2 CreateSelfSigned() {
-            using var ecdsa = ECDsa.Create();
-            var req = new CertificateRequest("CN=localhost", ecdsa, HashAlgorithmName.SHA256);
+            using var rsa = RSA.Create(2048);
+            var req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
             return new X509Certificate2(cert.Export(X509ContentType.Pfx));
         }
