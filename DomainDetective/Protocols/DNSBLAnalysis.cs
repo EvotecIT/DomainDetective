@@ -287,10 +287,11 @@ namespace DomainDetective {
             string name;
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
                 if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
-                    var hex = string.Concat(ipAddress
+                    var nibbles = ipAddress
                         .GetAddressBytes()
-                        .Select(b => b.ToString("x2")));
-                    name = string.Join(".", hex.Reverse());
+                        .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
+                        .Select(n => n.ToString("x"));
+                    name = string.Join(".", nibbles.Reverse());
                 } else {
                     // Reverse the IPv4 address and append the DNSBL list
                     name = string.Join(".", ipAddress.ToString().Split('.').Reverse());
