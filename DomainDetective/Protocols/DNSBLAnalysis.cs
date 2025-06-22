@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     public class DNSBLRecord {
         public string IPAddress { get; set; }
+        public string OriginalIPAddress { get; set; }
         public string FQDN { get; set; }
         public string BlackList { get; set; }
         //public string BlackListReason { get; set; }
@@ -308,6 +309,7 @@ namespace DomainDetective {
                 if (pair.Value.Count == 0) {
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
+                        OriginalIPAddress = ipAddressOrHostname,
                         FQDN = pair.Key,
                         BlackList = pair.Key.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
                         IsBlackListed = false,
@@ -318,6 +320,7 @@ namespace DomainDetective {
                     foreach (var record in pair.Value) {
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
+                            OriginalIPAddress = ipAddressOrHostname,
                             FQDN = record.Name,
                             BlackList = record.Name.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
                             IsBlackListed = true,

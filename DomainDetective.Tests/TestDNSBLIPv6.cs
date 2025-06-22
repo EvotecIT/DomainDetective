@@ -15,6 +15,7 @@ namespace DomainDetective.Tests {
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
             var expected = string.Join(".", string.Concat(IPAddress.Parse(address).GetAddressBytes().Select(b => b.ToString("x2"))).Reverse());
             Assert.Equal(expected, record.IPAddress);
+            Assert.Equal(address, record.OriginalIPAddress);
         }
 
         [Fact]
