@@ -29,6 +29,8 @@ namespace DomainDetective {
                 await writer.WriteLineAsync("RCPT TO:<test@example.org>");
                 var rcptResp = await reader.ReadLineAsync();
                 await writer.WriteLineAsync("QUIT");
+                await writer.FlushAsync();
+                await reader.ReadLineAsync();
 
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
