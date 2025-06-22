@@ -1,3 +1,4 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -7,32 +8,60 @@ using System.Net;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Represents a public DNS server used for propagation checks.
+    /// </summary>
     public class PublicDnsEntry {
+        /// <summary>Gets or sets the country of the DNS server.</summary>
         public string Country { get; set; }
+        /// <summary>Gets or sets the IP address of the DNS server.</summary>
         public string IPAddress { get; set; }
+        /// <summary>Gets or sets the host name of the DNS server.</summary>
         public string HostName { get; set; }
+        /// <summary>Gets or sets the location description.</summary>
         public string Location { get; set; }
+        /// <summary>Gets or sets the ASN of the DNS server.</summary>
         public string ASN { get; set; }
+        /// <summary>Gets or sets the ASN name of the DNS server.</summary>
         public string ASNName { get; set; }
+        /// <summary>Gets or sets a value indicating whether the server is enabled.</summary>
         public bool Enabled { get; set; } = true;
     }
 
+    /// <summary>
+    /// Result of a DNS propagation query for a single server.
+    /// </summary>
     public class DnsPropagationResult {
+        /// <summary>Gets or sets the server that was queried.</summary>
         public PublicDnsEntry Server { get; set; }
+        /// <summary>Gets or sets the records returned by the server.</summary>
         public IEnumerable<string> Records { get; set; }
+        /// <summary>Gets or sets the time the query took.</summary>
         public TimeSpan Duration { get; set; }
+        /// <summary>Gets or sets a value indicating whether the query succeeded.</summary>
         public bool Success { get; set; }
+        /// <summary>Gets or sets an error message if the query failed.</summary>
         public string Error { get; set; }
     }
 
+    /// <summary>
+    /// Provides DNS propagation checks across many public servers.
+    /// </summary>
     public class DnsPropagationAnalysis {
         private readonly List<PublicDnsEntry> _servers = new();
 
+        /// <summary>
+        /// Gets the collection of configured DNS servers.
+        /// </summary>
         public IReadOnlyList<PublicDnsEntry> Servers => _servers;
 
+        /// <summary>
+        /// Loads DNS server definitions from a JSON file.
+        /// </summary>
+        /// <param name="filePath">Path to the JSON file.</param>
+        /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
         public void LoadServers(string filePath, bool clearExisting = false) {
             if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNS server list file not found: {filePath}");
@@ -55,6 +84,10 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Adds a DNS server entry if it does not already exist.
+        /// </summary>
+        /// <param name="entry">The server entry to add.</param>
         public void AddServer(PublicDnsEntry entry) {
             if (entry == null || string.IsNullOrWhiteSpace(entry.IPAddress)) {
                 return;
@@ -64,6 +97,10 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Removes a server by its IP address.
+        /// </summary>
+        /// <param name="ipAddress">IP address of the server.</param>
         public void RemoveServer(string ipAddress) {
             var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
             if (existing != null) {
@@ -71,6 +108,10 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Disables a server so it is not used in queries.
+        /// </summary>
+        /// <param name="ipAddress">IP address of the server.</param>
         public void DisableServer(string ipAddress) {
             var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
             if (existing != null) {
@@ -78,6 +119,10 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Enables a previously disabled server.
+        /// </summary>
+        /// <param name="ipAddress">IP address of the server.</param>
         public void EnableServer(string ipAddress) {
             var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
             if (existing != null) {
@@ -85,6 +130,13 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Filters the configured servers optionally by country or location.
+        /// </summary>
+        /// <param name="country">Country filter.</param>
+        /// <param name="location">Location filter.</param>
+        /// <param name="take">If specified, randomly selects this many servers.</param>
+        /// <returns>The filtered server list.</returns>
         public IEnumerable<PublicDnsEntry> FilterServers(string country = null, string location = null, int? take = null) {
             IEnumerable<PublicDnsEntry> query = _servers.Where(s => s.Enabled);
             if (!string.IsNullOrWhiteSpace(country)) {
@@ -100,6 +152,14 @@ namespace DomainDetective {
             return query.ToList();
         }
 
+        /// <summary>
+        /// Queries the provided servers for a domain and record type.
+        /// </summary>
+        /// <param name="domain">Domain name to query.</param>
+        /// <param name="recordType">DNS record type.</param>
+        /// <param name="servers">Servers to query.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
+        /// <returns>A list of query results.</returns>
         public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers, CancellationToken cancellationToken = default) {
             var results = new List<DnsPropagationResult>();
             var tasks = servers.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
@@ -126,6 +186,11 @@ namespace DomainDetective {
             return result;
         }
 
+        /// <summary>
+        /// Compares results from different servers and groups them by record value.
+        /// </summary>
+        /// <param name="results">The results to compare.</param>
+        /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>
         public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
             var comparison = new Dictionary<string, List<PublicDnsEntry>>();
             foreach (var res in results.Where(r => r.Success)) {
