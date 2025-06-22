@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using DnsClientX;
 
@@ -98,18 +99,19 @@ namespace DomainDetective {
             return query.ToList();
         }
 
-        public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers) {
+        public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers, CancellationToken cancellationToken = default) {
             var results = new List<DnsPropagationResult>();
-            var tasks = servers.Select(server => QueryServerAsync(domain, recordType, server));
+            var tasks = servers.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
             results.AddRange(await Task.WhenAll(tasks));
             return results;
         }
 
-        private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server) {
+        private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
             var result = new DnsPropagationResult { Server = server, Success = false, Records = Array.Empty<string>() };
             var sw = Stopwatch.StartNew();
             try {
                 var client = new ClientX(server.IPAddress, DnsRequestFormat.DnsOverUDP, 53);
+                cancellationToken.ThrowIfCancellationRequested();
                 var response = await client.Resolve(domain, recordType);
                 sw.Stop();
                 result.Duration = sw.Elapsed;

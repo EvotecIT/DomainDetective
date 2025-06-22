@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -100,14 +101,14 @@ namespace DomainDetective {
             _logger.WriteVerbose("DnsSelectionStrategy: {0}", DnsSelectionStrategy);
         }
 
-        public async Task VerifyDKIM(string domainName, string[] selectors) {
+        public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
             foreach (var selector in selectors) {
-                var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1");
+                var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, logger: _logger);
             }
         }
 
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null) {
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, CancellationToken cancellationToken = default) {
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
                     HealthCheckType.DMARC,
@@ -124,11 +125,11 @@ namespace DomainDetective {
             foreach (var healthCheckType in healthCheckTypes) {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
-                        var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1");
+                        var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
                         await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger);
                         break;
                     case HealthCheckType.SPF:
-                        var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
+                        var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
                         await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
                         break;
                     case HealthCheckType.DKIM:
@@ -138,24 +139,24 @@ namespace DomainDetective {
                         }
 
                         foreach (var selector in selectors) {
-                            var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1");
+                            var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                             await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                         }
                         break;
                     case HealthCheckType.MX:
-                        var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         await MXAnalysis.AnalyzeMxRecords(mx, _logger);
                         break;
                     case HealthCheckType.CAA:
-                        var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA);
+                        var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
                         break;
                     case HealthCheckType.NS:
-                        var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS);
+                        var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
                         await NSAnalysis.AnalyzeNsRecords(ns, _logger);
                         break;
                     case HealthCheckType.DANE:
-                        await VerifyDANE(domainName, daneServiceType);
+                        await VerifyDANE(domainName, daneServiceType, cancellationToken);
                         break;
                     case HealthCheckType.DNSSEC:
                         DNSSecAnalysis = new DNSSecAnalysis();
@@ -174,18 +175,18 @@ namespace DomainDetective {
                         await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
                         break;
                     case HealthCheckType.SOA:
-                        var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA);
+                        var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA, cancellationToken: cancellationToken);
                         await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
                         break;
                     case HealthCheckType.OPENRELAY:
-                        var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var hosts = mxRecordsForRelay.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         foreach (var host in hosts) {
                             await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger);
                         }
                         break;
                     case HealthCheckType.STARTTLS:
-                        var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
                         break;
@@ -196,7 +197,7 @@ namespace DomainDetective {
             }
         }
 
-        public async Task CheckDMARC(string dmarcRecord) {
+        public async Task CheckDMARC(string dmarcRecord, CancellationToken cancellationToken = default) {
             await DmarcAnalysis.AnalyzeDmarcRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dmarcRecord,
@@ -205,7 +206,7 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckSPF(string spfRecord) {
+        public async Task CheckSPF(string spfRecord, CancellationToken cancellationToken = default) {
             await SpfAnalysis.AnalyzeSpfRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = spfRecord,
@@ -214,7 +215,7 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckDKIM(string dkimRecord, string selector = "default") {
+        public async Task CheckDKIM(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) {
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dkimRecord,
@@ -223,7 +224,7 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckMX(string mxRecord) {
+        public async Task CheckMX(string mxRecord, CancellationToken cancellationToken = default) {
             await MXAnalysis.AnalyzeMxRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = mxRecord,
@@ -232,7 +233,7 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckCAA(string caaRecord) {
+        public async Task CheckCAA(string caaRecord, CancellationToken cancellationToken = default) {
             await CAAAnalysis.AnalyzeCAARecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = caaRecord,
@@ -240,7 +241,7 @@ namespace DomainDetective {
                 }
             }, _logger);
         }
-        public async Task CheckCAA(List<string> caaRecords) {
+        public async Task CheckCAA(List<string> caaRecords, CancellationToken cancellationToken = default) {
             var dnsResults = caaRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
             }).ToList();
@@ -248,7 +249,7 @@ namespace DomainDetective {
             await CAAAnalysis.AnalyzeCAARecords(dnsResults, _logger);
         }
 
-        public async Task CheckNS(string nsRecord) {
+        public async Task CheckNS(string nsRecord, CancellationToken cancellationToken = default) {
             await NSAnalysis.AnalyzeNsRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = nsRecord,
@@ -256,14 +257,14 @@ namespace DomainDetective {
                 }
             }, _logger);
         }
-        public async Task CheckNS(List<string> nsRecords) {
+        public async Task CheckNS(List<string> nsRecords, CancellationToken cancellationToken = default) {
             var dnsResults = nsRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
             }).ToList();
             await NSAnalysis.AnalyzeNsRecords(dnsResults, _logger);
         }
 
-        public async Task CheckDANE(string daneRecord) {
+        public async Task CheckDANE(string daneRecord, CancellationToken cancellationToken = default) {
             await DaneAnalysis.AnalyzeDANERecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = daneRecord
@@ -271,7 +272,7 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckSOA(string soaRecord) {
+        public async Task CheckSOA(string soaRecord, CancellationToken cancellationToken = default) {
             await SOAAnalysis.AnalyzeSoaRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = soaRecord,
@@ -280,42 +281,42 @@ namespace DomainDetective {
             }, _logger);
         }
 
-        public async Task CheckOpenRelayHost(string host, int port = 25) {
+        public async Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             await OpenRelayAnalysis.AnalyzeServer(host, port, _logger);
         }
 
-        public async Task CheckStartTlsHost(string host, int port = 25) {
+        public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger);
         }
 
 
-        public async Task VerifySPF(string domainName) {
-            var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1");
+        public async Task VerifySPF(string domainName, CancellationToken cancellationToken = default) {
+            var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
         }
 
-        public async Task VerifyMTASTS(string domainName) {
+        public async Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) {
             MTASTSAnalysis = new MTASTSAnalysis();
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
-        public async Task VerifySTARTTLS(string domainName) {
-            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+        public async Task VerifySTARTTLS(string domainName, CancellationToken cancellationToken = default) {
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
         }
 
-        public async Task VerifyDANE(string domainName, int[] ports) {
+        public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
-                var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA);
+                var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
 
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
 
-        public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes) {
+        public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) {
             if (serviceTypes == null || serviceTypes.Length == 0) {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
             }
@@ -329,13 +330,13 @@ namespace DomainDetective {
                     case ServiceType.SMTP:
                         port = (int)ServiceType.SMTP;
                         fromMx = true;
-                        records = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                        records = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         break;
                     case ServiceType.HTTPS:
                         port = (int)ServiceType.HTTPS;
                         fromMx = false;
-                        var aRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A);
-                        var aaaaRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA);
+                        var aRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A, cancellationToken: cancellationToken);
+                        var aaaaRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA, cancellationToken: cancellationToken);
                         records = (aRecords ?? Array.Empty<DnsAnswer>()).Concat(aaaaRecords ?? Array.Empty<DnsAnswer>());
                         break;
                     default:
@@ -346,7 +347,7 @@ namespace DomainDetective {
                 foreach (var record in recordData) {
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = $"_{port}._tcp.{domain}";
-                    var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA);
+                    var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                     if (dane.Any()) {
                         allDaneRecords.AddRange(dane);
                     }
@@ -356,20 +357,20 @@ namespace DomainDetective {
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
 
-        public async Task VerifyWebsiteCertificate(string url, int port = 443) {
-            await CertificateAnalysis.AnalyzeUrl(url, port, _logger);
+        public async Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+            await CertificateAnalysis.AnalyzeUrl(url, port, _logger, cancellationToken);
         }
 
-        public async Task CheckDNSBL(string ipAddress) {
+        public async Task CheckDNSBL(string ipAddress, CancellationToken cancellationToken = default) {
             await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger);
         }
 
-        public async Task CheckDNSBL(string[] ipAddresses) {
+        public async Task CheckDNSBL(string[] ipAddresses, CancellationToken cancellationToken = default) {
             var tasks = ipAddresses.Select(ip => DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger));
             await Task.WhenAll(tasks);
         }
 
-        public async Task CheckWHOIS(string domain) {
+        public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
             WhoisAnalysis = new WhoisAnalysis();
             var tasks = WhoisAnalysis.QueryWhoisServer(domain);
             await Task.WhenAll(tasks);
