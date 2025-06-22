@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
@@ -363,6 +365,12 @@ namespace DomainDetective {
         public async Task CheckDNSBL(string ipAddress) {
             await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger)) {
                 // enumeration triggers analysis
+            }
+        }
+
+        public async IAsyncEnumerable<DNSBLRecord> EnumerateDNSBLRecords(string ipAddressOrHostname, [EnumeratorCancellation] CancellationToken cancellationToken = default) {
+            await foreach (var record in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddressOrHostname, _logger, cancellationToken)) {
+                yield return record;
             }
         }
 

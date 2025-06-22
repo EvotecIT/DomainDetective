@@ -23,7 +23,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DNSBL records for: {0}", NameOrIpAddress);
-            await foreach (var record in healthCheck.DNSBLAnalysis.AnalyzeDNSBLRecords(NameOrIpAddress, _logger)) {
+            await foreach (var record in healthCheck.EnumerateDNSBLRecords(NameOrIpAddress)) {
                 WriteObject(record);
             }
         }
