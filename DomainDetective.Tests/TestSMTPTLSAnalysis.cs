@@ -20,7 +20,14 @@ namespace DomainDetective.Tests {
             var serverTask = Task.Run(async () => {
                 try {
                     while (!cts.Token.IsCancellationRequested) {
-                        var client = await listener.AcceptTcpClientAsync(cts.Token);
+                        var acceptTask = listener.AcceptTcpClientAsync();
+                        var completed = await Task.WhenAny(acceptTask, Task.Delay(Timeout.Infinite, cts.Token));
+                        if (completed != acceptTask) {
+                            try { await acceptTask; } catch { /* ignore */ }
+                            break;
+                        }
+
+                        var client = await acceptTask;
                         _ = Task.Run(async () => {
                             using var ssl = new SslStream(client.GetStream());
                             await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
@@ -28,8 +35,12 @@ namespace DomainDetective.Tests {
                     }
                 } catch (OperationCanceledException) {
                     // expected on shutdown
+                } catch (ObjectDisposedException) {
+                    // listener stopped
+                } catch (SocketException) {
+                    // listener stopped
                 }
-            });
+            }, cts.Token);
 
             try {
                 var analysis = new SMTPTLSAnalysis();
