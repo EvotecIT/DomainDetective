@@ -18,12 +18,16 @@ namespace DomainDetective {
         public bool HasInvalidRecords { get; set; }
 
 
-        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            // reset all properties so repeated calls don't accumulate data
+        public void Reset() {
             AnalysisResults = new List<DANERecordAnalysis>();
             NumberOfRecords = 0;
             HasDuplicateRecords = false;
             HasInvalidRecords = false;
+        }
+
+
+        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            Reset();
 
             var daneRecordList = dnsResults.ToList();
 

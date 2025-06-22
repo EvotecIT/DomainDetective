@@ -205,9 +205,15 @@ namespace DomainDetective {
 
         internal InternalLogger Logger { get; set; }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
-            Logger = logger;
+        public void Reset() {
+            Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
+            Logger = null;
+        }
+
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
+            Reset();
+            Logger = logger;
 
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
 
@@ -245,6 +251,7 @@ namespace DomainDetective {
         }
 
         internal async Task AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
+            Reset();
             Logger = logger;
             Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var results = await QueryDNSBL(DNSBLLists, ipAddressOrHostname);
