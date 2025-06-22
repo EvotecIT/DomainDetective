@@ -323,7 +323,37 @@ namespace DomainDetective {
 
             var current = new System.Text.StringBuilder();
             var inQuotes = false;
+            var escapeNext = false;
+            var commentDepth = 0;
+
             foreach (var c in record) {
+                if (escapeNext) {
+                    if (commentDepth == 0) {
+                        current.Append(c);
+                    }
+                    escapeNext = false;
+                    continue;
+                }
+
+                if (c == '\\') {
+                    escapeNext = true;
+                    continue;
+                }
+
+                if (commentDepth > 0) {
+                    if (c == '(') {
+                        commentDepth++;
+                    } else if (c == ')') {
+                        commentDepth--;
+                    }
+                    continue;
+                }
+
+                if (!inQuotes && c == '(') {
+                    commentDepth = 1;
+                    continue;
+                }
+
                 if (c == '"') {
                     if (inQuotes) {
                         tokens.Add(current.ToString());
