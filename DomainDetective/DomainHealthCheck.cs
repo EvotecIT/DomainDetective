@@ -320,6 +320,8 @@ namespace DomainDetective {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
             }
 
+            serviceTypes = serviceTypes.Distinct().ToArray();
+
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {
                 int port;
@@ -342,7 +344,7 @@ namespace DomainDetective {
                         throw new System.Exception("Service type not implemented.");
                 }
 
-                var recordData = records.Select(x => x.Data);
+                var recordData = records.Select(x => x.Data).Distinct();
                 foreach (var record in recordData) {
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = $"_{port}._tcp.{domain}";
