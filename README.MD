@@ -16,7 +16,7 @@ Current capabilities include:
 - [ ] Verify MX Records
 - [x] Verify DNSSEC
 - [x] Verify DANE/TLSA
-- [ ] Verify STARTTLS
+- [x] Verify STARTTLS
 - [ ] Verify MTA-STS
 - [ ] Verify SMTP TLS
 - [ ] Verify Website Connectivity
