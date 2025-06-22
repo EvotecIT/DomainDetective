@@ -361,11 +361,17 @@ namespace DomainDetective {
         }
 
         public async Task CheckDNSBL(string ipAddress) {
-            await DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger);
+            await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger)) {
+                // enumeration triggers analysis
+            }
         }
 
         public async Task CheckDNSBL(string[] ipAddresses) {
-            var tasks = ipAddresses.Select(ip => DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger));
+            var tasks = ipAddresses.Select(async ip => {
+                await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
+                    // enumeration triggers analysis
+                }
+            });
             await Task.WhenAll(tasks);
         }
 
