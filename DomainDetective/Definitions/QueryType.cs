@@ -1,5 +1,5 @@
 namespace DomainDetective {
-    public enum DnsProvider {
+    public enum QueryType {
         Standard,
         DnsOverHttps,
     }
