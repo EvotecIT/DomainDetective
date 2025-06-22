@@ -69,6 +69,8 @@ namespace DomainDetective {
 
         public TLSRPTAnalysis TLSRPTAnalysis { get; private set; } = new TLSRPTAnalysis();
 
+        public BimiAnalysis BimiAnalysis { get; private set; } = new BimiAnalysis();
+
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
         public List<DnsAnswer> Answers;
@@ -178,6 +180,11 @@ namespace DomainDetective {
                         TLSRPTAnalysis = new TLSRPTAnalysis();
                         var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
                         await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger);
+                        break;
+                    case HealthCheckType.BIMI:
+                        BimiAnalysis = new BimiAnalysis();
+                        var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+                        await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger);
                         break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
@@ -308,6 +315,15 @@ namespace DomainDetective {
             }, _logger);
         }
 
+        public async Task CheckBIMI(string bimiRecord, CancellationToken cancellationToken = default) {
+            await BimiAnalysis.AnalyzeBimiRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = bimiRecord,
+                    Type = DnsRecordType.TXT
+                }
+            }, _logger);
+        }
+
 
         public async Task VerifySPF(string domainName, CancellationToken cancellationToken = default) {
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
@@ -329,6 +345,12 @@ namespace DomainDetective {
             TLSRPTAnalysis = new TLSRPTAnalysis();
             var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger);
+        }
+
+        public async Task VerifyBIMI(string domainName, CancellationToken cancellationToken = default) {
+            BimiAnalysis = new BimiAnalysis();
+            var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+            await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {

@@ -11,6 +11,7 @@ namespace DomainDetective {
         DNSSEC,
         MTASTS,
         TLSRPT,
+        BIMI,
         CERT,
         SECURITYTXT,
         SOA,
