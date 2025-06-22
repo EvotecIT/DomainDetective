@@ -85,7 +85,8 @@ namespace DomainDetective {
 
         private static async Task<string> DownloadIndicator(string url, InternalLogger logger) {
             try {
-                using (HttpClient client = new HttpClient()) {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+                using (HttpClient client = new HttpClient(handler)) {
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                     using (var response = await client.GetAsync(url)) {
                         if (!response.IsSuccessStatusCode) {

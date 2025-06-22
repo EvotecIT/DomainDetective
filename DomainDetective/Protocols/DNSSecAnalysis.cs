@@ -15,7 +15,8 @@ namespace DomainDetective {
         public bool DsMatch { get; private set; }
 
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null) {
-            using HttpClient client = new();
+            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            using HttpClient client = new(handler);
 
             var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DNSKEY&do=1";
             client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
