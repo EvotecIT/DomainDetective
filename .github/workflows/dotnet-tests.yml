@@ -1,140 +1,280 @@
 name: Test .NET
 
 on:
-    push:
-        branches:
-            - master
-        paths-ignore:
-            - '*.md'
-            - 'Docs/**'
-            - 'Examples/**'
-            - '.gitignore'
-    pull_request:
-        branches:
-            - master
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '*.md'
+      - 'Docs/**'
+      - 'Examples/**'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
 
 env:
-    DOTNET_VERSION: '8.x'
-    BUILD_CONFIGURATION: 'Release'
+  DOTNET_VERSION: '8.x'
+  BUILD_CONFIGURATION: 'Release'
 
 jobs:
-    test-windows:
-        name: 'Windows'
-        runs-on: windows-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      testclasses: ${{ steps.collect.outputs.testclasses }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Collect test classes
+        id: collect
+        run: |
+          classes=$(grep -h "public class" DomainDetective.Tests/Test*.cs \
+            | sed -E 's/.*public class ([A-Za-z0-9_]+).*/\1/' \
+            | sort \
+            | jq -R -s -c 'split("\n")[:-1]')
+          echo "testclasses=$classes" >> "$GITHUB_OUTPUT"
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+  build-windows:
+    runs-on: windows-latest
+    needs: generate-matrix
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+      - name: Restore dependencies
+        run: dotnet restore DomainDetective.sln
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-windows
-                  path: '**/*.trx'
+      - name: Build solution
+        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-windows
-                  path: '**/coverage.cobertura.xml'
+      - name: Run tests
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            DomainDetective.Tests/bin
+            DomainDetective.Tests/obj
 
-    test-ubuntu:
-        name: 'Ubuntu'
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  test-windows:
+    runs-on: windows-latest
+    needs: [generate-matrix, build-windows]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: DomainDetective.Tests
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+      - name: Run tests sequentially
+        shell: pwsh
+        run: |
+          $classes = '${{ needs.generate-matrix.outputs.testclasses }}' | ConvertFrom-Json
+          foreach ($c in $classes) {
+              dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj `
+                  --configuration $env:BUILD_CONFIGURATION `
+                  --framework net8.0 `
+                  --no-build `
+                  --no-restore `
+                  --verbosity normal `
+                  --logger "trx;LogFileName=$c.trx" `
+                  --collect:"XPlat Code Coverage" `
+                  --results-directory results/$c `
+                  --blame-hang-timeout 2m `
+                  --blame-hang-dump-type none `
+                  --filter "FullyQualifiedName~DomainDetective.Tests.$c"
+          }
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-windows
+          path: |
+            **/*.trx
+            results/**/*.trx
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-windows
+          path: |
+            **/coverage.cobertura.xml
+            results/**/coverage.cobertura.xml
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-ubuntu
-                  path: '**/*.trx'
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: |
+            **/coverage.cobertura.xml
+            results/**/coverage.cobertura.xml
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-ubuntu
-                  path: '**/coverage.cobertura.xml'
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    needs: generate-matrix
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
-    test-macos:
-        if: false # Temporarily disabled
-        name: 'macOS'
-        runs-on: macos-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+      - name: Restore dependencies
+        run: dotnet restore DomainDetective.sln
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Build solution
+        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+      - name: Run tests
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-build
+          path: |
+            DomainDetective.Tests/bin
+            DomainDetective.Tests/obj
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+  test-ubuntu:
+    runs-on: ubuntu-latest
+    needs: [generate-matrix, build-ubuntu]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-macos
-                  path: '**/*.trx'
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ubuntu-build
+          path: DomainDetective.Tests
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-macos
-                  path: '**/coverage.cobertura.xml'
+      - name: Run tests sequentially
+        shell: bash
+        run: |
+          classes=$(echo '${{ needs.generate-matrix.outputs.testclasses }}' | jq -r '.[]')
+          for c in $classes; do
+              dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
+                  --configuration $BUILD_CONFIGURATION \
+                  --framework net8.0 \
+                  --no-build \
+                  --no-restore \
+                  --verbosity normal \
+                  --logger "trx;LogFileName=${c}.trx" \
+                  --collect:"XPlat Code Coverage" \
+                  --results-directory results/$c \
+                  --blame-hang-timeout 2m \
+                  --blame-hang-dump-type none \
+                  --filter "FullyQualifiedName~DomainDetective.Tests.${c}"
+          done
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-ubuntu
+          path: |
+            **/*.trx
+            results/**/*.trx
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-ubuntu
+          path: |
+            **/coverage.cobertura.xml
+            results/**/coverage.cobertura.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: |
+            **/coverage.cobertura.xml
+            results/**/coverage.cobertura.xml
+
+  test-macos:
+    if: false # Temporarily disabled
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore DomainDetective.sln
+
+      - name: Build solution
+        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+
+      - name: Run tests
+        run: |
+          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --framework net8.0 \
+            --no-build \
+            --verbosity normal \
+            --logger trx \
+            --collect:"XPlat Code Coverage" \
+            --blame-hang-timeout 2m \
+            --blame-hang-dump-type none
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-macos
+          path: '**/*.trx'
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports-macos
+          path: '**/coverage.cobertura.xml'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: '**/coverage.cobertura.xml'
+
+  collect-results:
+    if: always()
+    runs-on: ubuntu-latest
+    needs: [test-windows, test-ubuntu]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: collected
+
+      - name: Upload combined artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-test-artifacts
+          path: collected
