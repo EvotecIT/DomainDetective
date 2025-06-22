@@ -29,7 +29,8 @@ namespace DomainDetective.Tests {
 
                         var client = await acceptTask;
                         _ = Task.Run(async () => {
-                            using var ssl = new SslStream(client.GetStream());
+                            using var tcp = client;
+                            using var ssl = new SslStream(tcp.GetStream());
                             await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
                         }, cts.Token);
                     }
