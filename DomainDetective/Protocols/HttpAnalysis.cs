@@ -9,9 +9,11 @@ namespace DomainDetective {
         public TimeSpan ResponseTime { get; private set; }
         public bool HstsPresent { get; private set; }
         public bool IsReachable { get; private set; }
+        public int MaxRedirects { get; set; } = 10;
 
         public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger) {
-            using var client = new HttpClient();
+            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
+            using var client = new HttpClient(handler);
             var sw = Stopwatch.StartNew();
             try {
                 var response = await client.GetAsync(url);

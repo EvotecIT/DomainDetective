@@ -38,7 +38,8 @@ namespace DomainDetective {
 
         private async Task<string> GetPolicy(string url) {
             try {
-                using HttpClient client = new();
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+                using HttpClient client = new(handler);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 var response = await client.GetAsync(url);
                 if (response.IsSuccessStatusCode) {

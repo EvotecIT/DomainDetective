@@ -19,7 +19,7 @@ namespace DomainDetective {
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
-            using (var handler = new HttpClientHandler()) {
+            using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
                     return true;

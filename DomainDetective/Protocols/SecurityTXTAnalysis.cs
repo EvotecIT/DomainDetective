@@ -54,7 +54,8 @@ namespace DomainDetective {
 
         private async Task<string> GetSecurityTxt(string url) {
             try {
-                using (HttpClient client = new HttpClient()) {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+                using (HttpClient client = new HttpClient(handler)) {
                     // Set the User-Agent header to mimic a popular web browser
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
 
