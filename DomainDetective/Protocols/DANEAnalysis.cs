@@ -164,25 +164,45 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Detailed analysis information for a single DANE record.
+    /// </summary>
     public class DANERecordAnalysis {
+        /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string DomainName { get; set; }
 
+        /// <summary>Gets or sets the associated service type.</summary>
         public ServiceType ServiceType { get; set; }
 
+        /// <summary>Gets or sets the raw TLSA record.</summary>
         public string DANERecord { get; set; }
+        /// <summary>Gets or sets a value indicating whether the record passed all validations.</summary>
         public bool ValidDANERecord { get; set; }
+        /// <summary>Gets or sets whether the usage field is valid.</summary>
         public bool ValidUsage { get; set; }
+        /// <summary>Gets or sets whether the selector field is valid.</summary>
         public bool ValidSelector { get; set; }
+        /// <summary>Gets or sets whether the matching type is valid.</summary>
         public bool ValidMatchingType { get; set; }
+        /// <summary>Gets or sets whether the certificate association data is valid hexadecimal.</summary>
         public bool ValidCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets a value indicating whether this configuration is recommended for SMTP.</summary>
         public bool IsValidChoiceForSmtp { get; set; }
+        /// <summary>Gets or sets the textual description of the certificate usage.</summary>
         public string CertificateUsage { get; set; }
+        /// <summary>Gets or sets the textual description of the selector field.</summary>
         public string SelectorField { get; set; }
+        /// <summary>Gets or sets the textual description of the matching type.</summary>
         public string MatchingTypeField { get; set; }
+        /// <summary>Gets or sets the certificate association data.</summary>
         public string CertificateAssociationData { get; set; }
+        /// <summary>Gets or sets a value indicating whether the record contains four fields.</summary>
         public bool CorrectNumberOfFields { get; set; }
+        /// <summary>Gets or sets whether the certificate association data has the expected length.</summary>
         public bool CorrectLengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the length of the association data.</summary>
         public int LengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the total number of fields in the record.</summary>
         public int NumberOfFields { get; set; }
     }
 }

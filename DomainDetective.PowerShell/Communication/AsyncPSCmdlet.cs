@@ -5,6 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>
+    /// Base class for asynchronous PowerShell cmdlets.
+    /// </summary>
     public abstract class AsyncPSCmdlet : PSCmdlet, IDisposable {
         private enum PipelineType {
             Output,
@@ -21,6 +24,9 @@ namespace DomainDetective.PowerShell {
 
         private BlockingCollection<(object?, PipelineType)>? _currentPipe;
 
+        /// <summary>
+        /// Gets the cancellation token for the cmdlet execution.
+        /// </summary>
         protected CancellationToken CancelToken { get => _cancelSource.Token; }
 
         protected override void BeginProcessing()
@@ -95,50 +101,89 @@ namespace DomainDetective.PowerShell {
             blockTask.GetAwaiter().GetResult();
         }
 
+        /// <summary>
+        /// Writes an object to the pipeline.
+        /// </summary>
+        /// <param name="sendToPipeline">Object to write.</param>
         public new void WriteObject(object? sendToPipeline) => WriteObject(sendToPipeline, false);
 
+        /// <summary>
+        /// Writes an object to the pipeline with optional enumeration.
+        /// </summary>
+        /// <param name="sendToPipeline">Object to write.</param>
+        /// <param name="enumerateCollection">True to enumerate collections.</param>
         public new void WriteObject(object? sendToPipeline, bool enumerateCollection) {
             ThrowIfStopped();
             _currentPipe?.Add(
                 (sendToPipeline, enumerateCollection ? PipelineType.OutputEnumerate : PipelineType.Output));
         }
 
+        /// <summary>
+        /// Writes an error record to the pipeline.
+        /// </summary>
+        /// <param name="errorRecord">The error record.</param>
         public new void WriteError(ErrorRecord errorRecord) {
             ThrowIfStopped();
             _currentPipe?.Add((errorRecord, PipelineType.Error));
         }
 
+        /// <summary>
+        /// Writes a warning message to the pipeline.
+        /// </summary>
+        /// <param name="message">The warning message.</param>
         public new void WriteWarning(string message) {
             ThrowIfStopped();
             _currentPipe?.Add((message, PipelineType.Warning));
         }
 
+        /// <summary>
+        /// Writes a verbose message to the pipeline.
+        /// </summary>
+        /// <param name="message">The verbose message.</param>
         public new void WriteVerbose(string message) {
             ThrowIfStopped();
             _currentPipe?.Add((message, PipelineType.Verbose));
         }
 
+        /// <summary>
+        /// Writes a debug message to the pipeline.
+        /// </summary>
+        /// <param name="message">The debug message.</param>
         public new void WriteDebug(string message) {
             ThrowIfStopped();
             _currentPipe?.Add((message, PipelineType.Debug));
         }
 
+        /// <summary>
+        /// Writes an information record to the pipeline.
+        /// </summary>
+        /// <param name="informationRecord">The information record.</param>
         public new void WriteInformation(InformationRecord informationRecord) {
             ThrowIfStopped();
             _currentPipe?.Add((informationRecord, PipelineType.Information));
         }
 
+        /// <summary>
+        /// Writes a progress record to the pipeline.
+        /// </summary>
+        /// <param name="progressRecord">The progress record.</param>
         public new void WriteProgress(ProgressRecord progressRecord) {
             ThrowIfStopped();
             _currentPipe?.Add((progressRecord, PipelineType.Progress));
         }
 
+        /// <summary>
+        /// Throws if the cmdlet execution has been stopped.
+        /// </summary>
         internal void ThrowIfStopped() {
             if (_cancelSource.IsCancellationRequested) {
                 throw new PipelineStoppedException();
             }
         }
 
+        /// <summary>
+        /// Disposes managed resources.
+        /// </summary>
         public void Dispose() {
             _cancelSource?.Dispose();
         }
