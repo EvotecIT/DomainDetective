@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace DomainDetective {
     public class SMTPTLSAnalysis {
@@ -47,7 +48,13 @@ namespace DomainDetective {
                     return true; // continue even if invalid
                 });
 
-                await ssl.AuthenticateAsClientAsync(host, null, protocol, false);
+                var authTask = ssl.AuthenticateAsClientAsync(host, null, protocol, false);
+                if (await Task.WhenAny(authTask, Task.Delay(TimeSpan.FromSeconds(5))) != authTask) {
+                    client.Close();
+                    logger?.WriteVerbose($"{host}:{port} handshake timed out for {protocol}");
+                    return false;
+                }
+                await authTask; // propagate exceptions
                 logger?.WriteVerbose($"{host}:{port} supports {protocol}");
                 return true;
             } catch (Exception ex) {
