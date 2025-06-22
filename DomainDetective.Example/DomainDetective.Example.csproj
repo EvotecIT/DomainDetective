@@ -11,8 +11,15 @@
 	  <PackageReference Include="Spectre.Console" Version="0.50.0" />
 	</ItemGroup>
 
-	<ItemGroup>
-		<ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
-	</ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Data\DNS\PublicDNS.json">
+      <Link>Data/DNS/PublicDNS.json</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>
