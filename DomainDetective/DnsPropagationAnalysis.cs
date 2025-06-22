@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using DnsClientX;
@@ -126,7 +127,10 @@ namespace DomainDetective {
         public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
             var comparison = new Dictionary<string, List<PublicDnsEntry>>();
             foreach (var res in results.Where(r => r.Success)) {
-                var key = string.Join(",", res.Records.OrderBy(r => r));
+                var normalizedRecords = res.Records
+                    .Select(r => IPAddress.TryParse(r, out var ip) ? ip.ToString() : r)
+                    .OrderBy(r => r);
+                var key = string.Join(",", normalizedRecords);
                 if (!comparison.TryGetValue(key, out var list)) {
                     list = new List<PublicDnsEntry>();
                     comparison[key] = list;
