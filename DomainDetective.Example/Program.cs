@@ -35,8 +35,13 @@ public static partial class Program {
         await ExampleAnalyseByDomainDNSBL();
         await ExampleManageDnsbl();
         await ExampleAnalyseSecurityTXT();
+        await ExampleAnalyseDnsPropagation();
 
         //await ExampleQueryDNS();
         //await ExampleAnalyseByStringWHOIS();
+    }
+
+    public static async Task ExampleAnalyseDnsPropagation() {
+        await ExampleAnalyseDnsPropagationClass.Run();
     }
 }
