@@ -67,6 +67,8 @@ namespace DomainDetective {
 
         public STARTTLSAnalysis StartTlsAnalysis { get; private set; } = new STARTTLSAnalysis();
 
+        public TLSRPTAnalysis TLSRPTAnalysis { get; private set; } = new TLSRPTAnalysis();
+
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
         public List<DnsAnswer> Answers;
@@ -171,6 +173,11 @@ namespace DomainDetective {
                     case HealthCheckType.MTASTS:
                         MTASTSAnalysis = new MTASTSAnalysis();
                         await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
+                        break;
+                    case HealthCheckType.TLSRPT:
+                        TLSRPTAnalysis = new TLSRPTAnalysis();
+                        var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+                        await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger);
                         break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
@@ -292,6 +299,15 @@ namespace DomainDetective {
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger);
         }
 
+        public async Task CheckTLSRPT(string tlsRptRecord, CancellationToken cancellationToken = default) {
+            await TLSRPTAnalysis.AnalyzeTlsRptRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = tlsRptRecord,
+                    Type = DnsRecordType.TXT
+                }
+            }, _logger);
+        }
+
 
         public async Task VerifySPF(string domainName, CancellationToken cancellationToken = default) {
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
@@ -307,6 +323,12 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger);
+        }
+
+        public async Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) {
+            TLSRPTAnalysis = new TLSRPTAnalysis();
+            var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+            await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {
