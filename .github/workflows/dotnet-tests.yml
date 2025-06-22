@@ -32,12 +32,9 @@ jobs:
                 classes=$(grep -h "public class" DomainDetective.Tests/Test*.cs | sed -E 's/.*public class ([A-Za-z0-9_]+).*/\1/' | sort | jq -R -s -c 'split("\n")[:-1]')
                 echo "testclasses=$classes" >> "$GITHUB_OUTPUT"
 
-    test-windows:
-        name: 'Windows'
+    build-windows:
+        name: 'Build Windows'
         runs-on: windows-latest
-        strategy:
-            matrix:
-                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
         needs: generate-matrix
         steps:
             - name: Checkout code
@@ -56,12 +53,45 @@ jobs:
             - name: Build solution
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-build
+                  path: |
+                      DomainDetective.Tests/bin
+                      DomainDetective.Tests/obj
+
+    test-windows:
+        name: 'Windows'
+        runs-on: windows-latest
+        strategy:
+            matrix:
+                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+        needs: [generate-matrix, build-windows]
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+                  cache: true
+                  cache-dependency-path: '**/*.csproj'
+
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: windows-build
+                  path: DomainDetective.Tests
+
             - name: Run tests
               run: >-
                   dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
                   --configuration ${{ env.BUILD_CONFIGURATION }}
                   --framework net8.0
                   --no-build
+                  --no-restore
                   --verbosity normal
                   --logger trx
                   --collect:"XPlat Code Coverage"
@@ -88,12 +118,9 @@ jobs:
               with:
                   files: '**/coverage.cobertura.xml'
 
-    test-ubuntu:
-        name: 'Ubuntu'
+    build-ubuntu:
+        name: 'Build Ubuntu'
         runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
         needs: generate-matrix
         steps:
             - name: Checkout code
@@ -112,12 +139,45 @@ jobs:
             - name: Build solution
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
+            - name: Upload build artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ubuntu-build
+                  path: |
+                      DomainDetective.Tests/bin
+                      DomainDetective.Tests/obj
+
+    test-ubuntu:
+        name: 'Ubuntu'
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+        needs: [generate-matrix, build-ubuntu]
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+                  cache: true
+                  cache-dependency-path: '**/*.csproj'
+
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  name: ubuntu-build
+                  path: DomainDetective.Tests
+
             - name: Run tests
               run: >-
                   dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
                   --configuration ${{ env.BUILD_CONFIGURATION }}
                   --framework net8.0
                   --no-build
+                  --no-restore
                   --verbosity normal
                   --logger trx
                   --collect:"XPlat Code Coverage"
@@ -193,3 +253,19 @@ jobs:
               uses: codecov/codecov-action@v3
               with:
                   files: '**/coverage.cobertura.xml'
+
+    collect-results:
+        if: always()
+        runs-on: ubuntu-latest
+        needs: [test-windows, test-ubuntu]
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: collected
+
+            - name: Upload combined artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: all-test-artifacts
+                  path: collected
