@@ -14,8 +14,8 @@ namespace DomainDetective {
         }
 
         private static async Task<bool> TryRelay(string host, int port, InternalLogger logger) {
+            using var client = new TcpClient();
             try {
-                using var client = new TcpClient();
                 await client.ConnectAsync(host, port);
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
