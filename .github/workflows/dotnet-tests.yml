@@ -62,15 +62,6 @@ jobs:
           --configuration ${{ env.BUILD_CONFIGURATION }}
           --no-restore
 
-      - name: Run tests
-        run: >
-          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
-          --configuration ${{ env.BUILD_CONFIGURATION }}
-          --framework net8.0
-          --no-build
-          --verbosity normal
-          --logger trx
-          --collect:"XPlat Code Coverage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -87,9 +78,15 @@ jobs:
       fail-fast: false
       matrix:
         testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+    name: Windows - ${{ matrix.testclass }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -163,15 +160,6 @@ jobs:
           --configuration ${{ env.BUILD_CONFIGURATION }}
           --no-restore
 
-      - name: Run tests
-        run: >
-          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
-          --configuration ${{ env.BUILD_CONFIGURATION }}
-          --framework net8.0
-          --no-build
-          --verbosity normal
-          --logger trx
-          --collect:"XPlat Code Coverage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -188,9 +176,15 @@ jobs:
       fail-fast: false
       matrix:
         testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+    name: Ubuntu - ${{ matrix.testclass }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
