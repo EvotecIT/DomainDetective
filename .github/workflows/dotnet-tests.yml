@@ -67,20 +67,10 @@ jobs:
     test-windows:
         name: 'Windows'
         runs-on: windows-latest
-        strategy:
-            matrix:
-                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
         needs: [generate-matrix, build-windows]
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
-                  cache: true
-                  cache-dependency-path: '**/*.csproj'
 
             - name: Download build artifacts
               uses: actions/download-artifact@v4
@@ -88,38 +78,43 @@ jobs:
                   name: windows-build
                   path: DomainDetective.Tests
 
-            - name: Run tests
-              run: >-
-                  dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
-                  --configuration ${{ env.BUILD_CONFIGURATION }}
-                  --framework net8.0
-                  --no-build
-                  --no-restore
-                  --verbosity normal
-                  --logger trx
-                  --collect:"XPlat Code Coverage"
-                  --blame-hang-timeout 2m
-                  --blame-hang-dump-type none
-                  --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+            - name: Run tests sequentially
+              shell: pwsh
+              run: |
+                  $classes = '${{ needs.generate-matrix.outputs.testclasses }}' | ConvertFrom-Json
+                  foreach ($c in $classes) {
+                      dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj `
+                          --configuration $env:BUILD_CONFIGURATION `
+                          --framework net8.0 `
+                          --no-build `
+                          --no-restore `
+                          --verbosity normal `
+                          --logger "trx;LogFileName=$c.trx" `
+                          --collect:"XPlat Code Coverage" `
+                          --results-directory results/$c `
+                          --blame-hang-timeout 2m `
+                          --blame-hang-dump-type none `
+                          --filter "FullyQualifiedName~DomainDetective.Tests.$c"
+                  }
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: test-results-windows-${{ matrix.testclass }}
-                  path: '**/*.trx'
+                  name: test-results-windows
+                  path: results/**/*.trx
 
             - name: Upload coverage reports
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: coverage-reports-windows-${{ matrix.testclass }}
-                  path: '**/coverage.cobertura.xml'
+                  name: coverage-reports-windows
+                  path: results/**/coverage.cobertura.xml
 
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v3
               with:
-                  files: '**/coverage.cobertura.xml'
+                  files: results/**/coverage.cobertura.xml
 
     build-ubuntu:
         name: 'Build Ubuntu'
@@ -153,20 +148,10 @@ jobs:
     test-ubuntu:
         name: 'Ubuntu'
         runs-on: ubuntu-latest
-        strategy:
-            matrix:
-                testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
         needs: [generate-matrix, build-ubuntu]
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
-
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
-                  cache: true
-                  cache-dependency-path: '**/*.csproj'
 
             - name: Download build artifacts
               uses: actions/download-artifact@v4
@@ -174,38 +159,43 @@ jobs:
                   name: ubuntu-build
                   path: DomainDetective.Tests
 
-            - name: Run tests
-              run: >-
-                  dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
-                  --configuration ${{ env.BUILD_CONFIGURATION }}
-                  --framework net8.0
-                  --no-build
-                  --no-restore
-                  --verbosity normal
-                  --logger trx
-                  --collect:"XPlat Code Coverage"
-                  --blame-hang-timeout 2m
-                  --blame-hang-dump-type none
-                  --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+            - name: Run tests sequentially
+              shell: bash
+              run: |
+                  classes=$(echo '${{ needs.generate-matrix.outputs.testclasses }}' | jq -r '.[]')
+                  for c in $classes; do
+                      dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
+                          --configuration $BUILD_CONFIGURATION \
+                          --framework net8.0 \
+                          --no-build \
+                          --no-restore \
+                          --verbosity normal \
+                          --logger "trx;LogFileName=${c}.trx" \
+                          --collect:"XPlat Code Coverage" \
+                          --results-directory results/$c \
+                          --blame-hang-timeout 2m \
+                          --blame-hang-dump-type none \
+                          --filter "FullyQualifiedName~DomainDetective.Tests.${c}"
+                  done
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: test-results-ubuntu-${{ matrix.testclass }}
-                  path: '**/*.trx'
+                  name: test-results-ubuntu
+                  path: results/**/*.trx
 
             - name: Upload coverage reports
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: coverage-reports-ubuntu-${{ matrix.testclass }}
-                  path: '**/coverage.cobertura.xml'
+                  name: coverage-reports-ubuntu
+                  path: results/**/coverage.cobertura.xml
 
             - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v3
               with:
-                  files: '**/coverage.cobertura.xml'
+                  files: results/**/coverage.cobertura.xml
 
     test-macos:
         if: false # Temporarily disabled
