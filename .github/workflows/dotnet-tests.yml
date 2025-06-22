@@ -1,6 +1,7 @@
+---
 name: Test .NET
 
-on:
+on:  # yamllint disable-line rule:truthy
   push:
     branches:
       - master
@@ -56,10 +57,20 @@ jobs:
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution
-        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+        run: >
+          dotnet build DomainDetective.sln
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --no-restore
 
       - name: Run tests
-        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+        run: >
+          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --framework net8.0
+          --no-build
+          --verbosity normal
+          --logger trx
+          --collect:"XPlat Code Coverage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -72,6 +83,10 @@ jobs:
   test-windows:
     runs-on: windows-latest
     needs: [generate-matrix, build-windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -82,24 +97,23 @@ jobs:
           name: windows-build
           path: DomainDetective.Tests
 
-      - name: Run tests sequentially
+      # yamllint disable rule:line-length
+      - name: Run test ${{ matrix.testclass }}
         shell: pwsh
         run: |
-          $classes = '${{ needs.generate-matrix.outputs.testclasses }}' | ConvertFrom-Json
-          foreach ($c in $classes) {
-              dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj `
-                  --configuration $env:BUILD_CONFIGURATION `
-                  --framework net8.0 `
-                  --no-build `
-                  --no-restore `
-                  --verbosity normal `
-                  --logger "trx;LogFileName=$c.trx" `
-                  --collect:"XPlat Code Coverage" `
-                  --results-directory results/$c `
-                  --blame-hang-timeout 2m `
-                  --blame-hang-dump-type none `
-                  --filter "FullyQualifiedName~DomainDetective.Tests.$c"
-          }
+          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj `
+              --configuration $env:BUILD_CONFIGURATION `
+              --framework net8.0 `
+              --no-build `
+              --no-restore `
+              --verbosity normal `
+              --logger "trx;LogFileName=${{ matrix.testclass }}.trx" `
+              --collect:"XPlat Code Coverage" `
+              --results-directory results/${{ matrix.testclass }} `
+              --blame-hang-timeout 2m `
+              --blame-hang-dump-type none `
+              --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+      # yamllint enable rule:line-length
 
       - name: Upload test results
         if: always()
@@ -144,10 +158,20 @@ jobs:
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution
-        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+        run: >
+          dotnet build DomainDetective.sln
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --no-restore
 
       - name: Run tests
-        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+        run: >
+          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --framework net8.0
+          --no-build
+          --verbosity normal
+          --logger trx
+          --collect:"XPlat Code Coverage"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -160,6 +184,10 @@ jobs:
   test-ubuntu:
     runs-on: ubuntu-latest
     needs: [generate-matrix, build-ubuntu]
+    strategy:
+      fail-fast: false
+      matrix:
+        testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -170,24 +198,23 @@ jobs:
           name: ubuntu-build
           path: DomainDetective.Tests
 
-      - name: Run tests sequentially
+      # yamllint disable rule:line-length
+      - name: Run test ${{ matrix.testclass }}
         shell: bash
         run: |
-          classes=$(echo '${{ needs.generate-matrix.outputs.testclasses }}' | jq -r '.[]')
-          for c in $classes; do
-              dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
-                  --configuration $BUILD_CONFIGURATION \
-                  --framework net8.0 \
-                  --no-build \
-                  --no-restore \
-                  --verbosity normal \
-                  --logger "trx;LogFileName=${c}.trx" \
-                  --collect:"XPlat Code Coverage" \
-                  --results-directory results/$c \
-                  --blame-hang-timeout 2m \
-                  --blame-hang-dump-type none \
-                  --filter "FullyQualifiedName~DomainDetective.Tests.${c}"
-          done
+          dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
+              --configuration $BUILD_CONFIGURATION \
+              --framework net8.0 \
+              --no-build \
+              --no-restore \
+              --verbosity normal \
+              --logger "trx;LogFileName=${{ matrix.testclass }}.trx" \
+              --collect:"XPlat Code Coverage" \
+              --results-directory results/${{ matrix.testclass }} \
+              --blame-hang-timeout 2m \
+              --blame-hang-dump-type none \
+              --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+      # yamllint enable rule:line-length
 
       - name: Upload test results
         if: always()
@@ -215,7 +242,7 @@ jobs:
             results/**/coverage.cobertura.xml
 
   test-macos:
-    if: false # Temporarily disabled
+    if: false  # Temporarily disabled
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -230,7 +257,10 @@ jobs:
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution
-        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+        run: >
+          dotnet build DomainDetective.sln
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --no-restore
 
       - name: Run tests
         run: |
