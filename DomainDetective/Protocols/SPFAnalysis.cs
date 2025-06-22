@@ -100,6 +100,7 @@ namespace DomainDetective {
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            TestSpfRecords.Clear();
             Reset();
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
