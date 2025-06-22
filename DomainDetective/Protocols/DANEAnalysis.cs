@@ -121,62 +121,42 @@ namespace DomainDetective {
         }
 
         private bool ValidateUsage(int usageValue) {
-            switch (usageValue) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    return true;
-                default:
-                    return false;
-            }
+            return usageValue switch {
+                0 or 1 or 2 or 3 => true,
+                _ => false,
+            };
         }
         private bool ValidateSelector(int selectorValue) {
-            switch (selectorValue) {
-                case 0:
-                case 1:
-                    return true;
-                default:
-                    return false;
-            }
+            return selectorValue switch {
+                0 or 1 => true,
+                _ => false,
+            };
         }
         private string TranslateUsage(int usage) {
-            switch (usage) {
-                case 0:
-                    return "PKIX-TA: CA Constraint";
-                case 1:
-                    return "PKIX-EE: Service Certificate Constraint";
-                case 2:
-                    return "DANE-TA: Trust Anchor Assertion";
-                case 3:
-                    return "DANE-EE: Domain Issued Certificate";
-                default:
-                    return "Unknown";
-            }
+            return usage switch {
+                0 => "PKIX-TA: CA Constraint",
+                1 => "PKIX-EE: Service Certificate Constraint",
+                2 => "DANE-TA: Trust Anchor Assertion",
+                3 => "DANE-EE: Domain Issued Certificate",
+                _ => "Unknown",
+            };
         }
 
         private string TranslateSelector(int selector) {
-            switch (selector) {
-                case 0:
-                    return "Cert: Full Certificate";
-                case 1:
-                    return "SPKI: SubjectPublicKeyInfo";
-                default:
-                    return "Unknown";
-            }
+            return selector switch {
+                0 => "Cert: Full Certificate",
+                1 => "SPKI: SubjectPublicKeyInfo",
+                _ => "Unknown",
+            };
         }
 
         private string TranslateMatchingType(int matchingType) {
-            switch (matchingType) {
-                case 0:
-                    return "Full: Full Certificate or SPKI";
-                case 1:
-                    return "SHA-256: SHA-256 of Certificate or SPKI";
-                case 2:
-                    return "SHA-512: SHA-512 of Certificate or SPKI";
-                default:
-                    return "Unknown";
-            }
+            return matchingType switch {
+                0 => "Full: Full Certificate or SPKI",
+                1 => "SHA-256: SHA-256 of Certificate or SPKI",
+                2 => "SHA-512: SHA-512 of Certificate or SPKI",
+                _ => "Unknown",
+            };
         }
 
         private bool IsHexadecimal(string input) {
