@@ -45,6 +45,8 @@ namespace DomainDetective {
                 }
 
                 await writer.WriteLineAsync("QUIT");
+                await writer.FlushAsync();
+                await reader.ReadLineAsync();
 
                 return capabilities.Exists(c => c.Equals("STARTTLS", System.StringComparison.OrdinalIgnoreCase));
             } catch (System.Exception ex) {
