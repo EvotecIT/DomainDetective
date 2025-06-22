@@ -47,6 +47,11 @@ namespace DomainDetective {
             PrioritiesInOrder = true;
             HasBackupServers = false;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var mxRecordList = dnsResults.ToList();
             MxRecordExists = mxRecordList.Any();
 

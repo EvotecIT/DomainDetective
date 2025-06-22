@@ -10,6 +10,11 @@ namespace DomainDetective {
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield(); // To avoid warning about lack of 'await'
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var dkimRecordList = dnsResults.ToList();
             var analysis = new DkimRecordAnalysis {
                 DkimRecordExists = dkimRecordList.Any(),

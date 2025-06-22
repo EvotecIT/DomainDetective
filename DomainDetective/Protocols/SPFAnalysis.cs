@@ -101,6 +101,10 @@ namespace DomainDetective {
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             Reset();
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;

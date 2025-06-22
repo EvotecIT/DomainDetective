@@ -28,6 +28,11 @@ namespace DomainDetective {
             MailtoRua = new List<string>();
             HttpRua = new List<string>();
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var recordList = dnsResults.ToList();
             TlsRptRecordExists = recordList.Any();
             if (!TlsRptRecordExists) {
