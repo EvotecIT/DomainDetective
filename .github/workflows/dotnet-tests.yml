@@ -57,7 +57,17 @@ jobs:
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+              run: >-
+                  dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+                  --configuration ${{ env.BUILD_CONFIGURATION }}
+                  --framework net8.0
+                  --no-build
+                  --verbosity normal
+                  --logger trx
+                  --collect:"XPlat Code Coverage"
+                  --blame-hang-timeout 2m
+                  --blame-hang-dump-type none
+                  --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
@@ -103,7 +113,17 @@ jobs:
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+              run: >-
+                  dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+                  --configuration ${{ env.BUILD_CONFIGURATION }}
+                  --framework net8.0
+                  --no-build
+                  --verbosity normal
+                  --logger trx
+                  --collect:"XPlat Code Coverage"
+                  --blame-hang-timeout 2m
+                  --blame-hang-dump-type none
+                  --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
@@ -144,7 +164,16 @@ jobs:
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+              run: >-
+                  dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj
+                  --configuration ${{ env.BUILD_CONFIGURATION }}
+                  --framework net8.0
+                  --no-build
+                  --verbosity normal
+                  --logger trx
+                  --collect:"XPlat Code Coverage"
+                  --blame-hang-timeout 2m
+                  --blame-hang-dump-type none
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
