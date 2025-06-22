@@ -100,7 +100,6 @@ namespace DomainDetective {
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            TestSpfRecords.Clear();
             Reset();
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
@@ -154,6 +153,9 @@ namespace DomainDetective {
 
             // check if the SPF record contains exists: with no domain
             CheckForNullDnsLookups(parts);
+
+            // clear fake DNS entries after analysis to avoid cross-run contamination
+            TestSpfRecords.Clear();
         }
 
 
