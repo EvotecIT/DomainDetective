@@ -14,6 +14,7 @@ namespace DomainDetective {
         SECURITYTXT,
         SOA,
         OPENRELAY,
-        STARTTLS
+        STARTTLS,
+        HTTP
     }
 }

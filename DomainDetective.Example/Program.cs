@@ -26,6 +26,9 @@ public static partial class Program {
         await ExampleCertificateVerification();
         await ExampleCertificateVerificationByHealthCheck();
 
+        await ExampleAnalyseHTTP();
+        await ExampleAnalyseHTTPByHealthCheck();
+
 
         await ExampleAnalyseByDomainDANE();
         await ExampleAnalyseByStringDANE();
