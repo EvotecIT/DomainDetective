@@ -39,6 +39,7 @@ namespace DomainDetective.Tests {
             var url = $"http://localhost:{GetFreePort()}/";
             await analysis.AnalyzeUrl(url, false, new InternalLogger());
             Assert.False(analysis.IsReachable);
+            Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
         }
 
         private static int GetFreePort() {

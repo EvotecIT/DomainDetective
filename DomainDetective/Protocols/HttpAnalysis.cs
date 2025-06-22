@@ -16,6 +16,8 @@ namespace DomainDetective {
         public bool HstsPresent { get; private set; }
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
+        /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
+        public string FailureReason { get; private set; }
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -29,6 +31,7 @@ namespace DomainDetective {
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
             using var client = new HttpClient(handler);
             var sw = Stopwatch.StartNew();
+            FailureReason = null;
             try {
                 var response = await client.GetAsync(url);
                 sw.Stop();
@@ -43,18 +46,22 @@ namespace DomainDetective {
                  se.SocketErrorCode == System.Net.Sockets.SocketError.NoData)) {
                 sw.Stop();
                 IsReachable = false;
+                FailureReason = $"DNS lookup failed: {se.Message}";
                 logger?.WriteError("DNS lookup failed for {0}: {1}", url, se.Message);
             } catch (HttpRequestException ex) {
                 sw.Stop();
                 IsReachable = false;
+                FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
             } catch (TaskCanceledException ex) {
                 sw.Stop();
                 IsReachable = false;
+                FailureReason = $"Timeout: {ex.Message}";
                 logger?.WriteError("HTTP request timed out for {0}: {1}", url, ex.Message);
             } catch (Exception ex) {
                 sw.Stop();
                 IsReachable = false;
+                FailureReason = $"HTTP check failed: {ex.Message}";
                 logger?.WriteError("HTTP check failed for {0}: {1}", url, ex.Message);
             }
         }
