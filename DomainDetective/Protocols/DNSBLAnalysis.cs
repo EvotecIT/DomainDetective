@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     public class DNSBLRecord {
         public string IPAddress { get; set; }
+        public string OriginalIPAddress { get; set; }
         public string FQDN { get; set; }
         public string BlackList { get; set; }
         //public string BlackListReason { get; set; }
@@ -205,9 +206,15 @@ namespace DomainDetective {
 
         internal InternalLogger Logger { get; set; }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
-            Logger = logger;
+        public void Reset() {
+            Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
+            Logger = null;
+        }
+
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
+            Reset();
+            Logger = logger;
 
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
 
@@ -245,6 +252,7 @@ namespace DomainDetective {
         }
 
         internal async Task AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
+            Reset();
             Logger = logger;
             Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var results = await QueryDNSBL(DNSBLLists, ipAddressOrHostname);
@@ -308,6 +316,7 @@ namespace DomainDetective {
                 if (pair.Value.Count == 0) {
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
+                        OriginalIPAddress = ipAddressOrHostname,
                         FQDN = pair.Key,
                         BlackList = pair.Key.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
                         IsBlackListed = false,
@@ -318,6 +327,7 @@ namespace DomainDetective {
                     foreach (var record in pair.Value) {
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
+                            OriginalIPAddress = ipAddressOrHostname,
                             FQDN = record.Name,
                             BlackList = record.Name.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
                             IsBlackListed = true,

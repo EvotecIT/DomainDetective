@@ -1,5 +1,6 @@
 using DnsClientX;
 using DomainDetective;
+using System.Net;
 namespace DomainDetective.Tests {
     public class TestDnsPropagation {
         [Fact]
@@ -52,6 +53,27 @@ namespace DomainDetective.Tests {
             var groups = DnsPropagationAnalysis.CompareResults(results);
             Assert.Equal(2, groups.Count);
             Assert.Contains(groups, g => g.Value.Any(s => s.IPAddress == "9.9.9.9"));
+        }
+
+        [Fact]
+        public void CompareResultsHandlesIpv6Variants() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = new[] { "2001:0db8:0000:0000:0000:0000:0000:0001" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    Records = new[] { "2001:db8::1" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Single(groups);
+            Assert.Equal(2, groups.First().Value.Count);
+            Assert.Equal(IPAddress.Parse("2001:db8::1").ToString(), groups.Keys.First());
         }
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -16,7 +17,7 @@ namespace DomainDetective {
 
         public X509Certificate2 Certificate { get; set; }
 
-        public async Task AnalyzeUrl(string url, int port, InternalLogger logger) {
+        public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
@@ -29,7 +30,7 @@ namespace DomainDetective {
                         var request = new HttpRequestMessage(HttpMethod.Get, url) {
                             Version = new Version(2, 0)
                         };
-                        HttpResponseMessage response = await client.SendAsync(request);
+                        HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                         ProtocolVersion = response.Version;
                         IsReachable = response.IsSuccessStatusCode;
                         if (Certificate != null) {
@@ -49,9 +50,9 @@ namespace DomainDetective {
         /// <param name="url">The URL.</param>
         /// <param name="port">The port.</param>
         /// <returns></returns>
-        public static async Task<CertificateAnalysis> CheckWebsiteCertificate(string url, int port = 443) {
+        public static async Task<CertificateAnalysis> CheckWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
             var analysis = new CertificateAnalysis();
-            await analysis.AnalyzeUrl(url, port, new InternalLogger());
+            await analysis.AnalyzeUrl(url, port, new InternalLogger(), cancellationToken);
             return analysis;
         }
     }

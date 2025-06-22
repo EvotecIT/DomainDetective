@@ -59,8 +59,7 @@ namespace DomainDetective {
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
 
-        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            // reset all properties so repeated calls don't accumulate data
+        public void Reset() {
             SpfRecord = null;
             SpfRecords = new List<string>();
             SpfRecordExists = false;
@@ -98,6 +97,10 @@ namespace DomainDetective {
             AllMechanism = null;
             SpfPartAnalyses = new List<SpfPartAnalysis>();
             SpfTestResults = new List<SpfTestResult>();
+        }
+
+        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            Reset();
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;
