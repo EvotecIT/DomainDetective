@@ -119,7 +119,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-windows
+          name: test-results-windows-${{ matrix.testclass }}
           path: |
             **/*.trx
             results/**/*.trx
@@ -128,7 +128,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports-windows
+          name: coverage-reports-windows-${{ matrix.testclass }}
           path: |
             **/coverage.cobertura.xml
             results/**/coverage.cobertura.xml
@@ -220,7 +220,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-ubuntu
+          name: test-results-ubuntu-${{ matrix.testclass }}
           path: |
             **/*.trx
             results/**/*.trx
@@ -229,7 +229,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports-ubuntu
+          name: coverage-reports-ubuntu-${{ matrix.testclass }}
           path: |
             **/coverage.cobertura.xml
             results/**/coverage.cobertura.xml
