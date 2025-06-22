@@ -5,6 +5,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using System.Threading;
 using Xunit;
 
 namespace DomainDetective.Tests {
@@ -15,11 +16,19 @@ namespace DomainDetective.Tests {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
             var serverTask = Task.Run(async () => {
-                using var client = await listener.AcceptTcpClientAsync();
-                using var ssl = new SslStream(client.GetStream());
-                await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
-                await Task.Delay(100);
+                try {
+                    while (!cts.Token.IsCancellationRequested) {
+                        var client = await listener.AcceptTcpClientAsync(cts.Token);
+                        _ = Task.Run(async () => {
+                            using var ssl = new SslStream(client.GetStream());
+                            await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                        }, cts.Token);
+                    }
+                } catch (OperationCanceledException) {
+                    // expected on shutdown
+                }
             });
 
             try {
@@ -30,6 +39,7 @@ namespace DomainDetective.Tests {
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
             } finally {
+                cts.Cancel();
                 listener.Stop();
                 await serverTask;
             }
