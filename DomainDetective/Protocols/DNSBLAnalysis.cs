@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -399,7 +400,7 @@ namespace DomainDetective {
                 throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
             }
 
-            var lines = File.ReadAllLines(filePath);
+            var lines = File.ReadAllLines(filePath, Encoding.UTF8);
 
             if (clearExisting) {
                 ClearDNSBL();
