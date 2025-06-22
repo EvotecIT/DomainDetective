@@ -262,5 +262,38 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, healthCheck.SpfAnalysis.DnsLookupsCount);
             Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
         }
+
+        [Fact]
+        public async Task EscapedParenthesesHandled() {
+            var spfRecord = @"v=spf1 redirect=example.com\(test\)";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
+            Assert.Equal("example.com(test)", healthCheck.SpfAnalysis.RedirectValue);
+        }
+
+        [Fact]
+        public async Task EscapedSpaceHandled() {
+            var spfRecord = @"v=spf1 redirect=example.com\ test";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.HasRedirect);
+            Assert.Equal("example.com test", healthCheck.SpfAnalysis.RedirectValue);
+        }
+
+        [Fact]
+        public async Task CommentsAreIgnored() {
+            var spfRecord = "v=spf1 ip4:192.0.2.1 -all (comment)";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("192.0.2.1", healthCheck.SpfAnalysis.Ipv4Records);
+            Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
+        }
     }
 }
