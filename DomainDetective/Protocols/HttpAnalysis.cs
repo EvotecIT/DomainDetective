@@ -38,6 +38,20 @@ namespace DomainDetective {
                 if (checkHsts) {
                     HstsPresent = response.Headers.Contains("Strict-Transport-Security");
                 }
+            } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&
+                (se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound ||
+                 se.SocketErrorCode == System.Net.Sockets.SocketError.NoData)) {
+                sw.Stop();
+                IsReachable = false;
+                logger?.WriteError("DNS lookup failed for {0}: {1}", url, se.Message);
+            } catch (HttpRequestException ex) {
+                sw.Stop();
+                IsReachable = false;
+                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+            } catch (TaskCanceledException ex) {
+                sw.Stop();
+                IsReachable = false;
+                logger?.WriteError("HTTP request timed out for {0}: {1}", url, ex.Message);
             } catch (Exception ex) {
                 sw.Stop();
                 IsReachable = false;
