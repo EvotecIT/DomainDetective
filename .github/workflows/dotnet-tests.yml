@@ -21,6 +21,32 @@ jobs:
     test-windows:
         name: 'Windows'
         runs-on: windows-latest
+        strategy:
+            matrix:
+                testclass:
+                    - TestAll
+                    - TestBimiAnalysis
+                    - TestCAAAnalysis
+                    - TestCertificateHTTP
+                    - TestDANEnalysis
+                    - TestDkimAnalysis
+                    - TestDkimGuess
+                    - TestDMARCAnalysis
+                    - TestDnsblConfig
+                    - TestDnsblIpv6
+                    - TestDnsblManual
+                    - TestDnssecAnalysis
+                    - TestDnsPropagation
+                    - TestHTTPAnalysis
+                    - TestMTASTSAnalysis
+                    - TestMXAnalysis
+                    - TestNSAnalysis
+                    - TestOpenRelayAnalysis
+                    - TestSMTPTLSAnalysis
+                    - TestSOAAnalysis
+                    - TestSpfAnalysis
+                    - TestSTARTTLSAnalysis
+                    - TestWhoisAnalysis
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -29,6 +55,8 @@ jobs:
               uses: actions/setup-dotnet@v4
               with:
                   dotnet-version: ${{ env.DOTNET_VERSION }}
+                  cache: true
+                  cache-dependency-path: '**/*.csproj'
 
             - name: Restore dependencies
               run: dotnet restore DomainDetective.sln
@@ -37,20 +65,20 @@ jobs:
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: test-results-windows
+                  name: test-results-windows-${{ matrix.testclass }}
                   path: '**/*.trx'
 
             - name: Upload coverage reports
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: coverage-reports-windows
+                  name: coverage-reports-windows-${{ matrix.testclass }}
                   path: '**/coverage.cobertura.xml'
 
             - name: Upload coverage to Codecov
@@ -61,6 +89,32 @@ jobs:
     test-ubuntu:
         name: 'Ubuntu'
         runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                testclass:
+                    - TestAll
+                    - TestBimiAnalysis
+                    - TestCAAAnalysis
+                    - TestCertificateHTTP
+                    - TestDANEnalysis
+                    - TestDkimAnalysis
+                    - TestDkimGuess
+                    - TestDMARCAnalysis
+                    - TestDnsblConfig
+                    - TestDnsblIpv6
+                    - TestDnsblManual
+                    - TestDnssecAnalysis
+                    - TestDnsPropagation
+                    - TestHTTPAnalysis
+                    - TestMTASTSAnalysis
+                    - TestMXAnalysis
+                    - TestNSAnalysis
+                    - TestOpenRelayAnalysis
+                    - TestSMTPTLSAnalysis
+                    - TestSOAAnalysis
+                    - TestSpfAnalysis
+                    - TestSTARTTLSAnalysis
+                    - TestWhoisAnalysis
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -69,6 +123,8 @@ jobs:
               uses: actions/setup-dotnet@v4
               with:
                   dotnet-version: ${{ env.DOTNET_VERSION }}
+                  cache: true
+                  cache-dependency-path: '**/*.csproj'
 
             - name: Restore dependencies
               run: dotnet restore DomainDetective.sln
@@ -77,20 +133,20 @@ jobs:
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
             - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage" --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
 
             - name: Upload test results
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: test-results-ubuntu
+                  name: test-results-ubuntu-${{ matrix.testclass }}
                   path: '**/*.trx'
 
             - name: Upload coverage reports
               uses: actions/upload-artifact@v4
               if: always()
               with:
-                  name: coverage-reports-ubuntu
+                  name: coverage-reports-ubuntu-${{ matrix.testclass }}
                   path: '**/coverage.cobertura.xml'
 
             - name: Upload coverage to Codecov
