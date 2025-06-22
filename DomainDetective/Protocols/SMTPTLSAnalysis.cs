@@ -37,8 +37,8 @@ namespace DomainDetective {
         };
 
         private static async Task<bool> CheckProtocol(string host, int port, SslProtocols protocol, TlsResult result, InternalLogger logger) {
+            using var client = new TcpClient();
             try {
-                using var client = new TcpClient();
                 await client.ConnectAsync(host, port);
                 using var ssl = new SslStream(client.GetStream(), false, (sender, certificate, chain, errors) => {
                     result.CertificateValid = errors == SslPolicyErrors.None;

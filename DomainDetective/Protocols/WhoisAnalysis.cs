@@ -291,35 +291,35 @@ public class WhoisAnalysis {
             throw new UnsupportedTldException(domain, TLD);
         }
 
+        using TcpClient tcpClient = new TcpClient();
         try {
-            using (TcpClient tcpClient = new TcpClient()) {
-                var serverParts = whoisServer.Split(':');
-                var host = serverParts[0];
-                var port = 43;
-                if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
-                    port = customPort;
-                }
-                await tcpClient.ConnectAsync(host, port);
-
-                using NetworkStream networkStream = tcpClient.GetStream();
-                using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
-                    await streamWriter.WriteLineAsync(domain);
-                    await streamWriter.FlushAsync();
-                }
-
-                await networkStream.FlushAsync();
-                using var memoryStream = new MemoryStream();
-                await networkStream.CopyToAsync(memoryStream);
-                var responseBytes = memoryStream.ToArray();
-
-                string response = Encoding.UTF8.GetString(responseBytes);
-                if (response.Contains('\uFFFD')) {
-                    response = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
-                }
-
-                response = Regex.Replace(response, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
-                WhoisData = response;
+            var serverParts = whoisServer.Split(':');
+            var host = serverParts[0];
+            var port = 43;
+            if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
+                port = customPort;
             }
+
+            await tcpClient.ConnectAsync(host, port);
+
+            using NetworkStream networkStream = tcpClient.GetStream();
+            using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
+                await streamWriter.WriteLineAsync(domain);
+                await streamWriter.FlushAsync();
+            }
+
+            await networkStream.FlushAsync();
+            using var memoryStream = new MemoryStream();
+            await networkStream.CopyToAsync(memoryStream);
+            var responseBytes = memoryStream.ToArray();
+
+            string response = Encoding.UTF8.GetString(responseBytes);
+            if (response.Contains('\uFFFD')) {
+                response = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
+            }
+
+            response = Regex.Replace(response, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
+            WhoisData = response;
             ParseWhoisData();
         } catch (Exception ex) {
             Console.WriteLine("Error querying WHOIS server: " + ex.Message);
