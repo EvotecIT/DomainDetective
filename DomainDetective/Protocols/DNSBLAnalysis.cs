@@ -425,6 +425,8 @@ namespace DomainDetective {
                     trimmed = trimmed.Substring(0, commentIndex).Trim();
                 }
 
+                trimmed = trimmed.TrimEnd('#').Trim();
+
                 if (!string.IsNullOrWhiteSpace(trimmed)) {
                     AddDNSBL(trimmed, enabled, comment);
                 }
