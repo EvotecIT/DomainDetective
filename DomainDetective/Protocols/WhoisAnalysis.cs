@@ -33,6 +33,8 @@ public class WhoisAnalysis {
     public string RegistrarEmail { get; set; }
     public string WhoisData { get; set; }
 
+    private static readonly InternalLogger _logger = new();
+
     private readonly Dictionary<string, string> WhoisServers = new Dictionary<string, string> {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
@@ -322,7 +324,7 @@ public class WhoisAnalysis {
             WhoisData = response;
             ParseWhoisData();
         } catch (Exception ex) {
-            Console.WriteLine("Error querying WHOIS server: " + ex.Message);
+            _logger.WriteError("Error querying WHOIS server: {0}", ex.Message);
         }
     }
 
