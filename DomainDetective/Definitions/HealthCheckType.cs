@@ -18,6 +18,7 @@ namespace DomainDetective {
         OPENRELAY,
         STARTTLS,
         SMTPTLS,
-        HTTP
+        HTTP,
+        HPKP
     }
 }
