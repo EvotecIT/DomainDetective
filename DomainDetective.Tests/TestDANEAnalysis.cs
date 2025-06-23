@@ -102,6 +102,17 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CustomServiceNamesAreSupported() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            await healthCheck.VerifyDANE([new ServiceDefinition("example.com", 443)]);
+
+            Assert.NotNull(healthCheck.DaneAnalysis);
+        }
+
+        [Fact]
         public async Task AllCombinationsAreConsideredValid() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false

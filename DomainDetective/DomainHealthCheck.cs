@@ -364,6 +364,26 @@ namespace DomainDetective {
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
 
+        public async Task VerifyDANE(ServiceDefinition[] services, CancellationToken cancellationToken = default) {
+            if (services == null || services.Length == 0) {
+                throw new ArgumentException("No services provided.", nameof(services));
+            }
+
+            DaneAnalysis = new DANEAnalysis();
+            var allDaneRecords = new List<DnsAnswer>();
+
+            foreach (var service in services.Distinct()) {
+                var host = service.Host.TrimEnd('.');
+                var daneName = $"_{service.Port}._tcp.{host}";
+                var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
+                if (dane.Any()) {
+                    allDaneRecords.AddRange(dane);
+                }
+            }
+
+            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+        }
+
         public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) {
             DaneAnalysis = new DANEAnalysis();
             if (serviceTypes == null || serviceTypes.Length == 0) {
