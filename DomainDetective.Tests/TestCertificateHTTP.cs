@@ -11,6 +11,19 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task UnreachableHostLogsExceptionType() {
+            var logger = new InternalLogger();
+            LogEventArgs? eventArgs = null;
+            logger.OnErrorMessage += (_, e) => eventArgs = e;
+
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+
+            Assert.NotNull(eventArgs);
+            Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
+        }
+
+        [Fact]
         public async Task ValidHostSetsProtocolVersion() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis();

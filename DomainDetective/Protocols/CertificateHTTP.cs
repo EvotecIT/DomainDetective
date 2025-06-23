@@ -61,7 +61,7 @@ namespace DomainDetective {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                                 }
                             } catch (Exception ex) {
-                                logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.Message);
+                                logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
                             }
                         }
                         if (Certificate != null) {
@@ -69,7 +69,7 @@ namespace DomainDetective {
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
-                        logger?.WriteError("Exception reaching {0}: {1}", url, ex.Message);
+                        logger?.WriteError("Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
             }
