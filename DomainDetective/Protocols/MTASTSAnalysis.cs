@@ -74,12 +74,30 @@ namespace DomainDetective {
         internal InternalLogger Logger { get; set; }
 
         /// <summary>
+        /// Resets analysis state so the instance can be reused.
+        /// </summary>
+        public void Reset() {
+            Domain = null;
+            PolicyPresent = false;
+            PolicyValid = false;
+            ValidVersion = false;
+            ValidMode = false;
+            ValidMaxAge = false;
+            HasMx = false;
+            Mode = null;
+            MaxAge = 0;
+            Mx = new List<string>();
+            Policy = null;
+        }
+
+        /// <summary>
         /// Fetches and analyses the policy for the specified domain using HTTPS.
         /// </summary>
         /// <param name="domainName">The domain to query.</param>
         /// <param name="logger">A logger for warning messages.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
+            Reset();
             Logger = logger;
             Domain = domainName;
             string url = $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
@@ -98,7 +116,10 @@ namespace DomainDetective {
         /// Analyses the supplied policy text.
         /// </summary>
         /// <param name="text">Raw policy contents.</param>
-        public void AnalyzePolicyText(string text) => ParsePolicy(text);
+        public void AnalyzePolicyText(string text) {
+            Reset();
+            ParsePolicy(text);
+        }
 
         /// <summary>
         /// Retrieves the policy contents from the specified URL.
