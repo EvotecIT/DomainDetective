@@ -55,6 +55,8 @@ namespace DomainDetective {
 
         public MTASTSAnalysis MTASTSAnalysis { get; private set; } = new MTASTSAnalysis();
 
+        public string MtaStsPolicyUrlOverride { get; set; }
+
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
@@ -66,6 +68,8 @@ namespace DomainDetective {
         public OpenRelayAnalysis OpenRelayAnalysis { get; private set; } = new OpenRelayAnalysis();
 
         public STARTTLSAnalysis StartTlsAnalysis { get; private set; } = new STARTTLSAnalysis();
+
+        public SMTPTLSAnalysis SmtpTlsAnalysis { get; private set; } = new SMTPTLSAnalysis();
 
         public TLSRPTAnalysis TLSRPTAnalysis { get; private set; } = new TLSRPTAnalysis();
 
@@ -174,7 +178,9 @@ namespace DomainDetective {
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
                         break;
                     case HealthCheckType.MTASTS:
-                        MTASTSAnalysis = new MTASTSAnalysis();
+                        MTASTSAnalysis = new MTASTSAnalysis {
+                            PolicyUrlOverride = MtaStsPolicyUrlOverride
+                        };
                         await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
                         break;
                     case HealthCheckType.TLSRPT:
@@ -207,6 +213,11 @@ namespace DomainDetective {
                         var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+                        break;
+                    case HealthCheckType.SMTPTLS:
+                        var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var smtpTlsHosts = mxRecordsForSmtpTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
@@ -313,6 +324,10 @@ namespace DomainDetective {
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
+        public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
         public async Task CheckTLSRPT(string tlsRptRecord, CancellationToken cancellationToken = default) {
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(new List<DnsAnswer> {
                 new DnsAnswer {
@@ -338,7 +353,9 @@ namespace DomainDetective {
         }
 
         public async Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) {
-            MTASTSAnalysis = new MTASTSAnalysis();
+            MTASTSAnalysis = new MTASTSAnalysis {
+                PolicyUrlOverride = MtaStsPolicyUrlOverride
+            };
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
@@ -346,6 +363,12 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+        }
+
+        public async Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default) {
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
         }
 
         public async Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) {
