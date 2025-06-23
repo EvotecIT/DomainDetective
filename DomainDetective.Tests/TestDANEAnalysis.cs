@@ -144,7 +144,7 @@ namespace DomainDetective.Tests {
         public async Task VerifyDaneThrowsIfPortsNull() {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentException>(async () =>
-                await healthCheck.VerifyDANE("example.com", null!));
+                await healthCheck.VerifyDANE("example.com", (int[])null!));
         }
 
         [Fact]
