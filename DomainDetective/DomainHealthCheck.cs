@@ -55,6 +55,8 @@ namespace DomainDetective {
 
         public MTASTSAnalysis MTASTSAnalysis { get; private set; } = new MTASTSAnalysis();
 
+        public string MtaStsPolicyUrlOverride { get; set; }
+
         public CertificateAnalysis CertificateAnalysis { get; private set; } = new CertificateAnalysis();
 
         public SecurityTXTAnalysis SecurityTXTAnalysis { get; private set; } = new SecurityTXTAnalysis();
@@ -172,7 +174,9 @@ namespace DomainDetective {
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
                         break;
                     case HealthCheckType.MTASTS:
-                        MTASTSAnalysis = new MTASTSAnalysis();
+                        MTASTSAnalysis = new MTASTSAnalysis {
+                            PolicyUrlOverride = MtaStsPolicyUrlOverride
+                        };
                         await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
                         break;
                     case HealthCheckType.TLSRPT:
@@ -333,7 +337,9 @@ namespace DomainDetective {
         }
 
         public async Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) {
-            MTASTSAnalysis = new MTASTSAnalysis();
+            MTASTSAnalysis = new MTASTSAnalysis {
+                PolicyUrlOverride = MtaStsPolicyUrlOverride
+            };
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
