@@ -87,6 +87,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -185,6 +187,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -246,6 +250,8 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
       - name: Restore dependencies
         run: dotnet restore DomainDetective.sln
