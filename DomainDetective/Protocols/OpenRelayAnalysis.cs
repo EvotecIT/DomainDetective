@@ -9,6 +9,7 @@ namespace DomainDetective {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger) {
+            ServerResults.Clear();
             var allows = await TryRelay(host, port, logger);
             ServerResults[$"{host}:{port}"] = allows;
         }
