@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
@@ -15,6 +16,10 @@ namespace DomainDetective {
 
         public Version ProtocolVersion { get; private set; }
 
+        public bool Http2Supported { get; private set; }
+
+        public bool Http3Supported { get; private set; }
+
         public X509Certificate2 Certificate { get; set; }
 
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
@@ -27,11 +32,22 @@ namespace DomainDetective {
                 };
                 using (var client = new HttpClient(handler)) {
                     try {
+#if NET6_0_OR_GREATER
                         var request = new HttpRequestMessage(HttpMethod.Get, url) {
-                            Version = new Version(2, 0)
+                            Version = HttpVersion.Version30,
+                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                         };
-                        HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                         ProtocolVersion = response.Version;
+                        Http3Supported = response.Version >= HttpVersion.Version30;
+                        Http2Supported = response.Version >= HttpVersion.Version20;
+#else
+                        var request = new HttpRequestMessage(HttpMethod.Get, url);
+                        using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+                        ProtocolVersion = response.Version;
+                        Http2Supported = response.Version.Major >= 2;
+                        Http3Supported = false;
+#endif
                         IsReachable = response.IsSuccessStatusCode;
                         if (Certificate != null) {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;

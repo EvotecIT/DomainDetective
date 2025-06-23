@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -18,6 +19,12 @@ namespace DomainDetective {
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
         public string FailureReason { get; private set; }
+        /// <summary>Gets the HTTP protocol version returned by the server.</summary>
+        public Version ProtocolVersion { get; private set; }
+        /// <summary>Gets a value indicating whether the server supports HTTP/2.</summary>
+        public bool Http2Supported { get; private set; }
+        /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
+        public bool Http3Supported { get; private set; }
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -33,11 +40,27 @@ namespace DomainDetective {
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             try {
-                var response = await client.GetAsync(url);
+#if NET6_0_OR_GREATER
+                var request = new HttpRequestMessage(HttpMethod.Get, url) {
+                    Version = HttpVersion.Version30,
+                    VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                };
+                using var response = await client.SendAsync(request);
+#else
+                using var response = await client.GetAsync(url);
+#endif
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
+                ProtocolVersion = response.Version;
                 IsReachable = true;
+#if NET6_0_OR_GREATER
+                Http3Supported = response.Version >= HttpVersion.Version30;
+                Http2Supported = response.Version >= HttpVersion.Version20;
+#else
+                Http2Supported = response.Version.Major >= 2;
+                Http3Supported = false;
+#endif
                 if (checkHsts) {
                     HstsPresent = response.Headers.Contains("Strict-Transport-Security");
                 }

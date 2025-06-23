@@ -20,8 +20,8 @@ Current capabilities include:
 - [ ] Verify MTA-STS
 - [ ] Verify SMTP TLS
 - [ ] Verify Website Connectivity
-  - [ ] Verify HTTP/2
-  - [ ] Verify HTTP/3
+  - [x] Verify HTTP/2
+  - [x] Verify HTTP/3
   - [ ] Verify Certificate
   - [x] Verify Response Time
   - [ ] Verify Headers
