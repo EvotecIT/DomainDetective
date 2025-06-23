@@ -210,6 +210,9 @@ namespace DomainDetective {
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
                         break;
+                    default:
+                        _logger.WriteError("Unknown health check type: {0}", healthCheckType);
+                        throw new System.Exception("Health check type not implemented.");
                 }
             }
         }
