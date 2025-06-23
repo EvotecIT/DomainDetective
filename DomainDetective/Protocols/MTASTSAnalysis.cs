@@ -4,22 +4,100 @@ using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides functionality for retrieving and analysing MTA-STS policies.
+    /// </summary>
     public class MTASTSAnalysis {
+        /// <summary>
+        /// Gets the domain name that was analysed.
+        /// </summary>
         public string Domain { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the policy was successfully fetched.
+        /// </summary>
         public bool PolicyPresent { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the policy is valid.
+        /// </summary>
         public bool PolicyValid { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the policy version is valid.
+        /// </summary>
         public bool ValidVersion { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the policy mode is valid.
+        /// </summary>
         public bool ValidMode { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the Max-Age value is valid.
+        /// </summary>
         public bool ValidMaxAge { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether at least one MX entry was found.
+        /// </summary>
         public bool HasMx { get; private set; }
+
+        /// <summary>
+        /// Gets the policy mode value.
+        /// </summary>
         public string Mode { get; private set; }
+
+        /// <summary>
+        /// Gets the Max-Age value defined by the policy.
+        /// </summary>
         public int MaxAge { get; private set; }
+
+        /// <summary>
+        /// Gets the list of MX entries found in the policy.
+        /// </summary>
         public List<string> Mx { get; private set; } = new List<string>();
+
+        /// <summary>
+        /// Gets the text of the policy.
+        /// </summary>
         public string Policy { get; private set; }
 
+        /// <summary>
+        /// Gets a value indicating whether the policy enforces MTA-STS.
+        /// </summary>
+        public bool EnforcesMtaSts => PolicyValid && string.Equals(Mode, "enforce", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Gets or sets the logger instance used for reporting warnings.
+        /// </summary>
         internal InternalLogger Logger { get; set; }
 
+        /// <summary>
+        /// Resets analysis state so the instance can be reused.
+        /// </summary>
+        public void Reset() {
+            Domain = null;
+            PolicyPresent = false;
+            PolicyValid = false;
+            ValidVersion = false;
+            ValidMode = false;
+            ValidMaxAge = false;
+            HasMx = false;
+            Mode = null;
+            MaxAge = 0;
+            Mx = new List<string>();
+            Policy = null;
+        }
+
+        /// <summary>
+        /// Fetches and analyses the policy for the specified domain using HTTPS.
+        /// </summary>
+        /// <param name="domainName">The domain to query.</param>
+        /// <param name="logger">A logger for warning messages.</param>
+        /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
+            Reset();
             Logger = logger;
             Domain = domainName;
             string url = $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
@@ -34,8 +112,20 @@ namespace DomainDetective {
             ParsePolicy(content);
         }
 
-        public void AnalyzePolicyText(string text) => ParsePolicy(text);
+        /// <summary>
+        /// Analyses the supplied policy text.
+        /// </summary>
+        /// <param name="text">Raw policy contents.</param>
+        public void AnalyzePolicyText(string text) {
+            Reset();
+            ParsePolicy(text);
+        }
 
+        /// <summary>
+        /// Retrieves the policy contents from the specified URL.
+        /// </summary>
+        /// <param name="url">The policy URL.</param>
+        /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
         private async Task<string> GetPolicy(string url) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
@@ -52,6 +142,10 @@ namespace DomainDetective {
             return null;
         }
 
+        /// <summary>
+        /// Parses the supplied policy text and updates property values.
+        /// </summary>
+        /// <param name="text">Raw policy text.</param>
         private void ParsePolicy(string text) {
             PolicyValid = true;
             ValidVersion = false;

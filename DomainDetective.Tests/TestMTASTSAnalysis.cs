@@ -18,6 +18,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(86400, analysis.MaxAge);
             Assert.Single(analysis.Mx);
             Assert.Equal("mail.example.com", analysis.Mx[0]);
+            Assert.True(analysis.EnforcesMtaSts);
         }
 
         [Fact]
@@ -29,6 +30,18 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.PolicyValid);
             Assert.False(analysis.HasMx);
             Assert.False(analysis.ValidMaxAge);
+            Assert.False(analysis.EnforcesMtaSts);
+        }
+
+        [Fact]
+        public void PolicyNotEnforcedWhenModeTesting() {
+            var policy = "version: STSv1\nmode: testing\nmx: mail.example.com\nmax_age: 86400";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.True(analysis.PolicyValid);
+            Assert.Equal("testing", analysis.Mode);
+            Assert.False(analysis.EnforcesMtaSts);
         }
     }
 }
