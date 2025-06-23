@@ -67,6 +67,8 @@ namespace DomainDetective {
 
         public STARTTLSAnalysis StartTlsAnalysis { get; private set; } = new STARTTLSAnalysis();
 
+        public SMTPTLSAnalysis SmtpTlsAnalysis { get; private set; } = new SMTPTLSAnalysis();
+
         public TLSRPTAnalysis TLSRPTAnalysis { get; private set; } = new TLSRPTAnalysis();
 
         public BimiAnalysis BimiAnalysis { get; private set; } = new BimiAnalysis();
@@ -206,6 +208,11 @@ namespace DomainDetective {
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
                         break;
+                    case HealthCheckType.SMTPTLS:
+                        var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var smtpTlsHosts = mxRecordsForSmtpTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
+                        break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
                         break;
@@ -308,6 +315,10 @@ namespace DomainDetective {
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
+        public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
         public async Task CheckTLSRPT(string tlsRptRecord, CancellationToken cancellationToken = default) {
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(new List<DnsAnswer> {
                 new DnsAnswer {
@@ -341,6 +352,12 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+        }
+
+        public async Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default) {
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
         }
 
         public async Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) {
