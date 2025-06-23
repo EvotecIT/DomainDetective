@@ -35,7 +35,14 @@ public class WhoisAnalysis {
 
     private static readonly InternalLogger _logger = new();
 
-    private readonly Dictionary<string, string> WhoisServers = new Dictionary<string, string> {
+    // Lock object used to synchronize access to the WhoisServers dictionary
+    // since Dictionary<TK,TV> is not thread safe for concurrent writes.
+    private readonly object _whoisServersLock = new();
+
+    // Mapping of TLDs to WHOIS servers. Modify this collection only while
+    // holding _whoisServersLock to avoid race conditions in multi-threaded tests
+    // or applications.
+    private readonly Dictionary<string, string> WhoisServers = new() {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
         {"ae", "whois.aeda.net.ae"},
