@@ -393,6 +393,9 @@ namespace DomainDetective {
             }
 
             serviceTypes = serviceTypes.Distinct().ToArray();
+            if (serviceTypes.Length == 0) {
+                serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
+            }
 
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {

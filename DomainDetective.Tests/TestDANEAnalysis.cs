@@ -113,6 +113,19 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task EmptyServiceTypesDefaultsToSmtpHttps() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            await healthCheck.VerifyDANE("ietf.org", Array.Empty<ServiceType>());
+
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(1, healthCheck.DaneAnalysis.NumberOfRecords);
+        }
+
+        [Fact]
         public async Task AllCombinationsAreConsideredValid() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
