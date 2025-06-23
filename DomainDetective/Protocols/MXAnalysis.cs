@@ -87,6 +87,21 @@ namespace DomainDetective {
                 PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || (noA && noAAAA);
             }
         }
+
+        /// <summary>
+        /// Validates MX record configuration based on collected analysis.
+        /// </summary>
+        /// <returns>
+        /// <c>true</c> if configuration meets basic requirements; otherwise, <c>false</c>.
+        /// </returns>
+        public bool ValidMxConfiguration =>
+            MxRecordExists
+            && !PointsToCname
+            && !PointsToIpAddress
+            && !PointsToNonExistentDomain
+            && !PointsToDomainWithoutAOrAaaaRecord;
+
+        public bool ValidateMxConfiguration() => ValidMxConfiguration;
     }
 
 }

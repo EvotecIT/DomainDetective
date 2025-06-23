@@ -13,7 +13,7 @@ Current capabilities include:
 - [x] Verify CAA
 - [x] Verify NS Records
 - [x] Verify SOA Records
-- [ ] Verify MX Records
+- [x] Verify MX Records
 - [x] Verify DNSSEC
 - [x] Verify DANE/TLSA
 - [x] Verify STARTTLS
