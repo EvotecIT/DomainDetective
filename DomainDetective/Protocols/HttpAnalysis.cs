@@ -103,7 +103,7 @@ namespace DomainDetective {
                 IsReachable = false;
                 FailureReason = $"Timeout: {ex.Message}";
                 logger?.WriteError("HTTP request timed out for {0}: {1}", url, ex.Message);
-            } catch (Exception ex) {
+            } catch (Exception ex) when (ex is not InvalidOperationException) {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"HTTP check failed: {ex.Message}";

@@ -120,6 +120,8 @@ namespace DomainDetective.Tests {
                         ctx = await listener.GetContextAsync();
                     } catch (HttpListenerException) {
                         break;
+                    } catch (ObjectDisposedException) {
+                        break;
                     }
                     ctx.Response.StatusCode = 302;
                     ctx.Response.RedirectLocation = prefix;
