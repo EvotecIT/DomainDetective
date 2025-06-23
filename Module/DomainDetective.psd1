@@ -11,6 +11,7 @@
         'Test-CaaRecord',
         'Test-SecurityTXT',
         'Test-StartTls',
+        'Test-DomainHealth',
         'Add-DnsblProvider',
         'Remove-DnsblProvider',
         'Clear-DnsblProvider',
