@@ -1,4 +1,6 @@
 using System;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestCertificateHTTP {
@@ -8,6 +10,19 @@ namespace DomainDetective.Tests {
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
             Assert.False(analysis.IsReachable);
+        }
+
+        [Fact]
+        public async Task UnreachableHostLogsExceptionType() {
+            var logger = new InternalLogger();
+            LogEventArgs? eventArgs = null;
+            logger.OnErrorMessage += (_, e) => eventArgs = e;
+
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+
+            Assert.NotNull(eventArgs);
+            Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
         }
 
         [Fact]
