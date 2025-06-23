@@ -73,6 +73,8 @@ namespace DomainDetective {
 
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
+        public HPKPAnalysis HPKPAnalysis { get; private set; } = new HPKPAnalysis();
+
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
@@ -208,6 +210,9 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
+                        break;
+                    case HealthCheckType.HPKP:
+                        await HPKPAnalysis.AnalyzeUrl($"http://{domainName}", _logger);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
