@@ -14,7 +14,7 @@ namespace DomainDetective.Tests {
         public void Ipv6PtrFormat() {
             var ip = IPAddress.Parse("2001:db8::1");
             var expected = string.Join(
-                '.',
+                ".",
                 ip
                     .GetAddressBytes()
                     .SelectMany(b => new[] { (b >> 4) & 0xF, b & 0xF })
