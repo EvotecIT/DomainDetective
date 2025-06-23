@@ -37,65 +37,67 @@ namespace DomainDetective {
 
         private static async Task<TlsResult> CheckTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var result = new TlsResult();
-            using var client = new TcpClient();
             try {
-                await client.ConnectAsync(host, port);
-                using NetworkStream network = client.GetStream();
-                using var reader = new StreamReader(network);
-                using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+                using (var client = new TcpClient()) {
+                    await client.ConnectAsync(host, port);
 
-                await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
-                await writer.WriteLineAsync($"EHLO example.com");
+                    using NetworkStream network = client.GetStream();
+                    using (var reader = new StreamReader(network))
+                    using (var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" }) {
+                        await reader.ReadLineAsync();
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await writer.WriteLineAsync($"EHLO example.com");
 
-                var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                string line;
-                while ((line = await reader.ReadLineAsync()) != null) {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    logger?.WriteVerbose($"EHLO response: {line}");
-                    if (line.StartsWith("250")) {
-                        string capabilityLine = line.Substring(4).Trim();
-                        foreach (var part in capabilityLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
-                            capabilities.Add(part);
+                        var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        string line;
+                        while ((line = await reader.ReadLineAsync()) != null) {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            logger?.WriteVerbose($"EHLO response: {line}");
+                            if (line.StartsWith("250")) {
+                                string capabilityLine = line.Substring(4).Trim();
+                                foreach (var part in capabilityLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
+                                    capabilities.Add(part);
+                                }
+                                if (!line.StartsWith("250-")) {
+                                    break;
+                                }
+                            } else if (line.StartsWith("4") || line.StartsWith("5")) {
+                                break;
+                            }
                         }
-                        if (!line.StartsWith("250-")) {
-                            break;
+
+                        result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
+                        if (!result.StartTlsAdvertised) {
+                            await writer.WriteLineAsync("QUIT");
+                            await writer.FlushAsync();
+                            await reader.ReadLineAsync();
+                            return result;
                         }
-                    } else if (line.StartsWith("4") || line.StartsWith("5")) {
-                        break;
+
+                        await writer.WriteLineAsync("STARTTLS");
+                        string resp = await reader.ReadLineAsync();
+                        if (resp == null || !resp.StartsWith("220")) {
+                            logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {resp}");
+                            return result;
+                        }
+
+                        using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
+                            result.CertificateValid = errors == SslPolicyErrors.None;
+                            if (certificate is X509Certificate2 cert) {
+                                result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
+                            }
+                            return true;
+                        });
+
+                        await ssl.AuthenticateAsClientAsync(host);
+                        result.Protocol = ssl.SslProtocol;
+                        result.CipherAlgorithm = ssl.CipherAlgorithm;
+                        result.CipherStrength = ssl.CipherStrength;
+
+                        using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        await secureWriter.WriteLineAsync("QUIT");
                     }
                 }
-
-                result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
-                if (!result.StartTlsAdvertised) {
-                    await writer.WriteLineAsync("QUIT");
-                    await writer.FlushAsync();
-                    await reader.ReadLineAsync();
-                    return result;
-                }
-
-                await writer.WriteLineAsync("STARTTLS");
-                string resp = await reader.ReadLineAsync();
-                if (resp == null || !resp.StartsWith("220")) {
-                    logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {resp}");
-                    return result;
-                }
-
-                using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
-                    result.CertificateValid = errors == SslPolicyErrors.None;
-                    if (certificate is X509Certificate2 cert) {
-                        result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
-                    }
-                    return true;
-                });
-
-                await ssl.AuthenticateAsClientAsync(host);
-                result.Protocol = ssl.SslProtocol;
-                result.CipherAlgorithm = ssl.CipherAlgorithm;
-                result.CipherStrength = ssl.CipherStrength;
-
-                using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
-                await secureWriter.WriteLineAsync("QUIT");
             } catch (Exception ex) {
                 logger?.WriteError("SMTP TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
             }
