@@ -61,6 +61,15 @@ analysis.ClearDNSBL();
 analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
 ```
 
+Same actions are available from PowerShell using dedicated cmdlets:
+
+```powershell
+Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
+Remove-DnsblProvider -Domain 'dnsbl.example.com'
+Clear-DnsblProvider
+Load-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
+```
+
 ### Verifying Website Certificates
 `VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
 
