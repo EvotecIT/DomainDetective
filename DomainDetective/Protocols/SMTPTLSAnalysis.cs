@@ -18,6 +18,7 @@ namespace DomainDetective {
         public Dictionary<string, TlsResult> ServerResults { get; } = new();
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger) {
+            ServerResults.Clear();
             var result = new TlsResult();
             foreach (var protocol in _protocolsToTest) {
                 if (await CheckProtocol(host, port, protocol, result, logger)) {

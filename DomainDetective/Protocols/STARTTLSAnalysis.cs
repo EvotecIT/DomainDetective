@@ -9,12 +9,14 @@ namespace DomainDetective {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
             bool supports = await CheckStartTls(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = supports;
         }
 
         public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            ServerResults.Clear();
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
                 await AnalyzeServer(host, port, logger, cancellationToken);
