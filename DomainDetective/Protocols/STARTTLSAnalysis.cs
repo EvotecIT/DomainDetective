@@ -35,14 +35,16 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync($"EHLO example.com");
 
-                var capabilities = new List<string>();
+                var capabilities = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
                 string line;
                 while ((line = await reader.ReadLineAsync()) != null) {
                     cancellationToken.ThrowIfCancellationRequested();
                     logger?.WriteVerbose($"EHLO response: {line}");
                     if (line.StartsWith("250")) {
-                        string capability = line.Substring(4).Trim();
-                        capabilities.Add(capability);
+                        string capabilityLine = line.Substring(4).Trim();
+                        foreach (var part in capabilityLine.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries)) {
+                            capabilities.Add(part);
+                        }
                         if (!line.StartsWith("250-")) {
                             break;
                         }
@@ -55,7 +57,7 @@ namespace DomainDetective {
                 await writer.FlushAsync();
                 await reader.ReadLineAsync();
 
-                return capabilities.Exists(c => c.Equals("STARTTLS", System.StringComparison.OrdinalIgnoreCase));
+                return capabilities.Contains("STARTTLS");
             } catch (System.Exception ex) {
                 logger?.WriteError("STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return false;
