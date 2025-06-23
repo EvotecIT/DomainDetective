@@ -18,7 +18,8 @@ public static partial class Program {
     public static async Task ExampleCertificateVerificationByHealthCheck() {
         var healthCheck = new DomainHealthCheck();
         healthCheck.Verbose = false;
-        await healthCheck.VerifyWebsiteCertificate("https://evotec.pl");
+        // URL can omit the scheme, https:// will be used by default
+        await healthCheck.VerifyWebsiteCertificate("evotec.pl");
         Helpers.ShowPropertiesTable("Certificate for evotec.pl ", healthCheck.CertificateAnalysis);
         Helpers.ShowPropertiesTable("Certificate for evotec.pl ", healthCheck.CertificateAnalysis.Certificate);
     }
