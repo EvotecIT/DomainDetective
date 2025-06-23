@@ -47,10 +47,14 @@ namespace DomainDetective {
         /// <summary>
         /// Standalone version to check the website certificate.
         /// </summary>
-        /// <param name="url">The URL.</param>
+        /// <param name="url">The URL. If no scheme is provided, "https://" will be prepended.</param>
         /// <param name="port">The port.</param>
         /// <returns></returns>
         public static async Task<CertificateAnalysis> CheckWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                url = $"https://{url}";
+            }
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeUrl(url, port, new InternalLogger(), cancellationToken);
             return analysis;

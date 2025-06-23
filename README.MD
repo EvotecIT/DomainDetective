@@ -61,6 +61,9 @@ analysis.ClearDNSBL();
 analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
 ```
 
+### Verifying Website Certificates
+`VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
+
 
 ## Build and Test
 

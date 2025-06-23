@@ -408,7 +408,17 @@ namespace DomainDetective {
             await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
         }
 
+        /// <summary>
+        /// Verifies the certificate for a website. If no scheme is provided in <paramref name="url"/>, "https://" is assumed.
+        /// </summary>
+        /// <param name="url">Website address. If missing a scheme, "https://" will be prepended.</param>
+        /// <param name="port">Port to use for the connection.</param>
+        /// <param name="cancellationToken">Optional cancellation token.</param>
         public async Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                url = $"https://{url}";
+            }
             await CertificateAnalysis.AnalyzeUrl(url, port, _logger, cancellationToken);
         }
 
