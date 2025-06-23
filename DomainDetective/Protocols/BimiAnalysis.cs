@@ -99,7 +99,7 @@ namespace DomainDetective {
                             return null;
                         }
 
-                        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                        var bytes = await response.Content.ReadAsByteArrayAsync();
                         if (url.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)) {
                             using (var ms = new MemoryStream(bytes))
                             using (var gz = new GZipStream(ms, CompressionMode.Decompress))
