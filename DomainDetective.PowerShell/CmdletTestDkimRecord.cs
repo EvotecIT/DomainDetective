@@ -7,9 +7,11 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DkimRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string DomainName;
 
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string[] Selectors;
 
         [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServerName")]

@@ -7,6 +7,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "SpfRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestSpfRecord : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string DomainName;
 
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]

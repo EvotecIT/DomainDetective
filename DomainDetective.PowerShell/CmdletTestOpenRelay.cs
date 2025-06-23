@@ -5,6 +5,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "OpenRelay", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestOpenRelay : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string HostName;
 
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]

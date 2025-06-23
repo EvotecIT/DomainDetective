@@ -4,6 +4,10 @@ Describe 'Add-DnsblProvider cmdlet' {
         $result = Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'test'
         $result | Should -Not -BeNullOrEmpty
     }
+    It 'throws if Domain is empty' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        { Add-DnsblProvider -Domain '' } | Should -Throw
+    }
 }
 
 Describe 'Remove-DnsblProvider cmdlet' {
@@ -12,6 +16,10 @@ Describe 'Remove-DnsblProvider cmdlet' {
         $analysis = Add-DnsblProvider -Domain 'remove.example.com'
         $result = $analysis | Remove-DnsblProvider -Domain 'remove.example.com'
         $result | Should -Not -BeNullOrEmpty
+    }
+    It 'throws if Domain is empty' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        { Remove-DnsblProvider -Domain '' } | Should -Throw
     }
 }
 
@@ -30,5 +38,9 @@ Describe 'Load-DnsblConfig cmdlet' {
         $path = "$PSScriptRoot/../../DnsblProviders.sample.json"
         $result = Load-DnsblConfig -Path $path -OverwriteExisting
         $result | Should -Not -BeNullOrEmpty
+    }
+    It 'throws if Path is empty' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        { Load-DnsblConfig -Path '' } | Should -Throw
     }
 }

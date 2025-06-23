@@ -6,6 +6,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "SecurityTXT", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestSecurityTXT : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string DomainName;
 
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]

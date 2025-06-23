@@ -4,5 +4,9 @@ Describe 'Test-NsRecord cmdlet' {
         $result = Test-NsRecord -DomainName 'example.com' -DnsEndpoint CloudflareWireFormat
         $result | Should -Not -BeNullOrEmpty
     }
+    It 'throws if DomainName is empty' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        { Test-NsRecord -DomainName '' } | Should -Throw
+    }
 }
 

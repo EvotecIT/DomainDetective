@@ -4,6 +4,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsCommon.Add, "DnsblProvider")]
     public sealed class CmdletAddDnsblProvider : PSCmdlet {
         [Parameter(Mandatory = true, Position = 0)]
+        [ValidateNotNullOrEmpty]
         public string Domain { get; set; }
 
         [Parameter(Mandatory = false)]

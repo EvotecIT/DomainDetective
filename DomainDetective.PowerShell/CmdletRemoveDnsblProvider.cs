@@ -4,6 +4,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsCommon.Remove, "DnsblProvider")]
     public sealed class CmdletRemoveDnsblProvider : PSCmdlet {
         [Parameter(Mandatory = true, Position = 0)]
+        [ValidateNotNullOrEmpty]
         public string Domain { get; set; }
 
         [Parameter(ValueFromPipeline = true)]
