@@ -2,23 +2,26 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace DomainDetective {
     public class STARTTLSAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
-        public async Task AnalyzeServer(string host, int port, InternalLogger logger) {
-            bool supports = await CheckStartTls(host, port, logger);
+        public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            bool supports = await CheckStartTls(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = supports;
         }
 
-        public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger) {
+        public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             foreach (var host in hosts) {
-                await AnalyzeServer(host, port, logger);
+                cancellationToken.ThrowIfCancellationRequested();
+                await AnalyzeServer(host, port, logger, cancellationToken);
             }
         }
 
-        private static async Task<bool> CheckStartTls(string host, int port, InternalLogger logger) {
+        private static async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
             try {
                 await client.ConnectAsync(host, port);
@@ -27,11 +30,13 @@ namespace DomainDetective {
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
                 await reader.ReadLineAsync();
+                cancellationToken.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync($"EHLO example.com");
 
                 var capabilities = new List<string>();
                 string line;
                 while ((line = await reader.ReadLineAsync()) != null) {
+                    cancellationToken.ThrowIfCancellationRequested();
                     logger?.WriteVerbose($"EHLO response: {line}");
                     if (line.StartsWith("250")) {
                         string capability = line.Substring(4).Trim();
