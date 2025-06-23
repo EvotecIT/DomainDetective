@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -27,6 +28,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(200, analysis.StatusCode);
                 Assert.True(analysis.ResponseTime > TimeSpan.Zero);
                 Assert.True(analysis.HstsPresent);
+                Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
             } finally {
                 listener.Stop();
                 await serverTask;
