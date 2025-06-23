@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Net;
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
@@ -49,6 +50,20 @@ namespace DomainDetective {
                         Http3Supported = false;
 #endif
                         IsReachable = response.IsSuccessStatusCode;
+                        if (Certificate == null && Http3Supported) {
+                            try {
+                                var uri = new Uri(url);
+                                using var tcp = new TcpClient();
+                                await tcp.ConnectAsync(uri.Host, port);
+                                using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+                                await ssl.AuthenticateAsClientAsync(uri.Host);
+                                if (ssl.RemoteCertificate is X509Certificate2 cert) {
+                                    Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+                                }
+                            } catch (Exception ex) {
+                                logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.Message);
+                            }
+                        }
                         if (Certificate != null) {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                         }
