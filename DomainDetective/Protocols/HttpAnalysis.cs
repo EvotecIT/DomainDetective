@@ -53,7 +53,7 @@ namespace DomainDetective {
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
                 ProtocolVersion = response.Version;
-                IsReachable = true;
+                IsReachable = response.IsSuccessStatusCode;
 #if NET6_0_OR_GREATER
                 Http3Supported = response.Version >= HttpVersion.Version30;
                 Http2Supported = response.Version >= HttpVersion.Version20;

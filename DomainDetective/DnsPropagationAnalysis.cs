@@ -85,7 +85,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Adds a DNS server entry if it does not already exist.
+        /// Adds the specified DNS server to the list of known servers if it is
+        /// not already present.
         /// </summary>
         /// <param name="entry">The server entry to add.</param>
         public void AddServer(PublicDnsEntry entry) {
@@ -98,7 +99,7 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Removes a server by its IP address.
+        /// Removes a DNS server from the list using its IP address.
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void RemoveServer(string ipAddress) {
@@ -153,7 +154,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries the provided servers for a domain and record type.
+        /// Asynchronously queries each provided server for the specified domain
+        /// and record type.
         /// </summary>
         /// <param name="domain">Domain name to query.</param>
         /// <param name="recordType">DNS record type.</param>
@@ -187,7 +189,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Compares results from different servers and groups them by record value.
+        /// Compares results from multiple servers and groups them by the set of
+        /// records returned.
         /// </summary>
         /// <param name="results">The results to compare.</param>
         /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>

@@ -104,7 +104,7 @@ If you don't need to automate the process, or if you just want to quickly query 
 ## Continuous Integration
 
 This project uses GitHub Actions to run .NET and PowerShell tests on Windows, Linux and macOS.
-Code coverage results are published to [Codecov](https://codecov.io/gh/your-user/DomainDetective).
+Code coverage results are published to [Codecov](https://codecov.io/gh/EvotecIT/DomainDetective).
 
 ## Understanding Results
 

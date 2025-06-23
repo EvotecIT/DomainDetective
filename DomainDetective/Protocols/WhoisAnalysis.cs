@@ -13,7 +13,7 @@ public class WhoisAnalysis {
     private string TLD { get; set; }
     private string _domainName;
     public string DomainName {
-        get => _domainName?.ToLower();
+        get => _domainName;
         set => _domainName = value;
     }
     public string Tld => TLD;
@@ -42,7 +42,8 @@ public class WhoisAnalysis {
     // Mapping of TLDs to WHOIS servers. Modify this collection only while
     // holding _whoisServersLock to avoid race conditions in multi-threaded tests
     // or applications.
-    private readonly Dictionary<string, string> WhoisServers = new() {
+    private readonly Dictionary<string, string> WhoisServers =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
         {"ae", "whois.aeda.net.ae"},
@@ -336,19 +337,20 @@ public class WhoisAnalysis {
     }
 
     private void ParseWhoisData() {
-        if (TLD == "xyz") {
+        if (string.Equals(TLD, "xyz", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataXYZ();
-        } else if (TLD == "pl") {
+        } else if (string.Equals(TLD, "pl", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataPL();
-        } else if (TLD == "com" || TLD == "net") {
+        } else if (string.Equals(TLD, "com", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(TLD, "net", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCOM();
-        } else if (TLD == "co.uk") {
+        } else if (string.Equals(TLD, "co.uk", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCOUK();
-        } else if (TLD == "de") {
+        } else if (string.Equals(TLD, "de", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataDE();
-        } else if (TLD == "cz") {
+        } else if (string.Equals(TLD, "cz", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCZ();
-        } else if (TLD == "be") {
+        } else if (string.Equals(TLD, "be", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataBE();
         } else {
             ParseWhoisDataDefault();
