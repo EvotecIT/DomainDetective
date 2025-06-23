@@ -269,6 +269,9 @@ namespace DomainDetective {
                 Host = ipAddressOrHostname,
                 DNSBLRecords = results,
             };
+            if (Results.ContainsKey(ipAddressOrHostname)) {
+                Results.Remove(ipAddressOrHostname);
+            }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
         }
