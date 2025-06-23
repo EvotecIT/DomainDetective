@@ -35,19 +35,40 @@ namespace DomainDetective {
         /// <param name="checkHsts">Whether to check for the presence of HSTS.</param>
         /// <param name="logger">Logger used for error reporting.</param>
         public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger) {
+#if NET6_0_OR_GREATER
+            var requestVersion = HttpVersion.Version30;
+            var manualRedirect = requestVersion >= HttpVersion.Version30;
+            using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
+#else
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
+#endif
             using var client = new HttpClient(handler);
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             try {
 #if NET6_0_OR_GREATER
-                var request = new HttpRequestMessage(HttpMethod.Get, url) {
-                    Version = HttpVersion.Version30,
-                    VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                };
-                using var response = await client.SendAsync(request);
+                var currentUri = new Uri(url);
+                HttpResponseMessage response = null;
+                var redirects = 0;
+                while (true) {
+                    var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
+                        Version = requestVersion,
+                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                    };
+                    response?.Dispose();
+                    response = await client.SendAsync(request);
+                    if (manualRedirect && (int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
+                        redirects++;
+                        if (redirects > MaxRedirects) {
+                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
+                        }
+                        currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
+                        continue;
+                    }
+                    break;
+                }
 #else
-                using var response = await client.GetAsync(url);
+                HttpResponseMessage response = await client.GetAsync(url);
 #endif
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
@@ -64,6 +85,7 @@ namespace DomainDetective {
                 if (checkHsts) {
                     HstsPresent = response.Headers.Contains("Strict-Transport-Security");
                 }
+                response.Dispose();
             } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&
                 (se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound ||
                  se.SocketErrorCode == System.Net.Sockets.SocketError.NoData)) {
