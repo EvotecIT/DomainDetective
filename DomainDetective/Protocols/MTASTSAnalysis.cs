@@ -74,6 +74,13 @@ namespace DomainDetective {
         internal InternalLogger Logger { get; set; }
 
         /// <summary>
+        /// Gets or sets a policy URL override. When set, this URL is used
+        /// instead of constructing one from the domain name. Primarily
+        /// intended for testing.
+        /// </summary>
+        public string PolicyUrlOverride { get; set; }
+
+        /// <summary>
         /// Resets analysis state so the instance can be reused.
         /// </summary>
         public void Reset() {
@@ -100,7 +107,9 @@ namespace DomainDetective {
             Reset();
             Logger = logger;
             Domain = domainName;
-            string url = $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
+
+            string url = PolicyUrlOverride ?? $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
+
             string content = await GetPolicy(url);
             if (content == null) {
                 PolicyPresent = false;
