@@ -16,6 +16,7 @@ namespace DomainDetective.Tests {
                 var ctx = await listener.GetContextAsync();
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000");
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
                 var buffer = Encoding.UTF8.GetBytes("ok");
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 ctx.Response.Close();
@@ -23,12 +24,13 @@ namespace DomainDetective.Tests {
 
             try {
                 var analysis = new HttpAnalysis();
-                await analysis.AnalyzeUrl(prefix, true, new InternalLogger());
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(200, analysis.StatusCode);
                 Assert.True(analysis.ResponseTime > TimeSpan.Zero);
                 Assert.True(analysis.HstsPresent);
                 Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
+                Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -65,6 +67,29 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeUrl(url, false, new InternalLogger());
             Assert.False(analysis.IsReachable);
             Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+        }
+
+        [Fact]
+        public async Task DoesNotCollectHeadersWhenDisabled() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.True(analysis.SecurityHeaders.Count == 0);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
         }
 
         [Fact]

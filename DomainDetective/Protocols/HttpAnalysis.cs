@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Net;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace DomainDetective {
     /// <summary>
@@ -15,6 +16,8 @@ namespace DomainDetective {
         public TimeSpan ResponseTime { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS header was present.</summary>
         public bool HstsPresent { get; private set; }
+        /// <summary>Gets a collection of detected security headers.</summary>
+        public Dictionary<string, string> SecurityHeaders { get; } = new();
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
@@ -28,13 +31,22 @@ namespace DomainDetective {
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
+        private static readonly string[] _securityHeaderNames = new[] {
+            "Content-Security-Policy",
+            "X-Content-Type-Options",
+            "X-Frame-Options",
+            "Referrer-Policy",
+            "Permissions-Policy"
+        };
+
         /// <summary>
         /// Performs an HTTP GET request to the specified URL.
         /// </summary>
         /// <param name="url">The URL to query.</param>
         /// <param name="checkHsts">Whether to check for the presence of HSTS.</param>
         /// <param name="logger">Logger used for error reporting.</param>
-        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger) {
+        /// <param name="collectHeaders">Whether to collect common security headers.</param>
+        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false) {
 #if NET6_0_OR_GREATER
             var requestVersion = HttpVersion.Version30;
             var manualRedirect = requestVersion >= HttpVersion.Version30;
@@ -85,6 +97,14 @@ namespace DomainDetective {
                 if (checkHsts) {
                     HstsPresent = response.Headers.Contains("Strict-Transport-Security");
                 }
+                if (collectHeaders) {
+                    foreach (var headerName in _securityHeaderNames) {
+                        if (response.Headers.TryGetValues(headerName, out var values) ||
+                            response.Content.Headers.TryGetValues(headerName, out values)) {
+                            SecurityHeaders[headerName] = string.Join(",", values);
+                        }
+                    }
+                }
                 response.Dispose();
             } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&
                 (se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound ||
@@ -116,10 +136,11 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="url">The URL to check.</param>
         /// <param name="checkHsts">Whether to check for HSTS.</param>
+        /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <returns>A populated <see cref="HttpAnalysis"/> instance.</returns>
-        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false) {
+        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false) {
             var analysis = new HttpAnalysis();
-            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger());
+            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders);
             return analysis;
         }
     }
