@@ -365,7 +365,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
-            if (!DnsblEntries.Any(e => e.Domain == dnsbl)) {
+            if (!DnsblEntries.Any(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl))) {
                 DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
             }
         }
