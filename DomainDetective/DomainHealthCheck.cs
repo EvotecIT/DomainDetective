@@ -356,6 +356,10 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {
+            if (ports == null || ports.Length == 0) {
+                throw new ArgumentException("No ports provided.", nameof(ports));
+            }
+
             DaneAnalysis = new DANEAnalysis();
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {

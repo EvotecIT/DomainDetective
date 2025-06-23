@@ -139,5 +139,19 @@ namespace DomainDetective.Tests {
                 }
             }
         }
+
+        [Fact]
+        public async Task VerifyDaneThrowsIfPortsNull() {
+            var healthCheck = new DomainHealthCheck();
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifyDANE("example.com", null!));
+        }
+
+        [Fact]
+        public async Task VerifyDaneThrowsIfPortsEmpty() {
+            var healthCheck = new DomainHealthCheck();
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifyDANE("example.com", Array.Empty<int>()));
+        }
     }
 }
