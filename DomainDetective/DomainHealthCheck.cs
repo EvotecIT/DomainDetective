@@ -73,7 +73,6 @@ namespace DomainDetective {
 
         public HttpAnalysis HttpAnalysis { get; private set; } = new HttpAnalysis();
 
-        public List<DnsAnswer> Answers;
 
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
