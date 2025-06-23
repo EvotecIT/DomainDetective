@@ -15,31 +15,32 @@ namespace DomainDetective {
         }
 
         private static async Task<bool> TryRelay(string host, int port, InternalLogger logger) {
-            using var client = new TcpClient();
-            try {
-                await client.ConnectAsync(host, port);
-                using NetworkStream network = client.GetStream();
-                using var reader = new StreamReader(network);
-                using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+            using (var client = new TcpClient()) {
+                try {
+                    await client.ConnectAsync(host, port);
+                    using (NetworkStream network = client.GetStream())
+                    using (var reader = new StreamReader(network))
+                    using (var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" }) {
+                        await reader.ReadLineAsync();
+                        await writer.WriteLineAsync($"HELO example.com");
+                        await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("MAIL FROM:<test@example.com>");
+                        var mailResp = await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("RCPT TO:<test@example.org>");
+                        var rcptResp = await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("QUIT");
+                        await writer.FlushAsync();
+                        await reader.ReadLineAsync();
 
-                await reader.ReadLineAsync();
-                await writer.WriteLineAsync($"HELO example.com");
-                await reader.ReadLineAsync();
-                await writer.WriteLineAsync("MAIL FROM:<test@example.com>");
-                var mailResp = await reader.ReadLineAsync();
-                await writer.WriteLineAsync("RCPT TO:<test@example.org>");
-                var rcptResp = await reader.ReadLineAsync();
-                await writer.WriteLineAsync("QUIT");
-                await writer.FlushAsync();
-                await reader.ReadLineAsync();
+                        logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
+                        logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
 
-                logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
-                logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
-
-                return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250");
-            } catch (Exception ex) {
-                logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
-                return false;
+                        return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250");
+                    }
+                } catch (Exception ex) {
+                    logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
+                    return false;
+                }
             }
         }
     }
