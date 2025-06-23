@@ -37,6 +37,7 @@ public static partial class Program {
         await ExampleAnalyseByArrayDNSBL();
         await ExampleAnalyseByDomainDNSBL();
         await ExampleManageDnsbl();
+        await ExampleAnalyseOpenRelay();
         await ExampleAnalyseSecurityTXT();
         await ExampleAnalyseDnsPropagation();
 
