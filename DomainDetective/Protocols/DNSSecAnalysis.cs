@@ -7,13 +7,37 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides DNSSEC validation utilities for a domain.
+    /// </summary>
     public class DNSSecAnalysis {
+        /// <summary>Gets the DS records returned for the domain.</summary>
         public IReadOnlyList<string> DsRecords { get; private set; } = new List<string>();
+
+        /// <summary>Gets the DNSKEY records returned for the domain.</summary>
         public IReadOnlyList<string> DnsKeys { get; private set; } = new List<string>();
+
+        /// <summary>Gets the DNSSEC signatures returned for the domain.</summary>
         public IReadOnlyList<string> Signatures { get; private set; } = new List<string>();
+
+        /// <summary>Gets a value indicating whether the DNSKEY query returned authentic data.</summary>
         public bool AuthenticData { get; private set; }
+
+        /// <summary>Gets a value indicating whether the DS query returned authentic data.</summary>
+        public bool DsAuthenticData { get; private set; }
+
+        /// <summary>Gets a value indicating whether the DS record matches the DNSKEY.</summary>
         public bool DsMatch { get; private set; }
 
+        /// <summary>Gets a value indicating whether the full DNSSEC chain is valid.</summary>
+        public bool ChainValid { get; private set; }
+
+        /// <summary>
+        /// Performs DNSSEC validation for the specified domain.
+        /// </summary>
+        /// <param name="domainName">Domain to validate.</param>
+        /// <param name="logger">Optional logger used for diagnostics.</param>
+        /// <param name="dnsConfiguration">Optional DNS configuration.</param>
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null) {
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
             using HttpClient client = new(handler);
@@ -43,6 +67,7 @@ namespace DomainDetective {
             var dsUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DS&do=1";
             var dsJson = await client.GetStringAsync(dsUri);
             var dsDoc = JsonDocument.Parse(dsJson);
+            DsAuthenticData = dsDoc.RootElement.GetProperty("AD").GetBoolean();
             var dsAnswers = dsDoc.RootElement.GetProperty("Answer").EnumerateArray();
             var dsRecords = new List<string>();
             foreach (var ans in dsAnswers) {
@@ -57,9 +82,18 @@ namespace DomainDetective {
                 DsMatch = VerifyDsMatch(ksk, DsRecords[0], domainName);
             }
 
-            logger?.WriteVerbose("DNSSEC validation for {0}: {1}", domainName, AuthenticData);
+            ChainValid = DsAuthenticData && AuthenticData && DsMatch;
+
+            logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
         }
 
+        /// <summary>
+        /// Validates that the provided DS record matches the specified DNSKEY.
+        /// </summary>
+        /// <param name="dnskey">DNSKEY record data.</param>
+        /// <param name="dsRecord">DS record data.</param>
+        /// <param name="domainName">Domain name used in the calculation.</param>
+        /// <returns><c>true</c> if the DS record corresponds to the DNSKEY; otherwise <c>false</c>.</returns>
         private static bool VerifyDsMatch(string dnskey, string dsRecord, string domainName) {
             try {
                 var keyParts = dnskey.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -113,6 +147,11 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Computes the DNSSEC key tag for the given RDATA sequence.
+        /// </summary>
+        /// <param name="rdata">RDATA bytes from the DNSKEY record.</param>
+        /// <returns>The computed key tag.</returns>
         private static int ComputeKeyTag(List<byte> rdata) {
             int ac = 0;
             for (int i = 0; i < rdata.Count; i++) {
@@ -122,6 +161,11 @@ namespace DomainDetective {
             return ac & 0xFFFF;
         }
 
+        /// <summary>
+        /// Converts a domain name to its DNS wire format representation.
+        /// </summary>
+        /// <param name="domainName">Domain name to convert.</param>
+        /// <returns>Byte array containing the wire format representation.</returns>
         private static byte[] ToWireFormat(string domainName) {
             domainName = domainName.TrimEnd('.').ToLowerInvariant();
             var labels = domainName.Split('.');
@@ -134,6 +178,11 @@ namespace DomainDetective {
             return bytes.ToArray();
         }
 
+        /// <summary>
+        /// Maps DNS algorithm names to their numeric identifiers.
+        /// </summary>
+        /// <param name="name">Algorithm name.</param>
+        /// <returns>Numeric algorithm identifier.</returns>
         private static int AlgorithmNumber(string name) => name.ToUpperInvariant() switch {
             "RSAMD5" => 1,
             "DH" => 2,

@@ -11,6 +11,40 @@ Test-NsRecord -DomainName "example.com" -Verbose
 
 `Test-SpfRecord` returns a `SpfAnalysis` object. Besides the original token lists it now includes `Resolved*` collections that contain tokens discovered while following nested `include` or `redirect` directives.
 
+### Additional cmdlets
+
+- `Test-DomainBlacklist` – queries DNSBL providers to determine if a domain or IP address is listed.
+  ```powershell
+  Test-DomainBlacklist -NameOrIpAddress "example.com" -Verbose
+  ```
+- `Test-DkimRecord` – verifies DKIM selectors for the given domain.
+  ```powershell
+  Test-DkimRecord -DomainName "example.com" -Selectors "selector1" -Verbose
+  ```
+- `Test-DnsPropagation` – checks how DNS records propagate across public resolvers.
+  ```powershell
+  Test-DnsPropagation -DomainName "example.com" -RecordType A -ServersFile './Data/DNS/PublicDNS.json' -CompareResults
+  ```
+- `Test-CaaRecord` – validates CAA entries.
+  ```powershell
+  Test-CaaRecord -DomainName "example.com"
+  ```
+- `Test-SecurityTXT` – retrieves security.txt information and reports any issues.
+  ```powershell
+  Test-SecurityTXT -DomainName "example.com"
+  ```
+- `Test-StartTls` – verifies SMTP STARTTLS support.
+  ```powershell
+  Test-StartTls -DomainName "example.com" -Verbose
+  ```
+- `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Load-DnsblConfig` manage the list of DNSBL providers.
+  ```powershell
+  Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
+  Remove-DnsblProvider -Domain 'dnsbl.example.com'
+  Clear-DnsblProvider
+  Load-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
+  ```
+
 To execute the PowerShell test suite run:
 
 ```powershell

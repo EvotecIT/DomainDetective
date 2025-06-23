@@ -13,15 +13,15 @@ Current capabilities include:
 - [x] Verify CAA
 - [x] Verify NS Records
 - [x] Verify SOA Records
-- [ ] Verify MX Records
+- [x] Verify MX Records
 - [x] Verify DNSSEC
 - [x] Verify DANE/TLSA
-- [ ] Verify STARTTLS
+- [x] Verify STARTTLS
 - [ ] Verify MTA-STS
 - [ ] Verify SMTP TLS
 - [ ] Verify Website Connectivity
-  - [ ] Verify HTTP/2
-  - [ ] Verify HTTP/3
+  - [x] Verify HTTP/2
+  - [x] Verify HTTP/3
   - [ ] Verify Certificate
   - [x] Verify Response Time
   - [ ] Verify Headers
@@ -61,23 +61,18 @@ analysis.ClearDNSBL();
 analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
 ```
 
-Example usage in C#:
+Same actions are available from PowerShell using dedicated cmdlets:
 
-```csharp
-var analysis = new DNSBLAnalysis();
-
-// add a provider
-analysis.AddDNSBL("dnsbl.example.com", comment: "custom");
-
-// remove a provider
-analysis.RemoveDNSBL("dnsbl.example.com");
-
-// clear all configured providers
-analysis.ClearDNSBL();
-
-// load providers from JSON configuration
-analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
+```powershell
+Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
+Remove-DnsblProvider -Domain 'dnsbl.example.com'
+Clear-DnsblProvider
+Load-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 ```
+
+### Verifying Website Certificates
+`VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
+
 
 ## Build and Test
 
@@ -118,7 +113,7 @@ If you don't need to automate the process, or if you just want to quickly query 
 ## Continuous Integration
 
 This project uses GitHub Actions to run .NET and PowerShell tests on Windows, Linux and macOS.
-Code coverage results are published to [Codecov](https://codecov.io/gh/your-user/DomainDetective).
+Code coverage results are published to [Codecov](https://codecov.io/gh/EvotecIT/DomainDetective).
 
 ## Understanding Results
 

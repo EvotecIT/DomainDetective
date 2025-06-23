@@ -17,6 +17,8 @@ namespace DomainDetective {
         SOA,
         OPENRELAY,
         STARTTLS,
-        HTTP
+        SMTPTLS,
+        HTTP,
+        HPKP
     }
 }

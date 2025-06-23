@@ -14,36 +14,36 @@ namespace DomainDetective {
     /// Represents a public DNS server used for propagation checks.
     /// </summary>
     public class PublicDnsEntry {
-        /// <summary>Gets or sets the country of the DNS server.</summary>
-        public string Country { get; set; }
-        /// <summary>Gets or sets the IP address of the DNS server.</summary>
-        public string IPAddress { get; set; }
-        /// <summary>Gets or sets the host name of the DNS server.</summary>
-        public string HostName { get; set; }
-        /// <summary>Gets or sets the location description.</summary>
-        public string Location { get; set; }
-        /// <summary>Gets or sets the ASN of the DNS server.</summary>
-        public string ASN { get; set; }
-        /// <summary>Gets or sets the ASN name of the DNS server.</summary>
-        public string ASNName { get; set; }
-        /// <summary>Gets or sets a value indicating whether the server is enabled.</summary>
-        public bool Enabled { get; set; } = true;
+        /// <summary>Gets the country of the DNS server.</summary>
+        public string Country { get; init; }
+        /// <summary>Gets the IP address of the DNS server.</summary>
+        public string IPAddress { get; init; }
+        /// <summary>Gets the host name of the DNS server.</summary>
+        public string HostName { get; init; }
+        /// <summary>Gets the location description.</summary>
+        public string Location { get; init; }
+        /// <summary>Gets the ASN of the DNS server.</summary>
+        public string ASN { get; init; }
+        /// <summary>Gets the ASN name of the DNS server.</summary>
+        public string ASNName { get; init; }
+        /// <summary>Gets a value indicating whether the server is enabled.</summary>
+        public bool Enabled { get; init; } = true;
     }
 
     /// <summary>
     /// Result of a DNS propagation query for a single server.
     /// </summary>
     public class DnsPropagationResult {
-        /// <summary>Gets or sets the server that was queried.</summary>
-        public PublicDnsEntry Server { get; set; }
-        /// <summary>Gets or sets the records returned by the server.</summary>
-        public IEnumerable<string> Records { get; set; }
-        /// <summary>Gets or sets the time the query took.</summary>
-        public TimeSpan Duration { get; set; }
-        /// <summary>Gets or sets a value indicating whether the query succeeded.</summary>
-        public bool Success { get; set; }
-        /// <summary>Gets or sets an error message if the query failed.</summary>
-        public string Error { get; set; }
+        /// <summary>Gets the server that was queried.</summary>
+        public PublicDnsEntry Server { get; init; }
+        /// <summary>Gets the records returned by the server.</summary>
+        public IEnumerable<string> Records { get; init; }
+        /// <summary>Gets the time the query took.</summary>
+        public TimeSpan Duration { get; init; }
+        /// <summary>Gets a value indicating whether the query succeeded.</summary>
+        public bool Success { get; init; }
+        /// <summary>Gets an error message if the query failed.</summary>
+        public string Error { get; init; }
     }
 
     /// <summary>
@@ -85,7 +85,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Adds a DNS server entry if it does not already exist.
+        /// Adds the specified DNS server to the list of known servers if it is
+        /// not already present.
         /// </summary>
         /// <param name="entry">The server entry to add.</param>
         public void AddServer(PublicDnsEntry entry) {
@@ -98,7 +99,7 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Removes a server by its IP address.
+        /// Removes a DNS server from the list using its IP address.
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void RemoveServer(string ipAddress) {
@@ -114,8 +115,17 @@ namespace DomainDetective {
         /// <param name="ipAddress">IP address of the server.</param>
         public void DisableServer(string ipAddress) {
             var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
-            if (existing != null) {
-                existing.Enabled = false;
+            if (existing != null && existing.Enabled) {
+                var index = _servers.IndexOf(existing);
+                _servers[index] = new PublicDnsEntry {
+                    Country = existing.Country,
+                    IPAddress = existing.IPAddress,
+                    HostName = existing.HostName,
+                    Location = existing.Location,
+                    ASN = existing.ASN,
+                    ASNName = existing.ASNName,
+                    Enabled = false
+                };
             }
         }
 
@@ -125,8 +135,17 @@ namespace DomainDetective {
         /// <param name="ipAddress">IP address of the server.</param>
         public void EnableServer(string ipAddress) {
             var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
-            if (existing != null) {
-                existing.Enabled = true;
+            if (existing != null && !existing.Enabled) {
+                var index = _servers.IndexOf(existing);
+                _servers[index] = new PublicDnsEntry {
+                    Country = existing.Country,
+                    IPAddress = existing.IPAddress,
+                    HostName = existing.HostName,
+                    Location = existing.Location,
+                    ASN = existing.ASN,
+                    ASNName = existing.ASNName,
+                    Enabled = true
+                };
             }
         }
 
@@ -153,7 +172,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries the provided servers for a domain and record type.
+        /// Asynchronously queries each provided server for the specified domain
+        /// and record type.
         /// </summary>
         /// <param name="domain">Domain name to query.</param>
         /// <param name="recordType">DNS record type.</param>
@@ -168,26 +188,33 @@ namespace DomainDetective {
         }
 
         private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
-            var result = new DnsPropagationResult { Server = server, Success = false, Records = Array.Empty<string>() };
             var sw = Stopwatch.StartNew();
             try {
                 var client = new ClientX(server.IPAddress, DnsRequestFormat.DnsOverUDP, 53);
                 cancellationToken.ThrowIfCancellationRequested();
                 var response = await client.Resolve(domain, recordType);
                 sw.Stop();
-                result.Duration = sw.Elapsed;
-                result.Records = response.Answers.Select(a => a.Data);
-                result.Success = response.Answers.Any();
+                return new DnsPropagationResult {
+                    Server = server,
+                    Duration = sw.Elapsed,
+                    Records = response.Answers.Select(a => a.Data),
+                    Success = response.Answers.Any()
+                };
             } catch (Exception ex) {
                 sw.Stop();
-                result.Duration = sw.Elapsed;
-                result.Error = ex.Message;
+                return new DnsPropagationResult {
+                    Server = server,
+                    Duration = sw.Elapsed,
+                    Error = ex.Message,
+                    Success = false,
+                    Records = Array.Empty<string>()
+                };
             }
-            return result;
         }
 
         /// <summary>
-        /// Compares results from different servers and groups them by record value.
+        /// Compares results from multiple servers and groups them by the set of
+        /// records returned.
         /// </summary>
         /// <param name="results">The results to compare.</param>
         /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>

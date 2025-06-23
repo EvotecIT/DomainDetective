@@ -9,6 +9,7 @@ namespace DomainDetective {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger) {
+            ServerResults.Clear();
             var allows = await TryRelay(host, port, logger);
             ServerResults[$"{host}:{port}"] = allows;
         }
@@ -29,6 +30,8 @@ namespace DomainDetective {
                 await writer.WriteLineAsync("RCPT TO:<test@example.org>");
                 var rcptResp = await reader.ReadLineAsync();
                 await writer.WriteLineAsync("QUIT");
+                await writer.FlushAsync();
+                await reader.ReadLineAsync();
 
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");

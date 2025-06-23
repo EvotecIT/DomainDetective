@@ -102,6 +102,30 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CustomServiceNamesAreSupported() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            await healthCheck.VerifyDANE([new ServiceDefinition("example.com", 443)]);
+
+            Assert.NotNull(healthCheck.DaneAnalysis);
+        }
+
+        [Fact]
+        public async Task EmptyServiceTypesDefaultsToSmtpHttps() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            await healthCheck.VerifyDANE("ietf.org", Array.Empty<ServiceType>());
+
+            Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(1, healthCheck.DaneAnalysis.NumberOfRecords);
+        }
+
+        [Fact]
         public async Task AllCombinationsAreConsideredValid() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
@@ -127,6 +151,20 @@ namespace DomainDetective.Tests {
                     }
                 }
             }
+        }
+
+        [Fact]
+        public async Task VerifyDaneThrowsIfPortsNull() {
+            var healthCheck = new DomainHealthCheck();
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifyDANE("example.com", (int[])null!));
+        }
+
+        [Fact]
+        public async Task VerifyDaneThrowsIfPortsEmpty() {
+            var healthCheck = new DomainHealthCheck();
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifyDANE("example.com", Array.Empty<int>()));
         }
     }
 }

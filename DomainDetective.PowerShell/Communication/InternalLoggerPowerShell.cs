@@ -82,6 +82,13 @@ namespace DomainDetective.PowerShell {
         }
         private int _activityIdCounter = 0;
 
+        /// <summary>
+        ///     Resets the progress activity id counter.
+        /// </summary>
+        public void ResetActivityIdCounter() {
+            _activityIdCounter = 0;
+        }
+
         private int _currentActivityId = 1;
         private bool _isCurrentActivityCompleted = true;
 
@@ -96,11 +103,12 @@ namespace DomainDetective.PowerShell {
             var progressMessage = e.ProgressCurrentOperation ?? "Processing...: ";
             var progressRecord = new ProgressRecord(_currentActivityId, e.ProgressActivity, progressMessage);
             if (e.ProgressPercentage.HasValue) {
-                if (e.ProgressPercentage.Value >= 0 && e.ProgressPercentage.Value <= 100) {
-                    progressRecord.PercentComplete = e.ProgressPercentage.Value;
-                } else {
-                    progressRecord.PercentComplete = 100;
+                var percentComplete = e.ProgressPercentage.Value;
+                if (percentComplete > 100) {
+                    percentComplete = 100;
                 }
+
+                progressRecord.PercentComplete = percentComplete;
             } else {
                 progressRecord.PercentComplete = 50;
             }

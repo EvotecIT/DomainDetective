@@ -6,7 +6,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using System.Threading;
-using Xunit;
 
 namespace DomainDetective.Tests {
     public class TestSMTPTLSAnalysis {
@@ -17,43 +16,91 @@ namespace DomainDetective.Tests {
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             using var cts = new CancellationTokenSource();
-            var serverTask = Task.Run(async () => {
-                try {
-                    while (!cts.Token.IsCancellationRequested) {
-                        var acceptTask = listener.AcceptTcpClientAsync();
-                        var completed = await Task.WhenAny(acceptTask, Task.Delay(Timeout.Infinite, cts.Token));
-                        if (completed != acceptTask) {
-                            try { await acceptTask; } catch { /* ignore */ }
-                            break;
-                        }
-
-                        var client = await acceptTask;
-                        _ = Task.Run(async () => {
-                            using var tcp = client;
-                            using var ssl = new SslStream(tcp.GetStream());
-                            await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
-                        }, cts.Token);
-                    }
-                } catch (OperationCanceledException) {
-                    // expected on shutdown
-                } catch (ObjectDisposedException) {
-                    // listener stopped
-                } catch (SocketException) {
-                    // listener stopped
-                }
-            }, cts.Token);
+            var serverTask = Task.Run(() => RunServer(listener, cert, cts.Token), cts.Token);
 
             try {
                 var analysis = new SMTPTLSAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
                 var result = analysis.ServerResults[$"localhost:{port}"];
-                Assert.Contains(SslProtocols.Tls12, result.SupportedProtocols);
+                Assert.True(result.StartTlsAdvertised);
+                Assert.Equal(SslProtocols.Tls12, result.Protocol);
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
+                Assert.True(result.CipherStrength > 0);
             } finally {
                 cts.Cancel();
                 listener.Stop();
                 await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task ResultsDoNotAccumulateAcrossCalls() {
+            using var cert = CreateSelfSigned();
+            var listener1 = new TcpListener(IPAddress.Loopback, 0);
+            listener1.Start();
+            var port1 = ((IPEndPoint)listener1.LocalEndpoint).Port;
+            using var cts1 = new CancellationTokenSource();
+            var serverTask1 = Task.Run(() => RunServer(listener1, cert, cts1.Token), cts1.Token);
+
+            var analysis = new SMTPTLSAnalysis();
+            try {
+                await analysis.AnalyzeServer("localhost", port1, new InternalLogger());
+                Assert.Single(analysis.ServerResults);
+                Assert.True(analysis.ServerResults.ContainsKey($"localhost:{port1}"));
+            } finally {
+                cts1.Cancel();
+                listener1.Stop();
+                await serverTask1;
+            }
+
+            var listener2 = new TcpListener(IPAddress.Loopback, 0);
+            listener2.Start();
+            var port2 = ((IPEndPoint)listener2.LocalEndpoint).Port;
+            using var cts2 = new CancellationTokenSource();
+            var serverTask2 = Task.Run(() => RunServer(listener2, cert, cts2.Token), cts2.Token);
+
+            try {
+                await analysis.AnalyzeServer("localhost", port2, new InternalLogger());
+                Assert.Single(analysis.ServerResults);
+                Assert.False(analysis.ServerResults.ContainsKey($"localhost:{port1}"));
+                Assert.True(analysis.ServerResults.ContainsKey($"localhost:{port2}"));
+            } finally {
+                cts2.Cancel();
+                listener2.Stop();
+                await serverTask2;
+            }
+        }
+
+        private static async Task RunServer(TcpListener listener, X509Certificate2 cert, CancellationToken token) {
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    _ = Task.Run(async () => {
+                        using var tcp = client;
+                        using var stream = tcp.GetStream();
+                        using var reader = new StreamReader(stream);
+                        using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                        await writer.WriteLineAsync("220 local ESMTP");
+                        await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("250-localhost\r\n250-STARTTLS\r\n250 OK");
+                        await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("220 ready");
+                        using var ssl = new SslStream(stream);
+                        await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                        using var sslReader = new StreamReader(ssl);
+                        await sslReader.ReadLineAsync();
+                    }, token);
+                }
+            } catch {
+                // ignore on shutdown
             }
         }
 

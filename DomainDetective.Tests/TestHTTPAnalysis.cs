@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -15,6 +16,7 @@ namespace DomainDetective.Tests {
                 var ctx = await listener.GetContextAsync();
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000");
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
                 var buffer = Encoding.UTF8.GetBytes("ok");
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 ctx.Response.Close();
@@ -22,11 +24,36 @@ namespace DomainDetective.Tests {
 
             try {
                 var analysis = new HttpAnalysis();
-                await analysis.AnalyzeUrl(prefix, true, new InternalLogger());
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(200, analysis.StatusCode);
                 Assert.True(analysis.ResponseTime > TimeSpan.Zero);
                 Assert.True(analysis.HstsPresent);
+                Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
+                Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task NotFoundStatusSetsIsReachableFalse() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.False(analysis.IsReachable);
+                Assert.Equal(404, analysis.StatusCode);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -40,6 +67,100 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeUrl(url, false, new InternalLogger());
             Assert.False(analysis.IsReachable);
             Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+        }
+
+        [Fact]
+        public async Task DoesNotCollectHeadersWhenDisabled() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.True(analysis.SecurityHeaders.Count == 0);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task FollowsRedirectsWhenUsingHttp3() {
+            var listener1 = new HttpListener();
+            var prefix1 = $"http://localhost:{GetFreePort()}/";
+            listener1.Prefixes.Add(prefix1);
+            listener1.Start();
+
+            var listener2 = new HttpListener();
+            var prefix2 = $"http://localhost:{GetFreePort()}/";
+            listener2.Prefixes.Add(prefix2);
+            listener2.Start();
+
+            var task1 = Task.Run(async () => {
+                var ctx = await listener1.GetContextAsync();
+                ctx.Response.StatusCode = 302;
+                ctx.Response.RedirectLocation = prefix2;
+                ctx.Response.Close();
+            });
+
+            var task2 = Task.Run(async () => {
+                var ctx = await listener2.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                var buffer = Encoding.UTF8.GetBytes("ok");
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix1, false, new InternalLogger());
+                Assert.True(analysis.IsReachable);
+                Assert.Equal(200, analysis.StatusCode);
+            } finally {
+                listener1.Stop();
+                listener2.Stop();
+                await Task.WhenAll(task1, task2);
+            }
+        }
+
+        [Fact]
+        public async Task ThrowsWhenMaxRedirectsExceeded() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+
+            var serverTask = Task.Run(async () => {
+                while (true) {
+                    HttpListenerContext ctx;
+                    try {
+                        ctx = await listener.GetContextAsync();
+                    } catch (HttpListenerException) {
+                        break;
+                    } catch (ObjectDisposedException) {
+                        break;
+                    }
+                    ctx.Response.StatusCode = 302;
+                    ctx.Response.RedirectLocation = prefix;
+                    ctx.Response.Close();
+                }
+            });
+
+            try {
+                var analysis = new HttpAnalysis { MaxRedirects = 2 };
+                await Assert.ThrowsAsync<InvalidOperationException>(() => analysis.AnalyzeUrl(prefix, false, new InternalLogger()));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
         }
 
         private static int GetFreePort() {
