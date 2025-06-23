@@ -32,7 +32,13 @@ namespace DomainDetective.Tests {
                 var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                 var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
                 Assert.NotNull(servers);
-                servers!["local"] = $"localhost:{port}";
+                // Ensure thread-safe modification of the internal WHOIS servers collection
+                var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var lockObj = lockField?.GetValue(whois);
+                Assert.NotNull(lockObj);
+                lock (lockObj!) {
+                    servers!["local"] = $"localhost:{port}";
+                }
 
                 await whois.QueryWhoisServer("example.local");
 
