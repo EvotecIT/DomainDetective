@@ -269,6 +269,9 @@ namespace DomainDetective {
                 Host = ipAddressOrHostname,
                 DNSBLRecords = results,
             };
+            if (Results.ContainsKey(ipAddressOrHostname)) {
+                Results.Remove(ipAddressOrHostname);
+            }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
         }
@@ -295,6 +298,7 @@ namespace DomainDetective {
             List<string> queries = new List<string>();
             foreach (var dnsbl in dnsblList) {
                 string query = $"{name}.{dnsbl}";
+                Logger?.WriteVerbose($"Querying blacklist domain {dnsbl} with query {query}");
                 queries.Add(query);
             }
 
