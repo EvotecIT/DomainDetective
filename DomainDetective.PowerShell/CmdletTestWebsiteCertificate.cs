@@ -5,6 +5,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "WebsiteCertificate", DefaultParameterSetName = "Url")]
     public sealed class CmdletTestWebsiteCertificate : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
+        [ValidateNotNullOrEmpty]
         public string Url;
 
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "Url")]

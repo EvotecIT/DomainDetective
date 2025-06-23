@@ -7,6 +7,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DomainBlacklist", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestBlackList : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string[] NameOrIpAddress;
 
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]

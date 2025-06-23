@@ -4,6 +4,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet("Load", "DnsblConfig")]
     public sealed class CmdletLoadDnsblConfig : PSCmdlet {
         [Parameter(Mandatory = true, Position = 0)]
+        [ValidateNotNullOrEmpty]
         public string Path { get; set; }
 
         [Parameter(Mandatory = false)]
