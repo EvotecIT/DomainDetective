@@ -25,6 +25,7 @@ namespace DomainDetective.PowerShell {
             // Initialize the logger to be able to see verbose, warning, debug, error, progress, and information messages.
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
             // initialize the health check object
             healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;

@@ -82,6 +82,13 @@ namespace DomainDetective.PowerShell {
         }
         private int _activityIdCounter = 0;
 
+        /// <summary>
+        ///     Resets the progress activity id counter.
+        /// </summary>
+        public void ResetActivityIdCounter() {
+            _activityIdCounter = 0;
+        }
+
         private int _currentActivityId = 1;
         private bool _isCurrentActivityCompleted = true;
 
