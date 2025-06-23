@@ -96,11 +96,12 @@ namespace DomainDetective.PowerShell {
             var progressMessage = e.ProgressCurrentOperation ?? "Processing...: ";
             var progressRecord = new ProgressRecord(_currentActivityId, e.ProgressActivity, progressMessage);
             if (e.ProgressPercentage.HasValue) {
-                if (e.ProgressPercentage.Value >= 0 && e.ProgressPercentage.Value <= 100) {
-                    progressRecord.PercentComplete = e.ProgressPercentage.Value;
-                } else {
-                    progressRecord.PercentComplete = 100;
+                var percentComplete = e.ProgressPercentage.Value;
+                if (percentComplete > 100) {
+                    percentComplete = 100;
                 }
+
+                progressRecord.PercentComplete = percentComplete;
             } else {
                 progressRecord.PercentComplete = 50;
             }
