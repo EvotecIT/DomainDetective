@@ -36,6 +36,29 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task NotFoundStatusSetsIsReachableFalse() {
+            var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.False(analysis.IsReachable);
+                Assert.Equal(404, analysis.StatusCode);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
             var analysis = new HttpAnalysis();
             var url = $"http://localhost:{GetFreePort()}/";
