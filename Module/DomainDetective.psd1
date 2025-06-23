@@ -1,7 +1,7 @@
 ﻿@{
     AliasesToExport      = @()
     Author               = 'Przemyslaw Klys'
-    CmdletsToExport      = @('Test-DomainBlacklist', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-SpfRecord', 'Test-NsRecord', 'Test-DnsPropagation', 'Test-CaaRecord', 'Test-SecurityTXT', 'Get-WhoisInfo')
+    CmdletsToExport      = @('Test-DomainBlacklist', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-SpfRecord', 'Test-NsRecord', 'Test-DnsPropagation', 'Test-CaaRecord', 'Test-SecurityTXT', 'Test-StartTls')
     CompanyName          = 'Evotec'
     CompatiblePSEditions = @('Desktop', 'Core')
     Copyright            = '(c) 2011 - 2025 Przemyslaw Klys @ Evotec. All rights reserved.'
