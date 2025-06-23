@@ -6,6 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Xml.Linq;
 
 namespace DomainDetective {
@@ -24,7 +25,7 @@ namespace DomainDetective {
         public bool SvgFetched { get; private set; }
         public bool SvgValid { get; private set; }
 
-        public async Task AnalyzeBimiRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeBimiRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             await Task.Yield();
 
             BimiRecord = null;
@@ -80,7 +81,7 @@ namespace DomainDetective {
             DeclinedToPublish = string.IsNullOrEmpty(Location) && string.IsNullOrEmpty(Authority);
 
             if (!string.IsNullOrEmpty(Location) && LocationUsesHttps) {
-                var svg = await DownloadIndicator(Location, logger);
+                var svg = await DownloadIndicator(Location, logger, cancellationToken);
                 if (svg != null) {
                     SvgFetched = true;
                     SvgValid = ValidateSvg(svg);
@@ -88,17 +89,17 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<string> DownloadIndicator(string url, InternalLogger logger) {
+        private static async Task<string> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
                 using (HttpClient client = new HttpClient(handler)) {
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-                    using (var response = await client.GetAsync(url)) {
+                    using (var response = await client.GetAsync(url, cancellationToken)) {
                         if (!response.IsSuccessStatusCode) {
                             return null;
                         }
 
-                        var bytes = await response.Content.ReadAsByteArrayAsync();
+                        var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
                         if (url.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)) {
                             using (var ms = new MemoryStream(bytes))
                             using (var gz = new GZipStream(ms, CompressionMode.Decompress))
