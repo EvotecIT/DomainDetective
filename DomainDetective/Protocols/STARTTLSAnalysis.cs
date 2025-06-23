@@ -55,7 +55,11 @@ namespace DomainDetective {
 
                 await writer.WriteLineAsync("QUIT");
                 await writer.FlushAsync();
-                await reader.ReadLineAsync();
+                try {
+                    await reader.ReadLineAsync();
+                } catch (IOException) {
+                    // swallow disconnect after QUIT
+                }
 
                 return capabilities.Contains("STARTTLS");
             } catch (System.Exception ex) {
