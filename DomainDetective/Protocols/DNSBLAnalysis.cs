@@ -286,16 +286,7 @@ namespace DomainDetective {
             // Check if the input is an IP address or a hostname
             string name;
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
-                if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
-                    var nibbles = ipAddress
-                        .GetAddressBytes()
-                        .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                        .Select(n => n.ToString("x"));
-                    name = string.Join(".", nibbles.Reverse());
-                } else {
-                    // Reverse the IPv4 address and append the DNSBL list
-                    name = string.Join(".", ipAddress.ToString().Split('.').Reverse());
-                }
+                name = ipAddress.ToPtrFormat();
             } else {
                 // Use the hostname and append the DNSBL list
                 name = ipAddressOrHostname;
