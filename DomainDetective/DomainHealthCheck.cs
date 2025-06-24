@@ -112,6 +112,7 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             if (selectors == null || selectors.Length == 0) {
                 await DKIMAnalysis.QueryWellKnownSelectors(domainName, DnsConfiguration, _logger, cancellationToken);
                 return;
@@ -254,6 +255,7 @@ namespace DomainDetective {
         }
 
         public async Task CheckDKIM(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dkimRecord,

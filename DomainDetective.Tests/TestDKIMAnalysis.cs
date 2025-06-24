@@ -74,5 +74,23 @@ namespace DomainDetective.Tests {
                 "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;",
                 analysis.AnalysisResults["default"].DkimRecord);
         }
+
+        [Fact]
+        public async Task ResetsBetweenRuns() {
+            const string record1 = "v=DKIM1; k=rsa; p=AAAABBBB;";
+            const string record2 = "v=DKIM1; k=rsa; p=CCCCDDDD;";
+
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckDKIM(record1, "selector1");
+            Assert.Single(healthCheck.DKIMAnalysis.AnalysisResults);
+            Assert.Equal(record1, healthCheck.DKIMAnalysis.AnalysisResults["selector1"].DkimRecord);
+
+            await healthCheck.CheckDKIM(record2, "selector2");
+
+            Assert.Single(healthCheck.DKIMAnalysis.AnalysisResults);
+            Assert.True(healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("selector2"));
+            Assert.Equal(record2, healthCheck.DKIMAnalysis.AnalysisResults["selector2"].DkimRecord);
+        }
     }
 }
