@@ -42,49 +42,82 @@ namespace DomainDetective {
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
             using HttpClient client = new(handler);
 
-            var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DNSKEY&do=1";
             client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
-            var dnskeyJson = await client.GetStringAsync(dnskeyUri);
-            var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
-            AuthenticData = dnskeyDoc.RootElement.GetProperty("AD").GetBoolean();
 
-            var answers = dnskeyDoc.RootElement.GetProperty("Answer").EnumerateArray();
-            var dnskeys = new List<string>();
-            var rrsigs = new List<string>();
-            foreach (var answer in answers) {
-                var type = answer.GetProperty("type").GetInt32();
-                var data = answer.GetProperty("data").GetString();
-                if (type == 48) { // DNSKEY
-                    dnskeys.Add(data);
-                } else if (type == 46) { // RRSIG
-                    rrsigs.Add(data);
+            bool chainValid = true;
+            bool first = true;
+            string current = domainName;
+            List<string> dnsKeys = new();
+            List<string> signatures = new();
+            List<string> dsRecords = new();
+
+            while (true) {
+                var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
+                var dnskeyJson = await client.GetStringAsync(dnskeyUri);
+                var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
+                bool keyAd = dnskeyDoc.RootElement.GetProperty("AD").GetBoolean();
+
+                var answers = dnskeyDoc.RootElement.GetProperty("Answer").EnumerateArray();
+                List<string> zoneKeys = new();
+                List<string> zoneSigs = new();
+                foreach (var answer in answers) {
+                    var type = answer.GetProperty("type").GetInt32();
+                    var data = answer.GetProperty("data").GetString();
+                    if (type == 48) {
+                        zoneKeys.Add(data);
+                    } else if (type == 46) {
+                        zoneSigs.Add(data);
+                    }
                 }
-            }
 
-            DnsKeys = dnskeys;
-            Signatures = rrsigs;
+                var dsResult = await FetchDsRecords(current, client);
 
-            var dsUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DS&do=1";
-            var dsJson = await client.GetStringAsync(dsUri);
-            var dsDoc = JsonDocument.Parse(dsJson);
-            DsAuthenticData = dsDoc.RootElement.GetProperty("AD").GetBoolean();
-            var dsAnswers = dsDoc.RootElement.GetProperty("Answer").EnumerateArray();
-            var dsRecords = new List<string>();
-            foreach (var ans in dsAnswers) {
-                if (ans.GetProperty("type").GetInt32() == 43) {
-                    dsRecords.Add(ans.GetProperty("data").GetString());
+                bool dsMatch = false;
+                if (zoneKeys.Count > 0 && dsResult.records.Count > 0) {
+                    var ksk = zoneKeys.FirstOrDefault(k => k.StartsWith("257")) ?? zoneKeys[0];
+                    dsMatch = VerifyDsMatch(ksk, dsResult.records[0], current);
                 }
-            }
-            DsRecords = dsRecords;
 
-            if (DnsKeys.Count > 0 && DsRecords.Count > 0) {
-                var ksk = DnsKeys.FirstOrDefault(k => k.StartsWith("257")) ?? DnsKeys[0];
-                DsMatch = VerifyDsMatch(ksk, DsRecords[0], domainName);
+                if (first) {
+                    DnsKeys = zoneKeys;
+                    Signatures = zoneSigs;
+                    DsRecords = dsResult.records;
+                    AuthenticData = keyAd;
+                    DsAuthenticData = dsResult.ad;
+                    DsMatch = dsMatch;
+                }
+
+                chainValid &= keyAd && dsResult.ad && dsMatch;
+
+                int dot = current.IndexOf('.');
+                if (dot == -1) {
+                    break;
+                }
+
+                current = current[(dot + 1)..];
+                first = false;
             }
 
-            ChainValid = DsAuthenticData && AuthenticData && DsMatch;
+            ChainValid = chainValid;
 
             logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
+        }
+
+        private static async Task<(List<string> records, bool ad)> FetchDsRecords(string domain, HttpClient client) {
+            var dsUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type=DS&do=1";
+            var dsJson = await client.GetStringAsync(dsUri);
+            var dsDoc = JsonDocument.Parse(dsJson);
+            bool ad = dsDoc.RootElement.GetProperty("AD").GetBoolean();
+            List<string> records = new();
+            if (dsDoc.RootElement.TryGetProperty("Answer", out var dsAnswers)) {
+                foreach (var ans in dsAnswers.EnumerateArray()) {
+                    if (ans.GetProperty("type").GetInt32() == 43) {
+                        records.Add(ans.GetProperty("data").GetString());
+                    }
+                }
+            }
+
+            return (records, ad);
         }
 
         /// <summary>
