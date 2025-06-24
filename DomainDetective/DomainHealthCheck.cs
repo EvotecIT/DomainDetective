@@ -230,7 +230,7 @@ namespace DomainDetective {
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                        throw new System.Exception("Health check type not implemented.");
+                        throw new NotSupportedException("Health check type not implemented.");
                 }
             }
         }
