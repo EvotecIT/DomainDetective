@@ -99,5 +99,16 @@ namespace DomainDetective.Tests {
             Assert.Single(analysis.MailtoRua);
             Assert.Equal("test@example.com", analysis.MailtoRua[0]);
         }
+
+        [Fact]
+        public async Task InvalidAlignmentFlags() {
+            var dmarcRecord = "v=DMARC1; p=none; adkim=x; aspf=y";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.False(healthCheck.DmarcAnalysis.ValidDkimAlignment);
+            Assert.False(healthCheck.DmarcAnalysis.ValidSpfAlignment);
+            Assert.Equal("x", healthCheck.DmarcAnalysis.DkimAShort);
+            Assert.Equal("y", healthCheck.DmarcAnalysis.SpfAShort);
+        }
     }
 }

@@ -31,6 +31,9 @@ namespace DomainDetective {
         public string DkimAlignment => TranslateAlignment(DkimAShort);
         public string FailureReportingOptions => TranslateFailureReportingOptions(FoShort);
 
+        public bool ValidDkimAlignment { get; private set; }
+        public bool ValidSpfAlignment { get; private set; }
+
         public string Rua { get; private set; }
         public List<string> MailtoRua { get; private set; } = new List<string>();
         public List<string> HttpRua { get; private set; } = new List<string>();
@@ -68,6 +71,8 @@ namespace DomainDetective {
             FoShort = null;
             DkimAShort = null;
             SpfAShort = null;
+            ValidDkimAlignment = true;
+            ValidSpfAlignment = true;
             Pct = null;
             ReportingIntervalShort = 0;
 
@@ -141,9 +146,17 @@ namespace DomainDetective {
                             break;
                         case "adkim":
                             DkimAShort = value;
+                            ValidDkimAlignment = value == "s" || value == "r";
+                            if (!ValidDkimAlignment) {
+                                logger?.WriteWarning($"Invalid adkim value '{value}', expected 's' or 'r'");
+                            }
                             break;
                         case "aspf":
                             SpfAShort = value;
+                            ValidSpfAlignment = value == "s" || value == "r";
+                            if (!ValidSpfAlignment) {
+                                logger?.WriteWarning($"Invalid aspf value '{value}', expected 's' or 'r'");
+                            }
                             break;
                         case "rua":
                             Rua = value;
