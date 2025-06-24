@@ -93,13 +93,13 @@ PowerShell specific tests can be run with:
 pwsh ./Module/DomainDetective.Tests.ps1
 ```
 
-### Command Line Interface
+### Command Line Example
 
-Run the `DomainDetective.CLI` project to check a domain. Use `--json` to output
+Run the `DomainDetective.Example` project to check a domain. Use `--json` to output
 all analysis details in JSON format:
 
 ```bash
-dotnet run --project DomainDetective.CLI example.com --json
+dotnet run --project DomainDetective.Example example.com --json
 ```
 
 ### PowerShell Module
