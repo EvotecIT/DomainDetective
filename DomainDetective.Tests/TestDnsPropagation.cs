@@ -75,5 +75,26 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, groups.First().Value.Count);
             Assert.Equal(IPAddress.Parse("2001:db8::1").ToString(), groups.Keys.First());
         }
+
+        [Fact]
+        public void CompareResultsConsistentKeyCasing() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = new[] { "2001:DB8::1" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    Records = new[] { "2001:db8::1" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Single(groups);
+            Assert.Equal(2, groups.First().Value.Count);
+            Assert.Equal("2001:db8::1", groups.Keys.First());
+        }
     }
 }

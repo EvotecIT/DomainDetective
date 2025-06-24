@@ -222,7 +222,12 @@ namespace DomainDetective {
             var comparison = new Dictionary<string, List<PublicDnsEntry>>();
             foreach (var res in results.Where(r => r.Success)) {
                 var normalizedRecords = res.Records
-                    .Select(r => IPAddress.TryParse(r, out var ip) ? ip.ToString() : r)
+                    .Select(r =>
+                        IPAddress.TryParse(r, out var ip)
+                            ? ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                                ? ip.ToString().ToLowerInvariant()
+                                : ip.ToString()
+                            : r)
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
                 if (!comparison.TryGetValue(key, out var list)) {
