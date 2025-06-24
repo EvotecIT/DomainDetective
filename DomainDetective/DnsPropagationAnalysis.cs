@@ -244,7 +244,7 @@ namespace DomainDetective {
         /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>
         public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
             var comparison = new Dictionary<string, List<PublicDnsEntry>>();
-            foreach (var res in results.Where(r => r.Success)) {
+            foreach (var res in results.Where(r => r.Success && r.Records != null)) {
                 var normalizedRecords = res.Records
                     .Select(r =>
                         IPAddress.TryParse(r, out var ip)

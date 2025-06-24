@@ -110,6 +110,20 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void CompareResultsIgnoresNullRecords() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = null,
+                    Success = true
+                }
+            };
+
+            var exception = Record.Exception(() => DnsPropagationAnalysis.CompareResults(results));
+            Assert.Null(exception);
+        }
+
+        [Fact]
         public void LoadServersTrimsWhitespace() {
             var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
 
