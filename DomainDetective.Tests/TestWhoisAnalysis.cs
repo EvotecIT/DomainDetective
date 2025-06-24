@@ -135,5 +135,62 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        [Fact]
+        public async Task QueryMultipleDomainsConcurrently() {
+            var response1 = "Domain Name: example.one";
+            var response2 = "Domain Name: example.two";
+
+            var listener1 = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener1.Start();
+            var port1 = ((System.Net.IPEndPoint)listener1.LocalEndpoint).Port;
+            var serverTask1 = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener1.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                await reader.ReadLineAsync();
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true };
+                await writer.WriteAsync(response1);
+            });
+
+            var listener2 = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener2.Start();
+            var port2 = ((System.Net.IPEndPoint)listener2.LocalEndpoint).Port;
+            var serverTask2 = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener2.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                await reader.ReadLineAsync();
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true };
+                await writer.WriteAsync(response2);
+            });
+
+            List<WhoisAnalysis> results;
+            try {
+                var whois = new WhoisAnalysis();
+                var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+                Assert.NotNull(servers);
+                var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var lockObj = lockField?.GetValue(whois);
+                Assert.NotNull(lockObj);
+                lock (lockObj!) {
+                    servers!["one"] = $"localhost:{port1}";
+                    servers!["two"] = $"localhost:{port2}";
+                }
+
+                results = await whois.QueryWhoisServers(["example.one", "example.two"]);
+            } finally {
+                listener1.Stop();
+                listener2.Stop();
+                await System.Threading.Tasks.Task.WhenAll(serverTask1, serverTask2);
+            }
+
+            Assert.Equal(2, results.Count);
+            var r1 = results.Single(r => r.DomainName == "example.one");
+            var r2 = results.Single(r => r.DomainName == "example.two");
+            Assert.Equal(response1, r1.WhoisData.Trim());
+            Assert.Equal(response2, r2.WhoisData.Trim());
+        }
     }
 }
