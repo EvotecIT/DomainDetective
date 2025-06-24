@@ -49,7 +49,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task FetchPolicyFromServer() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var port = GetFreePort();
             var prefix = $"http://localhost:{port}/";
             listener.Prefixes.Add(prefix);

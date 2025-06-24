@@ -7,7 +7,7 @@ namespace DomainDetective.Tests {
     public class TestSecurityTXTAnalysis {
         [Fact]
         public async Task ValidSecurityTxtIsParsed() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -37,7 +37,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task MissingContactMakesRecordInvalid() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();

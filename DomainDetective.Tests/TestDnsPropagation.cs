@@ -1,6 +1,7 @@
 using DnsClientX;
 using DomainDetective;
 using System.Net;
+using System.Threading;
 namespace DomainDetective.Tests {
     public class TestDnsPropagation {
         [Fact]
@@ -28,6 +29,17 @@ namespace DomainDetective.Tests {
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers);
             Assert.Single(results);
             Assert.False(results[0].Success);
+        }
+
+        [Fact]
+        public async Task QueryHonorsCancellation() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.AddServer(new PublicDnsEntry { IPAddress = "192.0.2.1", Country = "Test" });
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, cts.Token));
         }
 
         [Fact]
@@ -95,6 +107,23 @@ namespace DomainDetective.Tests {
             Assert.Single(groups);
             Assert.Equal(2, groups.First().Value.Count);
             Assert.Equal("2001:db8::1", groups.Keys.First());
+        }
+      
+        [Fact]
+        public void LoadServersTrimsWhitespace() {
+            var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
+
+            var file = Path.GetTempFileName();
+            File.WriteAllText(file, json);
+
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadServers(file, clearExisting: true);
+
+            var server = Assert.Single(analysis.Servers);
+            Assert.Equal("Test", server.Country);
+            Assert.Equal("example.com", server.HostName);
+            Assert.Equal("Somewhere", server.Location);
+            Assert.Equal("Example ASN", server.ASNName);
         }
     }
 }

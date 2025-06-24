@@ -8,7 +8,7 @@ namespace DomainDetective.Tests {
     public class TestHPKPHealthCheck {
         [Fact]
         public async Task VerifyViaHealthCheck() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();

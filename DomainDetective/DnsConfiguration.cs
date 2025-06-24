@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -76,6 +77,9 @@ namespace DomainDetective {
         /// </summary>
         public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
+            if (names == null || names.Length == 0) {
+                throw new ArgumentNullException(nameof(names));
+            }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
             DnsResponse[] data = filter != string.Empty
                 ? await client.ResolveFilter(names, recordType, filter)

@@ -208,7 +208,7 @@ namespace DomainDetective {
                         var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var hosts = mxRecordsForRelay.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         foreach (var host in hosts) {
-                            await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger);
+                            await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger, cancellationToken);
                         }
                         break;
                     case HealthCheckType.STARTTLS:
@@ -319,7 +319,7 @@ namespace DomainDetective {
         }
 
         public async Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) {
-            await OpenRelayAnalysis.AnalyzeServer(host, port, _logger);
+            await OpenRelayAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {

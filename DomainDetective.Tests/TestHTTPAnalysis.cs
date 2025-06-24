@@ -8,7 +8,7 @@ namespace DomainDetective.Tests {
     public class TestHTTPAnalysis {
         [Fact]
         public async Task DetectStatusCodeAndHsts() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -40,7 +40,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task NotFoundStatusSetsIsReachableFalse() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -74,7 +74,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DoesNotCollectHeadersWhenDisabled() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -97,12 +97,12 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task FollowsRedirectsWhenUsingHttp3() {
-            var listener1 = new HttpListener();
+            using var listener1 = new HttpListener();
             var prefix1 = $"http://localhost:{GetFreePort()}/";
             listener1.Prefixes.Add(prefix1);
             listener1.Start();
 
-            var listener2 = new HttpListener();
+            using var listener2 = new HttpListener();
             var prefix2 = $"http://localhost:{GetFreePort()}/";
             listener2.Prefixes.Add(prefix2);
             listener2.Start();
@@ -136,7 +136,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ThrowsWhenMaxRedirectsExceeded() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
