@@ -80,11 +80,18 @@ namespace DomainDetective {
 
             DeclinedToPublish = string.IsNullOrEmpty(Location) && string.IsNullOrEmpty(Authority);
 
-            if (!string.IsNullOrEmpty(Location) && LocationUsesHttps) {
+            if (!string.IsNullOrEmpty(Location)) {
+                if (!LocationUsesHttps) {
+                    logger?.WriteWarning("BIMI indicator location does not use HTTPS: {0}", Location);
+                }
+
                 var svg = await DownloadIndicator(Location, logger, cancellationToken);
                 if (svg != null) {
                     SvgFetched = true;
                     SvgValid = ValidateSvg(svg);
+                    logger?.WriteVerbose("Successfully downloaded BIMI indicator from {0}", Location);
+                } else {
+                    logger?.WriteWarning("Failed to download BIMI indicator from {0}", Location);
                 }
             }
         }
