@@ -12,6 +12,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        [Parameter(Mandatory = false)]
+        public int Port = 25;
+
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
 
@@ -24,8 +27,8 @@ namespace DomainDetective.PowerShell {
         }
 
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying STARTTLS for domain: {0}", DomainName);
-            await healthCheck.VerifySTARTTLS(DomainName);
+            _logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", DomainName, Port);
+            await healthCheck.VerifySTARTTLS(DomainName, Port);
             WriteObject(healthCheck.StartTlsAnalysis);
         }
     }

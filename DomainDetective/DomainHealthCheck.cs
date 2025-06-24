@@ -378,13 +378,13 @@ namespace DomainDetective {
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
 
-        public async Task VerifySTARTTLS(string domainName, CancellationToken cancellationToken = default) {
+        public async Task VerifySTARTTLS(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
-            await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+            await StartTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
         }
 
         public async Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default) {
