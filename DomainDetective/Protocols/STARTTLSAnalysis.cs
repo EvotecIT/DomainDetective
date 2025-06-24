@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class STARTTLSAnalysis {
@@ -24,7 +24,7 @@ namespace DomainDetective {
         }
 
         private static async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            using var client = new TcpClient();
+            var client = new TcpClient();
             try {
                 await client.ConnectAsync(host, port);
                 using NetworkStream network = client.GetStream();
@@ -65,6 +65,8 @@ namespace DomainDetective {
             } catch (System.Exception ex) {
                 logger?.WriteError("STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return false;
+            } finally {
+                client.Dispose();
             }
         }
     }
