@@ -1,8 +1,8 @@
 using System.Management.Automation;
 
 namespace DomainDetective.PowerShell {
-    [Cmdlet("Load", "DnsblConfig")]
-    public sealed class CmdletLoadDnsblConfig : PSCmdlet {
+    [Cmdlet(VerbsData.Import, "DnsblConfig")]
+    public sealed class CmdletImportDnsblConfig : PSCmdlet {
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
         public string Path { get; set; }

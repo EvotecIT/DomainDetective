@@ -11,5 +11,5 @@ $Removed | Format-Table
 $Cleared = Clear-DnsblProvider
 $Cleared | Format-Table
 
-$Loaded = Load-DnsblConfig -Path $PSScriptRoot/../../DnsblProviders.sample.json -OverwriteExisting
+$Loaded = Import-DnsblConfig -Path $PSScriptRoot/../../DnsblProviders.sample.json -OverwriteExisting
 $Loaded | Format-Table

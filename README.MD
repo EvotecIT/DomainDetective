@@ -44,7 +44,7 @@ DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes w
 - `ClearDNSBL`
 - `LoadDNSBL`
 
-You can load a custom list from a file using `LoadDNSBL`. Additionally, JSON files describing DNSBL providers can be imported with `LoadDnsblConfig`.
+You can load a custom list from a file using `LoadDNSBL`. Additionally, JSON files describing DNSBL providers can be imported with `ImportDnsblConfig`.
 
 Example usage in C#:
 
@@ -70,7 +70,7 @@ Same actions are available from PowerShell using dedicated cmdlets:
 Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
 Remove-DnsblProvider -Domain 'dnsbl.example.com'
 Clear-DnsblProvider
-Load-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
+Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 ```
 
 ### Verifying Website Certificates

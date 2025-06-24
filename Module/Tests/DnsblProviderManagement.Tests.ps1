@@ -32,15 +32,15 @@ Describe 'Clear-DnsblProvider cmdlet' {
     }
 }
 
-Describe 'Load-DnsblConfig cmdlet' {
+Describe 'Import-DnsblConfig cmdlet' {
     It 'executes and returns analysis' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         $path = "$PSScriptRoot/../../DnsblProviders.sample.json"
-        $result = Load-DnsblConfig -Path $path -OverwriteExisting
+        $result = Import-DnsblConfig -Path $path -OverwriteExisting
         $result | Should -Not -BeNullOrEmpty
     }
     It 'throws if Path is empty' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
-        { Load-DnsblConfig -Path '' } | Should -Throw
-    }
+        { Import-DnsblConfig -Path '' } | Should -Throw
+}
 }

@@ -37,12 +37,12 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-StartTls -DomainName "example.com" -Verbose
   ```
-- `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Load-DnsblConfig` manage the list of DNSBL providers.
+- `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Import-DnsblConfig` manage the list of DNSBL providers.
   ```powershell
   Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
   Remove-DnsblProvider -Domain 'dnsbl.example.com'
   Clear-DnsblProvider
-  Load-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
+  Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
   ```
 
 To execute the PowerShell test suite run:
