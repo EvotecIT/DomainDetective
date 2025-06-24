@@ -17,20 +17,23 @@ Current capabilities include:
 - [x] Verify DNSSEC
 - [x] Verify DANE/TLSA
 - [x] Verify STARTTLS
-- [ ] Verify MTA-STS
-- [ ] Verify SMTP TLS
-- [ ] Verify Website Connectivity
+- [x] Verify MTA-STS
+- [x] Verify SMTP TLS
+- [x] Verify TLS-RPT
+- [x] Verify BIMI
+- [x] Verify Website Connectivity
   - [x] Verify HTTP/2
   - [x] Verify HTTP/3
-  - [ ] Verify Certificate
+  - [x] Verify Certificate
   - [x] Verify Response Time
-  - [ ] Verify Headers
+  - [x] Verify Headers
   - [x] Verify HSTS
-  - [ ] Verify HPKP
-- [ ] Verify SecurityTXT
-- [ ] Verify Open Relay (SMTP)
-- [ ] Verify Blacklist (DNSBL)
-- [ ] Check propagation of DNS records across the world/country/company
+  - [x] Verify HPKP
+- [x] Verify SecurityTXT
+- [x] Verify Open Relay (SMTP)
+- [x] Verify Blacklist (DNSBL)
+- [x] Check propagation of DNS records across the world/country/company
+- [x] Verify WHOIS
 - [ ] Other things that I haven't thought of yet
 
 ### DNSBL Configuration
