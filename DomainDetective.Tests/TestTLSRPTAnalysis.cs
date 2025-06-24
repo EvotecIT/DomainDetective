@@ -1,4 +1,6 @@
 using DomainDetective;
+using DnsClientX;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -21,6 +23,25 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckTLSRPT(record);
             Assert.False(healthCheck.TLSRPTAnalysis.RuaDefined);
             Assert.False(healthCheck.TLSRPTAnalysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task SkipCnameRecordBeforeParsing() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "alias.example.com",
+                    Type = DnsRecordType.CNAME
+                },
+                new DnsAnswer {
+                    DataRaw = "v=TLSRPTv1;rua=mailto:reports@example.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.PolicyValid);
         }
     }
 }

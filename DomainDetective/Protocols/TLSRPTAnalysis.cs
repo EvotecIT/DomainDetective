@@ -35,7 +35,9 @@ namespace DomainDetective {
                 return;
             }
 
-            var recordList = dnsResults.ToList();
+            var recordList = dnsResults
+                .Where(r => r.Type != DnsRecordType.CNAME)
+                .ToList();
             TlsRptRecordExists = recordList.Any();
             if (!TlsRptRecordExists) {
                 logger?.WriteVerbose("No TLSRPT record found.");
