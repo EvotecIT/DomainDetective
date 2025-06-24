@@ -38,5 +38,14 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.Http3Supported);
             }
         }
+
+        [Fact]
+        public async Task ValidCertificateProvidesExpirationInfo() {
+            var logger = new InternalLogger();
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            Assert.True(analysis.DaysValid > 0);
+            Assert.Equal(analysis.DaysToExpire < 0, analysis.IsExpired);
+        }
     }
 }

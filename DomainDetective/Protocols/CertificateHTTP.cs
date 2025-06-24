@@ -14,6 +14,8 @@ namespace DomainDetective {
         public bool IsValid { get; set; }
         public bool IsReachable { get; set; }
         public int DaysToExpire { get; set; }
+        public int DaysValid { get; private set; }
+        public bool IsExpired { get; private set; }
 
         public Version ProtocolVersion { get; private set; }
 
@@ -29,6 +31,7 @@ namespace DomainDetective {
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
+            Url = url;
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
@@ -93,6 +96,8 @@ namespace DomainDetective {
                         }
                         if (Certificate != null) {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
+                            DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
+                            IsExpired = Certificate.NotAfter < DateTime.Now;
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
