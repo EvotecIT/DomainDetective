@@ -118,5 +118,16 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
             Assert.False(analysis.ExternalReportAuthorization["external.com"]);
         }
+        
+        [Fact]
+        public async Task InvalidAlignmentFlags() {
+            var dmarcRecord = "v=DMARC1; p=none; adkim=x; aspf=y";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(dmarcRecord);
+            Assert.False(healthCheck.DmarcAnalysis.ValidDkimAlignment);
+            Assert.False(healthCheck.DmarcAnalysis.ValidSpfAlignment);
+            Assert.Equal("x", healthCheck.DmarcAnalysis.DkimAShort);
+            Assert.Equal("y", healthCheck.DmarcAnalysis.SpfAShort);
+        }
     }
 }

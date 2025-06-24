@@ -114,6 +114,7 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -262,6 +263,7 @@ namespace DomainDetective {
         }
 
         public async Task CheckDKIM(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dkimRecord,
@@ -418,6 +420,10 @@ namespace DomainDetective {
             }
             if (ports == null || ports.Length == 0) {
                 throw new ArgumentException("No ports provided.", nameof(ports));
+            }
+
+            if (ports.Any(p => p <= 0)) {
+                throw new ArgumentException("Ports must be greater than zero.", nameof(ports));
             }
 
             DaneAnalysis = new DANEAnalysis();
