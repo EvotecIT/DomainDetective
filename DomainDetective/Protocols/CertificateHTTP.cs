@@ -24,6 +24,7 @@ namespace DomainDetective {
         public X509Certificate2 Certificate { get; set; }
 
         public List<X509Certificate2> Chain { get; } = new();
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             var builder = new UriBuilder(url) { Port = port };
@@ -68,9 +69,15 @@ namespace DomainDetective {
                             try {
                                 var uri = new Uri(url);
                                 using var tcp = new TcpClient();
-                                await tcp.ConnectAsync(uri.Host, port);
+                                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                                timeoutCts.CancelAfter(Timeout);
+#if NET6_0_OR_GREATER
+                                await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
+#else
+                                await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
+#endif
                                 using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-                                await ssl.AuthenticateAsClientAsync(uri.Host);
+                                await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                                     var xchain = new X509Chain();

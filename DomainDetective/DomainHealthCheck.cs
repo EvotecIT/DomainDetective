@@ -535,9 +535,9 @@ namespace DomainDetective {
         }
 
         public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
-            WhoisAnalysis = new WhoisAnalysis();
-            var tasks = WhoisAnalysis.QueryWhoisServer(domain);
-            await Task.WhenAll(tasks);
+            var timeout = WhoisAnalysis.Timeout;
+            WhoisAnalysis = new WhoisAnalysis { Timeout = timeout };
+            await WhoisAnalysis.QueryWhoisServer(domain, cancellationToken);
         }
 
         public DomainSummary BuildSummary() {
