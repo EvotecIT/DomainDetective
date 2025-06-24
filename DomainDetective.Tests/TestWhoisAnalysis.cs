@@ -91,5 +91,49 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        [Fact]
+        public async Task ParsesRegistrarAbuseContactInfo() {
+            var response = string.Join("\n", new[] {
+                "Domain Name: example.sample",
+                "Registrar: Example Registrar",
+                "Registrar Abuse Contact Email: abuse@example.com",
+                "Registrar Abuse Contact Phone: +1.1234567890",
+                "Name Server: ns1.example.sample"
+            });
+
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                await reader.ReadLineAsync();
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true };
+                await writer.WriteAsync(response);
+            });
+
+            try {
+                var whois = new WhoisAnalysis();
+                var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+                Assert.NotNull(servers);
+                var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var lockObj = lockField?.GetValue(whois);
+                Assert.NotNull(lockObj);
+                lock (lockObj!) {
+                    servers!["sample"] = $"localhost:{port}";
+                }
+
+                await whois.QueryWhoisServer("example.sample");
+
+                Assert.Equal("abuse@example.com", whois.RegistrarAbuseEmail);
+                Assert.Equal("+1.1234567890", whois.RegistrarAbusePhone);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
     }
 }
