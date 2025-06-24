@@ -1,6 +1,7 @@
 using DnsClientX;
 using DomainDetective;
 using System.Net;
+using System.Threading;
 namespace DomainDetective.Tests {
     public class TestDnsPropagation {
         [Fact]
@@ -28,6 +29,17 @@ namespace DomainDetective.Tests {
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers);
             Assert.Single(results);
             Assert.False(results[0].Success);
+        }
+
+        [Fact]
+        public async Task QueryHonorsCancellation() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.AddServer(new PublicDnsEntry { IPAddress = "192.0.2.1", Country = "Test" });
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+                await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, cts.Token));
         }
 
         [Fact]

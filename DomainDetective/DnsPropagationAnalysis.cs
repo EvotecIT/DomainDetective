@@ -200,6 +200,9 @@ namespace DomainDetective {
                     Records = response.Answers.Select(a => a.Data),
                     Success = response.Answers.Any()
                 };
+            } catch (OperationCanceledException) {
+                sw.Stop();
+                throw;
             } catch (Exception ex) {
                 sw.Stop();
                 return new DnsPropagationResult {
