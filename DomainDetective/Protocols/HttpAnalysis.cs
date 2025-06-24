@@ -33,6 +33,9 @@ namespace DomainDetective {
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
+        /// <summary>Gets or sets the HTTP request timeout.</summary>
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
+
         private static readonly string[] _securityHeaderNames = new[] {
             "Content-Security-Policy",
             "X-Content-Type-Options",
@@ -57,7 +60,7 @@ namespace DomainDetective {
 #else
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
 #endif
-            using var client = new HttpClient(handler);
+            using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             Body = null;
