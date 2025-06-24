@@ -112,6 +112,7 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -260,6 +261,7 @@ namespace DomainDetective {
         }
 
         public async Task CheckDKIM(string dkimRecord, string selector = "default", CancellationToken cancellationToken = default) {
+            DKIMAnalysis.Reset();
             await DKIMAnalysis.AnalyzeDkimRecords(selector, new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = dkimRecord,
