@@ -16,6 +16,10 @@ namespace DomainDetective {
         public TimeSpan ResponseTime { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS header was present.</summary>
         public bool HstsPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
+        public bool XssProtectionPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
+        public bool ExpectCtPresent { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
         public Dictionary<string, string> SecurityHeaders { get; } = new();
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
@@ -41,7 +45,10 @@ namespace DomainDetective {
             "X-Content-Type-Options",
             "X-Frame-Options",
             "Referrer-Policy",
-            "Permissions-Policy"
+            "Permissions-Policy",
+            "Strict-Transport-Security",
+            "X-XSS-Protection",
+            "Expect-CT"
         };
 
         /// <summary>
@@ -64,6 +71,8 @@ namespace DomainDetective {
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             Body = null;
+            XssProtectionPresent = false;
+            ExpectCtPresent = false;
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
@@ -113,6 +122,11 @@ namespace DomainDetective {
                             SecurityHeaders[headerName] = string.Join(",", values);
                         }
                     }
+                    if (!HstsPresent) {
+                        HstsPresent = SecurityHeaders.ContainsKey("Strict-Transport-Security");
+                    }
+                    XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
+                    ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
