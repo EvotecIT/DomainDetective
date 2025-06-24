@@ -71,6 +71,9 @@ namespace DomainDetective {
         /// <param name="filePath">Path to the JSON file.</param>
         /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
         public void LoadServers(string filePath, bool clearExisting = false) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
+            }
             if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNS server list file not found: {filePath}");
             }
@@ -241,7 +244,7 @@ namespace DomainDetective {
         /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>
         public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
             var comparison = new Dictionary<string, List<PublicDnsEntry>>();
-            foreach (var res in results.Where(r => r.Success)) {
+            foreach (var res in results.Where(r => r.Success && r.Records != null)) {
                 var normalizedRecords = res.Records
                     .Select(r =>
                         IPAddress.TryParse(r, out var ip)

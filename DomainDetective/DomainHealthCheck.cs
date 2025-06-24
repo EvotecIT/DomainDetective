@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
@@ -514,6 +515,11 @@ namespace DomainDetective {
                 HasMxRecord = MXAnalysis.MxRecordExists,
                 DnsSecValid = DNSSecAnalysis.ChainValid
             };
+        }
+          
+        public string ToJson(JsonSerializerOptions options = null) {
+            options ??= new JsonSerializerOptions { WriteIndented = true };
+            return JsonSerializer.Serialize(this, options);
         }
     }
 }

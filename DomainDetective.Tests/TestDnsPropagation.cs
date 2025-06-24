@@ -110,20 +110,39 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void CompareResultsIgnoresNullRecords() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = null,
+                    Success = true
+                }
+            };
+
+            var exception = Record.Exception(() => DnsPropagationAnalysis.CompareResults(results));
+            Assert.Null(exception);
+        }
+
+        [Fact]
         public void LoadServersTrimsWhitespace() {
             var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
 
             var file = Path.GetTempFileName();
-            File.WriteAllText(file, json);
+            try {
+                File.WriteAllText(file, json);
 
-            var analysis = new DnsPropagationAnalysis();
-            analysis.LoadServers(file, clearExisting: true);
+                var analysis = new DnsPropagationAnalysis();
+                analysis.LoadServers(file, clearExisting: true);
 
-            var server = Assert.Single(analysis.Servers);
-            Assert.Equal("Test", server.Country);
-            Assert.Equal("example.com", server.HostName);
-            Assert.Equal("Somewhere", server.Location);
-            Assert.Equal("Example ASN", server.ASNName);
+                var server = Assert.Single(analysis.Servers);
+                Assert.Equal("Test", server.Country);
+                Assert.Equal("example.com", server.HostName);
+                Assert.Equal("Somewhere", server.Location);
+                Assert.Equal("Example ASN", server.ASNName);
+            }
+            finally {
+                File.Delete(file);
+            }
         }
     }
 }

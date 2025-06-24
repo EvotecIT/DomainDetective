@@ -1,9 +1,24 @@
+using System;
+using System.Linq;
 using System.Threading.Tasks;
+using DomainDetective;
 
 namespace DomainDetective.Example;
 
 public static partial class Program {
-    public static async Task Main() {
+    public static async Task Main(string[] args) {
+        if (args.Length > 0 && args.Any(a => !a.StartsWith("-"))) {
+            var outputJson = args.Contains("--json");
+            var domain = args.First(a => !a.StartsWith("-"));
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.Verify(domain);
+            if (outputJson) {
+                Console.WriteLine(healthCheck.ToJson());
+            } else {
+                Console.WriteLine($"Health check completed for {domain}");
+            }
+            return;
+        }
         await ExampleAnalyseByDnsSPF();
         await ExampleAnalyseByStringSPF();
 
