@@ -329,7 +329,7 @@ public class WhoisAnalysis {
 
             await networkStream.FlushAsync().WaitWithCancellation(timeoutCts.Token);
             using var memoryStream = new MemoryStream();
-            await networkStream.CopyToAsync(memoryStream, timeoutCts.Token);
+            await networkStream.CopyToAsync(memoryStream, 81920, timeoutCts.Token);
             var responseBytes = memoryStream.ToArray();
 
             string response = Encoding.UTF8.GetString(responseBytes);
