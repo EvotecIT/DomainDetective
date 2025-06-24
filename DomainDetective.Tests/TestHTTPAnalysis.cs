@@ -172,9 +172,10 @@ namespace DomainDetective.Tests {
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
+            var tcs = new TaskCompletionSource<object?>();
             var serverTask = Task.Run(async () => {
                 var ctx = await listener.GetContextAsync();
-                await Task.Delay(3000);
+                await tcs.Task;
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Close();
             });
@@ -185,6 +186,7 @@ namespace DomainDetective.Tests {
                 Assert.False(analysis.IsReachable);
                 Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
             } finally {
+                tcs.TrySetResult(null);
                 listener.Stop();
                 await serverTask;
             }
