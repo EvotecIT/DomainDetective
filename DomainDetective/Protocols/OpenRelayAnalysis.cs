@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     public class OpenRelayAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
@@ -16,54 +17,53 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = allows;
         }
 
-        private static async Task<bool> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<bool> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(Timeout);
             try {
 #if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, cancellationToken);
+                await client.ConnectAsync(host, port, timeoutCts.Token);
 #else
-                await client.ConnectAsync(host, port);
-                cancellationToken.ThrowIfCancellationRequested();
+                await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
 #if NET8_0_OR_GREATER
-                await reader.ReadLineAsync(cancellationToken);
+                await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
+                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
-                cancellationToken.ThrowIfCancellationRequested();
-                await writer.WriteLineAsync($"HELO example.com");
 #if NET8_0_OR_GREATER
-                await reader.ReadLineAsync(cancellationToken);
+                timeoutCts.Token.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync($"HELO example.com");
+                await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
+                timeoutCts.Token.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync($"HELO example.com");
+                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
-                cancellationToken.ThrowIfCancellationRequested();
+                timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("MAIL FROM:<test@example.com>");
 #if NET8_0_OR_GREATER
-                var mailResp = await reader.ReadLineAsync(cancellationToken);
+                var mailResp = await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                var mailResp = await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
+                var mailResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
-                cancellationToken.ThrowIfCancellationRequested();
+                timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("RCPT TO:<test@example.org>");
 #if NET8_0_OR_GREATER
-                var rcptResp = await reader.ReadLineAsync(cancellationToken);
-                await writer.WriteLineAsync("QUIT".AsMemory(), cancellationToken);
-                await writer.FlushAsync(cancellationToken);
-                await reader.ReadLineAsync(cancellationToken);
+                var rcptResp = await reader.ReadLineAsync(timeoutCts.Token);
+                await writer.WriteLineAsync("QUIT".AsMemory(), timeoutCts.Token);
+                await writer.FlushAsync(timeoutCts.Token);
+                await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                var rcptResp = await reader.ReadLineAsync();
+                var rcptResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 await writer.WriteLineAsync("QUIT");
                 await writer.FlushAsync();
-                await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
+                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
 
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");

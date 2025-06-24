@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     public class STARTTLSAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
@@ -23,22 +25,32 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var client = new TcpClient();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(Timeout);
             try {
-                await client.ConnectAsync(host, port);
+#if NET6_0_OR_GREATER
+                await client.ConnectAsync(host, port, timeoutCts.Token);
+#else
+                await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+#endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
-                await reader.ReadLineAsync();
-                cancellationToken.ThrowIfCancellationRequested();
+#if NET8_0_OR_GREATER
+                await reader.ReadLineAsync(timeoutCts.Token);
+#else
+                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+#endif
+                timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync($"EHLO example.com");
 
                 var capabilities = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
                 string line;
-                while ((line = await reader.ReadLineAsync()) != null) {
-                    cancellationToken.ThrowIfCancellationRequested();
+                while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
+                    timeoutCts.Token.ThrowIfCancellationRequested();
                     logger?.WriteVerbose($"EHLO response: {line}");
                     if (line.StartsWith("250")) {
                         string capabilityLine = line.Substring(4).Trim();
@@ -56,7 +68,7 @@ namespace DomainDetective {
                 await writer.WriteLineAsync("QUIT");
                 await writer.FlushAsync();
                 try {
-                    await reader.ReadLineAsync();
+                    await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 } catch (IOException) {
                     // swallow disconnect after QUIT
                 }
