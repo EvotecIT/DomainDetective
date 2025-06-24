@@ -10,6 +10,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public int Port = 25;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter ShowChain;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -24,7 +27,11 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
-            WriteObject(_healthCheck.SmtpTlsAnalysis.ServerResults[$"{HostName}:{Port}"]);
+            var result = _healthCheck.SmtpTlsAnalysis.ServerResults[$"{HostName}:{Port}"];
+            WriteObject(result);
+            if (ShowChain && result.Chain.Count > 0) {
+                WriteObject(result.Chain, true);
+            }
         }
     }
 }

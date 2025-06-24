@@ -11,6 +11,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "Url")]
         public int Port = 443;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter ShowChain;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -26,6 +29,9 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Verifying website certificate for {0}", Url);
             await _healthCheck.VerifyWebsiteCertificate(Url, Port);
             WriteObject(_healthCheck.CertificateAnalysis);
+            if (ShowChain && _healthCheck.CertificateAnalysis.Chain.Count > 0) {
+                WriteObject(_healthCheck.CertificateAnalysis.Chain, true);
+            }
         }
     }
 }
