@@ -181,7 +181,7 @@ namespace DomainDetective.Tests {
                 await writer.WriteLineAsync("221 bye");
                 try {
                     var buffer = new byte[1];
-                    connectionClosed = await stream.ReadAsync(buffer.AsMemory(0, 1)) == 0;
+                    connectionClosed = await stream.ReadAsync(buffer, 0, 1) == 0;
                 } catch (System.IO.IOException) {
                     connectionClosed = true;
                 }
