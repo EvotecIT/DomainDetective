@@ -94,7 +94,7 @@ namespace DomainDetective {
                     break;
                 }
 
-                current = current[(dot + 1)..];
+                current = current.Substring(dot + 1);
                 first = false;
             }
 
