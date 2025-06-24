@@ -222,26 +222,36 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="name">Algorithm name.</param>
         /// <returns>Numeric algorithm identifier.</returns>
-        private static int AlgorithmNumber(string name) => name.ToUpperInvariant() switch {
-            "RSAMD5" => 1,
-            "DH" => 2,
-            "DSA" => 3,
-            "ECC" => 4,
-            "RSASHA1" => 5,
-            "DSANSEC3SHA1" => 6,
-            "RSASHA1NSEC3SHA1" => 7,
-            "RSASHA256" => 8,
-            "RSASHA512" => 10,
-            "ECCGOST" => 12,
-            "ECDSAP256SHA256" => 13,
-            "ECDSAP384SHA384" => 14,
-            "ED25519" => 15,
-            "ED448" => 16,
-            "INDIRECT" => 252,
-            "PRIVATEDNS" => 253,
-            "PRIVATEOID" => 254,
-            _ => 0,
-        };
+        private static int AlgorithmNumber(string name) {
+            if (string.IsNullOrWhiteSpace(name)) {
+                return 0;
+            }
+
+            if (int.TryParse(name, out int numeric)) {
+                return numeric;
+            }
+
+            return name.ToUpperInvariant() switch {
+                "RSAMD5" => 1,
+                "DH" => 2,
+                "DSA" => 3,
+                "ECC" => 4,
+                "RSASHA1" => 5,
+                "DSANSEC3SHA1" => 6,
+                "RSASHA1NSEC3SHA1" => 7,
+                "RSASHA256" => 8,
+                "RSASHA512" => 10,
+                "ECCGOST" => 12,
+                "ECDSAP256SHA256" => 13,
+                "ECDSAP384SHA384" => 14,
+                "ED25519" => 15,
+                "ED448" => 16,
+                "INDIRECT" => 252,
+                "PRIVATEDNS" => 253,
+                "PRIVATEOID" => 254,
+                _ => 0,
+            };
+        }
 
         /// <summary>
         /// Validates that the specified record has a valid DNSSEC signature.
