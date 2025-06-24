@@ -1,5 +1,7 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -36,30 +38,33 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the DNS for a specific name and record type, optionally applying a filter.
         /// </summary>
-        public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "") {
-            ClientX client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
-            if (filter != "") {
+        public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);
                 return data.Answers;
-            } else {
-                var data = await client.Resolve(name, recordType);
-                return data.Answers;
             }
+
+            var result = await client.Resolve(name, recordType);
+            return result.Answers;
         }
 
         /// <summary>
         /// Queries the DNS for a list of names and a record type, optionally applying a filter.
         /// </summary>
-        public async Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "") {
-            List<DnsAnswer> allAnswers = new List<DnsAnswer>();
+        public async Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            List<DnsAnswer> allAnswers = new();
 
-            ClientX client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
             DnsResponse[] data;
-            if (filter != "") {
+            if (filter != string.Empty) {
                 data = await client.ResolveFilter(names, recordType, filter);
             } else {
                 data = await client.Resolve(names, recordType);
             }
+
             foreach (var response in data) {
                 allAnswers.AddRange(response.Answers);
             }
@@ -70,16 +75,15 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the DNS for a list of names and a record type, optionally applying a filter, and returns the full DNS response.
         /// </summary>
-        public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "") {
-            List<DnsAnswer> allAnswers = new List<DnsAnswer>();
-
-            ClientX client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
-            DnsResponse[] data;
-            if (filter != "") {
-                data = await client.ResolveFilter(names, recordType, filter);
-            } else {
-                data = await client.Resolve(names, recordType);
+        public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (names == null || names.Length == 0) {
+                throw new ArgumentNullException(nameof(names));
             }
+            ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            DnsResponse[] data = filter != string.Empty
+                ? await client.ResolveFilter(names, recordType, filter)
+                : await client.Resolve(names, recordType);
 
             return data;
         }

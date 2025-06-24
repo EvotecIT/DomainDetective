@@ -71,6 +71,11 @@ namespace DomainDetective {
             Pct = null;
             ReportingIntervalShort = 0;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
 
@@ -168,45 +173,31 @@ namespace DomainDetective {
             }
         }
         private string TranslateAlignment(string alignment) {
-            switch (alignment) {
-                case "s":
-                    return "Strict";
-                case "r":
-                    return "Relaxed";
-                case null:
-                case "":
-                    return "Relaxed (default)"; // default to relaxed if no value is provided
-                default:
-                    return "Unknown";
-            }
+            return alignment switch {
+                "s" => "Strict",
+                "r" => "Relaxed",
+                null or "" => "Relaxed (default)", // default to relaxed if no value is provided
+                _ => "Unknown",
+            };
         }
 
         private string TranslatePolicy(string policy) {
-            switch (policy) {
-                case "none":
-                    return "No policy";
-                case "quarantine":
-                    return "Quarantine";
-                case "reject":
-                    return "Reject";
-                default:
-                    return "Unknown policy";
-            }
+            return policy switch {
+                "none" => "No policy",
+                "quarantine" => "Quarantine",
+                "reject" => "Reject",
+                _ => "Unknown policy",
+            };
         }
 
         private string TranslateFailureReportingOptions(string option) {
-            switch (option) {
-                case "0":
-                    return "Generate a DMARC failure report if all underlying authentication mechanisms fail to produce an aligned 'pass' result.";
-                case "1":
-                    return "Generate a DMARC failure report if any underlying authentication mechanism produced something other than an aligned 'pass' result.";
-                case "d":
-                    return "Generate a DKIM failure report if the message had a signature that failed evaluation.";
-                case "s":
-                    return "Generate an SPF failure report if the message failed SPF evaluation.";
-                default:
-                    return "Unknown option";
-            }
+            return option switch {
+                "0" => "Generate a DMARC failure report if all underlying authentication mechanisms fail to produce an aligned 'pass' result.",
+                "1" => "Generate a DMARC failure report if any underlying authentication mechanism produced something other than an aligned 'pass' result.",
+                "d" => "Generate a DKIM failure report if the message had a signature that failed evaluation.",
+                "s" => "Generate an SPF failure report if the message failed SPF evaluation.",
+                _ => "Unknown option",
+            };
         }
 
         private string TranslatePercentage() {

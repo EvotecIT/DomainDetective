@@ -6,12 +6,14 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class DNSBLRecord {
         public string IPAddress { get; set; }
+        public string OriginalIPAddress { get; set; }
         public string FQDN { get; set; }
         public string BlackList { get; set; }
         //public string BlackListReason { get; set; }
@@ -205,14 +207,20 @@ namespace DomainDetective {
 
         internal InternalLogger Logger { get; set; }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
-            Logger = logger;
+        public void Reset() {
+            Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
+            Logger = null;
+        }
+
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
+            Reset();
+            Logger = logger;
 
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
 
             Logger.WriteVerbose($"Checking {domainName} against {DNSBLLists.Count} blacklists");
-            var resultsDomain = await QueryDNSBL(DNSBLLists, domainName);
+            var resultsDomain = await ToListAsync(QueryDNSBL(DNSBLLists, domainName));
             ConvertToResults(domainName, resultsDomain);
 
             Logger.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
@@ -226,7 +234,7 @@ namespace DomainDetective {
                     // Perform the DNSBL check for the IP address
 
                     Logger.WriteVerbose($"Checking {ipAddress} (MX record resolved) against {DNSBLLists.Count} blacklists");
-                    var results = await QueryDNSBL(DNSBLLists, ipAddress);
+                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
 
                     //// Add the MX record data to each DNSBLRecord
                     //foreach (var result in results) {
@@ -244,11 +252,16 @@ namespace DomainDetective {
             }
         }
 
-        internal async Task AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
+        public async IAsyncEnumerable<DNSBLRecord> AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
+            Reset();
             Logger = logger;
             Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
-            var results = await QueryDNSBL(DNSBLLists, ipAddressOrHostname);
-            ConvertToResults(ipAddressOrHostname, results);
+            var collected = new List<DNSBLRecord>();
+            await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname)) {
+                collected.Add(record);
+                yield return record;
+            }
+            ConvertToResults(ipAddressOrHostname, collected);
         }
 
         private void ConvertToResults(string ipAddressOrHostname, IEnumerable<DNSBLRecord> results) {
@@ -256,25 +269,27 @@ namespace DomainDetective {
                 Host = ipAddressOrHostname,
                 DNSBLRecords = results,
             };
+            if (Results.ContainsKey(ipAddressOrHostname)) {
+                Results.Remove(ipAddressOrHostname);
+            }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
         }
 
-        private async Task<IEnumerable<DNSBLRecord>> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
-            List<DNSBLRecord> results = new List<DNSBLRecord>();
+        private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source) {
+            var list = new List<T>();
+            await foreach (var item in source) {
+                list.Add(item);
+            }
+            return list;
+        }
+
+        private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
 
             // Check if the input is an IP address or a hostname
             string name;
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
-                if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
-                    var hex = string.Concat(ipAddress
-                        .GetAddressBytes()
-                        .Select(b => b.ToString("x2")));
-                    name = string.Join(".", hex.Reverse());
-                } else {
-                    // Reverse the IPv4 address and append the DNSBL list
-                    name = string.Join(".", ipAddress.ToString().Split('.').Reverse());
-                }
+                name = ipAddress.ToPtrFormat();
             } else {
                 // Use the hostname and append the DNSBL list
                 name = ipAddressOrHostname;
@@ -283,6 +298,7 @@ namespace DomainDetective {
             List<string> queries = new List<string>();
             foreach (var dnsbl in dnsblList) {
                 string query = $"{name}.{dnsbl}";
+                Logger?.WriteVerbose($"Querying blacklist domain {dnsbl} with query {query}");
                 queries.Add(query);
             }
 
@@ -308,40 +324,30 @@ namespace DomainDetective {
                 if (pair.Value.Count == 0) {
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
+                        OriginalIPAddress = ipAddressOrHostname,
                         FQDN = pair.Key,
-                        BlackList = pair.Key.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
+                        BlackList = pair.Key.Substring(name.Length + 1),
                         IsBlackListed = false,
                         Answer = string.Empty,
                     };
-                    results.Add(dnsblRecord);
+                    yield return dnsblRecord;
                 } else {
                     foreach (var record in pair.Value) {
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
+                            OriginalIPAddress = ipAddressOrHostname,
                             FQDN = record.Name,
-                            BlackList = record.Name.Substring(name.Length + 1), // Extract the blacklist name from the FQDN
+                            BlackList = record.Name.Substring(name.Length + 1),
                             IsBlackListed = true,
                             Answer = record.Data,
                         };
 
                         // TODO: Add more blacklist specific checks, maybe move to a separate method for improved results
                         if (dnsblRecord.Answer.StartsWith("127.255.")) {
-                            // Check if the answer is in the range 127.255.xx.xx
-                            // https://www.spamhaus.org/faqs/dnsbl-usage/#200
-                            // Return Code Zone Description
-                            // 127.255.255.252 Any Typing error in DNSBL name
-                            // 127.255.255.254 Any Query via public/open resolver
-                            // 127.255.255.255  Any Excessive number of queries
                             dnsblRecord.IsBlackListed = false;
                         }
 
                         if (dnsblRecord.BlackList == "hostkarma.junkemailfilter.com") {
-                            // https://wiki.junkemailfilter.com/index.php/Spam_DNS_Lists
-                            // 127.0.0.1 - whilelist - trusted nonspam
-                            // 127.0.0.2 - blacklist - block spam
-                            // 127.0.0.3 - yellowlist - mix of spam and nonspam
-                            // 127.0.0.4 - brownlist - all spam - but not yet enough to blacklist
-                            // 127.0.0.5 - NOBL - This IP is not a spam only source and no blacklists need to be tested
                             if (dnsblRecord.Answer.StartsWith("127.0.0.2")) {
                                 dnsblRecord.IsBlackListed = true;
                             } else {
@@ -349,18 +355,17 @@ namespace DomainDetective {
                             }
                         }
 
-                        results.Add(dnsblRecord);
+                        yield return dnsblRecord;
                     }
                 }
             }
-            return results.OrderByDescending(r => r.IsBlackListed).ToList();
         }
 
         public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null) {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
-            if (!DnsblEntries.Any(e => e.Domain == dnsbl)) {
+            if (!DnsblEntries.Any(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl))) {
                 DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
             }
         }
@@ -391,7 +396,7 @@ namespace DomainDetective {
                 throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
             }
 
-            var lines = File.ReadAllLines(filePath);
+            var lines = File.ReadAllLines(filePath, Encoding.UTF8);
 
             if (clearExisting) {
                 ClearDNSBL();
@@ -414,6 +419,8 @@ namespace DomainDetective {
                     comment = trimmed.Substring(commentIndex + 1).Trim();
                     trimmed = trimmed.Substring(0, commentIndex).Trim();
                 }
+
+                trimmed = trimmed.TrimEnd('#').Trim();
 
                 if (!string.IsNullOrWhiteSpace(trimmed)) {
                     AddDNSBL(trimmed, enabled, comment);

@@ -8,12 +8,14 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DnsPropagation", DefaultParameterSetName = "ServersFile")]
     public sealed class CmdletTestDnsPropagation : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServersFile")]
+        [ValidateNotNullOrEmpty]
         public string DomainName;
 
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServersFile")]
         public DnsRecordType RecordType;
 
         [Parameter(Mandatory = true, Position = 2, ParameterSetName = "ServersFile")]
+        [ValidateNotNullOrEmpty]
         public string ServersFile;
 
         [Parameter(Mandatory = false)]
@@ -34,6 +36,7 @@ namespace DomainDetective.PowerShell {
         protected override Task BeginProcessingAsync() {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
             _analysis = new DnsPropagationAnalysis();
             _analysis.LoadServers(ServersFile, clearExisting: true);
             return Task.CompletedTask;

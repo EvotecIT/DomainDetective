@@ -59,8 +59,7 @@ namespace DomainDetective {
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
 
-        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            // reset all properties so repeated calls don't accumulate data
+        public void Reset() {
             SpfRecord = null;
             SpfRecords = new List<string>();
             SpfRecordExists = false;
@@ -98,6 +97,14 @@ namespace DomainDetective {
             AllMechanism = null;
             SpfPartAnalyses = new List<SpfPartAnalysis>();
             SpfTestResults = new List<SpfTestResult>();
+        }
+
+        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            Reset();
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
             var spfRecordList = dnsResults.ToList();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;
@@ -150,6 +157,9 @@ namespace DomainDetective {
 
             // check if the SPF record contains exists: with no domain
             CheckForNullDnsLookups(parts);
+
+            // clear fake DNS entries after analysis to avoid cross-run contamination
+            TestSpfRecords.Clear();
         }
 
 
@@ -320,7 +330,37 @@ namespace DomainDetective {
 
             var current = new System.Text.StringBuilder();
             var inQuotes = false;
+            var escapeNext = false;
+            var commentDepth = 0;
+
             foreach (var c in record) {
+                if (escapeNext) {
+                    if (commentDepth == 0) {
+                        current.Append(c);
+                    }
+                    escapeNext = false;
+                    continue;
+                }
+
+                if (c == '\\') {
+                    escapeNext = true;
+                    continue;
+                }
+
+                if (commentDepth > 0) {
+                    if (c == '(') {
+                        commentDepth++;
+                    } else if (c == ')') {
+                        commentDepth--;
+                    }
+                    continue;
+                }
+
+                if (!inQuotes && c == '(') {
+                    commentDepth = 1;
+                    continue;
+                }
+
                 if (c == '"') {
                     if (inQuotes) {
                         tokens.Add(current.ToString());

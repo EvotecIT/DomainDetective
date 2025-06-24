@@ -13,8 +13,16 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDNSBL(address);
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
-            var expected = string.Join(".", string.Concat(IPAddress.Parse(address).GetAddressBytes().Select(b => b.ToString("x2"))).Reverse());
+            var expected = string.Join(
+                ".",
+                IPAddress
+                    .Parse(address)
+                    .GetAddressBytes()
+                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
+                    .Select(n => n.ToString("x"))
+                    .Reverse());
             Assert.Equal(expected, record.IPAddress);
+            Assert.Equal(address, record.OriginalIPAddress);
         }
 
         [Fact]
@@ -26,7 +34,14 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDNSBL(address);
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
-            var nibble = string.Join(".", string.Concat(IPAddress.Parse(address).GetAddressBytes().Select(b => b.ToString("x2"))).Reverse());
+            var nibble = string.Join(
+                ".",
+                IPAddress
+                    .Parse(address)
+                    .GetAddressBytes()
+                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
+                    .Select(n => n.ToString("x"))
+                    .Reverse());
             Assert.Equal($"{nibble}.example.test", record.FQDN);
         }
     }

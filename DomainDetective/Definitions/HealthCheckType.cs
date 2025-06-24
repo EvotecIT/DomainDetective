@@ -10,11 +10,15 @@ namespace DomainDetective {
         DNSBL,
         DNSSEC,
         MTASTS,
+        TLSRPT,
+        BIMI,
         CERT,
         SECURITYTXT,
         SOA,
         OPENRELAY,
         STARTTLS,
-        HTTP
+        SMTPTLS,
+        HTTP,
+        HPKP
     }
 }

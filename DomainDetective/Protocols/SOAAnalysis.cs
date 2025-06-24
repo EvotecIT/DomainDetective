@@ -28,6 +28,11 @@ namespace DomainDetective {
             Minimum = 0;
             RecordExists = false;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var soaRecordList = dnsResults.ToList();
             RecordExists = soaRecordList.Any();
             if (!RecordExists) {

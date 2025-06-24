@@ -1,3 +1,5 @@
+using DnsClientX;
+using DomainDetective.Protocols;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,59 +9,127 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides DNSSEC validation utilities for a domain.
+    /// </summary>
     public class DNSSecAnalysis {
+        /// <summary>Gets the DS records returned for the domain.</summary>
         public IReadOnlyList<string> DsRecords { get; private set; } = new List<string>();
+
+        /// <summary>Gets the DNSKEY records returned for the domain.</summary>
         public IReadOnlyList<string> DnsKeys { get; private set; } = new List<string>();
+
+        /// <summary>Gets the DNSSEC signatures returned for the domain.</summary>
         public IReadOnlyList<string> Signatures { get; private set; } = new List<string>();
+
+        /// <summary>Gets a value indicating whether the DNSKEY query returned authentic data.</summary>
         public bool AuthenticData { get; private set; }
+
+        /// <summary>Gets a value indicating whether the DS query returned authentic data.</summary>
+        public bool DsAuthenticData { get; private set; }
+
+        /// <summary>Gets a value indicating whether the DS record matches the DNSKEY.</summary>
         public bool DsMatch { get; private set; }
 
+        /// <summary>Gets a value indicating whether the full DNSSEC chain is valid.</summary>
+        public bool ChainValid { get; private set; }
+
+        /// <summary>
+        /// Performs DNSSEC validation for the specified domain.
+        /// </summary>
+        /// <param name="domainName">Domain to validate.</param>
+        /// <param name="logger">Optional logger used for diagnostics.</param>
+        /// <param name="dnsConfiguration">Optional DNS configuration.</param>
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null) {
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
             using HttpClient client = new(handler);
 
-            var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DNSKEY&do=1";
             client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
-            var dnskeyJson = await client.GetStringAsync(dnskeyUri);
-            var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
-            AuthenticData = dnskeyDoc.RootElement.GetProperty("AD").GetBoolean();
 
-            var answers = dnskeyDoc.RootElement.GetProperty("Answer").EnumerateArray();
-            var dnskeys = new List<string>();
-            var rrsigs = new List<string>();
-            foreach (var answer in answers) {
-                var type = answer.GetProperty("type").GetInt32();
-                var data = answer.GetProperty("data").GetString();
-                if (type == 48) { // DNSKEY
-                    dnskeys.Add(data);
-                } else if (type == 46) { // RRSIG
-                    rrsigs.Add(data);
+            bool chainValid = true;
+            bool first = true;
+            string current = domainName;
+            List<string> dnsKeys = new();
+            List<string> signatures = new();
+            List<string> dsRecords = new();
+
+            while (true) {
+                var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
+                var dnskeyJson = await client.GetStringAsync(dnskeyUri);
+                var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
+                bool keyAd = dnskeyDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+
+                List<string> zoneKeys = new();
+                List<string> zoneSigs = new();
+                if (dnskeyDoc.RootElement.TryGetProperty("Answer", out var ansElem)) {
+                    foreach (var answer in ansElem.EnumerateArray()) {
+                        var type = answer.GetProperty("type").GetInt32();
+                        var data = answer.GetProperty("data").GetString();
+                        if (type == 48) {
+                            zoneKeys.Add(data);
+                        } else if (type == 46) {
+                            zoneSigs.Add(data);
+                        }
+                    }
                 }
-            }
 
-            DnsKeys = dnskeys;
-            Signatures = rrsigs;
+                var dsResult = await FetchDsRecords(current, client);
 
-            var dsUri = $"https://cloudflare-dns.com/dns-query?name={domainName}&type=DS&do=1";
-            var dsJson = await client.GetStringAsync(dsUri);
-            var dsDoc = JsonDocument.Parse(dsJson);
-            var dsAnswers = dsDoc.RootElement.GetProperty("Answer").EnumerateArray();
-            var dsRecords = new List<string>();
-            foreach (var ans in dsAnswers) {
-                if (ans.GetProperty("type").GetInt32() == 43) {
-                    dsRecords.Add(ans.GetProperty("data").GetString());
+                bool dsMatch = false;
+                if (zoneKeys.Count > 0 && dsResult.records.Count > 0) {
+                    var ksk = zoneKeys.FirstOrDefault(k => k.StartsWith("257")) ?? zoneKeys[0];
+                    dsMatch = VerifyDsMatch(ksk, dsResult.records[0], current);
                 }
-            }
-            DsRecords = dsRecords;
 
-            if (DnsKeys.Count > 0 && DsRecords.Count > 0) {
-                var ksk = DnsKeys.FirstOrDefault(k => k.StartsWith("257")) ?? DnsKeys[0];
-                DsMatch = VerifyDsMatch(ksk, DsRecords[0], domainName);
+                if (first) {
+                    DnsKeys = zoneKeys;
+                    Signatures = zoneSigs;
+                    DsRecords = dsResult.records;
+                    AuthenticData = keyAd;
+                    DsAuthenticData = dsResult.ad;
+                    DsMatch = dsMatch;
+                }
+
+                chainValid &= keyAd && dsResult.ad && dsMatch;
+
+                int dot = current.IndexOf('.');
+                if (dot == -1) {
+                    break;
+                }
+
+                current = current.Substring(dot + 1);
+                first = false;
             }
 
-            logger?.WriteVerbose("DNSSEC validation for {0}: {1}", domainName, AuthenticData);
+            ChainValid = chainValid;
+
+            logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
         }
 
+        private static async Task<(List<string> records, bool ad)> FetchDsRecords(string domain, HttpClient client) {
+            var dsUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type=DS&do=1";
+            var dsJson = await client.GetStringAsync(dsUri);
+            var dsDoc = JsonDocument.Parse(dsJson);
+            bool ad = dsDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+            List<string> records = new();
+            if (dsDoc.RootElement.TryGetProperty("Answer", out var dsAnswers)) {
+                foreach (var ans in dsAnswers.EnumerateArray()) {
+                    if (ans.GetProperty("type").GetInt32() == 43) {
+                        records.Add(ans.GetProperty("data").GetString());
+                    }
+                }
+            }
+
+            return (records, ad);
+        }
+
+        /// <summary>
+        /// Validates that the provided DS record matches the specified DNSKEY.
+        /// </summary>
+        /// <param name="dnskey">DNSKEY record data.</param>
+        /// <param name="dsRecord">DS record data.</param>
+        /// <param name="domainName">Domain name used in the calculation.</param>
+        /// <returns><c>true</c> if the DS record corresponds to the DNSKEY; otherwise <c>false</c>.</returns>
         private static bool VerifyDsMatch(string dnskey, string dsRecord, string domainName) {
             try {
                 var keyParts = dnskey.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
@@ -87,6 +157,9 @@ namespace DomainDetective {
                 var dsAlgorithm = AlgorithmNumber(dsParts[1]);
                 var digestType = int.Parse(dsParts[2]);
                 var digest = dsParts[3];
+                if (!DNSKeyAnalysis.IsHexadecimal(digest)) {
+                    return false;
+                }
 
                 int computedKeyTag = ComputeKeyTag(rdata);
                 if (computedKeyTag != keyTag || dsAlgorithm != algorithm) {
@@ -113,6 +186,11 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Computes the DNSSEC key tag for the given RDATA sequence.
+        /// </summary>
+        /// <param name="rdata">RDATA bytes from the DNSKEY record.</param>
+        /// <returns>The computed key tag.</returns>
         private static int ComputeKeyTag(List<byte> rdata) {
             int ac = 0;
             for (int i = 0; i < rdata.Count; i++) {
@@ -122,6 +200,11 @@ namespace DomainDetective {
             return ac & 0xFFFF;
         }
 
+        /// <summary>
+        /// Converts a domain name to its DNS wire format representation.
+        /// </summary>
+        /// <param name="domainName">Domain name to convert.</param>
+        /// <returns>Byte array containing the wire format representation.</returns>
         private static byte[] ToWireFormat(string domainName) {
             domainName = domainName.TrimEnd('.').ToLowerInvariant();
             var labels = domainName.Split('.');
@@ -134,6 +217,11 @@ namespace DomainDetective {
             return bytes.ToArray();
         }
 
+        /// <summary>
+        /// Maps DNS algorithm names to their numeric identifiers.
+        /// </summary>
+        /// <param name="name">Algorithm name.</param>
+        /// <returns>Numeric algorithm identifier.</returns>
         private static int AlgorithmNumber(string name) => name.ToUpperInvariant() switch {
             "RSAMD5" => 1,
             "DH" => 2,
@@ -154,5 +242,35 @@ namespace DomainDetective {
             "PRIVATEOID" => 254,
             _ => 0,
         };
+
+        /// <summary>
+        /// Validates that the specified record has a valid DNSSEC signature.
+        /// </summary>
+        /// <param name="domain">Domain name to query.</param>
+        /// <param name="type">Record type to validate.</param>
+        /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
+        public async Task<bool> ValidateRecord(string domain, DnsRecordType type) {
+            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            using HttpClient client = new(handler);
+
+            client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+
+            var queryUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type={(int)type}&do=1";
+            var response = await client.GetStringAsync(queryUri);
+            using var doc = JsonDocument.Parse(response);
+            bool ad = doc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+
+            bool hasSig = false;
+            if (doc.RootElement.TryGetProperty("Answer", out var answerElem)) {
+                foreach (var ans in answerElem.EnumerateArray()) {
+                    if (ans.GetProperty("type").GetInt32() == 46) {
+                        hasSig = true;
+                        break;
+                    }
+                }
+            }
+
+            return ad && hasSig;
+        }
     }
 }

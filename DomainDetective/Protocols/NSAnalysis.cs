@@ -31,6 +31,11 @@ namespace DomainDetective {
             AllHaveAOrAaaa = true;
             PointsToCname = false;
 
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
             var nsList = dnsResults.ToList();
             NsRecordExists = nsList.Any();
             AtLeastTwoRecords = nsList.Count >= 2;

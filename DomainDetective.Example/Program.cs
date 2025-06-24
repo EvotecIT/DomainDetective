@@ -37,8 +37,10 @@ public static partial class Program {
         await ExampleAnalyseByArrayDNSBL();
         await ExampleAnalyseByDomainDNSBL();
         await ExampleManageDnsbl();
+        await ExampleAnalyseOpenRelay();
         await ExampleAnalyseSecurityTXT();
         await ExampleAnalyseDnsPropagation();
+        await ExampleAnalyseDnsPropagationRegions();
 
         //await ExampleQueryDNS();
         //await ExampleAnalyseByStringWHOIS();
@@ -46,5 +48,9 @@ public static partial class Program {
 
     public static async Task ExampleAnalyseDnsPropagation() {
         await ExampleAnalyseDnsPropagationClass.Run();
+    }
+
+    public static async Task ExampleAnalyseDnsPropagationRegions() {
+        await ExampleAnalyseDnsPropagationRegionsClass.Run();
     }
 }

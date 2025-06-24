@@ -13,7 +13,7 @@ public class WhoisAnalysis {
     private string TLD { get; set; }
     private string _domainName;
     public string DomainName {
-        get => _domainName?.ToLower();
+        get => _domainName;
         set => _domainName = value;
     }
     public string Tld => TLD;
@@ -31,9 +31,21 @@ public class WhoisAnalysis {
     public string RegistrarTel { get; set; }
     public string RegistrarWebsite { get; set; }
     public string RegistrarEmail { get; set; }
+    public string RegistrarAbuseEmail { get; set; }
+    public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
 
-    private readonly Dictionary<string, string> WhoisServers = new Dictionary<string, string> {
+    private static readonly InternalLogger _logger = new();
+
+    // Lock object used to synchronize access to the WhoisServers dictionary
+    // since Dictionary<TK,TV> is not thread safe for concurrent writes.
+    private readonly object _whoisServersLock = new();
+
+    // Mapping of TLDs to WHOIS servers. Modify this collection only while
+    // holding _whoisServersLock to avoid race conditions in multi-threaded tests
+    // or applications.
+    private readonly Dictionary<string, string> WhoisServers =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
         {"ac", "whois.nic.ac"},
         {"ad", "whois.ripe.net"},
         {"ae", "whois.aeda.net.ae"},
@@ -291,55 +303,72 @@ public class WhoisAnalysis {
             throw new UnsupportedTldException(domain, TLD);
         }
 
+        using TcpClient tcpClient = new TcpClient();
         try {
-            using (TcpClient tcpClient = new TcpClient()) {
-                var serverParts = whoisServer.Split(':');
-                var host = serverParts[0];
-                var port = 43;
-                if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
-                    port = customPort;
-                }
-                await tcpClient.ConnectAsync(host, port);
-
-                using NetworkStream networkStream = tcpClient.GetStream();
-                using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
-                    await streamWriter.WriteLineAsync(domain);
-                    await streamWriter.FlushAsync();
-                }
-
-                await networkStream.FlushAsync();
-                using var memoryStream = new MemoryStream();
-                await networkStream.CopyToAsync(memoryStream);
-                var responseBytes = memoryStream.ToArray();
-
-                string response = Encoding.UTF8.GetString(responseBytes);
-                if (response.Contains('\uFFFD')) {
-                    response = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
-                }
-
-                response = Regex.Replace(response, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
-                WhoisData = response;
+            var serverParts = whoisServer.Split(':');
+            var host = serverParts[0];
+            var port = 43;
+            if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) {
+                port = customPort;
             }
+
+            await tcpClient.ConnectAsync(host, port);
+
+            using NetworkStream networkStream = tcpClient.GetStream();
+            using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
+                await streamWriter.WriteLineAsync(domain);
+                await streamWriter.FlushAsync();
+            }
+
+            await networkStream.FlushAsync();
+            using var memoryStream = new MemoryStream();
+            await networkStream.CopyToAsync(memoryStream);
+            var responseBytes = memoryStream.ToArray();
+
+            string response = Encoding.UTF8.GetString(responseBytes);
+            if (response.Contains('\uFFFD')) {
+                response = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
+            }
+
+            response = Regex.Replace(response, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant);
+            WhoisData = response;
             ParseWhoisData();
         } catch (Exception ex) {
-            Console.WriteLine("Error querying WHOIS server: " + ex.Message);
+            _logger.WriteError("Error querying WHOIS server: {0}", ex.Message);
         }
     }
 
+    public async Task<List<WhoisAnalysis>> QueryWhoisServers(string[] domains) {
+        var tasks = domains.Select(async domain => {
+            var analysis = new WhoisAnalysis();
+            lock (_whoisServersLock) {
+                foreach (var kvp in WhoisServers) {
+                    if (!analysis.WhoisServers.ContainsKey(kvp.Key)) {
+                        analysis.WhoisServers[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            await analysis.QueryWhoisServer(domain);
+            return analysis;
+        });
+        return (await Task.WhenAll(tasks)).ToList();
+    }
+
     private void ParseWhoisData() {
-        if (TLD == "xyz") {
+        if (string.Equals(TLD, "xyz", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataXYZ();
-        } else if (TLD == "pl") {
+        } else if (string.Equals(TLD, "pl", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataPL();
-        } else if (TLD == "com" || TLD == "net") {
+        } else if (string.Equals(TLD, "com", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(TLD, "net", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCOM();
-        } else if (TLD == "co.uk") {
+        } else if (string.Equals(TLD, "co.uk", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCOUK();
-        } else if (TLD == "de") {
+        } else if (string.Equals(TLD, "de", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataDE();
-        } else if (TLD == "cz") {
+        } else if (string.Equals(TLD, "cz", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCZ();
-        } else if (TLD == "be") {
+        } else if (string.Equals(TLD, "be", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataBE();
         } else {
             ParseWhoisDataDefault();
@@ -546,9 +575,13 @@ public class WhoisAnalysis {
             } else if (line.StartsWith("   Name Server:")) {
                 NameServers.Add(line.Substring("   Name Server:".Length).Trim());
             } else if (line.StartsWith("   Registrar Abuse Contact Email:")) {
-                RegistrarEmail = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
+                var value = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (line.StartsWith("   Registrar Abuse Contact Phone:")) {
-                RegistrarTel = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+                var value = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             } else if (line.StartsWith("   DNSSEC:")) {
                 DnsSec = line.Substring("   DNSSEC:".Length).Trim();
             }
@@ -575,9 +608,13 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Name Server:")) {
                 NameServers.Add(trimmedLine.Substring("Name Server:".Length).Trim());
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
-                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
-                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             } else if (trimmedLine.StartsWith("Registrant Organization:")) {
                 RegisteredTo = trimmedLine.Substring("Registrant Organization:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registrant Country:")) {
@@ -624,9 +661,13 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Registrant Country:")) {
                 Country = trimmedLine.Substring("Registrant Country:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
-                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
-                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             }
         }
     }

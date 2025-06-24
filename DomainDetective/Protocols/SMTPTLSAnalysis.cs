@@ -1,66 +1,115 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
+using System.IO;
 using System.Net.Security;
+using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class SMTPTLSAnalysis {
         public class TlsResult {
+            public bool StartTlsAdvertised { get; set; }
             public bool CertificateValid { get; set; }
             public int DaysToExpire { get; set; }
-            public List<SslProtocols> SupportedProtocols { get; } = new();
+            public SslProtocols Protocol { get; set; }
+            public CipherAlgorithmType CipherAlgorithm { get; set; }
+            public int CipherStrength { get; set; }
+            public List<X509Certificate2> Chain { get; } = new();
         }
 
         public Dictionary<string, TlsResult> ServerResults { get; } = new();
 
-        public async Task AnalyzeServer(string host, int port, InternalLogger logger) {
-            var result = new TlsResult();
-            foreach (var protocol in _protocolsToTest) {
-                if (await CheckProtocol(host, port, protocol, result, logger)) {
-                    result.SupportedProtocols.Add(protocol);
-                }
-            }
+        public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            ServerResults.Clear();
+            var result = await CheckTls(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = result;
         }
 
-        private static readonly SslProtocols[] _protocolsToTest = new[] {
-            SslProtocols.Tls,
-            SslProtocols.Tls11,
-            SslProtocols.Tls12,
-#if NET8_0_OR_GREATER
-            SslProtocols.Tls13,
-#endif
-        };
-
-        private static async Task<bool> CheckProtocol(string host, int port, SslProtocols protocol, TlsResult result, InternalLogger logger) {
-            try {
-                using var client = new TcpClient();
-                await client.ConnectAsync(host, port);
-                using var ssl = new SslStream(client.GetStream(), false, (sender, certificate, chain, errors) => {
-                    result.CertificateValid = errors == SslPolicyErrors.None;
-                    if (certificate is X509Certificate2 cert) {
-                        result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
-                    }
-                    return true; // continue even if invalid
-                });
-
-                var authTask = ssl.AuthenticateAsClientAsync(host, null, protocol, false);
-                if (await Task.WhenAny(authTask, Task.Delay(TimeSpan.FromSeconds(5))) != authTask) {
-                    client.Close();
-                    logger?.WriteVerbose($"{host}:{port} handshake timed out for {protocol}");
-                    return false;
-                }
-                await authTask; // propagate exceptions
-                logger?.WriteVerbose($"{host}:{port} supports {protocol}");
-                return true;
-            } catch (Exception ex) {
-                logger?.WriteVerbose($"{host}:{port} does not support {protocol}: {ex.Message}");
-                return false;
+        public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            ServerResults.Clear();
+            foreach (var host in hosts) {
+                cancellationToken.ThrowIfCancellationRequested();
+                ServerResults[$"{host}:{port}"] = await CheckTls(host, port, logger, cancellationToken);
             }
+        }
+
+        private static async Task<TlsResult> CheckTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+            var result = new TlsResult();
+            try {
+                using (var client = new TcpClient()) {
+                    await client.ConnectAsync(host, port);
+
+                    using NetworkStream network = client.GetStream();
+                    using (var reader = new StreamReader(network))
+                    using (var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" }) {
+                        await reader.ReadLineAsync();
+                        cancellationToken.ThrowIfCancellationRequested();
+                        await writer.WriteLineAsync($"EHLO example.com");
+
+                        var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        string line;
+                        while ((line = await reader.ReadLineAsync()) != null) {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            logger?.WriteVerbose($"EHLO response: {line}");
+                            if (line.StartsWith("250")) {
+                                string capabilityLine = line.Substring(4).Trim();
+                                foreach (var part in capabilityLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
+                                    capabilities.Add(part);
+                                }
+                                if (!line.StartsWith("250-")) {
+                                    break;
+                                }
+                            } else if (line.StartsWith("4") || line.StartsWith("5")) {
+                                break;
+                            }
+                        }
+
+                        result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
+                        if (!result.StartTlsAdvertised) {
+                            await writer.WriteLineAsync("QUIT");
+                            await writer.FlushAsync();
+                            await reader.ReadLineAsync();
+                            return result;
+                        }
+
+                        await writer.WriteLineAsync("STARTTLS");
+                        string resp = await reader.ReadLineAsync();
+                        if (resp == null || !resp.StartsWith("220")) {
+                            logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {resp}");
+                            return result;
+                        }
+
+                        using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
+                            result.CertificateValid = errors == SslPolicyErrors.None;
+                            if (certificate is X509Certificate2 cert) {
+                                result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
+                                result.Chain.Clear();
+                                if (chain != null) {
+                                    foreach (var element in chain.ChainElements) {
+                                        result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                    }
+                                }
+                            }
+                            return true;
+                        });
+
+                        await ssl.AuthenticateAsClientAsync(host);
+                        result.Protocol = ssl.SslProtocol;
+                        result.CipherAlgorithm = ssl.CipherAlgorithm;
+                        result.CipherStrength = ssl.CipherStrength;
+
+                        using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        await secureWriter.WriteLineAsync("QUIT");
+                    }
+                }
+            } catch (Exception ex) {
+                logger?.WriteError("SMTP TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
+            }
+
+            return result;
         }
     }
 }

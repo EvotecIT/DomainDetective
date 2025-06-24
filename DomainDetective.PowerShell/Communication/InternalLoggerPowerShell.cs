@@ -13,6 +13,7 @@ namespace DomainDetective.PowerShell {
         private readonly Action<string> _writeWarningAction;
         private readonly Action<ErrorRecord> _writeErrorAction;
         private readonly Action<ProgressRecord> _writeProgressAction;
+        private int _errorIdCounter;
 
         /// <summary>
         /// Initialize the InternalLoggerPowerShell class
@@ -77,10 +78,31 @@ namespace DomainDetective.PowerShell {
             WriteWarning(e.Message);
         }
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
-            ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), "1", ErrorCategory.NotSpecified, null);
+            var errorId = GetNextErrorId();
+            ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), errorId, ErrorCategory.NotSpecified, null) {
+                ErrorDetails = new ErrorDetails(errorId)
+            };
             WriteError(errorRecord);
         }
         private int _activityIdCounter = 0;
+
+        /// <summary>
+        ///     Resets the error id counter.
+        /// </summary>
+        public void ResetErrorIdCounter() {
+            _errorIdCounter = 0;
+        }
+
+        private string GetNextErrorId() {
+            return (++_errorIdCounter).ToString();
+        }
+
+        /// <summary>
+        ///     Resets the progress activity id counter.
+        /// </summary>
+        public void ResetActivityIdCounter() {
+            _activityIdCounter = 0;
+        }
 
         private int _currentActivityId = 1;
         private bool _isCurrentActivityCompleted = true;
@@ -96,11 +118,12 @@ namespace DomainDetective.PowerShell {
             var progressMessage = e.ProgressCurrentOperation ?? "Processing...: ";
             var progressRecord = new ProgressRecord(_currentActivityId, e.ProgressActivity, progressMessage);
             if (e.ProgressPercentage.HasValue) {
-                if (e.ProgressPercentage.Value >= 0 && e.ProgressPercentage.Value <= 100) {
-                    progressRecord.PercentComplete = e.ProgressPercentage.Value;
-                } else {
-                    progressRecord.PercentComplete = 100;
+                var percentComplete = e.ProgressPercentage.Value;
+                if (percentComplete > 100) {
+                    percentComplete = 100;
                 }
+
+                progressRecord.PercentComplete = percentComplete;
             } else {
                 progressRecord.PercentComplete = 50;
             }

@@ -1,10 +1,9 @@
+using PgpCore;
+using PgpCore.Models;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using PgpCore;
-using PgpCore.Models;
-using System.IO;
 
 namespace DomainDetective {
     public class SecurityTXTAnalysis {
@@ -67,7 +66,7 @@ namespace DomainDetective {
                     }
                 }
             } catch (Exception ex) {
-                // Log the exception
+                Logger?.WriteDebug("Failed to download security.txt from {0}: {1}", url, ex.Message);
                 return null;
             }
         }
@@ -113,8 +112,8 @@ namespace DomainDetective {
                     string value = line.Substring(colonIndex + 1).Trim();
 
                     // Add the value to the appropriate list in the record
-                    switch (currentField) {
-                        case "Contact":
+                    switch (currentField.ToLowerInvariant()) {
+                        case "contact":
                             if (value.StartsWith("mailto:")) {
                                 ContactEmail.Add(value.Substring("mailto:".Length));
                             } else if (value.Contains("@")) {
@@ -123,25 +122,25 @@ namespace DomainDetective {
                                 ContactWebsite.Add(value);
                             }
                             break;
-                        case "Acknowledgments":
+                        case "acknowledgments":
                             Acknowledgments.Add(value);
                             break;
-                        case "Preferred-Languages":
+                        case "preferred-languages":
                             PreferredLanguages.Add(value);
                             break;
-                        case "Encryption":
+                        case "encryption":
                             Encryption.Add(value);
                             break;
-                        case "Policy":
+                        case "policy":
                             Policy.Add(value);
                             break;
-                        case "Hiring":
+                        case "hiring":
                             Hiring.Add(value);
                             break;
-                        case "Canonical":
+                        case "canonical":
                             Canonical.Add(value);
                             break;
-                        case "Expires":
+                        case "expires":
                             if (hasSeenExpires) {
                                 Logger.WriteWarning("Multiple Expires fields found");
                                 RecordValid = false;
@@ -149,7 +148,7 @@ namespace DomainDetective {
                             Expires = value;
                             hasSeenExpires = true;
                             break;
-                        case "Signature-Encryption":
+                        case "signature-encryption":
                             if (hasSeenSignatureEncryption) {
                                 Logger.WriteWarning("Multiple Signature-Encryption fields found");
                                 RecordValid = false;

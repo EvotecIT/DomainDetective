@@ -7,9 +7,11 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DkimRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string DomainName;
 
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServerName")]
+        [ValidateNotNullOrEmpty]
         public string[] Selectors;
 
         [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServerName")]
@@ -18,6 +20,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter Raw;
+
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
 
@@ -25,6 +30,7 @@ namespace DomainDetective.PowerShell {
             // Initialize the logger to be able to see verbose, warning, debug, error, progress, and information messages.
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
             // initialize the health check object
             healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
@@ -32,7 +38,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DKIM records for domain: {0}", DomainName);
             await healthCheck.VerifyDKIM(DomainName, Selectors);
-            WriteObject(healthCheck.DKIMAnalysis);
+            if (Raw) {
+                WriteObject(healthCheck.DKIMAnalysis);
+            } else {
+                var output = OutputHelper.Convert(healthCheck.DKIMAnalysis);
+                WriteObject(output, true);
+            }
         }
     }
 }

@@ -18,12 +18,21 @@ namespace DomainDetective {
         public bool HasInvalidRecords { get; set; }
 
 
-        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            // reset all properties so repeated calls don't accumulate data
+        public void Reset() {
             AnalysisResults = new List<DANERecordAnalysis>();
             NumberOfRecords = 0;
             HasDuplicateRecords = false;
             HasInvalidRecords = false;
+        }
+
+
+        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            Reset();
+
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
 
             var daneRecordList = dnsResults.ToList();
 
@@ -117,62 +126,42 @@ namespace DomainDetective {
         }
 
         private bool ValidateUsage(int usageValue) {
-            switch (usageValue) {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    return true;
-                default:
-                    return false;
-            }
+            return usageValue switch {
+                0 or 1 or 2 or 3 => true,
+                _ => false,
+            };
         }
         private bool ValidateSelector(int selectorValue) {
-            switch (selectorValue) {
-                case 0:
-                case 1:
-                    return true;
-                default:
-                    return false;
-            }
+            return selectorValue switch {
+                0 or 1 => true,
+                _ => false,
+            };
         }
         private string TranslateUsage(int usage) {
-            switch (usage) {
-                case 0:
-                    return "PKIX-TA: CA Constraint";
-                case 1:
-                    return "PKIX-EE: Service Certificate Constraint";
-                case 2:
-                    return "DANE-TA: Trust Anchor Assertion";
-                case 3:
-                    return "DANE-EE: Domain Issued Certificate";
-                default:
-                    return "Unknown";
-            }
+            return usage switch {
+                0 => "PKIX-TA: CA Constraint",
+                1 => "PKIX-EE: Service Certificate Constraint",
+                2 => "DANE-TA: Trust Anchor Assertion",
+                3 => "DANE-EE: Domain Issued Certificate",
+                _ => "Unknown",
+            };
         }
 
         private string TranslateSelector(int selector) {
-            switch (selector) {
-                case 0:
-                    return "Cert: Full Certificate";
-                case 1:
-                    return "SPKI: SubjectPublicKeyInfo";
-                default:
-                    return "Unknown";
-            }
+            return selector switch {
+                0 => "Cert: Full Certificate",
+                1 => "SPKI: SubjectPublicKeyInfo",
+                _ => "Unknown",
+            };
         }
 
         private string TranslateMatchingType(int matchingType) {
-            switch (matchingType) {
-                case 0:
-                    return "Full: Full Certificate or SPKI";
-                case 1:
-                    return "SHA-256: SHA-256 of Certificate or SPKI";
-                case 2:
-                    return "SHA-512: SHA-512 of Certificate or SPKI";
-                default:
-                    return "Unknown";
-            }
+            return matchingType switch {
+                0 => "Full: Full Certificate or SPKI",
+                1 => "SHA-256: SHA-256 of Certificate or SPKI",
+                2 => "SHA-512: SHA-512 of Certificate or SPKI",
+                _ => "Unknown",
+            };
         }
 
         private bool IsHexadecimal(string input) {
@@ -180,25 +169,45 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Detailed analysis information for a single DANE record.
+    /// </summary>
     public class DANERecordAnalysis {
+        /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string DomainName { get; set; }
 
+        /// <summary>Gets or sets the associated service type.</summary>
         public ServiceType ServiceType { get; set; }
 
+        /// <summary>Gets or sets the raw TLSA record.</summary>
         public string DANERecord { get; set; }
+        /// <summary>Gets or sets a value indicating whether the record passed all validations.</summary>
         public bool ValidDANERecord { get; set; }
+        /// <summary>Gets or sets whether the usage field is valid.</summary>
         public bool ValidUsage { get; set; }
+        /// <summary>Gets or sets whether the selector field is valid.</summary>
         public bool ValidSelector { get; set; }
+        /// <summary>Gets or sets whether the matching type is valid.</summary>
         public bool ValidMatchingType { get; set; }
+        /// <summary>Gets or sets whether the certificate association data is valid hexadecimal.</summary>
         public bool ValidCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets a value indicating whether this configuration is recommended for SMTP.</summary>
         public bool IsValidChoiceForSmtp { get; set; }
+        /// <summary>Gets or sets the textual description of the certificate usage.</summary>
         public string CertificateUsage { get; set; }
+        /// <summary>Gets or sets the textual description of the selector field.</summary>
         public string SelectorField { get; set; }
+        /// <summary>Gets or sets the textual description of the matching type.</summary>
         public string MatchingTypeField { get; set; }
+        /// <summary>Gets or sets the certificate association data.</summary>
         public string CertificateAssociationData { get; set; }
+        /// <summary>Gets or sets a value indicating whether the record contains four fields.</summary>
         public bool CorrectNumberOfFields { get; set; }
+        /// <summary>Gets or sets whether the certificate association data has the expected length.</summary>
         public bool CorrectLengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the length of the association data.</summary>
         public int LengthOfCertificateAssociationData { get; set; }
+        /// <summary>Gets or sets the total number of fields in the record.</summary>
         public int NumberOfFields { get; set; }
     }
 }
