@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 
 namespace DomainDetective.PowerShell {
-    internal static class OutputHelper {
+    internal static partial class OutputHelper {
         public static IEnumerable<DkimRecordInfo> Convert(DkimAnalysis analysis) {
             foreach (var kvp in analysis.AnalysisResults) {
                 var result = kvp.Value;

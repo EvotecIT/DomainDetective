@@ -12,6 +12,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter Raw;
+
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
 
@@ -26,7 +29,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DNSSEC for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.DNSSEC });
-            WriteObject(healthCheck.DNSSecAnalysis);
+            if (Raw) {
+                WriteObject(healthCheck.DNSSecAnalysis);
+            } else {
+                var output = OutputHelper.Convert(healthCheck.DNSSecAnalysis);
+                WriteObject(output);
+            }
         }
     }
 }
