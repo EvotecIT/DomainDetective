@@ -502,6 +502,21 @@ namespace DomainDetective {
             await Task.WhenAll(tasks);
         }
 
+        public DomainSummary BuildSummary() {
+            var spfValid = SpfAnalysis.SpfRecordExists && SpfAnalysis.StartsCorrectly &&
+                            !SpfAnalysis.ExceedsDnsLookups && !SpfAnalysis.MultipleSpfRecords;
+
+            return new DomainSummary {
+                HasSpfRecord = SpfAnalysis.SpfRecordExists,
+                SpfValid = spfValid,
+                HasDmarcRecord = DmarcAnalysis.DmarcRecordExists,
+                DmarcPolicy = DmarcAnalysis.Policy,
+                HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
+                HasMxRecord = MXAnalysis.MxRecordExists,
+                DnsSecValid = DNSSecAnalysis.ChainValid
+            };
+        }
+          
         public string ToJson(JsonSerializerOptions options = null) {
             options ??= new JsonSerializerOptions { WriteIndented = true };
             return JsonSerializer.Serialize(this, options);
