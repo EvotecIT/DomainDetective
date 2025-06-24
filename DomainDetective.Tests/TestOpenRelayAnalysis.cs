@@ -146,7 +146,7 @@ namespace DomainDetective.Tests {
             await Assert.ThrowsAsync<System.OperationCanceledException>(() => analyzeTask);
 
             listener.Stop();
-            try { await serverTask; } catch (System.OperationCanceledException) { }
+            try { await serverTask; } catch (System.Exception) { }
         }
     }
 }
