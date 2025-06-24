@@ -1,10 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace DomainDetective.Protocols {
-    internal class DNSKeyAnalysis {
+    internal static class DNSKeyAnalysis {
+        internal static bool IsHexadecimal(string input) {
+            return Regex.IsMatch(input ?? string.Empty, @"\A[0-9a-fA-F]+\z");
+        }
     }
 }
