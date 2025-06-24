@@ -62,6 +62,8 @@ jobs:
           --configuration ${{ env.BUILD_CONFIGURATION }}
           --no-restore
 
+      - name: Restore test project for packaging
+        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -70,15 +72,25 @@ jobs:
           path: |
             DomainDetective.Tests/bin
             DomainDetective.Tests/obj
+            DomainDetective/bin
+            DomainDetective/obj
+            DomainDetective.CLI/bin
+            DomainDetective.CLI/obj
+            DomainDetective.PowerShell/bin
+            DomainDetective.PowerShell/obj
+            # Add any other project output paths if necessary
+            # Ensure that project references are covered or build the entire solution
+            # and then package the specific test project's needs.
+            # For simplicity, including all likely needed obj folders.
+            # A more precise approach might be needed if this grabs too much
+            # or if specific assets from restore are in known locations (like packages cache).
+            # However, actions/setup-dotnet cache should handle packages.
+            # This focuses on project-specific restore outputs.
 
   test-windows:
     runs-on: windows-latest
-    needs: [generate-matrix, build-windows]
-    strategy:
-      fail-fast: false
-      matrix:
-        testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
-    name: Windows - ${{ matrix.testclass }}
+    needs: [build-windows] # Removed generate-matrix from direct needs here
+    name: Windows - All Tests
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -87,13 +99,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-build
-          path: DomainDetective.Tests
+          # The download path should correspond to where the files were structured in the artifact
+          # Assuming the artifact 'windows-build' now contains the necessary structure including DomainDetective.Tests/obj
+          # If the artifact places everything into a flat structure, this path might need adjustment,
+          # but typically it preserves the archived paths.
+          # For now, let's assume the artifact 'windows-build' has contents like:
+          #   DomainDetective.Tests/bin/...
+          #   DomainDetective.Tests/obj/...
+          #   DomainDetective/bin/...
+          # etc.
+          # So, downloading to the root should place them correctly.
+          path: . # Download to the root of the workspace
 
-      - name: Restore test project
-        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
+      # Restore test project step is removed
 
       # yamllint disable rule:line-length
-      - name: Run test ${{ matrix.testclass }}
+      - name: Run all tests
         shell: pwsh
         run: |
           dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj `
@@ -102,38 +123,37 @@ jobs:
               --no-build `
               --no-restore `
               --verbosity normal `
-              --logger "trx;LogFileName=${{ matrix.testclass }}.trx" `
+              --logger "trx;LogFileName=all-tests-windows.trx" `
               --collect:"XPlat Code Coverage" `
-              --results-directory results/${{ matrix.testclass }} `
+              --results-directory results/windows `
               --blame-hang-timeout 2m `
-              --blame-hang-dump-type none `
-              --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+              --blame-hang-dump-type none
       # yamllint enable rule:line-length
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-windows-${{ matrix.testclass }}
+          name: test-results-windows
           path: |
-            **/*.trx
-            results/**/*.trx
+            results/windows/**/*.trx
+            **/all-tests-windows.trx
 
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports-windows-${{ matrix.testclass }}
+          name: coverage-reports-windows
           path: |
-            **/coverage.cobertura.xml
-            results/**/coverage.cobertura.xml
+            results/windows/**/coverage.cobertura.xml
+            # The specific path to coverage.cobertura.xml might be directly in results/windows
+            # or in a subfolder depending on how dotnet test structures it with --results-directory
+            # Adjust if necessary. Usually, it's in a subdirectory named after the test run/project.
+            # For XPlat Code Coverage, it's often in a uniquely named folder inside the results directory.
+            # Using a wildcard to catch it.
+            results/windows/*/coverage.cobertura.xml
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: |
-            **/coverage.cobertura.xml
-            results/**/coverage.cobertura.xml
+      # Upload coverage to Codecov step is removed from here
 
   build-ubuntu:
     runs-on: ubuntu-latest
@@ -158,6 +178,8 @@ jobs:
           --configuration ${{ env.BUILD_CONFIGURATION }}
           --no-restore
 
+      - name: Restore test project for packaging
+        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -166,15 +188,25 @@ jobs:
           path: |
             DomainDetective.Tests/bin
             DomainDetective.Tests/obj
+            DomainDetective/bin
+            DomainDetective/obj
+            DomainDetective.CLI/bin
+            DomainDetective.CLI/obj
+            DomainDetective.PowerShell/bin
+            DomainDetective.PowerShell/obj
+            # Add any other project output paths if necessary
+            # Ensure that project references are covered or build the entire solution
+            # and then package the specific test project's needs.
+            # For simplicity, including all likely needed obj folders.
+            # A more precise approach might be needed if this grabs too much
+            # or if specific assets from restore are in known locations (like packages cache).
+            # However, actions/setup-dotnet cache should handle packages.
+            # This focuses on project-specific restore outputs.
 
   test-ubuntu:
     runs-on: ubuntu-latest
-    needs: [generate-matrix, build-ubuntu]
-    strategy:
-      fail-fast: false
-      matrix:
-        testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
-    name: Ubuntu - ${{ matrix.testclass }}
+    needs: [build-ubuntu] # Removed generate-matrix from direct needs here
+    name: Ubuntu - All Tests
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -183,13 +215,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ubuntu-build
-          path: DomainDetective.Tests
+          path: . # Download to the root of the workspace
 
-      - name: Restore test project
-        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
+      # Restore test project step is removed
 
       # yamllint disable rule:line-length
-      - name: Run test ${{ matrix.testclass }}
+      - name: Run all tests
         shell: bash
         run: |
           dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj \
@@ -198,38 +229,32 @@ jobs:
               --no-build \
               --no-restore \
               --verbosity normal \
-              --logger "trx;LogFileName=${{ matrix.testclass }}.trx" \
+              --logger "trx;LogFileName=all-tests-ubuntu.trx" \
               --collect:"XPlat Code Coverage" \
-              --results-directory results/${{ matrix.testclass }} \
+              --results-directory results/ubuntu \
               --blame-hang-timeout 2m \
-              --blame-hang-dump-type none \
-              --filter "FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+              --blame-hang-dump-type none
       # yamllint enable rule:line-length
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-ubuntu-${{ matrix.testclass }}
+          name: test-results-ubuntu
           path: |
-            **/*.trx
-            results/**/*.trx
+            results/ubuntu/**/*.trx
+            **/all-tests-ubuntu.trx
 
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-reports-ubuntu-${{ matrix.testclass }}
+          name: coverage-reports-ubuntu
           path: |
-            **/coverage.cobertura.xml
-            results/**/coverage.cobertura.xml
+            results/ubuntu/**/coverage.cobertura.xml
+            results/ubuntu/*/coverage.cobertura.xml # Catch coverage file
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: |
-            **/coverage.cobertura.xml
-            results/**/coverage.cobertura.xml
+      # Upload coverage to Codecov step is removed from here
 
   test-macos:
     if: false  # Temporarily disabled
@@ -288,15 +313,64 @@ jobs:
   collect-results:
     if: always()
     runs-on: ubuntu-latest
-    needs: [test-windows, test-ubuntu]
+    name: Collect All Artifacts
+    needs: [test-windows, test-ubuntu, collect-coverage-and-upload] # Ensure it runs after coverage upload
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: collected
+          path: collected # This will download all artifacts from the run if no specific name is given.
+                         # Or, we can specify names if we want to be more selective.
+                         # For now, let's assume it's okay to download all of them.
 
       - name: Upload combined artifacts
         uses: actions/upload-artifact@v4
         with:
           name: all-test-artifacts
           path: collected
+
+  collect-coverage-and-upload:
+    if: always()
+    runs-on: ubuntu-latest
+    name: Collect & Upload Coverage
+    needs: [test-windows, test-ubuntu]
+    steps:
+      - name: Checkout code # Needed by Codecov action to determine commit SHA etc.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all branches and tags for accurate commit info
+
+      - name: Download Windows coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports-windows
+          path: coverage/windows
+
+      - name: Download Ubuntu coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports-ubuntu
+          path: coverage/ubuntu
+
+      # If macOS tests were enabled, would add a download step for its coverage here
+      # - name: Download macOS coverage reports
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: coverage-reports-macos
+      #     path: coverage/macos
+
+      - name: List downloaded files # For debugging
+        run: ls -R coverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }} # Recommended to use a token
+          # The action will search for coverage files.
+          # We can specify a directory, or let it search common locations.
+          # Since we downloaded them into the 'coverage' directory:
+          directory: ./coverage/
+          files: ./coverage/windows/**/coverage.cobertura.xml,./coverage/ubuntu/**/coverage.cobertura.xml # Be explicit if needed
+          # flags: windows,ubuntu # Optional: add flags to distinguish reports in Codecov UI
+          # name: codecov-umbrella # Optional: a name for the upload
+          fail_ci_if_error: true # Optional: Fail the CI if Codecov upload fails
