@@ -9,7 +9,7 @@ namespace DomainDetective.Tests {
     public class TestHPKPAnalysis {
         [Fact]
         public async Task DetectsHeaderAndValidPins() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -40,7 +40,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task InvalidPinFormat() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
@@ -63,7 +63,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task HeaderMissing() {
-            var listener = new HttpListener();
+            using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
