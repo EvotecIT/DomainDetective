@@ -1,9 +1,9 @@
 using System;
-using System.Diagnostics;
-using System.Net.Http;
-using System.Net;
-using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace DomainDetective {
     /// <summary>

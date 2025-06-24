@@ -1,9 +1,9 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using DnsClientX;
 
 namespace DomainDetective.Tests {
     public class TestDANEnalysis {

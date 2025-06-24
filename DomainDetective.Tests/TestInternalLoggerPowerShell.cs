@@ -1,7 +1,7 @@
-using System.Collections.Generic;
-using System.Management.Automation;
 using DomainDetective;
 using DomainDetective.PowerShell;
+using System.Collections.Generic;
+using System.Management.Automation;
 
 namespace DomainDetective.Tests {
     public class TestInternalLoggerPowerShell {

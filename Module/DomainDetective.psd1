@@ -1,22 +1,7 @@
 ﻿@{
     AliasesToExport      = @()
     Author               = 'Przemyslaw Klys'
-    CmdletsToExport      = @(
-        'Test-DomainBlacklist',
-        'Test-DaneRecord',
-        'Test-DkimRecord',
-        'Test-SpfRecord',
-        'Test-NsRecord',
-        'Test-DnsPropagation',
-        'Test-CaaRecord',
-        'Test-SecurityTXT',
-        'Test-StartTls',
-        'Test-DomainHealth',
-        'Add-DnsblProvider',
-        'Remove-DnsblProvider',
-        'Clear-DnsblProvider',
-        'Load-DnsblConfig'
-    )
+    CmdletsToExport      = @('Add-DnsblProvider', 'Clear-DnsblProvider', 'Get-WhoisInfo', 'Load-DnsblConfig', 'Remove-DnsblProvider', 'Test-BimiRecord', 'Test-DomainBlacklist', 'Test-CaaRecord', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-DmarcRecord', 'Test-DNSBLRecord', 'Test-DnsPropagation', 'Test-DnsSec', 'Test-DomainHealth', 'Test-MxRecord', 'Test-NsRecord', 'Test-OpenRelay', 'Test-SecurityTXT', 'Test-SmtpTls', 'Test-SoaRecord', 'Test-SpfRecord', 'Test-StartTls', 'Test-TlsRptRecord', 'Test-WebsiteCertificate')
     CompanyName          = 'Evotec'
     CompatiblePSEditions = @('Desktop', 'Core')
     Copyright            = '(c) 2011 - 2025 Przemyslaw Klys @ Evotec. All rights reserved.'

@@ -1,6 +1,6 @@
+using DomainDetective;
 using System.Linq;
 using System.Net;
-using DomainDetective;
 
 namespace DomainDetective.Tests {
     public class TestIPAddressExtensions {

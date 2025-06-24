@@ -142,7 +142,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.SpfAnalysis.CycleDetected);
             Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
         }
-      
+
         [Fact]
         public async Task DomainEndingWithAllWithoutAllMechanism() {
             var spfRecord = "v=spf1 a:firewall";

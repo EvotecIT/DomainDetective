@@ -1,5 +1,5 @@
-using DomainDetective;
 using DnsClientX;
+using DomainDetective;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
@@ -45,4 +45,3 @@ namespace DomainDetective.Tests {
         }
     }
 }
-

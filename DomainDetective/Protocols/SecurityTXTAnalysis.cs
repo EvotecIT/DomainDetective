@@ -1,9 +1,9 @@
+using PgpCore;
+using PgpCore.Models;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
-using PgpCore;
-using PgpCore.Models;
 
 namespace DomainDetective {
     public class SecurityTXTAnalysis {

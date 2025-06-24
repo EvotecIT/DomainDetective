@@ -1,6 +1,6 @@
-using System;
 using DnsClientX;
 using DomainDetective;
+using System;
 
 namespace DomainDetective.Tests {
     public class TestDnsConfiguration {

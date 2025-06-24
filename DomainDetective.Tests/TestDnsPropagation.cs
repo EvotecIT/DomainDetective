@@ -108,7 +108,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, groups.First().Value.Count);
             Assert.Equal("2001:db8::1", groups.Keys.First());
         }
-      
+
         [Fact]
         public void LoadServersTrimsWhitespace() {
             var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
