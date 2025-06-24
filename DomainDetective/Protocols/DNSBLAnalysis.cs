@@ -392,6 +392,9 @@ namespace DomainDetective {
         }
 
         public void LoadDNSBL(string filePath, bool clearExisting = false) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
+            }
             if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNSBL list file not found: {filePath}");
             }
@@ -429,6 +432,9 @@ namespace DomainDetective {
         }
 
         public void LoadDnsblConfig(string filePath, bool overwriteExisting = false, bool clearExisting = false) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
+            }
             if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNSBL config file not found: {filePath}");
             }

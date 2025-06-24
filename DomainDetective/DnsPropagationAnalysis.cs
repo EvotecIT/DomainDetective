@@ -71,6 +71,9 @@ namespace DomainDetective {
         /// <param name="filePath">Path to the JSON file.</param>
         /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
         public void LoadServers(string filePath, bool clearExisting = false) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
+            }
             if (!File.Exists(filePath)) {
                 throw new FileNotFoundException($"DNS server list file not found: {filePath}");
             }
