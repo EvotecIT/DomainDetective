@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
+using DomainDetective.Protocols;
 
 namespace DomainDetective {
     /// <summary>
@@ -155,6 +156,9 @@ namespace DomainDetective {
                 var dsAlgorithm = AlgorithmNumber(dsParts[1]);
                 var digestType = int.Parse(dsParts[2]);
                 var digest = dsParts[3];
+                if (!DNSKeyAnalysis.IsHexadecimal(digest)) {
+                    return false;
+                }
 
                 int computedKeyTag = ComputeKeyTag(rdata);
                 if (computedKeyTag != keyTag || dsAlgorithm != algorithm) {
