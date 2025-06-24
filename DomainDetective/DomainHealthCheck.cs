@@ -90,6 +90,8 @@ namespace DomainDetective {
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
+            DmarcAnalysis.DnsConfiguration = DnsConfiguration;
+
             SpfAnalysis = new SpfAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
@@ -148,7 +150,7 @@ namespace DomainDetective {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
-                        await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger);
+                        await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName);
                         break;
                     case HealthCheckType.SPF:
                         var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);

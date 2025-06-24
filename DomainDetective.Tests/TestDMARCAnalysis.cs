@@ -101,6 +101,25 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task DetectMissingExternalAuthorization() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none; rua=mailto:reports@external.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new DmarcAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com");
+
+            Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
+            Assert.False(analysis.ExternalReportAuthorization["external.com"]);
+        }
+        
+        [Fact]
         public async Task InvalidAlignmentFlags() {
             var dmarcRecord = "v=DMARC1; p=none; adkim=x; aspf=y";
             var healthCheck = new DomainHealthCheck();
