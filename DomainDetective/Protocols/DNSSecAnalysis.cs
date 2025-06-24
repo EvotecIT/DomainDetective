@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 using DomainDetective.Protocols;
+using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -241,5 +242,35 @@ namespace DomainDetective {
             "PRIVATEOID" => 254,
             _ => 0,
         };
+
+        /// <summary>
+        /// Validates that the specified record has a valid DNSSEC signature.
+        /// </summary>
+        /// <param name="domain">Domain name to query.</param>
+        /// <param name="type">Record type to validate.</param>
+        /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
+        public async Task<bool> ValidateRecord(string domain, DnsRecordType type) {
+            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            using HttpClient client = new(handler);
+
+            client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+
+            var queryUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type={(int)type}&do=1";
+            var response = await client.GetStringAsync(queryUri);
+            using var doc = JsonDocument.Parse(response);
+            bool ad = doc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+
+            bool hasSig = false;
+            if (doc.RootElement.TryGetProperty("Answer", out var answerElem)) {
+                foreach (var ans in answerElem.EnumerateArray()) {
+                    if (ans.GetProperty("type").GetInt32() == 46) {
+                        hasSig = true;
+                        break;
+                    }
+                }
+            }
+
+            return ad && hasSig;
+        }
     }
 }
