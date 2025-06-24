@@ -11,5 +11,13 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DNSSecAnalysis.DsMatch);
             Assert.True(healthCheck.DNSSecAnalysis.ChainValid);
         }
+
+        [Fact]
+        public async Task ValidateDnssecChainFailure() {
+            var healthCheck = new DomainHealthCheck { Verbose = false };
+            await healthCheck.Verify("dnssec-failed.org", [HealthCheckType.DNSSEC]);
+
+            Assert.False(healthCheck.DNSSecAnalysis.ChainValid);
+        }
     }
 }
