@@ -15,8 +15,8 @@ namespace DomainDetective.Tests {
             logger.WriteError("second");
 
             Assert.Equal(2, records.Count);
-            Assert.Equal("1", records[0].FullyQualifiedErrorId);
-            Assert.Equal("2", records[1].FullyQualifiedErrorId);
+            Assert.Equal("1", records[0].ErrorDetails.Message);
+            Assert.Equal("2", records[1].ErrorDetails.Message);
         }
     }
 }

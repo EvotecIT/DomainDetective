@@ -78,7 +78,10 @@ namespace DomainDetective.PowerShell {
             WriteWarning(e.Message);
         }
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
-            ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), GetNextErrorId(), ErrorCategory.NotSpecified, null);
+            var errorId = GetNextErrorId();
+            ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), errorId, ErrorCategory.NotSpecified, null) {
+                ErrorDetails = new ErrorDetails(errorId)
+            };
             WriteError(errorRecord);
         }
         private int _activityIdCounter = 0;

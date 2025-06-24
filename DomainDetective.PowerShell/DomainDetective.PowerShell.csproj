@@ -4,8 +4,7 @@
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`Windows`))' ">
             net472;net8.0
         </TargetFrameworks>
-        <TargetFrameworks
-            Condition=" '$([MSBuild]::IsOsPlatform(`OSX`))'  Or '$([MSBuild]::IsOsPlatform(`Linux`))' ">
+        <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`OSX`))'  Or '$([MSBuild]::IsOsPlatform(`Linux`))' ">
             net8.0
         </TargetFrameworks>
         <Description>PowerShell Module to analyze Domain Health</Description>
@@ -42,13 +41,12 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.0" />
     </ItemGroup>
 
     <!-- Copy help documentation to publish output after publish -->
     <Target Name="CopyHelpDocumentationToPublishOutput" AfterTargets="Publish">
-        <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll-Help.xml"
-            DestinationFiles="$(PublishDir)$(AssemblyName).dll-Help.xml"
-            Condition="Exists('$(OutputPath)$(AssemblyName).dll-Help.xml')" />
+        <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll-Help.xml" DestinationFiles="$(PublishDir)$(AssemblyName).dll-Help.xml" Condition="Exists('$(OutputPath)$(AssemblyName).dll-Help.xml')" />
     </Target>
 
     <ItemGroup>
