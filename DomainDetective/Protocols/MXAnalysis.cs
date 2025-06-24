@@ -83,8 +83,13 @@ namespace DomainDetective {
                 var aaaaResults = await QueryDns(host, DnsRecordType.AAAA);
                 var noA = aResults == null || !aResults.Any();
                 var noAAAA = aaaaResults == null || !aaaaResults.Any();
-                PointsToNonExistentDomain = PointsToNonExistentDomain || (noA && noAAAA);
-                PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || (noA && noAAAA);
+
+                if (noA && noAAAA) {
+                    var nsResults = await QueryDns(host, DnsRecordType.NS);
+                    var nonExistent = nsResults == null || !nsResults.Any();
+                    PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
+                    PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
+                }
             }
         }
 
