@@ -70,6 +70,8 @@ namespace DomainDetective {
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
 
                 return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250");
+            } catch (TaskCanceledException ex) {
+                throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
