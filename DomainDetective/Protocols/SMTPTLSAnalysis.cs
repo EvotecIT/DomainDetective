@@ -18,6 +18,7 @@ namespace DomainDetective {
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
             public List<X509Certificate2> Chain { get; } = new();
+            public List<X509ChainStatusFlags> ChainErrors { get; } = new();
         }
 
         public Dictionary<string, TlsResult> ServerResults { get; } = new();
@@ -84,12 +85,16 @@ namespace DomainDetective {
 
                         using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
                             result.CertificateValid = errors == SslPolicyErrors.None;
+                            result.Chain.Clear();
+                            result.ChainErrors.Clear();
                             if (certificate is X509Certificate2 cert) {
                                 result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
-                                result.Chain.Clear();
                                 if (chain != null) {
                                     foreach (var element in chain.ChainElements) {
                                         result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                    }
+                                    foreach (var status in chain.ChainStatus) {
+                                        result.ChainErrors.Add(status.Status);
                                     }
                                 }
                             }
