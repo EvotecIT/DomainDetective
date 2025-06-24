@@ -561,7 +561,9 @@ namespace DomainDetective {
         }
 
         public DomainHealthCheck FilterAnalyses(IEnumerable<HealthCheckType> healthCheckTypes) {
-            var active = healthCheckTypes == null ? new HashSet<HealthCheckType>() : healthCheckTypes.ToHashSet();
+            var active = healthCheckTypes != null
+                ? new HashSet<HealthCheckType>(healthCheckTypes)
+                : new HashSet<HealthCheckType>();
             var clone = (DomainHealthCheck)MemberwiseClone();
 
             if (!active.Contains(HealthCheckType.DMARC)) {
