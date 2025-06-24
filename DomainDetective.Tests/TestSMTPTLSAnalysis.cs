@@ -27,6 +27,8 @@ namespace DomainDetective.Tests {
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
                 Assert.True(result.CipherStrength > 0);
+                Assert.NotEmpty(result.ChainErrors);
+                Assert.Contains(X509ChainStatusFlags.UntrustedRoot, result.ChainErrors);
             } finally {
                 cts.Cancel();
                 listener.Stop();
