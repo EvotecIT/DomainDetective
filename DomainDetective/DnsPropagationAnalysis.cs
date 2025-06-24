@@ -77,9 +77,20 @@ namespace DomainDetective {
             if (servers == null) {
                 return;
             }
+
             foreach (var entry in servers) {
-                if (_servers.All(s => s.IPAddress != entry.IPAddress)) {
-                    _servers.Add(entry);
+                var trimmed = new PublicDnsEntry {
+                    Country = entry.Country?.Trim(),
+                    IPAddress = entry.IPAddress,
+                    HostName = entry.HostName?.Trim(),
+                    Location = entry.Location?.Trim(),
+                    ASN = entry.ASN,
+                    ASNName = entry.ASNName?.Trim(),
+                    Enabled = entry.Enabled
+                };
+
+                if (_servers.All(s => s.IPAddress != trimmed.IPAddress)) {
+                    _servers.Add(trimmed);
                 }
             }
         }

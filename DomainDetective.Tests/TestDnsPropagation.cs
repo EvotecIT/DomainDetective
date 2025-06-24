@@ -75,5 +75,22 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, groups.First().Value.Count);
             Assert.Equal(IPAddress.Parse("2001:db8::1").ToString(), groups.Keys.First());
         }
+
+        [Fact]
+        public void LoadServersTrimsWhitespace() {
+            var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
+
+            var file = Path.GetTempFileName();
+            File.WriteAllText(file, json);
+
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadServers(file, clearExisting: true);
+
+            var server = Assert.Single(analysis.Servers);
+            Assert.Equal("Test", server.Country);
+            Assert.Equal("example.com", server.HostName);
+            Assert.Equal("Somewhere", server.Location);
+            Assert.Equal("Example ASN", server.ASNName);
+        }
     }
 }
