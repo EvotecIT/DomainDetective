@@ -20,6 +20,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter Raw;
+
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
 
@@ -35,7 +38,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DKIM records for domain: {0}", DomainName);
             await healthCheck.VerifyDKIM(DomainName, Selectors);
-            WriteObject(healthCheck.DKIMAnalysis);
+            if (Raw) {
+                WriteObject(healthCheck.DKIMAnalysis);
+            } else {
+                var output = OutputHelper.Convert(healthCheck.DKIMAnalysis);
+                WriteObject(output, true);
+            }
         }
     }
 }
