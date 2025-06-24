@@ -51,6 +51,14 @@ namespace DomainDetective {
     /// </summary>
     public class DnsPropagationAnalysis {
         private readonly List<PublicDnsEntry> _servers = new();
+        /// <summary>
+        /// Random number generator used for selecting a subset of servers.
+        /// </summary>
+        /// <remarks>
+        /// <para>This instance is shared and not thread-safe. Callers must
+        /// synchronize access when <see cref="FilterServers"/> is used concurrently.</para>
+        /// </remarks>
+        private static readonly Random _rnd = new();
 
         /// <summary>
         /// Gets the collection of configured DNS servers.
@@ -176,8 +184,7 @@ namespace DomainDetective {
                 query = query.Where(s => s.Location != null && s.Location.IndexOf(location, StringComparison.OrdinalIgnoreCase) >= 0);
             }
             if (take.HasValue) {
-                var rnd = new Random();
-                query = query.OrderBy(_ => rnd.Next()).Take(take.Value);
+                query = query.OrderBy(_ => _rnd.Next()).Take(take.Value);
             }
             return query.ToList();
         }
