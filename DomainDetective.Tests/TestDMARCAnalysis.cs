@@ -99,5 +99,24 @@ namespace DomainDetective.Tests {
             Assert.Single(analysis.MailtoRua);
             Assert.Equal("test@example.com", analysis.MailtoRua[0]);
         }
+
+        [Fact]
+        public async Task DetectMissingExternalAuthorization() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none; rua=mailto:reports@external.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new DmarcAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com");
+
+            Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
+            Assert.False(analysis.ExternalReportAuthorization["external.com"]);
+        }
     }
 }

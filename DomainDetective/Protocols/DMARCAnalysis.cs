@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,6 +17,9 @@ namespace DomainDetective {
     /// 6.	The DMARC record can have an optional "pct" tag, which is the percentage of messages subjected to filtering.
     /// </summary>
     public class DmarcAnalysis {
+        public DnsConfiguration DnsConfiguration { get; set; }
+        public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+        public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
         public string DmarcRecord { get; private set; }
         public bool DmarcRecordExists { get; private set; } // should be true
         public bool StartsCorrectly { get; private set; } // should be true
@@ -48,8 +52,9 @@ namespace DomainDetective {
         public bool IsPctValid { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
-        public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, string? domainName = null) {
             // reset all properties so repeated calls don't accumulate data
+            DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
             DmarcRecordExists = false;
             StartsCorrectly = false;
@@ -70,6 +75,7 @@ namespace DomainDetective {
             SpfAShort = null;
             Pct = null;
             ReportingIntervalShort = 0;
+            ExternalReportAuthorization = new Dictionary<string, bool>();
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -156,6 +162,29 @@ namespace DomainDetective {
                     }
                 }
             }
+
+            var reportDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var mail in MailtoRua.Concat(MailtoRuf)) {
+                var at = mail.IndexOf('@');
+                if (at > -1 && at < mail.Length - 1) {
+                    reportDomains.Add(mail.Substring(at + 1));
+                }
+            }
+            foreach (var http in HttpRua.Concat(HttpRuf)) {
+                if (Uri.TryCreate(http, UriKind.Absolute, out var uri)) {
+                    reportDomains.Add(uri.Host);
+                }
+            }
+
+            foreach (var domain in reportDomains) {
+                if (domainName != null && domain.Equals(domainName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                var records = await QueryDns($"_report._dmarc.{domain}", DnsRecordType.TXT);
+                var authorized = records != null && records.Any(r => r.Data.StartsWith("v=DMARC1", StringComparison.OrdinalIgnoreCase));
+                ExternalReportAuthorization[domain] = authorized;
+            }
             // verify mandatory tags
             HasMandatoryTags = StartsCorrectly && policyTagFound;
             // set the default value for the pct tag if it is not present
@@ -171,6 +200,14 @@ namespace DomainDetective {
                     httpList.Add(u);
                 }
             }
+        }
+
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+            if (QueryDnsOverride != null) {
+                return await QueryDnsOverride(name, type);
+            }
+
+            return await DnsConfiguration.QueryDNS(name, type);
         }
         private string TranslateAlignment(string alignment) {
             return alignment switch {
