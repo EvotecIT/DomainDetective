@@ -180,5 +180,37 @@ namespace DomainDetective.Tests {
             await Assert.ThrowsAsync<ArgumentException>(async () =>
                 await healthCheck.VerifyDANE("example.com", new[] { -25 }));
         }
+
+        [Fact]
+        public async Task HttpsRecommendedCombinationIsFlagged() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_443._tcp.example.com",
+                    DataRaw = $"3 1 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            Assert.True(analysis.AnalysisResults[0].IsValidChoiceForHttps);
+        }
+
+        [Fact]
+        public async Task HttpsMismatchIsDetected() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_443._tcp.example.com",
+                    DataRaw = $"2 0 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            Assert.False(analysis.AnalysisResults[0].IsValidChoiceForHttps);
+        }
     }
 }

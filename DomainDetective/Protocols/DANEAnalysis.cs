@@ -48,6 +48,15 @@ namespace DomainDetective {
                 var analysis = new DANERecordAnalysis();
                 analysis.DomainName = record.Name;
                 analysis.DANERecord = record.Data;
+
+                if (!string.IsNullOrEmpty(record.Name)) {
+                    var match = System.Text.RegularExpressions.Regex.Match(record.Name, @"^_(\d+)\._tcp\.");
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out var port)) {
+                        if (Enum.IsDefined(typeof(ServiceType), port)) {
+                            analysis.ServiceType = (ServiceType)port;
+                        }
+                    }
+                }
                 logger.WriteVerbose($"Analyzing DANE record {record.Data}");
 
                 // Split the DANE record into its four components as defined in
@@ -112,9 +121,10 @@ namespace DomainDetective {
                 // - Usage: 3 (DANE-EE: Domain Issued Certificate)
                 // - Selector: 1 (SPKI: SubjectPublicKeyInfo)
                 // - Matching Type: 1 (SHA-256: SHA-256 of Certificate or SPKI)
-                analysis.IsValidChoiceForSmtp = usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
+                analysis.IsValidChoiceForSmtp = analysis.ServiceType == ServiceType.SMTP && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
 
-                // TODO: Check for HTTPS recommendations for WWWW services?
+                // For HTTPS, RFC 7671 recommends the same parameters
+                analysis.IsValidChoiceForHttps = analysis.ServiceType == ServiceType.HTTPS && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
 
@@ -193,6 +203,8 @@ namespace DomainDetective {
         public bool ValidCertificateAssociationData { get; set; }
         /// <summary>Gets or sets a value indicating whether this configuration is recommended for SMTP.</summary>
         public bool IsValidChoiceForSmtp { get; set; }
+        /// <summary>Gets or sets a value indicating whether this configuration is recommended for HTTPS.</summary>
+        public bool IsValidChoiceForHttps { get; set; }
         /// <summary>Gets or sets the textual description of the certificate usage.</summary>
         public string CertificateUsage { get; set; }
         /// <summary>Gets or sets the textual description of the selector field.</summary>
