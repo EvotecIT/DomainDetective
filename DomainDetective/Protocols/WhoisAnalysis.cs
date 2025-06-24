@@ -298,6 +298,9 @@ public class WhoisAnalysis {
 
     public async Task QueryWhoisServer(string domain) {
         DomainName = domain;
+        if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
+            throw new UnsupportedTldException(domain, domain);
+        }
         var whoisServer = GetWhoisServer(domain);
         if (whoisServer == null) {
             throw new UnsupportedTldException(domain, TLD);
