@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -14,8 +15,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServersFile")]
         public DnsRecordType RecordType;
 
-        [Parameter(Mandatory = true, Position = 2, ParameterSetName = "ServersFile")]
-        [ValidateNotNullOrEmpty]
+        [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServersFile")]
         public string ServersFile;
 
         [Parameter(Mandatory = false)]
@@ -33,11 +33,19 @@ namespace DomainDetective.PowerShell {
         private InternalLogger _logger;
         private DnsPropagationAnalysis _analysis;
 
+        private string GetDefaultServersPath() {
+            var moduleBase = this.MyInvocation?.MyCommand?.Module?.ModuleBase ?? string.Empty;
+            return Path.Combine(moduleBase, "Data", "DNS", "PublicDNS.json");
+        }
+
         protected override Task BeginProcessingAsync() {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _analysis = new DnsPropagationAnalysis();
+            if (string.IsNullOrWhiteSpace(ServersFile)) {
+                ServersFile = GetDefaultServersPath();
+            }
             _analysis.LoadServers(ServersFile, clearExisting: true);
             return Task.CompletedTask;
         }

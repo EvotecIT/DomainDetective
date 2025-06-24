@@ -23,9 +23,10 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```
 - `Test-DnsPropagation` – checks how DNS records propagate across public resolvers.
   ```powershell
-  Test-DnsPropagation -DomainName "example.com" -RecordType A -ServersFile './Data/DNS/PublicDNS.json' -CompareResults
+  Test-DnsPropagation -DomainName "example.com" -RecordType A -CompareResults
   ```
-- `Test-CaaRecord` – validates CAA entries.
+  The cmdlet uses a built-in list of public resolvers when `-ServersFile` is not provided.
+ - `Test-CaaRecord` – validates CAA entries.
   ```powershell
   Test-CaaRecord -DomainName "example.com"
   ```
