@@ -1,11 +1,17 @@
 using DnsClientX;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Definitions;
 
 namespace DomainDetective {
     public class DkimAnalysis {
         public Dictionary<string, DkimRecordAnalysis> AnalysisResults { get; private set; } = new Dictionary<string, DkimRecordAnalysis>();
+
+        public void Reset() {
+            AnalysisResults = new Dictionary<string, DkimRecordAnalysis>();
+        }
 
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield(); // To avoid warning about lack of 'await'
@@ -72,6 +78,20 @@ namespace DomainDetective {
             analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
 
             AnalysisResults[selector] = analysis;
+        }
+
+        public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
+            Reset();
+
+            foreach (var selector in DKIMSelectors.GuessSelectors()) {
+                var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
+                if (dkim.Any()) {
+                    await AnalyzeDkimRecords(selector, dkim, logger);
+                    return selector;
+                }
+            }
+
+            return null;
         }
     }
 
