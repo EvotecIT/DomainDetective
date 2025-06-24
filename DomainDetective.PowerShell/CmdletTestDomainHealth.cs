@@ -42,7 +42,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying domain health for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType);
-            WriteObject(_healthCheck);
+            var result = _healthCheck.FilterAnalyses(HealthCheckType);
+            WriteObject(result);
         }
     }
 }
