@@ -55,6 +55,7 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.False(analysis.IsReachable);
                 Assert.Equal(404, analysis.StatusCode);
+                Assert.Null(analysis.ProtocolVersion);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -68,6 +69,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeUrl(url, false, new InternalLogger());
             Assert.False(analysis.IsReachable);
             Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+            Assert.Null(analysis.ProtocolVersion);
         }
 
         [Fact]
