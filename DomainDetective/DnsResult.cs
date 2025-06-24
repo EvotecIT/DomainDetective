@@ -14,7 +14,21 @@ namespace DomainDetective {
         public string[] Data { get; set; }
         /// <summary>Gets or sets the data joined into a single string.</summary>
         public string DataJoined { get; set; }
+        /// <summary>Gets or sets the time to live value.</summary>
+        public int Ttl { get; set; }
 
         internal ServiceType ServiceType { get; set; }
+
+        /// <summary>
+        ///     Creates a <see cref="DnsResult"/> from a <see cref="DnsAnswer"/>.
+        /// </summary>
+        public static DnsResult FromDnsAnswer(DnsAnswer answer) {
+            return new DnsResult {
+                Name = answer.Name,
+                Data = answer.DataStringsEscaped,
+                DataJoined = answer.Data,
+                Ttl = answer.TTL
+            };
+        }
     }
 }
