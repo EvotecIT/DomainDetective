@@ -338,6 +338,22 @@ public class WhoisAnalysis {
         }
     }
 
+    public async Task<List<WhoisAnalysis>> QueryWhoisServers(string[] domains) {
+        var tasks = domains.Select(async domain => {
+            var analysis = new WhoisAnalysis();
+            lock (_whoisServersLock) {
+                foreach (var kvp in WhoisServers) {
+                    if (!analysis.WhoisServers.ContainsKey(kvp.Key)) {
+                        analysis.WhoisServers[kvp.Key] = kvp.Value;
+                    }
+                }
+            }
+            await analysis.QueryWhoisServer(domain);
+            return analysis;
+        });
+        return (await Task.WhenAll(tasks)).ToList();
+    }
+
     private void ParseWhoisData() {
         if (string.Equals(TLD, "xyz", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataXYZ();
