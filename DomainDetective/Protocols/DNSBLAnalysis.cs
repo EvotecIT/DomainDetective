@@ -19,6 +19,7 @@ namespace DomainDetective {
         //public string BlackListReason { get; set; }
         public bool IsBlackListed { get; set; }
         public string Answer { get; set; }
+        public string ReplyMeaning { get; set; }
         //public string NameServer { get; set; }
     }
 
@@ -284,6 +285,45 @@ namespace DomainDetective {
             return list;
         }
 
+        private static readonly Dictionary<string, (bool IsListed, string Meaning)> _generalReplyCodes = new()
+        {
+            ["127.0.0.1"] = (false, "Whitelisted"),
+            ["127.0.0.2"] = (true, "Blacklisted"),
+            ["127.0.0.3"] = (true, "Blacklisted"),
+            ["127.0.0.4"] = (true, "Blacklisted")
+        };
+
+        private static readonly Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new()
+        {
+            ["hostkarma.junkemailfilter.com"] = new()
+            {
+                ["127.0.0.1"] = (false, "Whitelisted"),
+                ["127.0.0.2"] = (true, "Blacklisted"),
+                ["127.0.0.4"] = (false, "Whitelisted")
+            }
+        };
+
+        private static (bool IsListed, string Meaning) GetReplyCodeMeaning(string blacklist, string reply) {
+            if (string.IsNullOrEmpty(reply)) {
+                return (false, string.Empty);
+            }
+
+            if (reply.StartsWith("127.255.")) {
+                return (false, "Reserved");
+            }
+
+            if (_providerReplyCodes.TryGetValue(blacklist, out var providerMap) &&
+                providerMap.TryGetValue(reply, out var providerResult)) {
+                return providerResult;
+            }
+
+            if (_generalReplyCodes.TryGetValue(reply, out var result)) {
+                return result;
+            }
+
+            return reply.StartsWith("127.") ? (true, "Listed") : (true, string.Empty);
+        }
+
         private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
 
             // Check if the input is an IP address or a hostname
@@ -329,6 +369,7 @@ namespace DomainDetective {
                         BlackList = pair.Key.Substring(name.Length + 1),
                         IsBlackListed = false,
                         Answer = string.Empty,
+                        ReplyMeaning = string.Empty,
                     };
                     yield return dnsblRecord;
                 } else {
@@ -342,18 +383,9 @@ namespace DomainDetective {
                             Answer = record.Data,
                         };
 
-                        // TODO: Add more blacklist specific checks, maybe move to a separate method for improved results
-                        if (dnsblRecord.Answer.StartsWith("127.255.")) {
-                            dnsblRecord.IsBlackListed = false;
-                        }
-
-                        if (dnsblRecord.BlackList == "hostkarma.junkemailfilter.com") {
-                            if (dnsblRecord.Answer.StartsWith("127.0.0.2")) {
-                                dnsblRecord.IsBlackListed = true;
-                            } else {
-                                dnsblRecord.IsBlackListed = false;
-                            }
-                        }
+                        var info = GetReplyCodeMeaning(dnsblRecord.BlackList, dnsblRecord.Answer);
+                        dnsblRecord.IsBlackListed = info.IsListed;
+                        dnsblRecord.ReplyMeaning = info.Meaning;
 
                         yield return dnsblRecord;
                     }
