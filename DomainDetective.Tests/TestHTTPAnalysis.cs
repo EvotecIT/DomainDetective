@@ -16,6 +16,8 @@ namespace DomainDetective.Tests {
                 var ctx = await listener.GetContextAsync();
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=31536000");
+                ctx.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
+                ctx.Response.Headers.Add("Expect-CT", "max-age=86400, enforce");
                 ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
                 var buffer = Encoding.UTF8.GetBytes("ok");
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
@@ -29,8 +31,13 @@ namespace DomainDetective.Tests {
                 Assert.Equal(200, analysis.StatusCode);
                 Assert.True(analysis.ResponseTime > TimeSpan.Zero);
                 Assert.True(analysis.HstsPresent);
+                Assert.True(analysis.XssProtectionPresent);
+                Assert.True(analysis.ExpectCtPresent);
                 Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
                 Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
+                Assert.Equal("1; mode=block", analysis.SecurityHeaders["X-XSS-Protection"]);
+                Assert.Equal("max-age=86400, enforce", analysis.SecurityHeaders["Expect-CT"]);
+                Assert.Equal("max-age=31536000", analysis.SecurityHeaders["Strict-Transport-Security"]);
                 Assert.Equal("ok", analysis.Body);
             } finally {
                 listener.Stop();
@@ -82,6 +89,8 @@ namespace DomainDetective.Tests {
                 var ctx = await listener.GetContextAsync();
                 ctx.Response.StatusCode = 200;
                 ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
+                ctx.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
+                ctx.Response.Headers.Add("Expect-CT", "max-age=86400, enforce");
                 ctx.Response.Close();
             });
 
@@ -89,6 +98,8 @@ namespace DomainDetective.Tests {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.True(analysis.SecurityHeaders.Count == 0);
+                Assert.False(analysis.XssProtectionPresent);
+                Assert.False(analysis.ExpectCtPresent);
             } finally {
                 listener.Stop();
                 await serverTask;
