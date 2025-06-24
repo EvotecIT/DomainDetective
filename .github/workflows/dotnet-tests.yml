@@ -1,140 +1,145 @@
-name: Test .NET
+# .github/workflows/dotnet-ci.yml
+name: .NET CI
 
 on:
-    push:
-        branches:
-            - master
-        paths-ignore:
-            - '*.md'
-            - 'Docs/**'
-            - 'Examples/**'
-            - '.gitignore'
-    pull_request:
-        branches:
-            - master
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - '*.md'
+      - 'Docs/**'
+      - 'Examples/**'
+      - '.gitignore'
+  pull_request:
+    branches: [ master ]
 
 env:
-    DOTNET_VERSION: '8.x'
-    BUILD_CONFIGURATION: 'Release'
+  DOTNET_VERSION: '8.x'
+  BUILD_CONFIGURATION: 'Release'
 
+# ---------------------------------------------------------------------------
+# 0. Dynamically collect the list of test-class names
+# ---------------------------------------------------------------------------
 jobs:
-    test-windows:
-        name: 'Windows'
-        runs-on: windows-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      testclasses: ${{ steps.collect.outputs.testclasses }}
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Collect test classes
+        id: collect
+        run: |
+          classes=$(grep -h "public class" DomainDetective.Tests/Test*.cs \
+            | sed -E 's/.*public class ([A-Za-z0-9_]+).*/\1/' \
+            | sort \
+            | jq -R -s -c 'split("\n")[:-1]')
+          echo "testclasses=$classes" >>"$GITHUB_OUTPUT"
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+# ---------------------------------------------------------------------------
+# 1. Build once per OS - produces ready-to-run test DLLs
+# ---------------------------------------------------------------------------
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ windows-latest, ubuntu-latest ]   # add macos-latest when needed
+    outputs:
+      artifact-name: build-${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+      - name: Restore solution
+        run: dotnet restore DomainDetective.sln
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-windows
-                  path: '**/*.trx'
+      - name: Build solution
+        run: |
+          dotnet build DomainDetective.sln \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-restore
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-windows
-                  path: '**/coverage.cobertura.xml'
+      - name: Upload compiled test binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: |
+            DomainDetective.Tests/bin/${{ env.BUILD_CONFIGURATION }}/net8.0/**
+            !**/*.json          # optional - exclude large runtime assets if not needed
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
+# ---------------------------------------------------------------------------
+# 2. Fan-out: one job per test-class, no restore/build here
+# ---------------------------------------------------------------------------
+  test:
+    needs: [ generate-matrix, build ]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:        [ windows-latest, ubuntu-latest ]
+        testclass: ${{ fromJson(needs.generate-matrix.outputs.testclasses) }}
+    name: ${{ matrix.os }} - ${{ matrix.testclass }}
+    steps:
+      - uses: actions/checkout@v4   # keeps source links in stack traces
 
-    test-ubuntu:
-        name: 'Ubuntu'
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+      - name: Download built DLLs
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: build
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Run ${{ matrix.testclass }}
+        shell: ${{ matrix.os == 'windows-latest' && 'pwsh' || 'bash' }}
+        run: |
+          DLL="build/DomainDetective.Tests.dll"
+          FILTER="FullyQualifiedName~DomainDetective.Tests.${{ matrix.testclass }}"
+          dotnet vstest "$DLL" \
+            --TestCaseFilter:"$FILTER" \
+            /Collect:"XPlat Code Coverage" \
+            /Logger:"trx;LogFileName=${{ matrix.testclass }}.trx" \
+            /ResultsDirectory:"results/${{ matrix.testclass }}"
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+      - name: Upload TRX + coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.os }}-${{ matrix.testclass }}
+          path: results/${{ matrix.testclass }}
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+# ---------------------------------------------------------------------------
+# 3. Merge all coverage fragments and publish a single report
+# ---------------------------------------------------------------------------
+  coverage-merge:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
+      - name: Install ReportGenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-ubuntu
-                  path: '**/*.trx'
+      - name: Merge Cobertura fragments
+        run: |
+          reportgenerator \
+            -reports:"artifacts/**/coverage.cobertura.xml" \
+            -targetdir:"coverage" \
+            -reporttypes:"Cobertura"
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-ubuntu
-                  path: '**/coverage.cobertura.xml'
+      - name: Upload merged coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage/Cobertura.xml
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
-
-    test-macos:
-        if: false # Temporarily disabled
-        name: 'macOS'
-        runs-on: macos-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
-
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
-
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity normal --logger trx --collect:"XPlat Code Coverage"
-
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-macos
-                  path: '**/*.trx'
-
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-macos
-                  path: '**/coverage.cobertura.xml'
-
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              with:
-                  files: '**/coverage.cobertura.xml'
+      - name: Upload merged report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-coverage
+          path: coverage/Cobertura.xml
