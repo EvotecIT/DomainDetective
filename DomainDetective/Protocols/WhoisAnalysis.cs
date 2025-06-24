@@ -31,6 +31,8 @@ public class WhoisAnalysis {
     public string RegistrarTel { get; set; }
     public string RegistrarWebsite { get; set; }
     public string RegistrarEmail { get; set; }
+    public string RegistrarAbuseEmail { get; set; }
+    public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
 
     private static readonly InternalLogger _logger = new();
@@ -557,9 +559,13 @@ public class WhoisAnalysis {
             } else if (line.StartsWith("   Name Server:")) {
                 NameServers.Add(line.Substring("   Name Server:".Length).Trim());
             } else if (line.StartsWith("   Registrar Abuse Contact Email:")) {
-                RegistrarEmail = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
+                var value = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (line.StartsWith("   Registrar Abuse Contact Phone:")) {
-                RegistrarTel = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+                var value = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             } else if (line.StartsWith("   DNSSEC:")) {
                 DnsSec = line.Substring("   DNSSEC:".Length).Trim();
             }
@@ -586,9 +592,13 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Name Server:")) {
                 NameServers.Add(trimmedLine.Substring("Name Server:".Length).Trim());
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
-                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
-                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             } else if (trimmedLine.StartsWith("Registrant Organization:")) {
                 RegisteredTo = trimmedLine.Substring("Registrant Organization:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registrant Country:")) {
@@ -635,9 +645,13 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Registrant Country:")) {
                 Country = trimmedLine.Substring("Registrant Country:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
-                RegistrarEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value;
+                RegistrarAbuseEmail = value;
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
-                RegistrarTel = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value;
+                RegistrarAbusePhone = value;
             }
         }
     }
