@@ -29,6 +29,16 @@ namespace DomainDetective {
         public bool ValidVersion { get; private set; }
 
         /// <summary>
+        /// Gets a value indicating whether the policy contained a version field.
+        /// </summary>
+        public bool VersionPresent { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether any field appeared more than once.
+        /// </summary>
+        public bool HasDuplicateFields { get; private set; }
+
+        /// <summary>
         /// Gets a value indicating whether the policy mode is valid.
         /// </summary>
         public bool ValidMode { get; private set; }
@@ -88,6 +98,8 @@ namespace DomainDetective {
             PolicyPresent = false;
             PolicyValid = false;
             ValidVersion = false;
+            VersionPresent = false;
+            HasDuplicateFields = false;
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
@@ -158,6 +170,8 @@ namespace DomainDetective {
         private void ParsePolicy(string text) {
             PolicyValid = true;
             ValidVersion = false;
+            VersionPresent = false;
+            HasDuplicateFields = false;
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
@@ -166,6 +180,7 @@ namespace DomainDetective {
             Mx = new List<string>();
 
             var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var line in lines) {
                 var trimmed = line.Trim();
                 if (trimmed.StartsWith("#") || trimmed.Length == 0) {
@@ -180,9 +195,14 @@ namespace DomainDetective {
 
                 string key = trimmed.Substring(0, colonIndex).Trim();
                 string value = trimmed.Substring(colonIndex + 1).Trim();
+                var lowerKey = key.ToLowerInvariant();
+                if (lowerKey != "mx" && !seen.Add(lowerKey)) {
+                    HasDuplicateFields = true;
+                }
 
-                switch (key) {
+                switch (lowerKey) {
                     case "version":
+                        VersionPresent = true;
                         ValidVersion = value == "STSv1";
                         break;
                     case "mode":
@@ -204,7 +224,7 @@ namespace DomainDetective {
                 }
             }
 
-            PolicyValid = PolicyValid && ValidVersion && ValidMode && ValidMaxAge && HasMx;
+            PolicyValid = PolicyValid && VersionPresent && ValidVersion && ValidMode && ValidMaxAge && HasMx && !HasDuplicateFields;
         }
     }
 }

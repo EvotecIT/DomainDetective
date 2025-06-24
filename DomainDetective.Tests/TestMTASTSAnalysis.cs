@@ -48,6 +48,27 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void MissingVersionInvalidatesPolicy() {
+            var policy = "mode: enforce\nmx: mail.example.com\nmax_age: 86400";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.False(analysis.PolicyValid);
+            Assert.False(analysis.VersionPresent);
+            Assert.False(analysis.ValidVersion);
+        }
+
+        [Fact]
+        public void DuplicateFieldsInvalidatePolicy() {
+            var policy = "version: STSv1\nmode: enforce\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.True(analysis.HasDuplicateFields);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
         public async Task FetchPolicyFromServer() {
             using var listener = new HttpListener();
             var port = GetFreePort();
