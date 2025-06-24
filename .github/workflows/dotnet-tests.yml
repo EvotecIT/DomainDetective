@@ -89,6 +89,9 @@ jobs:
           name: windows-build
           path: DomainDetective.Tests
 
+      - name: Restore test project
+        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
+
       # yamllint disable rule:line-length
       - name: Run test ${{ matrix.testclass }}
         shell: pwsh
@@ -181,6 +184,9 @@ jobs:
         with:
           name: ubuntu-build
           path: DomainDetective.Tests
+
+      - name: Restore test project
+        run: dotnet restore DomainDetective.Tests/DomainDetective.Tests.csproj
 
       # yamllint disable rule:line-length
       - name: Run test ${{ matrix.testclass }}
