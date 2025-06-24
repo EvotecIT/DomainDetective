@@ -13,6 +13,7 @@ namespace DomainDetective {
         public bool PGPSigned { get; set; }
         public bool FallbackUsed { get; set; }
         public string Url { get; set; }
+        public HashSet<string> DuplicateTags { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Fields that can appear multiple times as List<string>
         public List<string> ContactEmail { get; set; } = new List<string>();
         public List<string> ContactWebsite { get; set; } = new List<string>();
@@ -96,6 +97,8 @@ namespace DomainDetective {
             var lines = txt.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
             RecordValid = true;
+            DuplicateTags.Clear();
+            var seenTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             bool hasSeenExpires = false;
             bool hasSeenSignatureEncryption = false;
 
@@ -110,6 +113,11 @@ namespace DomainDetective {
                 if (colonIndex > 0) {
                     string currentField = line.Substring(0, colonIndex).Trim();
                     string value = line.Substring(colonIndex + 1).Trim();
+
+                    if (!seenTags.Add(currentField)) {
+                        DuplicateTags.Add(currentField);
+                        RecordValid = false;
+                    }
 
                     // Add the value to the appropriate list in the record
                     switch (currentField.ToLowerInvariant()) {
