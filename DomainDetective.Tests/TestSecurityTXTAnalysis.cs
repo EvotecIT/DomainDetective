@@ -85,7 +85,7 @@ namespace DomainDetective.Tests {
                 await healthCheck.Verify(prefix.Replace("http://", string.Empty).TrimEnd('/'), new[] { HealthCheckType.SECURITYTXT });
                 Assert.True(healthCheck.SecurityTXTAnalysis.RecordPresent);
                 Assert.False(healthCheck.SecurityTXTAnalysis.RecordValid);
-                Assert.Contains("expires", healthCheck.SecurityTXTAnalysis.DuplicateTags, StringComparer.OrdinalIgnoreCase);
+                Assert.Contains("expires", healthCheck.SecurityTXTAnalysis.DuplicateTags);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -101,3 +101,4 @@ namespace DomainDetective.Tests {
         }
     }
 }
+
