@@ -10,6 +10,7 @@ namespace DomainDetective.Tests {
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
             Assert.False(analysis.IsReachable);
+            Assert.Null(analysis.ProtocolVersion);
         }
 
         [Fact]
@@ -23,6 +24,7 @@ namespace DomainDetective.Tests {
 
             Assert.NotNull(eventArgs);
             Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
+            Assert.Null(analysis.ProtocolVersion);
         }
 
         [Fact]

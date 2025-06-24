@@ -89,15 +89,17 @@ namespace DomainDetective {
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
-                ProtocolVersion = response.Version;
                 IsReachable = response.IsSuccessStatusCode;
+                if (IsReachable) {
+                    ProtocolVersion = response.Version;
 #if NET6_0_OR_GREATER
-                Http3Supported = response.Version >= HttpVersion.Version30;
-                Http2Supported = response.Version >= HttpVersion.Version20;
+                    Http3Supported = response.Version >= HttpVersion.Version30;
+                    Http2Supported = response.Version >= HttpVersion.Version20;
 #else
-                Http2Supported = response.Version.Major >= 2;
-                Http3Supported = false;
+                    Http2Supported = response.Version.Major >= 2;
+                    Http3Supported = false;
 #endif
+                }
                 if (checkHsts) {
                     HstsPresent = response.Headers.Contains("Strict-Transport-Security");
                 }
