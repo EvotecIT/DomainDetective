@@ -24,13 +24,14 @@ namespace DomainDetective.Tests {
 
             try {
                 var analysis = new HttpAnalysis();
-                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true, captureBody: true);
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(200, analysis.StatusCode);
                 Assert.True(analysis.ResponseTime > TimeSpan.Zero);
                 Assert.True(analysis.HstsPresent);
                 Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
                 Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
+                Assert.Equal("ok", analysis.Body);
             } finally {
                 listener.Stop();
                 await serverTask;

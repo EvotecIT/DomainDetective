@@ -28,6 +28,8 @@ namespace DomainDetective {
         public bool Http2Supported { get; private set; }
         /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
         public bool Http3Supported { get; private set; }
+        /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
+        public string Body { get; private set; }
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -46,7 +48,8 @@ namespace DomainDetective {
         /// <param name="checkHsts">Whether to check for the presence of HSTS.</param>
         /// <param name="logger">Logger used for error reporting.</param>
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
-        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false) {
+        /// <param name="captureBody">Whether to capture the response body.</param>
+        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false) {
 #if NET6_0_OR_GREATER
             var requestVersion = HttpVersion.Version30;
             var manualRedirect = requestVersion >= HttpVersion.Version30;
@@ -57,6 +60,7 @@ namespace DomainDetective {
             using var client = new HttpClient(handler);
             var sw = Stopwatch.StartNew();
             FailureReason = null;
+            Body = null;
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
@@ -105,6 +109,9 @@ namespace DomainDetective {
                         }
                     }
                 }
+                if (captureBody) {
+                    Body = await response.Content.ReadAsStringAsync();
+                }
                 response.Dispose();
             } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&
                 (se.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound ||
@@ -137,10 +144,11 @@ namespace DomainDetective {
         /// <param name="url">The URL to check.</param>
         /// <param name="checkHsts">Whether to check for HSTS.</param>
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
+        /// <param name="captureBody">Whether to capture the response body.</param>
         /// <returns>A populated <see cref="HttpAnalysis"/> instance.</returns>
-        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false) {
+        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false) {
             var analysis = new HttpAnalysis();
-            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders);
+            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders, captureBody);
             return analysis;
         }
     }
