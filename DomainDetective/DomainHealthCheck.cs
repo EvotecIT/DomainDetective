@@ -391,6 +391,10 @@ namespace DomainDetective {
                 throw new ArgumentException("No ports provided.", nameof(ports));
             }
 
+            if (ports.Any(p => p <= 0)) {
+                throw new ArgumentException("Ports must be greater than zero.", nameof(ports));
+            }
+
             DaneAnalysis = new DANEAnalysis();
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
