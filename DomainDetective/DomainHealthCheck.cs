@@ -113,6 +113,9 @@ namespace DomainDetective {
 
         public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
             DKIMAnalysis.Reset();
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             if (selectors == null || selectors.Length == 0) {
                 await DKIMAnalysis.QueryWellKnownSelectors(domainName, DnsConfiguration, _logger, cancellationToken);
                 return;
@@ -125,6 +128,9 @@ namespace DomainDetective {
         }
 
         public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
                     HealthCheckType.DMARC,
@@ -231,7 +237,7 @@ namespace DomainDetective {
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                        throw new System.Exception("Health check type not implemented.");
+                        throw new NotSupportedException("Health check type not implemented.");
                 }
             }
         }
@@ -353,11 +359,17 @@ namespace DomainDetective {
 
 
         public async Task VerifySPF(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
         }
 
         public async Task VerifyMTASTS(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             MTASTSAnalysis = new MTASTSAnalysis {
                 PolicyUrlOverride = MtaStsPolicyUrlOverride
             };
@@ -365,30 +377,45 @@ namespace DomainDetective {
         }
 
         public async Task VerifySTARTTLS(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
         }
 
         public async Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
         }
 
         public async Task VerifyTLSRPT(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             TLSRPTAnalysis = new TLSRPTAnalysis();
             var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger, cancellationToken);
         }
 
         public async Task VerifyBIMI(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             BimiAnalysis = new BimiAnalysis();
             var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
             await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
         }
 
         public async Task VerifyDANE(string domainName, int[] ports, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             if (ports == null || ports.Length == 0) {
                 throw new ArgumentException("No ports provided.", nameof(ports));
             }
@@ -424,6 +451,9 @@ namespace DomainDetective {
         }
 
         public async Task VerifyDANE(string domainName, ServiceType[] serviceTypes, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
             DaneAnalysis = new DANEAnalysis();
             if (serviceTypes == null || serviceTypes.Length == 0) {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };

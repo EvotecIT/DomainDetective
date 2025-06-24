@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
@@ -5,7 +6,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task VerifyUnknownHealthCheckTypeThrows() {
             var healthCheck = new DomainHealthCheck();
-            await Assert.ThrowsAsync<System.Exception>(async () =>
+            await Assert.ThrowsAsync<NotSupportedException>(async () =>
                 await healthCheck.Verify("example.com", new[] { (HealthCheckType)999 }));
         }
     }

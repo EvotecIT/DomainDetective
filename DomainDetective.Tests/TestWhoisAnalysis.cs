@@ -7,6 +7,12 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task MissingTldThrows() {
+            var whois = new WhoisAnalysis();
+            await Assert.ThrowsAsync<UnsupportedTldException>(async () => await whois.QueryWhoisServer("example"));
+        }
+
+        [Fact]
         public async Task QueryFromLocalWhoisServerReadsLargeResponse() {
             var responseBuilder = new System.Text.StringBuilder();
             responseBuilder.AppendLine("Domain Name: example.local");
