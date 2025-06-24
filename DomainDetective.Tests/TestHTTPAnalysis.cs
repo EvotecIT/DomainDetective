@@ -166,6 +166,32 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task TimeoutSetsFailureReason() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var tcs = new TaskCompletionSource<object?>();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                await tcs.Task;
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.False(analysis.IsReachable);
+                Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+            } finally {
+                tcs.TrySetResult(null);
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();
