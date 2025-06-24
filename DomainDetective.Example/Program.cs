@@ -41,6 +41,7 @@ public static partial class Program {
         await ExampleAnalyseSecurityTXT();
         await ExampleAnalyseDnsPropagation();
         await ExampleAnalyseDnsPropagationRegions();
+        await ExampleDomainSummary();
 
         //await ExampleQueryDNS();
         //await ExampleAnalyseByStringWHOIS();
