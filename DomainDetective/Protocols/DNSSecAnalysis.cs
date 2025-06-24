@@ -55,18 +55,19 @@ namespace DomainDetective {
                 var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
                 var dnskeyJson = await client.GetStringAsync(dnskeyUri);
                 var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
-                bool keyAd = dnskeyDoc.RootElement.GetProperty("AD").GetBoolean();
+                bool keyAd = dnskeyDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
 
-                var answers = dnskeyDoc.RootElement.GetProperty("Answer").EnumerateArray();
                 List<string> zoneKeys = new();
                 List<string> zoneSigs = new();
-                foreach (var answer in answers) {
-                    var type = answer.GetProperty("type").GetInt32();
-                    var data = answer.GetProperty("data").GetString();
-                    if (type == 48) {
-                        zoneKeys.Add(data);
-                    } else if (type == 46) {
-                        zoneSigs.Add(data);
+                if (dnskeyDoc.RootElement.TryGetProperty("Answer", out var ansElem)) {
+                    foreach (var answer in ansElem.EnumerateArray()) {
+                        var type = answer.GetProperty("type").GetInt32();
+                        var data = answer.GetProperty("data").GetString();
+                        if (type == 48) {
+                            zoneKeys.Add(data);
+                        } else if (type == 46) {
+                            zoneSigs.Add(data);
+                        }
                     }
                 }
 
@@ -107,7 +108,7 @@ namespace DomainDetective {
             var dsUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type=DS&do=1";
             var dsJson = await client.GetStringAsync(dsUri);
             var dsDoc = JsonDocument.Parse(dsJson);
-            bool ad = dsDoc.RootElement.GetProperty("AD").GetBoolean();
+            bool ad = dsDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
             List<string> records = new();
             if (dsDoc.RootElement.TryGetProperty("Answer", out var dsAnswers)) {
                 foreach (var ans in dsAnswers.EnumerateArray()) {
