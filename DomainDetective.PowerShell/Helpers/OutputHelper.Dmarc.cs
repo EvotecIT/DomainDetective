@@ -20,7 +20,12 @@ namespace DomainDetective.PowerShell {
                 SubPolicy = analysis.SubPolicy,
                 Percent = analysis.Percent,
                 Rua = analysis.Rua,
-                Ruf = analysis.Ruf
+                Ruf = analysis.Ruf,
+                MailtoRua = analysis.MailtoRua,
+                HttpRua = analysis.HttpRua,
+                MailtoRuf = analysis.MailtoRuf,
+                HttpRuf = analysis.HttpRuf,
+                ExternalReportAuthorization = analysis.ExternalReportAuthorization
             };
         }
     }
@@ -55,5 +60,20 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Forensic report destination.</summary>
         public string Ruf { get; set; }
+
+        /// <summary>Parsed mailto RUA addresses.</summary>
+        public IReadOnlyList<string> MailtoRua { get; set; }
+
+        /// <summary>Parsed HTTP RUA endpoints.</summary>
+        public IReadOnlyList<string> HttpRua { get; set; }
+
+        /// <summary>Parsed mailto RUF addresses.</summary>
+        public IReadOnlyList<string> MailtoRuf { get; set; }
+
+        /// <summary>Parsed HTTP RUF endpoints.</summary>
+        public IReadOnlyList<string> HttpRuf { get; set; }
+
+        /// <summary>External reporting authorization per domain.</summary>
+        public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; }
     }
 }
