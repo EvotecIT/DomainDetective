@@ -1,3 +1,4 @@
+using DomainDetective;
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -32,8 +33,8 @@ namespace DomainDetective.PowerShell {
             if (Raw) {
                 WriteObject(healthCheck.DNSSecAnalysis);
             } else {
-                var output = OutputHelper.Convert(healthCheck.DNSSecAnalysis);
-                WriteObject(output);
+                DnsSecInfo info = DnsSecConverter.Convert(healthCheck.DNSSecAnalysis);
+                WriteObject(info);
             }
         }
     }
