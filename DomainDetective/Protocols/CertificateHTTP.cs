@@ -23,12 +23,21 @@ namespace DomainDetective {
 
         public X509Certificate2 Certificate { get; set; }
 
+        public List<X509Certificate2> Chain { get; } = new();
+
         public async Task AnalyzeUrl(string url, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
+                    Chain.Clear();
+                    if (chain != null) {
+                        foreach (var element in chain.ChainElements) {
+                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                        }
+                    }
+                    IsValid = policyErrors == SslPolicyErrors.None;
                     return true;
                 };
                 using (var client = new HttpClient(handler)) {
@@ -59,6 +68,12 @@ namespace DomainDetective {
                                 await ssl.AuthenticateAsClientAsync(uri.Host);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
+                                    var xchain = new X509Chain();
+                                    xchain.Build(cert);
+                                    Chain.Clear();
+                                    foreach (var element in xchain.ChainElements) {
+                                        Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                                    }
                                 }
                             } catch (Exception ex) {
                                 logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
