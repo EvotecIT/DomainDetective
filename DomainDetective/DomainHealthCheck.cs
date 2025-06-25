@@ -858,12 +858,24 @@ namespace DomainDetective {
             var spfValid = SpfAnalysis.SpfRecordExists && SpfAnalysis.StartsCorrectly &&
                             !SpfAnalysis.ExceedsDnsLookups && !SpfAnalysis.MultipleSpfRecords;
 
+            var dmarcValid = DmarcAnalysis.DmarcRecordExists && DmarcAnalysis.StartsCorrectly &&
+                             DmarcAnalysis.HasMandatoryTags && DmarcAnalysis.IsPolicyValid &&
+                             DmarcAnalysis.IsPctValid && !DmarcAnalysis.MultipleRecords &&
+                             !DmarcAnalysis.ExceedsCharacterLimit && DmarcAnalysis.ValidDkimAlignment &&
+                             DmarcAnalysis.ValidSpfAlignment;
+
+            var dkimValid = DKIMAnalysis.AnalysisResults.Values.Any(a =>
+                a.DkimRecordExists && a.StartsCorrectly && a.PublicKeyExists &&
+                a.ValidPublicKey && a.KeyTypeExists && a.ValidKeyType && a.ValidFlags);
+
             return new DomainSummary {
                 HasSpfRecord = SpfAnalysis.SpfRecordExists,
                 SpfValid = spfValid,
                 HasDmarcRecord = DmarcAnalysis.DmarcRecordExists,
                 DmarcPolicy = DmarcAnalysis.Policy,
+                DmarcValid = dmarcValid,
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
+                DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis.MxRecordExists,
                 DnsSecValid = DNSSecAnalysis.ChainValid
             };
