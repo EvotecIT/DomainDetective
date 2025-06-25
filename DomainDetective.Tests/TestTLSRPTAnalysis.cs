@@ -55,5 +55,28 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.RuaDefined);
             Assert.False(analysis.PolicyValid);
         }
+
+        [Fact]
+        public async Task InvalidSchemeRecorded() {
+            var record = "v=TLSRPTv1;rua=ftp://reports.example.com";
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, new InternalLogger());
+
+            Assert.Single(analysis.InvalidRua);
+            Assert.Equal("ftp://reports.example.com", analysis.InvalidRua[0]);
+        }
+
+        [Fact]
+        public async Task DetectMultipleRecords() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=TLSRPTv1;rua=mailto:a@example.com", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=TLSRPTv1;rua=mailto:b@example.com", Type = DnsRecordType.TXT }
+            };
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.MultipleRecords);
+            Assert.True(analysis.PolicyValid);
+        }
     }
 }
