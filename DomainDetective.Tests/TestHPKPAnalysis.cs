@@ -32,6 +32,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal(2, analysis.Pins.Count);
                 Assert.Contains(pin1, analysis.Pins);
                 Assert.Contains(pin2, analysis.Pins);
+                Assert.Equal(1000, analysis.MaxAge);
+                Assert.False(analysis.IncludesSubDomains);
             } finally {
                 listener.Stop();
                 await task;
@@ -55,6 +57,34 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeUrl(prefix, new InternalLogger());
                 Assert.True(analysis.HeaderPresent);
                 Assert.False(analysis.PinsValid);
+                Assert.Equal(1000, analysis.MaxAge);
+            } finally {
+                listener.Stop();
+                await task;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsIncludeSubDomains() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var pin1 = Convert.ToBase64String(Enumerable.Repeat((byte)1, 32).ToArray());
+            var pin2 = Convert.ToBase64String(Enumerable.Repeat((byte)2, 32).ToArray());
+            var header = $"pin-sha256=\"{pin1}\"; pin-sha256=\"{pin2}\"; max-age=10; includeSubDomains";
+            var task = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.Headers.Add("Public-Key-Pins", header);
+                ctx.Response.Close();
+            });
+            try {
+                var analysis = new HPKPAnalysis();
+                await analysis.AnalyzeUrl(prefix, new InternalLogger());
+                Assert.True(analysis.HeaderPresent);
+                Assert.True(analysis.PinsValid);
+                Assert.True(analysis.IncludesSubDomains);
+                Assert.Equal(10, analysis.MaxAge);
             } finally {
                 listener.Stop();
                 await task;
