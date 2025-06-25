@@ -78,8 +78,6 @@ namespace DomainDetective.Tests {
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task DetectsTls13WhenSupported() {
-            // TLS 1.3 handshake can fail on platforms without support.
-            return;
             using var cert = CreateSelfSigned();
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();

@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
             await healthCheck.Verify("evotec.pl", [HealthCheckType.SOA]);
 
             if (!healthCheck.SOAAnalysis.RecordExists) {
-                return;
+                throw SkipException.ForSkip("SOA record not found");
             }
 
             Assert.True(healthCheck.SOAAnalysis.SerialNumber > 0);
