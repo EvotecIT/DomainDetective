@@ -144,5 +144,29 @@ namespace DomainDetective.Tests {
                 File.Delete(file);
             }
         }
+
+        [Theory]
+        [InlineData("300.1.1.1")]
+        [InlineData("not.an.ip")]
+        [InlineData("1.2.3")]
+        public void AddServerThrowsForInvalidAddress(string address) {
+            var analysis = new DnsPropagationAnalysis();
+            var entry = new PublicDnsEntry { IPAddress = address };
+            Assert.Throws<FormatException>(() => analysis.AddServer(entry));
+        }
+
+        [Fact]
+        public void LoadServersThrowsForInvalidAddress() {
+            var json = "[{\"IPAddress\":\"bad.ip\"}]";
+            var file = Path.GetTempFileName();
+            try {
+                File.WriteAllText(file, json);
+                var analysis = new DnsPropagationAnalysis();
+                Assert.Throws<FormatException>(() => analysis.LoadServers(file, clearExisting: true));
+            }
+            finally {
+                File.Delete(file);
+            }
+        }
     }
 }
