@@ -7,6 +7,12 @@ namespace DomainDetective.CLI;
 
 internal static class CliHelpers
 {
+    /// <summary>
+    ///     Adds property rows for <paramref name="obj"/> to <paramref name="table"/>.
+    /// </summary>
+    /// <param name="table">Target table instance.</param>
+    /// <param name="obj">Object to inspect.</param>
+    /// <param name="listAsString">Renders list values as comma separated strings when true.</param>
     private static void AddProperties(Table table, object obj, bool listAsString = false)
     {
         if (obj == null)
@@ -56,6 +62,11 @@ internal static class CliHelpers
         }
     }
 
+    /// <summary>
+    ///     Renders the properties of <paramref name="data"/> inside a panel titled with <paramref name="title"/>.
+    /// </summary>
+    /// <param name="title">Panel header text.</param>
+    /// <param name="data">Object, list or dictionary to display.</param>
     public static void ShowPropertiesTable(string title, object data)
     {
         var table = new Table().Border(TableBorder.Rounded);
