@@ -60,7 +60,7 @@ namespace DomainDetective.Tests {
                 Assert.False(analysis.HstsIncludesSubDomains);
                 Assert.False(analysis.HstsTooShort);
                 Assert.Equal("ok", analysis.Body);
-                Assert.Empty(analysis.MissingSecurityHeaders);
+                Assert.Single(analysis.MissingSecurityHeaders, "Public-Key-Pins");
             } finally {
                 listener.Stop();
                 await serverTask;
