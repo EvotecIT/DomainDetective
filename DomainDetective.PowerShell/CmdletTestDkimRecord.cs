@@ -4,22 +4,32 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Validates DKIM records for the specified selectors.</summary>
+    /// <example>
+    ///   <summary>Verify DKIM selectors.</summary>
+    ///   <code>Test-DkimRecord -DomainName example.com -Selectors selector1</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DkimRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
+        /// <param name="Selectors">Selectors to validate.</param>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string[] Selectors;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="FullResponse">Return full analysis result.</param>
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 
+        /// <param name="Raw">Return raw response objects.</param>
         [Parameter(Mandatory = false)]
         public SwitchParameter Raw;
 

@@ -3,21 +3,31 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Runs multiple domain health checks and returns the results.</summary>
+    /// <example>
+    ///   <summary>Perform a full health test.</summary>
+    ///   <code>Test-DomainHealth -DomainName example.com -Verbose</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DomainHealth", DefaultParameterSetName = "ServerName")]
     [OutputType(typeof(DomainHealthCheck))]
     public sealed class CmdletTestDomainHealth : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to analyze.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string DomainName;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="HealthCheckType">Specific tests to run.</param>
         [Parameter(Mandatory = false)]
         public HealthCheckType[]? HealthCheckType;
 
+        /// <param name="DkimSelectors">DKIM selectors used when testing DKIM.</param>
         [Parameter(Mandatory = false)]
         public string[]? DkimSelectors;
 
+        /// <param name="DaneServiceType">Service types to check for DANE.</param>
         [Parameter(Mandatory = false)]
         public ServiceType[]? DaneServiceType;
 
