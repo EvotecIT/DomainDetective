@@ -24,7 +24,10 @@
 
 
   <Target Name="EmbedPublicDns" BeforeTargets="PrepareResources">
-    <Exec Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(IntermediateOutputPath)PublicDNS.json.gz&quot;" />
+    <!-- Use gzip on Unix-like systems -->
+    <Exec Condition=" '$(OS)' != 'Windows_NT' " Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(IntermediateOutputPath)PublicDNS.json.gz&quot;" />
+    <!-- Use PowerShell on Windows to create gzip archive -->
+    <Exec Condition=" '$(OS)' == 'Windows_NT' " Command="powershell -NoProfile -Command &quot;$in=[IO.File]::OpenRead('%(PublicDnsJson.FullPath)'); $out=[IO.File]::Create('$(IntermediateOutputPath)PublicDNS.json.gz'); $gzip=[IO.Compression.GzipStream]::new($out,[IO.Compression.CompressionLevel]::Optimal); $in.CopyTo($gzip); $gzip.Dispose(); $in.Dispose(); $out.Dispose();&quot;" />
     <ItemGroup>
       <EmbeddedResource Include="$(IntermediateOutputPath)PublicDNS.json.gz" LogicalName="Data.PublicDNS.json.gz" />
     </ItemGroup>
