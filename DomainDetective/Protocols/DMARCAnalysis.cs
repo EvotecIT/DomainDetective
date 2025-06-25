@@ -23,6 +23,7 @@ namespace DomainDetective {
         public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
         public string DmarcRecord { get; private set; }
         public bool DmarcRecordExists { get; private set; } // should be true
+        public bool MultipleRecords { get; private set; }
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsCharacterLimit { get; private set; } // should be false
         public bool HasMandatoryTags { get; private set; }
@@ -65,6 +66,7 @@ namespace DomainDetective {
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
             DmarcRecordExists = false;
+            MultipleRecords = false;
             StartsCorrectly = false;
             ExceedsCharacterLimit = false;
             HasMandatoryTags = false;
@@ -97,6 +99,7 @@ namespace DomainDetective {
 
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
+            MultipleRecords = dmarcRecordList.Count > 1;
 
             // concatenate all TXT chunks into a single string separated by spaces
             DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));

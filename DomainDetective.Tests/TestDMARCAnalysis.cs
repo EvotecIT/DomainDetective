@@ -155,5 +155,18 @@ namespace DomainDetective.Tests {
             Assert.Contains("test", healthCheck.DmarcAnalysis.UnknownTags);
             Assert.Contains("x=y", healthCheck.DmarcAnalysis.UnknownTags);
         }
+
+        [Fact]
+        public async Task DetectMultipleRecords() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=none", Type = DnsRecordType.TXT },
+                new DnsAnswer { DataRaw = "v=DMARC1; p=quarantine", Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.MultipleRecords);
+        }
     }
 }
