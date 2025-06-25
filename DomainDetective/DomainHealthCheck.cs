@@ -555,11 +555,28 @@ namespace DomainDetective {
             };
         }
           
+        /// <summary>Serializes this instance to a JSON string.</summary>
+        /// <param name="options">
+        /// <para>Optional serializer options. If not provided,</para>
+        /// <para><see cref="JsonSerializerOptions.WriteIndented"/> is enabled.</para>
+        /// </param>
+        /// <returns>
+        /// <para>A JSON representation of the current
+        /// <see cref="DomainHealthCheck"/>.</para>
+        /// </returns>
         public string ToJson(JsonSerializerOptions options = null) {
             options ??= new JsonSerializerOptions { WriteIndented = true };
             return JsonSerializer.Serialize(this, options);
         }
 
+        /// <summary>Creates a copy with only the specified analyses included.</summary>
+        /// <param name="healthCheckTypes">
+        /// <para>Health checks that should remain in the returned
+        /// <see cref="DomainHealthCheck"/>.</para>
+        /// </param>
+        /// <returns>
+        /// <para>A clone of this object with non-selected analyses removed.</para>
+        /// </returns>
         public DomainHealthCheck FilterAnalyses(IEnumerable<HealthCheckType> healthCheckTypes) {
             var active = healthCheckTypes != null
                 ? new HashSet<HealthCheckType>(healthCheckTypes)
