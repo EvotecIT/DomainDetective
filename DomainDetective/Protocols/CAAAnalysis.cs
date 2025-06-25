@@ -9,8 +9,12 @@ using System.Threading.Tasks;
 namespace DomainDetective {
 
     public class CAAAnalysis {
+        /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
 
+        /// <summary>
+        /// Gets a short explanation of CAA record purpose.
+        /// </summary>
         public string Description { get; set; } =
             @"A Certification Authority Authorization (CAA) record allows a domain to specify which certificate authorities (CAs)
 are permitted to issue certificates for it.
@@ -23,23 +27,35 @@ However, if a CAA record exists, only the CAs listed in that record(s) have the 
 
 CAA records can establish policy for the entire domain or for specific hostnames, and these policies are inherited by subdomains.
 As an illustration, a CAA record that is set on example.com is also applicable to subdomain.example.com.";
+        /// <summary>Gets the number of syntactically valid records.</summary>
         public int ValidRecords { get; private set; }
+        /// <summary>Gets the number of syntactically invalid records.</summary>
         public int InvalidRecords { get; private set; }
+        /// <summary>Gets issuers allowed to issue certificates for the domain.</summary>
         public List<string> CanIssueCertificatesForDomain { get; set; } = new List<string>();
+        /// <summary>Gets issuers allowed to issue wildcard certificates.</summary>
         public List<string> CanIssueWildcardCertificatesForDomain { get; set; } = new List<string>();
 
+        /// <summary>Gets issuers authorised to issue S/MIME certificates.</summary>
         public List<string> CanIssueMail { get; set; } = new List<string>();
 
+        /// <summary>Gets email addresses for CAA violation reports.</summary>
         public List<string> ReportViolationEmail { get; set; } = new List<string>();
 
+        /// <summary>Gets or sets a value indicating whether conflicting directives were detected.</summary>
         public bool Conflicting { get; set; }
 
+        /// <summary>Gets a value indicating whether duplicate issuers were found.</summary>
         public bool HasDuplicateIssuers { get; private set; }
 
+        /// <summary>Gets or sets a value indicating conflicting mail issuance rules.</summary>
         public bool ConflictingMailIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating conflicting certificate issuance rules.</summary>
         public bool ConflictingCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating conflicting wildcard certificate issuance rules.</summary>
         public bool ConflictingWildcardCertificateIssuance { get; set; }
 
+        /// <summary>Gets a value indicating whether the overall CAA configuration appears valid.</summary>
         public bool Valid {
             get {
                 if (!Conflicting && InvalidRecords == 0) {
@@ -50,8 +66,14 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             }
         }
 
+        /// <summary>Gets the per-record analysis results.</summary>
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
+        /// <summary>
+        /// Parses the supplied CAA records and populates analysis properties.
+        /// </summary>
+        /// <param name="dnsResults">DNS query results containing CAA records.</param>
+        /// <param name="logger">Logger used for warnings and errors.</param>
         public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             // reset all properties so repeated calls don't accumulate data
             DomainName = null;
@@ -232,6 +254,10 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             CheckForConflicts();
             GenerateLists(logger);
         }
+        /// <summary>
+        /// Builds summary lists of issuers and contact addresses from <see cref="AnalysisResults"/>.
+        /// </summary>
+        /// <param name="logger">Logger used for duplicate warnings.</param>
         public void GenerateLists(InternalLogger logger) {
             var certificateIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue && a.Value != ";")
@@ -268,6 +294,9 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             ReportViolationEmail = emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
+        /// <summary>
+        /// Sets conflict flags based on <see cref="AnalysisResults"/> content.
+        /// </summary>
         public void CheckForConflicts() {
             var allowCertificateIssuanceRecords = AnalysisResults.Where(a => a.AllowCertificateIssuance);
             var denyCertificateIssuanceRecords = AnalysisResults.Where(a => a.DenyCertificateIssuance);
@@ -302,24 +331,43 @@ As an illustration, a CAA record that is set on example.com is also applicable t
     }
 
     public class CAARecordAnalysis {
+        /// <summary>Gets or sets the raw CAA record text.</summary>
         public string CAARecord { get; set; }
+        /// <summary>Gets or sets the flag field.</summary>
         public string Flag { get; set; }
+        /// <summary>Gets or sets the parsed tag type.</summary>
         public CAATagType Tag { get; set; }
+        /// <summary>Gets or sets the record value.</summary>
         public string Value { get; set; }
+        /// <summary>Gets or sets the issuer domain name.</summary>
         public string Issuer { get; set; }
+        /// <summary>Gets or sets a value indicating whether the record failed validation.</summary>
         public bool Invalid { get; set; }
+        /// <summary>Gets or sets a value indicating an invalid flag field.</summary>
         public bool InvalidFlag { get; set; }
+        /// <summary>Gets or sets a value indicating an unrecognised tag.</summary>
         public bool InvalidTag { get; set; }
+        /// <summary>Gets or sets a value indicating unescaped quotes in the value field.</summary>
         public bool InvalidValueUnescapedQuotes { get; set; }
+        /// <summary>Gets or sets a value indicating that the value contained an invalid domain.</summary>
         public bool InvalidValueWrongDomain { get; set; }
+        /// <summary>Gets or sets a value indicating malformed additional parameters.</summary>
         public bool InvalidValueWrongParameters { get; set; }
+        /// <summary>Gets or sets a value indicating that certificate issuance is denied.</summary>
         public bool DenyCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that wildcard certificate issuance is denied.</summary>
         public bool DenyWildcardCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that S/MIME certificate issuance is denied.</summary>
         public bool DenyMailCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that certificate issuance is allowed.</summary>
         public bool AllowCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that wildcard certificate issuance is allowed.</summary>
         public bool AllowWildcardCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that S/MIME certificate issuance is allowed.</summary>
         public bool AllowMailCertificateIssuance { get; set; }
+        /// <summary>Gets or sets a value indicating that the record is a contact record.</summary>
         public bool IsContactRecord { get; set; }
+        /// <summary>Gets or sets additional key/value parameters.</summary>
         public Dictionary<string, string> Parameters { get; set; } = new Dictionary<string, string>();
     }
 
