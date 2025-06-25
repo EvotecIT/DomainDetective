@@ -82,6 +82,37 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task MalformedSvgFailsValidation() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "image/svg+xml";
+                var buffer = Encoding.UTF8.GetBytes("<!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' 'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'><svg></svg>");
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var record = $"v=BIMI1; l={prefix}logo.svg";
+                var answers = new List<DnsAnswer> {
+                    new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT }
+                };
+                var analysis = new BimiAnalysis();
+                await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+                Assert.True(analysis.SvgFetched);
+                Assert.False(analysis.SvgValid);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task ValidVmcCertificate() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
