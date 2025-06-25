@@ -35,7 +35,11 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```
 - `Test-StartTls` – verifies SMTP STARTTLS support.
   ```powershell
-  Test-StartTls -DomainName "example.com" -Verbose
+  Test-StartTls -DomainName "example.com" -Port 587 -Verbose
+  ```
+  To check a specific host use `Test-SmtpTls`.
+  ```powershell
+  Test-SmtpTls -HostName "mail.example.com" -Port 587
   ```
 - `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Import-DnsblConfig` manage the list of DNSBL providers.
   ```powershell
