@@ -10,6 +10,13 @@ namespace DomainDetective {
         public List<string> Pins { get; private set; } = new();
         public string Header { get; private set; }
 
+        /// <summary>
+        /// Performs an HTTP request to retrieve the Public-Key-Pins header and
+        /// verifies that any advertised pins are valid base64-encoded SHA-256
+        /// hashes.
+        /// </summary>
+        /// <param name="url">The URL to request.</param>
+        /// <param name="logger">Logger used for error reporting.</param>
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
             HeaderPresent = false;
             PinsValid = false;
