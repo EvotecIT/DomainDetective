@@ -16,12 +16,22 @@ namespace DomainDetective {
         public TimeSpan ResponseTime { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS header was present.</summary>
         public bool HstsPresent { get; private set; }
+        /// <summary>Gets the max-age value from the HSTS header.</summary>
+        public int? HstsMaxAge { get; private set; }
+        /// <summary>Gets a value indicating whether includeSubDomains is present in the HSTS header.</summary>
+        public bool HstsIncludesSubDomains { get; private set; }
+        /// <summary>Gets a value indicating whether the HSTS max-age is shorter than 18 weeks.</summary>
+        public bool HstsTooShort { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
+        public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
         public Dictionary<string, string> SecurityHeaders { get; } = new();
+        /// <summary>Gets a collection of security headers that were not present.</summary>
+        public HashSet<string> MissingSecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
@@ -40,7 +50,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
-        private static readonly string[] _securityHeaderNames = new[] {
+        private static readonly List<string> _securityHeaderNames = new() {
             "Content-Security-Policy",
             "X-Content-Type-Options",
             "X-Frame-Options",
@@ -48,8 +58,19 @@ namespace DomainDetective {
             "Permissions-Policy",
             "Strict-Transport-Security",
             "X-XSS-Protection",
-            "Expect-CT"
+            "Expect-CT",
+            "X-Permitted-Cross-Domain-Policies",
+            "Cross-Origin-Opener-Policy",
+            "Cross-Origin-Embedder-Policy",
+            "Cross-Origin-Resource-Policy"
         };
+
+        /// <summary>
+        /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
+        /// called with header collection enabled. Modify this list to customize which
+        /// headers are captured.
+        /// </summary>
+        public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
         /// <summary>
         /// Performs an HTTP GET request to the specified URL.
@@ -73,6 +94,12 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            CspUnsafeDirectives = false;
+            HstsMaxAge = null;
+            HstsIncludesSubDomains = false;
+            HstsTooShort = false;
+            SecurityHeaders.Clear();
+            MissingSecurityHeaders.Clear();
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
@@ -112,21 +139,33 @@ namespace DomainDetective {
                     Http3Supported = false;
 #endif
                 }
+                string? hstsHeader = null;
+                if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
+                    hstsHeader = string.Join(",", hstsValues);
+                }
                 if (checkHsts) {
-                    HstsPresent = response.Headers.Contains("Strict-Transport-Security");
+                    HstsPresent = hstsHeader != null;
                 }
                 if (collectHeaders) {
                     foreach (var headerName in _securityHeaderNames) {
                         if (response.Headers.TryGetValues(headerName, out var values) ||
                             response.Content.Headers.TryGetValues(headerName, out values)) {
                             SecurityHeaders[headerName] = string.Join(",", values);
+                        } else {
+                            MissingSecurityHeaders.Add(headerName);
                         }
                     }
                     if (!HstsPresent) {
-                        HstsPresent = SecurityHeaders.ContainsKey("Strict-Transport-Security");
+                        HstsPresent = SecurityHeaders.TryGetValue("Strict-Transport-Security", out hstsHeader);
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+                    if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
+                        ParseContentSecurityPolicy(csp);
+                    }
+                }
+                if (hstsHeader != null) {
+                    ParseHsts(hstsHeader);
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
@@ -154,6 +193,45 @@ namespace DomainDetective {
                 IsReachable = false;
                 FailureReason = $"HTTP check failed: {ex.Message}";
                 logger?.WriteError("HTTP check failed for {0}: {1}", url, ex.Message);
+            }
+        }
+
+        private void ParseHsts(string headerValue) {
+            HstsMaxAge = null;
+            HstsIncludesSubDomains = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        HstsMaxAge = ma;
+                    }
+                } else if (trimmed.Equals("includesubdomains", StringComparison.OrdinalIgnoreCase)) {
+                    HstsIncludesSubDomains = true;
+                }
+            }
+            HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
+        }
+
+        private void ParseContentSecurityPolicy(string headerValue) {
+            CspUnsafeDirectives = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
+                    CspUnsafeDirectives = true;
+                    break;
+                }
             }
         }
 

@@ -12,32 +12,49 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class DNSBLRecord {
+        /// <summary>Gets or sets the queried IP address in reverse format.</summary>
         public string IPAddress { get; set; }
+        /// <summary>Gets or sets the original IP address or hostname.</summary>
         public string OriginalIPAddress { get; set; }
+        /// <summary>Gets or sets the fully qualified domain name that was queried.</summary>
         public string FQDN { get; set; }
+        /// <summary>Gets or sets the blacklist domain.</summary>
         public string BlackList { get; set; }
         //public string BlackListReason { get; set; }
+        /// <summary>Gets or sets a value indicating whether the address was listed.</summary>
         public bool IsBlackListed { get; set; }
+        /// <summary>Gets or sets the raw DNSBL response.</summary>
         public string Answer { get; set; }
+        /// <summary>Gets or sets the interpreted meaning of <see cref="Answer"/>.</summary>
         public string ReplyMeaning { get; set; }
         //public string NameServer { get; set; }
     }
 
     public class DNSQueryResult {
+        /// <summary>Gets or sets the host that was checked.</summary>
         public string Host { get; set; }
+        /// <summary>Gets or sets the DNSBL results.</summary>
         public IEnumerable<DNSBLRecord> DNSBLRecords { get; set; }
+        /// <summary>Gets the number of blacklists that reported a listing.</summary>
         public int Listed => DNSBLRecords.Count(record => record.IsBlackListed);
 
+        /// <summary>Gets the names of blacklists that reported a listing.</summary>
         public List<string> ListedBlacklist => DNSBLRecords.Where(record => record.IsBlackListed).Select(record => record.BlackList).ToList();
 
+        /// <summary>Gets the number of lists where the host was not found.</summary>
         public int NotListed => DNSBLRecords.Count(record => !record.IsBlackListed);
+        /// <summary>Gets the total number of DNSBL checks performed.</summary>
         public int Total => DNSBLRecords.Count();
+        /// <summary>Gets a value indicating whether the host was listed on any blacklist.</summary>
         public bool IsBlacklisted => Listed > 0;
     }
 
     public class DnsblEntry {
+        /// <summary>Gets or sets the blacklist domain.</summary>
         public string Domain { get; set; }
+        /// <summary>Gets or sets a value indicating whether the entry is used during checks.</summary>
         public bool Enabled { get; set; } = true;
+        /// <summary>Gets or sets optional descriptive text.</summary>
         public string Comment { get; set; }
 
         public DnsblEntry() { }
@@ -197,17 +214,26 @@ namespace DomainDetective {
             .Select(e => e.Domain)
             .ToList();
 
+        /// <summary>Gets a value indicating whether any query returned a listing.</summary>
         public bool IsBlacklisted => Results.Any(r => r.Value.IsBlacklisted);
+        /// <summary>Gets the number of hosts or addresses checked.</summary>
         public int RecordChecked => Results.Count;
+        /// <summary>Gets the count of hosts that were listed.</summary>
         public int Blacklisted => Results.Count(r => r.Value.IsBlacklisted);
+        /// <summary>Gets the count of hosts that were not listed.</summary>
         public int NotBlacklisted => Results.Count(r => !r.Value.IsBlacklisted);
 
+        /// <summary>Gets the per-host DNSBL query results.</summary>
         public Dictionary<string, DNSQueryResult> Results { get; set; } = new Dictionary<string, DNSQueryResult>();
 
+        /// <summary>Gets a flattened list of all DNSBL records returned.</summary>
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
 
         internal InternalLogger Logger { get; set; }
 
+        /// <summary>
+        /// Clears cached results allowing the instance to be reused.
+        /// </summary>
         public void Reset() {
             Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
@@ -253,6 +279,12 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Queries the configured DNSBL providers for the specified host or IP address.
+        /// </summary>
+        /// <param name="ipAddressOrHostname">Address or hostname to query.</param>
+        /// <param name="logger">Logger for verbose output.</param>
+        /// <returns>Enumeration of <see cref="DNSBLRecord"/> objects.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
             Reset();
             Logger = logger;
@@ -393,6 +425,12 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Adds a DNSBL provider to the internal list if not already present.
+        /// </summary>
+        /// <param name="dnsbl">Blacklist host name.</param>
+        /// <param name="enabled">Whether the entry should be queried.</param>
+        /// <param name="comment">Optional descriptive comment.</param>
         public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null) {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
@@ -402,16 +440,25 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Gets a read only view of configured DNSBL providers.</summary>
         public IReadOnlyList<DnsblEntry> GetDNSBL() {
             return DnsblEntries.AsReadOnly();
         }
 
+        /// <summary>
+        /// Adds multiple DNSBL providers.
+        /// </summary>
+        /// <param name="dnsbls">Collection of DNSBL host names.</param>
         public void AddDNSBL(IEnumerable<string> dnsbls) {
             foreach (var dnsbl in dnsbls) {
                 AddDNSBL(dnsbl);
             }
         }
 
+        /// <summary>
+        /// Removes a DNSBL provider from the list if it exists.
+        /// </summary>
+        /// <param name="dnsbl">Blacklist host name.</param>
         public void RemoveDNSBL(string dnsbl) {
             var entry = DnsblEntries.FirstOrDefault(e => e.Domain == dnsbl);
             if (entry != null) {
@@ -419,10 +466,16 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Clears all configured DNSBL providers.</summary>
         public void ClearDNSBL() {
             DnsblEntries.Clear();
         }
 
+        /// <summary>
+        /// Loads DNSBL entries from a simple text file.
+        /// </summary>
+        /// <param name="filePath">File containing provider domains.</param>
+        /// <param name="clearExisting">When set to <c>true</c> existing entries are removed before loading.</param>
         public void LoadDNSBL(string filePath, bool clearExisting = false) {
             if (string.IsNullOrWhiteSpace(filePath)) {
                 throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));
@@ -463,6 +516,12 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Loads DNSBL configuration from a JSON file.
+        /// </summary>
+        /// <param name="filePath">Path to JSON configuration file.</param>
+        /// <param name="overwriteExisting">Replace existing entries if they already exist.</param>
+        /// <param name="clearExisting">Remove existing entries before loading.</param>
         public void LoadDnsblConfig(string filePath, bool overwriteExisting = false, bool clearExisting = false) {
             if (string.IsNullOrWhiteSpace(filePath)) {
                 throw new ArgumentException("File path cannot be null or whitespace.", nameof(filePath));

@@ -3,15 +3,23 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Validates DMARC record for a domain.</summary>
+    /// <example>
+    ///   <summary>Check DMARC settings.</summary>
+    ///   <code>Test-DmarcRecord -DomainName example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DmarcRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDmarcRecord : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="Raw">Return raw analysis object.</param>
         [Parameter(Mandatory = false)]
         public SwitchParameter Raw;
 

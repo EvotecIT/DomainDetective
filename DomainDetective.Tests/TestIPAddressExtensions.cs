@@ -12,7 +12,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void Ipv6PtrFormat() {
-            var ip = IPAddress.Parse("2001:db8::1");
+            var ip = IPAddress.IPv6Loopback;
             var expected = string.Join(
                 ".",
                 ip

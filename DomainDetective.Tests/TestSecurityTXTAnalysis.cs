@@ -63,6 +63,63 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task DuplicateTagsMakeRecordInvalid() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var expires = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var content = $"Contact: mailto:admin@example.com\nExpires: {expires}\nExpires: {expires}";
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "text/plain";
+                var buffer = Encoding.UTF8.GetBytes(content);
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var healthCheck = new DomainHealthCheck();
+                await healthCheck.Verify(prefix.Replace("http://", string.Empty).TrimEnd('/'), new[] { HealthCheckType.SECURITYTXT });
+                Assert.True(healthCheck.SecurityTXTAnalysis.RecordPresent);
+                Assert.False(healthCheck.SecurityTXTAnalysis.RecordValid);
+                Assert.Contains("expires", healthCheck.SecurityTXTAnalysis.DuplicateTags);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task ExpiredDateMakesRecordInvalid() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var expires = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "text/plain";
+                var buffer = Encoding.UTF8.GetBytes(content);
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var healthCheck = new DomainHealthCheck();
+                await healthCheck.Verify(prefix.Replace("http://", string.Empty).TrimEnd('/'), new[] { HealthCheckType.SECURITYTXT });
+                Assert.True(healthCheck.SecurityTXTAnalysis.RecordPresent);
+                Assert.False(healthCheck.SecurityTXTAnalysis.RecordValid);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();
@@ -72,3 +129,4 @@ namespace DomainDetective.Tests {
         }
     }
 }
+

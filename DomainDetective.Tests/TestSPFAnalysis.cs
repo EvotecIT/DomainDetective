@@ -15,6 +15,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
+            Assert.True(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -32,6 +33,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
             Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
 
         }
 
@@ -50,6 +52,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit, "Should exceed character limit due to long record");
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -67,6 +70,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit, "Should exceed character limit due to long record");
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -141,6 +145,18 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck.SpfAnalysis.CycleDetected);
             Assert.False(healthCheck.SpfAnalysis.ExceedsDnsLookups);
+        }
+
+        [Fact]
+        public async Task DetectCircularRedirect() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 redirect=b.example.com";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 redirect=a.example.com";
+
+            await healthCheck.CheckSPF("v=spf1 redirect=a.example.com");
+
+            Assert.True(healthCheck.SpfAnalysis.CycleDetected);
+            Assert.Equal("a.example.com -> b.example.com -> a.example.com", healthCheck.SpfAnalysis.CyclePath);
         }
 
         [Fact]
@@ -238,6 +254,7 @@ namespace DomainDetective.Tests {
             Assert.Contains("mx.test", healthCheck.SpfAnalysis.ResolvedMxRecords);
             Assert.Contains("10.10.10.10", healthCheck.SpfAnalysis.ResolvedIpv4Records);
             Assert.Contains("2001::1", healthCheck.SpfAnalysis.ResolvedIpv6Records);
+            Assert.False(healthCheck.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -294,6 +311,27 @@ namespace DomainDetective.Tests {
 
             Assert.Contains("192.0.2.1", healthCheck.SpfAnalysis.Ipv4Records);
             Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
+            Assert.False(healthCheck.SpfAnalysis.InvalidIpSyntax);
+        }
+
+        [Fact]
+        public async Task InvalidCidrMasksTriggerFlag() {
+            var spfRecord = "v=spf1 ip4:192.0.2.1/33 ip6:2001::1/129 -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.InvalidIpSyntax);
+        }
+
+        [Fact]
+        public async Task UnrecognizedTokenCaptured() {
+            var spfRecord = "v=spf1 unknown:example.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("unknown:example.com", healthCheck.SpfAnalysis.UnknownMechanisms);
         }
     }
 }

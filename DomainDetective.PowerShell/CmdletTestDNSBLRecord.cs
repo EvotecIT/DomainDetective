@@ -3,12 +3,19 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Enumerates raw DNSBL records for a domain or IP address.</summary>
+    /// <example>
+    ///   <summary>List DNSBL records.</summary>
+    ///   <code>Test-DNSBLRecord -NameOrIpAddress example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DNSBLRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDNSBLRecord : AsyncPSCmdlet {
+        /// <param name="NameOrIpAddress">Domain or IP to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string NameOrIpAddress;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 

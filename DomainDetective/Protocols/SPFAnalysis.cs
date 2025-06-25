@@ -2,6 +2,8 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Globalization;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -32,6 +34,7 @@ namespace DomainDetective {
         public bool HasNullLookups { get; private set; }
         public bool HasRedirect { get; private set; }
         public bool HasExp { get; private set; }
+        public bool InvalidIpSyntax { get; private set; }
         public List<string> ARecords { get; private set; } = new List<string>();
         public List<string> Ipv4Records { get; private set; } = new List<string>();
         public List<string> Ipv6Records { get; private set; } = new List<string>();
@@ -51,8 +54,11 @@ namespace DomainDetective {
         public List<string> ResolvedIncludeRecords { get; private set; } = new List<string>();
         public List<string> ResolvedExistsRecords { get; private set; } = new List<string>();
 
+        public List<string> UnknownMechanisms { get; private set; } = new List<string>();
+
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public bool CycleDetected { get; private set; }
+        public string CyclePath { get; private set; }
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 
@@ -76,7 +82,9 @@ namespace DomainDetective {
             HasNullLookups = false;
             HasRedirect = false;
             HasExp = false;
+            InvalidIpSyntax = false;
             CycleDetected = false;
+            CyclePath = null;
             _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ARecords = new List<string>();
             Ipv4Records = new List<string>();
@@ -92,6 +100,7 @@ namespace DomainDetective {
             ResolvedPtrRecords = new List<string>();
             ResolvedIncludeRecords = new List<string>();
             ResolvedExistsRecords = new List<string>();
+            UnknownMechanisms = new List<string>();
             ExpValue = null;
             RedirectValue = null;
             AllMechanism = null;
@@ -135,7 +144,7 @@ namespace DomainDetective {
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts, _visitedDomains);
+            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>());
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 
@@ -163,7 +172,7 @@ namespace DomainDetective {
         }
 
 
-        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains) {
+        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains, List<string> path) {
             int dnsLookups = 0;
             foreach (var part in parts) {
                 if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
@@ -171,17 +180,19 @@ namespace DomainDetective {
                     if (domain != string.Empty) {
                         if (!visitedDomains.Add(domain)) {
                             CycleDetected = true;
+                            CyclePath ??= string.Join(" -> ", path.Concat(new[] { domain }));
                             continue;
                         }
 
                         DnsLookups.Add(domain);
+                        path.Add(domain);
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRecord).ToArray();
                             foreach (var rp in resultParts) {
                                 AddPartToResolvedLists(rp);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -191,27 +202,30 @@ namespace DomainDetective {
                                     foreach (var rp in resultParts) {
                                         AddPartToResolvedLists(rp);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                                 }
                             }
                         }
+                        path.RemoveAt(path.Count - 1);
                     }
                 } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("redirect=".Length);
                     if (domain != string.Empty) {
                         if (!visitedDomains.Add(domain)) {
                             CycleDetected = true;
+                            CyclePath ??= string.Join(" -> ", path.Concat(new[] { domain }));
                             continue;
                         }
 
                         DnsLookups.Add(domain);
+                        path.Add(domain);
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRedirect)) {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRedirect).ToArray();
                             foreach (var rp in resultParts) {
                                 AddPartToResolvedLists(rp);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -221,10 +235,11 @@ namespace DomainDetective {
                                     foreach (var rp in resultParts) {
                                         AddPartToResolvedLists(rp);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                                 }
                             }
                         }
+                        path.RemoveAt(path.Count - 1);
                     }
                 } else if (part.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("exists:".Length);
@@ -268,6 +283,7 @@ namespace DomainDetective {
 
         private void AddPartToList(string part) {
             var token = part.Trim('"');
+            var normalized = token.TrimStart('+', '-', '~', '?');
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
@@ -277,9 +293,17 @@ namespace DomainDetective {
             } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                 ExistsRecords.Add(token.Substring(7).Trim('"'));
             } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
-                Ipv4Records.Add(token.Substring(4).Trim('"'));
+                var value = token.Substring(4).Trim('"');
+                Ipv4Records.Add(value);
+                if (!TryParseCidr(value, 32)) {
+                    InvalidIpSyntax = true;
+                }
             } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
-                Ipv6Records.Add(token.Substring(4).Trim('"'));
+                var value = token.Substring(4).Trim('"');
+                Ipv6Records.Add(value);
+                if (!TryParseCidr(value, 128)) {
+                    InvalidIpSyntax = true;
+                }
             } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                 IncludeRecords.Add(token.Substring(8).Trim('"'));
             } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
@@ -290,6 +314,10 @@ namespace DomainDetective {
                 HasExp = true;
             } else if (IsAllMechanism(token)) {
                 AllMechanism = token.Trim('"');
+            } else if (!IsAllowedMechanismOrModifier(normalized)) {
+                if (!UnknownMechanisms.Contains(token)) {
+                    UnknownMechanisms.Add(token);
+                }
             }
 
             AddPartToResolvedLists(part);
@@ -297,6 +325,7 @@ namespace DomainDetective {
 
         private void AddPartToResolvedLists(string part) {
             var token = part.Trim('"');
+            var normalized = token.TrimStart('+', '-', '~', '?');
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
@@ -311,7 +340,47 @@ namespace DomainDetective {
                 ResolvedIpv6Records.Add(token.Substring(4).Trim('"'));
             } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedIncludeRecords.Add(token.Substring(8).Trim('"'));
+            } else if (!IsAllowedMechanismOrModifier(normalized) && !IsAllMechanism(normalized)) {
+                if (!UnknownMechanisms.Contains(token)) {
+                    UnknownMechanisms.Add(token);
+                }
             }
+        }
+
+        private static bool IsAllowedMechanismOrModifier(string token) {
+            return token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)
+                   || IsAllMechanism(token);
+        }
+      
+        private static bool TryParseCidr(string value, int maxPrefixLength) {
+            var segments = value.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0 || segments.Length > 2) {
+                return false;
+            }
+
+            if (!IPAddress.TryParse(segments[0], out _)) {
+                return false;
+            }
+
+            if (segments.Length == 2) {
+                if (!int.TryParse(segments[1], NumberStyles.None, CultureInfo.InvariantCulture, out var mask)) {
+                    return false;
+                }
+
+                if (mask > maxPrefixLength) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool IsAllMechanism(string part) {

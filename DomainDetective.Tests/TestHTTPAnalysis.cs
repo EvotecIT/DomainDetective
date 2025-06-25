@@ -19,6 +19,14 @@ namespace DomainDetective.Tests {
                 ctx.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
                 ctx.Response.Headers.Add("Expect-CT", "max-age=86400, enforce");
                 ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
+                ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+                ctx.Response.Headers.Add("X-Frame-Options", "DENY");
+                ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
+                ctx.Response.Headers.Add("Permissions-Policy", "geolocation=()" );
+                ctx.Response.Headers.Add("X-Permitted-Cross-Domain-Policies", "none");
+                ctx.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin");
+                ctx.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp");
+                ctx.Response.Headers.Add("Cross-Origin-Resource-Policy", "same-origin");
                 var buffer = Encoding.UTF8.GetBytes("ok");
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 ctx.Response.Close();
@@ -37,8 +45,20 @@ namespace DomainDetective.Tests {
                 Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
                 Assert.Equal("1; mode=block", analysis.SecurityHeaders["X-XSS-Protection"]);
                 Assert.Equal("max-age=86400, enforce", analysis.SecurityHeaders["Expect-CT"]);
+                Assert.Equal("nosniff", analysis.SecurityHeaders["X-Content-Type-Options"]);
+                Assert.Equal("DENY", analysis.SecurityHeaders["X-Frame-Options"]);
+                Assert.Equal("no-referrer", analysis.SecurityHeaders["Referrer-Policy"]);
+                Assert.Equal("geolocation=()", analysis.SecurityHeaders["Permissions-Policy"]);
                 Assert.Equal("max-age=31536000", analysis.SecurityHeaders["Strict-Transport-Security"]);
+                Assert.Equal("none", analysis.SecurityHeaders["X-Permitted-Cross-Domain-Policies"]);
+                Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Opener-Policy"]);
+                Assert.Equal("require-corp", analysis.SecurityHeaders["Cross-Origin-Embedder-Policy"]);
+                Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Resource-Policy"]);
+                Assert.Equal(31536000, analysis.HstsMaxAge);
+                Assert.False(analysis.HstsIncludesSubDomains);
+                Assert.False(analysis.HstsTooShort);
                 Assert.Equal("ok", analysis.Body);
+                Assert.Empty(analysis.MissingSecurityHeaders);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -98,6 +118,7 @@ namespace DomainDetective.Tests {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.True(analysis.SecurityHeaders.Count == 0);
+                Assert.True(analysis.MissingSecurityHeaders.Count == 0);
                 Assert.False(analysis.XssProtectionPresent);
                 Assert.False(analysis.ExpectCtPresent);
             } finally {
@@ -198,6 +219,56 @@ namespace DomainDetective.Tests {
                 Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
             } finally {
                 tcs.TrySetResult(null);
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsHstsTooShortAndIncludesSubDomains() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=1000; includeSubDomains");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.HstsPresent);
+                Assert.Equal(1000, analysis.HstsMaxAge);
+                Assert.True(analysis.HstsIncludesSubDomains);
+                Assert.True(analysis.HstsTooShort);
+                Assert.Contains("Content-Security-Policy", analysis.MissingSecurityHeaders);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsUnsafeContentSecurityPolicyDirectives() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.CspUnsafeDirectives);
+            } finally {
                 listener.Stop();
                 await serverTask;
             }

@@ -40,9 +40,11 @@ public static partial class Program {
 
         await ExampleCertificateVerification();
         await ExampleCertificateVerificationByHealthCheck();
+        await ExampleCertificateExpiration();
 
         await ExampleAnalyseHTTP();
         await ExampleAnalyseHTTPByHealthCheck();
+        await ExampleDetectUnsafeCsp();
 
 
         await ExampleAnalyseByDomainDANE();

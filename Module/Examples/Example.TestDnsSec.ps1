@@ -7,4 +7,4 @@ $DnsSec | Format-Table
 $DnsSec | Format-List
 
 $Example = Test-DnsSec -DomainName 'example.com'
-$Example | Format-Table
+$Example | Format-List

@@ -22,6 +22,7 @@ namespace DomainDetective {
         }
 
         public Dictionary<string, TlsResult> ServerResults { get; } = new();
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
@@ -37,23 +38,33 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<TlsResult> CheckTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<TlsResult> CheckTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var result = new TlsResult();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(Timeout);
             try {
                 using (var client = new TcpClient()) {
-                    await client.ConnectAsync(host, port);
+#if NET6_0_OR_GREATER
+                    await client.ConnectAsync(host, port, timeoutCts.Token);
+#else
+                    await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+#endif
 
                     using NetworkStream network = client.GetStream();
                     using (var reader = new StreamReader(network))
                     using (var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" }) {
-                        await reader.ReadLineAsync();
-                        cancellationToken.ThrowIfCancellationRequested();
+#if NET8_0_OR_GREATER
+                        await reader.ReadLineAsync(timeoutCts.Token);
+#else
+                        await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+#endif
+                        timeoutCts.Token.ThrowIfCancellationRequested();
                         await writer.WriteLineAsync($"EHLO example.com");
 
                         var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                         string line;
-                        while ((line = await reader.ReadLineAsync()) != null) {
-                            cancellationToken.ThrowIfCancellationRequested();
+                        while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
+                            timeoutCts.Token.ThrowIfCancellationRequested();
                             logger?.WriteVerbose($"EHLO response: {line}");
                             if (line.StartsWith("250")) {
                                 string capabilityLine = line.Substring(4).Trim();
@@ -70,14 +81,14 @@ namespace DomainDetective {
 
                         result.StartTlsAdvertised = capabilities.Contains("STARTTLS");
                         if (!result.StartTlsAdvertised) {
-                            await writer.WriteLineAsync("QUIT");
-                            await writer.FlushAsync();
-                            await reader.ReadLineAsync();
+                            await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                            await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                            await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                             return result;
                         }
 
-                        await writer.WriteLineAsync("STARTTLS");
-                        string resp = await reader.ReadLineAsync();
+                        await writer.WriteLineAsync("STARTTLS").WaitWithCancellation(timeoutCts.Token);
+                        string resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                         if (resp == null || !resp.StartsWith("220")) {
                             logger?.WriteVerbose($"{host}:{port} STARTTLS rejected: {resp}");
                             return result;
@@ -98,16 +109,20 @@ namespace DomainDetective {
                                     }
                                 }
                             }
-                            return true;
+                            return result.CertificateValid;
                         });
 
-                        await ssl.AuthenticateAsClientAsync(host);
-                        result.Protocol = ssl.SslProtocol;
-                        result.CipherAlgorithm = ssl.CipherAlgorithm;
-                        result.CipherStrength = ssl.CipherStrength;
+                        try {
+                            await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
+                            result.Protocol = ssl.SslProtocol;
+                            result.CipherAlgorithm = ssl.CipherAlgorithm;
+                            result.CipherStrength = ssl.CipherStrength;
 
-                        using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
-                        await secureWriter.WriteLineAsync("QUIT");
+                            using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                            await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                        } catch (AuthenticationException ex) {
+                            logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+                        }
                     }
                 }
             } catch (Exception ex) {

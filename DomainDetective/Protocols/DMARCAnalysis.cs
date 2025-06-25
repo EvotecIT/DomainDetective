@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -22,6 +23,7 @@ namespace DomainDetective {
         public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
         public string DmarcRecord { get; private set; }
         public bool DmarcRecordExists { get; private set; } // should be true
+        public bool MultipleRecords { get; private set; }
         public bool StartsCorrectly { get; private set; } // should be true
         public bool ExceedsCharacterLimit { get; private set; } // should be false
         public bool HasMandatoryTags { get; private set; }
@@ -38,12 +40,15 @@ namespace DomainDetective {
         public bool ValidDkimAlignment { get; private set; }
         public bool ValidSpfAlignment { get; private set; }
 
+        public bool InvalidReportUri { get; private set; }
+
         public string Rua { get; private set; }
         public List<string> MailtoRua { get; private set; } = new List<string>();
         public List<string> HttpRua { get; private set; } = new List<string>();
         public string Ruf { get; private set; }
         public List<string> MailtoRuf { get; private set; } = new List<string>();
         public List<string> HttpRuf { get; private set; } = new List<string>();
+        public List<string> UnknownTags { get; private set; } = new List<string>();
 
         // short versions of the tags
         public string SubPolicyShort { get; private set; }
@@ -52,6 +57,7 @@ namespace DomainDetective {
         public string DkimAShort { get; private set; }
         public string SpfAShort { get; private set; }
         public int? Pct { get; private set; }
+        public int? OriginalPct { get; private set; }
         public bool IsPctValid { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
@@ -60,6 +66,7 @@ namespace DomainDetective {
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
             DmarcRecordExists = false;
+            MultipleRecords = false;
             StartsCorrectly = false;
             ExceedsCharacterLimit = false;
             HasMandatoryTags = false;
@@ -71,6 +78,7 @@ namespace DomainDetective {
             Ruf = null;
             MailtoRuf = new List<string>();
             HttpRuf = new List<string>();
+            UnknownTags = new List<string>();
             SubPolicyShort = null;
             PolicyShort = null;
             FoShort = null;
@@ -78,7 +86,9 @@ namespace DomainDetective {
             SpfAShort = null;
             ValidDkimAlignment = true;
             ValidSpfAlignment = true;
+            InvalidReportUri = false;
             Pct = null;
+            OriginalPct = null;
             ReportingIntervalShort = 0;
             ExternalReportAuthorization = new Dictionary<string, bool>();
 
@@ -89,6 +99,7 @@ namespace DomainDetective {
 
             var dmarcRecordList = dnsResults.ToList();
             DmarcRecordExists = dmarcRecordList.Any();
+            MultipleRecords = dmarcRecordList.Count > 1;
 
             // concatenate all TXT chunks into a single string separated by spaces
             DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
@@ -115,6 +126,8 @@ namespace DomainDetective {
                     var key = keyValue[0].Trim();
                     var value = keyValue[1].Trim();
                     switch (key) {
+                        case "v":
+                            break;
                         case "p":
                             PolicyShort = value;
                             policyTagFound = true;
@@ -138,14 +151,15 @@ namespace DomainDetective {
                             // percentage of messages to which the DMARC policy
                             // applies.  It should be a number between 0 and 100.
                             if (int.TryParse(value, out var pct)) {
+                                OriginalPct = pct;
                                 IsPctValid = pct >= 0 && pct <= 100;
-                                if (pct < 0) {
-                                    pct = 0;
-                                }
-                                if (pct > 100) {
-                                    pct = 100;
-                                }
                                 Pct = pct;
+                                if (Pct < 0) {
+                                    Pct = 0;
+                                }
+                                if (Pct > 100) {
+                                    Pct = 100;
+                                }
                             } else {
                                 IsPctValid = false;
                             }
@@ -172,6 +186,17 @@ namespace DomainDetective {
                             Ruf = value;
                             AddUriToList(value, MailtoRuf, HttpRuf);
                             break;
+                        default:
+                            var tagPair = $"{key}={value}";
+                            if (!UnknownTags.Contains(tagPair)) {
+                                UnknownTags.Add(tagPair);
+                            }
+                            break;
+                    }
+                } else if (!string.IsNullOrWhiteSpace(tag)) {
+                    var unknown = tag.Trim();
+                    if (!UnknownTags.Contains(unknown)) {
+                        UnknownTags.Add(unknown);
                     }
                 }
             }
@@ -206,11 +231,24 @@ namespace DomainDetective {
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList) {
             var uris = uri.Split(',');
-            foreach (var u in uris) {
-                if (u.StartsWith("mailto:")) {
-                    mailtoList.Add(u.Substring(7));
-                } else if (u.StartsWith("http:")) {
-                    httpList.Add(u);
+            foreach (var raw in uris) {
+                var u = raw.Trim();
+                if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
+                    var address = u.Substring(7);
+                    try {
+                        _ = new System.Net.Mail.MailAddress(address);
+                        mailtoList.Add(address);
+                    } catch {
+                        InvalidReportUri = true;
+                    }
+                } else if (u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                    if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps) {
+                        httpList.Add(u);
+                    } else {
+                        InvalidReportUri = true;
+                    }
+                } else {
+                    InvalidReportUri = true;
                 }
             }
         }

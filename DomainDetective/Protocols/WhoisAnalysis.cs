@@ -5,6 +5,8 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -23,6 +25,7 @@ public class WhoisAnalysis {
     public string LastUpdated { get; set; }
     public string RegisteredTo { get; set; }
     public List<string> NameServers { get; set; } = new List<string>();
+    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
     public string RegistrantType { get; set; }
     public string Country { get; set; }
     public string DnsSec { get; set; }
@@ -34,6 +37,8 @@ public class WhoisAnalysis {
     public string RegistrarAbuseEmail { get; set; }
     public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
+    public bool ExpiresSoon { get; private set; }
+    public bool IsExpired { get; private set; }
 
     private static readonly InternalLogger _logger = new();
 
@@ -296,7 +301,7 @@ public class WhoisAnalysis {
         return WhoisServers.ContainsKey(tld) ? WhoisServers[tld] : null;
     }
 
-    public async Task QueryWhoisServer(string domain) {
+    public async Task QueryWhoisServer(string domain, CancellationToken cancellationToken = default) {
         DomainName = domain;
         if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
             throw new UnsupportedTldException(domain, domain);
@@ -307,6 +312,8 @@ public class WhoisAnalysis {
         }
 
         using TcpClient tcpClient = new TcpClient();
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(Timeout);
         try {
             var serverParts = whoisServer.Split(':');
             var host = serverParts[0];
@@ -315,17 +322,17 @@ public class WhoisAnalysis {
                 port = customPort;
             }
 
-            await tcpClient.ConnectAsync(host, port);
+            await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 
             using NetworkStream networkStream = tcpClient.GetStream();
             using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
-                await streamWriter.WriteLineAsync(domain);
-                await streamWriter.FlushAsync();
+                await streamWriter.WriteLineAsync(domain).WaitWithCancellation(timeoutCts.Token);
+                await streamWriter.FlushAsync().WaitWithCancellation(timeoutCts.Token);
             }
 
-            await networkStream.FlushAsync();
+            await networkStream.FlushAsync().WaitWithCancellation(timeoutCts.Token);
             using var memoryStream = new MemoryStream();
-            await networkStream.CopyToAsync(memoryStream);
+            await networkStream.CopyToAsync(memoryStream, 81920, timeoutCts.Token);
             var responseBytes = memoryStream.ToArray();
 
             string response = Encoding.UTF8.GetString(responseBytes);
@@ -341,9 +348,9 @@ public class WhoisAnalysis {
         }
     }
 
-    public async Task<List<WhoisAnalysis>> QueryWhoisServers(string[] domains) {
+    public async Task<List<WhoisAnalysis>> QueryWhoisServers(string[] domains, CancellationToken cancellationToken = default) {
         var tasks = domains.Select(async domain => {
-            var analysis = new WhoisAnalysis();
+            var analysis = new WhoisAnalysis { Timeout = Timeout };
             lock (_whoisServersLock) {
                 foreach (var kvp in WhoisServers) {
                     if (!analysis.WhoisServers.ContainsKey(kvp.Key)) {
@@ -351,7 +358,7 @@ public class WhoisAnalysis {
                     }
                 }
             }
-            await analysis.QueryWhoisServer(domain);
+            await analysis.QueryWhoisServer(domain, cancellationToken);
             return analysis;
         });
         return (await Task.WhenAll(tasks)).ToList();
@@ -376,6 +383,7 @@ public class WhoisAnalysis {
         } else {
             ParseWhoisDataDefault();
         }
+        UpdateExpiryFlags();
     }
 
     private void ParseWhoisDataCOUK() {
@@ -758,6 +766,18 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Flags:")) {
                 DnsSec = trimmedLine.Substring("Flags:".Length).Trim();
             }
+        }
+    }
+
+    private void UpdateExpiryFlags() {
+        ExpiresSoon = false;
+        IsExpired = false;
+        if (!string.IsNullOrWhiteSpace(ExpiryDate) &&
+            DateTime.TryParse(ExpiryDate, CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var expiry)) {
+            IsExpired = expiry <= DateTime.UtcNow;
+            ExpiresSoon = !IsExpired && expiry <= DateTime.UtcNow.AddDays(30);
         }
     }
 

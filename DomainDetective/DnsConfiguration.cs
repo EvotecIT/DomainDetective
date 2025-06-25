@@ -40,6 +40,9 @@ namespace DomainDetective {
         /// </summary>
         public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrEmpty(name)) {
+                throw new ArgumentNullException(nameof(name));
+            }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
             if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);

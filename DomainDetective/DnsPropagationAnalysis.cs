@@ -90,6 +90,11 @@ namespace DomainDetective {
             }
 
             foreach (var entry in servers) {
+                if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed) ||
+                    !string.Equals(parsed.ToString(), entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+                    throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
+                }
+
                 var trimmed = new PublicDnsEntry {
                     Country = entry.Country?.Trim(),
                     IPAddress = entry.IPAddress,
@@ -115,6 +120,12 @@ namespace DomainDetective {
             if (entry == null || string.IsNullOrWhiteSpace(entry.IPAddress)) {
                 return;
             }
+
+            if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed) ||
+                !string.Equals(parsed.ToString(), entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+                throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
+            }
+
             if (_servers.All(s => s.IPAddress != entry.IPAddress)) {
                 _servers.Add(entry);
             }

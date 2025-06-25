@@ -8,7 +8,7 @@ public static partial class Program {
         var analysis = new OpenRelayAnalysis();
         await analysis.AnalyzeServer("smtp.gmail.com", 25, new InternalLogger());
         if (analysis.ServerResults.TryGetValue("smtp.gmail.com:25", out var result)) {
-            Console.WriteLine($"Open relay allowed: {result}");
+            Console.WriteLine($"Relay status: {result}");
         }
     }
 }

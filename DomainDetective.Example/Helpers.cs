@@ -22,6 +22,12 @@ namespace DomainDetective.Example {
             }
         }
 
+        /// <summary>
+        ///     Adds the properties of <paramref name="obj"/> to <paramref name="table"/>.
+        /// </summary>
+        /// <param name="table">Table instance to add rows to.</param>
+        /// <param name="obj">Object whose properties will be read.</param>
+        /// <param name="listAsString">When true, list values are rendered as comma separated strings.</param>
         private static void AddPropertiesTable(Table table, object obj, bool listAsString = false) {
             if (obj == null) {
                 return;
@@ -64,6 +70,12 @@ namespace DomainDetective.Example {
             }
         }
 
+        /// <summary>
+        ///     Displays a table of property names and values for the supplied object or list.
+        /// </summary>
+        /// <param name="analysisOf">Title shown in the output panel.</param>
+        /// <param name="objs">Object, dictionary or list to inspect.</param>
+        /// <param name="perProperty">Currently unused.</param>
         public static void ShowPropertiesTable(string analysisOf, object objs, bool perProperty = false) {
             var table = new Table();
             table.Border(TableBorder.Rounded);

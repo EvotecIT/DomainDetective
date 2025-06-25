@@ -4,15 +4,23 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Queries DNSBL providers to see if domains or IPs are listed.</summary>
+    /// <example>
+    ///   <summary>Check a single host.</summary>
+    ///   <code>Test-DomainBlacklist -NameOrIpAddress example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DomainBlacklist", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestBlackList : AsyncPSCmdlet {
+        /// <param name="NameOrIpAddress">Domain names or IP addresses to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string[] NameOrIpAddress;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="FullResponse">Return full analysis result.</param>
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 

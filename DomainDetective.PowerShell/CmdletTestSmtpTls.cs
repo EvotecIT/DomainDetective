@@ -2,14 +2,22 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Checks TLS configuration for a specific SMTP host.</summary>
+    /// <example>
+    ///   <summary>Test mail server TLS.</summary>
+    ///   <code>Test-SmtpTls -HostName mail.example.com -Port 587</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "SmtpTls", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestSmtpTls : AsyncPSCmdlet {
+        /// <param name="HostName">SMTP host to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
 
+        /// <param name="Port">SMTP port number.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public int Port = 25;
 
+        /// <param name="ShowChain">Output certificate chain information.</param>
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowChain;
 

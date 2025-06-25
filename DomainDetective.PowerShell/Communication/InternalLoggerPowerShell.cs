@@ -80,7 +80,7 @@ namespace DomainDetective.PowerShell {
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
             var errorId = GetNextErrorId();
             ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), errorId, ErrorCategory.NotSpecified, null) {
-                ErrorDetails = new ErrorDetails(errorId)
+                ErrorDetails = new ErrorDetails(e.Message)
             };
             WriteError(errorRecord);
         }
