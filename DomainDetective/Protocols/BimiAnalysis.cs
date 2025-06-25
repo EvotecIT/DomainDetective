@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace DomainDetective {
@@ -177,7 +178,12 @@ namespace DomainDetective {
 
         private static bool ValidateSvg(string svgContent) {
             try {
-                var doc = XDocument.Parse(svgContent);
+                var settings = new XmlReaderSettings {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null
+                };
+                using var reader = XmlReader.Create(new StringReader(svgContent), settings);
+                var doc = XDocument.Load(reader);
                 return doc.Root?.Name.LocalName.Equals("svg", StringComparison.OrdinalIgnoreCase) == true;
             } catch {
                 return false;
