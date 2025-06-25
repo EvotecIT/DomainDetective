@@ -251,6 +251,29 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task DetectsUnsafeContentSecurityPolicyDirectives() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.CspUnsafeDirectives);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();

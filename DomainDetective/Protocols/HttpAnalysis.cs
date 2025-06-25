@@ -26,6 +26,8 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
+        public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
         public Dictionary<string, string> SecurityHeaders { get; } = new();
         /// <summary>Gets a collection of security headers that were not present.</summary>
@@ -85,6 +87,7 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            CspUnsafeDirectives = false;
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
@@ -150,6 +153,9 @@ namespace DomainDetective {
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+                    if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
+                        ParseContentSecurityPolicy(csp);
+                    }
                 }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
@@ -203,6 +209,23 @@ namespace DomainDetective {
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
+        }
+
+        private void ParseContentSecurityPolicy(string headerValue) {
+            CspUnsafeDirectives = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
+                    CspUnsafeDirectives = true;
+                    break;
+                }
+            }
         }
 
         /// <summary>
