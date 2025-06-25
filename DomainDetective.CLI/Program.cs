@@ -30,6 +30,16 @@ internal class Program
             return 0;
         }
 
+        var smimePath = args.FirstOrDefault(a => a.StartsWith("--smime="));
+        if (smimePath != null)
+        {
+            var file = smimePath.Substring("--smime=".Length);
+            var smime = new SmimeCertificateAnalysis();
+            smime.AnalyzeFile(file);
+            CliHelpers.ShowPropertiesTable($"S/MIME certificate {file}", smime);
+            return 0;
+        }
+
         var outputJson = args.Contains("--json");
         var summaryOnly = args.Contains("--summary");
         var checkHttp = args.Contains("--check-http");
@@ -118,5 +128,6 @@ internal class Program
         Console.WriteLine("--check-http      Perform plain HTTP check");
         Console.WriteLine("--summary         Show condensed summary");
         Console.WriteLine("--json            Output raw JSON");
+        Console.WriteLine("--smime=FILE      Parse S/MIME certificate file and exit");
     }
 }
