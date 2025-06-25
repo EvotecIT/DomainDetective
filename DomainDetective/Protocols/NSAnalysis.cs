@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -14,6 +15,7 @@ namespace DomainDetective {
         public bool AtLeastTwoRecords { get; private set; }
         public bool AllHaveAOrAaaa { get; private set; }
         public bool PointsToCname { get; private set; }
+        public bool HasDiverseLocations { get; private set; }
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
@@ -30,6 +32,7 @@ namespace DomainDetective {
             AtLeastTwoRecords = false;
             AllHaveAOrAaaa = true;
             PointsToCname = false;
+            HasDiverseLocations = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -47,6 +50,8 @@ namespace DomainDetective {
 
             HasDuplicates = NsRecords.Count != NsRecords.Distinct(StringComparer.OrdinalIgnoreCase).Count();
 
+            HashSet<string> subnets = new(StringComparer.OrdinalIgnoreCase);
+
             foreach (var ns in NsRecords) {
                 var cname = await QueryDns(ns, DnsRecordType.CNAME);
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
@@ -56,7 +61,21 @@ namespace DomainDetective {
                 if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
                     AllHaveAOrAaaa = false;
                 }
+
+                foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
+                    if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        subnets.Add(ip.GetSubnetKey());
+                    }
+                }
+
+                foreach (var answer in aaaa ?? Array.Empty<DnsAnswer>()) {
+                    if (IPAddress.TryParse(answer.Data, out var ip)) {
+                        subnets.Add(ip.GetSubnetKey());
+                    }
+                }
             }
+
+            HasDiverseLocations = subnets.Count >= 2;
         }
     }
 }
