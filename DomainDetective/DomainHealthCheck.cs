@@ -826,7 +826,7 @@ namespace DomainDetective {
                 DmarcPolicy = DmarcAnalysis.Policy,
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
                 HasMxRecord = MXAnalysis.MxRecordExists,
-                DnsSecValid = DNSSecAnalysis.ChainValid
+                DnsSecValid = DNSSecAnalysis?.ChainValid ?? false
             };
         }
           
