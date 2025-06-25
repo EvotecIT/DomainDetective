@@ -4,15 +4,23 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Validates DNSSEC configuration for a domain.</summary>
+    /// <example>
+    ///   <summary>Check DNSSEC records.</summary>
+    ///   <code>Test-DnsSec -DomainName example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DnsSec", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestDnsSec : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="Raw">Return raw analysis object.</param>
         [Parameter(Mandatory = false)]
         public SwitchParameter Raw;
 

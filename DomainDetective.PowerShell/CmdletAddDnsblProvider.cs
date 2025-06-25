@@ -1,25 +1,27 @@
 using System.Management.Automation;
 
 namespace DomainDetective.PowerShell {
-    /// <summary>
-    ///     Adds a DNSBL provider entry to an existing <see cref="DNSBLAnalysis"/> instance.
-    /// </summary>
+    /// <summary>Adds a DNSBL provider entry to an analysis object.</summary>
+    /// <example>
+    ///   <summary>Add a provider and return the updated analysis.</summary>
+    ///   <code>Add-DnsblProvider -Domain "dnsbl.example.com"</code>
+    /// </example>
     [Cmdlet(VerbsCommon.Add, "DnsblProvider")]
     public sealed class CmdletAddDnsblProvider : PSCmdlet {
-        /// <summary>Domain name of the DNSBL provider.</summary>
+        /// <param name="Domain">Domain name of the DNSBL provider.</param>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
         public string Domain { get; set; }
 
-        /// <summary>Sets the provider as enabled on creation.</summary>
+        /// <param name="Enabled">Sets the provider as enabled.</param>
         [Parameter(Mandatory = false)]
         public bool Enabled { get; set; } = true;
 
-        /// <summary>Optional descriptive comment.</summary>
+        /// <param name="Comment">Optional descriptive comment.</param>
         [Parameter(Mandatory = false)]
         public string Comment { get; set; }
 
-        /// <summary>Analysis object to add the provider to.</summary>
+        /// <param name="InputObject">Analysis object to add the provider to.</param>
         [Parameter(ValueFromPipeline = true)]
         public DNSBLAnalysis InputObject { get; set; }
 
