@@ -43,5 +43,17 @@ namespace DomainDetective.Tests {
 
             Assert.True(analysis.PolicyValid);
         }
+
+        [Fact]
+        public async Task MissingRuaInvalidatesPolicyAnalysis() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=TLSRPTv1", Type = DnsRecordType.TXT }
+            };
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
+
+            Assert.False(analysis.RuaDefined);
+            Assert.False(analysis.PolicyValid);
+        }
     }
 }
