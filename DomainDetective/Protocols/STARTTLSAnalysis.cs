@@ -17,11 +17,14 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = supports;
         }
 
-        public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+        public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             foreach (var host in hosts) {
-                cancellationToken.ThrowIfCancellationRequested();
-                await AnalyzeServer(host, port, logger, cancellationToken);
+                foreach (var port in ports) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    bool supports = await CheckStartTls(host, port, logger, cancellationToken);
+                    ServerResults[$"{host}:{port}"] = supports;
+                }
             }
         }
 

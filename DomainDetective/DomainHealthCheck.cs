@@ -339,7 +339,7 @@ namespace DomainDetective {
                     case HealthCheckType.STARTTLS:
                         var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
-                        await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+                        await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { 25 }, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SMTPTLS:
                         var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
@@ -594,7 +594,7 @@ namespace DomainDetective {
             }
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
-            await StartTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
+            await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
         }
 
         /// <summary>
