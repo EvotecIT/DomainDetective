@@ -261,6 +261,8 @@ namespace DomainDetective {
                 };
             }
 
+            healthCheckTypes = healthCheckTypes.Distinct().ToArray();
+
             foreach (var healthCheckType in healthCheckTypes) {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
