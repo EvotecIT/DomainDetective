@@ -21,6 +21,7 @@ namespace DomainDetective.PowerShell {
                     DkimRecordExists = result.DkimRecordExists,
                     StartsCorrectly = result.StartsCorrectly,
                     PublicKeyExists = result.PublicKeyExists,
+                    ValidPublicKey = result.ValidPublicKey,
                     KeyTypeExists = result.KeyTypeExists,
                     PublicKey = result.PublicKey,
                     ServiceType = result.ServiceType,
@@ -53,6 +54,9 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Indicates whether the public key was found.</summary>
         public bool PublicKeyExists { get; set; }
+
+        /// <summary>Validation result for the public key.</summary>
+        public bool ValidPublicKey { get; set; }
 
         /// <summary>Indicates whether the key type is present.</summary>
         public bool KeyTypeExists { get; set; }
