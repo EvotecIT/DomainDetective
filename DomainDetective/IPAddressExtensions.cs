@@ -16,11 +16,20 @@ public static class IPAddressExtensions {
     /// <returns>The reversed nibble or byte representation suitable for PTR queries.</returns>
     public static string ToPtrFormat(this IPAddress ipAddress) {
         if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
-            var nibbles = ipAddress
-                .GetAddressBytes()
-                .SelectMany(b => new[] { (b >> 4) & 0xF, b & 0xF })
-                .Select(n => n.ToString("x"));
-            return string.Join(".", nibbles.Reverse());
+            var bytes = ipAddress.GetAddressBytes();
+            var result = new char[bytes.Length * 4 - 1];
+            var pos = 0;
+            for (int i = bytes.Length - 1; i >= 0; i--) {
+                var b = bytes[i];
+                result[pos++] = GetHex(b & 0xF);
+                result[pos++] = '.';
+                result[pos++] = GetHex(b >> 4);
+                if (i != 0) {
+                    result[pos++] = '.';
+                }
+            }
+
+            return new string(result, 0, pos);
         }
 
         return string.Join(".", ipAddress.GetAddressBytes().Reverse());
@@ -43,5 +52,10 @@ public static class IPAddressExtensions {
         return string.Join(":",
             Enumerable.Range(0, 3)
                 .Select(i => $"{bytes[i * 2]:x2}{bytes[i * 2 + 1]:x2}"));
+    }
+
+    private static char GetHex(int value) {
+        const string hex = "0123456789abcdef";
+        return hex[value & 0xF];
     }
 }
