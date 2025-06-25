@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,6 +37,8 @@ public class WhoisAnalysis {
     public string RegistrarAbuseEmail { get; set; }
     public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
+    public bool ExpiresSoon { get; private set; }
+    public bool IsExpired { get; private set; }
 
     private static readonly InternalLogger _logger = new();
 
@@ -380,6 +383,7 @@ public class WhoisAnalysis {
         } else {
             ParseWhoisDataDefault();
         }
+        UpdateExpiryFlags();
     }
 
     private void ParseWhoisDataCOUK() {
@@ -762,6 +766,18 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Flags:")) {
                 DnsSec = trimmedLine.Substring("Flags:".Length).Trim();
             }
+        }
+    }
+
+    private void UpdateExpiryFlags() {
+        ExpiresSoon = false;
+        IsExpired = false;
+        if (!string.IsNullOrWhiteSpace(ExpiryDate) &&
+            DateTime.TryParse(ExpiryDate, CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var expiry)) {
+            IsExpired = expiry <= DateTime.UtcNow;
+            ExpiresSoon = !IsExpired && expiry <= DateTime.UtcNow.AddDays(30);
         }
     }
 
