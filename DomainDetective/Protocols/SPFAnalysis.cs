@@ -54,6 +54,8 @@ namespace DomainDetective {
         public List<string> ResolvedIncludeRecords { get; private set; } = new List<string>();
         public List<string> ResolvedExistsRecords { get; private set; } = new List<string>();
 
+        public List<string> UnknownMechanisms { get; private set; } = new List<string>();
+
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public bool CycleDetected { get; private set; }
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -96,6 +98,7 @@ namespace DomainDetective {
             ResolvedPtrRecords = new List<string>();
             ResolvedIncludeRecords = new List<string>();
             ResolvedExistsRecords = new List<string>();
+            UnknownMechanisms = new List<string>();
             ExpValue = null;
             RedirectValue = null;
             AllMechanism = null;
@@ -272,6 +275,7 @@ namespace DomainDetective {
 
         private void AddPartToList(string part) {
             var token = part.Trim('"');
+            var normalized = token.TrimStart('+', '-', '~', '?');
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
@@ -302,6 +306,10 @@ namespace DomainDetective {
                 HasExp = true;
             } else if (IsAllMechanism(token)) {
                 AllMechanism = token.Trim('"');
+            } else if (!IsAllowedMechanismOrModifier(normalized)) {
+                if (!UnknownMechanisms.Contains(token)) {
+                    UnknownMechanisms.Add(token);
+                }
             }
 
             AddPartToResolvedLists(part);
@@ -309,6 +317,7 @@ namespace DomainDetective {
 
         private void AddPartToResolvedLists(string part) {
             var token = part.Trim('"');
+            var normalized = token.TrimStart('+', '-', '~', '?');
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
@@ -323,9 +332,26 @@ namespace DomainDetective {
                 ResolvedIpv6Records.Add(token.Substring(4).Trim('"'));
             } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedIncludeRecords.Add(token.Substring(8).Trim('"'));
+            } else if (!IsAllowedMechanismOrModifier(normalized) && !IsAllMechanism(normalized)) {
+                if (!UnknownMechanisms.Contains(token)) {
+                    UnknownMechanisms.Add(token);
+                }
             }
         }
 
+        private static bool IsAllowedMechanismOrModifier(string token) {
+            return token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)
+                   || IsAllMechanism(token);
+        }
+      
         private static bool TryParseCidr(string value, int maxPrefixLength) {
             var segments = value.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             if (segments.Length == 0 || segments.Length > 2) {

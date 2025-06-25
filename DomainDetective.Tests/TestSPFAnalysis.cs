@@ -311,5 +311,15 @@ namespace DomainDetective.Tests {
 
             Assert.True(healthCheck.SpfAnalysis.InvalidIpSyntax);
         }
+
+        [Fact]
+        public async Task UnrecognizedTokenCaptured() {
+            var spfRecord = "v=spf1 unknown:example.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("unknown:example.com", healthCheck.SpfAnalysis.UnknownMechanisms);
+        }
     }
 }
