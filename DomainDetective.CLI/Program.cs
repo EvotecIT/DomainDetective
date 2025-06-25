@@ -24,10 +24,15 @@ internal class Program
 
     private static async Task<int> Main(string[] args)
     {
-        if (args.Length == 0 || args.Contains("--help") || args.Contains("-h"))
+        if (args.Contains("--help") || args.Contains("-h"))
         {
             ShowHelp();
             return 0;
+        }
+
+        if (args.Length == 0)
+        {
+            return await RunWizard();
         }
 
         var smimePath = args.FirstOrDefault(a => a.StartsWith("--smime="));
@@ -67,7 +72,42 @@ internal class Program
         }
 
         var checks = selectedChecks.Count > 0 ? selectedChecks.ToArray() : null;
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly);
 
+        return 0;
+    }
+
+    private static async Task<int> RunWizard()
+    {
+        AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
+
+        var domainInput = AnsiConsole.Prompt(new TextPrompt<string>("Enter domain(s) [comma separated]:")
+            .Validate(input => string.IsNullOrWhiteSpace(input)
+                ? ValidationResult.Error("[red]Domain is required[/]")
+                : ValidationResult.Success()));
+
+        var domains = domainInput.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var checkPrompt = new MultiSelectionPrompt<string>()
+            .Title("Select checks to run")
+            .NotRequired()
+            .InstructionsText("[grey](Press <space> to toggle, <enter> to accept)[/]")
+            .AddChoices(_options.Keys);
+
+        var selected = AnsiConsole.Prompt(checkPrompt);
+        var checks = selected.Count > 0 ? selected.Select(c => _options[c]).ToArray() : null;
+
+        var outputJson = AnsiConsole.Confirm("Output JSON?");
+        var summaryOnly = !outputJson && AnsiConsole.Confirm("Show condensed summary?");
+        var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
+
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly);
+
+        return 0;
+    }
+
+    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly)
+    {
         foreach (var domain in domains)
         {
             var hc = new DomainHealthCheck { Verbose = false };
@@ -116,8 +156,6 @@ internal class Program
                 CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis);
             }
         }
-
-        return 0;
     }
 
     private static void ShowHelp()
