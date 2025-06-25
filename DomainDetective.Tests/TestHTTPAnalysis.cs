@@ -19,6 +19,10 @@ namespace DomainDetective.Tests {
                 ctx.Response.Headers.Add("X-XSS-Protection", "1; mode=block");
                 ctx.Response.Headers.Add("Expect-CT", "max-age=86400, enforce");
                 ctx.Response.Headers.Add("Content-Security-Policy", "default-src 'self'");
+                ctx.Response.Headers.Add("X-Content-Type-Options", "nosniff");
+                ctx.Response.Headers.Add("X-Frame-Options", "DENY");
+                ctx.Response.Headers.Add("Referrer-Policy", "no-referrer");
+                ctx.Response.Headers.Add("Permissions-Policy", "geolocation=()" );
                 ctx.Response.Headers.Add("X-Permitted-Cross-Domain-Policies", "none");
                 ctx.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin");
                 ctx.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp");
@@ -41,6 +45,10 @@ namespace DomainDetective.Tests {
                 Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
                 Assert.Equal("1; mode=block", analysis.SecurityHeaders["X-XSS-Protection"]);
                 Assert.Equal("max-age=86400, enforce", analysis.SecurityHeaders["Expect-CT"]);
+                Assert.Equal("nosniff", analysis.SecurityHeaders["X-Content-Type-Options"]);
+                Assert.Equal("DENY", analysis.SecurityHeaders["X-Frame-Options"]);
+                Assert.Equal("no-referrer", analysis.SecurityHeaders["Referrer-Policy"]);
+                Assert.Equal("geolocation=()", analysis.SecurityHeaders["Permissions-Policy"]);
                 Assert.Equal("max-age=31536000", analysis.SecurityHeaders["Strict-Transport-Security"]);
                 Assert.Equal("none", analysis.SecurityHeaders["X-Permitted-Cross-Domain-Policies"]);
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Opener-Policy"]);
