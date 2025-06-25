@@ -14,17 +14,33 @@ namespace DomainDetective {
     /// Analyse BIMI records according to draft specifications.
     /// </summary>
     public class BimiAnalysis {
+        /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }
+        /// <summary>Gets a value indicating whether a BIMI record was found.</summary>
         public bool BimiRecordExists { get; private set; }
+        /// <summary>Gets a value indicating whether the record starts with <c>v=BIMI1</c>.</summary>
         public bool StartsCorrectly { get; private set; }
+        /// <summary>Gets the indicator location value if present.</summary>
         public string? Location { get; private set; }
+        /// <summary>Gets the authority indicator URL if present.</summary>
         public string? Authority { get; private set; }
+        /// <summary>Gets a value indicating whether <see cref="Location"/> uses HTTPS.</summary>
         public bool LocationUsesHttps { get; private set; }
+        /// <summary>Gets a value indicating whether <see cref="Authority"/> uses HTTPS.</summary>
         public bool AuthorityUsesHttps { get; private set; }
+        /// <summary>Gets a value indicating whether the domain opted out of publishing an indicator.</summary>
         public bool DeclinedToPublish { get; private set; }
+        /// <summary>Gets a value indicating whether the indicator SVG file was downloaded.</summary>
         public bool SvgFetched { get; private set; }
+        /// <summary>Gets a value indicating whether the downloaded SVG is valid.</summary>
         public bool SvgValid { get; private set; }
 
+        /// <summary>
+        /// Processes BIMI DNS records and populates analysis properties.
+        /// </summary>
+        /// <param name="dnsResults">TXT records returned from a BIMI DNS query.</param>
+        /// <param name="logger">Logger instance for diagnostic output.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeBimiRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             await Task.Yield();
 

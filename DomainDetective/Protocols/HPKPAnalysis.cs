@@ -5,9 +5,13 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class HPKPAnalysis {
+        /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
         public bool HeaderPresent { get; private set; }
+        /// <summary>Gets a value indicating whether all retrieved pins were syntactically valid.</summary>
         public bool PinsValid { get; private set; }
+        /// <summary>Gets the list of SHA-256 pin values.</summary>
         public List<string> Pins { get; private set; } = new();
+        /// <summary>Gets the raw header value.</summary>
         public string? Header { get; private set; }
 
         /// <summary>
