@@ -15,6 +15,7 @@ namespace DomainDetective {
             public bool CertificateValid { get; set; }
             public int DaysToExpire { get; set; }
             public SslProtocols Protocol { get; set; }
+            public bool SupportsTls13 { get; set; }
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
             public List<X509Certificate2> Chain { get; } = new();
@@ -114,6 +115,11 @@ namespace DomainDetective {
 
                         await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
                         result.Protocol = ssl.SslProtocol;
+#if NET8_0_OR_GREATER
+                        result.SupportsTls13 = ssl.SslProtocol == SslProtocols.Tls13;
+#else
+                        result.SupportsTls13 = (int)ssl.SslProtocol == 12288;
+#endif
                         result.CipherAlgorithm = ssl.CipherAlgorithm;
                         result.CipherStrength = ssl.CipherStrength;
 

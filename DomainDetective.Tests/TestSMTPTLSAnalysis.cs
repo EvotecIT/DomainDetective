@@ -23,7 +23,12 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
                 var result = analysis.ServerResults[$"localhost:{port}"];
                 Assert.True(result.StartTlsAdvertised);
+#if NET8_0_OR_GREATER
+                Assert.Equal(SslProtocols.Tls13, result.Protocol);
+                Assert.True(result.SupportsTls13);
+#else
                 Assert.Equal(SslProtocols.Tls12, result.Protocol);
+#endif
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
                 Assert.True(result.CipherStrength > 0);
@@ -96,7 +101,11 @@ namespace DomainDetective.Tests {
                         await reader.ReadLineAsync();
                         await writer.WriteLineAsync("220 ready");
                         using var ssl = new SslStream(stream);
+#if NET8_0_OR_GREATER
+                        await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls13 | SslProtocols.Tls12, false);
+#else
                         await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+#endif
                         using var sslReader = new StreamReader(ssl);
                         await sslReader.ReadLineAsync();
                     }, token);
