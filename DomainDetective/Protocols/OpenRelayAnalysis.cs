@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class OpenRelayAnalysis {
-        public Dictionary<string, bool> ServerResults { get; private set; } = new();
+        public Dictionary<string, OpenRelayStatus> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            var allows = await TryRelay(host, port, logger, cancellationToken);
-            ServerResults[$"{host}:{port}"] = allows;
+            var status = await TryRelay(host, port, logger, cancellationToken);
+            ServerResults[$"{host}:{port}"] = status;
         }
 
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
@@ -22,13 +22,13 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var allows = await TryRelay(host, port, logger, cancellationToken);
-                    ServerResults[$"{host}:{port}"] = allows;
+                    var status = await TryRelay(host, port, logger, cancellationToken);
+                    ServerResults[$"{host}:{port}"] = status;
                 }
             }
         }
 
-        private async Task<bool> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<OpenRelayStatus> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -80,14 +80,16 @@ namespace DomainDetective {
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
 
-                return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250");
+                return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250")
+                    ? OpenRelayStatus.AllowsRelay
+                    : OpenRelayStatus.Denied;
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
                 logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
-                return false;
+                return OpenRelayStatus.ConnectionFailed;
             }
         }
     }
