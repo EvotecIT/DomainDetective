@@ -559,5 +559,75 @@ namespace DomainDetective {
             options ??= new JsonSerializerOptions { WriteIndented = true };
             return JsonSerializer.Serialize(this, options);
         }
+
+        public DomainHealthCheck FilterAnalyses(IEnumerable<HealthCheckType> healthCheckTypes) {
+            var active = healthCheckTypes != null
+                ? new HashSet<HealthCheckType>(healthCheckTypes)
+                : new HashSet<HealthCheckType>();
+            var clone = (DomainHealthCheck)MemberwiseClone();
+
+            if (!active.Contains(HealthCheckType.DMARC)) {
+                clone.DmarcAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.SPF)) {
+                clone.SpfAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.DKIM)) {
+                clone.DKIMAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.MX)) {
+                clone.MXAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.CAA)) {
+                clone.CAAAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.NS)) {
+                clone.NSAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.DANE)) {
+                clone.DaneAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.DNSBL)) {
+                clone.DNSBLAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.DNSSEC)) {
+                clone.DNSSecAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.MTASTS)) {
+                clone.MTASTSAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.TLSRPT)) {
+                clone.TLSRPTAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.BIMI)) {
+                clone.BimiAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.CERT)) {
+                clone.CertificateAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.SECURITYTXT)) {
+                clone.SecurityTXTAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.SOA)) {
+                clone.SOAAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.OPENRELAY)) {
+                clone.OpenRelayAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.STARTTLS)) {
+                clone.StartTlsAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.SMTPTLS)) {
+                clone.SmtpTlsAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.HTTP)) {
+                clone.HttpAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.HPKP)) {
+                clone.HPKPAnalysis = null;
+            }
+
+            return clone;
+        }
     }
 }
