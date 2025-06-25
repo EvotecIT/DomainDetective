@@ -5,6 +5,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.IO.Compression;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,11 +80,55 @@ namespace DomainDetective {
                 throw new FileNotFoundException($"DNS server list file not found: {filePath}");
             }
 
+            using var stream = File.OpenRead(filePath);
+            LoadServers(stream, clearExisting);
+        }
+
+        /// <summary>
+        /// Loads DNS server definitions from a stream containing JSON.
+        /// </summary>
+        /// <param name="stream">The stream with JSON data.</param>
+        /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
+        public void LoadServers(Stream stream, bool clearExisting = false) {
+            if (stream == null) {
+                throw new ArgumentNullException(nameof(stream));
+            }
+
+            using var reader = new StreamReader(stream);
+            var json = reader.ReadToEnd();
+            LoadServersFromJson(json, clearExisting);
+        }
+
+        /// <summary>
+        /// Loads DNS server definitions embedded within the assembly.
+        /// </summary>
+        /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
+        public void LoadBuiltInServers(bool clearExisting = false) {
+            var assembly = typeof(DnsPropagationAnalysis).Assembly;
+            using var stream = assembly.GetManifestResourceStream("DomainDetective.Data.PublicDNS.json.gz");
+            if (stream == null) {
+                return;
+            }
+            using var gzip = new GZipStream(stream, CompressionMode.Decompress);
+            LoadServers(gzip, clearExisting);
+        }
+
+        /// <summary>
+        /// Loads DNS server definitions from a URI.
+        /// </summary>
+        /// <param name="uri">HTTP or HTTPS URL to a JSON file.</param>
+        /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
+        public async Task LoadServersFromUriAsync(string uri, bool clearExisting = false) {
+            using var client = new HttpClient();
+            var json = await client.GetStringAsync(uri).ConfigureAwait(false);
+            LoadServersFromJson(json, clearExisting);
+        }
+
+        private void LoadServersFromJson(string json, bool clearExisting) {
             if (clearExisting) {
                 _servers.Clear();
             }
 
-            var json = File.ReadAllText(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
             if (servers == null) {

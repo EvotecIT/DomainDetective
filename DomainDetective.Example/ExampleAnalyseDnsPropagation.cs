@@ -7,7 +7,7 @@ namespace DomainDetective.Example {
     internal class ExampleAnalyseDnsPropagationClass {
         public static async Task Run() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.LoadServers("Data/DNS/PublicDNS.json");
+            analysis.LoadBuiltInServers();
             var servers = analysis.FilterServers(country: "United States", take: 3);
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, servers);
             foreach (var result in results) {

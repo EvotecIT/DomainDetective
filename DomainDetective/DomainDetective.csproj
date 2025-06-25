@@ -17,4 +17,16 @@
   <ItemGroup>
       <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
   </ItemGroup>
+
+  <ItemGroup>
+    <PublicDnsJson Include="..\Data\DNS\PublicDNS.json" />
+  </ItemGroup>
+
+
+  <Target Name="EmbedPublicDns" BeforeTargets="PrepareResources">
+    <Exec Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(IntermediateOutputPath)PublicDNS.json.gz&quot;" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)PublicDNS.json.gz" LogicalName="Data.PublicDNS.json.gz" />
+    </ItemGroup>
+  </Target>
 </Project>

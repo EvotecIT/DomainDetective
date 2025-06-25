@@ -13,6 +13,13 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void LoadBuiltInServersAddsEntries() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltInServers(clearExisting: true);
+            Assert.NotEmpty(analysis.Servers);
+        }
+
+        [Fact]
         public void AddAndRemoveServerWorks() {
             var analysis = new DnsPropagationAnalysis();
             var entry = new PublicDnsEntry { IPAddress = "1.1.1.1", Country = "Test" };
