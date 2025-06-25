@@ -1,8 +1,10 @@
 using System;
 using System.Net;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using DomainDetective;
 
 namespace DomainDetective.Tests {
     public class TestHTTPAnalysis {
@@ -58,7 +60,7 @@ namespace DomainDetective.Tests {
                 Assert.False(analysis.HstsIncludesSubDomains);
                 Assert.False(analysis.HstsTooShort);
                 Assert.Equal("ok", analysis.Body);
-                Assert.Empty(analysis.MissingSecurityHeaders);
+                Assert.Single(analysis.MissingSecurityHeaders, "Public-Key-Pins");
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -268,6 +270,33 @@ namespace DomainDetective.Tests {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.CspUnsafeDirectives);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsPublicKeyPinsHeaderWithWarning() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Public-Key-Pins", "pin-sha256=\"abc\"; max-age=1000");
+                ctx.Response.Close();
+            });
+
+            try {
+                var logger = new InternalLogger();
+                var warnings = new List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
+                Assert.True(analysis.PublicKeyPinsPresent);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
             } finally {
                 listener.Stop();
                 await serverTask;
