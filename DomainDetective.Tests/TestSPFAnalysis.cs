@@ -295,5 +295,15 @@ namespace DomainDetective.Tests {
             Assert.Contains("192.0.2.1", healthCheck.SpfAnalysis.Ipv4Records);
             Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
         }
+
+        [Fact]
+        public async Task UnrecognizedTokenCaptured() {
+            var spfRecord = "v=spf1 unknown:example.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("unknown:example.com", healthCheck.SpfAnalysis.UnknownMechanisms);
+        }
     }
 }
