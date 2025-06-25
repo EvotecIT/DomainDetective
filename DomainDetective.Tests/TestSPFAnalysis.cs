@@ -15,6 +15,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll);
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
+            Assert.True(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -32,6 +33,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck6.SpfAnalysis.ContainsCharactersAfterAll == false);
             Assert.True(healthCheck6.SpfAnalysis.HasPtrType == false);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly == true);
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
 
         }
 
@@ -50,6 +52,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit, "Should exceed character limit due to long record");
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -67,6 +70,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck6.SpfAnalysis.HasPtrType);
             Assert.True(healthCheck6.SpfAnalysis.StartsCorrectly);
             Assert.True(healthCheck6.SpfAnalysis.ExceedsCharacterLimit, "Should exceed character limit due to long record");
+            Assert.False(healthCheck6.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -238,6 +242,7 @@ namespace DomainDetective.Tests {
             Assert.Contains("mx.test", healthCheck.SpfAnalysis.ResolvedMxRecords);
             Assert.Contains("10.10.10.10", healthCheck.SpfAnalysis.ResolvedIpv4Records);
             Assert.Contains("2001::1", healthCheck.SpfAnalysis.ResolvedIpv6Records);
+            Assert.False(healthCheck.SpfAnalysis.InvalidIpSyntax);
         }
 
         [Fact]
@@ -294,6 +299,17 @@ namespace DomainDetective.Tests {
 
             Assert.Contains("192.0.2.1", healthCheck.SpfAnalysis.Ipv4Records);
             Assert.Equal("-all", healthCheck.SpfAnalysis.AllMechanism);
+            Assert.False(healthCheck.SpfAnalysis.InvalidIpSyntax);
+        }
+
+        [Fact]
+        public async Task InvalidCidrMasksTriggerFlag() {
+            var spfRecord = "v=spf1 ip4:192.0.2.1/33 ip6:2001::1/129 -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.True(healthCheck.SpfAnalysis.InvalidIpSyntax);
         }
     }
 }
