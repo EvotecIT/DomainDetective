@@ -1,5 +1,6 @@
 using DnsClientX;
 using DomainDetective.Definitions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -55,6 +56,12 @@ namespace DomainDetective {
                     switch (key) {
                         case "p":
                             analysis.PublicKey = value;
+                            try {
+                                var bytes = Convert.FromBase64String(value);
+                                analysis.ValidPublicKey = bytes.Length >= 16;
+                            } catch (FormatException) {
+                                analysis.ValidPublicKey = false;
+                            }
                             break;
                         case "s":
                             analysis.ServiceType = value;
@@ -101,6 +108,7 @@ namespace DomainDetective {
         public bool DkimRecordExists { get; set; }
         public bool StartsCorrectly { get; set; }
         public bool PublicKeyExists { get; set; }
+        public bool ValidPublicKey { get; set; }
         public bool KeyTypeExists { get; set; }
         public string PublicKey { get; set; }
         public string ServiceType { get; set; }
