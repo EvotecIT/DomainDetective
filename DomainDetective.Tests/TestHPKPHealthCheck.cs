@@ -29,6 +29,8 @@ namespace DomainDetective.Tests {
                 Assert.True(healthCheck.HPKPAnalysis.HeaderPresent);
                 Assert.True(healthCheck.HPKPAnalysis.PinsValid);
                 Assert.Equal(2, healthCheck.HPKPAnalysis.Pins.Count);
+                Assert.Equal(500, healthCheck.HPKPAnalysis.MaxAge);
+                Assert.False(healthCheck.HPKPAnalysis.IncludesSubDomains);
             } finally {
                 listener.Stop();
                 await task;
