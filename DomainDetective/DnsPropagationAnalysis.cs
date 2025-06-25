@@ -105,7 +105,7 @@ namespace DomainDetective {
         /// <param name="clearExisting">Whether to clear any existing servers before loading.</param>
         public void LoadBuiltInServers(bool clearExisting = false) {
             var assembly = typeof(DnsPropagationAnalysis).Assembly;
-            using var stream = assembly.GetManifestResourceStream("DomainDetective.Data.PublicDNS.json.gz");
+            using var stream = assembly.GetManifestResourceStream("Data.PublicDNS.json.gz");
             if (stream == null) {
                 return;
             }

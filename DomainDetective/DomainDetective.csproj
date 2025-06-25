@@ -20,16 +20,19 @@
 
   <ItemGroup>
     <PublicDnsJson Include="..\Data\DNS\PublicDNS.json" />
+    <EmbeddedResource Include="PublicDNS.json.gz" LogicalName="Data.PublicDNS.json.gz" />
   </ItemGroup>
 
 
-  <Target Name="EmbedPublicDns" BeforeTargets="PrepareResources">
+  <Target Name="EmbedPublicDns" BeforeTargets="CoreCompile">
     <!-- Use gzip on Unix-like systems -->
-    <Exec Condition=" '$(OS)' != 'Windows_NT' " Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(IntermediateOutputPath)PublicDNS.json.gz&quot;" />
+    <Exec Condition=" '$(OS)' != 'Windows_NT' " Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(ProjectDir)PublicDNS.json.gz&quot;" />
     <!-- Use PowerShell on Windows to create gzip archive -->
-    <Exec Condition=" '$(OS)' == 'Windows_NT' " Command="powershell -NoProfile -Command &quot;$in=[IO.File]::OpenRead('%(PublicDnsJson.FullPath)'); $out=[IO.File]::Create('$(IntermediateOutputPath)PublicDNS.json.gz'); $gzip=[IO.Compression.GzipStream]::new($out,[IO.Compression.CompressionLevel]::Optimal); $in.CopyTo($gzip); $gzip.Dispose(); $in.Dispose(); $out.Dispose();&quot;" />
-    <ItemGroup>
-      <EmbeddedResource Include="$(IntermediateOutputPath)PublicDNS.json.gz" LogicalName="Data.PublicDNS.json.gz" />
-    </ItemGroup>
+    <Exec Condition=" '$(OS)' == 'Windows_NT' " Command="powershell -NoProfile -Command &quot;$in=[IO.File]::OpenRead('%(PublicDnsJson.FullPath)'); $out=[IO.File]::Create('$(ProjectDir)PublicDNS.json.gz'); $gzip=[IO.Compression.GzipStream]::new($out,[IO.Compression.CompressionLevel]::Optimal); $in.CopyTo($gzip); $gzip.Dispose(); $in.Dispose(); $out.Dispose();&quot;" />
+    <Touch Files="$(ProjectDir)PublicDNS.json.gz" />
+  </Target>
+
+  <Target Name="CleanPublicDns" AfterTargets="Clean">
+    <Delete Files="$(ProjectDir)PublicDNS.json.gz" />
   </Target>
 </Project>
