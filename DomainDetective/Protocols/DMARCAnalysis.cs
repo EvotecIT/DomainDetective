@@ -52,6 +52,7 @@ namespace DomainDetective {
         public string DkimAShort { get; private set; }
         public string SpfAShort { get; private set; }
         public int? Pct { get; private set; }
+        public int? OriginalPct { get; private set; }
         public bool IsPctValid { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
@@ -79,6 +80,7 @@ namespace DomainDetective {
             ValidDkimAlignment = true;
             ValidSpfAlignment = true;
             Pct = null;
+            OriginalPct = null;
             ReportingIntervalShort = 0;
             ExternalReportAuthorization = new Dictionary<string, bool>();
 
@@ -138,14 +140,15 @@ namespace DomainDetective {
                             // percentage of messages to which the DMARC policy
                             // applies.  It should be a number between 0 and 100.
                             if (int.TryParse(value, out var pct)) {
+                                OriginalPct = pct;
                                 IsPctValid = pct >= 0 && pct <= 100;
-                                if (pct < 0) {
-                                    pct = 0;
-                                }
-                                if (pct > 100) {
-                                    pct = 100;
-                                }
                                 Pct = pct;
+                                if (Pct < 0) {
+                                    Pct = 0;
+                                }
+                                if (Pct > 100) {
+                                    Pct = 100;
+                                }
                             } else {
                                 IsPctValid = false;
                             }
