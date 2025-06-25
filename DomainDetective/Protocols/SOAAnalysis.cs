@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public class SOAAnalysis {
-        public string DomainName { get; private set; }
-        public string PrimaryNameServer { get; private set; }
-        public string ResponsibleMailbox { get; private set; }
+        public string? DomainName { get; private set; }
+        public string? PrimaryNameServer { get; private set; }
+        public string? ResponsibleMailbox { get; private set; }
         public long SerialNumber { get; private set; }
         public int Refresh { get; private set; }
         public int Retry { get; private set; }
