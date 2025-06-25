@@ -34,6 +34,9 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the full DNSSEC chain is valid.</summary>
         public bool ChainValid { get; private set; }
 
+        /// <summary>Gets the TTL values for each parent DS record.</summary>
+        public IReadOnlyList<int> DsTtls { get; private set; } = new List<int>();
+
         /// <summary>
         /// Performs DNSSEC validation for the specified domain.
         /// </summary>
@@ -52,6 +55,7 @@ namespace DomainDetective {
             List<string> dnsKeys = new();
             List<string> signatures = new();
             List<string> dsRecords = new();
+            List<int> dsTtls = new();
 
             while (true) {
                 var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
@@ -74,6 +78,7 @@ namespace DomainDetective {
                 }
 
                 var dsResult = await FetchDsRecords(current, client);
+                dsTtls.Add(dsResult.ttl);
 
                 bool dsMatch = false;
                 if (zoneKeys.Count > 0 && dsResult.records.Count > 0) {
@@ -102,25 +107,28 @@ namespace DomainDetective {
             }
 
             ChainValid = chainValid;
+            DsTtls = dsTtls;
 
             logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
         }
 
-        private static async Task<(List<string> records, bool ad)> FetchDsRecords(string domain, HttpClient client) {
+        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, HttpClient client) {
             var dsUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type=DS&do=1";
             var dsJson = await client.GetStringAsync(dsUri);
             var dsDoc = JsonDocument.Parse(dsJson);
             bool ad = dsDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
             List<string> records = new();
+            int ttl = 0;
             if (dsDoc.RootElement.TryGetProperty("Answer", out var dsAnswers)) {
                 foreach (var ans in dsAnswers.EnumerateArray()) {
                     if (ans.GetProperty("type").GetInt32() == 43) {
                         records.Add(ans.GetProperty("data").GetString());
+                        ttl = ans.GetProperty("TTL").GetInt32();
                     }
                 }
             }
 
-            return (records, ad);
+            return (records, ttl, ad);
         }
 
         /// <summary>

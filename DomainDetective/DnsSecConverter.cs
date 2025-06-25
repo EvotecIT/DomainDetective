@@ -31,6 +31,7 @@ namespace DomainDetective {
                 DsAuthenticData = analysis.DsAuthenticData,
                 DsMatch = analysis.DsMatch,
                 ChainValid = analysis.ChainValid,
+                DsTtls = analysis.DsTtls,
             };
         }
 
@@ -99,6 +100,9 @@ namespace DomainDetective {
 
         /// <summary>True when the entire DNSSEC chain validated.</summary>
         public bool ChainValid { get; set; }
+
+        /// <summary>TTL values for each DS lookup in the validation chain.</summary>
+        public IReadOnlyList<int> DsTtls { get; set; }
     }
 
     /// <summary>
