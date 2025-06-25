@@ -16,6 +16,12 @@ namespace DomainDetective {
         public TimeSpan ResponseTime { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS header was present.</summary>
         public bool HstsPresent { get; private set; }
+        /// <summary>Gets the max-age value from the HSTS header.</summary>
+        public int? HstsMaxAge { get; private set; }
+        /// <summary>Gets a value indicating whether includeSubDomains is present in the HSTS header.</summary>
+        public bool HstsIncludesSubDomains { get; private set; }
+        /// <summary>Gets a value indicating whether the HSTS max-age is shorter than 18 weeks.</summary>
+        public bool HstsTooShort { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
@@ -73,6 +79,9 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            HstsMaxAge = null;
+            HstsIncludesSubDomains = false;
+            HstsTooShort = false;
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
@@ -112,8 +121,12 @@ namespace DomainDetective {
                     Http3Supported = false;
 #endif
                 }
+                string? hstsHeader = null;
+                if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
+                    hstsHeader = string.Join(",", hstsValues);
+                }
                 if (checkHsts) {
-                    HstsPresent = response.Headers.Contains("Strict-Transport-Security");
+                    HstsPresent = hstsHeader != null;
                 }
                 if (collectHeaders) {
                     foreach (var headerName in _securityHeaderNames) {
@@ -123,10 +136,13 @@ namespace DomainDetective {
                         }
                     }
                     if (!HstsPresent) {
-                        HstsPresent = SecurityHeaders.ContainsKey("Strict-Transport-Security");
+                        HstsPresent = SecurityHeaders.TryGetValue("Strict-Transport-Security", out hstsHeader);
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+                }
+                if (hstsHeader != null) {
+                    ParseHsts(hstsHeader);
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
@@ -155,6 +171,28 @@ namespace DomainDetective {
                 FailureReason = $"HTTP check failed: {ex.Message}";
                 logger?.WriteError("HTTP check failed for {0}: {1}", url, ex.Message);
             }
+        }
+
+        private void ParseHsts(string headerValue) {
+            HstsMaxAge = null;
+            HstsIncludesSubDomains = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        HstsMaxAge = ma;
+                    }
+                } else if (trimmed.Equals("includesubdomains", StringComparison.OrdinalIgnoreCase)) {
+                    HstsIncludesSubDomains = true;
+                }
+            }
+            HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
         }
 
         /// <summary>

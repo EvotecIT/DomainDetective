@@ -61,7 +61,7 @@ namespace DomainDetective {
                         }
                     }
                     IsValid = policyErrors == SslPolicyErrors.None;
-                    return true;
+                    return IsValid;
                 };
                 using (var client = new HttpClient(handler)) {
                     try {
@@ -98,7 +98,7 @@ namespace DomainDetective {
 #else
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-                                using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+                                using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, errors) => errors == SslPolicyErrors.None);
                                 await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));

@@ -2,6 +2,8 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Globalization;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -32,6 +34,7 @@ namespace DomainDetective {
         public bool HasNullLookups { get; private set; }
         public bool HasRedirect { get; private set; }
         public bool HasExp { get; private set; }
+        public bool InvalidIpSyntax { get; private set; }
         public List<string> ARecords { get; private set; } = new List<string>();
         public List<string> Ipv4Records { get; private set; } = new List<string>();
         public List<string> Ipv6Records { get; private set; } = new List<string>();
@@ -78,6 +81,7 @@ namespace DomainDetective {
             HasNullLookups = false;
             HasRedirect = false;
             HasExp = false;
+            InvalidIpSyntax = false;
             CycleDetected = false;
             _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ARecords = new List<string>();
@@ -281,9 +285,17 @@ namespace DomainDetective {
             } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                 ExistsRecords.Add(token.Substring(7).Trim('"'));
             } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
-                Ipv4Records.Add(token.Substring(4).Trim('"'));
+                var value = token.Substring(4).Trim('"');
+                Ipv4Records.Add(value);
+                if (!TryParseCidr(value, 32)) {
+                    InvalidIpSyntax = true;
+                }
             } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
-                Ipv6Records.Add(token.Substring(4).Trim('"'));
+                var value = token.Substring(4).Trim('"');
+                Ipv6Records.Add(value);
+                if (!TryParseCidr(value, 128)) {
+                    InvalidIpSyntax = true;
+                }
             } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
                 IncludeRecords.Add(token.Substring(8).Trim('"'));
             } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
@@ -338,6 +350,29 @@ namespace DomainDetective {
                    || token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)
                    || IsAllMechanism(token);
+        }
+      
+        private static bool TryParseCidr(string value, int maxPrefixLength) {
+            var segments = value.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0 || segments.Length > 2) {
+                return false;
+            }
+
+            if (!IPAddress.TryParse(segments[0], out _)) {
+                return false;
+            }
+
+            if (segments.Length == 2) {
+                if (!int.TryParse(segments[1], NumberStyles.None, CultureInfo.InvariantCulture, out var mask)) {
+                    return false;
+                }
+
+                if (mask > maxPrefixLength) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static bool IsAllMechanism(string part) {

@@ -25,7 +25,8 @@ namespace DomainDetective.PowerShell {
                 HttpRua = analysis.HttpRua,
                 MailtoRuf = analysis.MailtoRuf,
                 HttpRuf = analysis.HttpRuf,
-                ExternalReportAuthorization = analysis.ExternalReportAuthorization
+                ExternalReportAuthorization = analysis.ExternalReportAuthorization,
+                InvalidReportUri = analysis.InvalidReportUri
             };
         }
     }
@@ -75,5 +76,8 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>External reporting authorization per domain.</summary>
         public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; }
+
+        /// <summary>Indicates at least one report URI failed validation.</summary>
+        public bool InvalidReportUri { get; set; }
     }
 }
