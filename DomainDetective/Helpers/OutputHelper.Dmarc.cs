@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 
-namespace DomainDetective.PowerShell {
+namespace DomainDetective {
     /// <summary>
     ///     Helper methods for formatting DMARC analysis output.
     /// </summary>
-    internal static partial class OutputHelper {
+    public static partial class OutputHelper {
         /// <summary>
         ///     Converts analysis results into a structured record.
         /// </summary>
@@ -36,43 +36,30 @@ namespace DomainDetective.PowerShell {
     public class DmarcRecordInfo {
         /// <summary>Raw DMARC record string.</summary>
         public string DmarcRecord { get; set; }
-
         /// <summary>Indicates if a DMARC record was found.</summary>
         public bool DmarcRecordExists { get; set; }
-
         /// <summary>True when the record begins with "v=DMARC1".</summary>
         public bool StartsCorrectly { get; set; }
-
         /// <summary>True when the policy values are valid.</summary>
         public bool IsPolicyValid { get; set; }
-
         /// <summary>Specifies the policy for the "p" tag.</summary>
         public string Policy { get; set; }
-
         /// <summary>Specifies the sub-domain policy for the "sp" tag.</summary>
         public string SubPolicy { get; set; }
-
         /// <summary>Percentage applied to the policy.</summary>
         public string Percent { get; set; }
-
         /// <summary>Aggregate report destination.</summary>
         public string Rua { get; set; }
-
         /// <summary>Forensic report destination.</summary>
         public string Ruf { get; set; }
-
         /// <summary>Parsed mailto RUA addresses.</summary>
         public IReadOnlyList<string> MailtoRua { get; set; }
-
         /// <summary>Parsed HTTP RUA endpoints.</summary>
         public IReadOnlyList<string> HttpRua { get; set; }
-
         /// <summary>Parsed mailto RUF addresses.</summary>
         public IReadOnlyList<string> MailtoRuf { get; set; }
-
         /// <summary>Parsed HTTP RUF endpoints.</summary>
         public IReadOnlyList<string> HttpRuf { get; set; }
-
         /// <summary>External reporting authorization per domain.</summary>
         public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; }
     }

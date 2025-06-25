@@ -1,10 +1,10 @@
 using System.Collections.Generic;
 
-namespace DomainDetective.PowerShell {
+namespace DomainDetective {
     /// <summary>
-    ///     Helper methods for DNSSEC analysis output.
+    ///     Converts DNSSEC analysis results into simple objects.
     /// </summary>
-    internal static partial class OutputHelper {
+    public static partial class OutputHelper {
         /// <summary>
         ///     Creates a summary information object from the analysis results.
         /// </summary>
@@ -29,22 +29,16 @@ namespace DomainDetective.PowerShell {
     public class DnsSecInfo {
         /// <summary>Returned DS records.</summary>
         public IReadOnlyList<string> DsRecords { get; set; }
-
         /// <summary>Returned DNSKEY records.</summary>
         public IReadOnlyList<string> DnsKeys { get; set; }
-
         /// <summary>DNSSEC signature records.</summary>
         public IReadOnlyList<string> Signatures { get; set; }
-
         /// <summary>True when the DNSKEY query had the AD flag set.</summary>
         public bool AuthenticData { get; set; }
-
         /// <summary>True when the DS query had the AD flag set.</summary>
         public bool DsAuthenticData { get; set; }
-
         /// <summary>Indicates whether the DS record matches the DNSKEY.</summary>
         public bool DsMatch { get; set; }
-
         /// <summary>True when the entire DNSSEC chain validated.</summary>
         public bool ChainValid { get; set; }
     }

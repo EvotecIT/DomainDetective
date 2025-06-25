@@ -2,6 +2,7 @@ using DnsClientX;
 using System.Linq;
 using System.Management.Automation;
 using System.Threading.Tasks;
+using DomainDetective;
 
 namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DkimRecord", DefaultParameterSetName = "ServerName")]

@@ -1,6 +1,7 @@
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
+using DomainDetective;
 
 namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DnsSec", DefaultParameterSetName = "ServerName")]
