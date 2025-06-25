@@ -18,7 +18,7 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck();
             var prop = typeof(DNSSecAnalysis).GetProperty(
                 "ChainValid",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
             )!;
             prop.SetValue(healthCheck.DNSSecAnalysis, true);
 
