@@ -2,12 +2,19 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Checks if an SMTP server is an open relay.</summary>
+    /// <example>
+    ///   <summary>Test a mail server.</summary>
+    ///   <code>Test-OpenRelay -HostName mail.example.com -Port 25</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "OpenRelay", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestOpenRelay : AsyncPSCmdlet {
+        /// <param name="HostName">SMTP host name to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string HostName;
 
+        /// <param name="Port">SMTP port number.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public int Port = 25;
 

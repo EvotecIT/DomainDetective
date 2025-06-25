@@ -3,12 +3,19 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Retrieves NS records for a domain.</summary>
+    /// <example>
+    ///   <summary>Query name servers.</summary>
+    ///   <code>Test-NsRecord -DomainName example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "NsRecord", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestNsRecord : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 

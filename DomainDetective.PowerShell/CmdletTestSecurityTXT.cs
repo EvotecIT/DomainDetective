@@ -3,12 +3,19 @@ using System.Management.Automation;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
+    /// <summary>Retrieves security.txt information for a domain.</summary>
+    /// <example>
+    ///   <summary>Get security contacts.</summary>
+    ///   <code>Test-SecurityTXT -DomainName example.com</code>
+    /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "SecurityTXT", DefaultParameterSetName = "ServerName")]
     public sealed class CmdletTestSecurityTXT : AsyncPSCmdlet {
+        /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
+        /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
