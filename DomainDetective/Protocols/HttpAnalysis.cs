@@ -50,7 +50,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
-        private static readonly string[] _securityHeaderNames = new[] {
+        private static readonly List<string> _securityHeaderNames = new() {
             "Content-Security-Policy",
             "X-Content-Type-Options",
             "X-Frame-Options",
@@ -64,6 +64,13 @@ namespace DomainDetective {
             "Cross-Origin-Embedder-Policy",
             "Cross-Origin-Resource-Policy"
         };
+
+        /// <summary>
+        /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
+        /// called with header collection enabled. Modify this list to customize which
+        /// headers are captured.
+        /// </summary>
+        public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
         /// <summary>
         /// Performs an HTTP GET request to the specified URL.
