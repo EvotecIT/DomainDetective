@@ -763,6 +763,18 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Performs a basic HTTP check without enforcing HTTPS.
+        /// </summary>
+        /// <param name="domainName">Domain or host to query.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyPlainHttp(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger);
+        }
+
+        /// <summary>
         /// Checks an IP address against configured DNS block lists.
         /// </summary>
         /// <param name="ipAddress">IP address to query.</param>
