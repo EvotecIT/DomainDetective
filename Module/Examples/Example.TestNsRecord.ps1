@@ -4,6 +4,7 @@ Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
 $Results = Test-NsRecord -DomainName 'google.com' -Verbose
 $Results | Format-Table
+$Results | Format-List
 
 $Cloudflare = Test-NsRecord -DomainName 'example.com' -DnsEndpoint Cloudflare
 $Cloudflare | Format-Table
