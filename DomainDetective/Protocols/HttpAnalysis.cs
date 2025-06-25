@@ -26,6 +26,9 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
+        [Obsolete("Public-Key-Pins header is deprecated.")]
+        public bool PublicKeyPinsPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
         public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
@@ -59,6 +62,7 @@ namespace DomainDetective {
             "Strict-Transport-Security",
             "X-XSS-Protection",
             "Expect-CT",
+            "Public-Key-Pins",
             "X-Permitted-Cross-Domain-Policies",
             "Cross-Origin-Opener-Policy",
             "Cross-Origin-Embedder-Policy",
@@ -87,6 +91,7 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            PublicKeyPinsPresent = false;
             CspUnsafeDirectives = false;
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
@@ -153,6 +158,10 @@ namespace DomainDetective {
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+                    PublicKeyPinsPresent = SecurityHeaders.ContainsKey("Public-Key-Pins");
+                    if (PublicKeyPinsPresent) {
+                        logger?.WriteWarning("Public-Key-Pins header is deprecated and should not be used.");
+                    }
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp);
                     }
