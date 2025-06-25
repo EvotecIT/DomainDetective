@@ -14,11 +14,11 @@ namespace DomainDetective {
     /// Analyse BIMI records according to draft specifications.
     /// </summary>
     public class BimiAnalysis {
-        public string BimiRecord { get; private set; }
+        public string? BimiRecord { get; private set; }
         public bool BimiRecordExists { get; private set; }
         public bool StartsCorrectly { get; private set; }
-        public string Location { get; private set; }
-        public string Authority { get; private set; }
+        public string? Location { get; private set; }
+        public string? Authority { get; private set; }
         public bool LocationUsesHttps { get; private set; }
         public bool AuthorityUsesHttps { get; private set; }
         public bool DeclinedToPublish { get; private set; }
@@ -54,9 +54,9 @@ namespace DomainDetective {
             BimiRecord = string.Join(" ", recordList.Select(r => r.Data));
             logger.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
 
-            StartsCorrectly = BimiRecord.StartsWith("v=BIMI1", StringComparison.OrdinalIgnoreCase);
+            StartsCorrectly = BimiRecord?.StartsWith("v=BIMI1", StringComparison.OrdinalIgnoreCase) == true;
 
-            foreach (var part in BimiRecord.Split(';')) {
+            foreach (var part in (BimiRecord ?? string.Empty).Split(';')) {
                 var kv = part.Split(new[] { '=' }, 2);
                 if (kv.Length != 2) {
                     continue;

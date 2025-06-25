@@ -8,7 +8,7 @@ namespace DomainDetective {
         public bool HeaderPresent { get; private set; }
         public bool PinsValid { get; private set; }
         public List<string> Pins { get; private set; } = new();
-        public string Header { get; private set; }
+        public string? Header { get; private set; }
 
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
             HeaderPresent = false;
@@ -28,7 +28,7 @@ namespace DomainDetective {
                     return;
                 }
 
-                var parts = Header.Split(';');
+                var parts = (Header ?? string.Empty).Split(';');
                 var valid = true;
                 foreach (var part in parts) {
                     var trimmed = part.Trim();

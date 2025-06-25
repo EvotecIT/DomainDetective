@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
 
     public class CAAAnalysis {
-        public string DomainName { get; set; }
+        public string? DomainName { get; set; }
 
         public string Description { get; set; } =
             @"A Certification Authority Authorization (CAA) record allows a domain to specify which certificate authorities (CAs)
