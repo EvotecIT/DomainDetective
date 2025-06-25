@@ -38,6 +38,9 @@ namespace DomainDetective.Tests {
                 Assert.Equal("1; mode=block", analysis.SecurityHeaders["X-XSS-Protection"]);
                 Assert.Equal("max-age=86400, enforce", analysis.SecurityHeaders["Expect-CT"]);
                 Assert.Equal("max-age=31536000", analysis.SecurityHeaders["Strict-Transport-Security"]);
+                Assert.Equal(31536000, analysis.HstsMaxAge);
+                Assert.False(analysis.HstsIncludesSubDomains);
+                Assert.False(analysis.HstsTooShort);
                 Assert.Equal("ok", analysis.Body);
             } finally {
                 listener.Stop();
@@ -198,6 +201,32 @@ namespace DomainDetective.Tests {
                 Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
             } finally {
                 tcs.TrySetResult(null);
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsHstsTooShortAndIncludesSubDomains() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=1000; includeSubDomains");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.HstsPresent);
+                Assert.Equal(1000, analysis.HstsMaxAge);
+                Assert.True(analysis.HstsIncludesSubDomains);
+                Assert.True(analysis.HstsTooShort);
+            } finally {
                 listener.Stop();
                 await serverTask;
             }
