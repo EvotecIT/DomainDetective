@@ -110,11 +110,16 @@ namespace DomainDetective {
                                     }
                                 }
                             }
-                            return result.CertificateValid;
+                            return true;
                         });
 
                         try {
+#if NET8_0_OR_GREATER
+                            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
+                                .WaitWithCancellation(timeoutCts.Token);
+#else
                             await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
+#endif
                             result.CipherAlgorithm = ssl.CipherAlgorithm;
                             result.CipherStrength = ssl.CipherStrength;
 
