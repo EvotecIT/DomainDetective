@@ -40,6 +40,7 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);
             Assert.Equal(100, healthCheck.DmarcAnalysis.Pct);
+            Assert.Equal(500, healthCheck.DmarcAnalysis.OriginalPct);
             Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
             Assert.Equal(
                 "Percentage value must be between 0 and 100.",
@@ -52,6 +53,7 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDMARC(dmarcRecord);
             Assert.Equal(0, healthCheck.DmarcAnalysis.Pct);
+            Assert.Equal(-1, healthCheck.DmarcAnalysis.OriginalPct);
             Assert.False(healthCheck.DmarcAnalysis.IsPctValid);
             Assert.Equal(
                 "Percentage value must be between 0 and 100.",
