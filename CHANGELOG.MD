@@ -4,3 +4,8 @@
 - Initial release of Domain Detective
 - Includes CLI and PowerShell module
 - Supports checks for SPF, DMARC, DKIM, CAA, NS, SOA, DNSSEC and DANE/TLSA records
+
+## 1.0.1
+
+### What's Changed
+- Enabled trimming on CLI and example projects with partial mode to align with .NET 8 NativeAOT guidance
