@@ -26,6 +26,8 @@ namespace DomainDetective.Tests {
 
             Assert.True(summary.DnsSecValid);
 
+        }
+
         [Fact]
         public async Task BuildSummaryIncludesValidityFlags() {
             const string spfRecord = "v=spf1 include:_spf.google.com -all";
