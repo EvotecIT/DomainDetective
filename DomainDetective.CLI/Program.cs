@@ -19,7 +19,8 @@ internal class Program
         ["ns"] = HealthCheckType.NS,
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
-        ["dnsbl"] = HealthCheckType.DNSBL
+        ["dnsbl"] = HealthCheckType.DNSBL,
+        ["contact"] = HealthCheckType.CONTACT
     };
 
     private static async Task<int> Main(string[] args)
@@ -104,6 +105,7 @@ internal class Program
                     HealthCheckType.DANE => hc.DaneAnalysis,
                     HealthCheckType.DNSBL => hc.DNSBLAnalysis,
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
+                    HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     _ => null
                 };
                 if (data != null)
@@ -124,7 +126,7 @@ internal class Program
     {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI[/]");
         Console.WriteLine("Usage: ddcli [options] <domain> [domain...]");
-        Console.WriteLine("--checks=LIST     Comma separated list of checks: dmarc, spf, dkim, mx, caa, ns, dane, dnssec, dnsbl");
+        Console.WriteLine("--checks=LIST     Comma separated list of checks: dmarc, spf, dkim, mx, caa, ns, dane, dnssec, dnsbl, contact");
         Console.WriteLine("--check-http      Perform plain HTTP check");
         Console.WriteLine("--summary         Show condensed summary");
         Console.WriteLine("--json            Output raw JSON");
