@@ -26,9 +26,11 @@
 
   <Target Name="EmbedPublicDns" BeforeTargets="CoreCompile">
     <!-- Use gzip on Unix-like systems -->
-    <Exec Condition=" '$(OS)' != 'Windows_NT' " Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(ProjectDir)PublicDNS.json.gz&quot;" />
+    <Exec Condition=" '$(OS)' != 'Windows_NT' and !Exists('$(ProjectDir)PublicDNS.json.gz') "
+          Command="gzip -c &quot;%(PublicDnsJson.FullPath)&quot; > &quot;$(ProjectDir)PublicDNS.json.gz&quot;" />
     <!-- Use PowerShell on Windows to create gzip archive -->
-    <Exec Condition=" '$(OS)' == 'Windows_NT' " Command="powershell -NoProfile -Command &quot;$in=[IO.File]::OpenRead('%(PublicDnsJson.FullPath)'); $out=[IO.File]::Create('$(ProjectDir)PublicDNS.json.gz'); $gzip=[IO.Compression.GzipStream]::new($out,[IO.Compression.CompressionLevel]::Optimal); $in.CopyTo($gzip); $gzip.Dispose(); $in.Dispose(); $out.Dispose();&quot;" />
+    <Exec Condition=" '$(OS)' == 'Windows_NT' and !Exists('$(ProjectDir)PublicDNS.json.gz') "
+          Command="powershell -NoProfile -Command &quot;$in=[IO.File]::OpenRead('%(PublicDnsJson.FullPath)'); $out=[IO.File]::Create('$(ProjectDir)PublicDNS.json.gz'); $gzip=[IO.Compression.GzipStream]::new($out,[IO.Compression.CompressionLevel]::Optimal); $in.CopyTo($gzip); $gzip.Dispose(); $in.Dispose(); $out.Dispose();&quot;" />
     <Touch Files="$(ProjectDir)PublicDNS.json.gz" />
   </Target>
 
