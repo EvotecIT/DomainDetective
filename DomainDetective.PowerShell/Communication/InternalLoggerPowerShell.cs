@@ -79,8 +79,9 @@ namespace DomainDetective.PowerShell {
         }
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
             var errorId = GetNextErrorId();
-            ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), errorId, ErrorCategory.NotSpecified, null) {
-                ErrorDetails = new ErrorDetails(errorId)
+            var detailsMessage = string.IsNullOrEmpty(e.FullMessage) ? e.Message : e.FullMessage;
+            ErrorRecord errorRecord = new ErrorRecord(new Exception(detailsMessage), errorId, ErrorCategory.NotSpecified, null) {
+                ErrorDetails = new ErrorDetails(detailsMessage)
             };
             WriteError(errorRecord);
         }
