@@ -143,5 +143,17 @@ namespace DomainDetective.Tests {
             Assert.Single(healthCheck.DmarcAnalysis.HttpRuf);
             Assert.Equal("https://reports.example.com", healthCheck.DmarcAnalysis.HttpRuf[0]);
         }
+
+        [Fact]
+        public async Task UnknownTagsAreCollected() {
+            var dmarcRecord = "v=DMARC1; p=none; foo=bar; test; x=y";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckDMARC(dmarcRecord);
+
+            Assert.Contains("foo=bar", healthCheck.DmarcAnalysis.UnknownTags);
+            Assert.Contains("test", healthCheck.DmarcAnalysis.UnknownTags);
+            Assert.Contains("x=y", healthCheck.DmarcAnalysis.UnknownTags);
+        }
     }
 }
