@@ -148,6 +148,18 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task DetectCircularRedirect() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 redirect=b.example.com";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 redirect=a.example.com";
+
+            await healthCheck.CheckSPF("v=spf1 redirect=a.example.com");
+
+            Assert.True(healthCheck.SpfAnalysis.CycleDetected);
+            Assert.Equal("a.example.com -> b.example.com -> a.example.com", healthCheck.SpfAnalysis.CyclePath);
+        }
+
+        [Fact]
         public async Task DomainEndingWithAllWithoutAllMechanism() {
             var spfRecord = "v=spf1 a:firewall";
             var healthCheck = new DomainHealthCheck();
@@ -310,6 +322,16 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckSPF(spfRecord);
 
             Assert.True(healthCheck.SpfAnalysis.InvalidIpSyntax);
+        }
+
+        [Fact]
+        public async Task UnrecognizedTokenCaptured() {
+            var spfRecord = "v=spf1 unknown:example.com -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Contains("unknown:example.com", healthCheck.SpfAnalysis.UnknownMechanisms);
         }
     }
 }

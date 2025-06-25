@@ -115,5 +115,26 @@ namespace DomainDetective.Tests {
 
             Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidPublicKey);
         }
+
+        [Fact]
+        public async Task InvalidKeyTypeIsFlagged() {
+            const string record = "v=DKIM1; k=hmac; p=QUJD;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidKeyType);
+        }
+
+        [Fact]
+        public async Task UnexpectedFlagCharactersDetected() {
+            const string record = "v=DKIM1; t=yz; k=rsa; p=QUJD;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidFlags);
+            Assert.Contains("z", healthCheck.DKIMAnalysis.AnalysisResults["default"].UnknownFlagCharacters);
+        }
     }
 }

@@ -30,8 +30,19 @@ internal class Program
             return 0;
         }
 
+        var smimePath = args.FirstOrDefault(a => a.StartsWith("--smime="));
+        if (smimePath != null)
+        {
+            var file = smimePath.Substring("--smime=".Length);
+            var smime = new SmimeCertificateAnalysis();
+            smime.AnalyzeFile(file);
+            CliHelpers.ShowPropertiesTable($"S/MIME certificate {file}", smime);
+            return 0;
+        }
+
         var outputJson = args.Contains("--json");
         var summaryOnly = args.Contains("--summary");
+        var checkHttp = args.Contains("--check-http");
 
         var checksOption = args.FirstOrDefault(a => a.StartsWith("--checks="));
         var selectedChecks = new List<HealthCheckType>();
@@ -61,6 +72,10 @@ internal class Program
         {
             var hc = new DomainHealthCheck { Verbose = false };
             await hc.Verify(domain, checks);
+            if (checkHttp)
+            {
+                await hc.VerifyPlainHttp(domain);
+            }
 
             if (outputJson)
             {
@@ -96,6 +111,10 @@ internal class Program
                     CliHelpers.ShowPropertiesTable($"{check} for {domain}", data);
                 }
             }
+            if (checkHttp)
+            {
+                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis);
+            }
         }
 
         return 0;
@@ -106,7 +125,9 @@ internal class Program
         AnsiConsole.MarkupLine("[green]DomainDetective CLI[/]");
         Console.WriteLine("Usage: ddcli [options] <domain> [domain...]");
         Console.WriteLine("--checks=LIST     Comma separated list of checks: dmarc, spf, dkim, mx, caa, ns, dane, dnssec, dnsbl");
+        Console.WriteLine("--check-http      Perform plain HTTP check");
         Console.WriteLine("--summary         Show condensed summary");
         Console.WriteLine("--json            Output raw JSON");
+        Console.WriteLine("--smime=FILE      Parse S/MIME certificate file and exit");
     }
 }

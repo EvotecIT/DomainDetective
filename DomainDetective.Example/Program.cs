@@ -44,6 +44,7 @@ public static partial class Program {
 
         await ExampleAnalyseHTTP();
         await ExampleAnalyseHTTPByHealthCheck();
+        await ExampleDetectUnsafeCsp();
 
 
         await ExampleAnalyseByDomainDANE();

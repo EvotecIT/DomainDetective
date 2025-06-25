@@ -26,8 +26,12 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
+        public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
         public Dictionary<string, string> SecurityHeaders { get; } = new();
+        /// <summary>Gets a collection of security headers that were not present.</summary>
+        public HashSet<string> MissingSecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
@@ -54,7 +58,11 @@ namespace DomainDetective {
             "Permissions-Policy",
             "Strict-Transport-Security",
             "X-XSS-Protection",
-            "Expect-CT"
+            "Expect-CT",
+            "X-Permitted-Cross-Domain-Policies",
+            "Cross-Origin-Opener-Policy",
+            "Cross-Origin-Embedder-Policy",
+            "Cross-Origin-Resource-Policy"
         };
 
         /// <summary>
@@ -79,9 +87,12 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            CspUnsafeDirectives = false;
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
+            SecurityHeaders.Clear();
+            MissingSecurityHeaders.Clear();
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
@@ -133,6 +144,8 @@ namespace DomainDetective {
                         if (response.Headers.TryGetValues(headerName, out var values) ||
                             response.Content.Headers.TryGetValues(headerName, out values)) {
                             SecurityHeaders[headerName] = string.Join(",", values);
+                        } else {
+                            MissingSecurityHeaders.Add(headerName);
                         }
                     }
                     if (!HstsPresent) {
@@ -140,6 +153,9 @@ namespace DomainDetective {
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+                    if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
+                        ParseContentSecurityPolicy(csp);
+                    }
                 }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
@@ -193,6 +209,23 @@ namespace DomainDetective {
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
+        }
+
+        private void ParseContentSecurityPolicy(string headerValue) {
+            CspUnsafeDirectives = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
+                    CspUnsafeDirectives = true;
+                    break;
+                }
+            }
         }
 
         /// <summary>

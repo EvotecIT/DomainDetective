@@ -44,5 +44,24 @@ namespace DomainDetective.Tests {
                     .Reverse());
             Assert.Equal($"{nibble}.example.test", record.FQDN);
         }
+
+        [Fact]
+        public async Task Ipv6LoopbackAddressChecks() {
+            var address = IPAddress.IPv6Loopback.ToString();
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.DNSBLAnalysis.ClearDNSBL();
+            healthCheck.DNSBLAnalysis.AddDNSBL("example.test");
+            await healthCheck.CheckDNSBL(address);
+
+            var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
+            var expected = string.Join(
+                ".",
+                IPAddress.IPv6Loopback
+                    .GetAddressBytes()
+                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
+                    .Select(n => n.ToString("x"))
+                    .Reverse());
+            Assert.Equal(expected, record.IPAddress);
+        }
     }
 }

@@ -261,6 +261,8 @@ namespace DomainDetective {
                 };
             }
 
+            healthCheckTypes = healthCheckTypes.Distinct().ToArray();
+
             foreach (var healthCheckType in healthCheckTypes) {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
@@ -339,7 +341,7 @@ namespace DomainDetective {
                     case HealthCheckType.STARTTLS:
                         var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
-                        await StartTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+                        await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { 25 }, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SMTPTLS:
                         var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
@@ -594,7 +596,7 @@ namespace DomainDetective {
             }
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
-            await StartTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
+            await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -760,6 +762,18 @@ namespace DomainDetective {
                 url = $"https://{url}";
             }
             await CertificateAnalysis.AnalyzeUrl(url, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Performs a basic HTTP check without enforcing HTTPS.
+        /// </summary>
+        /// <param name="domainName">Domain or host to query.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyPlainHttp(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger);
         }
 
         /// <summary>
