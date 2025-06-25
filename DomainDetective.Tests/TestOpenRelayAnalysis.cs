@@ -124,6 +124,60 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task AnalyzeServersMultiplePorts() {
+            var listener1 = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener1.Start();
+            var port1 = ((System.Net.IPEndPoint)listener1.LocalEndpoint).Port;
+            var serverTask1 = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener1.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 local ESMTP");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 hello");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 OK");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 OK");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            var listener2 = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener2.Start();
+            var port2 = ((System.Net.IPEndPoint)listener2.LocalEndpoint).Port;
+            var serverTask2 = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener2.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 local ESMTP");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 hello");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 OK");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("550 relay denied");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            try {
+                var analysis = new OpenRelayAnalysis();
+                await analysis.AnalyzeServers(new[] { "localhost" }, new[] { port1, port2 }, new InternalLogger());
+                Assert.Equal(2, analysis.ServerResults.Count);
+                Assert.True(analysis.ServerResults[$"localhost:{port1}"]);
+                Assert.False(analysis.ServerResults[$"localhost:{port2}"]);
+            } finally {
+                listener1.Stop();
+                listener2.Stop();
+                await serverTask1;
+                await serverTask2;
+            }
+        }
+
+        [Fact]
         public async Task CancelsDuringAnalysis() {
             var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
             listener.Start();

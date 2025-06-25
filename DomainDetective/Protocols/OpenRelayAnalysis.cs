@@ -17,6 +17,17 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = allows;
         }
 
+        public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
+            ServerResults.Clear();
+            foreach (var host in hosts) {
+                foreach (var port in ports) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var allows = await TryRelay(host, port, logger, cancellationToken);
+                    ServerResults[$"{host}:{port}"] = allows;
+                }
+            }
+        }
+
         private async Task<bool> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
