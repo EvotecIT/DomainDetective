@@ -17,5 +17,19 @@ namespace DomainDetective.Tests {
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
                 await config.QueryFullDNS(Array.Empty<string>(), DnsRecordType.A));
         }
+
+        [Fact]
+        public async Task QueryDNSThrowsIfNameNull() {
+            var config = new DnsConfiguration();
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await config.QueryDNS((string)null!, DnsRecordType.A));
+        }
+
+        [Fact]
+        public async Task QueryDNSThrowsIfNameEmpty() {
+            var config = new DnsConfiguration();
+            await Assert.ThrowsAsync<ArgumentNullException>(async () =>
+                await config.QueryDNS(string.Empty, DnsRecordType.A));
+        }
     }
 }
