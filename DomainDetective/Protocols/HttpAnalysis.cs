@@ -26,6 +26,24 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public bool PublicKeyPinsPresent { get; private set; }
+        /// <summary>Gets the max-age value from the Public-Key-Pins header.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public int PublicKeyPinsMaxAge { get; private set; }
+        /// <summary>Gets a value indicating whether includeSubDomains is present in the Public-Key-Pins header.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public bool PublicKeyPinsIncludesSubDomains { get; private set; }
+        /// <summary>Gets a value indicating whether all retrieved pins were syntactically valid.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public bool PublicKeyPinsValid { get; private set; }
+        /// <summary>Gets the list of SHA-256 pins.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public List<string> PublicKeyPins { get; } = new();
+        /// <summary>Gets the raw Public-Key-Pins header.</summary>
+        [Obsolete("Public-Key-Pins has been deprecated and should not be used.")]
+        public string? PublicKeyPinsHeader { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
         public Dictionary<string, string> SecurityHeaders { get; } = new();
         /// <summary>Gets a collection of security headers that were not present.</summary>
@@ -57,6 +75,7 @@ namespace DomainDetective {
             "Strict-Transport-Security",
             "X-XSS-Protection",
             "Expect-CT",
+            "Public-Key-Pins",
             "X-Permitted-Cross-Domain-Policies",
             "Cross-Origin-Opener-Policy",
             "Cross-Origin-Embedder-Policy",
@@ -85,6 +104,12 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            PublicKeyPinsPresent = false;
+            PublicKeyPinsHeader = null;
+            PublicKeyPinsValid = false;
+            PublicKeyPins.Clear();
+            PublicKeyPinsMaxAge = 0;
+            PublicKeyPinsIncludesSubDomains = false;
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
@@ -133,6 +158,10 @@ namespace DomainDetective {
                 if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
                     hstsHeader = string.Join(",", hstsValues);
                 }
+                string? hpkpHeader = null;
+                if (response.Headers.TryGetValues("Public-Key-Pins", out var hpkpValues)) {
+                    hpkpHeader = string.Join(";", hpkpValues);
+                }
                 if (checkHsts) {
                     HstsPresent = hstsHeader != null;
                 }
@@ -153,6 +182,17 @@ namespace DomainDetective {
                 }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
+                }
+                if (hpkpHeader != null) {
+                    PublicKeyPinsHeader = hpkpHeader;
+                    PublicKeyPinsPresent = true;
+                    ParseHpkp(hpkpHeader);
+                    logger?.WriteWarning("Public-Key-Pins header is deprecated and should not be used.");
+                } else if (collectHeaders && SecurityHeaders.TryGetValue("Public-Key-Pins", out var hdr)) {
+                    PublicKeyPinsHeader = hdr;
+                    PublicKeyPinsPresent = true;
+                    ParseHpkp(hdr);
+                    logger?.WriteWarning("Public-Key-Pins header is deprecated and should not be used.");
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
@@ -203,6 +243,42 @@ namespace DomainDetective {
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
+        }
+
+        private void ParseHpkp(string headerValue) {
+            PublicKeyPinsMaxAge = 0;
+            PublicKeyPinsIncludesSubDomains = false;
+            PublicKeyPinsValid = false;
+            PublicKeyPins.Clear();
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(';');
+            var valid = true;
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("pin-sha256=\"", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith("\"")) {
+                    var b64 = trimmed.Substring(12, trimmed.Length - 13);
+                    PublicKeyPins.Add(b64);
+                    try {
+                        var bytes = Convert.FromBase64String(b64);
+                        if (bytes.Length != 32) {
+                            valid = false;
+                        }
+                    } catch (FormatException) {
+                        valid = false;
+                    }
+                } else if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        PublicKeyPinsMaxAge = ma;
+                    }
+                } else if (string.Equals(trimmed, "includeSubDomains", StringComparison.OrdinalIgnoreCase)) {
+                    PublicKeyPinsIncludesSubDomains = true;
+                }
+            }
+            PublicKeyPinsValid = valid && PublicKeyPins.Count >= 2;
         }
 
         /// <summary>

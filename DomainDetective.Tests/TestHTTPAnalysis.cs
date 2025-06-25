@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -248,6 +249,39 @@ namespace DomainDetective.Tests {
             } finally {
                 listener.Stop();
                 await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsDeprecatedPublicKeyPins() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var pin1 = Convert.ToBase64String(Enumerable.Repeat((byte)1, 32).ToArray());
+            var pin2 = Convert.ToBase64String(Enumerable.Repeat((byte)2, 32).ToArray());
+            var header = $"pin-sha256=\"{pin1}\"; pin-sha256=\"{pin2}\"; max-age=500";
+            var task = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.Headers.Add("Public-Key-Pins", header);
+                ctx.Response.Close();
+            });
+
+            try {
+                var logger = new InternalLogger();
+                var warnings = new List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
+                Assert.True(analysis.PublicKeyPinsPresent);
+                Assert.True(analysis.PublicKeyPinsValid);
+                Assert.Equal(500, analysis.PublicKeyPinsMaxAge);
+                Assert.Contains(pin1, analysis.PublicKeyPins);
+                Assert.Contains(pin2, analysis.PublicKeyPins);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
+            } finally {
+                listener.Stop();
+                await task;
             }
         }
 
