@@ -47,6 +47,7 @@ namespace DomainDetective {
         public string Ruf { get; private set; }
         public List<string> MailtoRuf { get; private set; } = new List<string>();
         public List<string> HttpRuf { get; private set; } = new List<string>();
+        public List<string> UnknownTags { get; private set; } = new List<string>();
 
         // short versions of the tags
         public string SubPolicyShort { get; private set; }
@@ -75,6 +76,7 @@ namespace DomainDetective {
             Ruf = null;
             MailtoRuf = new List<string>();
             HttpRuf = new List<string>();
+            UnknownTags = new List<string>();
             SubPolicyShort = null;
             PolicyShort = null;
             FoShort = null;
@@ -121,6 +123,8 @@ namespace DomainDetective {
                     var key = keyValue[0].Trim();
                     var value = keyValue[1].Trim();
                     switch (key) {
+                        case "v":
+                            break;
                         case "p":
                             PolicyShort = value;
                             policyTagFound = true;
@@ -179,6 +183,17 @@ namespace DomainDetective {
                             Ruf = value;
                             AddUriToList(value, MailtoRuf, HttpRuf);
                             break;
+                        default:
+                            var tagPair = $"{key}={value}";
+                            if (!UnknownTags.Contains(tagPair)) {
+                                UnknownTags.Add(tagPair);
+                            }
+                            break;
+                    }
+                } else if (!string.IsNullOrWhiteSpace(tag)) {
+                    var unknown = tag.Trim();
+                    if (!UnknownTags.Contains(unknown)) {
+                        UnknownTags.Add(unknown);
                     }
                 }
             }
