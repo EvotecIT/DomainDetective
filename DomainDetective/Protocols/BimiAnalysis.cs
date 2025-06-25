@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -34,6 +35,8 @@ namespace DomainDetective {
         public bool SvgFetched { get; private set; }
         /// <summary>Gets a value indicating whether the downloaded SVG is valid.</summary>
         public bool SvgValid { get; private set; }
+        /// <summary>Gets a value indicating whether the downloaded VMC is valid.</summary>
+        public bool ValidVmc { get; private set; }
 
         /// <summary>
         /// Processes BIMI DNS records and populates analysis properties.
@@ -54,6 +57,7 @@ namespace DomainDetective {
             DeclinedToPublish = false;
             SvgFetched = false;
             SvgValid = false;
+            ValidVmc = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -110,6 +114,14 @@ namespace DomainDetective {
                     logger?.WriteWarning("Failed to download BIMI indicator from {0}", Location);
                 }
             }
+
+            if (!string.IsNullOrEmpty(Authority)) {
+                if (!AuthorityUsesHttps) {
+                    logger?.WriteWarning("BIMI authority URL does not use HTTPS: {0}", Authority);
+                }
+
+                ValidVmc = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
+            }
         }
 
         private static async Task<string> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
@@ -136,6 +148,30 @@ namespace DomainDetective {
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI indicator {0}: {1}", url, ex.Message);
                 return null;
+            }
+        }
+
+        private static async Task<bool> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
+            try {
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+                using var response = await client.GetAsync(url, cancellationToken);
+                if (!response.IsSuccessStatusCode) {
+                    return false;
+                }
+
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                var cert = new X509Certificate2(bytes);
+                using var chain = new X509Chain();
+                chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+                var signed = chain.Build(cert);
+                var notExpired = cert.NotAfter > DateTime.Now;
+                return signed && notExpired;
+            } catch (Exception ex) {
+                logger?.WriteError("Error downloading BIMI VMC {0}: {1}", url, ex.Message);
+                return false;
             }
         }
 
