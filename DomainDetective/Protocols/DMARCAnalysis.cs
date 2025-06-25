@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -37,6 +38,8 @@ namespace DomainDetective {
 
         public bool ValidDkimAlignment { get; private set; }
         public bool ValidSpfAlignment { get; private set; }
+
+        public bool InvalidReportUri { get; private set; }
 
         public string Rua { get; private set; }
         public List<string> MailtoRua { get; private set; } = new List<string>();
@@ -79,6 +82,7 @@ namespace DomainDetective {
             SpfAShort = null;
             ValidDkimAlignment = true;
             ValidSpfAlignment = true;
+            InvalidReportUri = false;
             Pct = null;
             OriginalPct = null;
             ReportingIntervalShort = 0;
@@ -209,11 +213,24 @@ namespace DomainDetective {
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList) {
             var uris = uri.Split(',');
-            foreach (var u in uris) {
-                if (u.StartsWith("mailto:")) {
-                    mailtoList.Add(u.Substring(7));
-                } else if (u.StartsWith("http:")) {
-                    httpList.Add(u);
+            foreach (var raw in uris) {
+                var u = raw.Trim();
+                if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
+                    var address = u.Substring(7);
+                    try {
+                        _ = new System.Net.Mail.MailAddress(address);
+                        mailtoList.Add(address);
+                    } catch {
+                        InvalidReportUri = true;
+                    }
+                } else if (u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                    if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps) {
+                        httpList.Add(u);
+                    } else {
+                        InvalidReportUri = true;
+                    }
+                } else {
+                    InvalidReportUri = true;
                 }
             }
         }
