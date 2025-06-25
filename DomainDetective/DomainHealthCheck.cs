@@ -168,6 +168,12 @@ namespace DomainDetective {
         /// <value>Deprecated HTTP public key pinning information.</value>
         public HPKPAnalysis HPKPAnalysis { get; private set; } = new HPKPAnalysis();
 
+        /// <summary>
+        /// Gets the contact TXT analysis.
+        /// </summary>
+        /// <value>Parsed contact information.</value>
+        public ContactInfoAnalysis ContactInfoAnalysis { get; private set; } = new ContactInfoAnalysis();
+
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -353,6 +359,11 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.HPKP:
                         await HPKPAnalysis.AnalyzeUrl($"http://{domainName}", _logger);
+                        break;
+                    case HealthCheckType.CONTACT:
+                        ContactInfoAnalysis = new ContactInfoAnalysis();
+                        var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+                        await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -555,6 +566,20 @@ namespace DomainDetective {
             }, _logger, cancellationToken);
         }
 
+        /// <summary>
+        /// Analyzes a raw contact TXT record.
+        /// </summary>
+        /// <param name="contactRecord">Contact record text.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckContactInfo(string contactRecord, CancellationToken cancellationToken = default) {
+            await ContactInfoAnalysis.AnalyzeContactRecords(new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = contactRecord,
+                    Type = DnsRecordType.TXT
+                }
+            }, _logger);
+        }
+
 
         /// <summary>
         /// Queries DNS and analyzes SPF records for a domain.
@@ -639,6 +664,20 @@ namespace DomainDetective {
             BimiAnalysis = new BimiAnalysis();
             var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
             await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Queries contact TXT records for a domain.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyContactInfo(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            ContactInfoAnalysis = new ContactInfoAnalysis();
+            var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+            await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
         }
 
         /// <summary>
@@ -819,12 +858,24 @@ namespace DomainDetective {
             var spfValid = SpfAnalysis.SpfRecordExists && SpfAnalysis.StartsCorrectly &&
                             !SpfAnalysis.ExceedsDnsLookups && !SpfAnalysis.MultipleSpfRecords;
 
+            var dmarcValid = DmarcAnalysis.DmarcRecordExists && DmarcAnalysis.StartsCorrectly &&
+                             DmarcAnalysis.HasMandatoryTags && DmarcAnalysis.IsPolicyValid &&
+                             DmarcAnalysis.IsPctValid && !DmarcAnalysis.MultipleRecords &&
+                             !DmarcAnalysis.ExceedsCharacterLimit && DmarcAnalysis.ValidDkimAlignment &&
+                             DmarcAnalysis.ValidSpfAlignment;
+
+            var dkimValid = DKIMAnalysis.AnalysisResults.Values.Any(a =>
+                a.DkimRecordExists && a.StartsCorrectly && a.PublicKeyExists &&
+                a.ValidPublicKey && a.KeyTypeExists && a.ValidKeyType && a.ValidFlags);
+
             return new DomainSummary {
                 HasSpfRecord = SpfAnalysis.SpfRecordExists,
                 SpfValid = spfValid,
                 HasDmarcRecord = DmarcAnalysis.DmarcRecordExists,
                 DmarcPolicy = DmarcAnalysis.Policy,
+                DmarcValid = dmarcValid,
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
+                DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis.MxRecordExists,
                 DnsSecValid = DNSSecAnalysis?.ChainValid ?? false
             };
@@ -917,6 +968,9 @@ namespace DomainDetective {
             }
             if (!active.Contains(HealthCheckType.HPKP)) {
                 clone.HPKPAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.CONTACT)) {
+                clone.ContactInfoAnalysis = null;
             }
 
             return clone;

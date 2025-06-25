@@ -102,6 +102,13 @@ all analysis details in JSON format:
 dotnet run --project DomainDetective.Example example.com --json
 ```
 
+### Interactive CLI Wizard
+
+Run `ddcli` without parameters to launch an interactive wizard. It guides you
+through entering domain names, selecting checks and choosing between JSON output
+or a condensed summary. The wizard is built with **Spectre.Console** for a more
+pleasant terminal experience.
+
 ### PowerShell Module
 
 Import the module and call any of the testing cmdlets:
