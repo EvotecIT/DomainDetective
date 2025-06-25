@@ -10,6 +10,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DNSSecAnalysis.DsAuthenticData);
             Assert.True(healthCheck.DNSSecAnalysis.DsMatch);
             Assert.True(healthCheck.DNSSecAnalysis.ChainValid);
+            Assert.NotEmpty(healthCheck.DNSSecAnalysis.DsTtls);
         }
 
         [Fact]
