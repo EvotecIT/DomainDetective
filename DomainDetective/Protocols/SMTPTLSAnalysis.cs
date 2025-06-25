@@ -109,16 +109,20 @@ namespace DomainDetective {
                                     }
                                 }
                             }
-                            return true;
+                            return result.CertificateValid;
                         });
 
-                        await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-                        result.Protocol = ssl.SslProtocol;
-                        result.CipherAlgorithm = ssl.CipherAlgorithm;
-                        result.CipherStrength = ssl.CipherStrength;
+                        try {
+                            await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
+                            result.Protocol = ssl.SslProtocol;
+                            result.CipherAlgorithm = ssl.CipherAlgorithm;
+                            result.CipherStrength = ssl.CipherStrength;
 
-                        using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
-                        await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                            using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                            await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                        } catch (AuthenticationException ex) {
+                            logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+                        }
                     }
                 }
             } catch (Exception ex) {
