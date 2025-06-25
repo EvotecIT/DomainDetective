@@ -23,4 +23,11 @@ public static partial class Program {
         Helpers.ShowPropertiesTable("Certificate for evotec.pl ", healthCheck.CertificateAnalysis);
         Helpers.ShowPropertiesTable("Certificate for evotec.pl ", healthCheck.CertificateAnalysis.Certificate);
     }
+
+    public static async Task ExampleCertificateExpiration() {
+        var analysis = await CertificateAnalysis.CheckWebsiteCertificate("https://google.com");
+        Console.WriteLine($"Expired       : {analysis.IsExpired}");
+        Console.WriteLine($"Days left     : {analysis.DaysToExpire}");
+        Console.WriteLine($"Days valid    : {analysis.DaysValid}");
+    }
 }
