@@ -23,9 +23,12 @@ namespace DomainDetective.PowerShell {
                     PublicKeyExists = result.PublicKeyExists,
                     ValidPublicKey = result.ValidPublicKey,
                     KeyTypeExists = result.KeyTypeExists,
+                    ValidKeyType = result.ValidKeyType,
                     PublicKey = result.PublicKey,
                     ServiceType = result.ServiceType,
                     Flags = result.Flags,
+                    ValidFlags = result.ValidFlags,
+                    UnknownFlagCharacters = result.UnknownFlagCharacters,
                     KeyType = result.KeyType,
                     HashAlgorithm = result.HashAlgorithm
                 };
@@ -60,6 +63,8 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Indicates whether the key type is present.</summary>
         public bool KeyTypeExists { get; set; }
+        /// <summary>Validation result for the key type.</summary>
+        public bool ValidKeyType { get; set; }
 
         /// <summary>Public key in base64 format.</summary>
         public string PublicKey { get; set; }
@@ -69,6 +74,10 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Any flags specified in the record.</summary>
         public string Flags { get; set; }
+        /// <summary>Indicates whether all flag characters are valid.</summary>
+        public bool ValidFlags { get; set; }
+        /// <summary>Unexpected characters found in the flags.</summary>
+        public string UnknownFlagCharacters { get; set; }
 
         /// <summary>Key type value.</summary>
         public string KeyType { get; set; }
