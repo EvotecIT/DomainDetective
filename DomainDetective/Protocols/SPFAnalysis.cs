@@ -58,6 +58,7 @@ namespace DomainDetective {
 
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public bool CycleDetected { get; private set; }
+        public string CyclePath { get; private set; }
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 
@@ -83,6 +84,7 @@ namespace DomainDetective {
             HasExp = false;
             InvalidIpSyntax = false;
             CycleDetected = false;
+            CyclePath = null;
             _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ARecords = new List<string>();
             Ipv4Records = new List<string>();
@@ -142,7 +144,7 @@ namespace DomainDetective {
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts, _visitedDomains);
+            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>());
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 
@@ -170,7 +172,7 @@ namespace DomainDetective {
         }
 
 
-        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains) {
+        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains, List<string> path) {
             int dnsLookups = 0;
             foreach (var part in parts) {
                 if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
@@ -178,17 +180,19 @@ namespace DomainDetective {
                     if (domain != string.Empty) {
                         if (!visitedDomains.Add(domain)) {
                             CycleDetected = true;
+                            CyclePath ??= string.Join(" -> ", path.Concat(new[] { domain }));
                             continue;
                         }
 
                         DnsLookups.Add(domain);
+                        path.Add(domain);
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRecord).ToArray();
                             foreach (var rp in resultParts) {
                                 AddPartToResolvedLists(rp);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -198,27 +202,30 @@ namespace DomainDetective {
                                     foreach (var rp in resultParts) {
                                         AddPartToResolvedLists(rp);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                                 }
                             }
                         }
+                        path.RemoveAt(path.Count - 1);
                     }
                 } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("redirect=".Length);
                     if (domain != string.Empty) {
                         if (!visitedDomains.Add(domain)) {
                             CycleDetected = true;
+                            CyclePath ??= string.Join(" -> ", path.Concat(new[] { domain }));
                             continue;
                         }
 
                         DnsLookups.Add(domain);
+                        path.Add(domain);
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRedirect)) {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRedirect).ToArray();
                             foreach (var rp in resultParts) {
                                 AddPartToResolvedLists(rp);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -228,10 +235,11 @@ namespace DomainDetective {
                                     foreach (var rp in resultParts) {
                                         AddPartToResolvedLists(rp);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
                                 }
                             }
                         }
+                        path.RemoveAt(path.Count - 1);
                     }
                 } else if (part.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("exists:".Length);
