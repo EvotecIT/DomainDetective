@@ -367,7 +367,7 @@ namespace DomainDetective {
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
-                        await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
+                        await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger, cancellationToken: cancellationToken);
                         break;
                     case HealthCheckType.HPKP:
                         await HPKPAnalysis.AnalyzeUrl($"http://{domainName}", _logger);
@@ -847,7 +847,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger);
+            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>

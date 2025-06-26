@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -84,7 +85,8 @@ namespace DomainDetective {
         /// <param name="logger">Logger used for error reporting.</param>
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <param name="captureBody">Whether to capture the response body.</param>
-        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false) {
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
 #if NET6_0_OR_GREATER
             var requestVersion = HttpVersion.Version30;
             var manualRedirect = requestVersion >= HttpVersion.Version30;
@@ -116,7 +118,7 @@ namespace DomainDetective {
                         VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                     };
                     response?.Dispose();
-                    response = await client.SendAsync(request);
+                    response = await client.SendAsync(request, cancellationToken);
                     if (manualRedirect && (int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
                         redirects++;
                         if (redirects > MaxRedirects) {
@@ -128,7 +130,7 @@ namespace DomainDetective {
                     break;
                 }
 #else
-                HttpResponseMessage response = await client.GetAsync(url);
+                HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
 #endif
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
@@ -252,9 +254,9 @@ namespace DomainDetective {
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <param name="captureBody">Whether to capture the response body.</param>
         /// <returns>A populated <see cref="HttpAnalysis"/> instance.</returns>
-        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false) {
+        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
             var analysis = new HttpAnalysis();
-            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders, captureBody);
+            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders, captureBody, cancellationToken);
             return analysis;
         }
     }
