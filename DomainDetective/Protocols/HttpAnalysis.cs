@@ -128,7 +128,7 @@ namespace DomainDetective {
                 while (true) {
                     var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
                         Version = RequestVersion,
-                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                        VersionPolicy = HttpVersionPolicy.RequestVersionExact
                     };
                     response?.Dispose();
                     response = await client.SendAsync(request, cancellationToken);

@@ -80,7 +80,7 @@ namespace DomainDetective {
 #if NET6_0_OR_GREATER
                         var request = new HttpRequestMessage(HttpMethod.Get, url) {
                             Version = HttpVersion.Version30,
-                            VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                            VersionPolicy = HttpVersionPolicy.RequestVersionExact
                         };
                         using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
                         IsReachable = response.IsSuccessStatusCode;
