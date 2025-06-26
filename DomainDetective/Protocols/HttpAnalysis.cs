@@ -52,6 +52,20 @@ namespace DomainDetective {
         public bool Http3Supported { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string Body { get; private set; }
+        /// <summary>Gets a value indicating whether a Permissions-Policy header was present.</summary>
+        public bool PermissionsPolicyPresent { get; private set; }
+        /// <summary>Gets parsed directives from the Permissions-Policy header.</summary>
+        public Dictionary<string, string> PermissionsPolicy { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Gets the value of the Referrer-Policy header if present.</summary>
+        public string? ReferrerPolicy { get; private set; }
+        /// <summary>Gets the value of the X-Frame-Options header if present.</summary>
+        public string? XFrameOptions { get; private set; }
+        /// <summary>Gets the value of the Cross-Origin-Opener-Policy header if present.</summary>
+        public string? CrossOriginOpenerPolicy { get; private set; }
+        /// <summary>Gets the value of the Cross-Origin-Embedder-Policy header if present.</summary>
+        public string? CrossOriginEmbedderPolicy { get; private set; }
+        /// <summary>Gets the value of the Cross-Origin-Resource-Policy header if present.</summary>
+        public string? CrossOriginResourcePolicy { get; private set; }
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -84,8 +98,10 @@ namespace DomainDetective {
 
         /// <summary>
         /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
-        /// called with header collection enabled. Modify this list to customize which
-        /// headers are captured.
+        /// called with header collection enabled. The list includes modern headers such
+        /// as <c>Content-Security-Policy</c>, <c>Referrer-Policy</c>, <c>X-Frame-Options</c>
+        /// and <c>Permissions-Policy</c>. Modify this list to customize which headers are
+        /// captured.
         /// </summary>
         public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
@@ -118,6 +134,13 @@ namespace DomainDetective {
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
+            PermissionsPolicyPresent = false;
+            PermissionsPolicy.Clear();
+            ReferrerPolicy = null;
+            XFrameOptions = null;
+            CrossOriginOpenerPolicy = null;
+            CrossOriginEmbedderPolicy = null;
+            CrossOriginResourcePolicy = null;
             SecurityHeaders.Clear();
             MissingSecurityHeaders.Clear();
             try {
@@ -191,6 +214,24 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
+                    }
+                    if (SecurityHeaders.TryGetValue("Permissions-Policy", out var pp)) {
+                        ParsePermissionsPolicy(pp.Value);
+                    }
+                    if (SecurityHeaders.TryGetValue("Referrer-Policy", out var rp)) {
+                        ReferrerPolicy = rp.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("X-Frame-Options", out var xfo)) {
+                        XFrameOptions = xfo.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("Cross-Origin-Opener-Policy", out var coop)) {
+                        CrossOriginOpenerPolicy = coop.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("Cross-Origin-Embedder-Policy", out var coep)) {
+                        CrossOriginEmbedderPolicy = coep.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("Cross-Origin-Resource-Policy", out var corp)) {
+                        CrossOriginResourcePolicy = corp.Value;
                     }
                     if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
                         ParseExpectCt(ect.Value);
@@ -291,6 +332,31 @@ namespace DomainDetective {
                         ExpectCtReportUri = value;
                     }
                 }
+            }
+        }
+
+        private void ParsePermissionsPolicy(string headerValue) {
+            PermissionsPolicyPresent = false;
+            PermissionsPolicy.Clear();
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            PermissionsPolicyPresent = true;
+            var parts = headerValue.Split(',');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                var eqIndex = trimmed.IndexOf('=');
+                if (eqIndex <= 0) {
+                    continue;
+                }
+                var feature = trimmed.Substring(0, eqIndex).Trim();
+                var value = trimmed.Substring(eqIndex + 1).Trim();
+                if (value.StartsWith("(") && value.EndsWith(")")) {
+                    value = value.Substring(1, value.Length - 2);
+                }
+                value = value.Replace("\"", string.Empty).Trim();
+                PermissionsPolicy[feature] = value;
             }
         }
 
