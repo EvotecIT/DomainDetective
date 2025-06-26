@@ -338,7 +338,7 @@ namespace DomainDetective {
                     case HealthCheckType.BIMI:
                         BimiAnalysis = new BimiAnalysis();
                         var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
-                        await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
+                        await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
                         break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
@@ -578,7 +578,7 @@ namespace DomainDetective {
                     DataRaw = bimiRecord,
                     Type = DnsRecordType.TXT
                 }
-            }, _logger, cancellationToken);
+            }, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -693,7 +693,7 @@ namespace DomainDetective {
             }
             BimiAnalysis = new BimiAnalysis();
             var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
-            await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
+            await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>
