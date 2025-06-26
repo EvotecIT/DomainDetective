@@ -322,7 +322,7 @@ namespace DomainDetective {
             ["127.0.0.4"] = (true, "Blacklisted")
         };
 
-        private static readonly Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new()
+        private static readonly Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase)
         {
             ["hostkarma.junkemailfilter.com"] = new()
             {
@@ -545,7 +545,7 @@ namespace DomainDetective {
             }
 
             foreach (var provider in config.Providers) {
-                var existing = DnsblEntries.FirstOrDefault(e => e.Domain == provider.Domain);
+                var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
                 if (existing == null) {
                     DnsblEntries.Add(new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment));
                 } else if (overwriteExisting) {
