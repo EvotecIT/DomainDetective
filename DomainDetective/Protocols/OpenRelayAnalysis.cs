@@ -43,40 +43,24 @@ namespace DomainDetective {
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
-#if NET8_0_OR_GREATER
-                await reader.ReadLineAsync(timeoutCts.Token);
-#else
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
-#if NET8_0_OR_GREATER
+                await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync($"HELO example.com");
-                await reader.ReadLineAsync(timeoutCts.Token);
-#else
-                timeoutCts.Token.ThrowIfCancellationRequested();
-                await writer.WriteLineAsync($"HELO example.com");
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
+                await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("MAIL FROM:<test@example.com>");
-#if NET8_0_OR_GREATER
-                var mailResp = await reader.ReadLineAsync(timeoutCts.Token);
-#else
-                var mailResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
+                var mailResp = await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("RCPT TO:<test@example.org>");
+                var rcptResp = await ReadResponseAsync(reader, timeoutCts.Token);
 #if NET8_0_OR_GREATER
-                var rcptResp = await reader.ReadLineAsync(timeoutCts.Token);
                 await writer.WriteLineAsync("QUIT".AsMemory(), timeoutCts.Token);
                 await writer.FlushAsync(timeoutCts.Token);
-                await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                var rcptResp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 await writer.WriteLineAsync("QUIT");
                 await writer.FlushAsync();
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
+                await ReadResponseAsync(reader, timeoutCts.Token);
 
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
@@ -92,6 +76,31 @@ namespace DomainDetective {
                 logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return OpenRelayStatus.ConnectionFailed;
             }
+        }
+
+        private static async Task<string?> ReadResponseAsync(StreamReader reader, CancellationToken token) {
+#if NET8_0_OR_GREATER
+            string? line = await reader.ReadLineAsync(token);
+#else
+            string? line = await reader.ReadLineAsync().WaitWithCancellation(token);
+#endif
+            if (line == null) {
+                return null;
+            }
+
+            string? current = line;
+            while (current.StartsWith("250-") || current.StartsWith("220-")) {
+#if NET8_0_OR_GREATER
+                current = await reader.ReadLineAsync(token);
+#else
+                current = await reader.ReadLineAsync().WaitWithCancellation(token);
+#endif
+                if (current == null) {
+                    break;
+                }
+            }
+
+            return current;
         }
     }
 }
