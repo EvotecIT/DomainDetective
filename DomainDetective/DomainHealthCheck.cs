@@ -157,6 +157,12 @@ namespace DomainDetective {
         public SMTPTLSAnalysis SmtpTlsAnalysis { get; private set; } = new SMTPTLSAnalysis();
 
         /// <summary>
+        /// Gets the SMTP banner analysis.
+        /// </summary>
+        /// <value>Initial greetings from SMTP servers.</value>
+        public SMTPBannerAnalysis SmtpBannerAnalysis { get; private set; } = new SMTPBannerAnalysis();
+
+        /// <summary>
         /// Gets the TLSRPT analysis.
         /// </summary>
         /// <value>Reports about TLS failures.</value>
@@ -386,6 +392,11 @@ namespace DomainDetective {
                         var smtpTlsHosts = mxRecordsForSmtpTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
+                    case HealthCheckType.SMTPBANNER:
+                        var mxRecordsForBanner = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var bannerHosts = mxRecordsForBanner.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await SmtpBannerAnalysis.AnalyzeServers(bannerHosts, 25, _logger, cancellationToken);
+                        break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger, cancellationToken: cancellationToken);
                         break;
@@ -577,6 +588,17 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Retrieves the SMTP banner from a host.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await SmtpBannerAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Analyzes a raw TLSRPT record.
         /// </summary>
         /// <param name="tlsRptRecord">TLSRPT record text.</param>
@@ -694,6 +716,23 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Collects SMTP banners from all MX hosts.
+        /// </summary>
+        /// <param name="domainName">Domain whose MX records are queried.</param>
+        /// <param name="port">SMTP port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifySMTPBanner(string domainName, int port = 25, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            ValidatePort(port);
+            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var hosts = mx.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await SmtpBannerAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1011,6 +1050,7 @@ namespace DomainDetective {
             filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null;
             filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
             filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
+            filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;

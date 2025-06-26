@@ -80,6 +80,10 @@ public static class CheckDescriptions {
                 "Verify SMTP TLS configuration.",
                 null,
                 "Use modern TLS and strong ciphers."),
+            [HealthCheckType.SMTPBANNER] = new(
+                "Capture SMTP banner information.",
+                null,
+                "Verify host name and software identifiers."),
             [HealthCheckType.HTTP] = new(
                 "Perform HTTP checks.",
                 null,
