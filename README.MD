@@ -15,6 +15,7 @@ Current capabilities include:
 - [x] Verify SOA Records
 - [x] Verify MX Records
 - [x] Verify DNSSEC
+- [x] Analyze DNS TTL
 - [x] Verify DANE/TLSA
 - [x] Verify STARTTLS
 - [x] Verify MTA-STS
@@ -124,6 +125,12 @@ Import the module and call any of the testing cmdlets:
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
 Test-SpfRecord -DomainName "example.com"
+```
+
+Analyze TTL values:
+
+```powershell
+Test-DnsTtl -DomainName "example.com"
 ```
 
 ### MTA-STS

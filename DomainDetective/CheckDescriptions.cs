@@ -95,7 +95,11 @@ public static class CheckDescriptions {
             [HealthCheckType.MESSAGEHEADER] = new(
                 "Parse message headers.",
                 null,
-                "Inspect headers for anomalies.")
+                "Inspect headers for anomalies."),
+            [HealthCheckType.TTL] = new(
+                "Analyze DNS record TTL values.",
+                null,
+                "Adjust TTLs within recommended ranges.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

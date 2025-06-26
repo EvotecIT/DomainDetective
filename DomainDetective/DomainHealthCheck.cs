@@ -192,6 +192,12 @@ namespace DomainDetective {
         /// <value>Details parsed from message headers.</value>
         public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
 
+        /// <summary>
+        /// Gets DNS TTL analysis.
+        /// </summary>
+        /// <value>Information about record TTL values.</value>
+        public DnsTtlAnalysis DnsTtlAnalysis { get; private set; } = new DnsTtlAnalysis();
+
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -237,6 +243,10 @@ namespace DomainDetective {
             };
 
             MTASTSAnalysis = new MTASTSAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
+            DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
             };
 
@@ -399,6 +409,9 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.MESSAGEHEADER:
                         MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
+                        break;
+                    case HealthCheckType.TTL:
+                        await DnsTtlAnalysis.Analyze(domainName, _logger);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -1015,6 +1028,7 @@ namespace DomainDetective {
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+            filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
 
             return filtered;
         }

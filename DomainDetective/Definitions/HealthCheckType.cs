@@ -47,5 +47,7 @@ public enum HealthCheckType {
     /// <summary>Query contact TXT record.</summary>
     CONTACT,
     /// <summary>Parse message headers.</summary>
-    MESSAGEHEADER
+    MESSAGEHEADER,
+    /// <summary>Analyze DNS record TTL values.</summary>
+    TTL
 }
