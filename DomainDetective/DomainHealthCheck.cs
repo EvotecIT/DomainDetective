@@ -174,6 +174,12 @@ namespace DomainDetective {
         /// <value>Parsed contact information.</value>
         public ContactInfoAnalysis ContactInfoAnalysis { get; private set; } = new ContactInfoAnalysis();
 
+        /// <summary>
+        /// Gets the message header analysis.
+        /// </summary>
+        /// <value>Details parsed from message headers.</value>
+        public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
+
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -263,7 +269,8 @@ namespace DomainDetective {
                     HealthCheckType.CAA,
                     HealthCheckType.DANE,
                     HealthCheckType.DNSSEC,
-                    HealthCheckType.DNSBL
+                    HealthCheckType.DNSBL,
+                    HealthCheckType.MESSAGEHEADER
                 };
             }
 
@@ -364,6 +371,9 @@ namespace DomainDetective {
                         ContactInfoAnalysis = new ContactInfoAnalysis();
                         var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
                         await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
+                        break;
+                    case HealthCheckType.MESSAGEHEADER:
+                        MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -578,6 +588,37 @@ namespace DomainDetective {
                     Type = DnsRecordType.TXT
                 }
             }, _logger);
+        }
+
+        /// <summary>
+        /// Parses raw message headers.
+        /// </summary>
+        /// <param name="rawHeaders">Unparsed header text.</param>
+        /// <param name="ct">Token to cancel the operation.</param>
+        /// <returns>Populated <see cref="MessageHeaderAnalysis"/> instance.</returns>
+        public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+
+            var analysis = new MessageHeaderAnalysis {
+                RawHeaders = rawHeaders
+            };
+            if (string.IsNullOrWhiteSpace(rawHeaders)) {
+                return analysis;
+            }
+
+            foreach (var line in rawHeaders.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)) {
+                ct.ThrowIfCancellationRequested();
+                var idx = line.IndexOf(':');
+                if (idx <= 0) {
+                    continue;
+                }
+
+                var key = line.Substring(0, idx).Trim();
+                var value = line.Substring(idx + 1).Trim();
+                analysis.Headers[key] = value;
+            }
+
+            return analysis;
         }
 
 
@@ -971,6 +1012,9 @@ namespace DomainDetective {
             }
             if (!active.Contains(HealthCheckType.CONTACT)) {
                 clone.ContactInfoAnalysis = null;
+            }
+            if (!active.Contains(HealthCheckType.MESSAGEHEADER)) {
+                clone.MessageHeaderAnalysis = null;
             }
 
             return clone;
