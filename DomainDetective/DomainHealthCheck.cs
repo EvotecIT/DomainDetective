@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
+using System.Reflection;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
@@ -957,76 +958,45 @@ namespace DomainDetective {
             var active = healthCheckTypes != null
                 ? new HashSet<HealthCheckType>(healthCheckTypes)
                 : new HashSet<HealthCheckType>();
-            var clone = (DomainHealthCheck)MemberwiseClone();
 
-            if (!active.Contains(HealthCheckType.DMARC)) {
-                clone.DmarcAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SPF)) {
-                clone.SpfAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DKIM)) {
-                clone.DKIMAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.MX)) {
-                clone.MXAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CAA)) {
-                clone.CAAAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.NS)) {
-                clone.NSAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DANE)) {
-                clone.DaneAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DNSBL)) {
-                clone.DNSBLAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DNSSEC)) {
-                clone.DNSSecAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.MTASTS)) {
-                clone.MTASTSAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.TLSRPT)) {
-                clone.TLSRPTAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.BIMI)) {
-                clone.BimiAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CERT)) {
-                clone.CertificateAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SECURITYTXT)) {
-                clone.SecurityTXTAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SOA)) {
-                clone.SOAAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.OPENRELAY)) {
-                clone.OpenRelayAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.STARTTLS)) {
-                clone.StartTlsAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SMTPTLS)) {
-                clone.SmtpTlsAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.HTTP)) {
-                clone.HttpAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.HPKP)) {
-                clone.HPKPAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CONTACT)) {
-                clone.ContactInfoAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.MESSAGEHEADER)) {
-                clone.MessageHeaderAnalysis = null;
-            }
+            var filtered = new DomainHealthCheck(DnsEndpoint, _logger) {
+                DnsSelectionStrategy = DnsSelectionStrategy,
+                DnsConfiguration = DnsConfiguration,
+                MtaStsPolicyUrlOverride = MtaStsPolicyUrlOverride
+            };
 
-            return clone;
+            filtered.DmarcAnalysis = active.Contains(HealthCheckType.DMARC) ? CloneAnalysis(DmarcAnalysis) : null;
+            filtered.SpfAnalysis = active.Contains(HealthCheckType.SPF) ? CloneAnalysis(SpfAnalysis) : null;
+            filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
+            filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
+            filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
+            filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
+            filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;
+            filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null;
+            filtered.DNSSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DNSSecAnalysis) : null;
+            filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null;
+            filtered.TLSRPTAnalysis = active.Contains(HealthCheckType.TLSRPT) ? CloneAnalysis(TLSRPTAnalysis) : null;
+            filtered.BimiAnalysis = active.Contains(HealthCheckType.BIMI) ? CloneAnalysis(BimiAnalysis) : null;
+            filtered.CertificateAnalysis = active.Contains(HealthCheckType.CERT) ? CloneAnalysis(CertificateAnalysis) : null;
+            filtered.SecurityTXTAnalysis = active.Contains(HealthCheckType.SECURITYTXT) ? CloneAnalysis(SecurityTXTAnalysis) : null;
+            filtered.SOAAnalysis = active.Contains(HealthCheckType.SOA) ? CloneAnalysis(SOAAnalysis) : null;
+            filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null;
+            filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
+            filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
+            filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
+            filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
+            filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
+            filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+
+            return filtered;
+        }
+
+        private static readonly MethodInfo _cloneMethod = typeof(object).GetMethod(
+            "MemberwiseClone",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static T CloneAnalysis<T>(T analysis) where T : class {
+            return analysis == null ? null : (T)_cloneMethod.Invoke(analysis, null);
         }
     }
 }
