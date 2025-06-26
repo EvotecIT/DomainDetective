@@ -599,25 +599,8 @@ namespace DomainDetective {
         public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
 
-            var analysis = new MessageHeaderAnalysis {
-                RawHeaders = rawHeaders
-            };
-            if (string.IsNullOrWhiteSpace(rawHeaders)) {
-                return analysis;
-            }
-
-            foreach (var line in rawHeaders.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)) {
-                ct.ThrowIfCancellationRequested();
-                var idx = line.IndexOf(':');
-                if (idx <= 0) {
-                    continue;
-                }
-
-                var key = line.Substring(0, idx).Trim();
-                var value = line.Substring(idx + 1).Trim();
-                analysis.Headers[key] = value;
-            }
-
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse(rawHeaders, _logger);
             return analysis;
         }
 
