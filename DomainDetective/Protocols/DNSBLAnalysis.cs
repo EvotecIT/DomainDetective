@@ -69,16 +69,13 @@ namespace DomainDetective {
         internal DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>
-        /// Gets the DNSBL lists.
-        /// TODO: Move this to a configuration file?
-        /// TODO: Add a method to add custom DNSBL lists.
-        /// TODO: Add a method to remove DNSBL lists.
-        /// TODO: Add a method to clear all DNSBL lists.
-        /// TODO: Add a method to load DNSBL lists from a file.
-        /// TODO: Define list as objects with information about the DNSBL list, and how to get off the list.
+        /// Gets the collection of configured DNSBL provider entries.
+        /// Use <see cref="AddDNSBL(string, bool, string)"/>, <see cref="RemoveDNSBL(string)"/>,
+        /// <see cref="ClearDNSBL()"/>, <see cref="LoadDNSBL(string, bool)"/> or
+        /// <see cref="LoadDnsblConfig(string, bool, bool)"/> to modify the list.
         /// </summary>
         /// <value>
-        /// The DNSBL lists.
+        /// The DNSBL provider entries.
         /// </value>
         internal List<DnsblEntry> DnsblEntries { get; } = new()
         {
