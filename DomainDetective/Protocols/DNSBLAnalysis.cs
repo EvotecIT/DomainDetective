@@ -432,8 +432,13 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
-            if (!DnsblEntries.Any(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl))) {
+            var entry = DnsblEntries.FirstOrDefault(e =>
+                StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl));
+            if (entry == null) {
                 DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
+            } else {
+                entry.Enabled = enabled;
+                entry.Comment = comment;
             }
         }
 
