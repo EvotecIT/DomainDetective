@@ -14,6 +14,8 @@ namespace DomainDetective {
         public string? RawHeaders { get; private set; }
         /// <summary>All parsed headers keyed by header name.</summary>
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Duplicate header values keyed by header name.</summary>
+        public Dictionary<string, List<string>> DuplicateHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>List of <c>Received</c> header values in order.</summary>
         public List<string> ReceivedChain { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
@@ -45,6 +47,7 @@ namespace DomainDetective {
         public void Parse(string rawHeaders, InternalLogger? logger = null) {
             RawHeaders = rawHeaders;
             Headers.Clear();
+            DuplicateHeaders.Clear();
             ReceivedChain.Clear();
             SpamHeaders.Clear();
             TotalTransitTime = null;
@@ -74,6 +77,13 @@ namespace DomainDetective {
                     message = MimeMessage.Load(asciiStream);
                 }
                 foreach (var header in message.Headers) {
+                    if (Headers.TryGetValue(header.Field, out var existing)) {
+                        if (!DuplicateHeaders.TryGetValue(header.Field, out var list)) {
+                            list = new List<string> { existing };
+                            DuplicateHeaders[header.Field] = list;
+                        }
+                        list.Add(header.Value);
+                    }
                     Headers[header.Field] = header.Value;
                     switch (header.Id) {
                         case HeaderId.Received:
