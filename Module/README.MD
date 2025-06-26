@@ -41,6 +41,10 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-SmtpTls -HostName "mail.example.com" -Port 587
   ```
+- `Test-Autodiscover` – checks SRV and CNAME records used by mail clients.
+  ```powershell
+  Test-Autodiscover -DomainName "example.com"
+  ```
 - `Test-MessageHeader` – parses raw email headers.
   ```powershell
   Get-Content './headers.txt' -Raw | Test-MessageHeader
