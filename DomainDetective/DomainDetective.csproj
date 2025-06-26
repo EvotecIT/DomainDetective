@@ -18,9 +18,6 @@
       <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Nager.PublicSuffix" Version="3.5.0" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="..\Data\public_suffix_list.dat">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

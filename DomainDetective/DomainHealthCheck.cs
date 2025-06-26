@@ -5,13 +5,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
-using Nager.PublicSuffix;
-using Nager.PublicSuffix.RuleProviders;
 using System.IO;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
-        private readonly IDomainParser _domainParser;
+        private readonly PublicSuffixList _publicSuffixList;
 
         /// <summary>
         /// Indicates whether the last verified domain is itself a public suffix.
@@ -19,12 +17,7 @@ namespace DomainDetective {
         public bool IsPublicSuffix { get; private set; }
 
         private void UpdateIsPublicSuffix(string domainName) {
-            try {
-                var info = _domainParser.Parse(domainName);
-                IsPublicSuffix = string.IsNullOrEmpty(info?.RegistrableDomain);
-            } catch {
-                IsPublicSuffix = false;
-            }
+            IsPublicSuffix = _publicSuffixList.IsPublicSuffix(domainName);
         }
         /// <summary>
         /// DNS server used when querying records.
@@ -216,9 +209,7 @@ namespace DomainDetective {
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
             var listPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat");
-            var ruleProvider = new LocalFileRuleProvider(listPath);
-            ruleProvider.BuildAsync().GetAwaiter().GetResult();
-            _domainParser = new DomainParser(ruleProvider);
+            _publicSuffixList = PublicSuffixList.Load(listPath);
 
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;
 
