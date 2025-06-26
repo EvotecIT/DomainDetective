@@ -91,14 +91,23 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var healthCheck = new DomainHealthCheck { MtaStsPolicyUrlOverride = prefix + ".well-known/mta-sts.txt" };
-                await healthCheck.Verify("example.com", [HealthCheckType.MTASTS]);
+                var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+                var analysis = new MTASTSAnalysis {
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                    DnsConfiguration = new DnsConfiguration()
+                };
 
-                Assert.True(healthCheck.MTASTSAnalysis.PolicyPresent);
-                Assert.True(healthCheck.MTASTSAnalysis.PolicyValid);
-                Assert.Equal("enforce", healthCheck.MTASTSAnalysis.Mode);
-                Assert.Single(healthCheck.MTASTSAnalysis.Mx);
-                Assert.Equal("mail.example.com", healthCheck.MTASTSAnalysis.Mx[0]);
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+                Assert.True(analysis.PolicyPresent);
+                Assert.True(analysis.PolicyValid);
+                Assert.True(analysis.DnsRecordPresent);
+                Assert.True(analysis.DnsRecordValid);
+                Assert.Equal("abc", analysis.PolicyId);
+                Assert.Equal("enforce", analysis.Mode);
+                Assert.Single(analysis.Mx);
+                Assert.Equal("mail.example.com", analysis.Mx[0]);
             } finally {
                 listener.Stop();
                 await serverTask;
