@@ -3,6 +3,8 @@ using Spectre.Console;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace DomainDetective.CLI;
@@ -29,6 +31,11 @@ internal class Program
         {
             ShowHelp();
             return 0;
+        }
+
+        if (args.Length > 0 && args[0].Equals("AnalyzeMessageHeader", StringComparison.OrdinalIgnoreCase))
+        {
+            return AnalyzeMessageHeader(args.Skip(1).ToArray());
         }
 
         if (args.Length == 0)
@@ -160,6 +167,51 @@ internal class Program
         }
     }
 
+    private static int AnalyzeMessageHeader(string[] args)
+    {
+        var outputJson = args.Contains("--json");
+        var fileArg = args.FirstOrDefault(a => a.StartsWith("--file="));
+        var textArg = args.FirstOrDefault(a => a.StartsWith("--header="));
+
+        string? headerText = null;
+
+        if (fileArg != null)
+        {
+            var path = fileArg.Substring("--file=".Length);
+            if (!File.Exists(path))
+            {
+                AnsiConsole.MarkupLine($"[red]File not found: {path}[/]");
+                return 1;
+            }
+            headerText = File.ReadAllText(path);
+        }
+        else if (textArg != null)
+        {
+            headerText = textArg.Substring("--header=".Length);
+        }
+
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            AnsiConsole.MarkupLine("[red]No header text provided.[/]");
+            return 1;
+        }
+
+        var hc = new DomainHealthCheck();
+        var result = hc.CheckMessageHeaders(headerText);
+
+        if (outputJson)
+        {
+            var json = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(json);
+        }
+        else
+        {
+            CliHelpers.ShowPropertiesTable("Message Header Analysis", result);
+        }
+
+        return 0;
+    }
+
     private static void ShowHelp()
     {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI[/]");
@@ -169,5 +221,6 @@ internal class Program
         Console.WriteLine("--summary         Show condensed summary");
         Console.WriteLine("--json            Output raw JSON");
         Console.WriteLine("--smime=FILE      Parse S/MIME certificate file and exit");
+        Console.WriteLine("AnalyzeMessageHeader [--file=PATH|--header=TEXT] [--json]");
     }
 }

@@ -109,6 +109,14 @@ through entering domain names, selecting checks and choosing between JSON output
 or a condensed summary. The wizard is built with **Spectre.Console** for a more
 pleasant terminal experience.
 
+### Analyze Message Headers
+
+Parse email headers from a file or raw string:
+
+```bash
+ddcli AnalyzeMessageHeader --file ./headers.txt --json
+```
+
 ### PowerShell Module
 
 Import the module and call any of the testing cmdlets:
