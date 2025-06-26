@@ -221,6 +221,10 @@ namespace DomainDetective {
                 DnsConfiguration = DnsConfiguration
             };
 
+            MTASTSAnalysis = new MTASTSAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
             _logger.WriteVerbose("DnsSelectionStrategy: {0}", DnsSelectionStrategy);
@@ -321,7 +325,8 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.MTASTS:
                         MTASTSAnalysis = new MTASTSAnalysis {
-                            PolicyUrlOverride = MtaStsPolicyUrlOverride
+                            PolicyUrlOverride = MtaStsPolicyUrlOverride,
+                            DnsConfiguration = DnsConfiguration
                         };
                         await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
                         break;
@@ -628,7 +633,8 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             MTASTSAnalysis = new MTASTSAnalysis {
-                PolicyUrlOverride = MtaStsPolicyUrlOverride
+                PolicyUrlOverride = MtaStsPolicyUrlOverride,
+                DnsConfiguration = DnsConfiguration
             };
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }

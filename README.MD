@@ -118,6 +118,14 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 Test-SpfRecord -DomainName "example.com"
 ```
 
+### MTA-STS
+
+`VerifyMTASTS` now validates the `_mta-sts.<domain>` TXT record before downloading
+the policy file. If the DNS record is missing or does not contain both `v=STSv1`
+and a valid `id` value, the analysis fails. The parsed identifier is exposed via
+`PolicyId` and the properties `DnsRecordPresent` and `DnsRecordValid` reflect the
+DNS state.
+
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
 
