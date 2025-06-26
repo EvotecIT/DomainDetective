@@ -2,6 +2,15 @@ namespace DomainDetective {
     /// <summary>
     ///     Represents condensed results of domain health checks.
     /// </summary>
+    /// <example>
+    ///   <summary>Inspect WHOIS expiration details.</summary>
+    ///   <code>
+    ///   var health = new DomainHealthCheck();
+    ///   await health.Verify("example.com");
+    ///   var summary = health.BuildSummary();
+    ///   Console.WriteLine(summary.ExpiryDate);
+    ///   </code>
+    /// </example>
     public class DomainSummary {
         /// <summary>Indicates whether the domain has an SPF record.</summary>
         public bool HasSpfRecord { get; init; }
@@ -29,5 +38,17 @@ namespace DomainDetective {
 
         /// <summary>True when DNSSEC validation succeeded.</summary>
         public bool DnsSecValid { get; init; }
+
+        /// <summary>Expiration date reported by WHOIS.</summary>
+        public string ExpiryDate { get; init; }
+
+        /// <summary>True when the domain expires soon.</summary>
+        public bool ExpiresSoon { get; init; }
+
+        /// <summary>True when the domain is past its expiration date.</summary>
+        public bool IsExpired { get; init; }
+
+        /// <summary>True when registrar lock is enabled.</summary>
+        public bool RegistrarLocked { get; init; }
     }
 }

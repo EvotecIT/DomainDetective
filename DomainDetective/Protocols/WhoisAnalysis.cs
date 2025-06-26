@@ -42,6 +42,8 @@ public class WhoisAnalysis {
     public string WhoisData { get; set; }
     public bool ExpiresSoon { get; private set; }
     public bool IsExpired { get; private set; }
+    public bool RegistrarLocked { get; private set; }
+    public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
 
     private static readonly InternalLogger _logger = new();
 
@@ -399,6 +401,7 @@ public class WhoisAnalysis {
             ParseWhoisDataDefault();
         }
         UpdateExpiryFlags();
+        UpdateRegistrarLock();
     }
 
     private void ParseWhoisDataCOUK() {
@@ -824,7 +827,20 @@ public class WhoisAnalysis {
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
                 out var expiry)) {
             IsExpired = expiry <= DateTime.UtcNow;
-            ExpiresSoon = !IsExpired && expiry <= DateTime.UtcNow.AddDays(30);
+            ExpiresSoon = !IsExpired &&
+                expiry <= DateTime.UtcNow + ExpirationWarningThreshold;
+        }
+    }
+
+    private void UpdateRegistrarLock() {
+        RegistrarLocked = false;
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmed = line.Trim();
+            if (trimmed.IndexOf("transferprohibited", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                trimmed.IndexOf("status: locked", StringComparison.OrdinalIgnoreCase) >= 0) {
+                RegistrarLocked = true;
+                break;
+            }
         }
     }
 
