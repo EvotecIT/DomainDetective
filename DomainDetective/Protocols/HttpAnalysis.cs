@@ -26,6 +26,10 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets the max-age value from the Expect-CT header.</summary>
+        public int? ExpectCtMaxAge { get; private set; }
+        /// <summary>Gets the report-uri value from the Expect-CT header.</summary>
+        public string? ExpectCtReportUri { get; private set; }
         /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
         [Obsolete("Public-Key-Pins header is deprecated.")]
         public bool PublicKeyPinsPresent { get; private set; }
@@ -98,6 +102,8 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            ExpectCtMaxAge = null;
+            ExpectCtReportUri = null;
             PublicKeyPinsPresent = false;
             CspUnsafeDirectives = false;
             HstsMaxAge = null;
@@ -145,8 +151,12 @@ namespace DomainDetective {
 #endif
                 }
                 string? hstsHeader = null;
+                string? expectCtHeader = null;
                 if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
                     hstsHeader = string.Join(",", hstsValues);
+                }
+                if (response.Headers.TryGetValues("Expect-CT", out var expectCtValues)) {
+                    expectCtHeader = string.Join(",", expectCtValues);
                 }
                 if (checkHsts) {
                     HstsPresent = hstsHeader != null;
@@ -172,9 +182,15 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp);
                     }
+                    if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
+                        ParseExpectCt(ect);
+                    }
                 }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
+                }
+                if (expectCtHeader != null && !collectHeaders) {
+                    ParseExpectCt(expectCtHeader);
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
@@ -240,6 +256,30 @@ namespace DomainDetective {
                     trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
                     CspUnsafeDirectives = true;
                     break;
+                }
+            }
+        }
+
+        private void ParseExpectCt(string headerValue) {
+            ExpectCtMaxAge = null;
+            ExpectCtReportUri = null;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(',');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        ExpectCtMaxAge = ma;
+                    }
+                } else if (trimmed.StartsWith("report-uri=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(11).Trim('"');
+                    if (!string.IsNullOrEmpty(value)) {
+                        ExpectCtReportUri = value;
+                    }
                 }
             }
         }
