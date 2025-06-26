@@ -111,7 +111,12 @@ namespace DomainDetective {
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
                                 using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, errors) => errors == SslPolicyErrors.None);
+#if NET5_0_OR_GREATER
+                                var authOptions = new SslClientAuthenticationOptions { TargetHost = uri.Host };
+                                await ssl.AuthenticateAsClientAsync(authOptions, timeoutCts.Token);
+#else
                                 await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
+#endif
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                                     var xchain = new X509Chain();
