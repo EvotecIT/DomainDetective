@@ -457,7 +457,8 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="dnsbl">Blacklist host name.</param>
         public void RemoveDNSBL(string dnsbl) {
-            var entry = DnsblEntries.FirstOrDefault(e => e.Domain == dnsbl);
+            var entry = DnsblEntries.FirstOrDefault(e =>
+                string.Equals(e.Domain, dnsbl, StringComparison.OrdinalIgnoreCase));
             if (entry != null) {
                 DnsblEntries.Remove(entry);
             }
