@@ -62,9 +62,17 @@ namespace DomainDetective {
             }
 
             try {
-                var bytes = Encoding.ASCII.GetBytes(rawHeaders + "\r\n");
-                using var stream = new MemoryStream(bytes);
-                var message = MimeMessage.Load(stream);
+                var utf8Bytes = Encoding.UTF8.GetBytes(rawHeaders + "\r\n");
+                using var utf8Stream = new MemoryStream(utf8Bytes);
+                MimeMessage message;
+                try {
+                    message = MimeMessage.Load(utf8Stream);
+                } catch (FormatException) {
+                    utf8Stream.Dispose();
+                    var asciiBytes = Encoding.ASCII.GetBytes(rawHeaders + "\r\n");
+                    using var asciiStream = new MemoryStream(asciiBytes);
+                    message = MimeMessage.Load(asciiStream);
+                }
                 foreach (var header in message.Headers) {
                     Headers[header.Field] = header.Value;
                     switch (header.Id) {
