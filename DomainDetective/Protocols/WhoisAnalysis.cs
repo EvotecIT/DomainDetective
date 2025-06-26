@@ -287,18 +287,20 @@ public class WhoisAnalysis {
 
     private string GetWhoisServer(string domain) {
         var domainParts = domain.Split('.');
-        var tld = string.Join(".", domainParts.Skip(1)); // Get the entire TLD
+        var tld = string.Join(".", domainParts.Skip(1));
         TLD = tld;
 
-        // Check for two-part TLDs first
-        if (WhoisServers.ContainsKey(tld)) {
-            return WhoisServers[tld];
+        lock (_whoisServersLock) {
+            if (WhoisServers.TryGetValue(tld, out var server)) {
+                return server;
+            }
         }
 
-        // If not found, check for single-part TLDs
         tld = domainParts.Last();
         TLD = tld;
-        return WhoisServers.ContainsKey(tld) ? WhoisServers[tld] : null;
+        lock (_whoisServersLock) {
+            return WhoisServers.TryGetValue(tld, out var server) ? server : null;
+        }
     }
 
     public async Task QueryWhoisServer(string domain, CancellationToken cancellationToken = default) {
