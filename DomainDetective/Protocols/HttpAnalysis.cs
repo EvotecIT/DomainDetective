@@ -37,7 +37,7 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the Content-Security-Policy contains unsafe directives.</summary>
         public bool CspUnsafeDirectives { get; private set; }
         /// <summary>Gets a collection of detected security headers.</summary>
-        public Dictionary<string, string> SecurityHeaders { get; } = new();
+        public Dictionary<string, SecurityHeader> SecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a collection of security headers that were not present.</summary>
         public HashSet<string> MissingSecurityHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
@@ -174,13 +174,14 @@ namespace DomainDetective {
                     foreach (var headerName in _securityHeaderNames) {
                         if (response.Headers.TryGetValues(headerName, out var values) ||
                             response.Content.Headers.TryGetValues(headerName, out values)) {
-                            SecurityHeaders[headerName] = string.Join(",", values);
+                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
                         } else {
                             MissingSecurityHeaders.Add(headerName);
                         }
                     }
-                    if (!HstsPresent) {
-                        HstsPresent = SecurityHeaders.TryGetValue("Strict-Transport-Security", out hstsHeader);
+                    if (!HstsPresent && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
+                        HstsPresent = true;
+                        hstsHeader = hsts.Value;
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
@@ -189,10 +190,10 @@ namespace DomainDetective {
                         logger?.WriteWarning("Public-Key-Pins header is deprecated and should not be used.");
                     }
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
-                        ParseContentSecurityPolicy(csp);
+                        ParseContentSecurityPolicy(csp.Value);
                     }
                     if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
-                        ParseExpectCt(ect);
+                        ParseExpectCt(ect.Value);
                     }
                 }
                 if (hstsHeader != null) {
