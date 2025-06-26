@@ -1,4 +1,5 @@
 using DomainDetective;
+using DnsClientX;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
@@ -102,6 +103,68 @@ namespace DomainDetective.Tests {
                 listener.Stop();
                 await serverTask;
             }
+        }
+
+        [Fact]
+        public async Task ParseDnsRecord() {
+            const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=123" , Type = DnsRecordType.TXT } };
+            using var listener = new HttpListener();
+            var port = GetFreePort();
+            var prefix = $"http://localhost:{port}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                var data = Encoding.UTF8.GetBytes(policy);
+                ctx.Response.StatusCode = 200;
+                await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new MTASTSAnalysis {
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                    DnsConfiguration = new DnsConfiguration()
+                };
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+                Assert.True(analysis.DnsRecordPresent);
+                Assert.True(analysis.DnsRecordValid);
+                Assert.Equal("123", analysis.PolicyId);
+                Assert.True(analysis.PolicyValid);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task MissingDnsRecordFails() {
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>()),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.False(analysis.DnsRecordPresent);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task MalformedDnsRecordFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
         }
 
         private static int GetFreePort() {
