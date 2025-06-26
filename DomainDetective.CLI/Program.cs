@@ -8,6 +8,9 @@ using System.Text.Json;
 
 namespace DomainDetective.CLI;
 
+/// <summary>
+/// Entry point and command handling for the DomainDetective CLI.
+/// </summary>
 internal class Program
 {
     private static readonly Dictionary<string, HealthCheckType> _options = new()
@@ -24,6 +27,9 @@ internal class Program
         ["contact"] = HealthCheckType.CONTACT
     };
 
+    /// <summary>
+    /// Application entry point.
+    /// </summary>
     private static async Task<int> Main(string[] args)
     {
         var root = new RootCommand("DomainDetective CLI");
@@ -99,6 +105,9 @@ internal class Program
         return await config.InvokeAsync(args);
     }
 
+    /// <summary>
+    /// Analyzes an email message header and prints the results.
+    /// </summary>
     private static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json)
     {
         string? headerText = null;
@@ -136,6 +145,9 @@ internal class Program
         }
     }
 
+    /// <summary>
+    /// Interactive wizard to collect parameters from the user.
+    /// </summary>
     private static async Task<int> RunWizard()
     {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
@@ -162,6 +174,9 @@ internal class Program
         return 0;
     }
 
+    /// <summary>
+    /// Runs the selected health checks for the provided domains.
+    /// </summary>
     private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly)
     {
         foreach (var domain in domains)
