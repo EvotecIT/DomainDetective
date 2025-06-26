@@ -53,6 +53,14 @@ namespace DomainDetective {
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
+#if NET6_0_OR_GREATER
+        /// <summary>Gets or sets the HTTP version used for requests.</summary>
+        public Version RequestVersion { get; set; } = HttpVersion.Version30;
+#else
+        /// <summary>Gets or sets the HTTP version used for requests.</summary>
+        public Version RequestVersion { get; set; } = HttpVersion.Version11;
+#endif
+
         private static readonly List<string> _securityHeaderNames = new() {
             "Content-Security-Policy",
             "X-Content-Type-Options",
@@ -86,8 +94,7 @@ namespace DomainDetective {
         /// <param name="captureBody">Whether to capture the response body.</param>
         public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false) {
 #if NET6_0_OR_GREATER
-            var requestVersion = HttpVersion.Version30;
-            var manualRedirect = requestVersion >= HttpVersion.Version30;
+            var manualRedirect = RequestVersion >= HttpVersion.Version30;
             using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
 #else
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
@@ -112,7 +119,7 @@ namespace DomainDetective {
                 var redirects = 0;
                 while (true) {
                     var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
-                        Version = requestVersion,
+                        Version = RequestVersion,
                         VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                     };
                     response?.Dispose();
