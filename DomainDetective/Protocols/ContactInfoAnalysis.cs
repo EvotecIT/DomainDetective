@@ -5,11 +5,17 @@ using System.Threading.Tasks;
 
 namespace DomainDetective;
 
+/// <summary>
+/// Parses and validates contact TXT records.
+/// </summary>
 public class ContactInfoAnalysis {
     public string? ContactRecord { get; private set; }
     public bool RecordExists { get; private set; }
     public Dictionary<string, string> Fields { get; } = new();
 
+    /// <summary>
+    /// Processes TXT records to extract contact information.
+    /// </summary>
     public async Task AnalyzeContactRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
         await Task.Yield();
 

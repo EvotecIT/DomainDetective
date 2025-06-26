@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides utilities for working with the public suffix list.
+    /// </summary>
     internal class PublicSuffixList {
         private readonly HashSet<string> _exactRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _wildcardRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -10,6 +13,9 @@ namespace DomainDetective {
 
         private PublicSuffixList() { }
 
+        /// <summary>
+        /// Loads the public suffix list from the specified file.
+        /// </summary>
         public static PublicSuffixList Load(string filePath) {
             var list = new PublicSuffixList();
             if (!File.Exists(filePath)) {
@@ -34,6 +40,9 @@ namespace DomainDetective {
             return list;
         }
 
+        /// <summary>
+        /// Determines whether the provided domain is a public suffix.
+        /// </summary>
         public bool IsPublicSuffix(string domain) {
             if (string.IsNullOrWhiteSpace(domain)) {
                 return false;

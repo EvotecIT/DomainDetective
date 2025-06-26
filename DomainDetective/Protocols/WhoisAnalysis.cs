@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 
 namespace DomainDetective;
 
+/// <summary>
+/// Queries WHOIS servers and parses registration details.
+/// </summary>
 public class WhoisAnalysis {
     private string TLD { get; set; }
     private string _domainName;
@@ -301,6 +304,9 @@ public class WhoisAnalysis {
         return WhoisServers.ContainsKey(tld) ? WhoisServers[tld] : null;
     }
 
+    /// <summary>
+    /// Queries a single WHOIS server for the specified domain.
+    /// </summary>
     public async Task QueryWhoisServer(string domain, CancellationToken cancellationToken = default) {
         DomainName = domain;
         if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
@@ -352,6 +358,9 @@ public class WhoisAnalysis {
         }
     }
 
+    /// <summary>
+    /// Queries WHOIS servers for multiple domains in parallel.
+    /// </summary>
     public async Task<List<WhoisAnalysis>> QueryWhoisServers(string[] domains, CancellationToken cancellationToken = default) {
         var tasks = domains.Select(async domain => {
             var analysis = new WhoisAnalysis { Timeout = Timeout };
