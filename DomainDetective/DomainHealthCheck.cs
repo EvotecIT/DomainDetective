@@ -73,6 +73,12 @@ namespace DomainDetective {
         public MXAnalysis MXAnalysis { get; private set; }
 
         /// <summary>
+        /// Gets the reverse DNS analysis for MX hosts.
+        /// </summary>
+        /// <value>PTR lookup results for mail exchangers.</value>
+        public ReverseDnsAnalysis ReverseDnsAnalysis { get; private set; } = new ReverseDnsAnalysis();
+
+        /// <summary>
         /// Gets the CAA analysis.
         /// </summary>
         /// <value>Certificate authority authorization results.</value>
@@ -228,6 +234,8 @@ namespace DomainDetective {
                 DnsConfiguration = DnsConfiguration
             };
 
+            ReverseDnsAnalysis.DnsConfiguration = DnsConfiguration;
+
             NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
@@ -323,6 +331,11 @@ namespace DomainDetective {
                     case HealthCheckType.MX:
                         var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         await MXAnalysis.AnalyzeMxRecords(mx, _logger);
+                        break;
+                    case HealthCheckType.REVERSEDNS:
+                        var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var rdnsHosts = mxRecords.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
                         break;
                     case HealthCheckType.CAA:
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
@@ -997,6 +1010,7 @@ namespace DomainDetective {
             filtered.SpfAnalysis = active.Contains(HealthCheckType.SPF) ? CloneAnalysis(SpfAnalysis) : null;
             filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
+            filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
             filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
             filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;

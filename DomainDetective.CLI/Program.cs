@@ -24,6 +24,7 @@ internal class Program
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
+        ["rdns"] = HealthCheckType.REVERSEDNS,
         ["contact"] = HealthCheckType.CONTACT
     };
 
@@ -210,6 +211,7 @@ internal class Program
                     HealthCheckType.SPF => hc.SpfAnalysis,
                     HealthCheckType.DKIM => hc.DKIMAnalysis,
                     HealthCheckType.MX => hc.MXAnalysis,
+                    HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
                     HealthCheckType.DANE => hc.DaneAnalysis,
