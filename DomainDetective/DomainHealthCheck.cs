@@ -527,9 +527,10 @@ namespace DomainDetective {
         /// Tests an SMTP server for open relay configuration.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await OpenRelayAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -537,9 +538,10 @@ namespace DomainDetective {
         /// Checks a host for STARTTLS support.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -547,9 +549,10 @@ namespace DomainDetective {
         /// Checks a host for SMTP TLS capabilities.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -643,12 +646,13 @@ namespace DomainDetective {
         /// Checks all MX hosts for STARTTLS support.
         /// </summary>
         /// <param name="domainName">Domain whose MX records are queried.</param>
-        /// <param name="port">SMTP port to connect to.</param>
+        /// <param name="port">SMTP port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task VerifySTARTTLS(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            ValidatePort(port);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
@@ -823,9 +827,10 @@ namespace DomainDetective {
         /// Verifies the certificate for a website. If no scheme is provided in <paramref name="url"/>, "https://" is assumed.
         /// </summary>
         /// <param name="url">Website address. If missing a scheme, "https://" will be prepended.</param>
-        /// <param name="port">Port to use for the connection.</param>
+        /// <param name="port">Port to use for the connection. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         public async Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
                 url = $"https://{url}";
@@ -923,6 +928,12 @@ namespace DomainDetective {
         public string ToJson(JsonSerializerOptions options = null) {
             options ??= new JsonSerializerOptions { WriteIndented = true };
             return JsonSerializer.Serialize(this, options);
+        }
+
+        private static void ValidatePort(int port) {
+            if (port <= 0 || port > 65535) {
+                throw new ArgumentOutOfRangeException(nameof(port), "Port must be between 1 and 65535.");
+            }
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>
