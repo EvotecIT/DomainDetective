@@ -674,11 +674,8 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-<<<<<<< integrate-domaindetective-with-public-suffix-list -- Incoming Change
             UpdateIsPublicSuffix(domainName);
-=======
             ValidatePort(port);
->>>>>>> master -- Current Change
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
@@ -883,12 +880,8 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-<<<<<<< integrate-domaindetective-with-public-suffix-list -- Incoming Change
             UpdateIsPublicSuffix(domainName);
-            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger);
-=======
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
->>>>>>> master -- Current Change
         }
 
         /// <summary>
@@ -958,7 +951,7 @@ namespace DomainDetective {
                 DnsSecValid = DNSSecAnalysis?.ChainValid ?? false
             };
         }
-          
+
         /// <summary>Serializes this instance to a JSON string.</summary>
         /// <param name="options">
         /// <para>Optional serializer options. If not provided,</para>
