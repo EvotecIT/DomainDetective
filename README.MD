@@ -21,6 +21,7 @@ Current capabilities include:
 - [x] Verify SMTP TLS
 - [x] Verify TLS-RPT
 - [x] Verify BIMI
+- [x] Verify Autodiscover
 - [x] Verify Website Connectivity
   - [x] Verify HTTP/2
   - [x] Verify HTTP/3
@@ -101,6 +102,10 @@ all analysis details in JSON format:
 ```bash
 dotnet run --project DomainDetective.Example example.com --json
 ```
+To verify Autodiscover records only:
+```bash
+ddcli example.com --checks autodiscover
+```
 
 ### Interactive CLI Wizard
 
@@ -124,6 +129,7 @@ Import the module and call any of the testing cmdlets:
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
 Test-SpfRecord -DomainName "example.com"
+Test-Autodiscover -DomainName "example.com"
 ```
 
 ### MTA-STS

@@ -24,6 +24,7 @@ internal class Program
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
         ["contact"] = HealthCheckType.CONTACT
     };
 
@@ -215,6 +216,7 @@ internal class Program
                     HealthCheckType.DANE => hc.DaneAnalysis,
                     HealthCheckType.DNSBL => hc.DNSBLAnalysis,
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
+                    HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     _ => null
                 };
