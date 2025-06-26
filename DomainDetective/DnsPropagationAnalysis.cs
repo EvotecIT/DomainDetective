@@ -262,7 +262,7 @@ namespace DomainDetective {
                             ? ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                                 ? ip.ToString().ToLowerInvariant()
                                 : ip.ToString()
-                            : r)
+                            : r.ToLowerInvariant())
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
                 if (!comparison.TryGetValue(key, out var list)) {
