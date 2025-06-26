@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using DnsClientX;
 
 namespace DomainDetective.Tests {
@@ -167,6 +169,29 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeDmarcRecords(answers, new InternalLogger());
 
             Assert.True(analysis.MultipleRecords);
+        }
+
+        [Fact]
+        public async Task AlignmentStrictVsRelaxed() {
+            string GetOrg(string domain) => string.Join('.', domain.Split('.').TakeLast(2));
+
+            var strictRecord = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=reject; adkim=s; aspf=s", Type = DnsRecordType.TXT }
+            };
+            var analysisStrict = new DmarcAnalysis();
+            await analysisStrict.AnalyzeDmarcRecords(strictRecord, new InternalLogger());
+            analysisStrict.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", GetOrg);
+            Assert.False(analysisStrict.SpfAligned);
+            Assert.False(analysisStrict.DkimAligned);
+
+            var relaxedRecord = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=reject; adkim=r; aspf=r", Type = DnsRecordType.TXT }
+            };
+            var analysisRelaxed = new DmarcAnalysis();
+            await analysisRelaxed.AnalyzeDmarcRecords(relaxedRecord, new InternalLogger());
+            analysisRelaxed.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", GetOrg);
+            Assert.True(analysisRelaxed.SpfAligned);
+            Assert.True(analysisRelaxed.DkimAligned);
         }
     }
 }
