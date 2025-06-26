@@ -17,4 +17,9 @@
   <ItemGroup>
       <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Data\public_suffix_list.dat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
