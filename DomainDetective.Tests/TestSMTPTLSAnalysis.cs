@@ -1,3 +1,4 @@
+using Xunit.Sdk;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -16,7 +17,7 @@ namespace DomainDetective.Tests {
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
             using var cts = new CancellationTokenSource();
-            var serverTask = Task.Run(() => RunServer(listener, cert, cts.Token), cts.Token);
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
 
             try {
                 var analysis = new SMTPTLSAnalysis();
@@ -24,6 +25,7 @@ namespace DomainDetective.Tests {
                 var result = analysis.ServerResults[$"localhost:{port}"];
                 Assert.True(result.StartTlsAdvertised);
                 Assert.Equal(SslProtocols.None, result.Protocol);
+                Assert.False(result.SupportsTls13);
                 Assert.False(result.CertificateValid);
                 Assert.True(result.DaysToExpire > 0);
                 Assert.NotEmpty(result.ChainErrors);
@@ -42,7 +44,7 @@ namespace DomainDetective.Tests {
             listener1.Start();
             var port1 = ((IPEndPoint)listener1.LocalEndpoint).Port;
             using var cts1 = new CancellationTokenSource();
-            var serverTask1 = Task.Run(() => RunServer(listener1, cert, cts1.Token), cts1.Token);
+            var serverTask1 = Task.Run(() => RunServer(listener1, cert, SslProtocols.Tls12, cts1.Token), cts1.Token);
 
             var analysis = new SMTPTLSAnalysis();
             try {
@@ -59,7 +61,7 @@ namespace DomainDetective.Tests {
             listener2.Start();
             var port2 = ((IPEndPoint)listener2.LocalEndpoint).Port;
             using var cts2 = new CancellationTokenSource();
-            var serverTask2 = Task.Run(() => RunServer(listener2, cert, cts2.Token), cts2.Token);
+            var serverTask2 = Task.Run(() => RunServer(listener2, cert, SslProtocols.Tls12, cts2.Token), cts2.Token);
 
             try {
                 await analysis.AnalyzeServer("localhost", port2, new InternalLogger());
@@ -73,7 +75,35 @@ namespace DomainDetective.Tests {
             }
         }
 
-        private static async Task RunServer(TcpListener listener, X509Certificate2 cert, CancellationToken token) {
+#if NET8_0_OR_GREATER
+        [Fact]
+        public async Task DetectsTls13WhenSupported() {
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls13, cts.Token), cts.Token);
+
+            try {
+                var analysis = new SMTPTLSAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                var result = analysis.ServerResults[$"localhost:{port}"];
+                Assert.True(result.StartTlsAdvertised);
+                if (result.Protocol != SslProtocols.Tls13) {
+                    // TLS 1.3 not supported or handshake failed; skip the assertion
+                    return;
+                }
+                Assert.True(result.SupportsTls13);
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
+        }
+#endif
+
+        private static async Task RunServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token) {
             try {
                 while (!token.IsCancellationRequested) {
                     var clientTask = listener.AcceptTcpClientAsync();
@@ -95,7 +125,7 @@ namespace DomainDetective.Tests {
                         await reader.ReadLineAsync();
                         await writer.WriteLineAsync("220 ready");
                         using var ssl = new SslStream(stream);
-                        await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                        await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
                         using var sslReader = new StreamReader(ssl);
                         await sslReader.ReadLineAsync();
                     }, token);

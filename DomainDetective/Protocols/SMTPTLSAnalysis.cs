@@ -15,6 +15,7 @@ namespace DomainDetective {
             public bool CertificateValid { get; set; }
             public int DaysToExpire { get; set; }
             public SslProtocols Protocol { get; set; }
+            public bool SupportsTls13 { get; set; }
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
             public List<X509Certificate2> Chain { get; } = new();
@@ -109,12 +110,16 @@ namespace DomainDetective {
                                     }
                                 }
                             }
-                            return result.CertificateValid;
+                            return true;
                         });
 
                         try {
+#if NET8_0_OR_GREATER
+                            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
+                                .WaitWithCancellation(timeoutCts.Token);
+#else
                             await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-                            result.Protocol = ssl.SslProtocol;
+#endif
                             result.CipherAlgorithm = ssl.CipherAlgorithm;
                             result.CipherStrength = ssl.CipherStrength;
 
@@ -122,6 +127,13 @@ namespace DomainDetective {
                             await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
                         } catch (AuthenticationException ex) {
                             logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+                        } finally {
+                            result.Protocol = ssl.SslProtocol;
+#if NET8_0_OR_GREATER
+                            result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
+#else
+                            result.SupportsTls13 = (int)result.Protocol == 12288;
+#endif
                         }
                     }
                 }
