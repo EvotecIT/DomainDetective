@@ -157,7 +157,11 @@ internal class Program
                 };
                 if (data != null)
                 {
-                    CliHelpers.ShowPropertiesTable($"{check} for {domain}", data);
+                    var desc = DomainHealthCheck.GetCheckDescription(check);
+                    var header = desc != null
+                        ? $"{check} for {domain} - {desc.Summary}"
+                        : $"{check} for {domain}";
+                    CliHelpers.ShowPropertiesTable(header, data);
                 }
             }
             if (checkHttp)
