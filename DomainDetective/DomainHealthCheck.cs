@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
+using System.Text;
 using System.Text.Json;
 
 namespace DomainDetective {
@@ -922,7 +924,11 @@ namespace DomainDetective {
         /// </returns>
         public string ToJson(JsonSerializerOptions options = null) {
             options ??= new JsonSerializerOptions { WriteIndented = true };
-            return JsonSerializer.Serialize(this, options);
+            using MemoryStream stream = new MemoryStream();
+            using Utf8JsonWriter writer = new Utf8JsonWriter(stream);
+            JsonSerializer.Serialize(writer, this, options);
+            writer.Flush();
+            return Encoding.UTF8.GetString(stream.ToArray());
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>
