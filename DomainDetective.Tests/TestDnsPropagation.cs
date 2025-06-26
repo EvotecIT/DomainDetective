@@ -110,6 +110,27 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void CompareResultsGroupsTextRecordsCaseInsensitive() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    Records = new[] { "Example" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    Records = new[] { "example" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Single(groups);
+            Assert.Equal(2, groups.First().Value.Count);
+            Assert.Equal("example", groups.Keys.First());
+        }
+
+        [Fact]
         public void CompareResultsIgnoresNullRecords() {
             var results = new[] {
                 new DnsPropagationResult {
