@@ -32,6 +32,10 @@ public static class CheckDescriptions {
                 "Verify NS records.",
                 null,
                 "Publish authoritative name servers."),
+            [HealthCheckType.ZONETRANSFER] = new(
+                "Attempt a zone transfer.",
+                null,
+                "Restrict AXFR to authenticated clients."),
             [HealthCheckType.DANE] = new(
                 "Validate DANE information.",
                 "https://datatracker.ietf.org/doc/html/rfc6698",

@@ -139,6 +139,12 @@ namespace DomainDetective {
         public WhoisAnalysis WhoisAnalysis { get; private set; } = new WhoisAnalysis();
 
         /// <summary>
+        /// Gets the zone transfer analysis.
+        /// </summary>
+        /// <value>AXFR test results per name server.</value>
+        public ZoneTransferAnalysis ZoneTransferAnalysis { get; private set; } = new ZoneTransferAnalysis();
+
+        /// <summary>
         /// Gets the open relay analysis.
         /// </summary>
         /// <value>SMTP relay test results.</value>
@@ -231,6 +237,8 @@ namespace DomainDetective {
             NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
+
+            ZoneTransferAnalysis = new ZoneTransferAnalysis();
 
             DNSBLAnalysis = new DNSBLAnalysis() {
                 DnsConfiguration = DnsConfiguration
@@ -331,6 +339,11 @@ namespace DomainDetective {
                     case HealthCheckType.NS:
                         var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
                         await NSAnalysis.AnalyzeNsRecords(ns, _logger);
+                        break;
+                    case HealthCheckType.ZONETRANSFER:
+                        var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+                        var servers = nsRecords.Select(r => r.Data.Trim('.'));
+                        await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
                         break;
                     case HealthCheckType.DANE:
                         await VerifyDANE(domainName, daneServiceType, cancellationToken);
@@ -742,6 +755,21 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Attempts zone transfers against authoritative name servers.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyZoneTransfer(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            var servers = nsRecords.Select(r => r.Data.Trim('.'));
+            await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Queries TLSA records for specific ports on a domain.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
@@ -999,6 +1027,7 @@ namespace DomainDetective {
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
             filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
+            filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null;
             filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;
             filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null;
             filtered.DNSSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DNSSecAnalysis) : null;
