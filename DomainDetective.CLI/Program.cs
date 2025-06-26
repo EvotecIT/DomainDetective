@@ -1,9 +1,10 @@
 using DomainDetective;
 using Spectre.Console;
-using System;
-using System.Collections.Generic;
+using System.CommandLine;
+using System.CommandLine.Invocation;
+using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace DomainDetective.CLI;
 
@@ -25,68 +26,123 @@ internal class Program
 
     private static async Task<int> Main(string[] args)
     {
-        if (args.Contains("--help") || args.Contains("-h"))
+        var root = new RootCommand("DomainDetective CLI");
+        var domainsArg = new Argument<string[]>("domains") { Arity = ArgumentArity.ZeroOrMore };
+        var checksOption = new Option<string[]>("--checks", "Comma separated list of checks")
         {
-            ShowHelp();
-            return 0;
-        }
+            Arity = ArgumentArity.ZeroOrMore
+        };
+        var checkHttpOption = new Option<bool>("--check-http", "Perform plain HTTP check");
+        var summaryOption = new Option<bool>("--summary", "Show condensed summary");
+        var jsonOption = new Option<bool>("--json", "Output raw JSON");
+        var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
+        root.Add(domainsArg);
+        root.Add(checksOption);
+        root.Add(checkHttpOption);
+        root.Add(summaryOption);
+        root.Add(jsonOption);
+        root.Add(smimeOption);
 
-        if (args.Length == 0)
+        var analyze = new Command("AnalyzeMessageHeader", "Analyze message header");
+        var fileOpt = new Option<FileInfo?>("--file", "Header file");
+        var headerOpt = new Option<string?>("--header", "Header text");
+        var analyzeJson = new Option<bool>("--json", "Output raw JSON");
+        analyze.Add(fileOpt);
+        analyze.Add(headerOpt);
+        analyze.Add(analyzeJson);
+        analyze.SetAction(result =>
         {
-            return await RunWizard();
-        }
+            var file = result.GetValue(fileOpt);
+            var header = result.GetValue(headerOpt);
+            var json = result.GetValue(analyzeJson);
+            AnalyzeMessageHeader(file, header, json);
+        });
+        root.Add(analyze);
 
-        var smimePath = args.FirstOrDefault(a => a.StartsWith("--smime="));
-        if (smimePath != null)
+        root.SetAction(async result =>
         {
-            var file = smimePath.Substring("--smime=".Length);
-            var smime = new SmimeCertificateAnalysis();
-            smime.AnalyzeFile(file);
-            CliHelpers.ShowPropertiesTable($"S/MIME certificate {file}", smime);
-            return 0;
-        }
+            var domains = result.GetValue(domainsArg);
+            var checks = result.GetValue(checksOption) ?? Array.Empty<string>();
+            var checkHttp = result.GetValue(checkHttpOption);
+            var summary = result.GetValue(summaryOption);
+            var json = result.GetValue(jsonOption);
+            var smime = result.GetValue(smimeOption);
 
-        var outputJson = args.Contains("--json");
-        var summaryOnly = args.Contains("--summary");
-        var checkHttp = args.Contains("--check-http");
-
-        var checksOption = args.FirstOrDefault(a => a.StartsWith("--checks="));
-        var selectedChecks = new List<HealthCheckType>();
-        if (checksOption != null)
-        {
-            var parts = checksOption.Substring("--checks=".Length)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var part in parts)
+            if (smime != null)
             {
-                if (_options.TryGetValue(part.ToLowerInvariant(), out var type))
+                var smimeAnalysis = new SmimeCertificateAnalysis();
+                smimeAnalysis.AnalyzeFile(smime.FullName);
+                CliHelpers.ShowPropertiesTable($"S/MIME certificate {smime.FullName}", smimeAnalysis);
+                return;
+            }
+
+            if (domains.Length == 0)
+            {
+                await RunWizard();
+                return;
+            }
+
+            var selected = new List<HealthCheckType>();
+            foreach (var check in checks.SelectMany(c => c.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
+            {
+                if (_options.TryGetValue(check.ToLowerInvariant(), out var type))
                 {
-                    selectedChecks.Add(type);
+                    selected.Add(type);
                 }
             }
-        }
 
-        var domains = args.Where(a => !a.StartsWith("--")).ToArray();
-        if (domains.Length == 0)
+            var arr = selected.Count > 0 ? selected.ToArray() : null;
+            await RunChecks(domains, arr, checkHttp, json, summary);
+        });
+
+        var config = new CommandLineConfiguration(root);
+        return await config.InvokeAsync(args);
+    }
+
+    private static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json)
+    {
+        string? headerText = null;
+        if (file != null)
         {
-            AnsiConsole.MarkupLine("[red]No domain provided.[/]");
-            return 1;
+            if (!file.Exists)
+            {
+                AnsiConsole.MarkupLine($"[red]File not found: {file.FullName}[/]");
+                return;
+            }
+            headerText = File.ReadAllText(file.FullName);
+        }
+        else if (!string.IsNullOrWhiteSpace(header))
+        {
+            headerText = header;
         }
 
-        var checks = selectedChecks.Count > 0 ? selectedChecks.ToArray() : null;
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly);
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            AnsiConsole.MarkupLine("[red]No header text provided.[/]");
+            return;
+        }
 
-        return 0;
+        var hc = new DomainHealthCheck();
+        var result = hc.CheckMessageHeaders(headerText);
+
+        if (json)
+        {
+            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(jsonText);
+        }
+        else
+        {
+            CliHelpers.ShowPropertiesTable("Message Header Analysis", result);
+        }
     }
 
     private static async Task<int> RunWizard()
     {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
-
         var domainInput = AnsiConsole.Prompt(new TextPrompt<string>("Enter domain(s) [comma separated]:")
             .Validate(input => string.IsNullOrWhiteSpace(input)
                 ? ValidationResult.Error("[red]Domain is required[/]")
                 : ValidationResult.Success()));
-
         var domains = domainInput.Split(new[] { ',', ' ', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         var checkPrompt = new MultiSelectionPrompt<string>()
@@ -103,7 +159,6 @@ internal class Program
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
 
         await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly);
-
         return 0;
     }
 
@@ -150,7 +205,9 @@ internal class Program
                 };
                 if (data != null)
                 {
-                    CliHelpers.ShowPropertiesTable($"{check} for {domain}", data);
+                    var desc = DomainHealthCheck.GetCheckDescription(check);
+                    var header = desc != null ? $"{check} for {domain} - {desc.Summary}" : $"{check} for {domain}";
+                    CliHelpers.ShowPropertiesTable(header, data);
                 }
             }
             if (checkHttp)
@@ -158,16 +215,5 @@ internal class Program
                 CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis);
             }
         }
-    }
-
-    private static void ShowHelp()
-    {
-        AnsiConsole.MarkupLine("[green]DomainDetective CLI[/]");
-        Console.WriteLine("Usage: ddcli [options] <domain> [domain...]");
-        Console.WriteLine("--checks=LIST     Comma separated list of checks: dmarc, spf, dkim, mx, caa, ns, dane, dnssec, dnsbl, contact");
-        Console.WriteLine("--check-http      Perform plain HTTP check");
-        Console.WriteLine("--summary         Show condensed summary");
-        Console.WriteLine("--json            Output raw JSON");
-        Console.WriteLine("--smime=FILE      Parse S/MIME certificate file and exit");
     }
 }

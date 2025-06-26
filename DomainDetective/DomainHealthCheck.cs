@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.IO;
+using System.Reflection;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
@@ -185,6 +186,12 @@ namespace DomainDetective {
         /// <value>Parsed contact information.</value>
         public ContactInfoAnalysis ContactInfoAnalysis { get; private set; } = new ContactInfoAnalysis();
 
+        /// <summary>
+        /// Gets the message header analysis.
+        /// </summary>
+        /// <value>Details parsed from message headers.</value>
+        public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
+
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -229,6 +236,10 @@ namespace DomainDetective {
                 DnsConfiguration = DnsConfiguration
             };
 
+            MTASTSAnalysis = new MTASTSAnalysis() {
+                DnsConfiguration = DnsConfiguration
+            };
+
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
             _logger.WriteVerbose("DnsSelectionStrategy: {0}", DnsSelectionStrategy);
@@ -251,6 +262,7 @@ namespace DomainDetective {
             }
 
             foreach (var selector in selectors) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, logger: _logger);
             }
@@ -278,13 +290,15 @@ namespace DomainDetective {
                     HealthCheckType.CAA,
                     HealthCheckType.DANE,
                     HealthCheckType.DNSSEC,
-                    HealthCheckType.DNSBL
+                    HealthCheckType.DNSBL,
+                    HealthCheckType.MESSAGEHEADER
                 };
             }
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
 
             foreach (var healthCheckType in healthCheckTypes) {
+                cancellationToken.ThrowIfCancellationRequested();
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
@@ -301,6 +315,7 @@ namespace DomainDetective {
                         }
 
                         foreach (var selector in selectors) {
+                            cancellationToken.ThrowIfCancellationRequested();
                             var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                             await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                         }
@@ -329,7 +344,8 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.MTASTS:
                         MTASTSAnalysis = new MTASTSAnalysis {
-                            PolicyUrlOverride = MtaStsPolicyUrlOverride
+                            PolicyUrlOverride = MtaStsPolicyUrlOverride,
+                            DnsConfiguration = DnsConfiguration
                         };
                         await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
                         break;
@@ -341,7 +357,7 @@ namespace DomainDetective {
                     case HealthCheckType.BIMI:
                         BimiAnalysis = new BimiAnalysis();
                         var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
-                        await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
+                        await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
                         break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
@@ -356,6 +372,7 @@ namespace DomainDetective {
                         var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var hosts = mxRecordsForRelay.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         foreach (var host in hosts) {
+                            cancellationToken.ThrowIfCancellationRequested();
                             await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger, cancellationToken);
                         }
                         break;
@@ -370,7 +387,7 @@ namespace DomainDetective {
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
-                        await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger);
+                        await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger, cancellationToken: cancellationToken);
                         break;
                     case HealthCheckType.HPKP:
                         await HPKPAnalysis.AnalyzeUrl($"http://{domainName}", _logger);
@@ -379,6 +396,9 @@ namespace DomainDetective {
                         ContactInfoAnalysis = new ContactInfoAnalysis();
                         var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
                         await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
+                        break;
+                    case HealthCheckType.MESSAGEHEADER:
+                        MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -527,9 +547,10 @@ namespace DomainDetective {
         /// Tests an SMTP server for open relay configuration.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckOpenRelayHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await OpenRelayAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -537,9 +558,10 @@ namespace DomainDetective {
         /// Checks a host for STARTTLS support.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckStartTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await StartTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -547,9 +569,10 @@ namespace DomainDetective {
         /// Checks a host for SMTP TLS capabilities.
         /// </summary>
         /// <param name="host">Target host name.</param>
-        /// <param name="port">Port to connect to.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
@@ -578,7 +601,7 @@ namespace DomainDetective {
                     DataRaw = bimiRecord,
                     Type = DnsRecordType.TXT
                 }
-            }, _logger, cancellationToken);
+            }, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -593,6 +616,20 @@ namespace DomainDetective {
                     Type = DnsRecordType.TXT
                 }
             }, _logger);
+        }
+
+        /// <summary>
+        /// Parses raw message headers.
+        /// </summary>
+        /// <param name="rawHeaders">Unparsed header text.</param>
+        /// <param name="ct">Token to cancel the operation.</param>
+        /// <returns>Populated <see cref="MessageHeaderAnalysis"/> instance.</returns>
+        public MessageHeaderAnalysis CheckMessageHeaders(string rawHeaders, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+
+            var analysis = new MessageHeaderAnalysis();
+            analysis.Parse(rawHeaders, _logger);
+            return analysis;
         }
 
 
@@ -621,7 +658,8 @@ namespace DomainDetective {
             }
             UpdateIsPublicSuffix(domainName);
             MTASTSAnalysis = new MTASTSAnalysis {
-                PolicyUrlOverride = MtaStsPolicyUrlOverride
+                PolicyUrlOverride = MtaStsPolicyUrlOverride,
+                DnsConfiguration = DnsConfiguration
             };
             await MTASTSAnalysis.AnalyzePolicy(domainName, _logger);
         }
@@ -630,13 +668,17 @@ namespace DomainDetective {
         /// Checks all MX hosts for STARTTLS support.
         /// </summary>
         /// <param name="domainName">Domain whose MX records are queried.</param>
-        /// <param name="port">SMTP port to connect to.</param>
+        /// <param name="port">SMTP port to connect to. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task VerifySTARTTLS(string domainName, int port = 25, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+<<<<<<< integrate-domaindetective-with-public-suffix-list -- Incoming Change
             UpdateIsPublicSuffix(domainName);
+=======
+            ValidatePort(port);
+>>>>>>> master -- Current Change
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
@@ -684,7 +726,7 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             BimiAnalysis = new BimiAnalysis();
             var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
-            await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken);
+            await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
         }
 
         /// <summary>
@@ -724,6 +766,7 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
@@ -745,6 +788,7 @@ namespace DomainDetective {
             var allDaneRecords = new List<DnsAnswer>();
 
             foreach (var service in services.Distinct()) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var host = service.Host.TrimEnd('.');
                 var daneName = $"_{service.Port}._tcp.{host}";
                 var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
@@ -779,6 +823,7 @@ namespace DomainDetective {
 
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {
+                cancellationToken.ThrowIfCancellationRequested();
                 int port;
                 IEnumerable<DnsAnswer> records;
                 bool fromMx;
@@ -801,6 +846,7 @@ namespace DomainDetective {
 
                 var recordData = records.Select(x => x.Data).Distinct();
                 foreach (var record in recordData) {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = $"_{port}._tcp.{domain}";
                     var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA, cancellationToken: cancellationToken);
@@ -817,9 +863,10 @@ namespace DomainDetective {
         /// Verifies the certificate for a website. If no scheme is provided in <paramref name="url"/>, "https://" is assumed.
         /// </summary>
         /// <param name="url">Website address. If missing a scheme, "https://" will be prepended.</param>
-        /// <param name="port">Port to use for the connection.</param>
+        /// <param name="port">Port to use for the connection. Must be between 1 and 65535.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
         public async Task VerifyWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
             if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
                 url = $"https://{url}";
@@ -836,8 +883,12 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+<<<<<<< integrate-domaindetective-with-public-suffix-list -- Incoming Change
             UpdateIsPublicSuffix(domainName);
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger);
+=======
+            await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
+>>>>>>> master -- Current Change
         }
 
         /// <summary>
@@ -858,6 +909,7 @@ namespace DomainDetective {
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckDNSBL(string[] ipAddresses, CancellationToken cancellationToken = default) {
             foreach (var ip in ipAddresses) {
+                cancellationToken.ThrowIfCancellationRequested();
                 await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
                     // enumeration triggers processing
                 }
@@ -921,6 +973,12 @@ namespace DomainDetective {
             return JsonSerializer.Serialize(this, options);
         }
 
+        private static void ValidatePort(int port) {
+            if (port <= 0 || port > 65535) {
+                throw new ArgumentOutOfRangeException(nameof(port), "Port must be between 1 and 65535.");
+            }
+        }
+
         /// <summary>Creates a copy with only the specified analyses included.</summary>
         /// <param name="healthCheckTypes">
         /// <para>Health checks that should remain in the returned
@@ -933,73 +991,45 @@ namespace DomainDetective {
             var active = healthCheckTypes != null
                 ? new HashSet<HealthCheckType>(healthCheckTypes)
                 : new HashSet<HealthCheckType>();
-            var clone = (DomainHealthCheck)MemberwiseClone();
 
-            if (!active.Contains(HealthCheckType.DMARC)) {
-                clone.DmarcAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SPF)) {
-                clone.SpfAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DKIM)) {
-                clone.DKIMAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.MX)) {
-                clone.MXAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CAA)) {
-                clone.CAAAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.NS)) {
-                clone.NSAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DANE)) {
-                clone.DaneAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DNSBL)) {
-                clone.DNSBLAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.DNSSEC)) {
-                clone.DNSSecAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.MTASTS)) {
-                clone.MTASTSAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.TLSRPT)) {
-                clone.TLSRPTAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.BIMI)) {
-                clone.BimiAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CERT)) {
-                clone.CertificateAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SECURITYTXT)) {
-                clone.SecurityTXTAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SOA)) {
-                clone.SOAAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.OPENRELAY)) {
-                clone.OpenRelayAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.STARTTLS)) {
-                clone.StartTlsAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.SMTPTLS)) {
-                clone.SmtpTlsAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.HTTP)) {
-                clone.HttpAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.HPKP)) {
-                clone.HPKPAnalysis = null;
-            }
-            if (!active.Contains(HealthCheckType.CONTACT)) {
-                clone.ContactInfoAnalysis = null;
-            }
+            var filtered = new DomainHealthCheck(DnsEndpoint, _logger) {
+                DnsSelectionStrategy = DnsSelectionStrategy,
+                DnsConfiguration = DnsConfiguration,
+                MtaStsPolicyUrlOverride = MtaStsPolicyUrlOverride
+            };
 
-            return clone;
+            filtered.DmarcAnalysis = active.Contains(HealthCheckType.DMARC) ? CloneAnalysis(DmarcAnalysis) : null;
+            filtered.SpfAnalysis = active.Contains(HealthCheckType.SPF) ? CloneAnalysis(SpfAnalysis) : null;
+            filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
+            filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
+            filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
+            filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
+            filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;
+            filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null;
+            filtered.DNSSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DNSSecAnalysis) : null;
+            filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null;
+            filtered.TLSRPTAnalysis = active.Contains(HealthCheckType.TLSRPT) ? CloneAnalysis(TLSRPTAnalysis) : null;
+            filtered.BimiAnalysis = active.Contains(HealthCheckType.BIMI) ? CloneAnalysis(BimiAnalysis) : null;
+            filtered.CertificateAnalysis = active.Contains(HealthCheckType.CERT) ? CloneAnalysis(CertificateAnalysis) : null;
+            filtered.SecurityTXTAnalysis = active.Contains(HealthCheckType.SECURITYTXT) ? CloneAnalysis(SecurityTXTAnalysis) : null;
+            filtered.SOAAnalysis = active.Contains(HealthCheckType.SOA) ? CloneAnalysis(SOAAnalysis) : null;
+            filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null;
+            filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
+            filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
+            filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
+            filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
+            filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
+            filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+
+            return filtered;
+        }
+
+        private static readonly MethodInfo _cloneMethod = typeof(object).GetMethod(
+            "MemberwiseClone",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+
+        private static T CloneAnalysis<T>(T analysis) where T : class {
+            return analysis == null ? null : (T)_cloneMethod.Invoke(analysis, null);
         }
     }
 }

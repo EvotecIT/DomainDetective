@@ -41,6 +41,10 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-SmtpTls -HostName "mail.example.com" -Port 587
   ```
+- `Test-MessageHeader` – parses raw email headers.
+  ```powershell
+  Get-Content './headers.txt' -Raw | Test-MessageHeader
+  ```
 - `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Import-DnsblConfig` manage the list of DNSBL providers.
   ```powershell
   Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'

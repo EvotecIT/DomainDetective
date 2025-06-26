@@ -1,0 +1,7 @@
+From: sender@example.com
+To: recipient@example.com
+Subject: Test Message
+Date: Tue, 24 Oct 2023 12:34:56 +0000
+Received: from mail1.example.com (mail1.example.com [192.0.2.1]) by mx.example.net with ESMTP id abc123 for <recipient@example.com>; Tue, 24 Oct 2023 12:35:56 +0000
+Received: from internal.example.com (internal.example.com [192.0.2.2]) by mail1.example.com with ESMTP id def456; Tue, 24 Oct 2023 12:34:56 +0000
+Authentication-Results: mx.example.net; dkim=pass; spf=pass; dmarc=pass; arc=pass

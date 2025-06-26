@@ -7,6 +7,10 @@ using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Ocsp;
+using Org.BouncyCastle.X509;
 
 namespace DomainDetective {
     public class CertificateAnalysis {
@@ -37,6 +41,14 @@ namespace DomainDetective {
 
         /// <summary>Gets the certificate chain.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Gets OCSP endpoints from the certificate.</summary>
+        public List<string> OcspUrls { get; } = new();
+        /// <summary>Gets CRL endpoints from the certificate.</summary>
+        public List<string> CrlUrls { get; } = new();
+        /// <summary>Gets a value indicating whether the certificate is revoked according to OCSP.</summary>
+        public bool? OcspRevoked { get; private set; }
+        /// <summary>Gets a value indicating whether the certificate is revoked according to CRL.</summary>
+        public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
@@ -117,12 +129,90 @@ namespace DomainDetective {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                             DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
                             IsExpired = Certificate.NotAfter < DateTime.Now;
+                            await QueryRevocationEndpoints(cancellationToken);
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
                         logger?.WriteError("Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
+            }
+        }
+
+        private async Task QueryRevocationEndpoints(CancellationToken cancellationToken) {
+            OcspUrls.Clear();
+            CrlUrls.Clear();
+            OcspRevoked = null;
+            CrlRevoked = null;
+            try {
+                var parser = new X509CertificateParser();
+                var bcCert = parser.ReadCertificate(Certificate.RawData);
+
+                var aiaExt = bcCert.GetExtensionValue(X509Extensions.AuthorityInfoAccess);
+                if (aiaExt != null) {
+                    var seq = (Asn1Sequence)Asn1Object.FromByteArray(aiaExt.GetOctets());
+                    foreach (var obj in seq) {
+                        var ad = AccessDescription.GetInstance(obj);
+                        if (ad.AccessMethod.Equals(new DerObjectIdentifier("1.3.6.1.5.5.7.48.1"))) {
+                            var name = GeneralName.GetInstance(ad.AccessLocation.ToAsn1Object());
+                            if (name.TagNo == GeneralName.UniformResourceIdentifier) {
+                                var uri = DerIA5String.GetInstance(name.Name).GetString();
+                                OcspUrls.Add(uri);
+                            }
+                        }
+                    }
+                }
+
+                var crlExt = bcCert.GetExtensionValue(X509Extensions.CrlDistributionPoints);
+                if (crlExt != null) {
+                    var cdp = CrlDistPoint.GetInstance(Asn1Object.FromByteArray(crlExt.GetOctets()));
+                    foreach (var dp in cdp.GetDistributionPoints()) {
+                        var names = dp.DistributionPointName?.Name as GeneralNames;
+                        if (names == null) {
+                            continue;
+                        }
+                        foreach (var gn in names.GetNames()) {
+                            if (gn.TagNo == GeneralName.UniformResourceIdentifier) {
+                                var uri = DerIA5String.GetInstance(gn.Name).GetString();
+                                CrlUrls.Add(uri);
+                            }
+                        }
+                    }
+                }
+
+                if (OcspUrls.Count > 0 && Chain.Count > 1) {
+                    var issuer = parser.ReadCertificate(Chain[1].RawData);
+                    var id = new CertificateID(CertificateID.HashSha1, issuer, bcCert.SerialNumber);
+                    var gen = new OcspReqGenerator();
+                    gen.AddRequest(id);
+                    var req = gen.Generate();
+                    using var client = new HttpClient();
+                    using var content = new ByteArrayContent(req.GetEncoded());
+                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ocsp-request");
+                    using var resp = await client.PostAsync(OcspUrls[0], content, cancellationToken);
+                    if (resp.IsSuccessStatusCode) {
+                        var bytes = await resp.Content.ReadAsByteArrayAsync();
+                        var ocspResp = new OcspResp(bytes);
+                        if (ocspResp.Status == OcspRespStatus.Successful) {
+                            var basic = (BasicOcspResp)ocspResp.GetResponseObject();
+                            if (basic.Responses.Length > 0) {
+                                OcspRevoked = basic.Responses[0].GetCertStatus() is RevokedStatus;
+                            }
+                        }
+                    }
+                }
+
+                if (CrlUrls.Count > 0) {
+                    using var client = new HttpClient();
+                    using var resp = await client.GetAsync(CrlUrls[0], cancellationToken);
+                    if (resp.IsSuccessStatusCode) {
+                        var bytes = await resp.Content.ReadAsByteArrayAsync();
+                        var crl = new X509CrlParser().ReadCrl(bytes);
+                        CrlRevoked = crl.IsRevoked(bcCert);
+                    }
+                }
+            } catch {
+                // ignore revocation failures
             }
         }
 

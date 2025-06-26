@@ -47,5 +47,14 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.DaysValid > 0);
             Assert.Equal(analysis.DaysToExpire < 0, analysis.IsExpired);
         }
+
+        [Fact]
+        public async Task ExtractsRevocationEndpoints() {
+            var logger = new InternalLogger();
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            Assert.NotNull(analysis.OcspUrls);
+            Assert.NotNull(analysis.CrlUrls);
+        }
     }
 }

@@ -35,6 +35,7 @@
     <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
   </ItemGroup>
 
+<<<<<<< integrate-domaindetective-with-public-suffix-list -- Incoming Change
   <ItemGroup>
     <None Include="..\Data\DNS\PublicDNS.json">
       <Link>Data/DNS/PublicDNS.json</Link>
@@ -47,5 +48,22 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+=======
+    <ItemGroup>
+        <None Include="..\Data\DNS\PublicDNS.json">
+            <Link>Data/DNS/PublicDNS.json</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="Data/smime.pem">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="Data/sample-headers.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="Data/sample-headers-duplicate.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+>>>>>>> master -- Current Change
 
 </Project>

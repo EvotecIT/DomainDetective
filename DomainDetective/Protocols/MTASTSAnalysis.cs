@@ -1,5 +1,7 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -91,6 +93,31 @@ namespace DomainDetective {
         public string PolicyUrlOverride { get; set; }
 
         /// <summary>
+        /// Provides DNS configuration used for queries.
+        /// </summary>
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+
+        /// <summary>
+        /// Optional DNS query override for testing.
+        /// </summary>
+        public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the TXT record exists.
+        /// </summary>
+        public bool DnsRecordPresent { get; private set; }
+
+        /// <summary>
+        /// Gets a value indicating whether the TXT record is valid.
+        /// </summary>
+        public bool DnsRecordValid { get; private set; }
+
+        /// <summary>
+        /// Gets the policy ID extracted from the TXT record.
+        /// </summary>
+        public string PolicyId { get; private set; }
+
+        /// <summary>
         /// Resets analysis state so the instance can be reused.
         /// </summary>
         public void Reset() {
@@ -107,6 +134,9 @@ namespace DomainDetective {
             MaxAge = 0;
             Mx = new List<string>();
             Policy = null;
+            DnsRecordPresent = false;
+            DnsRecordValid = false;
+            PolicyId = null;
         }
 
         /// <summary>
@@ -120,17 +150,32 @@ namespace DomainDetective {
             Logger = logger;
             Domain = domainName;
 
+            var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            DnsRecordPresent = dns?.Any() == true;
+            if (!DnsRecordPresent) {
+                PolicyValid = false;
+                return;
+            }
+
+            ParseDnsRecord(string.Join(string.Empty, dns.Select(r => r.Data)));
+            if (!DnsRecordValid) {
+                PolicyValid = false;
+                return;
+            }
+
             string url = PolicyUrlOverride ?? $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
 
             string content = await GetPolicy(url);
             if (content == null) {
                 PolicyPresent = false;
+                PolicyValid = false;
                 return;
             }
 
             PolicyPresent = true;
             Policy = content;
             ParsePolicy(content);
+            PolicyValid = PolicyValid && DnsRecordValid;
         }
 
         /// <summary>
@@ -161,6 +206,44 @@ namespace DomainDetective {
             }
 
             return null;
+        }
+
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+            if (QueryDnsOverride != null) {
+                return await QueryDnsOverride(name, type);
+            }
+
+            return await DnsConfiguration.QueryDNS(name, type);
+        }
+
+        private void ParseDnsRecord(string record) {
+            DnsRecordValid = false;
+            PolicyId = null;
+            if (string.IsNullOrWhiteSpace(record)) {
+                return;
+            }
+
+            var parts = record.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            bool hasVersion = false;
+            foreach (var part in parts) {
+                var kv = part.Split(new[] { '=' }, 2);
+                if (kv.Length != 2) {
+                    continue;
+                }
+
+                var key = kv[0].Trim();
+                var value = kv[1].Trim();
+                switch (key) {
+                    case "v":
+                        hasVersion = value == "STSv1";
+                        break;
+                    case "id":
+                        PolicyId = value;
+                        break;
+                }
+            }
+
+            DnsRecordValid = hasVersion && !string.IsNullOrEmpty(PolicyId);
         }
 
         /// <summary>

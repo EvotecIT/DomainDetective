@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -26,6 +27,10 @@ namespace DomainDetective {
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
         public bool ExpectCtPresent { get; private set; }
+        /// <summary>Gets the max-age value from the Expect-CT header.</summary>
+        public int? ExpectCtMaxAge { get; private set; }
+        /// <summary>Gets the report-uri value from the Expect-CT header.</summary>
+        public string? ExpectCtReportUri { get; private set; }
         /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
         [Obsolete("Public-Key-Pins header is deprecated.")]
         public bool PublicKeyPinsPresent { get; private set; }
@@ -52,6 +57,14 @@ namespace DomainDetective {
 
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
+
+#if NET6_0_OR_GREATER
+        /// <summary>Gets or sets the HTTP version used for requests.</summary>
+        public Version RequestVersion { get; set; } = HttpVersion.Version30;
+#else
+        /// <summary>Gets or sets the HTTP version used for requests.</summary>
+        public Version RequestVersion { get; set; } = HttpVersion.Version11;
+#endif
 
         private static readonly List<string> _securityHeaderNames = new() {
             "Content-Security-Policy",
@@ -84,10 +97,10 @@ namespace DomainDetective {
         /// <param name="logger">Logger used for error reporting.</param>
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <param name="captureBody">Whether to capture the response body.</param>
-        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false) {
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
 #if NET6_0_OR_GREATER
-            var requestVersion = HttpVersion.Version30;
-            var manualRedirect = requestVersion >= HttpVersion.Version30;
+            var manualRedirect = RequestVersion >= HttpVersion.Version30;
             using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
 #else
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
@@ -98,6 +111,8 @@ namespace DomainDetective {
             Body = null;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
+            ExpectCtMaxAge = null;
+            ExpectCtReportUri = null;
             PublicKeyPinsPresent = false;
             CspUnsafeDirectives = false;
             HstsMaxAge = null;
@@ -112,11 +127,11 @@ namespace DomainDetective {
                 var redirects = 0;
                 while (true) {
                     var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
-                        Version = requestVersion,
+                        Version = RequestVersion,
                         VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
                     };
                     response?.Dispose();
-                    response = await client.SendAsync(request);
+                    response = await client.SendAsync(request, cancellationToken);
                     if (manualRedirect && (int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
                         redirects++;
                         if (redirects > MaxRedirects) {
@@ -128,7 +143,7 @@ namespace DomainDetective {
                     break;
                 }
 #else
-                HttpResponseMessage response = await client.GetAsync(url);
+                HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
 #endif
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
@@ -145,8 +160,12 @@ namespace DomainDetective {
 #endif
                 }
                 string? hstsHeader = null;
+                string? expectCtHeader = null;
                 if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
                     hstsHeader = string.Join(",", hstsValues);
+                }
+                if (response.Headers.TryGetValues("Expect-CT", out var expectCtValues)) {
+                    expectCtHeader = string.Join(",", expectCtValues);
                 }
                 if (checkHsts) {
                     HstsPresent = hstsHeader != null;
@@ -172,9 +191,15 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp);
                     }
+                    if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
+                        ParseExpectCt(ect);
+                    }
                 }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
+                }
+                if (expectCtHeader != null && !collectHeaders) {
+                    ParseExpectCt(expectCtHeader);
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
@@ -244,6 +269,30 @@ namespace DomainDetective {
             }
         }
 
+        private void ParseExpectCt(string headerValue) {
+            ExpectCtMaxAge = null;
+            ExpectCtReportUri = null;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            var parts = headerValue.Split(',');
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        ExpectCtMaxAge = ma;
+                    }
+                } else if (trimmed.StartsWith("report-uri=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(11).Trim('"');
+                    if (!string.IsNullOrEmpty(value)) {
+                        ExpectCtReportUri = value;
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Convenience method to check a URL with default logging.
         /// </summary>
@@ -252,9 +301,9 @@ namespace DomainDetective {
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <param name="captureBody">Whether to capture the response body.</param>
         /// <returns>A populated <see cref="HttpAnalysis"/> instance.</returns>
-        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false) {
+        public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
             var analysis = new HttpAnalysis();
-            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders, captureBody);
+            await analysis.AnalyzeUrl(url, checkHsts, new InternalLogger(), collectHeaders, captureBody, cancellationToken);
             return analysis;
         }
     }

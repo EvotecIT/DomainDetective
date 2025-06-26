@@ -13,7 +13,8 @@ namespace DomainDetective {
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            var status = await TryRelay(host, port, logger, cancellationToken);
+            using var client = new TcpClient();
+            var status = await TryRelay(client, host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = status;
         }
 
@@ -22,14 +23,14 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var status = await TryRelay(host, port, logger, cancellationToken);
+                    using var client = new TcpClient();
+                    var status = await TryRelay(client, host, port, logger, cancellationToken);
                     ServerResults[$"{host}:{port}"] = status;
                 }
             }
         }
 
-        private async Task<OpenRelayStatus> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            using var client = new TcpClient();
+        private async Task<OpenRelayStatus> TryRelay(TcpClient client, string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
