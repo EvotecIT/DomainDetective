@@ -247,6 +247,7 @@ namespace DomainDetective {
             }
 
             foreach (var selector in selectors) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
                 await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, logger: _logger);
             }
@@ -281,6 +282,7 @@ namespace DomainDetective {
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
 
             foreach (var healthCheckType in healthCheckTypes) {
+                cancellationToken.ThrowIfCancellationRequested();
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
@@ -297,6 +299,7 @@ namespace DomainDetective {
                         }
 
                         foreach (var selector in selectors) {
+                            cancellationToken.ThrowIfCancellationRequested();
                             var dkim = await DnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                             await DKIMAnalysis.AnalyzeDkimRecords(selector, dkim, _logger);
                         }
@@ -353,6 +356,7 @@ namespace DomainDetective {
                         var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var hosts = mxRecordsForRelay.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         foreach (var host in hosts) {
+                            cancellationToken.ThrowIfCancellationRequested();
                             await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger, cancellationToken);
                         }
                         break;
@@ -735,6 +739,7 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
@@ -756,6 +761,7 @@ namespace DomainDetective {
             var allDaneRecords = new List<DnsAnswer>();
 
             foreach (var service in services.Distinct()) {
+                cancellationToken.ThrowIfCancellationRequested();
                 var host = service.Host.TrimEnd('.');
                 var daneName = $"_{service.Port}._tcp.{host}";
                 var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
@@ -789,6 +795,7 @@ namespace DomainDetective {
 
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var serviceType in serviceTypes) {
+                cancellationToken.ThrowIfCancellationRequested();
                 int port;
                 IEnumerable<DnsAnswer> records;
                 bool fromMx;
@@ -811,6 +818,7 @@ namespace DomainDetective {
 
                 var recordData = records.Select(x => x.Data).Distinct();
                 foreach (var record in recordData) {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = $"_{port}._tcp.{domain}";
                     var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA, cancellationToken: cancellationToken);
@@ -868,6 +876,7 @@ namespace DomainDetective {
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckDNSBL(string[] ipAddresses, CancellationToken cancellationToken = default) {
             foreach (var ip in ipAddresses) {
+                cancellationToken.ThrowIfCancellationRequested();
                 await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
                     // enumeration triggers processing
                 }
