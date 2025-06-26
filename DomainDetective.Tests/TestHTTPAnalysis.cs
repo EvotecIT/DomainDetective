@@ -47,6 +47,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal("default-src 'self'", analysis.SecurityHeaders["Content-Security-Policy"]);
                 Assert.Equal("1; mode=block", analysis.SecurityHeaders["X-XSS-Protection"]);
                 Assert.Equal("max-age=86400, enforce", analysis.SecurityHeaders["Expect-CT"]);
+                Assert.Equal(86400, analysis.ExpectCtMaxAge);
+                Assert.Null(analysis.ExpectCtReportUri);
                 Assert.Equal("nosniff", analysis.SecurityHeaders["X-Content-Type-Options"]);
                 Assert.Equal("DENY", analysis.SecurityHeaders["X-Frame-Options"]);
                 Assert.Equal("no-referrer", analysis.SecurityHeaders["Referrer-Policy"]);
@@ -270,6 +272,31 @@ namespace DomainDetective.Tests {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.CspUnsafeDirectives);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task ParsesExpectCtReportUri() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Expect-CT", "max-age=10, report-uri=\"https://example.com/report\"");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.ExpectCtPresent);
+                Assert.Equal(10, analysis.ExpectCtMaxAge);
+                Assert.Equal("https://example.com/report", analysis.ExpectCtReportUri);
             } finally {
                 listener.Stop();
                 await serverTask;
