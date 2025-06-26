@@ -45,5 +45,7 @@ public enum HealthCheckType {
     /// <summary>Validate HPKP configuration.</summary>
     HPKP,
     /// <summary>Query contact TXT record.</summary>
-    CONTACT
+    CONTACT,
+    /// <summary>Parse message headers.</summary>
+    MESSAGEHEADER
 }
