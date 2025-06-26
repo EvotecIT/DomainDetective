@@ -866,6 +866,7 @@ namespace DomainDetective {
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckDNSBL(string ipAddress, CancellationToken cancellationToken = default) {
             await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger)) {
+                cancellationToken.ThrowIfCancellationRequested();
                 // enumeration triggers processing
             }
         }
@@ -879,6 +880,7 @@ namespace DomainDetective {
             foreach (var ip in ipAddresses) {
                 cancellationToken.ThrowIfCancellationRequested();
                 await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
+                    cancellationToken.ThrowIfCancellationRequested();
                     // enumeration triggers processing
                 }
             }
