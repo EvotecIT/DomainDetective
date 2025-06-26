@@ -192,6 +192,12 @@ namespace DomainDetective {
         /// <value>Details parsed from message headers.</value>
         public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
 
+        /// <summary>
+        /// Gets the dangling CNAME analysis.
+        /// </summary>
+        /// <value>Information about unresolved CNAME targets.</value>
+        public DanglingCnameAnalysis DanglingCnameAnalysis { get; private set; } = new DanglingCnameAnalysis();
+
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -239,6 +245,8 @@ namespace DomainDetective {
             MTASTSAnalysis = new MTASTSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
+
+            DanglingCnameAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
@@ -399,6 +407,10 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.MESSAGEHEADER:
                         MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
+                        break;
+                    case HealthCheckType.DANGLINGCNAME:
+                        DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
+                        await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -742,6 +754,18 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Detects dangling CNAME records for the domain.
+        /// </summary>
+        public async Task VerifyDanglingCname(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
+            await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Queries TLSA records for specific ports on a domain.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
@@ -1015,6 +1039,7 @@ namespace DomainDetective {
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+            filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
 
             return filtered;
         }

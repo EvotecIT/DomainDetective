@@ -1,7 +1,7 @@
 ﻿@{
     AliasesToExport      = @()
     Author               = 'Przemyslaw Klys'
-    CmdletsToExport      = @('Add-DnsblProvider', 'Clear-DnsblProvider', 'Get-DomainSummary', 'Get-WhoisInfo', 'Import-DnsblConfig', 'Remove-DnsblProvider', 'Test-BimiRecord', 'Test-DomainBlacklist', 'Test-CaaRecord', 'Test-ContactRecord', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-DmarcRecord', 'Test-DNSBLRecord', 'Test-DnsPropagation', 'Test-DnsSec', 'Test-DomainHealth', 'Test-MxRecord', 'Test-NsRecord', 'Test-OpenRelay', 'Test-MessageHeader', 'Test-SecurityTXT', 'Test-SmtpTls', 'Test-SoaRecord', 'Test-SpfRecord', 'Test-StartTls', 'Test-TlsRptRecord', 'Test-WebsiteCertificate')
+    CmdletsToExport      = @('Add-DnsblProvider', 'Clear-DnsblProvider', 'Get-DomainSummary', 'Get-WhoisInfo', 'Import-DnsblConfig', 'Remove-DnsblProvider', 'Test-BimiRecord', 'Test-DomainBlacklist', 'Test-CaaRecord', 'Test-ContactRecord', 'Test-DaneRecord', 'Test-DkimRecord', 'Test-DmarcRecord', 'Test-DNSBLRecord', 'Test-DnsPropagation', 'Test-DnsSec', 'Test-DomainHealth', 'Test-MxRecord', 'Test-NsRecord', 'Test-OpenRelay', 'Test-MessageHeader', 'Test-SecurityTXT', 'Test-SmtpTls', 'Test-SoaRecord', 'Test-SpfRecord', 'Test-StartTls', 'Test-TlsRptRecord', 'Test-WebsiteCertificate', 'Test-DanglingCname')
     CompanyName          = 'Evotec'
     CompatiblePSEditions = @('Desktop', 'Core')
     Copyright            = '(c) 2011 - 2025 Przemyslaw Klys @ Evotec. All rights reserved.'

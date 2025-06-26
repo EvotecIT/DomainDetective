@@ -24,7 +24,8 @@ internal class Program
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
-        ["contact"] = HealthCheckType.CONTACT
+        ["contact"] = HealthCheckType.CONTACT,
+        ["danglingcname"] = HealthCheckType.DANGLINGCNAME
     };
 
     /// <summary>
@@ -216,6 +217,7 @@ internal class Program
                     HealthCheckType.DNSBL => hc.DNSBLAnalysis,
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
+                    HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     _ => null
                 };
                 if (data != null)

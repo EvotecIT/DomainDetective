@@ -95,7 +95,11 @@ public static class CheckDescriptions {
             [HealthCheckType.MESSAGEHEADER] = new(
                 "Parse message headers.",
                 null,
-                "Inspect headers for anomalies.")
+                "Inspect headers for anomalies."),
+            [HealthCheckType.DANGLINGCNAME] = new(
+                "Detect dangling CNAME records.",
+                null,
+                "Remove or update broken CNAME targets.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
