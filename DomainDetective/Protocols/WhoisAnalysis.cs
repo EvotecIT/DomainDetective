@@ -538,8 +538,8 @@ public class WhoisAnalysis {
             if (isParsingDomainSection) {
                 if (trimmedLine.StartsWith("domain:")) {
                     DomainName = trimmedLine.Substring("domain:".Length).Trim();
-                } else if (trimmedLine.StartsWith("registrant:")) {
-                    CreationDate = trimmedLine.Substring("registrant:".Length).Trim();
+                } else if (trimmedLine.StartsWith("registered:")) {
+                    CreationDate = trimmedLine.Substring("registered:".Length).Trim();
                 } else if (trimmedLine.StartsWith("expire:")) {
                     ExpiryDate = trimmedLine.Substring("expire:".Length).Trim();
                 } else if (trimmedLine.StartsWith("registrar:")) {
