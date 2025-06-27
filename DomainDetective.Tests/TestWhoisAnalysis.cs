@@ -320,13 +320,31 @@ namespace DomainDetective.Tests {
                 await whois.QueryWhoisServer("warn.sample");
 
                 Assert.False(whois.ExpiresSoon);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
 
-                whois = new WhoisAnalysis { ExpirationWarningThreshold = TimeSpan.FromDays(20) };
-                field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+            // second query with longer threshold
+            listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                await reader.ReadLineAsync();
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true };
+                await writer.WriteAsync(response);
+            });
+
+            try {
+                var whois = new WhoisAnalysis { ExpirationWarningThreshold = TimeSpan.FromDays(20) };
+                var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
                 Assert.NotNull(servers);
-                lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                lockObj = lockField?.GetValue(whois);
+                var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var lockObj = lockField?.GetValue(whois);
                 Assert.NotNull(lockObj);
                 lock (lockObj!) {
                     servers!["sample"] = $"localhost:{port}";

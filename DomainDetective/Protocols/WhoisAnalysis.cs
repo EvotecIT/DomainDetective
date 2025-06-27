@@ -45,9 +45,6 @@ public class WhoisAnalysis {
     public bool RegistrarLocked { get; private set; }
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
 
-    private static readonly Dictionary<string, string> WhoisCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object _cacheLock = new();
-
     private static readonly InternalLogger _logger = new();
 
     // Lock object used to synchronize access to the WhoisServers dictionary
@@ -324,13 +321,6 @@ public class WhoisAnalysis {
             throw new UnsupportedTldException(domain, TLD);
         }
 
-        lock (_cacheLock) {
-            if (WhoisCache.TryGetValue(domain, out var cached)) {
-                WhoisData = cached;
-                ParseWhoisData();
-                return;
-            }
-        }
 
         using TcpClient tcpClient = new TcpClient();
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -368,9 +358,6 @@ public class WhoisAnalysis {
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
             ParseWhoisData();
-            lock (_cacheLock) {
-                WhoisCache[domain] = WhoisData;
-            }
         } catch (Exception ex) {
             _logger.WriteError("Error querying WHOIS server: {0}", ex.Message);
         }
