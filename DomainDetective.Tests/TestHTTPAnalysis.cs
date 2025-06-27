@@ -35,7 +35,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true, captureBody: true);
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(200, analysis.StatusCode);
@@ -82,7 +84,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.False(analysis.IsReachable);
                 Assert.Equal(404, analysis.StatusCode);
@@ -95,7 +99,9 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
-            var analysis = new HttpAnalysis();
+            var analysis = new HttpAnalysis {
+                RequestVersion = HttpVersion.Version11
+            };
             var url = $"http://localhost:{GetFreePort()}/";
             await analysis.AnalyzeUrl(url, false, new InternalLogger());
             Assert.False(analysis.IsReachable);
@@ -119,7 +125,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.True(analysis.SecurityHeaders.Count == 0);
                 Assert.True(analysis.MissingSecurityHeaders.Count == 0);
@@ -159,7 +167,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix1, false, new InternalLogger());
                 Assert.True(analysis.IsReachable);
                 Assert.Equal(200, analysis.StatusCode);
@@ -194,8 +204,13 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis { MaxRedirects = 2 };
-                await Assert.ThrowsAsync<InvalidOperationException>(() => analysis.AnalyzeUrl(prefix, false, new InternalLogger()));
+                var analysis = new HttpAnalysis {
+                    MaxRedirects = 2,
+                    RequestVersion = HttpVersion.Version11
+                };
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.False(analysis.IsReachable);
+                Assert.Equal(302, analysis.StatusCode);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -217,7 +232,10 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new HttpAnalysis {
+                    Timeout = TimeSpan.FromMilliseconds(200),
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
                 Assert.False(analysis.IsReachable);
                 Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
@@ -242,7 +260,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.HstsPresent);
                 Assert.Equal(1000, analysis.HstsMaxAge);
@@ -269,7 +289,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.CspUnsafeDirectives);
             } finally {
@@ -292,7 +314,9 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
                 Assert.True(analysis.ExpectCtPresent);
                 Assert.Equal(10, analysis.ExpectCtMaxAge);
@@ -320,7 +344,9 @@ namespace DomainDetective.Tests {
                 var logger = new InternalLogger();
                 var warnings = new List<LogEventArgs>();
                 logger.OnWarningMessage += (_, e) => warnings.Add(e);
-                var analysis = new HttpAnalysis();
+                var analysis = new HttpAnalysis {
+                    RequestVersion = HttpVersion.Version11
+                };
                 await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
                 Assert.True(analysis.PublicKeyPinsPresent);
                 Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
