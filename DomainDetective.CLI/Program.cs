@@ -5,6 +5,7 @@ using System.CommandLine.Invocation;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.CLI;
 
@@ -43,12 +44,14 @@ internal class Program
         var summaryOption = new Option<bool>("--summary", "Show condensed summary");
         var jsonOption = new Option<bool>("--json", "Output raw JSON");
         var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
+        var certOption = new Option<FileInfo?>("--cert", "Parse general certificate file and exit");
         root.Add(domainsArg);
         root.Add(checksOption);
         root.Add(checkHttpOption);
         root.Add(summaryOption);
         root.Add(jsonOption);
         root.Add(smimeOption);
+        root.Add(certOption);
 
         var analyze = new Command("AnalyzeMessageHeader", "Analyze message header");
         var fileOpt = new Option<FileInfo?>("--file", "Header file");
@@ -74,12 +77,21 @@ internal class Program
             var summary = result.GetValue(summaryOption);
             var json = result.GetValue(jsonOption);
             var smime = result.GetValue(smimeOption);
+            var cert = result.GetValue(certOption);
 
             if (smime != null)
             {
                 var smimeAnalysis = new SmimeCertificateAnalysis();
                 smimeAnalysis.AnalyzeFile(smime.FullName);
                 CliHelpers.ShowPropertiesTable($"S/MIME certificate {smime.FullName}", smimeAnalysis);
+                return;
+            }
+
+            if (cert != null)
+            {
+                var certAnalysis = new CertificateAnalysis();
+                await certAnalysis.AnalyzeCertificate(new X509Certificate2(cert.FullName));
+                CliHelpers.ShowPropertiesTable($"Certificate {cert.FullName}", certAnalysis);
                 return;
             }
 
