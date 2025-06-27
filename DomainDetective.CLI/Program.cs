@@ -38,7 +38,7 @@ internal class Program
     /// </summary>
     private static async Task<int> Main(string[] args)
     {
-        var root = new RootCommand("DomainDetective CLI");
+        var root = new RootCommand("DomainDetective CLI - HTTPS DANE queries use port 443 by default");
         var domainsArg = new Argument<string[]>("domains") { Arity = ArgumentArity.ZeroOrMore };
         var checksOption = new Option<string[]>("--checks", "Comma separated list of checks")
         {

@@ -212,5 +212,48 @@ namespace DomainDetective.Tests {
 
             Assert.False(analysis.AnalysisResults[0].IsValidChoiceForHttps);
         }
+
+        [Fact]
+        public async Task ValidHttpsRecordIsRecognized() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_443._tcp.example.com",
+                    DataRaw = $"3 1 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            var result = analysis.AnalysisResults[0];
+            Assert.True(result.ValidDANERecord);
+            Assert.Equal(ServiceType.HTTPS, result.ServiceType);
+        }
+
+        [Fact]
+        public async Task InvalidHttpsRecordIsFlagged() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_443._tcp.example.com",
+                    DataRaw = "3 1 1 ABCD",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            Assert.False(analysis.AnalysisResults[0].ValidDANERecord);
+        }
+
+        [Fact]
+        public async Task ServiceTypeDefaultsToHttps() {
+            var record = "3 1 1 " + new string('A', 64);
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(new[] { new DnsAnswer { DataRaw = record } }, new InternalLogger());
+
+            Assert.Equal(ServiceType.HTTPS, analysis.AnalysisResults[0].ServiceType);
+        }
     }
 }
