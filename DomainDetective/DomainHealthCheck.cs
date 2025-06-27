@@ -169,6 +169,12 @@ namespace DomainDetective {
         public BimiAnalysis BimiAnalysis { get; private set; } = new BimiAnalysis();
 
         /// <summary>
+        /// Gets the Autodiscover analysis.
+        /// </summary>
+        /// <value>Results of Autodiscover related checks.</value>
+        public AutodiscoverAnalysis AutodiscoverAnalysis { get; private set; } = new AutodiscoverAnalysis();
+
+        /// <summary>
         /// Gets the HTTP analysis.
         /// </summary>
         /// <value>HTTP endpoint validation results.</value>
@@ -366,6 +372,10 @@ namespace DomainDetective {
                         BimiAnalysis = new BimiAnalysis();
                         var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
                         await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
+                        break;
+                    case HealthCheckType.AUTODISCOVER:
+                        AutodiscoverAnalysis = new AutodiscoverAnalysis();
+                        await AutodiscoverAnalysis.Analyze(domainName, DnsConfiguration, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
@@ -764,6 +774,15 @@ namespace DomainDetective {
             DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
             await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
+      
+        /// Queries Autodiscover related records for a domain.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyAutodiscover(string domainName, CancellationToken cancellationToken = default) {
+            AutodiscoverAnalysis = new AutodiscoverAnalysis();
+            await AutodiscoverAnalysis.Analyze(domainName, DnsConfiguration, _logger, cancellationToken);
+        }
 
         /// <summary>
         /// Queries TLSA records for specific ports on a domain.
@@ -1029,6 +1048,7 @@ namespace DomainDetective {
             filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null;
             filtered.TLSRPTAnalysis = active.Contains(HealthCheckType.TLSRPT) ? CloneAnalysis(TLSRPTAnalysis) : null;
             filtered.BimiAnalysis = active.Contains(HealthCheckType.BIMI) ? CloneAnalysis(BimiAnalysis) : null;
+            filtered.AutodiscoverAnalysis = active.Contains(HealthCheckType.AUTODISCOVER) ? CloneAnalysis(AutodiscoverAnalysis) : null;
             filtered.CertificateAnalysis = active.Contains(HealthCheckType.CERT) ? CloneAnalysis(CertificateAnalysis) : null;
             filtered.SecurityTXTAnalysis = active.Contains(HealthCheckType.SECURITYTXT) ? CloneAnalysis(SecurityTXTAnalysis) : null;
             filtered.SOAAnalysis = active.Contains(HealthCheckType.SOA) ? CloneAnalysis(SOAAnalysis) : null;
