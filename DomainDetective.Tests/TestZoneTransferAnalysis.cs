@@ -27,7 +27,7 @@ namespace DomainDetective.Tests {
                 int len = buffer[0] << 8 | buffer[1];
                 if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
                 var resp = BuildResponse(true);
-                await stream.WriteAsync(resp);
+                await stream.WriteAsync(resp, 0, resp.Length);
             });
 
             try {
@@ -53,7 +53,7 @@ namespace DomainDetective.Tests {
                 int len = buffer[0] << 8 | buffer[1];
                 if (len > 0) { await stream.ReadAsync(buffer, 0, len); }
                 var resp = BuildResponse(false);
-                await stream.WriteAsync(resp);
+                await stream.WriteAsync(resp, 0, resp.Length);
             });
 
             try {
