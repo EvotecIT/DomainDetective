@@ -56,6 +56,10 @@ public static class CheckDescriptions {
                 "Validate BIMI records.",
                 null,
                 "Provide a valid BIMI record and hosted logo."),
+            [HealthCheckType.AUTODISCOVER] = new(
+                "Check Autodiscover configuration.",
+                null,
+                "Publish SRV and CNAME records for Autodiscover."),
             [HealthCheckType.CERT] = new(
                 "Inspect certificate records.",
                 null,

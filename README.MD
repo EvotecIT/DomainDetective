@@ -21,12 +21,14 @@ Current capabilities include:
 - [x] Verify SMTP TLS
 - [x] Verify TLS-RPT
 - [x] Verify BIMI
+- [x] Verify Autodiscover
 - [x] Verify Website Connectivity
   - [x] Verify HTTP/2
   - [x] Verify HTTP/3
   - [x] Verify Certificate
   - [x] Verify Response Time
   - [x] Verify Headers
+  - [x] Verify HTTP Security Headers (CSP, Referrer-Policy, X-Frame-Options, Permissions-Policy)
   - [x] Verify HSTS
   - [x] Verify HPKP
 - [x] Verify SecurityTXT
@@ -76,6 +78,9 @@ Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 ### Verifying Website Certificates
 `VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
 
+### HTTP Security Headers
+`HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and several Cross-Origin policies. You can modify the list to capture additional headers.
+
 
 ## Build and Test
 
@@ -101,6 +106,10 @@ all analysis details in JSON format:
 ```bash
 dotnet run --project DomainDetective.Example example.com --json
 ```
+To verify Autodiscover records only:
+```bash
+ddcli example.com --checks autodiscover
+```
 
 ### Interactive CLI Wizard
 
@@ -124,6 +133,7 @@ Import the module and call any of the testing cmdlets:
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
 Test-SpfRecord -DomainName "example.com"
+Test-Autodiscover -DomainName "example.com"
 ```
 
 ### MTA-STS
