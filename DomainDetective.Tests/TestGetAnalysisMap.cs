@@ -11,8 +11,14 @@ public class TestGetAnalysisMap
         var map = healthCheck.GetAnalysisMap();
 
         Assert.Equal(Enum.GetValues(typeof(HealthCheckType)).Length, map.Count);
-        Assert.Same(healthCheck.DmarcAnalysis, map[HealthCheckType.DMARC]);
-        Assert.Same(healthCheck.SpfAnalysis, map[HealthCheckType.SPF]);
-        Assert.Same(healthCheck.DKIMAnalysis, map[HealthCheckType.DKIM]);
+
+        foreach (HealthCheckType type in Enum.GetValues(typeof(HealthCheckType)))
+        {
+            var prop = typeof(DomainHealthCheck).GetProperty($"{type}Analysis");
+            var expected = prop?.GetValue(healthCheck);
+
+            Assert.True(map.TryGetValue(type, out var actual));
+            Assert.Same(expected, actual);
+        }
     }
 }
