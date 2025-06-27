@@ -16,6 +16,8 @@ public enum HealthCheckType {
     CAA,
     /// <summary>Verify NS records.</summary>
     NS,
+    /// <summary>Attempt a zone transfer.</summary>
+    ZONETRANSFER,
     /// <summary>Validate DANE information.</summary>
     DANE,
     /// <summary>Check DNSBL listings.</summary>
