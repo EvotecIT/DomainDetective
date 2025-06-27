@@ -59,5 +59,7 @@ public enum HealthCheckType {
     /// <summary>Detect dangling CNAME records.</summary>
     DANGLINGCNAME,
     /// <summary>Analyze DNS record TTL values.</summary>
-    TTL
+    TTL,
+    /// <summary>Test common service ports for availability.</summary>
+    PORTAVAILABILITY
 }
