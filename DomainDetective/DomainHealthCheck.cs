@@ -1078,7 +1078,11 @@ namespace DomainDetective {
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
                 DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis.MxRecordExists,
-                DnsSecValid = DNSSecAnalysis?.ChainValid ?? false
+                DnsSecValid = DNSSecAnalysis?.ChainValid ?? false,
+                ExpiryDate = WhoisAnalysis.ExpiryDate,
+                ExpiresSoon = WhoisAnalysis.ExpiresSoon,
+                IsExpired = WhoisAnalysis.IsExpired,
+                RegistrarLocked = WhoisAnalysis.RegistrarLocked
             };
         }
 

@@ -179,6 +179,16 @@ Boolean fields indicate whether a particular requirement was met. You can inspec
 
 DNS lookup counting adheres to [RFC&nbsp;7208](https://datatracker.ietf.org/doc/html/rfc7208) Section&nbsp;4.6.4. Queries caused by the `include`, `a`, `mx`, `ptr`, and `exists` mechanisms as well as the `redirect` modifier are tallied, and exceeding ten during evaluation sets `ExceedsDnsLookups`.
 
+WHOIS analysis surfaces the expiration date and whether the registrar lock is enabled. `DomainSummary` exposes these fields so you can monitor upcoming renewals:
+
+```csharp
+var health = new DomainHealthCheck();
+await health.Verify("example.com");
+var summary = health.BuildSummary();
+Console.WriteLine($"Expires on: {summary.ExpiryDate}");
+Console.WriteLine($"Registrar lock: {summary.RegistrarLocked}");
+```
+
 ## Check Descriptions
 
 Human-friendly descriptions for each health check are stored in `CheckDescriptions.cs`. The CLI and any report generators look up a `CheckDescription` by `HealthCheckType` to display its summary, RFC link and remediation steps. You can extend or override these mappings by creating additional entries before generating output.
