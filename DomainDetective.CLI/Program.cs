@@ -47,6 +47,7 @@ internal class Program
         var checkHttpOption = new Option<bool>("--check-http", "Perform plain HTTP check");
         var summaryOption = new Option<bool>("--summary", "Show condensed summary");
         var jsonOption = new Option<bool>("--json", "Output raw JSON");
+        var subPolicyOption = new Option<bool>("--subdomain-policy", "Include DMARC sp tag in policy evaluation");
         var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
         var certOption = new Option<FileInfo?>("--cert", "Parse general certificate file and exit");
         root.Add(domainsArg);
@@ -54,6 +55,7 @@ internal class Program
         root.Add(checkHttpOption);
         root.Add(summaryOption);
         root.Add(jsonOption);
+        root.Add(subPolicyOption);
         root.Add(smimeOption);
         root.Add(certOption);
 
@@ -80,6 +82,7 @@ internal class Program
             var checkHttp = result.GetValue(checkHttpOption);
             var summary = result.GetValue(summaryOption);
             var json = result.GetValue(jsonOption);
+            var subPolicy = result.GetValue(subPolicyOption);
             var smime = result.GetValue(smimeOption);
             var cert = result.GetValue(certOption);
 
@@ -115,7 +118,7 @@ internal class Program
             }
 
             var arr = selected.Count > 0 ? selected.ToArray() : null;
-            await RunChecks(domains, arr, checkHttp, json, summary);
+            await RunChecks(domains, arr, checkHttp, json, summary, subPolicy);
         });
 
         var config = new CommandLineConfiguration(root);
@@ -186,19 +189,20 @@ internal class Program
         var outputJson = AnsiConsole.Confirm("Output JSON?");
         var summaryOnly = !outputJson && AnsiConsole.Confirm("Show condensed summary?");
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
+        var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy);
         return 0;
     }
 
     /// <summary>
     /// Runs the selected health checks for the provided domains.
     /// </summary>
-    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly)
+    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy)
     {
         foreach (var domain in domains)
         {
-            var hc = new DomainHealthCheck { Verbose = false };
+            var hc = new DomainHealthCheck { Verbose = false, UseSubdomainPolicy = subdomainPolicy };
             await hc.Verify(domain, checks);
             if (checkHttp)
             {

@@ -196,5 +196,22 @@ namespace DomainDetective.Tests {
             Assert.True(analysisRelaxed.SpfAligned);
             Assert.True(analysisRelaxed.DkimAligned);
         }
+
+        [Theory]
+        [InlineData("v=DMARC1; p=none", false, true)]
+        [InlineData("v=DMARC1; p=quarantine", false, false)]
+        [InlineData("v=DMARC1; p=reject; sp=none", true, true)]
+        public async Task EvaluatePolicyStrengthFlagsWeakPolicy(string record, bool checkSub, bool expected) {
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, new InternalLogger());
+            analysis.EvaluatePolicyStrength(checkSub);
+
+            Assert.Equal(expected, analysis.WeakPolicy);
+            if (expected) {
+                Assert.Equal("Consider quarantine or reject.", analysis.PolicyRecommendation);
+            } else {
+                Assert.Equal(string.Empty, analysis.PolicyRecommendation);
+            }
+        }
     }
 }
