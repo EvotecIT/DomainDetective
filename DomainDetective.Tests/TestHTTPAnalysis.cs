@@ -29,6 +29,7 @@ namespace DomainDetective.Tests {
                 ctx.Response.Headers.Add("Cross-Origin-Opener-Policy", "same-origin");
                 ctx.Response.Headers.Add("Cross-Origin-Embedder-Policy", "require-corp");
                 ctx.Response.Headers.Add("Cross-Origin-Resource-Policy", "same-origin");
+                ctx.Response.Headers.Add("Origin-Agent-Cluster", "?1");
                 var buffer = Encoding.UTF8.GetBytes("ok");
                 await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
                 ctx.Response.Close();
@@ -58,6 +59,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Opener-Policy"].Value);
                 Assert.Equal("require-corp", analysis.SecurityHeaders["Cross-Origin-Embedder-Policy"].Value);
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Resource-Policy"].Value);
+                Assert.Equal("?1", analysis.SecurityHeaders["Origin-Agent-Cluster"].Value);
                 Assert.True(analysis.PermissionsPolicyPresent);
                 Assert.Contains("geolocation", analysis.PermissionsPolicy.Keys);
                 Assert.Equal(string.Empty, analysis.PermissionsPolicy["geolocation"]);
@@ -66,6 +68,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal("same-origin", analysis.CrossOriginOpenerPolicy);
                 Assert.Equal("require-corp", analysis.CrossOriginEmbedderPolicy);
                 Assert.Equal("same-origin", analysis.CrossOriginResourcePolicy);
+                Assert.True(analysis.OriginAgentClusterPresent);
+                Assert.True(analysis.OriginAgentClusterEnabled);
                 Assert.Equal(31536000, analysis.HstsMaxAge);
                 Assert.False(analysis.HstsIncludesSubDomains);
                 Assert.False(analysis.HstsTooShort);
@@ -261,6 +265,7 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.HstsIncludesSubDomains);
                 Assert.True(analysis.HstsTooShort);
                 Assert.Contains("Content-Security-Policy", analysis.MissingSecurityHeaders);
+                Assert.Contains("Origin-Agent-Cluster", analysis.MissingSecurityHeaders);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -334,6 +339,30 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.PermissionsPolicyPresent);
                 Assert.Equal(string.Empty, analysis.PermissionsPolicy["geolocation"]);
                 Assert.Equal("self https://example.com", analysis.PermissionsPolicy["microphone"]);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task ParsesOriginAgentClusterDisabled() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Origin-Agent-Cluster", "?0");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.OriginAgentClusterPresent);
+                Assert.False(analysis.OriginAgentClusterEnabled);
             } finally {
                 listener.Stop();
                 await serverTask;

@@ -66,6 +66,10 @@ namespace DomainDetective {
         public string? CrossOriginEmbedderPolicy { get; private set; }
         /// <summary>Gets the value of the Cross-Origin-Resource-Policy header if present.</summary>
         public string? CrossOriginResourcePolicy { get; private set; }
+        /// <summary>Gets a value indicating whether the Origin-Agent-Cluster header was present.</summary>
+        public bool OriginAgentClusterPresent { get; private set; }
+        /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
+        public bool OriginAgentClusterEnabled { get; private set; }
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -93,15 +97,16 @@ namespace DomainDetective {
             "X-Permitted-Cross-Domain-Policies",
             "Cross-Origin-Opener-Policy",
             "Cross-Origin-Embedder-Policy",
-            "Cross-Origin-Resource-Policy"
+            "Cross-Origin-Resource-Policy",
+            "Origin-Agent-Cluster"
         };
 
         /// <summary>
         /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
         /// called with header collection enabled. The list includes modern headers such
-        /// as <c>Content-Security-Policy</c>, <c>Referrer-Policy</c>, <c>X-Frame-Options</c>
-        /// and <c>Permissions-Policy</c>. Modify this list to customize which headers are
-        /// captured.
+        /// as <c>Content-Security-Policy</c>, <c>Referrer-Policy</c>, <c>X-Frame-Options</c>,
+        /// <c>Permissions-Policy</c> and <c>Origin-Agent-Cluster</c>. Modify this list to
+        /// customize which headers are captured.
         /// </summary>
         public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
@@ -141,6 +146,8 @@ namespace DomainDetective {
             CrossOriginOpenerPolicy = null;
             CrossOriginEmbedderPolicy = null;
             CrossOriginResourcePolicy = null;
+            OriginAgentClusterPresent = false;
+            OriginAgentClusterEnabled = false;
             SecurityHeaders.Clear();
             MissingSecurityHeaders.Clear();
             try {
@@ -232,6 +239,9 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Resource-Policy", out var corp)) {
                         CrossOriginResourcePolicy = corp.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("Origin-Agent-Cluster", out var oac)) {
+                        ParseOriginAgentCluster(oac.Value);
                     }
                     if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
                         ParseExpectCt(ect.Value);
@@ -358,6 +368,17 @@ namespace DomainDetective {
                 value = value.Replace("\"", string.Empty).Trim();
                 PermissionsPolicy[feature] = value;
             }
+        }
+
+        private void ParseOriginAgentCluster(string headerValue) {
+            OriginAgentClusterPresent = false;
+            OriginAgentClusterEnabled = false;
+            if (string.IsNullOrEmpty(headerValue)) {
+                return;
+            }
+
+            OriginAgentClusterPresent = true;
+            OriginAgentClusterEnabled = headerValue.Trim().Equals("?1", StringComparison.Ordinal);
         }
 
         /// <summary>
