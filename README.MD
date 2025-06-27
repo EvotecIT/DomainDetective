@@ -16,7 +16,7 @@ Current capabilities include:
 - [x] Verify MX Records
 - [x] Verify DNSSEC
 - [x] Analyze DNS TTL
-- [x] Verify DANE/TLSA
+- [x] Verify DANE/TLSA (HTTPS on port 443 by default)
 - [x] Verify STARTTLS
 - [x] Verify MTA-STS
 - [x] Verify SMTP TLS

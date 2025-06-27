@@ -27,7 +27,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string[]? DkimSelectors;
 
-        /// <param name="DaneServiceType">Service types to check for DANE.</param>
+        /// <param name="DaneServiceType">Service types to check for DANE. HTTPS (port 443) is queried by default.</param>
         [Parameter(Mandatory = false)]
         public ServiceType[]? DaneServiceType;
 

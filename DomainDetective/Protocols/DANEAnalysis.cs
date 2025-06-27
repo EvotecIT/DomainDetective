@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 namespace DomainDetective {
     /// <summary>
     /// Analyzes DANE (TLSA) records for a domain.
+    /// HTTPS service type (port 443) is assumed when none is provided.
     /// RFC 6698: The DNS-Based Authentication of Named Entities (DANE) Transport Layer Security (TLS) Protocol: TLSA
     /// https://datatracker.ietf.org/doc/html/rfc6698
     /// </summary>
@@ -187,7 +188,7 @@ namespace DomainDetective {
         public string DomainName { get; set; }
 
         /// <summary>Gets or sets the associated service type.</summary>
-        public ServiceType ServiceType { get; set; }
+        public ServiceType ServiceType { get; set; } = ServiceType.HTTPS;
 
         /// <summary>Gets or sets the raw TLSA record.</summary>
         public string DANERecord { get; set; }

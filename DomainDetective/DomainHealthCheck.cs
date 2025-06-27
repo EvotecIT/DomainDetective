@@ -318,7 +318,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to validate.</param>
         /// <param name="healthCheckTypes">Health checks to execute or <c>null</c> for defaults.</param>
         /// <param name="dkimSelectors">DKIM selectors to use when verifying DKIM.</param>
-        /// <param name="daneServiceType">DANE service types to inspect.</param>
+        /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
@@ -961,15 +961,13 @@ namespace DomainDetective {
                     case ServiceType.HTTPS:
                         port = (int)ServiceType.HTTPS;
                         fromMx = false;
-                        var aRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A, cancellationToken: cancellationToken);
-                        var aaaaRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA, cancellationToken: cancellationToken);
-                        records = (aRecords ?? Array.Empty<DnsAnswer>()).Concat(aaaaRecords ?? Array.Empty<DnsAnswer>());
+                        records = new[] { new DnsAnswer { DataRaw = domainName } };
                         break;
                     default:
                         throw new System.Exception("Service type not implemented.");
                 }
 
-                var recordData = records.Select(x => x.Data).Distinct();
+                var recordData = records.Select(x => x.Data ?? x.DataRaw).Distinct();
                 foreach (var record in recordData) {
                     cancellationToken.ThrowIfCancellationRequested();
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
