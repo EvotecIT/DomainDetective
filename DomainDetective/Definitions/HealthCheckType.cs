@@ -12,6 +12,8 @@ public enum HealthCheckType {
     DKIM,
     /// <summary>Check MX records.</summary>
     MX,
+    /// <summary>Validate PTR records for MX hosts.</summary>
+    REVERSEDNS,
     /// <summary>Inspect CAA records.</summary>
     CAA,
     /// <summary>Verify NS records.</summary>

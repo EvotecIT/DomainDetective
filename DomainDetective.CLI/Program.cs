@@ -28,7 +28,8 @@ internal class Program
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
         ["banner"] = HealthCheckType.SMTPBANNER,
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
+        ["rdns"] = HealthCheckType.REVERSEDNS,
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER
     };
 
     /// <summary>
@@ -225,6 +226,7 @@ internal class Program
                     HealthCheckType.SPF => hc.SpfAnalysis,
                     HealthCheckType.DKIM => hc.DKIMAnalysis,
                     HealthCheckType.MX => hc.MXAnalysis,
+                    HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
                     HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,

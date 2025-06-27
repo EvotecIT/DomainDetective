@@ -24,6 +24,10 @@ public static class CheckDescriptions {
                 "Check MX records.",
                 "https://datatracker.ietf.org/doc/html/rfc5321",
                 "Create valid MX records and order them properly."),
+            [HealthCheckType.REVERSEDNS] = new(
+                "Verify PTR records for MX hosts.",
+                "https://datatracker.ietf.org/doc/html/rfc1035",
+                "Publish reverse DNS matching MX hostnames."),
             [HealthCheckType.CAA] = new(
                 "Inspect CAA records.",
                 "https://datatracker.ietf.org/doc/html/rfc6844",
