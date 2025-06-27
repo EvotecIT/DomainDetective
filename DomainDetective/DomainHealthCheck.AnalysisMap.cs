@@ -1,8 +1,8 @@
 using System.Collections.Generic;
+
 namespace DomainDetective;
 
-public partial class DomainHealthCheck
-{
+public partial class DomainHealthCheck {
     /// <summary>
     ///     Creates a dictionary mapping each <see cref="HealthCheckType"/> to
     ///     the corresponding analysis result instance.

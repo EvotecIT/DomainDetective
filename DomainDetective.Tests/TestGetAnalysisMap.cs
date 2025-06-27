@@ -10,7 +10,7 @@ public class TestGetAnalysisMap
         var healthCheck = new DomainHealthCheck();
         var map = healthCheck.GetAnalysisMap();
 
-        Assert.Equal(Enum.GetValues<HealthCheckType>().Length, map.Count);
+        Assert.Equal(Enum.GetValues(typeof(HealthCheckType)).Length, map.Count);
         Assert.Same(healthCheck.DmarcAnalysis, map[HealthCheckType.DMARC]);
         Assert.Same(healthCheck.SpfAnalysis, map[HealthCheckType.SPF]);
         Assert.Same(healthCheck.DKIMAnalysis, map[HealthCheckType.DKIM]);
