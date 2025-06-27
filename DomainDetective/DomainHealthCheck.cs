@@ -228,6 +228,12 @@ namespace DomainDetective {
         public DnsTtlAnalysis DnsTtlAnalysis { get; private set; } = new DnsTtlAnalysis();
 
         /// <summary>
+        /// Gets the port availability analysis.
+        /// </summary>
+        /// <value>TCP port connectivity results.</value>
+        public PortAvailabilityAnalysis PortAvailabilityAnalysis { get; private set; } = new PortAvailabilityAnalysis();
+
+        /// <summary>
         /// Holds DNS client configuration used throughout analyses.
         /// </summary>
         /// <value>The DNS configuration instance.</value>
@@ -283,6 +289,8 @@ namespace DomainDetective {
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
             };
+
+            PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
@@ -469,6 +477,9 @@ namespace DomainDetective {
                     case HealthCheckType.TTL:
                         await DnsTtlAnalysis.Analyze(domainName, _logger);
                         break;
+                    case HealthCheckType.PORTAVAILABILITY:
+                        await CheckPortAvailability(domainName, null, cancellationToken);
+                        break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
                         throw new NotSupportedException("Health check type not implemented.");
@@ -654,6 +665,20 @@ namespace DomainDetective {
         public async Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await SmtpBannerAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Tests connectivity to common service ports on a host.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="ports">Ports to check. Defaults to common services.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckPortAvailability(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) {
+            var list = ports?.ToArray() ?? new[] { 25, 80, 443, 465, 587 };
+            foreach (var p in list) {
+                ValidatePort(p);
+            }
+            await PortAvailabilityAnalysis.AnalyzeServers(new[] { host }, list, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1151,6 +1176,7 @@ namespace DomainDetective {
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
             filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
+            filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
 
             return filtered;
         }

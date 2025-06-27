@@ -30,7 +30,8 @@ internal class Program
         ["danglingcname"] = HealthCheckType.DANGLINGCNAME,
         ["banner"] = HealthCheckType.SMTPBANNER,
         ["rdns"] = HealthCheckType.REVERSEDNS,
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
+        ["ports"] = HealthCheckType.PORTAVAILABILITY
     };
 
     /// <summary>
@@ -238,6 +239,7 @@ internal class Program
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
+                    HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,
                     _ => null
                 };
                 if (data != null)

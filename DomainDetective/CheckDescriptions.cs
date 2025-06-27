@@ -119,7 +119,11 @@ public static class CheckDescriptions {
             [HealthCheckType.TTL] = new(
                 "Analyze DNS record TTL values.",
                 null,
-                "Adjust TTLs within recommended ranges.")
+                "Adjust TTLs within recommended ranges."),
+            [HealthCheckType.PORTAVAILABILITY] = new(
+                "Test common service ports for availability.",
+                null,
+                "Ensure required services accept connections.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
