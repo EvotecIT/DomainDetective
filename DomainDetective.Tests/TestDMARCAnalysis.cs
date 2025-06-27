@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.Linq;
 using DnsClientX;
 
 namespace DomainDetective.Tests {
@@ -173,7 +173,10 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task AlignmentStrictVsRelaxed() {
-            string GetOrg(string domain) => string.Join('.', domain.Split('.').TakeLast(2));
+            string GetOrg(string domain) {
+                var parts = domain.Split('.');
+                return string.Join('.', parts.Skip(Math.Max(0, parts.Length - 2)));
+            }
 
             var strictRecord = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "v=DMARC1; p=reject; adkim=s; aspf=s", Type = DnsRecordType.TXT }
