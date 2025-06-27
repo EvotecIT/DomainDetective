@@ -464,7 +464,6 @@ namespace DomainDetective {
                         MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
                         break;
                     case HealthCheckType.DANGLINGCNAME:
-                        DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
                         await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
                     case HealthCheckType.TTL:
                         await DnsTtlAnalysis.Analyze(domainName, _logger);
