@@ -36,6 +36,7 @@ public class WhoisAnalysis {
     public string RegistrarAddress { get; set; }
     public string RegistrarTel { get; set; }
     public string RegistrarWebsite { get; set; }
+    public string RegistrarLicense { get; set; }
     public string RegistrarEmail { get; set; }
     public string RegistrarAbuseEmail { get; set; }
     public string RegistrarAbusePhone { get; set; }
@@ -46,6 +47,21 @@ public class WhoisAnalysis {
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
 
     private static readonly InternalLogger _logger = new();
+    private static readonly string[] _licensePrefixes = {
+        "Registrar License:",
+        "Registrar Licence:",
+        "Registrar License Number:",
+        "Registrar Licence Number:"
+    };
+
+    private void ParseRegistrarLicense(string trimmedLine) {
+        foreach (var prefix in _licensePrefixes) {
+            if (trimmedLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
+                RegistrarLicense = trimmedLine.Substring(prefix.Length).Trim();
+                break;
+            }
+        }
+    }
 
     // Lock object used to synchronize access to the WhoisServers dictionary
     // since Dictionary<TK,TV> is not thread safe for concurrent writes.
@@ -416,6 +432,7 @@ public class WhoisAnalysis {
         string currentSection = null;
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
             if (trimmedLine.EndsWith(":")) {
                 currentSection = trimmedLine.TrimEnd(':');
             } else if (!string.IsNullOrWhiteSpace(trimmedLine)) {
@@ -528,6 +545,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (trimmedLine.StartsWith("domain:")) {
                 DomainName = trimmedLine.Substring("domain:".Length).Trim();
@@ -560,6 +578,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (string.IsNullOrWhiteSpace(trimmedLine)) {
                 isParsingDomainSection = false; // Stop parsing the domain section when encountering an empty line
@@ -608,6 +627,7 @@ public class WhoisAnalysis {
             RegexOptions.CultureInvariant | RegexOptions.Multiline);
 
         foreach (var line in WhoisData.Split('\n')) {
+            ParseRegistrarLicense(line.Trim());
             if (line.StartsWith("   Domain Name:")) {
                 DomainName = line.Substring("   Domain Name:".Length).Trim();
             } else if (line.StartsWith("   Registrar:")) {
@@ -644,6 +664,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (trimmedLine.StartsWith("Domain Name:")) {
                 DomainName = trimmedLine.Substring("Domain Name:".Length).Trim();
@@ -677,6 +698,7 @@ public class WhoisAnalysis {
 
     private void ParseWhoisDataDE() {
         foreach (var line in WhoisData.Split('\n')) {
+            ParseRegistrarLicense(line.Trim());
             if (line.StartsWith("DOMAIN:")) {
                 DomainName = line.Substring("DOMAIN:".Length).Trim();
             } else if (line.StartsWith("CHANGED:")) {
@@ -697,6 +719,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (trimmedLine.StartsWith("Domain Name:")) {
                 DomainName = trimmedLine.Substring("Domain Name:".Length).Trim();
@@ -739,6 +762,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (trimmedLine.StartsWith("DOMAIN NAME:")) {
                 DomainName = trimmedLine.Substring("DOMAIN NAME:".Length).Trim();
@@ -791,6 +815,7 @@ public class WhoisAnalysis {
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
+            ParseRegistrarLicense(trimmedLine);
 
             if (trimmedLine.StartsWith("Domain:")) {
                 DomainName = trimmedLine.Substring("Domain:".Length).Trim();

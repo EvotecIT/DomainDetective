@@ -146,6 +146,48 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task ParsesRegistrarLicense() {
+            var response = string.Join("\n", new[] {
+                "Domain Name: license.sample",
+                "Registrar: Example Registrar",
+                "Registrar License: XYZ-123",
+                "Name Server: ns1.license.sample"
+            });
+
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                await reader.ReadLineAsync();
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true };
+                await writer.WriteAsync(response);
+            });
+
+            try {
+                var whois = new WhoisAnalysis();
+                var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+                Assert.NotNull(servers);
+                var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                var lockObj = lockField?.GetValue(whois);
+                Assert.NotNull(lockObj);
+                lock (lockObj!) {
+                    servers!["sample"] = $"localhost:{port}";
+                }
+
+                await whois.QueryWhoisServer("license.sample");
+
+                Assert.Equal("XYZ-123", whois.RegistrarLicense);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task SetsExpiredFlagWhenDatePast() {
             var response = string.Join("\n", new[] {
                 "Domain Name: expired.sample",
