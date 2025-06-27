@@ -51,6 +51,14 @@ namespace DomainDetective {
         public bool? CrlRevoked { get; private set; }
         /// <summary>Gets or sets the HTTP request timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Gets DNS names listed in the certificate subject alternative name extension.</summary>
+        public List<string> SubjectAlternativeNames { get; } = new();
+        /// <summary>Gets wildcard entries with matching subdomains.</summary>
+        public Dictionary<string, List<string>> WildcardSubdomains { get; } = new();
+        /// <summary>Gets a value indicating whether the certificate contains wildcard names.</summary>
+        public bool IsWildcardCertificate { get; private set; }
+        /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
+        public bool SecuresUnrelatedHosts { get; private set; }
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.
@@ -135,6 +143,7 @@ namespace DomainDetective {
                             DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
                             IsExpired = Certificate.NotAfter < DateTime.Now;
                             await QueryRevocationEndpoints(cancellationToken);
+                            PopulateSubjectAlternativeNames();
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
@@ -235,6 +244,89 @@ namespace DomainDetective {
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeUrl(url, port, new InternalLogger(), cancellationToken);
             return analysis;
+        }
+
+        /// <summary>
+        /// Analyzes a provided certificate without performing any network operations.
+        /// </summary>
+        /// <param name="certificate">Certificate instance to inspect.</param>
+        /// <param name="cancellationToken">Token used to cancel the operation.</param>
+        public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
+            Certificate = new X509Certificate2(certificate.RawData);
+            var chain = new X509Chain();
+            IsValid = chain.Build(certificate);
+            Chain.Clear();
+            foreach (var element in chain.ChainElements) {
+                Chain.Add(new X509Certificate2(element.Certificate.RawData));
+            }
+            DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
+            DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
+            IsExpired = certificate.NotAfter < DateTime.Now;
+            await QueryRevocationEndpoints(cancellationToken);
+            PopulateSubjectAlternativeNames();
+        }
+
+        private void PopulateSubjectAlternativeNames() {
+            SubjectAlternativeNames.Clear();
+            WildcardSubdomains.Clear();
+            IsWildcardCertificate = false;
+            SecuresUnrelatedHosts = false;
+
+            if (Certificate == null) {
+                return;
+            }
+
+            var parser = new X509CertificateParser();
+            var bcCert = parser.ReadCertificate(Certificate.RawData);
+            var sanExt = bcCert.GetExtensionValue(X509Extensions.SubjectAlternativeName);
+            if (sanExt != null) {
+                var names = GeneralNames.GetInstance(Asn1Object.FromByteArray(sanExt.GetOctets()));
+                foreach (var gn in names.GetNames()) {
+                    if (gn.TagNo == GeneralName.DnsName) {
+                        var dns = DerIA5String.GetInstance(gn.Name).GetString();
+                        SubjectAlternativeNames.Add(dns);
+                    }
+                }
+            }
+
+            var cn = Certificate.GetNameInfo(X509NameType.DnsName, false);
+            if (!string.IsNullOrWhiteSpace(cn) && !SubjectAlternativeNames.Contains(cn)) {
+                SubjectAlternativeNames.Add(cn);
+            }
+
+            var wildcards = new List<string>();
+            foreach (var name in SubjectAlternativeNames) {
+                if (name.StartsWith("*.", StringComparison.Ordinal)) {
+                    wildcards.Add(name);
+                }
+            }
+
+            foreach (var wc in wildcards) {
+                var baseDomain = wc.Substring(2);
+                var matches = new List<string>();
+                foreach (var n in SubjectAlternativeNames) {
+                    if (!n.Equals(wc, StringComparison.OrdinalIgnoreCase) && n.EndsWith('.' + baseDomain, StringComparison.OrdinalIgnoreCase)) {
+                        if (!matches.Contains(n)) {
+                            matches.Add(n);
+                        }
+                    }
+                }
+                WildcardSubdomains[wc] = matches;
+            }
+
+            IsWildcardCertificate = WildcardSubdomains.Count > 0;
+
+            var baseDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in SubjectAlternativeNames) {
+                var parts = name.Split('.');
+                if (parts.Length >= 2) {
+                    var baseDom = parts[parts.Length - 2] + "." + parts[parts.Length - 1];
+                    baseDomains.Add(baseDom);
+                } else {
+                    baseDomains.Add(name);
+                }
+            }
+            SecuresUnrelatedHosts = baseDomains.Count > 1 && SubjectAlternativeNames.Count > 5;
         }
     }
 

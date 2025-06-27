@@ -14,13 +14,17 @@ namespace DomainDetective {
         /// <returns>Structured representation of the results.</returns>
         public static DnsSecInfo Convert(DNSSecAnalysis analysis) {
             List<DsRecordInfo> dsRecords = new();
-            foreach (string record in analysis.DsRecords) {
-                dsRecords.Add(ParseDsRecord(record));
+            if (analysis.DsRecords != null) {
+                foreach (string record in analysis.DsRecords) {
+                    dsRecords.Add(ParseDsRecord(record));
+                }
             }
 
             List<DnsKeyInfo> dnsKeys = new();
-            foreach (string key in analysis.DnsKeys) {
-                dnsKeys.Add(ParseDnsKey(key));
+            if (analysis.DnsKeys != null) {
+                foreach (string key in analysis.DnsKeys) {
+                    dnsKeys.Add(ParseDnsKey(key));
+                }
             }
 
             return new DnsSecInfo {

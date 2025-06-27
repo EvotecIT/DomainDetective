@@ -6,10 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Performs open relay checks against SMTP servers.
+    /// </summary>
     public class OpenRelayAnalysis {
         public Dictionary<string, OpenRelayStatus> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// Tests a single server for open relay capabilities.
+        /// </summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
@@ -18,6 +24,9 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = status;
         }
 
+        /// <summary>
+        /// Tests multiple servers for open relay capabilities.
+        /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             foreach (var host in hosts) {
@@ -30,6 +39,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Attempts to send a relay through the specified server.
+        /// </summary>
         private async Task<OpenRelayStatus> TryRelay(TcpClient client, string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -78,6 +90,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Reads a line from the SMTP server until the final response is received.
+        /// </summary>
         private static async Task<string?> ReadResponseAsync(StreamReader reader, CancellationToken token) {
 #if NET8_0_OR_GREATER
             string? line = await reader.ReadLineAsync(token);
