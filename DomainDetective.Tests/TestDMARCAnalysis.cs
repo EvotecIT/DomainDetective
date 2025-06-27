@@ -175,7 +175,7 @@ namespace DomainDetective.Tests {
         public async Task AlignmentStrictVsRelaxed() {
             string GetOrg(string domain) {
                 var parts = domain.Split('.');
-                return string.Join('.', parts.Skip(Math.Max(0, parts.Length - 2)));
+                return string.Join(".", parts.Skip(Math.Max(0, parts.Length - 2)));
             }
 
             var strictRecord = new List<DnsAnswer> {
