@@ -52,4 +52,6 @@ public enum HealthCheckType {
     MESSAGEHEADER,
     /// <summary>Detect dangling CNAME records.</summary>
     DANGLINGCNAME
+    /// <summary>Analyze DNS record TTL values.</summary>
+    TTL
 }

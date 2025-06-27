@@ -104,6 +104,10 @@ public static class CheckDescriptions {
                 "Detect dangling CNAME records.",
                 null,
                 "Remove or update broken CNAME targets.")
+            [HealthCheckType.TTL] = new(
+                "Analyze DNS record TTL values.",
+                null,
+                "Adjust TTLs within recommended ranges.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
