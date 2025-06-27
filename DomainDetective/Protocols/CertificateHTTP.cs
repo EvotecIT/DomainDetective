@@ -58,6 +58,12 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the certificate contains wildcard names.</summary>
         public bool IsWildcardCertificate { get; private set; }
         /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
+                        if (response.Version < HttpVersion.Version30) {
+                            IsReachable = false;
+                            ProtocolVersion = response.Version;
+                            logger?.WriteError("HTTP version downgrade for {0}: {1}", url, response.Version);
+                            return;
+                        }
         public bool SecuresUnrelatedHosts { get; private set; }
 
         /// <summary>

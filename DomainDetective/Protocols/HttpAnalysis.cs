@@ -121,6 +121,14 @@ namespace DomainDetective {
 #else
             using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
 #endif
+                if (response.Version < RequestVersion) {
+                    sw.Stop();
+                    FailureReason = $"HTTP version downgraded to {response.Version}";
+                    IsReachable = false;
+                    logger?.WriteError("HTTP version downgrade for {0}: {1}", url, response.Version);
+                    response.Dispose();
+                    return;
+                }
             using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.IO;
 using System.Reflection;
@@ -858,6 +860,9 @@ namespace DomainDetective {
         }
 
         /// <summary>
+#if NET6_0_OR_GREATER
+            HttpAnalysis.RequestVersion = HttpVersion.Version11;
+#endif
         /// Queries TLSA records based on common service types.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
