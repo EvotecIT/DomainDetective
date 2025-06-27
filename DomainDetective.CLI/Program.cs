@@ -27,8 +27,10 @@ internal class Program
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
-        ["danglingcname"] = HealthCheckType.DANGLINGCNAME
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
+        ["danglingcname"] = HealthCheckType.DANGLINGCNAME,
+        ["banner"] = HealthCheckType.SMTPBANNER,
+        ["rdns"] = HealthCheckType.REVERSEDNS,
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER
     };
 
     /// <summary>
@@ -225,6 +227,7 @@ internal class Program
                     HealthCheckType.SPF => hc.SpfAnalysis,
                     HealthCheckType.DKIM => hc.DKIMAnalysis,
                     HealthCheckType.MX => hc.MXAnalysis,
+                    HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
                     HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,
@@ -234,6 +237,7 @@ internal class Program
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
+                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis
                     _ => null
                 };
                 if (data != null)

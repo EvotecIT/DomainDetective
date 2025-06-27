@@ -12,6 +12,8 @@ public enum HealthCheckType {
     DKIM,
     /// <summary>Check MX records.</summary>
     MX,
+    /// <summary>Validate PTR records for MX hosts.</summary>
+    REVERSEDNS,
     /// <summary>Inspect CAA records.</summary>
     CAA,
     /// <summary>Verify NS records.</summary>
@@ -44,6 +46,8 @@ public enum HealthCheckType {
     STARTTLS,
     /// <summary>Verify SMTP TLS configuration.</summary>
     SMTPTLS,
+    /// <summary>Capture SMTP banner information.</summary>
+    SMTPBANNER,
     /// <summary>Perform HTTP checks.</summary>
     HTTP,
     /// <summary>Validate HPKP configuration.</summary>
