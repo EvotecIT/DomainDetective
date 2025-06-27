@@ -49,6 +49,10 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Get-Content './headers.txt' -Raw | Test-MessageHeader
   ```
+- `Invoke-DomainWizard` – interactive helper that guides through domain checks.
+  ```powershell
+  Invoke-DomainWizard
+  ```
 - `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Import-DnsblConfig` manage the list of DNSBL providers.
   ```powershell
   Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'

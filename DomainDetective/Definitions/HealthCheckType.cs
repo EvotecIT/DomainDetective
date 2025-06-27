@@ -16,6 +16,8 @@ public enum HealthCheckType {
     CAA,
     /// <summary>Verify NS records.</summary>
     NS,
+    /// <summary>Attempt a zone transfer.</summary>
+    ZONETRANSFER,
     /// <summary>Validate DANE information.</summary>
     DANE,
     /// <summary>Check DNSBL listings.</summary>
@@ -51,5 +53,7 @@ public enum HealthCheckType {
     /// <summary>Query contact TXT record.</summary>
     CONTACT,
     /// <summary>Parse message headers.</summary>
-    MESSAGEHEADER
+    MESSAGEHEADER,
+    /// <summary>Analyze DNS record TTL values.</summary>
+    TTL
 }
