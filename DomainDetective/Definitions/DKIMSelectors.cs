@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace DomainDetective.Definitions {
+    /// <summary>
+    /// Provides common DKIM selectors used by popular mail providers.
+    /// </summary>
     internal static class DKIMSelectors {
         internal static readonly string[] Google = new[] { "google" };
 
@@ -23,6 +26,9 @@ namespace DomainDetective.Definitions {
 
         internal static readonly string[] AmazonSes = new[] { "amazonses" };
 
+        /// <summary>
+        /// Returns a deduplicated list of known DKIM selectors.
+        /// </summary>
         internal static IEnumerable<string> GuessSelectors() {
             return Google
                 .Concat(Microsoft)

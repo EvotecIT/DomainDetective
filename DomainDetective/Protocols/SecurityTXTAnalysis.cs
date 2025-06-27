@@ -6,6 +6,9 @@ using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Downloads and validates security.txt files according to the specification.
+    /// </summary>
     public class SecurityTXTAnalysis {
         public string Domain { get; set; }
         public bool RecordPresent { get; set; }
@@ -32,6 +35,9 @@ namespace DomainDetective {
         internal InternalLogger Logger { get; set; }
 
 
+        /// <summary>
+        /// Retrieves and parses the security.txt file for the given domain.
+        /// </summary>
         public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string pgpPublicKey = null) {
             Logger = logger;
 
@@ -52,6 +58,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Downloads the security.txt file from the specified URL.
+        /// </summary>
         private async Task<string> GetSecurityTxt(string url) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
@@ -73,6 +82,9 @@ namespace DomainDetective {
         }
 
 
+        /// <summary>
+        /// Parses the contents of a security.txt file.
+        /// </summary>
         private void ParseSecurityTxt(string txt, string pgpPublicKey, string currentUrl) {
             if (txt.Contains("-----BEGIN PGP SIGNED MESSAGE-----")) {
                 PGPSigned = true;
@@ -212,6 +224,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Extracts clear text from a PGP signed message.
+        /// </summary>
         private string ExtractClearText(string signedText) {
             const string header = "-----BEGIN PGP SIGNED MESSAGE-----";
             const string signatureHeader = "-----BEGIN PGP SIGNATURE-----";

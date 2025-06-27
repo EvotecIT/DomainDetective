@@ -28,6 +28,8 @@ public enum HealthCheckType {
     TLSRPT,
     /// <summary>Validate BIMI records.</summary>
     BIMI,
+    /// <summary>Check Autodiscover configuration.</summary>
+    AUTODISCOVER,
     /// <summary>Inspect certificate records.</summary>
     CERT,
     /// <summary>Check for security.txt presence.</summary>
@@ -47,5 +49,7 @@ public enum HealthCheckType {
     /// <summary>Query contact TXT record.</summary>
     CONTACT,
     /// <summary>Parse message headers.</summary>
-    MESSAGEHEADER
+    MESSAGEHEADER,
+    /// <summary>Analyze DNS record TTL values.</summary>
+    TTL
 }

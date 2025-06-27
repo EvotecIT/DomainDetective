@@ -9,3 +9,9 @@
 
 ### What's Changed
 - Enabled trimming on CLI and example projects with partial mode to align with .NET 8 NativeAOT guidance
+
+## 1.0.2
+
+### What's Changed
+- Added TTL analysis for common DNS record types
+- New `Test-DnsTtl` PowerShell cmdlet

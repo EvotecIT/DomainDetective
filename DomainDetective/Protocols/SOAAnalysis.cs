@@ -4,6 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Parses and validates SOA records for a domain.
+    /// </summary>
     public class SOAAnalysis {
         public string? DomainName { get; private set; }
         public string? PrimaryNameServer { get; private set; }
@@ -15,6 +18,9 @@ namespace DomainDetective {
         public int Minimum { get; private set; }
         public bool RecordExists { get; private set; }
 
+        /// <summary>
+        /// Reads SOA records and populates analysis properties.
+        /// </summary>
         public async Task AnalyzeSoaRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield();
 
