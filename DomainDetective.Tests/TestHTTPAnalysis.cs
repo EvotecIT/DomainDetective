@@ -58,6 +58,14 @@ namespace DomainDetective.Tests {
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Opener-Policy"].Value);
                 Assert.Equal("require-corp", analysis.SecurityHeaders["Cross-Origin-Embedder-Policy"].Value);
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Resource-Policy"].Value);
+                Assert.True(analysis.PermissionsPolicyPresent);
+                Assert.Contains("geolocation", analysis.PermissionsPolicy.Keys);
+                Assert.Equal(string.Empty, analysis.PermissionsPolicy["geolocation"]);
+                Assert.Equal("no-referrer", analysis.ReferrerPolicy);
+                Assert.Equal("DENY", analysis.XFrameOptions);
+                Assert.Equal("same-origin", analysis.CrossOriginOpenerPolicy);
+                Assert.Equal("require-corp", analysis.CrossOriginEmbedderPolicy);
+                Assert.Equal("same-origin", analysis.CrossOriginResourcePolicy);
                 Assert.Equal(31536000, analysis.HstsMaxAge);
                 Assert.False(analysis.HstsIncludesSubDomains);
                 Assert.False(analysis.HstsTooShort);
@@ -125,6 +133,10 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.MissingSecurityHeaders.Count == 0);
                 Assert.False(analysis.XssProtectionPresent);
                 Assert.False(analysis.ExpectCtPresent);
+                Assert.False(analysis.PermissionsPolicyPresent);
+                Assert.Empty(analysis.PermissionsPolicy);
+                Assert.Null(analysis.ReferrerPolicy);
+                Assert.Null(analysis.XFrameOptions);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -297,6 +309,31 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.ExpectCtPresent);
                 Assert.Equal(10, analysis.ExpectCtMaxAge);
                 Assert.Equal("https://example.com/report", analysis.ExpectCtReportUri);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task ParsesPermissionsPolicyDirectives() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Permissions-Policy", "geolocation=(), microphone=(self \"https://example.com\")");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.PermissionsPolicyPresent);
+                Assert.Equal(string.Empty, analysis.PermissionsPolicy["geolocation"]);
+                Assert.Equal("self https://example.com", analysis.PermissionsPolicy["microphone"]);
             } finally {
                 listener.Stop();
                 await serverTask;

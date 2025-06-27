@@ -60,6 +60,10 @@ public static class CheckDescriptions {
                 "Validate BIMI records.",
                 null,
                 "Provide a valid BIMI record and hosted logo."),
+            [HealthCheckType.AUTODISCOVER] = new(
+                "Check Autodiscover configuration.",
+                null,
+                "Publish SRV and CNAME records for Autodiscover."),
             [HealthCheckType.CERT] = new(
                 "Inspect certificate records.",
                 null,
@@ -99,7 +103,11 @@ public static class CheckDescriptions {
             [HealthCheckType.MESSAGEHEADER] = new(
                 "Parse message headers.",
                 null,
-                "Inspect headers for anomalies.")
+                "Inspect headers for anomalies."),
+            [HealthCheckType.TTL] = new(
+                "Analyze DNS record TTL values.",
+                null,
+                "Adjust TTLs within recommended ranges.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
