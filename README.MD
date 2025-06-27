@@ -20,6 +20,7 @@ Current capabilities include:
 - [x] Verify STARTTLS
 - [x] Verify MTA-STS
 - [x] Verify SMTP TLS
+- [x] Verify SMTP Banner
 - [x] Verify TLS-RPT
 - [x] Verify BIMI
 - [x] Verify Autodiscover

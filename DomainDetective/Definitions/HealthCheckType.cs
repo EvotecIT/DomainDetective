@@ -46,6 +46,8 @@ public enum HealthCheckType {
     STARTTLS,
     /// <summary>Verify SMTP TLS configuration.</summary>
     SMTPTLS,
+    /// <summary>Capture SMTP banner information.</summary>
+    SMTPBANNER,
     /// <summary>Perform HTTP checks.</summary>
     HTTP,
     /// <summary>Validate HPKP configuration.</summary>

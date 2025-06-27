@@ -26,9 +26,10 @@ internal class Program
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
+        ["contact"] = HealthCheckType.CONTACT,
+        ["banner"] = HealthCheckType.SMTPBANNER,
         ["rdns"] = HealthCheckType.REVERSEDNS,
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
-        ["contact"] = HealthCheckType.CONTACT
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER
     };
 
     /// <summary>
@@ -234,6 +235,7 @@ internal class Program
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
+                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     _ => null
                 };
                 if (data != null)
