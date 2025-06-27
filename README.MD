@@ -23,6 +23,7 @@ Current capabilities include:
 - [x] Verify SMTP Banner
 - [x] Verify TLS-RPT
 - [x] Verify BIMI
+- [x] Check for dangling CNAME records
 - [x] Verify Autodiscover
 - [x] Verify Website Connectivity
   - [x] Verify HTTP/2

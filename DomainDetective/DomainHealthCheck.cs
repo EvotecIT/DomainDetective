@@ -217,11 +217,15 @@ namespace DomainDetective {
         public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
 
         /// <summary>
+        /// Gets the dangling CNAME analysis.
+        /// </summary>
+        /// <value>Information about unresolved CNAME targets.</value>
+        public DanglingCnameAnalysis DanglingCnameAnalysis { get; private set; } = new DanglingCnameAnalysis();
+
         /// Gets DNS TTL analysis.
         /// </summary>
         /// <value>Information about record TTL values.</value>
         public DnsTtlAnalysis DnsTtlAnalysis { get; private set; } = new DnsTtlAnalysis();
-
 
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
@@ -273,6 +277,8 @@ namespace DomainDetective {
             MTASTSAnalysis = new MTASTSAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
+
+            DanglingCnameAnalysis.DnsConfiguration = DnsConfiguration;
 
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
@@ -456,6 +462,9 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.MESSAGEHEADER:
                         MessageHeaderAnalysis = CheckMessageHeaders(string.Empty, cancellationToken);
+                        break;
+                    case HealthCheckType.DANGLINGCNAME:
+                        await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
                         break;
                     case HealthCheckType.TTL:
                         await DnsTtlAnalysis.Analyze(domainName, _logger);
@@ -829,7 +838,6 @@ namespace DomainDetective {
             await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
         }
 
-        /// <summary>
         /// Attempts zone transfers against authoritative name servers.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
@@ -843,7 +851,15 @@ namespace DomainDetective {
             var servers = nsRecords.Select(r => r.Data.Trim('.'));
             await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
         }
-  
+
+        /// <summary>
+        /// Detects dangling CNAME records for the domain.
+        /// </summary>
+        public async Task VerifyDanglingCname(string domainName, CancellationToken cancellationToken = default) {
+            DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
+            await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
+        }
+
         /// Queries Autodiscover related records for a domain.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
@@ -1131,6 +1147,7 @@ namespace DomainDetective {
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+            filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
 
             return filtered;

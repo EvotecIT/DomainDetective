@@ -27,6 +27,7 @@ internal class Program
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
+        ["danglingcname"] = HealthCheckType.DANGLINGCNAME,
         ["banner"] = HealthCheckType.SMTPBANNER,
         ["rdns"] = HealthCheckType.REVERSEDNS,
         ["autodiscover"] = HealthCheckType.AUTODISCOVER
@@ -235,6 +236,7 @@ internal class Program
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
+                    HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     _ => null
                 };

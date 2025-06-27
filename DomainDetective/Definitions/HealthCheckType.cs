@@ -56,6 +56,8 @@ public enum HealthCheckType {
     CONTACT,
     /// <summary>Parse message headers.</summary>
     MESSAGEHEADER,
+    /// <summary>Detect dangling CNAME records.</summary>
+    DANGLINGCNAME,
     /// <summary>Analyze DNS record TTL values.</summary>
     TTL
 }

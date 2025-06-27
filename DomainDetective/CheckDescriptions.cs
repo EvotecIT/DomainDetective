@@ -112,6 +112,10 @@ public static class CheckDescriptions {
                 "Parse message headers.",
                 null,
                 "Inspect headers for anomalies."),
+            [HealthCheckType.DANGLINGCNAME] = new(
+                "Detect dangling CNAME records.",
+                null,
+                "Remove or update broken CNAME targets."),
             [HealthCheckType.TTL] = new(
                 "Analyze DNS record TTL values.",
                 null,
