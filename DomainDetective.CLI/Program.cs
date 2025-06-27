@@ -25,7 +25,7 @@ internal class Program
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
-        ["banner"] = HealthCheckType.SMTPBANNER
+        ["banner"] = HealthCheckType.SMTPBANNER,
         ["autodiscover"] = HealthCheckType.AUTODISCOVER,
     };
 
