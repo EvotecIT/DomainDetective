@@ -5,9 +5,13 @@ using System.CommandLine.Invocation;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.CLI;
 
+/// <summary>
+/// Entry point and command handling for the DomainDetective CLI.
+/// </summary>
 internal class Program
 {
     private static readonly Dictionary<string, HealthCheckType> _options = new()
@@ -18,12 +22,17 @@ internal class Program
         ["mx"] = HealthCheckType.MX,
         ["caa"] = HealthCheckType.CAA,
         ["ns"] = HealthCheckType.NS,
+        ["zonetransfer"] = HealthCheckType.ZONETRANSFER,
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
         ["contact"] = HealthCheckType.CONTACT
     };
 
+    /// <summary>
+    /// Application entry point.
+    /// </summary>
     private static async Task<int> Main(string[] args)
     {
         var root = new RootCommand("DomainDetective CLI");
@@ -36,12 +45,14 @@ internal class Program
         var summaryOption = new Option<bool>("--summary", "Show condensed summary");
         var jsonOption = new Option<bool>("--json", "Output raw JSON");
         var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
+        var certOption = new Option<FileInfo?>("--cert", "Parse general certificate file and exit");
         root.Add(domainsArg);
         root.Add(checksOption);
         root.Add(checkHttpOption);
         root.Add(summaryOption);
         root.Add(jsonOption);
         root.Add(smimeOption);
+        root.Add(certOption);
 
         var analyze = new Command("AnalyzeMessageHeader", "Analyze message header");
         var fileOpt = new Option<FileInfo?>("--file", "Header file");
@@ -67,12 +78,21 @@ internal class Program
             var summary = result.GetValue(summaryOption);
             var json = result.GetValue(jsonOption);
             var smime = result.GetValue(smimeOption);
+            var cert = result.GetValue(certOption);
 
             if (smime != null)
             {
                 var smimeAnalysis = new SmimeCertificateAnalysis();
                 smimeAnalysis.AnalyzeFile(smime.FullName);
                 CliHelpers.ShowPropertiesTable($"S/MIME certificate {smime.FullName}", smimeAnalysis);
+                return;
+            }
+
+            if (cert != null)
+            {
+                var certAnalysis = new CertificateAnalysis();
+                await certAnalysis.AnalyzeCertificate(new X509Certificate2(cert.FullName));
+                CliHelpers.ShowPropertiesTable($"Certificate {cert.FullName}", certAnalysis);
                 return;
             }
 
@@ -99,6 +119,9 @@ internal class Program
         return await config.InvokeAsync(args);
     }
 
+    /// <summary>
+    /// Analyzes an email message header and prints the results.
+    /// </summary>
     private static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json)
     {
         string? headerText = null;
@@ -136,6 +159,9 @@ internal class Program
         }
     }
 
+    /// <summary>
+    /// Interactive wizard to collect parameters from the user.
+    /// </summary>
     private static async Task<int> RunWizard()
     {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
@@ -162,6 +188,9 @@ internal class Program
         return 0;
     }
 
+    /// <summary>
+    /// Runs the selected health checks for the provided domains.
+    /// </summary>
     private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly)
     {
         foreach (var domain in domains)
@@ -197,9 +226,11 @@ internal class Program
                     HealthCheckType.MX => hc.MXAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
+                    HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,
                     HealthCheckType.DANE => hc.DaneAnalysis,
                     HealthCheckType.DNSBL => hc.DNSBLAnalysis,
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
+                    HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     _ => null
                 };

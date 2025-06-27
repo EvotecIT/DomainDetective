@@ -6,10 +6,16 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Checks whether SMTP servers advertise the STARTTLS capability.
+    /// </summary>
     public class STARTTLSAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// Tests a single server for STARTTLS support.
+        /// </summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
@@ -17,6 +23,9 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = supports;
         }
 
+        /// <summary>
+        /// Tests multiple servers for STARTTLS support.
+        /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             foreach (var host in hosts) {
@@ -28,6 +37,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Performs the low-level STARTTLS negotiation.
+        /// </summary>
         private async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

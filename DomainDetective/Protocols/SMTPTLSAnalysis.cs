@@ -9,7 +9,13 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Inspects SMTP servers for TLS configuration details.
+    /// </summary>
     public class SMTPTLSAnalysis {
+        /// <summary>
+        /// Holds TLS negotiation results for a single server.
+        /// </summary>
         public class TlsResult {
             public bool StartTlsAdvertised { get; set; }
             public bool CertificateValid { get; set; }
@@ -25,12 +31,18 @@ namespace DomainDetective {
         public Dictionary<string, TlsResult> ServerResults { get; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
+        /// <summary>
+        /// Analyzes TLS settings for a single SMTP server.
+        /// </summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             var result = await CheckTls(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = result;
         }
 
+        /// <summary>
+        /// Analyzes TLS settings for multiple SMTP servers.
+        /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             foreach (var host in hosts) {
@@ -39,6 +51,9 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Performs the TLS handshake and collects certificate details.
+        /// </summary>
         private async Task<TlsResult> CheckTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var result = new TlsResult();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);

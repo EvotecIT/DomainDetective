@@ -6,6 +6,9 @@ using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Performs analysis of NS records for a domain.
+    /// </summary>
     public class NSAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
@@ -17,6 +20,9 @@ namespace DomainDetective {
         public bool PointsToCname { get; private set; }
         public bool HasDiverseLocations { get; private set; }
 
+        /// <summary>
+        /// Executes a DNS query for the specified record type.
+        /// </summary>
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
@@ -25,6 +31,9 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
+        /// <summary>
+        /// Processes NS records and determines their properties.
+        /// </summary>
         public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             NsRecords = new List<string>();
             NsRecordExists = false;

@@ -40,6 +40,11 @@ namespace DomainDetective {
         public bool ValidDkimAlignment { get; private set; }
         public bool ValidSpfAlignment { get; private set; }
 
+        /// <summary>Indicates whether the SPF domain aligns with the policy.</summary>
+        public bool SpfAligned { get; private set; }
+        /// <summary>Indicates whether the DKIM domain aligns with the policy.</summary>
+        public bool DkimAligned { get; private set; }
+
         public bool InvalidReportUri { get; private set; }
 
         public string Rua { get; private set; }
@@ -299,6 +304,46 @@ namespace DomainDetective {
         private string TranslateReportingInterval(int interval) {
             return $"{interval / 86400} days";
         }
+
+        /// <summary>
+        /// Evaluates SPF and DKIM alignment for the provided domains.
+        /// </summary>
+        /// <param name="fromDomain">Domain from the RFC5322.From header.</param>
+        /// <param name="spfDomain">Domain authenticated via SPF.</param>
+        /// <param name="dkimDomain">Domain from the DKIM signature.</param>
+        /// <param name="getOrgDomain">Function returning the organisational domain for a given input.</param>
+        public void EvaluateAlignment(string fromDomain, string? spfDomain, string? dkimDomain, Func<string, string> getOrgDomain) {
+            if (fromDomain == null) {
+                throw new ArgumentNullException(nameof(fromDomain));
+            }
+            if (getOrgDomain == null) {
+                throw new ArgumentNullException(nameof(getOrgDomain));
+            }
+
+            var fromOrg = getOrgDomain(fromDomain);
+            var spfPolicy = string.IsNullOrEmpty(SpfAShort) ? "r" : SpfAShort;
+            var dkimPolicy = string.IsNullOrEmpty(DkimAShort) ? "r" : DkimAShort;
+
+            if (!string.IsNullOrWhiteSpace(spfDomain)) {
+                var spfOrg = getOrgDomain(spfDomain);
+                SpfAligned = spfPolicy == "s"
+                    ? string.Equals(fromDomain, spfDomain, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(fromOrg, spfOrg, StringComparison.OrdinalIgnoreCase);
+            } else {
+                SpfAligned = false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dkimDomain)) {
+                var dkimOrg = getOrgDomain(dkimDomain);
+                DkimAligned = dkimPolicy == "s"
+                    ? string.Equals(fromDomain, dkimDomain, StringComparison.OrdinalIgnoreCase)
+                    : string.Equals(fromOrg, dkimOrg, StringComparison.OrdinalIgnoreCase);
+            } else {
+                DkimAligned = false;
+            }
+        }
+
+
 
     }
 }
