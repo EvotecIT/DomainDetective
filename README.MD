@@ -31,7 +31,7 @@ Current capabilities include:
   - [x] Verify Certificate
   - [x] Verify Response Time
   - [x] Verify Headers
-  - [x] Verify HTTP Security Headers (CSP, Referrer-Policy, X-Frame-Options, Permissions-Policy)
+  - [x] Verify HTTP Security Headers (CSP, Referrer-Policy, X-Frame-Options, Permissions-Policy, Origin-Agent-Cluster)
   - [x] Verify HSTS
   - [x] Verify HPKP
 - [x] Verify SecurityTXT
@@ -82,7 +82,7 @@ Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 `VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
 
 ### HTTP Security Headers
-`HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` and several Cross-Origin policies. You can modify the list to capture additional headers.
+`HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
 
 
 ## Build and Test
