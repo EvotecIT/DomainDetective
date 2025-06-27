@@ -221,7 +221,7 @@ namespace DomainDetective {
         /// </summary>
         /// <value>Information about unresolved CNAME targets.</value>
         public DanglingCnameAnalysis DanglingCnameAnalysis { get; private set; } = new DanglingCnameAnalysis();
-      
+
         /// Gets DNS TTL analysis.
         /// </summary>
         /// <value>Information about record TTL values.</value>
@@ -279,7 +279,7 @@ namespace DomainDetective {
             };
 
             DanglingCnameAnalysis.DnsConfiguration = DnsConfiguration;
-          
+
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
             };
@@ -465,6 +465,7 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.DANGLINGCNAME:
                         await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
+                        break;
                     case HealthCheckType.TTL:
                         await DnsTtlAnalysis.Analyze(domainName, _logger);
                         break;
@@ -850,7 +851,7 @@ namespace DomainDetective {
             var servers = nsRecords.Select(r => r.Data.Trim('.'));
             await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
         }
-      
+
         /// <summary>
         /// Detects dangling CNAME records for the domain.
         /// </summary>
@@ -858,7 +859,7 @@ namespace DomainDetective {
             DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
             await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
-      
+
         /// Queries Autodiscover related records for a domain.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>

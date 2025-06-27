@@ -115,7 +115,7 @@ public static class CheckDescriptions {
             [HealthCheckType.DANGLINGCNAME] = new(
                 "Detect dangling CNAME records.",
                 null,
-                "Remove or update broken CNAME targets.")
+                "Remove or update broken CNAME targets."),
             [HealthCheckType.TTL] = new(
                 "Analyze DNS record TTL values.",
                 null,

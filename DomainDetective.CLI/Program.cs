@@ -237,7 +237,7 @@ internal class Program
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
-                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis
+                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     _ => null
                 };
                 if (data != null)
