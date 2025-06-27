@@ -113,6 +113,10 @@ To verify Autodiscover records only:
 ```bash
 ddcli example.com --checks autodiscover
 ```
+Check DMARC subdomain policy:
+```bash
+ddcli example.com --subdomain-policy
+```
 
 ### Interactive CLI Wizard
 

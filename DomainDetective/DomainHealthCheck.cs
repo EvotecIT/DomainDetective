@@ -17,6 +17,11 @@ namespace DomainDetective {
         /// </summary>
         public bool IsPublicSuffix { get; private set; }
 
+        /// <summary>
+        /// When true, DMARC policy strength evaluation checks the <c>sp</c> tag.
+        /// </summary>
+        public bool UseSubdomainPolicy { get; set; }
+
         private void UpdateIsPublicSuffix(string domainName) {
             IsPublicSuffix = _publicSuffixList.IsPublicSuffix(domainName);
         }
@@ -355,6 +360,7 @@ namespace DomainDetective {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
                         await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName);
+                        DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
                         break;
                     case HealthCheckType.SPF:
                         var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
@@ -499,6 +505,7 @@ namespace DomainDetective {
                     Type = DnsRecordType.TXT
                 }
             }, _logger);
+            DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
         }
 
         /// <summary>

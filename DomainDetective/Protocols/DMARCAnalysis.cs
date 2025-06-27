@@ -40,6 +40,12 @@ namespace DomainDetective {
         public bool ValidDkimAlignment { get; private set; }
         public bool ValidSpfAlignment { get; private set; }
 
+        /// <summary>True when <c>p=none</c> or <c>sp=none</c> is detected.</summary>
+        public bool WeakPolicy { get; private set; }
+
+        /// <summary>Recommendation message when a weak policy is found.</summary>
+        public string? PolicyRecommendation { get; private set; }
+
         /// <summary>Indicates whether the SPF domain aligns with the policy.</summary>
         public bool SpfAligned { get; private set; }
         /// <summary>Indicates whether the DKIM domain aligns with the policy.</summary>
@@ -341,6 +347,19 @@ namespace DomainDetective {
             } else {
                 DkimAligned = false;
             }
+        }
+
+        /// <summary>
+        /// Flags DMARC policies set to <c>none</c> and suggests a stronger policy.
+        /// </summary>
+        /// <param name="checkSubdomainPolicy">Evaluates the <c>sp</c> tag when true.</param>
+        public void EvaluatePolicyStrength(bool checkSubdomainPolicy = false) {
+            var policy = checkSubdomainPolicy && !string.IsNullOrWhiteSpace(SubPolicyShort)
+                ? SubPolicyShort
+                : PolicyShort;
+
+            WeakPolicy = string.Equals(policy, "none", StringComparison.OrdinalIgnoreCase);
+            PolicyRecommendation = WeakPolicy ? "Consider quarantine or reject." : string.Empty;
         }
 
 
