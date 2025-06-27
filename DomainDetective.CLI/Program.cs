@@ -26,8 +26,10 @@ internal class Program
         ["dane"] = HealthCheckType.DANE,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
-        ["contact"] = HealthCheckType.CONTACT
+        ["contact"] = HealthCheckType.CONTACT,
+        ["banner"] = HealthCheckType.SMTPBANNER,
+        ["rdns"] = HealthCheckType.REVERSEDNS,
+        ["autodiscover"] = HealthCheckType.AUTODISCOVER
     };
 
     /// <summary>
@@ -224,6 +226,7 @@ internal class Program
                     HealthCheckType.SPF => hc.SpfAnalysis,
                     HealthCheckType.DKIM => hc.DKIMAnalysis,
                     HealthCheckType.MX => hc.MXAnalysis,
+                    HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
                     HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,
@@ -232,6 +235,7 @@ internal class Program
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
+                    HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     _ => null
                 };
                 if (data != null)

@@ -73,6 +73,12 @@ namespace DomainDetective {
         public MXAnalysis MXAnalysis { get; private set; }
 
         /// <summary>
+        /// Gets the reverse DNS analysis for MX hosts.
+        /// </summary>
+        /// <value>PTR lookup results for mail exchangers.</value>
+        public ReverseDnsAnalysis ReverseDnsAnalysis { get; private set; } = new ReverseDnsAnalysis();
+
+        /// <summary>
         /// Gets the CAA analysis.
         /// </summary>
         /// <value>Certificate authority authorization results.</value>
@@ -163,6 +169,12 @@ namespace DomainDetective {
         public SMTPTLSAnalysis SmtpTlsAnalysis { get; private set; } = new SMTPTLSAnalysis();
 
         /// <summary>
+        /// Gets the SMTP banner analysis.
+        /// </summary>
+        /// <value>Initial greetings from SMTP servers.</value>
+        public SMTPBannerAnalysis SmtpBannerAnalysis { get; private set; } = new SMTPBannerAnalysis();
+
+        /// <summary>
         /// Gets the TLSRPT analysis.
         /// </summary>
         /// <value>Reports about TLS failures.</value>
@@ -245,6 +257,8 @@ namespace DomainDetective {
             MXAnalysis = new MXAnalysis() {
                 DnsConfiguration = DnsConfiguration
             };
+
+            ReverseDnsAnalysis.DnsConfiguration = DnsConfiguration;
 
             NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
@@ -348,6 +362,11 @@ namespace DomainDetective {
                         var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         await MXAnalysis.AnalyzeMxRecords(mx, _logger);
                         break;
+                    case HealthCheckType.REVERSEDNS:
+                        var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var rdnsHosts = mxRecords.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
+                        break;
                     case HealthCheckType.CAA:
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
                         await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
@@ -418,6 +437,11 @@ namespace DomainDetective {
                         var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var smtpTlsHosts = mxRecordsForSmtpTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
+                        break;
+                    case HealthCheckType.SMTPBANNER:
+                        var mxRecordsForBanner = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var bannerHosts = mxRecordsForBanner.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await SmtpBannerAnalysis.AnalyzeServers(bannerHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger, cancellationToken: cancellationToken);
@@ -613,6 +637,17 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Retrieves the SMTP banner from a host.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await SmtpBannerAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Analyzes a raw TLSRPT record.
         /// </summary>
         /// <param name="tlsRptRecord">TLSRPT record text.</param>
@@ -730,6 +765,23 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Collects SMTP banners from all MX hosts.
+        /// </summary>
+        /// <param name="domainName">Domain whose MX records are queried.</param>
+        /// <param name="port">SMTP port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifySMTPBanner(string domainName, int port = 25, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            ValidatePort(port);
+            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var hosts = mx.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await SmtpBannerAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1057,6 +1109,7 @@ namespace DomainDetective {
             filtered.SpfAnalysis = active.Contains(HealthCheckType.SPF) ? CloneAnalysis(SpfAnalysis) : null;
             filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
+            filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
             filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
             filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null;
@@ -1073,6 +1126,7 @@ namespace DomainDetective {
             filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null;
             filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
             filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
+            filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
