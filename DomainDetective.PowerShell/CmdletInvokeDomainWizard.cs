@@ -25,13 +25,20 @@ namespace DomainDetective.PowerShell {
                 return;
             }
 
-            var domains = domainInput.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var domains = domainInput
+                .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(d => d.Trim())
+                .Where(d => d.Length > 0)
+                .ToArray();
 
             Host.UI.Write("Checks to run (comma separated, leave empty for all): ");
             var checksInput = Host.UI.ReadLine();
             HealthCheckType[]? checks = null;
             if (!string.IsNullOrWhiteSpace(checksInput)) {
-                var parts = checksInput.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var parts = checksInput
+                    .Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Trim())
+                    .Where(p => p.Length > 0);
                 var list = new List<HealthCheckType>();
                 foreach (var part in parts) {
                     if (Enum.TryParse(part, true, out HealthCheckType t)) {
