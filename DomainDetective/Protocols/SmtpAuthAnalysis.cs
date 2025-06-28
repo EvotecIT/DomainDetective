@@ -64,7 +64,7 @@ namespace DomainDetective {
                         var cap = line.Substring(4).Trim();
                         if (cap.StartsWith("AUTH", StringComparison.OrdinalIgnoreCase)) {
                             var authPart = cap.Substring(4).TrimStart('=', ' ');
-                            foreach (var part in authPart.Split(' ', StringSplitOptions.RemoveEmptyEntries)) {
+                            foreach (var part in authPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
                                 mechanisms.Add(part);
                             }
                         }
