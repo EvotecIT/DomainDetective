@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,6 +26,8 @@ namespace DomainDetective {
         public bool HstsIncludesSubDomains { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS max-age is shorter than 18 weeks.</summary>
         public bool HstsTooShort { get; private set; }
+        /// <summary>Gets a value indicating whether the host is on the HSTS preload list.</summary>
+        public bool HstsPreloaded { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
@@ -101,6 +106,26 @@ namespace DomainDetective {
             "Origin-Agent-Cluster"
         };
 
+        private static HashSet<string> _hstsPreload = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Loads a JSON array of preloaded HSTS hosts.</summary>
+        /// <param name="filePath">File path containing the preload list.</param>
+        public static void LoadHstsPreloadList(string filePath) {
+            if (!File.Exists(filePath)) {
+                return;
+            }
+            try {
+                var json = File.ReadAllText(filePath);
+                using var doc = JsonDocument.Parse(json);
+                var entries = doc.RootElement.EnumerateArray()
+                    .Select(e => e.GetString())
+                    .Where(s => !string.IsNullOrWhiteSpace(s));
+                _hstsPreload = new HashSet<string>(entries!, StringComparer.OrdinalIgnoreCase);
+            } catch {
+                // ignore malformed preload files
+            }
+        }
+
         /// <summary>
         /// Gets the default security headers checked when <see cref="AnalyzeUrl"/> is
         /// called with header collection enabled. The list includes modern headers such
@@ -139,6 +164,7 @@ namespace DomainDetective {
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
+            HstsPreloaded = false;
             PermissionsPolicyPresent = false;
             PermissionsPolicy.Clear();
             ReferrerPolicy = null;
@@ -172,8 +198,12 @@ namespace DomainDetective {
                     }
                     break;
                 }
+                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
 #else
                 HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
+#endif
+#if !NET6_0_OR_GREATER
+                HstsPreloaded = _hstsPreload.Contains(new Uri(url).Host);
 #endif
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;

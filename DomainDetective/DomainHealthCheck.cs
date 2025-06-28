@@ -280,6 +280,11 @@ namespace DomainDetective {
             var listPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat");
             _publicSuffixList = PublicSuffixList.Load(listPath);
 
+            var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json");
+            if (File.Exists(preloadPath)) {
+                HttpAnalysis.LoadHstsPreloadList(preloadPath);
+            }
+
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;
 
             SpfAnalysis = new SpfAnalysis() {

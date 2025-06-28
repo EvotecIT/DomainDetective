@@ -4,8 +4,12 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using Org.BouncyCastle.Asn1;
@@ -76,6 +80,14 @@ namespace DomainDetective {
         public int CipherStrength { get; private set; }
         /// <summary>Enable gathering TLS protocol and cipher information.</summary>
         public bool CaptureTlsDetails { get; set; }
+        /// <summary>Gets a value indicating whether the certificate is present in public CT logs.</summary>
+        public bool PresentInCtLogs { get; private set; }
+
+        /// <summary>Optional override to retrieve CT log data for testing.</summary>
+        public Func<string, Task<string>>? CtLogQueryOverride { private get; set; }
+
+        /// <summary>Template URL for crt.sh queries. {0} is replaced with the SHA-256 fingerprint.</summary>
+        public string CtLogApiTemplate { get; set; } = "https://crt.sh/?sha256={0}&output=json";
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.
@@ -165,6 +177,7 @@ namespace DomainDetective {
                             IsExpired = Certificate.NotAfter < DateTime.Now;
                             await QueryRevocationEndpoints(cancellationToken);
                             PopulateSubjectAlternativeNames();
+                            await QueryCtLogs(cancellationToken);
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
@@ -251,6 +264,40 @@ namespace DomainDetective {
             }
         }
 
+        private async Task QueryCtLogs(CancellationToken cancellationToken) {
+            PresentInCtLogs = false;
+            if (Certificate == null) {
+                return;
+            }
+            byte[] hashBytes;
+#if NET5_0_OR_GREATER
+            hashBytes = Certificate.GetCertHash(HashAlgorithmName.SHA256);
+#else
+            using (var sha = SHA256.Create()) {
+                hashBytes = sha.ComputeHash(Certificate.RawData);
+            }
+#endif
+            var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
+            string json;
+            if (CtLogQueryOverride != null) {
+                json = await CtLogQueryOverride(fingerprint);
+            } else {
+                using var client = new HttpClient();
+                var url = string.Format(CtLogApiTemplate, fingerprint);
+                using var resp = await client.GetAsync(url, cancellationToken);
+                if (!resp.IsSuccessStatusCode) {
+                    return;
+                }
+                json = await resp.Content.ReadAsStringAsync();
+            }
+            try {
+                using var doc = JsonDocument.Parse(json);
+                PresentInCtLogs = doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0;
+            } catch {
+                // ignore parse errors
+            }
+        }
+
         /// <summary>
         /// Standalone version to check the website certificate.
         /// </summary>
@@ -286,6 +333,7 @@ namespace DomainDetective {
             IsExpired = certificate.NotAfter < DateTime.Now;
             await QueryRevocationEndpoints(cancellationToken);
             PopulateSubjectAlternativeNames();
+            await QueryCtLogs(cancellationToken);
         }
 
         private void PopulateSubjectAlternativeNames() {

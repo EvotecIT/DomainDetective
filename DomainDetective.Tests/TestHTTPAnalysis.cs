@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using System.IO;
 using DomainDetective;
 
 namespace DomainDetective.Tests {
@@ -390,6 +391,31 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
                 Assert.True(analysis.PublicKeyPinsPresent);
                 Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsHstsPreloaded() {
+            var preloadPath = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json");
+            File.WriteAllText(preloadPath, "[\"localhost\"]");
+            HttpAnalysis.LoadHstsPreloadList(preloadPath);
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger());
+                Assert.True(analysis.HstsPreloaded);
             } finally {
                 listener.Stop();
                 await serverTask;
