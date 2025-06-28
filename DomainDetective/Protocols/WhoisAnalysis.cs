@@ -45,6 +45,7 @@ public class WhoisAnalysis {
     public bool IsExpired { get; private set; }
     public bool RegistrarLocked { get; private set; }
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
+    public string? SnapshotDirectory { get; set; }
 
     private static readonly InternalLogger _logger = new();
     private static readonly string[] _licensePrefixes = {
@@ -868,6 +869,46 @@ public class WhoisAnalysis {
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Saves the current WHOIS data snapshot to <see cref="SnapshotDirectory"/>.
+    /// </summary>
+    public void SaveSnapshot() {
+        if (string.IsNullOrEmpty(SnapshotDirectory) || string.IsNullOrEmpty(DomainName) || string.IsNullOrEmpty(WhoisData)) {
+            return;
+        }
+        Directory.CreateDirectory(SnapshotDirectory);
+        var file = Path.Combine(SnapshotDirectory, $"{DomainName}_{DateTime.UtcNow:yyyyMMddHHmmss}.whois");
+        File.WriteAllText(file, WhoisData);
+    }
+
+    /// <summary>
+    /// Returns line level differences between the current WHOIS data and the last saved snapshot.
+    /// </summary>
+    public IEnumerable<string> GetWhoisChanges() {
+        if (string.IsNullOrEmpty(SnapshotDirectory) || string.IsNullOrEmpty(DomainName)) {
+            return Array.Empty<string>();
+        }
+        var files = Directory.GetFiles(SnapshotDirectory, $"{DomainName}_*.whois");
+        if (files.Length == 0) {
+            return Array.Empty<string>();
+        }
+        var previousFile = files.OrderByDescending(f => f).First();
+        var previousData = File.ReadAllText(previousFile);
+        var previousLines = previousData.Split('\n');
+        var currentLines = WhoisData.Split('\n');
+        var changes = new List<string>();
+        var max = Math.Max(previousLines.Length, currentLines.Length);
+        for (var i = 0; i < max; i++) {
+            var prev = i < previousLines.Length ? previousLines[i] : string.Empty;
+            var curr = i < currentLines.Length ? currentLines[i] : string.Empty;
+            if (!string.Equals(prev, curr, StringComparison.Ordinal)) {
+                changes.Add("- " + prev);
+                changes.Add("+ " + curr);
+            }
+        }
+        return changes;
     }
 
 }
