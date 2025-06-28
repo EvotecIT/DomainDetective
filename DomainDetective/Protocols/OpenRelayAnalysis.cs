@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Performs open relay checks against SMTP servers.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class OpenRelayAnalysis {
         public Dictionary<string, OpenRelayStatus> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);

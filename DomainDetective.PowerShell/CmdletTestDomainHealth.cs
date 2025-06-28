@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Runs multiple domain health checks and returns the results.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Perform a full health test.</summary>
     ///   <code>Test-DomainHealth -DomainName example.com -Verbose</code>

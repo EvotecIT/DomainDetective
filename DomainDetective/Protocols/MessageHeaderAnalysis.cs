@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Represents the results from parsing message headers.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class MessageHeaderAnalysis {
         /// <summary>Raw headers supplied for parsing.</summary>
         public string? RawHeaders { get; private set; }

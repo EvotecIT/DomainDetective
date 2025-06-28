@@ -5,6 +5,7 @@ namespace DomainDetective;
 /// <summary>
 /// Represents a set of domains hosted on a single IP.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class IPNeighborResult
 {
     /// <summary>IP address shared by multiple domains.</summary>

@@ -3,6 +3,7 @@ namespace DomainDetective;
 /// <summary>
 /// Represents an HTTP security header.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public sealed class SecurityHeader {
     /// <summary>Name of the header.</summary>
     public string Name { get; }

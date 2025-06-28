@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     ///     Validates ARC headers following RFC 8617.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class ARCAnalysis {
         /// <summary>Collected ARC-Seal header values.</summary>
         public List<string> ArcSealHeaders { get; } = new();

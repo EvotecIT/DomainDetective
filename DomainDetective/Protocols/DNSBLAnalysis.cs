@@ -11,6 +11,10 @@ using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Represents the outcome of a single DNSBL query entry.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DNSBLRecord {
         /// <summary>Gets or sets the queried IP address in reverse format.</summary>
         public string IPAddress { get; set; }
@@ -30,6 +34,10 @@ namespace DomainDetective {
         //public string NameServer { get; set; }
     }
 
+    /// <summary>
+    /// Aggregates multiple DNSBL query outcomes for a host.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DNSQueryResult {
         /// <summary>Gets or sets the host that was checked.</summary>
         public string Host { get; set; }
@@ -49,6 +57,10 @@ namespace DomainDetective {
         public bool IsBlacklisted => Listed > 0;
     }
 
+    /// <summary>
+    /// Represents a DNSBL server configuration entry.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsblEntry {
         /// <summary>Gets or sets the blacklist domain.</summary>
         public string Domain { get; set; }
@@ -65,6 +77,10 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Provides routines to query DNS block lists for a host.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DNSBLAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
 

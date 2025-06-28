@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves SMTP banner information from a host.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check SMTP banner.</summary>
     ///   <code>Test-SmtpBanner -HostName mail.example.com -Port 25</code>

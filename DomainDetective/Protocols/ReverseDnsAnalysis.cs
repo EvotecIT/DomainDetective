@@ -10,11 +10,13 @@ namespace DomainDetective {
     /// <summary>
     /// Validates PTR records for MX hosts.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class ReverseDnsAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
         /// <summary>Represents PTR lookup result for a single address.</summary>
+        /// <para>Part of the DomainDetective project.</para>
         public class ReverseDnsResult {
             public string IpAddress { get; set; }
             public string? PtrRecord { get; set; }

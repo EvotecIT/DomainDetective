@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Provides functionality for retrieving and analysing MTA-STS policies.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class MTASTSAnalysis {
         /// <summary>
         /// Gets the domain name that was analysed.

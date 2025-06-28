@@ -3,6 +3,7 @@ namespace DomainDetective;
 /// <summary>
 /// Represents the various health checks that can be performed on a domain.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public enum HealthCheckType {
     /// <summary>Perform a DMARC policy check.</summary>
     DMARC,

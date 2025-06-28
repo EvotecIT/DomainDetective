@@ -9,6 +9,7 @@ namespace DomainDetective;
 /// <summary>
 /// Resolves CNAME targets and detects dangling references.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class DanglingCnameAnalysis {
     /// <summary>Gets or sets DNS configuration for queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Parses raw email message headers.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze headers from a file.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-MessageHeader</code>

@@ -8,6 +8,7 @@ namespace DomainDetective {
     /// <summary>
     /// Analyzes Autodiscover related DNS records.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class AutodiscoverAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }

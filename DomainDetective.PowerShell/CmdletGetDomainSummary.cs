@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Returns a summary of domain health checks.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Get basic domain overview.</summary>
     ///   <code>Get-DomainSummary -DomainName example.com</code>

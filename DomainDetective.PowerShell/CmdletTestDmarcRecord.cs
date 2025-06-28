@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates DMARC record for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check DMARC settings.</summary>
     ///   <code>Test-DmarcRecord -DomainName example.com</code>

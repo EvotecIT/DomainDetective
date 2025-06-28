@@ -12,6 +12,7 @@ namespace DomainDetective {
     /// <summary>
     /// Provides DNSSEC validation utilities for a domain.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DNSSecAnalysis {
         /// <summary>Gets the DS records returned for the domain.</summary>
         public IReadOnlyList<string> DsRecords { get; private set; } = new List<string>();

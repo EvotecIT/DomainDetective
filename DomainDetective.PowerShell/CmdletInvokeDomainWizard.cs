@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Starts an interactive wizard to run domain checks.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Launch the wizard.</summary>
     ///   <code>Invoke-DomainWizard</code>

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves the SOA record for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Query SOA information.</summary>
     ///   <code>Test-SoaRecord -DomainName example.com</code>

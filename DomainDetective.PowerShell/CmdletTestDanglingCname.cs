@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks for dangling CNAME records on a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Detect unclaimed CNAMEs.</summary>
     ///   <code>Test-DanglingCname -DomainName example.com</code>

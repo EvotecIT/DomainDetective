@@ -2,6 +2,7 @@ using System.Management.Automation;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Imports DNSBL provider configuration from a file.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Load providers from JSON.</summary>
     ///   <code>Import-DnsblConfig -Path ./DnsblProviders.json -OverwriteExisting</code>

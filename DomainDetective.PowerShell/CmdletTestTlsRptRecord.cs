@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates TLS-RPT record for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check TLS report policy.</summary>
     ///   <code>Test-TlsRptRecord -DomainName example.com</code>

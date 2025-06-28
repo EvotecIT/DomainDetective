@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Downloads and validates security.txt files according to the specification.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SecurityTXTAnalysis {
         public string Domain { get; set; }
         public bool RecordPresent { get; set; }

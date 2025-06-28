@@ -7,6 +7,7 @@ namespace DomainDetective;
 /// <summary>
 /// Detects potential DNS tunneling activity from query logs.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class DnsTunnelingAnalysis
 {
     /// <summary>Collection of detected issues.</summary>

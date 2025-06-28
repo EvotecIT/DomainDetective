@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates PTR records for MX hosts.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check reverse DNS configuration.</summary>
     ///   <code>Test-ReverseDns -DomainName example.com</code>

@@ -5,6 +5,7 @@ using System.Linq;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves WHOIS information for the specified domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Get WHOIS details.</summary>
     ///   <code>Get-WhoisInfo -DomainName example.com</code>

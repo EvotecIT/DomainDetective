@@ -11,6 +11,7 @@ namespace DomainDetective {
     /// <summary>
     /// Attempts AXFR queries to determine if name servers allow unauthenticated zone transfers.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class ZoneTransferAnalysis {
         /// <summary>Dictionary mapping server name to transfer allowance.</summary>
         public Dictionary<string, bool> ServerResults { get; private set; } = new();

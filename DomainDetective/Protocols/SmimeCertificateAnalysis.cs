@@ -9,6 +9,7 @@ namespace DomainDetective;
 /// <summary>
 /// Parses S/MIME certificates from files and exposes basic information.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class SmimeCertificateAnalysis {
     /// <summary>Gets the loaded certificate.</summary>
     public X509Certificate2 Certificate { get; private set; }

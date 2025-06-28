@@ -83,6 +83,7 @@ namespace DomainDetective {
     /// <summary>
     ///     DNSSEC validation results in a simplified form.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsSecInfo {
         /// <summary>Returned DS records.</summary>
         public IReadOnlyList<DsRecordInfo> DsRecords { get; set; }
@@ -112,6 +113,7 @@ namespace DomainDetective {
     /// <summary>
     ///     Simplified representation of a DS record.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DsRecordInfo {
         /// <summary>Key tag value.</summary>
         public int KeyTag { get; set; }
@@ -129,6 +131,7 @@ namespace DomainDetective {
     /// <summary>
     ///     Simplified representation of a DNSKEY record.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsKeyInfo {
         /// <summary>Record flags.</summary>
         public int Flags { get; set; }

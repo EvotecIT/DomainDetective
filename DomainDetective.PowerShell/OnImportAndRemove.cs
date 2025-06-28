@@ -8,6 +8,7 @@ using System.Reflection;
 /// OnModuleImportAndRemove is a class that implements the IModuleAssemblyInitializer and IModuleAssemblyCleanup interfaces.
 /// This class is used to handle the assembly resolve event when the module is imported and removed.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemblyCleanup {
     /// <summary>
     /// OnImport is called when the module is imported.

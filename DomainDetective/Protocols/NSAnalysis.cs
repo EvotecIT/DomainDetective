@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Performs analysis of NS records for a domain.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class NSAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }

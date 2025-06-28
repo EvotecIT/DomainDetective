@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Enumerates raw DNSBL records for a domain or IP address.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>List DNSBL records.</summary>
     ///   <code>Test-DNSBLRecord -NameOrIpAddress example.com</code>

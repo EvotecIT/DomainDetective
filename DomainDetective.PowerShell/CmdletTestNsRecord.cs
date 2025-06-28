@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves NS records for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Query name servers.</summary>
     ///   <code>Test-NsRecord -DomainName example.com</code>

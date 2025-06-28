@@ -69,6 +69,7 @@ namespace DomainDetective.PowerShell {
     /// <summary>
     ///     Data object representing a single DKIM record.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DkimRecordInfo {
         /// <summary>Selector used for the record.</summary>
         public string Selector { get; set; }
@@ -125,6 +126,7 @@ namespace DomainDetective.PowerShell {
     /// <summary>
     ///     Simplified representation of DMARC record details.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DmarcRecordInfo {
         /// <summary>Raw DMARC record string.</summary>
         public string DmarcRecord { get; set; }

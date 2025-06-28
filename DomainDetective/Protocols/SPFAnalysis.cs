@@ -16,6 +16,7 @@ namespace DomainDetective {
     /// 4.	The total length of the SPF record should stay below 512 bytes when possible.
     /// 5.	Each TXT chunk of the SPF record must be 255 bytes or less.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SpfAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
         public string SpfRecord { get; private set; }
@@ -461,6 +462,10 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Holds details about a parsed part of an SPF record.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SpfPartAnalysis {
         public string Prefix { get; set; }
         public string Type { get; set; }
@@ -469,6 +474,10 @@ namespace DomainDetective {
         public string Description { get; set; }
     }
 
+    /// <summary>
+    /// Result of a single SPF validation test.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SpfTestResult {
         public string Test { get; set; }
         public string Result { get; set; }
