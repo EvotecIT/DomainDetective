@@ -15,6 +15,8 @@ public enum HealthCheckType {
     MX,
     /// <summary>Validate PTR records for MX hosts.</summary>
     REVERSEDNS,
+    /// <summary>Confirm PTR hostnames resolve back to the originating IP.</summary>
+    FCRDNS,
     /// <summary>Inspect CAA records.</summary>
     CAA,
     /// <summary>Verify NS records.</summary>
