@@ -18,7 +18,7 @@ Current capabilities include:
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers
 - [x] Verify DANE/TLSA (HTTPS on port 443 by default)
-- [x] Verify STARTTLS
+- [x] Verify STARTTLS (detect advertisement downgrades)
 - [x] Verify MTA-STS
 - [x] Verify SMTP TLS
 - [x] Verify SMTP Banner

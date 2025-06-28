@@ -33,7 +33,7 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-SecurityTXT -DomainName "example.com"
   ```
-- `Test-StartTls` – verifies SMTP STARTTLS support.
+- `Test-StartTls` – verifies SMTP STARTTLS support and reports downgrades via `DowngradeDetected`.
   ```powershell
   Test-StartTls -DomainName "example.com" -Port 587 -Verbose
   ```

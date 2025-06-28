@@ -11,6 +11,7 @@ namespace DomainDetective {
     /// </summary>
     public class STARTTLSAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
+        public Dictionary<string, bool> DowngradeDetected { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
@@ -18,9 +19,11 @@ namespace DomainDetective {
         /// </summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
+            DowngradeDetected.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            bool supports = await CheckStartTls(host, port, logger, cancellationToken);
+            (bool supports, bool downgrade) = await CheckStartTls(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = supports;
+            DowngradeDetected[$"{host}:{port}"] = downgrade;
         }
 
         /// <summary>
@@ -28,11 +31,13 @@ namespace DomainDetective {
         /// </summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
+            DowngradeDetected.Clear();
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    bool supports = await CheckStartTls(host, port, logger, cancellationToken);
+                    (bool supports, bool downgrade) = await CheckStartTls(host, port, logger, cancellationToken);
                     ServerResults[$"{host}:{port}"] = supports;
+                    DowngradeDetected[$"{host}:{port}"] = downgrade;
                 }
             }
         }
@@ -40,7 +45,7 @@ namespace DomainDetective {
         /// <summary>
         /// Performs the low-level STARTTLS negotiation.
         /// </summary>
-        private async Task<bool> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(bool Advertised, bool Downgrade)> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -80,18 +85,44 @@ namespace DomainDetective {
                     }
                 }
 
-                await writer.WriteLineAsync("QUIT");
-                await writer.FlushAsync();
-                try {
-                    await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                } catch (IOException) {
-                    // swallow disconnect after QUIT
+                bool advertised = capabilities.Contains("STARTTLS");
+                bool downgrade = false;
+
+                if (!advertised) {
+                    await writer.WriteLineAsync("STARTTLS");
+                    var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                    if (resp != null && resp.StartsWith("220")) {
+                        try {
+                            using var ssl = new System.Net.Security.SslStream(network);
+#if NET8_0_OR_GREATER
+                            await ssl.AuthenticateAsClientAsync(host, null, System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12, false)
+                                .WaitWithCancellation(timeoutCts.Token);
+#else
+                            await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
+#endif
+                            using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                            await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                            downgrade = true;
+                        } catch (Exception ex) {
+                            logger?.WriteVerbose($"STARTTLS handshake failed for {host}:{port} - {ex.Message}");
+                        }
+                    }
                 }
 
-                return capabilities.Contains("STARTTLS");
+                if (advertised || !downgrade) {
+                    await writer.WriteLineAsync("QUIT");
+                    await writer.FlushAsync();
+                    try {
+                        await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                    } catch (IOException) {
+                        // swallow disconnect after QUIT
+                    }
+                }
+
+                return (advertised || downgrade, downgrade);
             } catch (System.Exception ex) {
                 logger?.WriteError("STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
-                return false;
+                return (false, false);
             } finally {
                 client.Dispose();
             }

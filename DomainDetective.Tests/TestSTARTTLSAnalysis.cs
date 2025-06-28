@@ -21,6 +21,7 @@ namespace DomainDetective.Tests {
                 var analysis = new STARTTLSAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
                 Assert.True(analysis.ServerResults[$"localhost:{port}"]);
+                Assert.False(analysis.DowngradeDetected[$"localhost:{port}"]);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -48,6 +49,7 @@ namespace DomainDetective.Tests {
                 var analysis = new STARTTLSAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
                 Assert.False(analysis.ServerResults[$"localhost:{port}"]);
+                Assert.False(analysis.DowngradeDetected[$"localhost:{port}"]);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -246,6 +248,49 @@ namespace DomainDetective.Tests {
                 await serverTask1;
                 await serverTask2;
             }
+        }
+
+        [Fact]
+        public async Task DetectsDowngradeWhenStartTlsSupportedButNotAdvertised() {
+            using var cert = CreateSelfSigned();
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 local ESMTP");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("250 localhost");
+                var cmd = await reader.ReadLineAsync();
+                if (cmd?.StartsWith("STARTTLS", System.StringComparison.OrdinalIgnoreCase) == true) {
+                    await writer.WriteLineAsync("220 ready");
+                    using var ssl = new System.Net.Security.SslStream(stream);
+                    await ssl.AuthenticateAsServerAsync(cert, false, System.Security.Authentication.SslProtocols.Tls12, false);
+                    using var sslReader = new System.IO.StreamReader(ssl);
+                    await sslReader.ReadLineAsync();
+                }
+            });
+
+            try {
+                var analysis = new STARTTLSAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                Assert.True(analysis.ServerResults[$"localhost:{port}"]);
+                Assert.True(analysis.DowngradeDetected[$"localhost:{port}"]);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        private static System.Security.Cryptography.X509Certificates.X509Certificate2 CreateSelfSigned() {
+            using var rsa = System.Security.Cryptography.RSA.Create(2048);
+            var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+                "CN=localhost", rsa, System.Security.Cryptography.HashAlgorithmName.SHA256, System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+            var cert = req.CreateSelfSigned(System.DateTimeOffset.Now.AddDays(-1), System.DateTimeOffset.Now.AddDays(30));
+            return new System.Security.Cryptography.X509Certificates.X509Certificate2(cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx));
         }
     }
 }
