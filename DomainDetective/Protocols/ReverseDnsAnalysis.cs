@@ -23,6 +23,8 @@ namespace DomainDetective {
             public string ExpectedHost { get; set; }
             /// <summary>True when <see cref="PtrRecord"/> equals <see cref="ExpectedHost"/>.</summary>
             public bool IsValid => string.Equals(PtrRecord?.TrimEnd('.'), ExpectedHost.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+            /// <summary>True when PTR hostname resolves back to <see cref="IpAddress"/>.</summary>
+            public bool FcrDnsValid { get; set; }
         }
 
         /// <summary>Gets the collection of PTR results.</summary>
@@ -61,11 +63,20 @@ namespace DomainDetective {
                     if (ptrAnswers.Length > 0) {
                         ptr = ptrAnswers[0].Data.TrimEnd('.');
                     }
-                    Results.Add(new ReverseDnsResult {
+                    var result = new ReverseDnsResult {
                         IpAddress = ip.ToString(),
                         PtrRecord = ptr,
                         ExpectedHost = host.TrimEnd('.')
-                    });
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(ptr)) {
+                        var fwdA = await QueryDns(ptr, DnsRecordType.A);
+                        var fwdAaaa = await QueryDns(ptr, DnsRecordType.AAAA);
+                        result.FcrDnsValid = fwdA.Concat(fwdAaaa)
+                            .Any(r => string.Equals(r.Data, ip.ToString(), StringComparison.Ordinal));
+                    }
+
+                    Results.Add(result);
                     logger?.WriteVerbose($"PTR for {ip} -> {ptr}");
                 }
             }
