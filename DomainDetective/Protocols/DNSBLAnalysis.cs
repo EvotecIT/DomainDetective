@@ -82,7 +82,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public partial class DNSBLAnalysis {
-        internal DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>
         /// Gets the collection of configured DNSBL provider entries.
@@ -220,8 +220,8 @@ namespace DomainDetective {
             new("cdl.anti-spam.org.cn", enabled: false, comment: "Inactive")
         };
 
-        public DNSBLAnalysis() {
-        DnsConfiguration = new DnsConfiguration();
+        public DNSBLAnalysis(DnsConfiguration dnsConfiguration = null) {
+            DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
         }
 
         internal List<string> DNSBLLists => DnsblEntries

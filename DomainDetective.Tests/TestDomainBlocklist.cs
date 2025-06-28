@@ -1,8 +1,13 @@
+using DomainDetective;
+using DnsClientX;
+
 namespace DomainDetective.Tests {
     public class TestDomainBlocklist {
         [Fact]
         public async Task ListedDomainsReturnPositive() {
-            var analysis = new DNSBLAnalysis();
+            var analysis = new DNSBLAnalysis {
+                DnsConfiguration = new DnsConfiguration { DnsEndpoint = DnsEndpoint.System }
+            };
             analysis.ClearDNSBL();
             analysis.AddDNSBL("multi.uribl.com");
             analysis.AddDNSBL("dbl.spamhaus.org");
@@ -20,7 +25,9 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task UnlistedDomainReturnsNegative() {
-            var analysis = new DNSBLAnalysis();
+            var analysis = new DNSBLAnalysis {
+                DnsConfiguration = new DnsConfiguration { DnsEndpoint = DnsEndpoint.System }
+            };
             analysis.ClearDNSBL();
             analysis.AddDNSBL("multi.uribl.com");
             analysis.AddDNSBL("dbl.spamhaus.org");
