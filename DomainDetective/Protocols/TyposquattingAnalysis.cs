@@ -51,8 +51,8 @@ public class TyposquattingAnalysis
     private static IEnumerable<string> BuildVariants(string domainName)
     {
         var idx = domainName.IndexOf('.');
-        var label = idx > 0 ? domainName[..idx] : domainName;
-        var suffix = idx > 0 ? domainName[idx..] : string.Empty;
+        var label = idx > 0 ? domainName.Substring(0, idx) : domainName;
+        var suffix = idx > 0 ? domainName.Substring(idx) : string.Empty;
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // missing letter
