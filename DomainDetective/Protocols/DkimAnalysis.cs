@@ -9,6 +9,10 @@ using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Performs DKIM record and key validation checks.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DkimAnalysis {
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
@@ -139,6 +143,10 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Detailed information about a DKIM record evaluation.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DkimRecordAnalysis {
         /// <summary>Gets or sets the queried record name.</summary>
         public string Name { get; set; }

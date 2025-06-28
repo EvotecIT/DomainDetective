@@ -15,6 +15,7 @@ namespace DomainDetective {
     /// <summary>
     /// Analyse BIMI records according to draft specifications.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class BimiAnalysis {
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }

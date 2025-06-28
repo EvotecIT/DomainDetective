@@ -2,6 +2,7 @@ using System.Management.Automation;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Removes all DNSBL providers from an analysis object.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Clear the provider list.</summary>
     ///   <code>Clear-DnsblProvider</code>

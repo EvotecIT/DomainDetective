@@ -3,6 +3,7 @@ namespace DomainDetective {
     /// <summary>
     /// Base settings used across DomainDetective components.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class Settings {
         protected static InternalLogger _logger = new InternalLogger();
 

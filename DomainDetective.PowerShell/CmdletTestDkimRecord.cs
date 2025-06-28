@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates DKIM records for the specified selectors.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Verify DKIM selectors.</summary>
     ///   <code>Test-DkimRecord -DomainName example.com -Selectors selector1</code>

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates ARC headers from raw input.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze ARC headers from a file.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-Arc</code>

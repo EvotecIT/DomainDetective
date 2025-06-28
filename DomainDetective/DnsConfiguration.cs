@@ -8,6 +8,7 @@ namespace DomainDetective {
     /// <summary>
     /// Represents the configuration for DNS queries.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsConfiguration {
         /// <summary>
         /// Gets or sets the DNS endpoint.

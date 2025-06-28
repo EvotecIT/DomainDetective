@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks SMTP STARTTLS support for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Verify STARTTLS.</summary>
     ///   <code>Test-StartTls -DomainName example.com -Port 587</code>

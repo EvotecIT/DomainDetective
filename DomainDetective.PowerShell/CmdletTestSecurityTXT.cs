@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves security.txt information for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Get security contacts.</summary>
     ///   <code>Test-SecurityTXT -DomainName example.com</code>

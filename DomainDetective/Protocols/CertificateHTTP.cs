@@ -18,6 +18,10 @@ using Org.BouncyCastle.Ocsp;
 using Org.BouncyCastle.X509;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Represents certificate validation results for an HTTP endpoint.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class CertificateAnalysis {
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; }

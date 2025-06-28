@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Analyzes DNS TTL values for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check TTL values.</summary>
     ///   <code>Test-DnsTtl -DomainName example.com</code>

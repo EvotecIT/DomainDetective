@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Queries DNSBL providers to see if domains or IPs are listed.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check a single host.</summary>
     ///   <code>Test-DomainBlacklist -NameOrIpAddress example.com</code>

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks connectivity to common service ports on a host.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check ports on a server.</summary>
     ///   <code>Test-PortAvailability -HostName mail.example.com -Ports 25,443</code>

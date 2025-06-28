@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks Autodiscover related DNS records.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Verify Autodiscover setup.</summary>
     ///   <code>Test-Autodiscover -DomainName example.com</code>

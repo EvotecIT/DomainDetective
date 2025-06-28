@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// Collects TTL values for common DNS records and exposes warnings
     /// when values fall outside recommended ranges.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsTtlAnalysis {
         private readonly List<string> _warnings = new();
 

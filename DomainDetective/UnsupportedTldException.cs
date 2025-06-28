@@ -5,6 +5,7 @@ namespace DomainDetective;
 /// <summary>
 /// Exception thrown when a TLD is not supported for WHOIS lookups.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class UnsupportedTldException : Exception {
     /// <summary>Gets the domain that was queried.</summary>
     public string Domain { get; }

@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// RFC 6698: The DNS-Based Authentication of Named Entities (DANE) Transport Layer Security (TLS) Protocol: TLSA
     /// https://datatracker.ietf.org/doc/html/rfc6698
     /// </summary>
-
+    /// <para>Part of the DomainDetective project.</para>
     public class DANEAnalysis {
         public List<DANERecordAnalysis> AnalysisResults { get; private set; } = new List<DANERecordAnalysis>();
         public int NumberOfRecords { get; private set; }
@@ -183,6 +183,7 @@ namespace DomainDetective {
     /// <summary>
     /// Detailed analysis information for a single DANE record.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DANERecordAnalysis {
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string DomainName { get; set; }

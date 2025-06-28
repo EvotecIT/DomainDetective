@@ -8,6 +8,10 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
 
+    /// <summary>
+    /// Performs analysis of CAA DNS records for a domain.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class CAAAnalysis {
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
@@ -330,6 +334,10 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
     }
 
+    /// <summary>
+    /// Detailed breakdown of a single CAA DNS record.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class CAARecordAnalysis {
         /// <summary>Gets or sets the raw CAA record text.</summary>
         public string CAARecord { get; set; }

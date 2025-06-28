@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Lists domains hosted on the same IP.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check IP neighbors.</summary>
     ///   <code>Test-IPNeighbor -DomainName example.com</code>

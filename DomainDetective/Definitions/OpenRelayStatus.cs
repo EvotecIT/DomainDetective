@@ -3,6 +3,7 @@ namespace DomainDetective;
 /// <summary>
 /// Describes the outcome of an SMTP relay test.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public enum OpenRelayStatus {
     /// <summary>The status has not been determined.</summary>
     Unknown,

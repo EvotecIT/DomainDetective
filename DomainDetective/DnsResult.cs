@@ -7,6 +7,7 @@ namespace DomainDetective {
     /// <summary>
     /// Represents a DNS query result.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsResult {
         /// <summary>Gets or sets the queried name.</summary>
         public string Name { get; set; }

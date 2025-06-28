@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates BIMI record for the specified domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check BIMI configuration.</summary>
     ///   <code>Test-BimiRecord -DomainName example.com</code>

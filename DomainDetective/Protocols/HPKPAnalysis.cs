@@ -4,6 +4,10 @@ using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Analyzes HTTP Public Key Pinning (HPKP) headers.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class HPKPAnalysis {
         /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
         public bool HeaderPresent { get; private set; }

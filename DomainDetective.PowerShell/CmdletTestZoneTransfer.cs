@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Attempts zone transfers against authoritative name servers.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check for open zone transfers.</summary>
     ///   <code>Test-ZoneTransfer -DomainName example.com</code>

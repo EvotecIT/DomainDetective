@@ -10,9 +10,11 @@ namespace DomainDetective;
 /// <summary>
 ///     Attempts TCP connections to common service ports and records latency.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class PortAvailabilityAnalysis
 {
     /// <summary>Represents the result of a single port check.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class PortResult
     {
         /// <summary>Gets a value indicating whether the connection succeeded.</summary>

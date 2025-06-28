@@ -6,6 +6,7 @@ namespace DomainDetective.PowerShell {
     /// <para>Returns an <see cref="OpenRelayStatus"/> describing the result.</para>
     /// <example>
     ///   <summary>Test a mail server.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     ///   <code>Test-OpenRelay -HostName mail.example.com -Port 25</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "OpenRelay", DefaultParameterSetName = "ServerName")]

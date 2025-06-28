@@ -13,6 +13,7 @@ namespace DomainDetective {
     /// <summary>
     /// Represents a public DNS server used for propagation checks.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class PublicDnsEntry {
         /// <summary>Gets the country of the DNS server.</summary>
         public string Country { get; init; }
@@ -33,6 +34,7 @@ namespace DomainDetective {
     /// <summary>
     /// Result of a DNS propagation query for a single server.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsPropagationResult {
         /// <summary>Gets the server that was queried.</summary>
         public PublicDnsEntry Server { get; init; }
@@ -49,6 +51,7 @@ namespace DomainDetective {
     /// <summary>
     /// Provides DNS propagation checks across many public servers.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DnsPropagationAnalysis {
         private readonly List<PublicDnsEntry> _servers = new();
         /// <summary>

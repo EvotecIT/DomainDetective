@@ -12,6 +12,7 @@ namespace DomainDetective;
 /// <summary>
 /// Collects domains resolving to the same IP address using PTR and passive DNS.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class IPNeighborAnalysis
 {
     /// <summary>DNS configuration used for lookups.</summary>

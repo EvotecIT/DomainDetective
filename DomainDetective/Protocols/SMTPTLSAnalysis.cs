@@ -12,10 +12,12 @@ namespace DomainDetective {
     /// <summary>
     /// Inspects SMTP servers for TLS configuration details.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SMTPTLSAnalysis {
         /// <summary>
         /// Holds TLS negotiation results for a single server.
         /// </summary>
+        /// <para>Part of the DomainDetective project.</para>
         public class TlsResult {
             public bool StartTlsAdvertised { get; set; }
             public bool CertificateValid { get; set; }

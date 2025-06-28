@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks how DNS records propagate across public resolvers.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Test propagation of an A record.</summary>
     ///   <code>Test-DnsPropagation -DomainName example.com -RecordType A -ServersFile ./PublicDNS.json</code>

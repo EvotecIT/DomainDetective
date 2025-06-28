@@ -3,6 +3,7 @@ namespace DomainDetective;
 /// <summary>
 /// Describes the recognized CAA tag types.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public enum CAATagType
 {
     /// <summary>An unrecognized tag.</summary>

@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Checks whether SMTP servers advertise the STARTTLS capability.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class STARTTLSAnalysis {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);

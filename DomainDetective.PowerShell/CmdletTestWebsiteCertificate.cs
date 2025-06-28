@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates TLS certificate for a website.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check HTTPS certificate.</summary>
     ///   <code>Test-WebsiteCertificate -Url https://example.com</code>

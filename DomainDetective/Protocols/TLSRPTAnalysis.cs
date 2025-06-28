@@ -9,6 +9,7 @@ namespace DomainDetective {
     /// <summary>
     /// Analyzes SMTP TLS Reporting (TLSRPT) policies according to RFC 8460.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class TLSRPTAnalysis {
         public string? TlsRptRecord { get; private set; }
         public bool TlsRptRecordExists { get; private set; }

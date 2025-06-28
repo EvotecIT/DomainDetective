@@ -13,6 +13,7 @@ namespace DomainDetective {
     /// <summary>
     /// Performs basic HTTP checks against a web endpoint.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class HttpAnalysis {
         /// <summary>Gets the HTTP status code of the response.</summary>
         public int? StatusCode { get; private set; }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze logs.</summary>
     ///   <code>Test-DnsTunneling -DomainName example.com -Path ./dns.log</code>

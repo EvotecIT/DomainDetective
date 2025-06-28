@@ -8,6 +8,7 @@ namespace DomainDetective;
 /// <summary>
 /// Parses and validates contact TXT records.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class ContactInfoAnalysis {
     public string? ContactRecord { get; private set; }
     public bool RecordExists { get; private set; }

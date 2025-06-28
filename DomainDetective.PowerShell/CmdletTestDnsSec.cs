@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates DNSSEC configuration for a domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check DNSSEC records.</summary>
     ///   <code>Test-DnsSec -DomainName example.com</code>

@@ -14,6 +14,7 @@ namespace DomainDetective;
 /// <summary>
 /// Queries WHOIS servers and parses registration details.
 /// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class WhoisAnalysis {
     private string TLD { get; set; }
     private string _domainName;

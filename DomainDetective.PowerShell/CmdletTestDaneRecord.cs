@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Validates DANE TLSA records for the given domain.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check DANE records.</summary>
     ///   <code>Test-DaneRecord -DomainName example.com</code>

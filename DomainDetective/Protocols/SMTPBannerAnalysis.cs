@@ -8,8 +8,10 @@ namespace DomainDetective {
     /// <summary>
     /// Captures SMTP greeting banners and validates expected hostname and software strings.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class SMTPBannerAnalysis {
         /// <summary>Result of a banner check.</summary>
+        /// <para>Part of the DomainDetective project.</para>
         public class BannerResult {
             /// <summary>Initial banner line returned by the server.</summary>
             public string? Banner { get; init; }

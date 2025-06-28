@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Returns details about a certificate file.</summary>
+    /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze a PEM certificate.</summary>
     ///   <code>Get-CertificateInfo -Path ./cert.pem</code>

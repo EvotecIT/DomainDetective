@@ -17,6 +17,7 @@ namespace DomainDetective {
     /// 5.	The DMARC record can have an optional "ruf" tag, which is the URI for forensic reports.
     /// 6.	The DMARC record can have an optional "pct" tag, which is the percentage of messages subjected to filtering.
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class DmarcAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }

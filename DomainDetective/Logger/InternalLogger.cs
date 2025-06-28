@@ -4,6 +4,7 @@ namespace DomainDetective {
     /// <summary>
     /// Internal logger that allows to write to console, error or wherever else is needed
     /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class InternalLogger {
         private readonly object _lock = new object();
 
@@ -161,6 +162,10 @@ namespace DomainDetective {
         }
     }
 
+    /// <summary>
+    /// Provides details about a logging event.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public class LogEventArgs : EventArgs {
         /// <summary>
         /// Progress percentage
