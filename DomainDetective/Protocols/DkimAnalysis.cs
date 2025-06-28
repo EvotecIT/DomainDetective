@@ -5,9 +5,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 
 namespace DomainDetective {
     public class DkimAnalysis {
+        /// <summary>Minimum allowed RSA key size in bits.</summary>
+        public const int MinimumRsaKeyBits = 1024;
         /// <summary>Gets the analysis results keyed by selector.</summary>
         public Dictionary<string, DkimRecordAnalysis> AnalysisResults { get; private set; } = new Dictionary<string, DkimRecordAnalysis>();
 
@@ -68,9 +72,17 @@ namespace DomainDetective {
                             analysis.PublicKey = value;
                             try {
                                 var bytes = Convert.FromBase64String(value);
-                                analysis.ValidPublicKey = bytes.Length >= 16;
+                                try {
+                                    var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
+                                    analysis.ValidRsaKeyLength = rsaKey.Modulus.BitLength >= MinimumRsaKeyBits;
+                                    analysis.ValidPublicKey = analysis.ValidRsaKeyLength;
+                                } catch (Exception) {
+                                    analysis.ValidPublicKey = false;
+                                    analysis.ValidRsaKeyLength = false;
+                                }
                             } catch (FormatException) {
                                 analysis.ValidPublicKey = false;
+                                analysis.ValidRsaKeyLength = false;
                             }
                             break;
                         case "s":
@@ -137,6 +149,8 @@ namespace DomainDetective {
         public bool PublicKeyExists { get; set; }
         /// <summary>Gets or sets a value indicating whether a key type was specified.</summary>
         public bool ValidPublicKey { get; set; }
+        /// <summary>True when the RSA key length meets <see cref="MinimumRsaKeyBits"/>.</summary>
+        public bool ValidRsaKeyLength { get; set; }
         public bool KeyTypeExists { get; set; }
         /// <summary>Gets or sets a value indicating whether the key type is recognized.</summary>
         public bool ValidKeyType { get; set; }
