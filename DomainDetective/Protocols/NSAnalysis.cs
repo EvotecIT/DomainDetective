@@ -20,6 +20,10 @@ namespace DomainDetective {
         public bool AllHaveAOrAaaa { get; private set; }
         public bool PointsToCname { get; private set; }
         public bool HasDiverseLocations { get; private set; }
+        public List<string> ParentNsRecords { get; private set; } = new();
+        public bool DelegationMatches { get; private set; }
+        public bool GlueRecordsComplete { get; private set; }
+        public bool GlueRecordsConsistent { get; private set; }
 
         /// <summary>
         /// Executes a DNS query for the specified record type.
@@ -30,6 +34,20 @@ namespace DomainDetective {
             }
 
             return await DnsConfiguration.QueryDNS(name, type);
+        }
+
+        private static string? GetParentZone(string domain) {
+            if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
+                return null;
+            }
+            var parts = domain.Trim('.').Split('.');
+            return parts.Length > 1 ? string.Join(".", parts.Skip(1)) : null;
+        }
+
+        private static bool AnswersMatch(IEnumerable<DnsAnswer>? first, IEnumerable<DnsAnswer>? second) {
+            var a = new HashSet<string>(first?.Select(f => f.Data) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            var b = new HashSet<string>(second?.Select(s => s.Data) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            return a.SetEquals(b);
         }
 
         /// <summary>
@@ -86,6 +104,53 @@ namespace DomainDetective {
             }
 
             HasDiverseLocations = subnets.Count >= 2;
+        }
+
+        /// <summary>
+        /// Analyzes delegation information from the parent zone.
+        /// </summary>
+        /// <param name="domainName">Domain being checked.</param>
+        public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
+            ParentNsRecords = new List<string>();
+            DelegationMatches = false;
+            GlueRecordsComplete = true;
+            GlueRecordsConsistent = true;
+
+            var parent = GetParentZone(domainName);
+            if (string.IsNullOrEmpty(parent)) {
+                logger?.WriteVerbose("No parent zone for {0}", domainName);
+                return;
+            }
+
+            var parentNs = await QueryDns(domainName, DnsRecordType.NS);
+            foreach (var rec in parentNs) {
+                ParentNsRecords.Add(rec.Data.Trim('.'));
+            }
+
+            if (!ParentNsRecords.Any()) {
+                GlueRecordsComplete = false;
+                return;
+            }
+
+            DelegationMatches = new HashSet<string>(ParentNsRecords, StringComparer.OrdinalIgnoreCase)
+                .SetEquals(NsRecords);
+
+            foreach (var ns in ParentNsRecords) {
+                if (ns.EndsWith('.' + domainName, StringComparison.OrdinalIgnoreCase)) {
+                    var parentA = await QueryDns(ns, DnsRecordType.A);
+                    var parentAaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                    if ((parentA == null || !parentA.Any()) && (parentAaaa == null || !parentAaaa.Any())) {
+                        GlueRecordsComplete = false;
+                        continue;
+                    }
+
+                    var childA = await QueryDns(ns, DnsRecordType.A);
+                    var childAaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                    if (!AnswersMatch(parentA, childA) || !AnswersMatch(parentAaaa, childAaaa)) {
+                        GlueRecordsConsistent = false;
+                    }
+                }
+            }
         }
     }
 }
