@@ -127,7 +127,15 @@ public static class CheckDescriptions {
             [HealthCheckType.PORTAVAILABILITY] = new(
                 "Test common service ports for availability.",
                 null,
-                "Ensure required services accept connections.")
+                "Ensure required services accept connections."),
+            [HealthCheckType.IPNEIGHBOR] = new(
+                "List domains hosted on the same IP address.",
+                null,
+                "Investigate shared hosting risks."),
+            [HealthCheckType.DNSTUNNELING] = new(
+                "Analyze DNS logs for tunneling patterns.",
+                null,
+                "Inspect queries for potential tunneling.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
