@@ -222,6 +222,12 @@ namespace DomainDetective {
         public MessageHeaderAnalysis MessageHeaderAnalysis { get; private set; } = new MessageHeaderAnalysis();
 
         /// <summary>
+        /// Gets the ARC header analysis.
+        /// </summary>
+        /// <value>Results from ARC chain validation.</value>
+        public ARCAnalysis ArcAnalysis { get; private set; } = new ARCAnalysis();
+
+        /// <summary>
         /// Gets the dangling CNAME analysis.
         /// </summary>
         /// <value>Information about unresolved CNAME targets.</value>
@@ -744,6 +750,19 @@ namespace DomainDetective {
             return analysis;
         }
 
+        /// <summary>
+        /// Validates ARC headers contained in <paramref name="rawHeaders"/>.
+        /// </summary>
+        /// <param name="rawHeaders">Raw message headers.</param>
+        /// <param name="ct">Token to cancel the operation.</param>
+        /// <returns>Populated <see cref="ARCAnalysis"/> instance.</returns>
+        public ARCAnalysis VerifyARC(string rawHeaders, CancellationToken ct = default) {
+            ct.ThrowIfCancellationRequested();
+            ArcAnalysis = new ARCAnalysis();
+            ArcAnalysis.Analyze(rawHeaders, _logger);
+            return ArcAnalysis;
+        }
+
 
         /// <summary>
         /// Queries DNS and analyzes SPF records for a domain.
@@ -1181,6 +1200,7 @@ namespace DomainDetective {
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;
             filtered.MessageHeaderAnalysis = active.Contains(HealthCheckType.MESSAGEHEADER) ? CloneAnalysis(MessageHeaderAnalysis) : null;
+            filtered.ArcAnalysis = active.Contains(HealthCheckType.ARC) ? CloneAnalysis(ArcAnalysis) : null;
             filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
             filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
