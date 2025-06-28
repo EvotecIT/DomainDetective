@@ -435,7 +435,6 @@ namespace DomainDetective {
                             .Select(r => r.Data.Split(' ')[1].Trim('.'))
                             .Where(h => !string.IsNullOrWhiteSpace(h));
                         await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
-                        await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
                         break;
                     case HealthCheckType.FCRDNS:
                         var mxRecordsFcr = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);

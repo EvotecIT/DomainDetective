@@ -22,6 +22,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeHosts(new[] { "mail.example.com" });
             var result = Assert.Single(analysis.Results);
             Assert.True(result.IsValid);
+            Assert.True(result.FcrDnsValid);
             Assert.Equal("mail.example.com", result.ExpectedHost);
         }
 
@@ -35,7 +36,33 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeHosts(new[] { "mail.example.com" });
             var result = Assert.Single(analysis.Results);
             Assert.False(result.IsValid);
+            Assert.False(result.FcrDnsValid);
             Assert.Equal("mail.example.com", result.ExpectedHost);
+        }
+
+        [Fact]
+        public async Task FcrDnsForwardConfirmation() {
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.1" } },
+                [("1.1.1.1.in-addr.arpa", DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "mail.example.com." } }
+            };
+            var analysis = CreateAnalysis(map);
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+            var result = Assert.Single(analysis.Results);
+            Assert.True(result.FcrDnsValid);
+        }
+
+        [Fact]
+        public async Task FcrDnsForwardMismatch() {
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.1" } },
+                [("1.1.1.1.in-addr.arpa", DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "ptr.example.com." } },
+                [("ptr.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "9.9.9.9" } }
+            };
+            var analysis = CreateAnalysis(map);
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+            var result = Assert.Single(analysis.Results);
+            Assert.False(result.FcrDnsValid);
         }
     }
 }
