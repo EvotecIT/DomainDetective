@@ -215,6 +215,8 @@ Console.WriteLine($"Expires on: {summary.ExpiryDate}");
 Console.WriteLine($"Registrar lock: {summary.RegistrarLocked}");
 ```
 
+WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet. Comparing the latest data to the previous snapshot highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.
+
 ## Check Descriptions
 
 Human-friendly descriptions for each health check are stored in `CheckDescriptions.cs`. The CLI and any report generators look up a `CheckDescription` by `HealthCheckType` to display its summary, RFC link and remediation steps. You can extend or override these mappings by creating additional entries before generating output.

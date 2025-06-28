@@ -93,6 +93,43 @@ internal class Program
         });
         root.Add(analyzeArc);
 
+        var whoisArg = new Argument<string>("domain");
+        var whoisSnap = new Option<DirectoryInfo?>("--snapshot-path", "Directory for snapshots");
+        var whoisDiff = new Option<bool>("--diff", "Show changes since last snapshot");
+        var whoisCmd = new Command("Whois", "Query WHOIS information")
+        {
+            whoisArg,
+            whoisSnap,
+            whoisDiff
+        };
+        whoisCmd.SetAction(async result =>
+        {
+            var domain = result.GetValue(whoisArg);
+            var snap = result.GetValue(whoisSnap);
+            var diff = result.GetValue(whoisDiff);
+            var analysis = new WhoisAnalysis { SnapshotDirectory = snap?.FullName };
+            await analysis.QueryWhoisServer(domain);
+            IEnumerable<string>? changes = null;
+            if (diff && snap != null)
+            {
+                changes = analysis.GetWhoisChanges();
+            }
+            if (snap != null)
+            {
+                analysis.SaveSnapshot();
+            }
+            CliHelpers.ShowPropertiesTable($"WHOIS for {domain}", analysis);
+            if (changes != null && changes.Any())
+            {
+                AnsiConsole.MarkupLine("[yellow]Changes since last snapshot:[/]");
+                foreach (var line in changes)
+                {
+                    Console.WriteLine(line);
+                }
+            }
+        });
+        root.Add(whoisCmd);
+
         root.SetAction(async result =>
         {
             var domains = result.GetValue(domainsArg);
