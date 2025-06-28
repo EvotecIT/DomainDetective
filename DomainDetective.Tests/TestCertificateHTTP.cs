@@ -9,7 +9,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
             Assert.False(analysis.IsReachable);
             Assert.Null(analysis.ProtocolVersion);
@@ -21,7 +21,7 @@ namespace DomainDetective.Tests {
             LogEventArgs? eventArgs = null;
             logger.OnErrorMessage += (_, e) => eventArgs = e;
 
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
 
             Assert.NotNull(eventArgs);
@@ -32,7 +32,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidHostSetsProtocolVersion() {
             var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.True(analysis.ProtocolVersion?.Major >= 1);
             Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
@@ -44,7 +44,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidCertificateProvidesExpirationInfo() {
             var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.True(analysis.DaysValid > 0);
             Assert.Equal(analysis.DaysToExpire < 0, analysis.IsExpired);
@@ -53,7 +53,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidCertificateIsNotSelfSigned() {
             var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.False(analysis.IsSelfSigned);
         }
@@ -61,7 +61,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ExtractsRevocationEndpoints() {
             var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.NotNull(analysis.OcspUrls);
             Assert.NotNull(analysis.CrlUrls);
