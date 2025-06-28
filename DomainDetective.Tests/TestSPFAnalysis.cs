@@ -333,5 +333,15 @@ namespace DomainDetective.Tests {
 
             Assert.Contains("unknown:example.com", healthCheck.SpfAnalysis.UnknownMechanisms);
         }
+
+        [Fact]
+        public async Task VersionTagExcludedFromUnknownMechanisms() {
+            var spfRecord = "v=spf1 -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.DoesNotContain("v=spf1", healthCheck.SpfAnalysis.UnknownMechanisms);
+        }
     }
 }
