@@ -1,6 +1,8 @@
 using System;
 using System.Net.Http;
 using System.Threading.Tasks;
+using System.IO;
+using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.Tests {
     public class TestCertificateHTTP {
@@ -55,6 +57,15 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.NotNull(analysis.OcspUrls);
             Assert.NotNull(analysis.CrlUrls);
+        }
+
+        [Fact]
+        public async Task ChecksCertificateTransparency() {
+            var certPath = Path.Combine("Data", "wildcard.pem");
+            var cert = new X509Certificate2(certPath);
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[{\"id\":1}]") };
+            await analysis.AnalyzeCertificate(cert);
+            Assert.True(analysis.PresentInCtLogs);
         }
     }
 }

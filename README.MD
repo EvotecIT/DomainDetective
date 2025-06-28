@@ -90,9 +90,11 @@ The `CertificateAnalysis` result now includes:
 - `WeakKey` when the key is under 2048 bits.
 - `Sha1Signature` when the certificate uses SHA‑1.
 - With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
+- `PresentInCtLogs` when the certificate appears in public CT logs.
 
 ### HTTP Security Headers
 `HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
+`HttpAnalysis` also sets `HstsPreloaded` when the host is found in the bundled HSTS preload list.
 
 
 ## Build and Test
