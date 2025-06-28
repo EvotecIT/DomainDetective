@@ -30,7 +30,7 @@ namespace DomainDetective {
         public bool IsPolicyValid { get; private set; }
 
         public string Policy => TranslatePolicy(PolicyShort);
-        public string SubPolicy => TranslatePolicy(SubPolicyShort);
+        public string SubPolicy => TranslateSubPolicy();
         public string ReportingInterval => TranslateReportingInterval(ReportingIntervalShort);
         public string Percent => TranslatePercentage();
         public string SpfAlignment => TranslateAlignment(SpfAShort);
@@ -287,6 +287,18 @@ namespace DomainDetective {
                 "reject" => "Reject",
                 _ => "Unknown policy",
             };
+        }
+
+        private string TranslateSubPolicy() {
+            if (!string.IsNullOrWhiteSpace(SubPolicyShort)) {
+                return TranslatePolicy(SubPolicyShort);
+            }
+
+            if (!string.IsNullOrWhiteSpace(PolicyShort)) {
+                return $"{TranslatePolicy(PolicyShort)} (inherited)";
+            }
+
+            return "Unknown policy";
         }
 
         private string TranslateFailureReportingOptions(string option) {

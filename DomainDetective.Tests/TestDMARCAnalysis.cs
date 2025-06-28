@@ -235,5 +235,19 @@ namespace DomainDetective.Tests {
             Assert.Equal("Relaxed (defaulted)", analysisDefault.DkimAlignment);
             Assert.Equal("Relaxed (defaulted)", analysisDefault.SpfAlignment);
         }
+
+        [Fact]
+        public async Task SubPolicyDefaultsToDomainPolicy() {
+            var record = new[] {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=quarantine", Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(record, new InternalLogger());
+
+            Assert.Equal("quarantine", analysis.PolicyShort);
+            Assert.Null(analysis.SubPolicyShort);
+            Assert.Equal("Quarantine (inherited)", analysis.SubPolicy);
+        }
     }
 }
