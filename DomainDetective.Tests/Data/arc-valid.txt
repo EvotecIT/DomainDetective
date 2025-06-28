@@ -1,0 +1,4 @@
+ARC-Seal: i=1; a=rsa-sha256; cv=none;
+ARC-Authentication-Results: i=1; spf=pass;
+ARC-Seal: i=2; a=rsa-sha256; cv=pass;
+ARC-Authentication-Results: i=2; spf=pass;

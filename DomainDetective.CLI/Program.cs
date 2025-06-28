@@ -27,6 +27,7 @@ internal class Program
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
+        ["arc"] = HealthCheckType.ARC,
         ["danglingcname"] = HealthCheckType.DANGLINGCNAME,
         ["banner"] = HealthCheckType.SMTPBANNER,
         ["rdns"] = HealthCheckType.REVERSEDNS,
@@ -75,6 +76,22 @@ internal class Program
             AnalyzeMessageHeader(file, header, json);
         });
         root.Add(analyze);
+
+        var analyzeArc = new Command("AnalyzeARC", "Analyze ARC headers");
+        var arcFileOpt = new Option<FileInfo?>("--file", "Header file");
+        var arcHeaderOpt = new Option<string?>("--header", "Header text");
+        var arcJsonOpt = new Option<bool>("--json", "Output raw JSON");
+        analyzeArc.Add(arcFileOpt);
+        analyzeArc.Add(arcHeaderOpt);
+        analyzeArc.Add(arcJsonOpt);
+        analyzeArc.SetAction(result =>
+        {
+            var file = result.GetValue(arcFileOpt);
+            var header = result.GetValue(arcHeaderOpt);
+            var json = result.GetValue(arcJsonOpt);
+            AnalyzeARC(file, header, json);
+        });
+        root.Add(analyzeArc);
 
         root.SetAction(async result =>
         {
@@ -167,6 +184,46 @@ internal class Program
     }
 
     /// <summary>
+    /// Analyzes ARC headers and prints the results.
+    /// </summary>
+    private static void AnalyzeARC(FileInfo? file, string? header, bool json)
+    {
+        string? headerText = null;
+        if (file != null)
+        {
+            if (!file.Exists)
+            {
+                AnsiConsole.MarkupLine($"[red]File not found: {file.FullName}[/]");
+                return;
+            }
+            headerText = File.ReadAllText(file.FullName);
+        }
+        else if (!string.IsNullOrWhiteSpace(header))
+        {
+            headerText = header;
+        }
+
+        if (string.IsNullOrWhiteSpace(headerText))
+        {
+            AnsiConsole.MarkupLine("[red]No header text provided.[/]");
+            return;
+        }
+
+        var hc = new DomainHealthCheck();
+        var result = hc.VerifyARC(headerText);
+
+        if (json)
+        {
+            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(jsonText);
+        }
+        else
+        {
+            CliHelpers.ShowPropertiesTable("ARC Analysis", result);
+        }
+    }
+
+    /// <summary>
     /// Interactive wizard to collect parameters from the user.
     /// </summary>
     private static async Task<int> RunWizard()
@@ -241,6 +298,7 @@ internal class Program
                     HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
+                    HealthCheckType.ARC => hc.ArcAnalysis,
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,

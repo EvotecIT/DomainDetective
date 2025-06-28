@@ -16,6 +16,7 @@ Current capabilities include:
 - [x] Verify MX Records
 - [x] Verify DNSSEC
 - [x] Analyze DNS TTL
+- [x] Validate ARC headers
 - [x] Verify DANE/TLSA (HTTPS on port 443 by default)
 - [x] Verify STARTTLS
 - [x] Verify MTA-STS
@@ -133,6 +134,14 @@ Parse email headers from a file or raw string:
 ddcli AnalyzeMessageHeader --file ./headers.txt --json
 ```
 
+### Analyze ARC Headers
+
+Validate an ARC chain from raw headers:
+
+```bash
+ddcli AnalyzeARC --file ./headers.txt --json
+```
+
 ### PowerShell Module
 
 Import the module and call any of the testing cmdlets:
@@ -147,6 +156,12 @@ Analyze TTL values:
 
 ```powershell
 Test-DnsTtl -DomainName "example.com"
+```
+
+Analyze ARC headers from PowerShell:
+
+```powershell
+Get-Content './headers.txt' -Raw | Test-Arc
 ```
 
 ### MTA-STS

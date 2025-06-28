@@ -112,6 +112,10 @@ public static class CheckDescriptions {
                 "Parse message headers.",
                 null,
                 "Inspect headers for anomalies."),
+            [HealthCheckType.ARC] = new(
+                "Validate ARC headers.",
+                "https://datatracker.ietf.org/doc/html/rfc8617",
+                "Ensure ARC-Seal and ARC-Authentication-Results align."),
             [HealthCheckType.DANGLINGCNAME] = new(
                 "Detect dangling CNAME records.",
                 null,
