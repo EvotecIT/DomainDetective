@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -59,6 +60,22 @@ namespace DomainDetective {
         public bool IsWildcardCertificate { get; private set; }
         /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
         public bool SecuresUnrelatedHosts { get; private set; }
+        /// <summary>Gets the public key algorithm.</summary>
+        public string KeyAlgorithm { get; private set; }
+        /// <summary>Gets the key size in bits.</summary>
+        public int KeySize { get; private set; }
+        /// <summary>Indicates if the certificate uses a key under 2048 bits.</summary>
+        public bool WeakKey { get; private set; }
+        /// <summary>Indicates if the certificate is signed with SHA-1.</summary>
+        public bool Sha1Signature { get; private set; }
+        /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
+        public SslProtocols TlsProtocol { get; private set; }
+        /// <summary>Gets the negotiated cipher algorithm.</summary>
+        public CipherAlgorithmType CipherAlgorithm { get; private set; }
+        /// <summary>Gets the cipher strength.</summary>
+        public int CipherStrength { get; private set; }
+        /// <summary>Enable gathering TLS protocol and cipher information.</summary>
+        public bool CaptureTlsDetails { get; set; }
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.
@@ -139,6 +156,10 @@ namespace DomainDetective {
                             }
                         }
                         if (Certificate != null) {
+                            PopulateKeyInfo();
+                            if (CaptureTlsDetails) {
+                                await PopulateTlsInfo(new Uri(url), port, cancellationToken);
+                            }
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                             DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
                             IsExpired = Certificate.NotAfter < DateTime.Now;
@@ -259,6 +280,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
             IsExpired = certificate.NotAfter < DateTime.Now;
@@ -327,6 +349,42 @@ namespace DomainDetective {
                 }
             }
             SecuresUnrelatedHosts = baseDomains.Count > 1 && SubjectAlternativeNames.Count > 5;
+        }
+
+        private void PopulateKeyInfo() {
+            if (Certificate == null) {
+                return;
+            }
+            KeyAlgorithm = Certificate.PublicKey.Oid.FriendlyName;
+            try {
+                KeySize = Certificate.PublicKey.Key.KeySize;
+            } catch {
+                KeySize = 0;
+            }
+            WeakKey = KeySize > 0 && KeySize < 2048;
+            string oid = Certificate.SignatureAlgorithm.Value;
+            Sha1Signature = oid == "1.2.840.113549.1.1.5" || oid == "1.2.840.10040.4.3" || oid == "1.3.14.3.2.29";
+        }
+
+        private async Task PopulateTlsInfo(Uri uri, int port, CancellationToken token) {
+            using var tcp = new TcpClient();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeoutCts.CancelAfter(Timeout);
+#if NET6_0_OR_GREATER
+            await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
+#else
+            await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
+#endif
+            using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+#if NET8_0_OR_GREATER
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, false)
+                .WaitWithCancellation(timeoutCts.Token);
+#else
+            await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
+#endif
+            TlsProtocol = ssl.SslProtocol;
+            CipherAlgorithm = ssl.CipherAlgorithm;
+            CipherStrength = ssl.CipherStrength;
         }
     }
 

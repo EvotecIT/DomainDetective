@@ -81,6 +81,13 @@ Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 ### Verifying Website Certificates
 `VerifyWebsiteCertificate` can be called with or without a URL scheme. When the scheme is omitted, `https://` is used automatically before checking the certificate.
 
+The `CertificateAnalysis` result now includes:
+
+- `KeyAlgorithm` and `KeySize` for the leaf certificate.
+- `WeakKey` when the key is under 2048 bits.
+- `Sha1Signature` when the certificate uses SHA‑1.
+- With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
+
 ### HTTP Security Headers
 `HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
 
