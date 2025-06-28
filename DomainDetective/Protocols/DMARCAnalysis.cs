@@ -275,7 +275,7 @@ namespace DomainDetective {
             return alignment switch {
                 "s" => "Strict",
                 "r" => "Relaxed",
-                null or "" => "Relaxed (default)", // default to relaxed if no value is provided
+                null or "" => "Relaxed (defaulted)", // default to relaxed if no value is provided
                 _ => "Unknown",
             };
         }
