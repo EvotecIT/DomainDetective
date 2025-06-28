@@ -357,6 +357,7 @@ namespace DomainDetective {
                    || token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)
                    || IsAllMechanism(token);
         }
       
