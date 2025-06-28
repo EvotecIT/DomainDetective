@@ -63,5 +63,9 @@ public enum HealthCheckType {
     /// <summary>Analyze DNS record TTL values.</summary>
     TTL,
     /// <summary>Test common service ports for availability.</summary>
-    PORTAVAILABILITY
+    PORTAVAILABILITY,
+    /// <summary>List domains hosted on the same IP address.</summary>
+    IPNEIGHBOR,
+    /// <summary>Analyze DNS logs for tunneling patterns.</summary>
+    DNSTUNNELING
 }

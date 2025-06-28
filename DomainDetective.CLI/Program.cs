@@ -32,7 +32,9 @@ internal class Program
         ["banner"] = HealthCheckType.SMTPBANNER,
         ["rdns"] = HealthCheckType.REVERSEDNS,
         ["autodiscover"] = HealthCheckType.AUTODISCOVER,
-        ["ports"] = HealthCheckType.PORTAVAILABILITY
+        ["ports"] = HealthCheckType.PORTAVAILABILITY,
+        ["ipneighbor"] = HealthCheckType.IPNEIGHBOR,
+        ["dnstunneling"] = HealthCheckType.DNSTUNNELING
     };
 
     /// <summary>
@@ -92,6 +94,22 @@ internal class Program
             AnalyzeARC(file, header, json);
         });
         root.Add(analyzeArc);
+
+        var analyzeDnsTunnel = new Command("AnalyzeDnsTunneling", "Analyze DNS logs for tunneling patterns");
+        var tunnelDomain = new Option<string>("--domain", "Domain to inspect");
+        var tunnelFile = new Option<FileInfo>("--file", "Log file");
+        var tunnelJson = new Option<bool>("--json", "Output raw JSON");
+        analyzeDnsTunnel.Add(tunnelDomain);
+        analyzeDnsTunnel.Add(tunnelFile);
+        analyzeDnsTunnel.Add(tunnelJson);
+        analyzeDnsTunnel.SetAction(result =>
+        {
+            var domain = result.GetValue(tunnelDomain);
+            var file = result.GetValue(tunnelFile);
+            var json = result.GetValue(tunnelJson);
+            AnalyzeDnsTunneling(domain, file.FullName, json);
+        });
+        root.Add(analyzeDnsTunnel);
 
         root.SetAction(async result =>
         {
@@ -224,6 +242,31 @@ internal class Program
     }
 
     /// <summary>
+    /// Analyzes DNS logs for tunneling patterns and prints the results.
+    /// </summary>
+    private static void AnalyzeDnsTunneling(string domain, string filePath, bool json)
+    {
+        if (!File.Exists(filePath))
+        {
+            AnsiConsole.MarkupLine($"[red]File not found: {filePath}[/]");
+            return;
+        }
+        var lines = File.ReadAllLines(filePath);
+        var hc = new DomainHealthCheck { DnsTunnelingLogs = lines };
+        hc.CheckDnsTunneling(domain);
+        var result = hc.DnsTunnelingAnalysis;
+        if (json)
+        {
+            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            Console.WriteLine(jsonText);
+        }
+        else
+        {
+            CliHelpers.ShowPropertiesTable($"DNS Tunneling for {domain}", result);
+        }
+    }
+
+    /// <summary>
     /// Interactive wizard to collect parameters from the user.
     /// </summary>
     private static async Task<int> RunWizard()
@@ -302,6 +345,8 @@ internal class Program
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
                     HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,
+                    HealthCheckType.IPNEIGHBOR => hc.IPNeighborAnalysis,
+                    HealthCheckType.DNSTUNNELING => hc.DnsTunnelingAnalysis,
                     _ => null
                 };
                 if (data != null)
