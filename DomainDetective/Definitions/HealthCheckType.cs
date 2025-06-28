@@ -72,5 +72,7 @@ public enum HealthCheckType {
     /// <summary>List domains hosted on the same IP address.</summary>
     IPNEIGHBOR,
     /// <summary>Analyze DNS logs for tunneling patterns.</summary>
-    DNSTUNNELING
+    DNSTUNNELING,
+    /// <summary>Check for typosquatting domains.</summary>
+    TYPOSQUATTING
 }
