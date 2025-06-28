@@ -85,7 +85,7 @@ public static class CheckDescriptions {
                 null,
                 "Disable unauthenticated relaying."),
             [HealthCheckType.STARTTLS] = new(
-                "Validate STARTTLS support.",
+                "Validate STARTTLS support and detect advertisement downgrades.",
                 null,
                 "Enable STARTTLS on mail servers."),
             [HealthCheckType.SMTPTLS] = new(
