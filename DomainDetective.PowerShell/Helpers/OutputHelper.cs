@@ -52,6 +52,8 @@ namespace DomainDetective.PowerShell {
                 Policy = analysis.Policy,
                 SubPolicy = analysis.SubPolicy,
                 Percent = analysis.Percent,
+                DkimAlignment = analysis.DkimAlignment,
+                SpfAlignment = analysis.SpfAlignment,
                 Rua = analysis.Rua,
                 Ruf = analysis.Ruf,
                 MailtoRua = analysis.MailtoRua,
@@ -144,6 +146,12 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Percentage applied to the policy.</summary>
         public string Percent { get; set; }
+
+        /// <summary>DKIM alignment mode.</summary>
+        public string DkimAlignment { get; set; }
+
+        /// <summary>SPF alignment mode.</summary>
+        public string SpfAlignment { get; set; }
 
         /// <summary>Aggregate report destination.</summary>
         public string Rua { get; set; }

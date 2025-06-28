@@ -213,5 +213,27 @@ namespace DomainDetective.Tests {
                 Assert.Equal(string.Empty, analysis.PolicyRecommendation);
             }
         }
+
+        [Fact]
+        public async Task AlignmentModeTranslation() {
+            var record = new[] {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=reject; adkim=s; aspf=r", Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(record, new InternalLogger());
+
+            Assert.Equal("Strict", analysis.DkimAlignment);
+            Assert.Equal("Relaxed", analysis.SpfAlignment);
+
+            var defaultRecord = new[] {
+                new DnsAnswer { DataRaw = "v=DMARC1; p=reject", Type = DnsRecordType.TXT }
+            };
+            var analysisDefault = new DmarcAnalysis();
+            await analysisDefault.AnalyzeDmarcRecords(defaultRecord, new InternalLogger());
+
+            Assert.Equal("Relaxed (defaulted)", analysisDefault.DkimAlignment);
+            Assert.Equal("Relaxed (defaulted)", analysisDefault.SpfAlignment);
+        }
     }
 }
