@@ -83,6 +83,13 @@ namespace DomainDetective {
         /// <value>PTR lookup results for mail exchangers.</value>
         public ReverseDnsAnalysis ReverseDnsAnalysis { get; private set; } = new ReverseDnsAnalysis();
 
+        /// <summary>Gets the forward-confirmed reverse DNS analysis.</summary>
+        /// <value>Results verifying PTR hostnames resolve back to their IP.</value>
+        public FCrDnsAnalysis FCrDnsAnalysis { get; private set; } = new FCrDnsAnalysis();
+
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public FCrDnsAnalysis FCRDNSAnalysis => FCrDnsAnalysis;
+
         /// <summary>
         /// Gets the CAA analysis.
         /// </summary>
@@ -296,6 +303,7 @@ namespace DomainDetective {
             };
 
             ReverseDnsAnalysis.DnsConfiguration = DnsConfiguration;
+            FCrDnsAnalysis.DnsConfiguration = DnsConfiguration;
 
             NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
@@ -411,6 +419,13 @@ namespace DomainDetective {
                         var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var rdnsHosts = mxRecords.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
+                        await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
+                        break;
+                    case HealthCheckType.FCRDNS:
+                        var mxRecordsFcr = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var rdnsHostsFcr = mxRecordsFcr.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await ReverseDnsAnalysis.AnalyzeHosts(rdnsHostsFcr, _logger);
+                        await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
                         break;
                     case HealthCheckType.CAA:
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
@@ -1215,6 +1230,7 @@ namespace DomainDetective {
             filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
             filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null;
+            filtered.FCrDnsAnalysis = active.Contains(HealthCheckType.FCRDNS) ? CloneAnalysis(FCrDnsAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
             filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
             filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null;

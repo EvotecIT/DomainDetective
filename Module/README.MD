@@ -45,6 +45,10 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-Autodiscover -DomainName "example.com"
   ```
+- `Test-FCrDns` – validates forward-confirmed reverse DNS.
+  ```powershell
+  Test-FCrDns -DomainName "example.com"
+  ```
 - `Test-MessageHeader` – parses raw email headers.
   ```powershell
   Get-Content './headers.txt' -Raw | Test-MessageHeader

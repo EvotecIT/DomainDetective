@@ -14,6 +14,8 @@ Current capabilities include:
 - [x] Verify NS Records
 - [x] Verify SOA Records
 - [x] Verify MX Records
+- [x] Verify reverse DNS (PTR)
+- [x] Verify forward-confirmed reverse DNS
 - [x] Verify DNSSEC
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers
@@ -129,6 +131,10 @@ Check DMARC subdomain policy:
 ```bash
 ddcli example.com --subdomain-policy
 ```
+Check forward-confirmed reverse DNS:
+```bash
+ddcli example.com --checks fcrdns
+```
 
 ### Interactive CLI Wizard
 
@@ -161,6 +167,7 @@ Import the module and call any of the testing cmdlets:
 Import-Module ./Module/DomainDetective.psd1 -Force
 Test-SpfRecord -DomainName "example.com"
 Test-Autodiscover -DomainName "example.com"
+Test-FCrDns -DomainName "example.com"
 ```
 
 Analyze TTL values:
