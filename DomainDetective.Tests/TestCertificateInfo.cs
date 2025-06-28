@@ -22,5 +22,13 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.Sha1Signature);
             Assert.Equal(2048, analysis.KeySize);
         }
+
+        [Fact]
+        public async Task SelfSignedFlagSet() {
+            var cert = new X509Certificate2("Data/wildcard.pem");
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeCertificate(cert);
+            Assert.True(analysis.IsSelfSigned);
+        }
     }
 }

@@ -51,6 +51,14 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task ValidCertificateIsNotSelfSigned() {
+            var logger = new InternalLogger();
+            var analysis = new CertificateAnalysis();
+            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            Assert.False(analysis.IsSelfSigned);
+        }
+
+        [Fact]
         public async Task ExtractsRevocationEndpoints() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis();
