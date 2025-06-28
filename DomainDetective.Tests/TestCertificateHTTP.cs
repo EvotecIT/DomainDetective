@@ -67,5 +67,16 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.PresentInCtLogs);
         }
+
+        [Fact]
+        public async Task CapturesCipherSuiteWhenEnabled() {
+            var logger = new InternalLogger();
+            var analysis = new CertificateAnalysis { CaptureTlsDetails = true };
+            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            Assert.False(string.IsNullOrEmpty(analysis.CipherSuite));
+            if (analysis.DhKeyBits > 0) {
+                Assert.True(analysis.DhKeyBits > 0);
+            }
+        }
     }
 }

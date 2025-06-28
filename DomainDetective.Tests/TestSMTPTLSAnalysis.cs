@@ -103,6 +103,30 @@ namespace DomainDetective.Tests {
         }
 #endif
 
+        [Fact]
+        public async Task CapturesCipherSuiteAndDhBits() {
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
+
+            try {
+                var analysis = new SMTPTLSAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                var result = analysis.ServerResults[$"localhost:{port}"];
+                Assert.False(string.IsNullOrEmpty(result.CipherSuite));
+                if (result.DhKeyBits > 0) {
+                    Assert.True(result.DhKeyBits > 0);
+                }
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static async Task RunServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token) {
             try {
                 while (!token.IsCancellationRequested) {

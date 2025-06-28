@@ -26,6 +26,8 @@ namespace DomainDetective {
             public bool SupportsTls13 { get; set; }
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
+            public string CipherSuite { get; set; } = string.Empty;
+            public int DhKeyBits { get; set; }
             public List<X509Certificate2> Chain { get; } = new();
             public List<X509ChainStatusFlags> ChainErrors { get; } = new();
         }
@@ -139,6 +141,12 @@ namespace DomainDetective {
 #endif
                             result.CipherAlgorithm = ssl.CipherAlgorithm;
                             result.CipherStrength = ssl.CipherStrength;
+#if NET6_0_OR_GREATER
+                            result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
+#endif
+                            if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
+                                result.DhKeyBits = ssl.KeyExchangeStrength;
+                            }
 
                             using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
                             await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);

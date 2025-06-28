@@ -82,6 +82,10 @@ namespace DomainDetective {
         public CipherAlgorithmType CipherAlgorithm { get; private set; }
         /// <summary>Gets the cipher strength.</summary>
         public int CipherStrength { get; private set; }
+        /// <summary>Gets the negotiated cipher suite name.</summary>
+        public string CipherSuite { get; private set; } = string.Empty;
+        /// <summary>Gets the Diffie-Hellman key size, if used.</summary>
+        public int DhKeyBits { get; private set; }
         /// <summary>Enable gathering TLS protocol and cipher information.</summary>
         public bool CaptureTlsDetails { get; set; }
         /// <summary>Gets a value indicating whether the certificate is present in public CT logs.</summary>
@@ -437,6 +441,12 @@ namespace DomainDetective {
             TlsProtocol = ssl.SslProtocol;
             CipherAlgorithm = ssl.CipherAlgorithm;
             CipherStrength = ssl.CipherStrength;
+#if NET6_0_OR_GREATER
+            CipherSuite = ssl.NegotiatedCipherSuite.ToString();
+#endif
+            if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
+                DhKeyBits = ssl.KeyExchangeStrength;
+            }
         }
     }
 
