@@ -128,5 +128,36 @@ namespace DomainDetective.Tests {
 
             Assert.False(analysis.GlueRecordsComplete);
         }
+
+        [Fact]
+        public async Task QueryRootServersRespond() {
+            var analysis = CreateAnalysis((name, type) => {
+                if (name == "." && type == DnsRecordType.NS) {
+                    return Task.FromResult(new[] {
+                        new DnsAnswer { DataRaw = "a.root-servers.net" },
+                        new DnsAnswer { DataRaw = "b.root-servers.net" }
+                    });
+                }
+                if (name == "a.root-servers.net" && type == DnsRecordType.A) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } });
+                }
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            });
+            await analysis.QueryRootServers(new InternalLogger());
+            Assert.True(analysis.RootServerResponses["a.root-servers.net"]);
+            Assert.False(analysis.RootServerResponses["b.root-servers.net"]);
+        }
+
+        [Fact]
+        public async Task DetectRecursionEnabled() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis((_, _) => Task.FromResult(Array.Empty<DnsAnswer>()));
+            analysis.RecursionTestOverride = _ => Task.FromResult(true);
+            await analysis.AnalyzeNsRecords(answers, new InternalLogger());
+            await analysis.TestRecursion(new InternalLogger());
+            Assert.True(analysis.RecursionEnabled["ns1.example.com"]);
+        }
     }
 }

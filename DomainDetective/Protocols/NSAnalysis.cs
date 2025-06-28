@@ -13,6 +13,7 @@ namespace DomainDetective {
     public class NSAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+        public Func<string, Task<bool>>? RecursionTestOverride { private get; set; }
         public List<string> NsRecords { get; private set; } = new();
         public bool NsRecordExists { get; private set; }
         public bool HasDuplicates { get; private set; }
@@ -24,6 +25,9 @@ namespace DomainDetective {
         public bool DelegationMatches { get; private set; }
         public bool GlueRecordsComplete { get; private set; }
         public bool GlueRecordsConsistent { get; private set; }
+
+        public Dictionary<string, bool> RootServerResponses { get; private set; } = new();
+        public Dictionary<string, bool> RecursionEnabled { get; private set; } = new();
 
         /// <summary>
         /// Executes a DNS query for the specified record type.
@@ -150,6 +154,94 @@ namespace DomainDetective {
                         GlueRecordsConsistent = false;
                     }
                 }
+            }
+        }
+
+        public async Task QueryRootServers(InternalLogger logger) {
+            RootServerResponses = new Dictionary<string, bool>();
+            var roots = await QueryDns(".", DnsRecordType.NS);
+            foreach (var root in roots) {
+                var host = root.Data.Trim('.');
+                bool responsive = false;
+                try {
+                    var a = await QueryDns(host, DnsRecordType.A);
+                    if (a != null && a.Any()) {
+                        responsive = true;
+                    } else {
+                        var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+                        responsive = aaaa != null && aaaa.Any();
+                    }
+                } catch {
+                    responsive = false;
+                }
+                RootServerResponses[host] = responsive;
+            }
+        }
+
+        public async Task TestRecursion(InternalLogger logger) {
+            RecursionEnabled = new Dictionary<string, bool>();
+            foreach (var ns in NsRecords) {
+                var host = ns.Trim('.');
+                bool recursion = await CheckRecursionAsync(host, logger);
+                RecursionEnabled[host] = recursion;
+            }
+        }
+
+        private static byte[] EncodeDomainName(string name, bool trailingDot) {
+            var parts = name.TrimEnd('.').Split('.');
+            using var ms = new System.IO.MemoryStream();
+            foreach (var part in parts) {
+                var bytes = System.Text.Encoding.ASCII.GetBytes(part);
+                ms.WriteByte((byte)bytes.Length);
+                ms.Write(bytes, 0, bytes.Length);
+            }
+            if (trailingDot) {
+                ms.WriteByte(0);
+            }
+            return ms.ToArray();
+        }
+
+        private static byte[] BuildQuery(string domain, ushort id) {
+            var header = new byte[12];
+            header[0] = (byte)(id >> 8);
+            header[1] = (byte)(id & 0xFF);
+            header[2] = 0x01;
+            header[5] = 0x01;
+            var qname = EncodeDomainName(domain, true);
+            var query = new byte[header.Length + qname.Length + 4];
+            Buffer.BlockCopy(header, 0, query, 0, header.Length);
+            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
+            var offset = header.Length + qname.Length;
+            query[offset] = 0x00;
+            query[offset + 1] = 0x01;
+            query[offset + 2] = 0x00;
+            query[offset + 3] = 0x01;
+            return query;
+        }
+
+        private async Task<bool> CheckRecursionAsync(string server, InternalLogger logger) {
+            if (RecursionTestOverride != null) {
+                return await RecursionTestOverride(server);
+            }
+            try {
+                using var udp = new System.Net.Sockets.UdpClient();
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var id = (ushort)new Random().Next(ushort.MaxValue);
+                var query = BuildQuery("example.com", id);
+#if NET8_0_OR_GREATER
+                await udp.SendAsync(query, server, 53, cts.Token);
+                var result = await udp.ReceiveAsync(cts.Token);
+#else
+                await udp.SendAsync(query, query.Length, server, 53).WaitWithCancellation(cts.Token);
+                var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
+#endif
+                var data = result.Buffer;
+                return data.Length > 3 && (data[3] & 0x80) != 0;
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (Exception ex) {
+                logger?.WriteVerbose("Recursion test failed for {0}: {1}", server, ex.Message);
+                return false;
             }
         }
     }
