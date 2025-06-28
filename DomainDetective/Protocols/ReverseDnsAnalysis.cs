@@ -44,6 +44,9 @@ namespace DomainDetective {
         public async Task AnalyzeHosts(IEnumerable<string> hosts, InternalLogger? logger = null) {
             Results = new List<ReverseDnsResult>();
             foreach (var host in hosts) {
+                if (string.IsNullOrWhiteSpace(host)) {
+                    continue;
+                }
                 var aRecords = await QueryDns(host, DnsRecordType.A);
                 var aaaaRecords = await QueryDns(host, DnsRecordType.AAAA);
                 foreach (var record in aRecords.Concat(aaaaRecords ?? Array.Empty<DnsAnswer>())) {

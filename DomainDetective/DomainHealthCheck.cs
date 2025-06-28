@@ -417,13 +417,17 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.REVERSEDNS:
                         var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var rdnsHosts = mxRecords.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        var rdnsHosts = mxRecords
+                            .Select(r => r.Data.Split(' ')[1].Trim('.'))
+                            .Where(h => !string.IsNullOrWhiteSpace(h));
                         await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
                         await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
                         break;
                     case HealthCheckType.FCRDNS:
                         var mxRecordsFcr = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var rdnsHostsFcr = mxRecordsFcr.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        var rdnsHostsFcr = mxRecordsFcr
+                            .Select(r => r.Data.Split(' ')[1].Trim('.'))
+                            .Where(h => !string.IsNullOrWhiteSpace(h));
                         await ReverseDnsAnalysis.AnalyzeHosts(rdnsHostsFcr, _logger);
                         await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
                         break;
