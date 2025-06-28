@@ -81,7 +81,7 @@ namespace DomainDetective {
     /// Provides routines to query DNS block lists for a host.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class DNSBLAnalysis {
+    public partial class DNSBLAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>
@@ -207,6 +207,7 @@ namespace DomainDetective {
             new("xbl.spamhaus.org"),
             new("z.mailspike.net"),
             new("zen.spamhaus.org"),
+            new("multi.uribl.com"),
             new("zombie.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
             new("bl.emailbasura.org", enabled: false, comment: "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/8"),
             new("dynip.rothen.com", enabled: false, comment: "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/9"),
@@ -220,6 +221,7 @@ namespace DomainDetective {
         };
 
         public DNSBLAnalysis() {
+        DnsConfiguration = new DnsConfiguration();
         }
 
         internal List<string> DNSBLLists => DnsblEntries
