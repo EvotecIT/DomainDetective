@@ -68,6 +68,8 @@ namespace DomainDetective {
         public bool IsWildcardCertificate { get; private set; }
         /// <summary>Gets a value indicating the certificate secures multiple unrelated hosts.</summary>
         public bool SecuresUnrelatedHosts { get; private set; }
+        /// <summary>Gets a value indicating whether the certificate is self-signed.</summary>
+        public bool IsSelfSigned { get; private set; }
         /// <summary>Gets the public key algorithm.</summary>
         public string KeyAlgorithm { get; private set; }
         /// <summary>Gets the key size in bits.</summary>
@@ -108,6 +110,7 @@ namespace DomainDetective {
             var builder = new UriBuilder(url) { Port = port };
             url = builder.ToString();
             Url = url;
+            IsSelfSigned = false;
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
@@ -117,6 +120,7 @@ namespace DomainDetective {
                             Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
+                    IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
                     IsValid = policyErrors == SslPolicyErrors.None;
                     return IsValid;
                 };
@@ -170,6 +174,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
+                                    IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
                                 }
                             } catch (Exception ex) {
                                 logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
@@ -329,12 +334,14 @@ namespace DomainDetective {
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
             Certificate = new X509Certificate2(certificate.RawData);
+            IsSelfSigned = false;
             var chain = new X509Chain();
             IsValid = chain.Build(certificate);
             Chain.Clear();
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            IsSelfSigned = certificate.Subject == certificate.Issuer && Chain.Count == 1;
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;

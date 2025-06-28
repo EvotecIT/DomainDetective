@@ -6,7 +6,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task DetectsWildcardAndSubdomains() {
             var cert = new X509Certificate2("Data/wildcard.pem");
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.IsWildcardCertificate);
             Assert.True(analysis.WildcardSubdomains.ContainsKey("*.example.com"));
@@ -18,7 +18,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task WarnsOnUnrelatedHosts() {
             var cert = new X509Certificate2("Data/multi.pem");
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.SecuresUnrelatedHosts);
         }
