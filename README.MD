@@ -15,7 +15,7 @@ Current capabilities include:
 - [x] Verify SOA Records
 - [x] Verify MX Records
 - [x] Verify reverse DNS (PTR)
-- [x] Verify forward-confirmed reverse DNS
+- [x] Verify forward-confirmed reverse DNS (FCrDNS)
 - [x] Verify DNSSEC
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers

@@ -45,7 +45,7 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-Autodiscover -DomainName "example.com"
   ```
-- `Test-FCrDns` – validates forward-confirmed reverse DNS.
+- `Test-FCrDns` – validates forward-confirmed reverse DNS (FCrDNS).
   ```powershell
   Test-FCrDns -DomainName "example.com"
   ```
