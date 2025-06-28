@@ -268,6 +268,10 @@ namespace DomainDetective {
         /// <value>Possible tunneling activities.</value>
         public DnsTunnelingAnalysis DnsTunnelingAnalysis { get; private set; } = new DnsTunnelingAnalysis();
 
+        /// <summary>Gets the typosquatting analysis.</summary>
+        /// <value>Potential look-alike domains.</value>
+        public TyposquattingAnalysis TyposquattingAnalysis { get; private set; } = new TyposquattingAnalysis();
+
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
 
@@ -338,6 +342,7 @@ namespace DomainDetective {
 
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTunnelingAnalysis = new DnsTunnelingAnalysis();
+            TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
@@ -553,6 +558,9 @@ namespace DomainDetective {
                     case HealthCheckType.DNSTUNNELING:
                         CheckDnsTunneling(domainName);
                         break;
+                    case HealthCheckType.TYPOSQUATTING:
+                        await VerifyTyposquatting(domainName, cancellationToken);
+                        break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
                         throw new NotSupportedException("Health check type not implemented.");
@@ -764,6 +772,20 @@ namespace DomainDetective {
         public void CheckDnsTunneling(string domainName) {
             var lines = DnsTunnelingLogs ?? Array.Empty<string>();
             DnsTunnelingAnalysis.Analyze(domainName, lines);
+        }
+
+        /// <summary>
+        /// Generates typosquatting variants and checks if they resolve.
+        /// </summary>
+        /// <param name="domainName">Domain to analyze.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyTyposquatting(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
+            await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1315,6 +1337,7 @@ namespace DomainDetective {
             filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
             filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null;
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
+            filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null;
 
             return filtered;
         }

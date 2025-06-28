@@ -147,7 +147,11 @@ public static class CheckDescriptions {
             [HealthCheckType.DNSTUNNELING] = new(
                 "Analyze DNS logs for tunneling patterns.",
                 null,
-                "Inspect queries for potential tunneling.")
+                "Inspect queries for potential tunneling."),
+            [HealthCheckType.TYPOSQUATTING] = new(
+                "Check for typosquatting domains.",
+                null,
+                "Monitor and register common look-alike domains.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
