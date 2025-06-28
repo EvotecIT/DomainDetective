@@ -420,6 +420,9 @@ namespace DomainDetective {
                         var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
                         await NSAnalysis.AnalyzeNsRecords(ns, _logger);
                         break;
+                    case HealthCheckType.DELEGATION:
+                        await VerifyDelegation(domainName, cancellationToken);
+                        break;
                     case HealthCheckType.ZONETRANSFER:
                         var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
                         var servers = nsRecords.Select(r => r.Data.Trim('.'));
@@ -940,6 +943,21 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Validates delegation information against the parent zone.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyDelegation(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            await NSAnalysis.AnalyzeNsRecords(ns, _logger);
+            await NSAnalysis.AnalyzeParentDelegation(domainName, _logger);
+        }
+
+        /// <summary>
         /// Detects dangling CNAME records for the domain.
         /// </summary>
         public async Task VerifyDanglingCname(string domainName, CancellationToken cancellationToken = default) {
@@ -1216,7 +1234,10 @@ namespace DomainDetective {
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
             filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
-            filtered.NSAnalysis = active.Contains(HealthCheckType.NS) ? CloneAnalysis(NSAnalysis) : null;
+            filtered.NSAnalysis =
+                active.Contains(HealthCheckType.NS) || active.Contains(HealthCheckType.DELEGATION)
+                    ? CloneAnalysis(NSAnalysis)
+                    : null;
             filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null;
             filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;
             filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null;

@@ -97,5 +97,36 @@ namespace DomainDetective.Tests {
 
             Assert.False(analysis.HasDiverseLocations);
         }
+
+        [Fact]
+        public async Task DetectDelegationMismatch() {
+            var childAnswers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis((name, type) => {
+                if (type == DnsRecordType.NS) {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns2.example.com" } });
+                }
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            });
+            await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
+            await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
+
+            Assert.False(analysis.DelegationMatches);
+        }
+
+        [Fact]
+        public async Task DetectMissingGlue() {
+            var childAnswers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis((name, type) => {
+                return Task.FromResult(Array.Empty<DnsAnswer>());
+            });
+            await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
+            await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
+
+            Assert.False(analysis.GlueRecordsComplete);
+        }
     }
 }

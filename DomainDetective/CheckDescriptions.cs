@@ -36,6 +36,10 @@ public static class CheckDescriptions {
                 "Verify NS records.",
                 null,
                 "Publish authoritative name servers."),
+            [HealthCheckType.DELEGATION] = new(
+                "Verify parent zone delegation records.",
+                null,
+                "Ensure NS and glue data match the child zone."),
             [HealthCheckType.ZONETRANSFER] = new(
                 "Attempt a zone transfer.",
                 null,
