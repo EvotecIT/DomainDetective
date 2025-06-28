@@ -151,7 +151,11 @@ public static class CheckDescriptions {
             [HealthCheckType.TYPOSQUATTING] = new(
                 "Check for typosquatting domains.",
                 null,
-                "Monitor and register common look-alike domains.")
+                "Monitor and register common look-alike domains."),
+            [HealthCheckType.THREATINTEL] = new(
+                "Query reputation services for threats.",
+                null,
+                "Review listed threats and request delisting")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

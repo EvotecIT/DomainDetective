@@ -76,5 +76,7 @@ public enum HealthCheckType {
     /// <summary>Analyze DNS logs for tunneling patterns.</summary>
     DNSTUNNELING,
     /// <summary>Check for typosquatting domains.</summary>
-    TYPOSQUATTING
+    TYPOSQUATTING,
+    /// <summary>Query reputation services for threats.</summary>
+    THREATINTEL
 }
