@@ -73,16 +73,19 @@ namespace DomainDetective {
                             try {
                                 var bytes = Convert.FromBase64String(value);
                                 try {
-                                    var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
-                                    analysis.ValidRsaKeyLength = rsaKey.Modulus.BitLength >= MinimumRsaKeyBits;
-                                    analysis.ValidPublicKey = analysis.ValidRsaKeyLength;
+                                var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
+                                analysis.KeyLength = rsaKey.Modulus.BitLength;
+                                analysis.ValidRsaKeyLength = analysis.KeyLength >= MinimumRsaKeyBits;
+                                analysis.ValidPublicKey = analysis.ValidRsaKeyLength;
                                 } catch (Exception) {
                                     analysis.ValidPublicKey = false;
                                     analysis.ValidRsaKeyLength = false;
+                                analysis.KeyLength = 0;
                                 }
                             } catch (FormatException) {
                                 analysis.ValidPublicKey = false;
                                 analysis.ValidRsaKeyLength = false;
+                                analysis.KeyLength = 0;
                             }
                             break;
                         case "s":
@@ -151,6 +154,9 @@ namespace DomainDetective {
         public bool ValidPublicKey { get; set; }
         /// <summary>True when the RSA key length meets <see cref="MinimumRsaKeyBits"/>.</summary>
         public bool ValidRsaKeyLength { get; set; }
+        /// <summary>Length of the RSA public key in bits.</summary>
+        public int KeyLength { get; set; }
+        /// <summary>Indicates whether the <c>k</c> tag was present.</summary>
         public bool KeyTypeExists { get; set; }
         /// <summary>Gets or sets a value indicating whether the key type is recognized.</summary>
         public bool ValidKeyType { get; set; }

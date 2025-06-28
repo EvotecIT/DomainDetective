@@ -244,6 +244,17 @@ namespace DomainDetective {
         /// <value>TCP port connectivity results.</value>
         public PortAvailabilityAnalysis PortAvailabilityAnalysis { get; private set; } = new PortAvailabilityAnalysis();
 
+        /// <summary>Gets the IP neighbor analysis.</summary>
+        /// <value>Domains sharing the same IP address.</value>
+        public IPNeighborAnalysis IPNeighborAnalysis { get; private set; } = new IPNeighborAnalysis();
+
+        /// <summary>Gets the DNS tunneling analysis.</summary>
+        /// <value>Possible tunneling activities.</value>
+        public DnsTunnelingAnalysis DnsTunnelingAnalysis { get; private set; } = new DnsTunnelingAnalysis();
+
+        /// <summary>Log lines used for DNS tunneling analysis.</summary>
+        public IEnumerable<string>? DnsTunnelingLogs { get; set; }
+
         /// <summary>
         /// Holds DNS client configuration used throughout analyses.
         /// </summary>
@@ -302,6 +313,9 @@ namespace DomainDetective {
             };
 
             PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
+
+            IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsTunnelingAnalysis = new DnsTunnelingAnalysis();
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
@@ -491,6 +505,12 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.PORTAVAILABILITY:
                         await CheckPortAvailability(domainName, null, cancellationToken);
+                        break;
+                    case HealthCheckType.IPNEIGHBOR:
+                        await CheckIPNeighbors(domainName, cancellationToken);
+                        break;
+                    case HealthCheckType.DNSTUNNELING:
+                        CheckDnsTunneling(domainName);
                         break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
@@ -692,6 +712,17 @@ namespace DomainDetective {
                 ValidatePort(p);
             }
             await PortAvailabilityAnalysis.AnalyzeServers(new[] { host }, list, _logger, cancellationToken);
+        }
+
+        /// <summary>Queries neighbors sharing the same IP as <paramref name="domainName"/>.</summary>
+        public async Task CheckIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
+            await IPNeighborAnalysis.Analyze(domainName, _logger, cancellationToken);
+        }
+
+        /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
+        public void CheckDnsTunneling(string domainName) {
+            var lines = DnsTunnelingLogs ?? Array.Empty<string>();
+            DnsTunnelingAnalysis.Analyze(domainName, lines);
         }
 
         /// <summary>
@@ -1204,6 +1235,8 @@ namespace DomainDetective {
             filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
             filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
+            filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null;
+            filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
 
             return filtered;
         }

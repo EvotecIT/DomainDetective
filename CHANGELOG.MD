@@ -15,3 +15,4 @@
 ### What's Changed
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
+

@@ -24,6 +24,7 @@ namespace DomainDetective.PowerShell {
                     PublicKeyExists = result.PublicKeyExists,
                     ValidPublicKey = result.ValidPublicKey,
                     ValidRsaKeyLength = result.ValidRsaKeyLength,
+                    KeyLength = result.KeyLength,
                     KeyTypeExists = result.KeyTypeExists,
                     ValidKeyType = result.ValidKeyType,
                     PublicKey = result.PublicKey,
@@ -90,6 +91,9 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Indicates whether the RSA key length meets policy.</summary>
         public bool ValidRsaKeyLength { get; set; }
+
+        /// <summary>Length of the RSA public key in bits.</summary>
+        public int KeyLength { get; set; }
 
         /// <summary>Indicates whether the key type is present.</summary>
         public bool KeyTypeExists { get; set; }

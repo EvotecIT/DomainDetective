@@ -38,6 +38,8 @@ Current capabilities include:
 - [x] Verify SecurityTXT
 - [x] Verify Open Relay (SMTP)
 - [x] Verify Blacklist (DNSBL)
+- [x] List IP neighbors via reverse/passive DNS
+- [x] Detect DNS tunneling from logs
 - [x] Check propagation of DNS records across the world/country/company
 - [x] Verify WHOIS
 - [ ] Other things that I haven't thought of yet
