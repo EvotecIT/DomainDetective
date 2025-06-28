@@ -126,6 +126,11 @@ namespace DomainDetective {
                 ParentNsRecords.Add(rec.Data.Trim('.'));
             }
 
+            if (!ParentNsRecords.Any()) {
+                GlueRecordsComplete = false;
+                return;
+            }
+
             DelegationMatches = new HashSet<string>(ParentNsRecords, StringComparer.OrdinalIgnoreCase)
                 .SetEquals(NsRecords);
 
