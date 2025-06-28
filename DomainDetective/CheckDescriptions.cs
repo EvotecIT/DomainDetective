@@ -104,6 +104,10 @@ public static class CheckDescriptions {
                 "Capture SMTP banner information.",
                 null,
                 "Verify host name and software identifiers."),
+            [HealthCheckType.SMTPAUTH] = new(
+                "Enumerate SMTP AUTH mechanisms.",
+                null,
+                "Enable secure authentication methods and disable weak ones."),
             [HealthCheckType.HTTP] = new(
                 "Perform HTTP checks.",
                 null,

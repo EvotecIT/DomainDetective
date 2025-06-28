@@ -187,6 +187,15 @@ namespace DomainDetective {
         public SMTPBannerAnalysis SmtpBannerAnalysis { get; private set; } = new SMTPBannerAnalysis();
 
         /// <summary>
+        /// Gets the SMTP AUTH analysis.
+        /// </summary>
+        /// <value>Advertised authentication mechanisms.</value>
+        public SmtpAuthAnalysis SmtpAuthAnalysis { get; private set; } = new SmtpAuthAnalysis();
+
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public SmtpAuthAnalysis SMTPAUTHAnalysis => SmtpAuthAnalysis;
+
+        /// <summary>
         /// Gets the TLSRPT analysis.
         /// </summary>
         /// <value>Reports about TLS failures.</value>
@@ -509,6 +518,11 @@ namespace DomainDetective {
                         var mxRecordsForBanner = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var bannerHosts = mxRecordsForBanner.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await SmtpBannerAnalysis.AnalyzeServers(bannerHosts, 25, _logger, cancellationToken);
+                        break;
+                    case HealthCheckType.SMTPAUTH:
+                        var mxRecordsForAuth = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var authHosts = mxRecordsForAuth.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await SmtpAuthAnalysis.AnalyzeServers(authHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
                         await HttpAnalysis.AnalyzeUrl($"http://{domainName}", true, _logger, cancellationToken: cancellationToken);
@@ -903,6 +917,23 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Retrieves SMTP AUTH capabilities from all MX hosts.
+        /// </summary>
+        /// <param name="domainName">Domain whose MX records are queried.</param>
+        /// <param name="port">SMTP port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifySmtpAuth(string domainName, int port = 25, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            ValidatePort(port);
+            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var hosts = mx.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await SmtpAuthAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Queries and analyzes TLSRPT records for a domain.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
@@ -1273,6 +1304,7 @@ namespace DomainDetective {
             filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
             filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
             filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null;
+            filtered.SmtpAuthAnalysis = active.Contains(HealthCheckType.SMTPAUTH) ? CloneAnalysis(SmtpAuthAnalysis) : null;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null;

@@ -53,6 +53,8 @@ public enum HealthCheckType {
     SMTPTLS,
     /// <summary>Capture SMTP banner information.</summary>
     SMTPBANNER,
+    /// <summary>Enumerate SMTP AUTH mechanisms.</summary>
+    SMTPAUTH,
     /// <summary>Perform HTTP checks.</summary>
     HTTP,
     /// <summary>Validate HPKP configuration.</summary>
