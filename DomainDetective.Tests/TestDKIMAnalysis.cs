@@ -19,6 +19,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal("MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB", healthCheck.DKIMAnalysis.AnalysisResults[selector].PublicKey);
                 Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].PublicKeyExists);
                 Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].ValidPublicKey);
+                Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].ValidRsaKeyLength);
                 Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].StartsCorrectly);
                 Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].KeyTypeExists);
             }
@@ -41,6 +42,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB", healthCheck.DKIMAnalysis.AnalysisResults["selector1"].PublicKey);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].PublicKeyExists);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].ValidPublicKey);
+            Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector1"].ValidRsaKeyLength);
 
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].Name == "selector2-evotec-pl._domainkey.evotecpoland.onmicrosoft.com");
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].DkimRecord == "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA21OfspkRgPHhdCgu3kWgBX+xLyw7wRqM+Y4KaX82Pul9ikEDfZCJ35siFzV2WMH9Od/yM2TtMnubRqm9QN6paEB0VhNgNURQMmyTVsBO1usTJS9IvkIt3JtTFEinzVJLEaOC/F3d6bJaW9MMKUTBra9RcUf/E6dWAaJX8lrK8SefL9adNTwED8ZgFBnFcoJJn6e1W2WyIZ/8XAk+5Jwc7JMFZsdjFYdBSDPNyEfhNsKahVdRvdCG+OeDHyLSiNuFE27wtXaUI2TySDcfSSzE8k8z/Td9mMb0DQ2qaJ6xxk/5cwzwYSXr3sdGp++mHpGOJm18OwfsJmFCuSEcFGrHAQIDAQAB;");
@@ -51,6 +53,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].PublicKey == "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA21OfspkRgPHhdCgu3kWgBX+xLyw7wRqM+Y4KaX82Pul9ikEDfZCJ35siFzV2WMH9Od/yM2TtMnubRqm9QN6paEB0VhNgNURQMmyTVsBO1usTJS9IvkIt3JtTFEinzVJLEaOC/F3d6bJaW9MMKUTBra9RcUf/E6dWAaJX8lrK8SefL9adNTwED8ZgFBnFcoJJn6e1W2WyIZ/8XAk+5Jwc7JMFZsdjFYdBSDPNyEfhNsKahVdRvdCG+OeDHyLSiNuFE27wtXaUI2TySDcfSSzE8k8z/Td9mMb0DQ2qaJ6xxk/5cwzwYSXr3sdGp++mHpGOJm18OwfsJmFCuSEcFGrHAQIDAQAB");
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].PublicKeyExists);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].ValidPublicKey);
+            Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].ValidRsaKeyLength);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].StartsCorrectly);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["selector2"].KeyTypeExists);
 
@@ -104,6 +107,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDKIM(record);
 
             Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidPublicKey);
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidRsaKeyLength);
         }
 
         [Fact]
@@ -114,6 +118,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDKIM(record);
 
             Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidPublicKey);
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidRsaKeyLength);
         }
 
         [Fact]
