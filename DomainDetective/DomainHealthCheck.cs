@@ -132,6 +132,15 @@ namespace DomainDetective {
         /// <value>A URL to use instead of querying DNS.</value>
         public string MtaStsPolicyUrlOverride { get; set; }
 
+        /// <summary>API key for Google Safe Browsing.</summary>
+        public string? GoogleSafeBrowsingApiKey { get; set; }
+
+        /// <summary>API key for PhishTank.</summary>
+        public string? PhishTankApiKey { get; set; }
+
+        /// <summary>API key for VirusTotal.</summary>
+        public string? VirusTotalApiKey { get; set; }
+
         /// <summary>
         /// Gets the TLS certificate analysis.
         /// </summary>
@@ -271,6 +280,12 @@ namespace DomainDetective {
         /// <summary>Gets the typosquatting analysis.</summary>
         /// <value>Potential look-alike domains.</value>
         public TyposquattingAnalysis TyposquattingAnalysis { get; private set; } = new TyposquattingAnalysis();
+
+        /// <summary>Gets the threat intelligence analysis.</summary>
+        /// <value>Results from reputation services.</value>
+        public ThreatIntelAnalysis ThreatIntelAnalysis { get; private set; } = new ThreatIntelAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public ThreatIntelAnalysis THREATINTELAnalysis => ThreatIntelAnalysis;
 
         /// <summary>Log lines used for DNS tunneling analysis.</summary>
         public IEnumerable<string>? DnsTunnelingLogs { get; set; }
@@ -560,6 +575,9 @@ namespace DomainDetective {
                     case HealthCheckType.TYPOSQUATTING:
                         await VerifyTyposquatting(domainName, cancellationToken);
                         break;
+                    case HealthCheckType.THREATINTEL:
+                        await VerifyThreatIntel(domainName, cancellationToken);
+                        break;
                     default:
                         _logger.WriteError("Unknown health check type: {0}", healthCheckType);
                         throw new NotSupportedException("Health check type not implemented.");
@@ -785,6 +803,15 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
+        }
+
+        /// <summary>Queries reputation services for threat listings.</summary>
+        public async Task VerifyThreatIntel(string target, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(target)) {
+                throw new ArgumentNullException(nameof(target));
+            }
+            UpdateIsPublicSuffix(target);
+            await ThreatIntelAnalysis.Analyze(target, GoogleSafeBrowsingApiKey, PhishTankApiKey, VirusTotalApiKey, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1337,6 +1364,7 @@ namespace DomainDetective {
             filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null;
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
             filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null;
+            filtered.ThreatIntelAnalysis = active.Contains(HealthCheckType.THREATINTEL) ? CloneAnalysis(ThreatIntelAnalysis) : null;
 
             return filtered;
         }
