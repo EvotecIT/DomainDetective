@@ -93,7 +93,7 @@ namespace DomainDetective {
                     var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                     if (resp != null && resp.StartsWith("220")) {
                         try {
-                            using var ssl = new System.Net.Security.SslStream(network);
+                            using var ssl = new System.Net.Security.SslStream(network, false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
                             await ssl.AuthenticateAsClientAsync(host, null, System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12, false)
                                 .WaitWithCancellation(timeoutCts.Token);
