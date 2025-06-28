@@ -58,6 +58,8 @@ namespace DomainDetective {
         public bool Http3Supported { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string Body { get; private set; }
+        /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
+        public bool MixedContentDetected { get; private set; }
         /// <summary>Gets a value indicating whether a Permissions-Policy header was present.</summary>
         public bool PermissionsPolicyPresent { get; private set; }
         /// <summary>Gets parsed directives from the Permissions-Policy header.</summary>
@@ -156,6 +158,7 @@ namespace DomainDetective {
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             Body = null;
+            MixedContentDetected = false;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
             ExpectCtMaxAge = null;
@@ -286,6 +289,11 @@ namespace DomainDetective {
                 }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
+                    var scheme = response.RequestMessage?.RequestUri?.Scheme;
+                    if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+                        Body.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        MixedContentDetected = true;
+                    }
                 }
                 response.Dispose();
             } catch (HttpRequestException ex) when (ex.InnerException is System.Net.Sockets.SocketException se &&

@@ -422,6 +422,37 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task DetectsMixedContentOnHttpsPage() {
+            var analysis = new HttpAnalysis();
+            await analysis.AnalyzeUrl("https://www.w3.org/Protocols/rfc2616/rfc2616-sec1.html", false, new InternalLogger(), captureBody: true);
+            Assert.True(analysis.MixedContentDetected);
+        }
+
+        [Fact]
+        public async Task DoesNotDetectMixedContentOnHttpPage() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                var buffer = Encoding.UTF8.GetBytes("<img src=\"http://foo\">\n");
+                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), captureBody: true);
+                Assert.False(analysis.MixedContentDetected);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();
