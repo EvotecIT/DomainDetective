@@ -102,29 +102,52 @@ namespace DomainDetective {
                 await stream.WriteAsync(prefix, 0, 2, cts.Token);
                 await stream.WriteAsync(query, 0, query.Length, cts.Token);
 #endif
-                var buf = new byte[2];
+                var prefixBuffer = new byte[2];
+                while (true) {
 #if NET8_0_OR_GREATER
-                int read = await stream.ReadAsync(buf, cts.Token);
+                    int read = await stream.ReadAsync(prefixBuffer, cts.Token);
 #else
-                int read = await stream.ReadAsync(buf, 0, 2, cts.Token);
+                    int read = await stream.ReadAsync(prefixBuffer, 0, 2, cts.Token);
 #endif
-                if (read != 2) { return false; }
-                int respLen = buf[0] << 8 | buf[1];
-                var resp = new byte[respLen];
-                int received = 0;
-                while (received < respLen) {
+                    if (read == 0) { return false; }
+                    if (read != 2) { return false; }
+
+                    int respLen = (prefixBuffer[0] << 8) | prefixBuffer[1];
+                    if (respLen < 12) {
+                        // invalid response length
+                        await stream.ReadAsync(new byte[respLen], 0, respLen, cts.Token);
+                        continue;
+                    }
+
+                    var header = new byte[12];
+                    int received = 0;
+                    while (received < 12) {
 #if NET8_0_OR_GREATER
-                    var r = await stream.ReadAsync(resp.AsMemory(received, respLen - received), cts.Token);
+                        var r = await stream.ReadAsync(header.AsMemory(received, 12 - received), cts.Token);
 #else
-                    var r = await stream.ReadAsync(resp, received, respLen - received, cts.Token);
+                        var r = await stream.ReadAsync(header, received, 12 - received, cts.Token);
 #endif
-                    if (r == 0) { break; }
-                    received += r;
+                        if (r == 0) { return false; }
+                        received += r;
+                    }
+
+                    int toSkip = respLen - 12;
+                    while (toSkip > 0) {
+                        var skipBuffer = new byte[Math.Min(toSkip, 4096)];
+#if NET8_0_OR_GREATER
+                        int r = await stream.ReadAsync(skipBuffer, cts.Token);
+#else
+                        int r = await stream.ReadAsync(skipBuffer, 0, skipBuffer.Length, cts.Token);
+#endif
+                        if (r == 0) { break; }
+                        toSkip -= r;
+                    }
+
+                    var rcode = header[3] & 0x0F;
+                    var answerCount = (header[6] << 8) | header[7];
+                    if (rcode != 0) { return false; }
+                    if (answerCount > 0) { return true; }
                 }
-                if (received < 12) { return false; }
-                var rcode = resp[3] & 0x0F;
-                var answerCount = (resp[6] << 8) | resp[7];
-                return rcode == 0 && answerCount > 0;
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
