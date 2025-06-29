@@ -87,6 +87,11 @@ namespace DomainDetective {
                     allInstances.Add(inst.Value);
                     sealInstances.Add(inst.Value);
                 }
+
+                if (!HasSignature(seal)) {
+                    ValidChain = false;
+                    return;
+                }
             }
 
             if (allInstances.Count == 0) {
@@ -107,7 +112,7 @@ namespace DomainDetective {
         }
 
         private static int? ParseInstance(string value) {
-            foreach (var part in value.Split(';')) {
+            foreach (var part in value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)) {
                 var trimmed = part.Trim();
                 if (trimmed.StartsWith("i=", StringComparison.OrdinalIgnoreCase)) {
                     if (int.TryParse(trimmed.Substring(2), out var num)) {
@@ -116,6 +121,16 @@ namespace DomainDetective {
                 }
             }
             return null;
+        }
+
+        private static bool HasSignature(string value) {
+            foreach (var part in value.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("b=", StringComparison.OrdinalIgnoreCase)) {
+                    return trimmed.Length > 2;
+                }
+            }
+            return false;
         }
     }
 }
