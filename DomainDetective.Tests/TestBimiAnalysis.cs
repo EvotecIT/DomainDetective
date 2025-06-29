@@ -142,6 +142,7 @@ namespace DomainDetective.Tests {
 
                 Assert.True(analysis.SvgValid);
                 Assert.True(analysis.ValidVmc);
+                Assert.False(analysis.VmcSignedByKnownRoot);
             } finally {
                 listener.Stop();
                 await serverTask;
