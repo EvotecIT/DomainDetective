@@ -1,0 +1,20 @@
+{
+  "organization-name": "Example Corp",
+  "date-range": {
+    "start-datetime": "2024-06-01T00:00:00Z",
+    "end-datetime": "2024-06-02T00:00:00Z"
+  },
+  "report-id": "2024-06-01/2024-06-02",
+  "policies": [
+    {
+      "policy": {
+        "policy-type": "tls",
+        "mx-host": "mx.example.com"
+      },
+      "summary": {
+        "total-successful-session-count": 90,
+        "total-failure-session-count": 10
+      }
+    }
+  ]
+}
