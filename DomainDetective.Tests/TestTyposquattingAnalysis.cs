@@ -28,5 +28,15 @@ namespace DomainDetective.Tests {
             await hc.VerifyTyposquatting("example.com");
             Assert.NotEmpty(hc.TyposquattingAnalysis.Variants);
         }
+
+        [Fact]
+        public async Task UsesPublicSuffixForMultiLabelTld() {
+            var hc = new DomainHealthCheck();
+            hc.TyposquattingAnalysis.QueryDnsOverride = (_, _) => Task.FromResult(System.Array.Empty<DnsAnswer>());
+
+            await hc.TyposquattingAnalysis.Analyze("foo.example.co.uk", new InternalLogger());
+
+            Assert.Contains("foo.examp1e.co.uk", hc.TyposquattingAnalysis.Variants);
+        }
     }
 }

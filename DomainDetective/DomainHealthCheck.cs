@@ -337,6 +337,7 @@ namespace DomainDetective {
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTunnelingAnalysis = new DnsTunnelingAnalysis();
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
+            TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
             WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
             EdnsSupportAnalysis.DnsConfiguration = DnsConfiguration;
             FlatteningServiceAnalysis.DnsConfiguration = DnsConfiguration;
@@ -355,6 +356,7 @@ namespace DomainDetective {
             using var stream = await client.GetStreamAsync(url);
             var updated = PublicSuffixList.Load(stream);
             _publicSuffixList = updated;
+            TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
     }

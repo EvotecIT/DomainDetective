@@ -32,6 +32,8 @@ public class TyposquattingAnalysis
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     /// <summary>Override DNS query logic.</summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+    internal PublicSuffixList PublicSuffixList { get; set; } = new();
     
     /// <summary>All generated variants.</summary>
     public List<string> Variants { get; private set; } = new();
@@ -48,11 +50,51 @@ public class TyposquattingAnalysis
         return await DnsConfiguration.QueryDNS(name, type);
     }
 
-    private static IEnumerable<string> BuildVariants(string domainName)
+    private static (string Prefix, string Label, string Suffix) SplitDomain(string domainName, PublicSuffixList list)
     {
-        var idx = domainName.IndexOf('.');
-        var label = idx > 0 ? domainName.Substring(0, idx) : domainName;
-        var suffix = idx > 0 ? domainName.Substring(idx) : string.Empty;
+        var clean = domainName.Trim('.');
+        var parts = clean.Split('.');
+        if (parts.Length == 1)
+        {
+            return (string.Empty, clean, string.Empty);
+        }
+
+        for (int i = 0; i < parts.Length; i++)
+        {
+            var candidate = string.Join(".", parts.Skip(i));
+            if (list.IsPublicSuffix(candidate))
+            {
+                var labelIndex = i - 1;
+                if (labelIndex >= 0)
+                {
+                    var prefix = string.Join(".", parts.Take(labelIndex));
+                    if (prefix.Length > 0)
+                    {
+                        prefix += ".";
+                    }
+                    var suffix = "." + string.Join(".", parts.Skip(labelIndex + 1));
+                    return (prefix, parts[labelIndex], suffix);
+                }
+            }
+        }
+
+        var idx = clean.IndexOf('.');
+        var pre = string.Empty;
+        var lbl = clean;
+        var sfx = string.Empty;
+        if (idx > 0)
+        {
+            pre = string.Empty;
+            lbl = clean.Substring(0, idx);
+            sfx = clean.Substring(idx);
+        }
+
+        return (pre, lbl, sfx);
+    }
+
+    private static IEnumerable<string> BuildVariants(string domainName, PublicSuffixList list)
+    {
+        var (prefix, label, suffix) = SplitDomain(domainName, list);
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // missing letter
@@ -61,7 +103,7 @@ public class TyposquattingAnalysis
             var v = label.Remove(i, 1);
             if (v.Length > 0)
             {
-                set.Add(v + suffix);
+                set.Add(prefix + v + suffix);
             }
         }
 
@@ -69,7 +111,7 @@ public class TyposquattingAnalysis
         for (int i = 0; i < label.Length; i++)
         {
             var v = label.Insert(i, label[i].ToString());
-            set.Add(v + suffix);
+            set.Add(prefix + v + suffix);
         }
 
         // homoglyphs
@@ -80,7 +122,7 @@ public class TyposquattingAnalysis
                 foreach (var sub in subs)
                 {
                     var v = label.Substring(0, i) + sub + label.Substring(i + 1);
-                    set.Add(v + suffix);
+                    set.Add(prefix + v + suffix);
                 }
             }
         }
@@ -93,7 +135,8 @@ public class TyposquattingAnalysis
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
-        Variants = BuildVariants(domainName).ToList();
+        var list = PublicSuffixList ?? new PublicSuffixList();
+        Variants = BuildVariants(domainName, list).ToList();
         ActiveDomains = new List<string>();
 
         foreach (var variant in Variants)
