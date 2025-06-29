@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,17 +46,40 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Resolves the specified host and returns a DnsEndPoint with address family.
+        /// </summary>
+        private static async Task<DnsEndPoint> GetEndPointAsync(string host, int port) {
+            if (IPAddress.TryParse(host, out IPAddress ip)) {
+                return new DnsEndPoint(host, port, ip.AddressFamily);
+            }
+
+            try {
+                var addresses = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+                if (addresses.Any(a => a.AddressFamily == AddressFamily.InterNetworkV6)) {
+                    return new DnsEndPoint(host, port, AddressFamily.InterNetworkV6);
+                }
+                if (addresses.Any(a => a.AddressFamily == AddressFamily.InterNetwork)) {
+                    return new DnsEndPoint(host, port, AddressFamily.InterNetwork);
+                }
+            } catch {
+            }
+
+            return new DnsEndPoint(host, port);
+        }
+
+        /// <summary>
         /// Performs the low-level STARTTLS negotiation.
         /// </summary>
         private async Task<(bool Advertised, bool Downgrade)> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            var client = new TcpClient();
+            var endPoint = await GetEndPointAsync(host, port).ConfigureAwait(false);
+            var client = endPoint.AddressFamily == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(endPoint.AddressFamily);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
 #if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, timeoutCts.Token);
+                await client.Client.ConnectAsync(endPoint, timeoutCts.Token);
 #else
-                await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+                await client.Client.ConnectAsync(endPoint).WaitWithCancellation(timeoutCts.Token);
 #endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
