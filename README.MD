@@ -207,6 +207,9 @@ and a valid `id` value, the analysis fails. The parsed identifier is exposed via
 `PolicyId` and the properties `DnsRecordPresent` and `DnsRecordValid` reflect the
 DNS state.
 
+Policy downloads are cached for one hour. Use `CacheDuration` to adjust or call
+`ClearCache()` to reset the cache.
+
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
 
