@@ -164,6 +164,54 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task AnalyzeParentDelegationSuccess() {
+            var childAnswers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis(
+                overrideFunc: (name, type) => {
+                    if (name == "ns1.example.com" && type == DnsRecordType.A) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } });
+                    }
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                },
+                fullOverride: (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+                    new DnsResponse {
+                        Answers = new[] { new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS } },
+                        Additional = new[] { new DnsAnswer { Name = "ns1.example.com", DataRaw = "1.1.1.1", Type = DnsRecordType.A } }
+                    }
+                }));
+            await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
+            await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
+
+            Assert.True(analysis.DelegationMatches);
+            Assert.True(analysis.GlueRecordsComplete);
+            Assert.True(analysis.GlueRecordsConsistent);
+        }
+
+        [Fact]
+        public async Task QueryParentNsGlueParsesRecords() {
+            var analysis = CreateAnalysis(fullOverride: (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+                new DnsResponse {
+                    Answers = new[] {
+                        new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS },
+                        new DnsAnswer { DataRaw = "ns2.example.com", Type = DnsRecordType.NS }
+                    },
+                    Additional = new[] {
+                        new DnsAnswer { Name = "ns1.example.com", DataRaw = "1.1.1.1", Type = DnsRecordType.A },
+                        new DnsAnswer { Name = "ns2.example.com", DataRaw = "2.2.2.2", Type = DnsRecordType.A }
+                    }
+                }
+            }));
+
+            var (ns, glue) = await analysis.QueryParentNsGlue("example.com", new InternalLogger());
+
+            Assert.Equal(new[] { "ns1.example.com", "ns2.example.com" }, ns);
+            Assert.Equal("1.1.1.1", Assert.Single(glue["ns1.example.com"]));
+            Assert.Equal("2.2.2.2", Assert.Single(glue["ns2.example.com"]));
+        }
+
+        [Fact]
         public async Task QueryRootServersRespond() {
             var analysis = CreateAnalysis((name, type) => {
                 if (name == "." && type == DnsRecordType.NS) {
