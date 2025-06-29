@@ -90,18 +90,82 @@ public class EdnsSupportAnalysis
 
     private static async Task<bool> QueryServerAsync(string ip)
     {
+        int port = 53;
+        var host = ip;
+        var idx = host.IndexOf(':');
+        if (idx > 0 && int.TryParse(host.Substring(idx + 1), out var parsed))
+        {
+            host = host.Substring(0, idx);
+            port = parsed;
+        }
+
         using var udp = new UdpClient();
         var id = (ushort)new Random().Next(ushort.MaxValue);
         var query = BuildQuery("example.com", id);
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 #if NET8_0_OR_GREATER
-        await udp.SendAsync(query, ip, 53, cts.Token);
+        await udp.SendAsync(query, host, port, cts.Token);
         var resp = await udp.ReceiveAsync(cts.Token);
 #else
-        await udp.SendAsync(query, query.Length, ip, 53).WaitWithCancellation(cts.Token);
+        await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(cts.Token);
         var resp = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
 #endif
-        return HasOptRecord(resp.Buffer);
+        var data = resp.Buffer;
+        bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;
+        if (truncated)
+        {
+            using var tcp = new TcpClient();
+#if NET6_0_OR_GREATER
+            await tcp.ConnectAsync(host, port, cts.Token);
+#else
+            await tcp.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
+#endif
+            using var stream = tcp.GetStream();
+            var len = (ushort)query.Length;
+            var prefix = new byte[] { (byte)(len >> 8), (byte)(len & 0xFF) };
+#if NET8_0_OR_GREATER
+            await stream.WriteAsync(prefix, cts.Token);
+            await stream.WriteAsync(query, cts.Token);
+            await stream.FlushAsync(cts.Token);
+            var buf = new byte[2];
+            if (await stream.ReadAsync(buf, cts.Token) != 2)
+            {
+                return false;
+            }
+#else
+            await stream.WriteAsync(prefix, 0, 2, cts.Token);
+            await stream.WriteAsync(query, 0, query.Length, cts.Token);
+            await stream.FlushAsync(cts.Token);
+            var buf = new byte[2];
+            if (await stream.ReadAsync(buf, 0, 2, cts.Token) != 2)
+            {
+                return false;
+            }
+#endif
+            int respLen = buf[0] << 8 | buf[1];
+            var respData = new byte[respLen];
+            int received = 0;
+            while (received < respLen)
+            {
+#if NET8_0_OR_GREATER
+                var r = await stream.ReadAsync(respData.AsMemory(received, respLen - received), cts.Token);
+#else
+                var r = await stream.ReadAsync(respData, received, respLen - received, cts.Token);
+#endif
+                if (r == 0)
+                {
+                    break;
+                }
+                received += r;
+            }
+            if (received < respLen)
+            {
+                return false;
+            }
+            data = respData;
+        }
+
+        return HasOptRecord(data);
     }
 
     /// <summary>
