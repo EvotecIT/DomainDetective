@@ -23,7 +23,7 @@ namespace DomainDetective.Tests {
 
             try {
                 var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
-                await analysis.Scan("localhost", new[] { tcpPort, udpPort }, new InternalLogger());
+                await analysis.Scan("127.0.0.1", new[] { tcpPort, udpPort }, new InternalLogger());
                 using var _ = await tcpAccept; // ensure connection completes
 
                 Assert.True(analysis.Results[tcpPort].TcpOpen);
