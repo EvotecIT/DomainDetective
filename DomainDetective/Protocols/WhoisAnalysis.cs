@@ -402,7 +402,11 @@ public class WhoisAnalysis {
             WhoisData = response;
             ParseWhoisData();
         } catch (Exception ex) {
-            _logger.WriteError("Error querying WHOIS server: {0}", ex.Message);
+            _logger.WriteError(
+                "Error querying WHOIS server {0} for domain {1}: {2}",
+                whoisServer,
+                domain,
+                ex.Message);
         }
     }
 

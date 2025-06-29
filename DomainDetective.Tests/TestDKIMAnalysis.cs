@@ -150,6 +150,17 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidCanonicalizationIsFlagged() {
+            const string record = "v=DKIM1; k=rsa; c=foo/bar; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidCanonicalization);
+            Assert.Equal("foo/bar", healthCheck.DKIMAnalysis.AnalysisResults["default"].Canonicalization);
+        }
+
+        [Fact]
         public async Task Large4096BitKeyIsValid() {
             const string key =
                 "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApuPAMwNrEa/+qpJPsLDr" +

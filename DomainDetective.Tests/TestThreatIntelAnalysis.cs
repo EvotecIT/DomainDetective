@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Threading.Tasks;
 using DomainDetective;
 
@@ -47,5 +48,19 @@ public class TestThreatIntelAnalysis
         var a2 = new ThreatIntelAnalysis();
 
         Assert.Same(a1.Client, a2.Client);
+    }
+
+    [Fact]
+    public async Task FeedFailureSetsFailureReason()
+    {
+        var analysis = new ThreatIntelAnalysis
+        {
+            GoogleSafeBrowsingOverride = _ => Task.FromException<string>(new HttpRequestException("offline"))
+        };
+
+        await analysis.Analyze("example.com", "g", null, null, new InternalLogger());
+
+        Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+        Assert.False(analysis.ListedByGoogle);
     }
 }
