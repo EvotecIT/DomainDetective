@@ -14,6 +14,7 @@ namespace DomainDetective {
     public class ReverseDnsAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+        public Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
 
         /// <summary>Represents PTR lookup result for a single address.</summary>
         /// <para>Part of the DomainDetective project.</para>
@@ -40,6 +41,14 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
+        private async Task<IEnumerable<DnsResponse>> QueryDnsFull(string name, DnsRecordType type) {
+            if (QueryDnsFullOverride != null) {
+                return await QueryDnsFullOverride(name, type);
+            }
+
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type);
+        }
+
         /// <summary>
         /// Checks PTR records for the specified MX hosts.
         /// </summary>
@@ -57,8 +66,26 @@ namespace DomainDetective {
                     if (!IPAddress.TryParse(record.Data, out var ip)) {
                         continue;
                     }
+
                     var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == AddressFamily.InterNetworkV6 ? ".ip6.arpa" : ".in-addr.arpa");
-                    var ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR);
+                    DnsAnswer[] ptrAnswers;
+                    bool truncated = false;
+                    if (ip.AddressFamily == AddressFamily.InterNetworkV6) {
+                        var resp = await QueryDnsFull(ptrName, DnsRecordType.PTR);
+                        truncated = resp.Any(r => r.IsTruncated);
+                        ptrAnswers = resp.SelectMany(r => r.Answers).ToArray();
+                        if (truncated) {
+                            if (QueryDnsOverride != null) {
+                                ptrAnswers = await QueryDnsOverride(ptrName, DnsRecordType.PTR);
+                            } else {
+                                var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
+                                ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR);
+                            }
+                        }
+                    } else {
+                        ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR);
+                    }
+
                     string? ptr = null;
                     if (ptrAnswers.Length > 0) {
                         ptr = ptrAnswers[0].Data.TrimEnd('.');
