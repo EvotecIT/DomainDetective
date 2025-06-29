@@ -999,7 +999,8 @@ namespace DomainDetective {
                 ExpiryDate = WhoisAnalysis.ExpiryDate,
                 ExpiresSoon = WhoisAnalysis.ExpiresSoon,
                 IsExpired = WhoisAnalysis.IsExpired,
-                RegistrarLocked = WhoisAnalysis.RegistrarLocked
+                RegistrarLocked = WhoisAnalysis.RegistrarLocked,
+                PrivacyProtected = WhoisAnalysis.PrivacyProtected
             };
         }
 

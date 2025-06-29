@@ -46,6 +46,7 @@ public class WhoisAnalysis {
     public bool ExpiresSoon { get; private set; }
     public bool IsExpired { get; private set; }
     public bool RegistrarLocked { get; private set; }
+    public bool PrivacyProtected { get; private set; }
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
     public string? SnapshotDirectory { get; set; }
 
@@ -55,6 +56,18 @@ public class WhoisAnalysis {
         "Registrar Licence:",
         "Registrar License Number:",
         "Registrar Licence Number:"
+    };
+
+    private static readonly string[] _privacyIndicators = {
+        "redacted for privacy",
+        "contact privacy",
+        "whois privacy",
+        "privacy service",
+        "domains by proxy",
+        "whoisguard",
+        "withheld for privacy",
+        "privacyguardian.org",
+        "privacy protection"
     };
 
     private void ParseRegistrarLicense(string trimmedLine) {
@@ -433,6 +446,7 @@ public class WhoisAnalysis {
         }
         UpdateExpiryFlags();
         UpdateRegistrarLock();
+        UpdatePrivacyFlag();
     }
 
     private void ParseWhoisDataCOUK() {
@@ -880,6 +894,19 @@ public class WhoisAnalysis {
                 trimmed.IndexOf("status: locked", StringComparison.OrdinalIgnoreCase) >= 0) {
                 RegistrarLocked = true;
                 break;
+            }
+        }
+    }
+
+    private void UpdatePrivacyFlag() {
+        PrivacyProtected = false;
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmed = line.Trim();
+            foreach (var indicator in _privacyIndicators) {
+                if (trimmed.IndexOf(indicator, StringComparison.OrdinalIgnoreCase) >= 0) {
+                    PrivacyProtected = true;
+                    return;
+                }
             }
         }
     }
