@@ -470,6 +470,20 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Tests authoritative name servers for EDNS support.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyEdnsSupport(string domainName, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            await EdnsSupportAnalysis.Analyze(domainName, _logger);
+        }
+
+        /// <summary>
         /// Analyzes a raw TLSRPT record.
         /// </summary>
         /// <param name="tlsRptRecord">TLSRPT record text.</param>
