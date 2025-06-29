@@ -222,6 +222,14 @@ namespace DomainDetective {
                     case HealthCheckType.TYPOSQUATTING:
                         await VerifyTyposquatting(domainName, cancellationToken);
                         break;
+                    case HealthCheckType.WILDCARDDNS:
+                        WildcardDnsAnalysis = new WildcardDnsAnalysis { DnsConfiguration = DnsConfiguration };
+                        await WildcardDnsAnalysis.Analyze(domainName, _logger);
+                        break;
+                    case HealthCheckType.EDNSSUPPORT:
+                        EdnsSupportAnalysis = new EdnsSupportAnalysis { DnsConfiguration = DnsConfiguration };
+                        await EdnsSupportAnalysis.Analyze(domainName, _logger);
+                        break;
                     case HealthCheckType.THREATINTEL:
                         await VerifyThreatIntel(domainName, cancellationToken);
                         break;
@@ -1012,6 +1020,8 @@ namespace DomainDetective {
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
             filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null;
             filtered.ThreatIntelAnalysis = active.Contains(HealthCheckType.THREATINTEL) ? CloneAnalysis(ThreatIntelAnalysis) : null;
+            filtered.WildcardDnsAnalysis = active.Contains(HealthCheckType.WILDCARDDNS) ? CloneAnalysis(WildcardDnsAnalysis) : null;
+            filtered.EdnsSupportAnalysis = active.Contains(HealthCheckType.EDNSSUPPORT) ? CloneAnalysis(EdnsSupportAnalysis) : null;
 
             return filtered;
         }

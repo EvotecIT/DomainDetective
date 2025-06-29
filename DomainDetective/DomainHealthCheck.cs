@@ -243,6 +243,18 @@ namespace DomainDetective {
         /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
         public ThreatIntelAnalysis THREATINTELAnalysis => ThreatIntelAnalysis;
 
+        /// <summary>Gets the wildcard DNS analysis.</summary>
+        /// <value>Results of wildcard detection.</value>
+        public WildcardDnsAnalysis WildcardDnsAnalysis { get; private set; } = new WildcardDnsAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public WildcardDnsAnalysis WILDCARDDNSAnalysis => WildcardDnsAnalysis;
+
+        /// <summary>Gets the EDNS support analysis.</summary>
+        /// <value>Information about EDNS capabilities.</value>
+        public EdnsSupportAnalysis EdnsSupportAnalysis { get; private set; } = new EdnsSupportAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public EdnsSupportAnalysis EDNSSUPPORTAnalysis => EdnsSupportAnalysis;
+
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
         /// <summary>
@@ -307,6 +319,8 @@ namespace DomainDetective {
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTunnelingAnalysis = new DnsTunnelingAnalysis();
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
+            WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
+            EdnsSupportAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);

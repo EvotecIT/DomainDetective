@@ -155,7 +155,15 @@ public static class CheckDescriptions {
             [HealthCheckType.THREATINTEL] = new(
                 "Query reputation services for threats.",
                 null,
-                "Review listed threats and request delisting")
+                "Review listed threats and request delisting"),
+            [HealthCheckType.WILDCARDDNS] = new(
+                "Detect wildcard DNS responses.",
+                null,
+                "Remove or adjust catch-all DNS entries."),
+            [HealthCheckType.EDNSSUPPORT] = new(
+                "Test EDNS support on name servers.",
+                null,
+                "Ensure name servers respond to EDNS queries.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
