@@ -80,16 +80,19 @@ namespace DomainDetective {
                                 var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
                                 analysis.KeyLength = rsaKey.Modulus.BitLength;
                                 analysis.ValidRsaKeyLength = analysis.KeyLength >= MinimumRsaKeyBits;
+                                analysis.WeakKey = analysis.KeyLength > 0 && analysis.KeyLength < 2048;
                                 analysis.ValidPublicKey = analysis.ValidRsaKeyLength;
                                 } catch (Exception) {
                                     analysis.ValidPublicKey = false;
                                     analysis.ValidRsaKeyLength = false;
-                                analysis.KeyLength = 0;
+                                    analysis.KeyLength = 0;
+                                    analysis.WeakKey = false;
                                 }
                             } catch (FormatException) {
                                 analysis.ValidPublicKey = false;
                                 analysis.ValidRsaKeyLength = false;
                                 analysis.KeyLength = 0;
+                                analysis.WeakKey = false;
                             }
                             break;
                         case "s":
@@ -104,6 +107,13 @@ namespace DomainDetective {
                             analysis.KeyType = value;
                             analysis.ValidKeyType = string.Equals(value, "rsa", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(value, "ed25519", StringComparison.OrdinalIgnoreCase);
+                            break;
+                        case "c":
+                            analysis.Canonicalization = value;
+                            var parts = value.ToLowerInvariant().Split('/');
+                            analysis.ValidCanonicalization =
+                                (parts.Length is 1 or 2) &&
+                                parts.All(p => p == "simple" || p == "relaxed");
                             break;
                         case "h":
                             analysis.HashAlgorithm = value;
@@ -164,6 +174,8 @@ namespace DomainDetective {
         public bool ValidRsaKeyLength { get; set; }
         /// <summary>Length of the RSA public key in bits.</summary>
         public int KeyLength { get; set; }
+        /// <summary>True when the RSA key length is under 2048 bits.</summary>
+        public bool WeakKey { get; set; }
         /// <summary>Indicates whether the <c>k</c> tag was present.</summary>
         public bool KeyTypeExists { get; set; }
         /// <summary>Gets or sets a value indicating whether the key type is recognized.</summary>
@@ -178,6 +190,10 @@ namespace DomainDetective {
         public string UnknownFlagCharacters { get; set; }
         /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
         public bool ValidFlags { get; set; }
+        /// <summary>Canonicalization modes specified in the record.</summary>
+        public string Canonicalization { get; set; }
+        /// <summary>Gets a value indicating whether the canonicalization string is valid.</summary>
+        public bool ValidCanonicalization { get; set; }
         /// <summary>Gets or sets the key type.</summary>
         public string KeyType { get; set; }
         /// <summary>Gets or sets the hash algorithm type.</summary>

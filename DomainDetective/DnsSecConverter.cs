@@ -27,10 +27,16 @@ namespace DomainDetective {
                 }
             }
 
+            List<RrsigInfo> rrsigs = new();
+            if (analysis.Rrsigs != null) {
+                rrsigs.AddRange(analysis.Rrsigs);
+            }
+
             return new DnsSecInfo {
                 DsRecords = dsRecords,
                 DnsKeys = dnsKeys,
                 Signatures = analysis.Signatures,
+                Rrsigs = rrsigs,
                 AuthenticData = analysis.AuthenticData,
                 DsAuthenticData = analysis.DsAuthenticData,
                 DsMatch = analysis.DsMatch,
@@ -94,6 +100,9 @@ namespace DomainDetective {
         /// <summary>DNSSEC signature records.</summary>
         public IReadOnlyList<string> Signatures { get; set; }
 
+        /// <summary>Structured RRSIG records.</summary>
+        public IReadOnlyList<RrsigInfo> Rrsigs { get; set; }
+
         /// <summary>True when the DNSKEY query had the AD flag set.</summary>
         public bool AuthenticData { get; set; }
 
@@ -144,5 +153,23 @@ namespace DomainDetective {
 
         /// <summary>Base64 encoded public key.</summary>
         public string PublicKey { get; set; }
+    }
+
+    /// <summary>
+    ///     Simplified representation of an RRSIG record.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
+    public class RrsigInfo {
+        /// <summary>Key tag value.</summary>
+        public int KeyTag { get; set; }
+
+        /// <summary>Algorithm name.</summary>
+        public string Algorithm { get; set; }
+
+        /// <summary>Signature inception time.</summary>
+        public DateTimeOffset Inception { get; set; }
+
+        /// <summary>Signature expiration time.</summary>
+        public DateTimeOffset Expiration { get; set; }
     }
 }

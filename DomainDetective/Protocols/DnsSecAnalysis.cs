@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
@@ -24,6 +25,9 @@ namespace DomainDetective {
 
         /// <summary>Gets the DNSSEC signatures returned for the domain.</summary>
         public IReadOnlyList<string> Signatures { get; private set; } = new List<string>();
+
+        /// <summary>Structured RRSIG records returned for the domain.</summary>
+        public IReadOnlyList<RrsigInfo> Rrsigs { get; private set; } = new List<RrsigInfo>();
 
         /// <summary>Gets a value indicating whether the DNSKEY query returned authentic data.</summary>
         public bool AuthenticData { get; private set; }
@@ -68,6 +72,7 @@ namespace DomainDetective {
 
                 List<string> zoneKeys = new();
                 List<string> zoneSigs = new();
+                List<RrsigInfo> zoneSigInfos = new();
                 if (dnskeyDoc.RootElement.TryGetProperty("Answer", out var ansElem)) {
                     foreach (var answer in ansElem.EnumerateArray()) {
                         var type = answer.GetProperty("type").GetInt32();
@@ -76,6 +81,7 @@ namespace DomainDetective {
                             zoneKeys.Add(data);
                         } else if (type == 46) {
                             zoneSigs.Add(data);
+                            zoneSigInfos.Add(ParseRrsig(data));
                         }
                     }
                 }
@@ -92,6 +98,7 @@ namespace DomainDetective {
                 if (first) {
                     DnsKeys = zoneKeys;
                     Signatures = zoneSigs;
+                    Rrsigs = zoneSigInfos;
                     DsRecords = dsResult.records;
                     AuthenticData = keyAd;
                     DsAuthenticData = dsResult.ad;
@@ -261,6 +268,40 @@ namespace DomainDetective {
                 "PRIVATEDNS" => 253,
                 "PRIVATEOID" => 254,
                 _ => 0,
+            };
+        }
+
+        private static RrsigInfo ParseRrsig(string record) {
+            if (string.IsNullOrWhiteSpace(record)) {
+                return new RrsigInfo();
+            }
+
+            string[] parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 7) {
+                return new RrsigInfo();
+            }
+
+            DateTimeOffset inception = DateTimeOffset.MinValue;
+            DateTimeOffset expiration = DateTimeOffset.MinValue;
+            if (long.TryParse(parts[5], out long inc)) {
+                inception = DateTimeOffset.FromUnixTimeSeconds(inc);
+            } else if (DateTimeOffset.TryParseExact(parts[5], "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var incDt)) {
+                inception = incDt;
+            }
+
+            if (long.TryParse(parts[4], out long exp)) {
+                expiration = DateTimeOffset.FromUnixTimeSeconds(exp);
+            } else if (DateTimeOffset.TryParseExact(parts[4], "yyyyMMddHHmmss", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var expDt)) {
+                expiration = expDt;
+            }
+
+            _ = int.TryParse(parts[6], out int keyTag);
+
+            return new RrsigInfo {
+                Algorithm = parts[1],
+                KeyTag = keyTag,
+                Inception = inception,
+                Expiration = expiration,
             };
         }
 
