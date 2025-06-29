@@ -1,0 +1,645 @@
+{
+    "providers": [
+        {
+            "Domain": "all.s5h.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "auth.spamrats.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "b.barracudacentral.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bad.virusfree.cz",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "badconf.rhsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bip.virusfree.cz",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.0spam.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.blocklist.de",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.deadbeef.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.mailspike.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.nordspam.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bl.spamcop.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "black.dnsbl.brukalai.lt",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "black.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "blackholes.five-ten-sg.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "blacklist.woody.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "block.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "bogons.cymru.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "cbl.abuseat.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "combined.abuse.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "combined.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "combined.rbl.msrbl.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "db.wpbl.info",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dbl.0spam.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dbl.nordspam.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dblack.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "diskhash.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl.cyberlogic.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl.dronebl.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl.inps.de",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl.justspam.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "dnsbl-1.uceprotect.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl-2.uceprotect.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dnsbl-3.uceprotect.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "drone.abuse.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "duinv.aupads.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dul.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dul.ru",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dyna.spamrats.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dynamic.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "escalations.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "exploit.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "hbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "hostkarma.junkemailfilter.com",
+            "Enabled": true,
+            "Comment": null,
+            "ReplyCodes": {
+                "127.0.0.1": {
+                    "IsListed": false,
+                    "Meaning": "Whitelisted"
+                },
+                "127.0.0.2": {
+                    "IsListed": true,
+                    "Meaning": "Blacklisted"
+                },
+                "127.0.0.4": {
+                    "IsListed": false,
+                    "Meaning": "Whitelisted"
+                }
+            }
+        },
+        {
+            "Domain": "http.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "images.rbl.msrbl.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ips.backscatterer.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ix.dnsbl.manitu.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "key.authbl.dq.spamhaus.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "korea.services.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "misc.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "nbl.0spam.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "new.spam.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "nod.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "nomail.rhsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "noptr.spamrats.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "noservers.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ohps.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "old.spam.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "omrs.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "orvedb.aupads.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "osps.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "osrs.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "owfs.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "owps.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "pbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "phishing.rbl.msrbl.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "probes.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "proxy.bl.gweep.ca",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "proxy.block.transip.nl",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "psbl.surriel.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rbl.0spam.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rbl.interserver.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rbl.metunet.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rdts.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "recent.spam.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "relays.bl.gweep.ca",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "relays.bl.kundenserver.de",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "relays.nether.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "residential.block.transip.nl",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rhsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ricn.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "rmst.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "safe.dnsbl.sorbs.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "sbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "short.rbl.jp",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "shorthash.mail.abusix.zone",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "singular.ttk.pte.hu",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "smtp.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "socks.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "spam.abuse.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spam.dnsbl.anonmails.de",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spam.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "spam.rbl.msrbl.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spam.spamrats.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spambot.bls.digibase.ca",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spamlist.or.kr",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spamrbl.imp.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "spamsources.fabel.dk",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "t3direct.dnsbl.net.au",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ubl.lashback.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "ubl.unsubscore.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "virbl.bit.nl",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "virus.rbl.jp",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "virus.rbl.msrbl.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "web.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "wormrbl.imp.ch",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "xbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "z.mailspike.net",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "zen.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "multi.uribl.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "zombie.dnsbl.sorbs.net",
+            "Enabled": false,
+            "Comment": "https://github.com/EvotecIT/PSBlackListChecker/issues/11"
+        },
+        {
+            "Domain": "bl.emailbasura.org",
+            "Enabled": false,
+            "Comment": "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/8"
+        },
+        {
+            "Domain": "dynip.rothen.com",
+            "Enabled": false,
+            "Comment": "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/9"
+        },
+        {
+            "Domain": "bl.spamcannibal.org",
+            "Enabled": false,
+            "Comment": "now a parked domain"
+        },
+        {
+            "Domain": "tor.ahbl.org",
+            "Enabled": false,
+            "Comment": "terminated in 2015"
+        },
+        {
+            "Domain": "tor.dnsbl.sectoor.de",
+            "Enabled": false,
+            "Comment": "parked domain"
+        },
+        {
+            "Domain": "torserver.tor.dnsbl.sectoor.de",
+            "Enabled": false,
+            "Comment": "as above"
+        },
+        {
+            "Domain": "dnsbl.njabl.org",
+            "Enabled": false,
+            "Comment": "supposedly doesn't work properly anymore"
+        },
+        {
+            "Domain": "dnsbl.ahbl.org",
+            "Enabled": false,
+            "Comment": "terminated in 2015"
+        },
+        {
+            "Domain": "cdl.anti-spam.org.cn",
+            "Enabled": false,
+            "Comment": "Inactive"
+        }
+    ],
+    "domainBlockLists": [
+        {
+            "Domain": "multi.uribl.com",
+            "Enabled": true,
+            "Comment": null
+        },
+        {
+            "Domain": "dbl.spamhaus.org",
+            "Enabled": true,
+            "Comment": null
+        }
+    ]
+}

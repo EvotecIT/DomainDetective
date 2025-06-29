@@ -5,13 +5,10 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public partial class DNSBLAnalysis {
-        private static readonly HashSet<string> _domainBlockLists = new(StringComparer.OrdinalIgnoreCase) {
-            "multi.uribl.com",
-            "dbl.spamhaus.org"
-        };
+        private static readonly List<DnsblEntry> _domainBlockLists = new();
 
-        internal List<string> DomainDNSBLLists => DnsblEntries
-            .Where(e => e.Enabled && _domainBlockLists.Contains(e.Domain))
+        internal List<string> DomainDNSBLLists => _domainBlockLists
+            .Where(e => e.Enabled)
             .Select(e => e.Domain)
             .ToList();
 
