@@ -51,5 +51,8 @@ namespace DomainDetective {
 
         /// <summary>True when registrar lock is enabled.</summary>
         public bool RegistrarLocked { get; init; }
+
+        /// <summary>True when WHOIS data is privacy protected.</summary>
+        public bool PrivacyProtected { get; init; }
     }
 }
