@@ -116,6 +116,7 @@ namespace DomainDetective.Tests {
                     return;
                 }
                 Assert.True(result.SupportsTls13);
+                Assert.True(result.Tls13Used);
             } finally {
                 cts.Cancel();
                 listener.Stop();
