@@ -38,6 +38,27 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task DetectsHostnameMismatch() {
+            using var cert = CreateSelfSigned("example.com");
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
+
+            try {
+                var analysis = new SMTPTLSAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                var result = analysis.ServerResults[$"localhost:{port}"];
+                Assert.False(result.HostnameMatch);
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task ResultsDoNotAccumulateAcrossCalls() {
             using var cert = CreateSelfSigned();
             var listener1 = new TcpListener(IPAddress.Loopback, 0);
@@ -159,9 +180,9 @@ namespace DomainDetective.Tests {
             }
         }
 
-        private static X509Certificate2 CreateSelfSigned() {
+        private static X509Certificate2 CreateSelfSigned(string cn = "localhost") {
             using var rsa = RSA.Create(2048);
-            var req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
             return new X509Certificate2(cert.Export(X509ContentType.Pfx));
         }
