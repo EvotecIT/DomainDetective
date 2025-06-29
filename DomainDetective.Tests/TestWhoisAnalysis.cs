@@ -531,13 +531,17 @@ namespace DomainDetective.Tests {
             var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
             listener.Stop();
 
-            var logger = new InternalLogger();
+            var loggerField = typeof(WhoisAnalysis).GetField("_logger", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var logger = (InternalLogger?)loggerField?.GetValue(null);
+            Assert.NotNull(logger);
+
             LogEventArgs? eventArgs = null;
-            logger.OnErrorMessage += (_, e) => eventArgs = e;
+            void Handler(object? sender, LogEventArgs e) => eventArgs = e;
+            logger!.OnErrorMessage += Handler;
 
             var whois = new WhoisAnalysis();
-            var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+            var serversField = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var servers = (System.Collections.Generic.Dictionary<string, string>?)serversField?.GetValue(whois);
             Assert.NotNull(servers);
             var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             var lockObj = lockField?.GetValue(whois);
@@ -547,6 +551,8 @@ namespace DomainDetective.Tests {
             }
 
             await whois.QueryWhoisServer("example.sample", default);
+
+            logger.OnErrorMessage -= Handler;
 
             Assert.NotNull(eventArgs);
             Assert.Contains($"127.0.0.1:{port}", eventArgs!.FullMessage);
