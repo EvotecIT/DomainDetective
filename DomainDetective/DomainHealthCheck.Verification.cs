@@ -2,10 +2,12 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
+using DomainDetective.Network;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
@@ -866,6 +868,29 @@ namespace DomainDetective {
             }
             UpdateIsPublicSuffix(domainName);
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
+        }
+
+        /// <summary>
+        /// Sends an ICMP echo request to a host.
+        /// </summary>
+        /// <param name="host">Target host name or address.</param>
+        /// <param name="timeout">Timeout in milliseconds.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task<PingReply> VerifyPing(string host, int timeout = 4000, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PingTraceroute.PingAsync(host, timeout, _logger);
+        }
+
+        /// <summary>
+        /// Performs a traceroute to the specified host.
+        /// </summary>
+        /// <param name="host">Target host name or address.</param>
+        /// <param name="maxHops">Maximum number of hops to probe.</param>
+        /// <param name="timeout">Timeout per hop in milliseconds.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task<IReadOnlyList<PingTraceroute.TracerouteHop>> VerifyTraceroute(string host, int maxHops = 30, int timeout = 4000, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PingTraceroute.TracerouteAsync(host, maxHops, timeout, _logger);
         }
 
         /// <summary>
