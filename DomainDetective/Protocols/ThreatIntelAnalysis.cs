@@ -26,6 +26,8 @@ public class ThreatIntelAnalysis
     public bool ListedByPhishTank { get; private set; }
     /// <summary>True when VirusTotal lists the entry as malicious.</summary>
     public bool ListedByVirusTotal { get; private set; }
+    /// <summary>If feed queries fail, explains why.</summary>
+    public string? FailureReason { get; private set; }
 
     private static readonly HttpClient _staticClient = new();
     private readonly HttpClient _client;
@@ -141,6 +143,7 @@ public class ThreatIntelAnalysis
         ListedByGoogle = false;
         ListedByPhishTank = false;
         ListedByVirusTotal = false;
+        FailureReason = null;
 
         if (!string.IsNullOrWhiteSpace(googleApiKey))
         {
@@ -152,6 +155,7 @@ public class ThreatIntelAnalysis
             catch (Exception ex)
             {
                 logger?.WriteError("Google Safe Browsing query failed: {0}", ex.Message);
+                FailureReason = $"Google Safe Browsing query failed: {ex.Message}";
             }
         }
 
@@ -165,6 +169,7 @@ public class ThreatIntelAnalysis
             catch (Exception ex)
             {
                 logger?.WriteError("PhishTank query failed: {0}", ex.Message);
+                FailureReason = $"PhishTank query failed: {ex.Message}";
             }
         }
 
@@ -178,6 +183,7 @@ public class ThreatIntelAnalysis
             catch (Exception ex)
             {
                 logger?.WriteError("VirusTotal query failed: {0}", ex.Message);
+                FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
         }
     }
