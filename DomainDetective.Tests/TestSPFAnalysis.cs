@@ -160,6 +160,18 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task RedirectVisitedDomainsTracked() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 redirect=b.example.com";
+            healthCheck.SpfAnalysis.TestSpfRecords["b.example.com"] = "v=spf1 redirect=a.example.com";
+
+            await healthCheck.CheckSPF("v=spf1 redirect=a.example.com");
+
+            Assert.Contains("a.example.com", healthCheck.SpfAnalysis.RedirectVisitedDomains);
+            Assert.Contains("b.example.com", healthCheck.SpfAnalysis.RedirectVisitedDomains);
+        }
+
+        [Fact]
         public async Task DomainEndingWithAllWithoutAllMechanism() {
             var spfRecord = "v=spf1 a:firewall";
             var healthCheck = new DomainHealthCheck();
