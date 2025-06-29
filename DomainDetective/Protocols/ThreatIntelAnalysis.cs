@@ -27,7 +27,15 @@ public class ThreatIntelAnalysis
     /// <summary>True when VirusTotal lists the entry as malicious.</summary>
     public bool ListedByVirusTotal { get; private set; }
 
-    private static readonly HttpClient _client = new();
+    private static readonly HttpClient _staticClient = new();
+    private readonly HttpClient _client;
+
+    internal HttpClient Client => _client;
+
+    public ThreatIntelAnalysis(HttpClient? client = null)
+    {
+        _client = client ?? _staticClient;
+    }
 
     private static async Task<string> ReadAsStringAsync(HttpResponseMessage resp)
     {

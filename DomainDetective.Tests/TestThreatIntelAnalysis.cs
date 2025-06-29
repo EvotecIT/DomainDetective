@@ -39,4 +39,13 @@ public class TestThreatIntelAnalysis
         Assert.True(health.ThreatIntelAnalysis.ListedByPhishTank);
         Assert.True(health.ThreatIntelAnalysis.ListedByVirusTotal);
     }
+
+    [Fact]
+    public void ReusesHttpClient()
+    {
+        var a1 = new ThreatIntelAnalysis();
+        var a2 = new ThreatIntelAnalysis();
+
+        Assert.Same(a1.Client, a2.Client);
+    }
 }
