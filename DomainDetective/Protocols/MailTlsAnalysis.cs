@@ -271,7 +271,9 @@ public class MailTlsAnalysis
             bool proceed = protocol switch
             {
                 MailProtocol.Smtp => startTlsResp != null && startTlsResp.StartsWith("220"),
-                MailProtocol.Imap => startTlsResp != null && startTlsResp.StartsWith("A2", StringComparison.OrdinalIgnoreCase) && startTlsResp.Contains("OK", StringComparison.OrdinalIgnoreCase),
+                MailProtocol.Imap => startTlsResp != null &&
+                    startTlsResp.StartsWith("A2", StringComparison.OrdinalIgnoreCase) &&
+                    startTlsResp.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0,
                 MailProtocol.Pop3 => startTlsResp != null && startTlsResp.StartsWith("+OK"),
                 _ => false
             };
