@@ -29,7 +29,7 @@ namespace DomainDetective.Tests {
 
             var hops = await PingTraceroute.TracerouteAsync("127.0.0.1", maxHops: 3);
             Assert.NotEmpty(hops);
-            Assert.Equal(IPStatus.Success, hops[^1].Status);
+            Assert.Equal(IPStatus.Success, hops[hops.Count - 1].Status);
         }
     }
 }
