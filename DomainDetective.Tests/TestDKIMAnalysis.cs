@@ -150,6 +150,17 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidCanonicalizationIsFlagged() {
+            const string record = "v=DKIM1; k=rsa; c=foo/bar; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            Assert.False(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidCanonicalization);
+            Assert.Equal("foo/bar", healthCheck.DKIMAnalysis.AnalysisResults["default"].Canonicalization);
+        }
+
+        [Fact]
         public async Task Large4096BitKeyIsValid() {
             const string key =
                 "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEApuPAMwNrEa/+qpJPsLDr" +
@@ -173,6 +184,30 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidPublicKey);
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults["default"].ValidRsaKeyLength);
             Assert.Equal(4096, healthCheck.DKIMAnalysis.AnalysisResults["default"].KeyLength);
+        }
+
+        [Fact]
+        public async Task WeakKeyFlagSetFor1024BitKey() {
+            const string record = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
+            Assert.True(result.WeakKey);
+            Assert.Equal(1024, result.KeyLength);
+        }
+
+        [Fact]
+        public async Task WeakKeyFlagNotSetFor2048BitKey() {
+            const string record = "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA21OfspkRgPHhdCgu3kWgBX+xLyw7wRqM+Y4KaX82Pul9ikEDfZCJ35siFzV2WMH9Od/yM2TtMnubRqm9QN6paEB0VhNgNURQMmyTVsBO1usTJS9IvkIt3JtTFEinzVJLEaOC/F3d6bJaW9MMKUTBra9RcUf/E6dWAaJX8lrK8SefL9adNTwED8ZgFBnFcoJJn6e1W2WyIZ/8XAk+5Jwc7JMFZsdjFYdBSDPNyEfhNsKahVdRvdCG+OeDHyLSiNuFE27wtXaUI2TySDcfSSzE8k8z/Td9mMb0DQ2qaJ6xxk/5cwzwYSXr3sdGp++mHpGOJm18OwfsJmFCuSEcFGrHAQIDAQAB;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
+            Assert.False(result.WeakKey);
+            Assert.Equal(2048, result.KeyLength);
         }
     }
 }

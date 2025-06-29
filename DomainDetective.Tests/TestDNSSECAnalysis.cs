@@ -11,6 +11,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DnsSecAnalysis.DsMatch);
             Assert.True(healthCheck.DnsSecAnalysis.ChainValid);
             Assert.NotEmpty(healthCheck.DnsSecAnalysis.DsTtls);
+            Assert.NotEmpty(healthCheck.DnsSecAnalysis.Rrsigs);
         }
 
         [Fact]

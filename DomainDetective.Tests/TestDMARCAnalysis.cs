@@ -137,13 +137,32 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task BadUrisSetInvalidFlag() {
             var dmarcRecord = "v=DMARC1; p=none; rua=mailto:test@example.com,http://bad.example.com,mailto:invalid; ruf=https://reports.example.com";
-            var healthCheck = new DomainHealthCheck();
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
             await healthCheck.CheckDMARC(dmarcRecord);
             Assert.True(healthCheck.DmarcAnalysis.InvalidReportUri);
             Assert.Single(healthCheck.DmarcAnalysis.MailtoRua);
             Assert.Equal("test@example.com", healthCheck.DmarcAnalysis.MailtoRua[0]);
             Assert.Single(healthCheck.DmarcAnalysis.HttpRuf);
             Assert.Equal("https://reports.example.com", healthCheck.DmarcAnalysis.HttpRuf[0]);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("uses HTTP"));
+        }
+
+        [Fact]
+        public async Task MissingSchemeTriggersWarning() {
+            var dmarcRecord = "v=DMARC1; p=none; rua=reports.example.com";
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+            await healthCheck.CheckDMARC(dmarcRecord);
+
+            Assert.True(healthCheck.DmarcAnalysis.InvalidReportUri);
+            Assert.Empty(healthCheck.DmarcAnalysis.MailtoRua);
+            Assert.Empty(healthCheck.DmarcAnalysis.HttpRua);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("missing a scheme"));
         }
 
         [Fact]

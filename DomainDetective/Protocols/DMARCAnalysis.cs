@@ -192,11 +192,11 @@ namespace DomainDetective {
                             break;
                         case "rua":
                             Rua = value;
-                            AddUriToList(value, MailtoRua, HttpRua);
+                            AddUriToList(value, MailtoRua, HttpRua, logger);
                             break;
                         case "ruf":
                             Ruf = value;
-                            AddUriToList(value, MailtoRuf, HttpRuf);
+                            AddUriToList(value, MailtoRuf, HttpRuf, logger);
                             break;
                         default:
                             var tagPair = $"{key}={value}";
@@ -241,7 +241,7 @@ namespace DomainDetective {
             Pct ??= 100;
         }
 
-        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList) {
+        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null) {
             var uris = uri.Split(',');
             foreach (var raw in uris) {
                 var u = raw.Trim();
@@ -259,7 +259,15 @@ namespace DomainDetective {
                     } else {
                         InvalidReportUri = true;
                     }
+                } else if (u.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+                    logger?.WriteWarning("Report URI {0} uses HTTP instead of HTTPS.", u);
+                    if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttp) {
+                        httpList.Add(u);
+                    } else {
+                        InvalidReportUri = true;
+                    }
                 } else {
+                    logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
                     InvalidReportUri = true;
                 }
             }
