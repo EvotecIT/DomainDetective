@@ -357,11 +357,45 @@ internal class Program
     {
         foreach (var domain in domains)
         {
-            var hc = new DomainHealthCheck { Verbose = false, UseSubdomainPolicy = subdomainPolicy };
-            await hc.Verify(domain, checks, null, null, danePorts);
-            if (checkHttp)
+            var logger = new InternalLogger();
+            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy };
+            var needsPortScan = checks?.Contains(HealthCheckType.PORTSCAN) ?? false;
+            if (needsPortScan)
             {
-                await hc.VerifyPlainHttp(domain);
+                await AnsiConsole.Progress().StartAsync(async ctx =>
+                {
+                    ProgressTask? task = null;
+                    void Handler(object? _, LogEventArgs e)
+                    {
+                        if (e.ProgressActivity == "PortScan" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue)
+                        {
+                            task ??= ctx.AddTask($"Port scan for {domain}", maxValue: e.ProgressTotalSteps.Value);
+                            task.Value = e.ProgressCurrentSteps.Value;
+                        }
+                    }
+
+                    logger.OnProgressMessage += Handler;
+                    try
+                    {
+                        await hc.Verify(domain, checks, null, null, danePorts);
+                        if (checkHttp)
+                        {
+                            await hc.VerifyPlainHttp(domain);
+                        }
+                    }
+                    finally
+                    {
+                        logger.OnProgressMessage -= Handler;
+                    }
+                });
+            }
+            else
+            {
+                await hc.Verify(domain, checks, null, null, danePorts);
+                if (checkHttp)
+                {
+                    await hc.VerifyPlainHttp(domain);
+                }
             }
 
             if (outputJson)

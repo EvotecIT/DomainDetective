@@ -47,6 +47,8 @@ public class PortScanAnalysis
         Results.Clear();
         var list = ports ?? _topPorts;
         using var semaphore = new SemaphoreSlim(MaxConcurrency);
+        var total = list.Count();
+        var processed = 0;
         var tasks = list.Select(async port =>
         {
             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -62,6 +64,8 @@ public class PortScanAnalysis
             finally
             {
                 semaphore.Release();
+                var done = Interlocked.Increment(ref processed);
+                logger?.WriteProgress("PortScan", port.ToString(), done * 100 / total, done, total);
             }
         });
         await Task.WhenAll(tasks).ConfigureAwait(false);
