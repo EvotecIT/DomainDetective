@@ -232,6 +232,10 @@ namespace DomainDetective {
                         EdnsSupportAnalysis = new EdnsSupportAnalysis { DnsConfiguration = DnsConfiguration };
                         await EdnsSupportAnalysis.Analyze(domainName, _logger);
                         break;
+                    case HealthCheckType.FLATTENINGSERVICE:
+                        FlatteningServiceAnalysis = new FlatteningServiceAnalysis { DnsConfiguration = DnsConfiguration };
+                        await FlatteningServiceAnalysis.Analyze(domainName, _logger, cancellationToken);
+                        break;
                     case HealthCheckType.THREATINTEL:
                         await VerifyThreatIntel(domainName, cancellationToken);
                         break;
@@ -1061,6 +1065,7 @@ namespace DomainDetective {
             filtered.ThreatIntelAnalysis = active.Contains(HealthCheckType.THREATINTEL) ? CloneAnalysis(ThreatIntelAnalysis) : null;
             filtered.WildcardDnsAnalysis = active.Contains(HealthCheckType.WILDCARDDNS) ? CloneAnalysis(WildcardDnsAnalysis) : null;
             filtered.EdnsSupportAnalysis = active.Contains(HealthCheckType.EDNSSUPPORT) ? CloneAnalysis(EdnsSupportAnalysis) : null;
+            filtered.FlatteningServiceAnalysis = active.Contains(HealthCheckType.FLATTENINGSERVICE) ? CloneAnalysis(FlatteningServiceAnalysis) : null;
 
             return filtered;
         }
