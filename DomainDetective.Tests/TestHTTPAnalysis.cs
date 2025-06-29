@@ -220,6 +220,44 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task DetectsRedirectLoop() {
+            using var listener1 = new HttpListener();
+            var prefix1 = $"http://localhost:{GetFreePort()}/";
+            listener1.Prefixes.Add(prefix1);
+            listener1.Start();
+
+            using var listener2 = new HttpListener();
+            var prefix2 = $"http://localhost:{GetFreePort()}/";
+            listener2.Prefixes.Add(prefix2);
+            listener2.Start();
+
+            var task1 = Task.Run(async () => {
+                var ctx = await listener1.GetContextAsync();
+                ctx.Response.StatusCode = 302;
+                ctx.Response.RedirectLocation = prefix2;
+                ctx.Response.Close();
+            });
+
+            var task2 = Task.Run(async () => {
+                var ctx = await listener2.GetContextAsync();
+                ctx.Response.StatusCode = 302;
+                ctx.Response.RedirectLocation = prefix1;
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await Assert.ThrowsAsync<InvalidOperationException>(() => analysis.AnalyzeUrl(prefix1, false, new InternalLogger()));
+                Assert.Contains(prefix1, analysis.VisitedUrls);
+                Assert.Contains(prefix2, analysis.VisitedUrls);
+            } finally {
+                listener1.Stop();
+                listener2.Stop();
+                await Task.WhenAll(task1, task2);
+            }
+        }
+
+        [Fact]
         public async Task TimeoutSetsFailureReason() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
