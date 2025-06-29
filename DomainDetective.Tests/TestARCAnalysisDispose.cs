@@ -15,14 +15,14 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void DisposesStreamsWhenParsingFails() {
-            var original = ARCAnalysis.StreamFactory;
+            var original = ARCAnalysis.CreateStream;
             CountingMemoryStream.DisposeCount = 0;
-            ARCAnalysis.StreamFactory = b => new CountingMemoryStream(b);
+            ARCAnalysis.CreateStream = b => new CountingMemoryStream(b);
             try {
                 var analysis = new ARCAnalysis();
                 analysis.Analyze("Invalid-Header");
             } finally {
-                ARCAnalysis.StreamFactory = original;
+                ARCAnalysis.CreateStream = original;
             }
             Assert.Equal(2, CountingMemoryStream.DisposeCount);
         }

@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class ARCAnalysis {
-        internal static Func<byte[], Stream> StreamFactory { get; set; } = b => new MemoryStream(b);
+        internal static Func<byte[], Stream> CreateStream = b => new MemoryStream(b);
         /// <summary>Collected ARC-Seal header values.</summary>
         public List<string> ArcSealHeaders { get; } = new();
         /// <summary>Collected ARC-Authentication-Results header values.</summary>
@@ -43,13 +43,13 @@ namespace DomainDetective {
 
             try {
                 var utf8Bytes = Encoding.UTF8.GetBytes(rawHeaders + "\r\n");
-                using (var utf8Stream = StreamFactory(utf8Bytes)) {
+                using (var utf8Stream = CreateStream(utf8Bytes)) {
                     MimeMessage message;
                     try {
                         message = MimeMessage.Load(utf8Stream);
                     } catch (FormatException) {
                         var asciiBytes = Encoding.ASCII.GetBytes(rawHeaders + "\r\n");
-                        using (var asciiStream = StreamFactory(asciiBytes)) {
+                        using (var asciiStream = CreateStream(asciiBytes)) {
                             message = MimeMessage.Load(asciiStream);
                         }
                     }
