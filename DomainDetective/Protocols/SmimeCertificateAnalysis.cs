@@ -34,6 +34,7 @@ public class SmimeCertificateAnalysis {
     /// </summary>
     /// <param name="path">Path to the certificate file in DER or PEM format.</param>
     public void AnalyzeFile(string path) {
+        path = path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
         if (!File.Exists(path)) {
             throw new FileNotFoundException("Certificate file not found", path);
         }
@@ -58,6 +59,25 @@ public class SmimeCertificateAnalysis {
         DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
         DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
         IsExpired = Certificate.NotAfter < DateTime.Now;
+    }
+
+    /// <summary>
+    /// Loads a certificate from directory and file name using <see cref="Path.Combine(string, string)"/>.
+    /// </summary>
+    /// <param name="directory">Directory containing the certificate.</param>
+    /// <param name="fileName">Certificate file name.</param>
+    public void AnalyzeFile(string directory, string fileName) {
+        if (directory == null) {
+            throw new ArgumentNullException(nameof(directory));
+        }
+
+        if (fileName == null) {
+            throw new ArgumentNullException(nameof(fileName));
+        }
+
+        directory = directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullPath = Path.Combine(directory, fileName);
+        AnalyzeFile(fullPath);
     }
 
     private static byte[] DecodePem(string pem) {
