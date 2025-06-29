@@ -194,6 +194,7 @@ namespace DomainDetective {
                 sw.Stop();
                 return new DnsPropagationResult {
                     Server = server,
+                    RecordType = recordType,
                     Duration = sw.Elapsed,
                     Records = response.Answers.Select(a => a.Data),
                     Success = response.Answers.Any()
@@ -205,6 +206,7 @@ namespace DomainDetective {
                 sw.Stop();
                 return new DnsPropagationResult {
                     Server = server,
+                    RecordType = recordType,
                     Duration = sw.Elapsed,
                     Error = ex.Message,
                     Success = false,

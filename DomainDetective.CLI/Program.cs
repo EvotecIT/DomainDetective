@@ -156,6 +156,60 @@ internal class Program
         });
         root.Add(analyzeDnsTunnel);
 
+        var dnsProp = new Command("DnsPropagation", "Check DNS propagation across public resolvers");
+        var propDomain = new Option<string>("--domain", "Domain to query");
+        var propType = new Option<DnsRecordType>("--record-type", "DNS record type");
+        var propServers = new Option<FileInfo>("--servers-file", () => new FileInfo("Data/DNS/PublicDNS.json"), "Servers JSON file");
+        var propJson = new Option<bool>("--json", "Output raw JSON");
+        var propCompare = new Option<bool>("--compare-results", "Return aggregated comparison of results");
+        dnsProp.Add(propDomain);
+        dnsProp.Add(propType);
+        dnsProp.Add(propServers);
+        dnsProp.Add(propJson);
+        dnsProp.Add(propCompare);
+        dnsProp.SetAction(async result =>
+        {
+            var domain = result.GetValue(propDomain);
+            var type = result.GetValue(propType);
+            var file = result.GetValue(propServers);
+            var json = result.GetValue(propJson);
+            var compare = result.GetValue(propCompare);
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadServers(file.FullName, clearExisting: true);
+            var servers = analysis.Servers;
+            var results = await analysis.QueryAsync(domain, type, servers);
+            if (compare)
+            {
+                var groups = DnsPropagationAnalysis.CompareResults(results);
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(groups));
+                }
+                else
+                {
+                    foreach (var kvp in groups)
+                    {
+                        Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress))}");
+                    }
+                }
+            }
+            else
+            {
+                if (json)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(results));
+                }
+                else
+                {
+                    foreach (var r in results)
+                    {
+                        Console.WriteLine($"{r.Server.IPAddress} {r.Success} {string.Join(',', r.Records)}");
+                    }
+                }
+            }
+        });
+        root.Add(dnsProp);
+
 
         root.SetAction(async result =>
         {
