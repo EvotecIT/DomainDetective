@@ -1,14 +1,21 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestReverseDnsAnalysis {
-        private static ReverseDnsAnalysis CreateAnalysis(Dictionary<(string, DnsRecordType), DnsAnswer[]> map) {
+        private static ReverseDnsAnalysis CreateAnalysis(
+            Dictionary<(string, DnsRecordType), DnsAnswer[]> map,
+            Dictionary<(string, DnsRecordType), IEnumerable<DnsResponse>>? full = null) {
             return new ReverseDnsAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
-                QueryDnsOverride = (name, type) => Task.FromResult(map.TryGetValue((name, type), out var v) ? v : Array.Empty<DnsAnswer>())
+                QueryDnsOverride = (name, type) => Task.FromResult(map.TryGetValue((name, type), out var v) ? v : Array.Empty<DnsAnswer>()),
+                QueryDnsFullOverride = full == null ? null :
+                    new Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>((name, type) =>
+                        Task.FromResult(full.TryGetValue((name, type), out var r) ? r : Enumerable.Empty<DnsResponse>()))
             };
         }
 
@@ -63,6 +70,24 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeHosts(new[] { "mail.example.com" });
             var result = Assert.Single(analysis.Results);
             Assert.False(result.FcrDnsValid);
+        }
+
+        [Fact]
+        public async Task RetryOnTruncatedIpv6Ptr() {
+            var ip = IPAddress.Parse("2001::1");
+            var ptrName = ip.ToPtrFormat() + ".ip6.arpa";
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { DataRaw = ip.ToString() } },
+                [("mail.example.com", DnsRecordType.A)] = Array.Empty<DnsAnswer>(),
+                [(ptrName, DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "mail.example.com." } }
+            };
+            var full = new Dictionary<(string, DnsRecordType), IEnumerable<DnsResponse>> {
+                [(ptrName, DnsRecordType.PTR)] = new[] { new DnsResponse { IsTruncated = true, Answers = Array.Empty<DnsAnswer>() } }
+            };
+            var analysis = CreateAnalysis(map, full);
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+            var result = Assert.Single(analysis.Results);
+            Assert.Equal("mail.example.com", result.PtrRecord);
         }
     }
 }
