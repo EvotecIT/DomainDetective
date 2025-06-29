@@ -29,6 +29,8 @@ namespace DomainDetective {
         public bool IsValid { get; set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; set; }
+        /// <summary>Gets whether the certificate matches the requested host.</summary>
+        public bool HostnameMatch { get; private set; }
         /// <summary>Gets or sets the number of days until expiry.</summary>
         public int DaysToExpire { get; set; }
         /// <summary>Gets the total validity period in days.</summary>
@@ -122,6 +124,7 @@ namespace DomainDetective {
                     }
                     IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
                     IsValid = policyErrors == SslPolicyErrors.None;
+                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return IsValid;
                 };
                 using (var client = new HttpClient(handler)) {
@@ -159,7 +162,10 @@ namespace DomainDetective {
 #else
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-                                using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, errors) => errors == SslPolicyErrors.None);
+                                using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
+                                    HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                                    return errors == SslPolicyErrors.None;
+                                });
 #if NET5_0_OR_GREATER
                                 var authOptions = new SslClientAuthenticationOptions { TargetHost = uri.Host };
                                 await ssl.AuthenticateAsClientAsync(authOptions, timeoutCts.Token);
