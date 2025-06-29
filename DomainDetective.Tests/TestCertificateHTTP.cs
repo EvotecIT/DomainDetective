@@ -61,6 +61,7 @@ namespace DomainDetective.Tests {
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
             Assert.False(analysis.IsSelfSigned);
+            Assert.True(analysis.Chain.Count > 1);
         }
 
         [Fact]
