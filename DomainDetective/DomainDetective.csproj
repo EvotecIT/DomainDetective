@@ -19,9 +19,7 @@
     <EmbeddedResource Include="..\Data\dnsbl.json" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\Data\public_suffix_list.dat">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <EmbeddedResource Include="..\Data\public_suffix_list.dat" />
     <None Include="..\Data\hsts_preload.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

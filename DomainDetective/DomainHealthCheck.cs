@@ -6,11 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.IO;
+using System.Net.Http;
 using System.Reflection;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
-        private readonly PublicSuffixList _publicSuffixList;
+        private PublicSuffixList _publicSuffixList;
+        private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
         /// <summary>
         /// Indicates whether the last verified domain is itself a public suffix.
@@ -283,8 +285,13 @@ namespace DomainDetective {
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
-            var listPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat");
-            _publicSuffixList = PublicSuffixList.Load(listPath);
+            var resourceStream = typeof(DomainHealthCheck).Assembly.GetManifestResourceStream("DomainDetective.public_suffix_list.dat");
+            if (resourceStream != null) {
+                using var reader = resourceStream;
+                _publicSuffixList = PublicSuffixList.Load(reader);
+            } else {
+                _publicSuffixList = new PublicSuffixList();
+            }
 
             var preloadPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hsts_preload.json");
             if (File.Exists(preloadPath)) {
@@ -337,6 +344,17 @@ namespace DomainDetective {
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);
             _logger.WriteVerbose("DnsSelectionStrategy: {0}", DnsSelectionStrategy);
+        }
+
+        /// <summary>
+        /// Downloads the latest public suffix list and refreshes cached data.
+        /// </summary>
+        /// <param name="url">Optional URL to fetch the list from.</param>
+        public async Task RefreshPublicSuffixListAsync(string url = DefaultPublicSuffixListUrl) {
+            using var client = new HttpClient();
+            using var stream = await client.GetStreamAsync(url);
+            var updated = PublicSuffixList.Load(stream);
+            _publicSuffixList = updated;
         }
 
     }

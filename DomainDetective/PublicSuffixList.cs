@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace DomainDetective {
     /// <summary>
@@ -11,18 +13,24 @@ namespace DomainDetective {
         private readonly HashSet<string> _wildcardRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _exceptionRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        private PublicSuffixList() { }
+        internal PublicSuffixList() { }
 
         /// <summary>
         /// Loads the public suffix list from the specified file.
         /// </summary>
         public static PublicSuffixList Load(string filePath) {
-            var list = new PublicSuffixList();
             if (!File.Exists(filePath)) {
-                return list;
+                return new PublicSuffixList();
             }
 
-            foreach (var line in File.ReadLines(filePath)) {
+            using var stream = File.OpenRead(filePath);
+            return Load(stream);
+        }
+
+        public static PublicSuffixList Load(Stream stream) {
+            var list = new PublicSuffixList();
+            using var reader = new StreamReader(stream);
+            while (reader.ReadLine() is { } line) {
                 var trimmed = line.Trim();
                 if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("//")) {
                     continue;
@@ -38,6 +46,12 @@ namespace DomainDetective {
             }
 
             return list;
+        }
+
+        public static async Task<PublicSuffixList> LoadFromUrlAsync(string url) {
+            using var client = new HttpClient();
+            using var stream = await client.GetStreamAsync(url);
+            return Load(stream);
         }
 
         /// <summary>
