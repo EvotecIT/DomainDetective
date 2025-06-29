@@ -24,6 +24,7 @@ namespace DomainDetective {
             public int DaysToExpire { get; set; }
             public SslProtocols Protocol { get; set; }
             public bool SupportsTls13 { get; set; }
+            public bool Tls13Used { get; set; }
             public bool HostnameMatch { get; set; }
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
@@ -158,8 +159,10 @@ namespace DomainDetective {
                             result.Protocol = ssl.SslProtocol;
 #if NET8_0_OR_GREATER
                             result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
+                            result.Tls13Used = result.SupportsTls13;
 #else
                             result.SupportsTls13 = (int)result.Protocol == 12288;
+                            result.Tls13Used = result.SupportsTls13;
 #endif
                         }
                     }

@@ -82,6 +82,8 @@ namespace DomainDetective {
         public bool Sha1Signature { get; private set; }
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
+        /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
+        public bool Tls13Used { get; private set; }
         /// <summary>Gets the negotiated cipher algorithm.</summary>
         public CipherAlgorithmType CipherAlgorithm { get; private set; }
         /// <summary>Gets the cipher strength.</summary>
@@ -114,6 +116,9 @@ namespace DomainDetective {
             Url = url;
             IsSelfSigned = false;
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
+#if NET8_0_OR_GREATER
+                handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
+#endif
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
                     Chain.Clear();
@@ -446,12 +451,17 @@ namespace DomainDetective {
 #endif
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, false)
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
                 .WaitWithCancellation(timeoutCts.Token);
 #else
             await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
 #endif
             TlsProtocol = ssl.SslProtocol;
+#if NET8_0_OR_GREATER
+            Tls13Used = ssl.SslProtocol == SslProtocols.Tls13;
+#else
+            Tls13Used = (int)ssl.SslProtocol == 12288;
+#endif
             CipherAlgorithm = ssl.CipherAlgorithm;
             CipherStrength = ssl.CipherStrength;
 #if NET6_0_OR_GREATER
