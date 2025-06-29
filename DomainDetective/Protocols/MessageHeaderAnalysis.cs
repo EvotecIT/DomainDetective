@@ -75,47 +75,104 @@ namespace DomainDetective {
                     utf8Stream.Dispose();
                     var asciiBytes = Encoding.ASCII.GetBytes(rawHeaders + "\r\n");
                     using var asciiStream = new MemoryStream(asciiBytes);
-                    message = MimeMessage.Load(asciiStream);
+                    try {
+                        message = MimeMessage.Load(asciiStream);
+                    } catch (FormatException ex) {
+                        logger?.WriteError("MimeKit failed to parse headers: {0}", ex.Message);
+                        ParseManually(rawHeaders, logger);
+                        ComputeTransitTime();
+                        return;
+                    }
                 }
                 foreach (var header in message.Headers) {
-                    if (Headers.TryGetValue(header.Field, out var existing)) {
-                        if (!DuplicateHeaders.TryGetValue(header.Field, out var list)) {
-                            list = new List<string> { existing };
-                            DuplicateHeaders[header.Field] = list;
-                        }
-                        list.Add(header.Value);
-                    }
-                    Headers[header.Field] = header.Value;
-                    switch (header.Id) {
-                        case HeaderId.Received:
-                            ReceivedChain.Add(header.Value);
-                            break;
-                        case HeaderId.From:
-                            From = header.Value;
-                            break;
-                        case HeaderId.To:
-                            To = header.Value;
-                            break;
-                        case HeaderId.Subject:
-                            Subject = header.Value;
-                            break;
-                        case HeaderId.Date:
-                            if (DateUtils.TryParse(header.Value, out var parsed)) {
-                                Date = parsed;
-                            }
-                            break;
-                        case HeaderId.AuthenticationResults:
-                            ParseAuthenticationResults(header.Value);
-                            break;
-                    }
-                    if (header.Field.StartsWith("X-Spam-", StringComparison.OrdinalIgnoreCase)) {
-                        SpamHeaders[header.Field] = header.Value;
-                    }
+                    AddHeaderValue(header.Field, header.Value);
                 }
                 ComputeTransitTime();
             } catch (Exception ex) {
                 logger?.WriteError("Failed to parse message headers: {0}", ex.Message);
             }
+        }
+
+        private void AddHeaderValue(string field, string value) {
+            if (Headers.TryGetValue(field, out var existing)) {
+                if (!DuplicateHeaders.TryGetValue(field, out var list)) {
+                    list = new List<string> { existing };
+                    DuplicateHeaders[field] = list;
+                }
+                list.Add(value);
+            }
+            Headers[field] = value;
+
+            var lower = field.ToLowerInvariant();
+            switch (lower) {
+                case "received":
+                    ReceivedChain.Add(value);
+                    break;
+                case "from":
+                    From = value;
+                    break;
+                case "to":
+                    To = value;
+                    break;
+                case "subject":
+                    Subject = value;
+                    break;
+                case "date":
+                    if (DateUtils.TryParse(value, out var parsed)) {
+                        Date = parsed;
+                    }
+                    break;
+                case "authentication-results":
+                    ParseAuthenticationResults(value);
+                    break;
+            }
+
+            if (lower.StartsWith("x-spam-")) {
+                SpamHeaders[field] = value;
+            }
+        }
+
+        private void ParseManually(string text, InternalLogger? logger) {
+            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            string? currentField = null;
+            var value = new StringBuilder();
+
+            void Commit() {
+                if (currentField != null) {
+                    AddHeaderValue(currentField, value.ToString());
+                }
+            }
+
+            foreach (var line in lines) {
+                if (string.IsNullOrEmpty(line)) {
+                    Commit();
+                    currentField = null;
+                    value.Clear();
+                    continue;
+                }
+
+                if (char.IsWhiteSpace(line[0])) {
+                    if (currentField != null) {
+                        value.Append(' ').Append(line.TrimStart());
+                    }
+                    continue;
+                }
+
+                Commit();
+                var idx = line.IndexOf(':');
+                if (idx <= 0) {
+                    logger?.WriteError("Malformed header line: {0}", line);
+                    currentField = null;
+                    value.Clear();
+                    continue;
+                }
+
+                currentField = line.Substring(0, idx).Trim();
+                value.Clear();
+                value.Append(line.Substring(idx + 1).Trim());
+            }
+
+            Commit();
         }
 
         private void ParseAuthenticationResults(string value) {
