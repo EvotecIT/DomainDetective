@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -64,6 +65,17 @@ namespace DomainDetective.Tests {
             } finally {
                 listener2.Stop();
             }
+        }
+
+        [Fact]
+        public async Task EnforcesTimeout() {
+            var analysis = new PortAvailabilityAnalysis { Timeout = TimeSpan.FromMilliseconds(500) };
+            var sw = Stopwatch.StartNew();
+            await analysis.AnalyzeServer("203.0.113.1", 81, new InternalLogger());
+            sw.Stop();
+            var result = analysis.ServerResults["203.0.113.1:81"];
+            Assert.False(result.Success);
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(3));
         }
 
         private static int GetFreePort() {
