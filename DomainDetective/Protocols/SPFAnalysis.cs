@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net;
 using System.Globalization;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace DomainDetective {
     /// <summary>
@@ -66,6 +67,10 @@ namespace DomainDetective {
 
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
+        private readonly List<string> _warnings = new();
+        public IReadOnlyList<string> Warnings => _warnings;
+
+        private static readonly Regex MacroRegex = new(@"%\{[slodipvhcrt](?:\d+)?r?(?:[.\-+,/_=]*)?\}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public void Reset() {
             SpfRecord = null;
@@ -109,6 +114,7 @@ namespace DomainDetective {
             AllMechanism = null;
             SpfPartAnalyses = new List<SpfPartAnalysis>();
             SpfTestResults = new List<SpfTestResult>();
+            _warnings.Clear();
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
@@ -147,7 +153,7 @@ namespace DomainDetective {
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
 
             // check that the SPF record does not exceed 10 DNS lookups
-            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>());
+            int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
             DnsLookupsCount = dnsLookups;
             ExceedsDnsLookups = ExceedsDnsLookups || DnsLookupsCount > 10;
 
@@ -156,7 +162,7 @@ namespace DomainDetective {
 
             // add the parts to the appropriate lists
             foreach (var part in parts) {
-                AddPartToList(part);
+                AddPartToList(part, logger);
             }
 
             // check if the SPF record contains characters after "all"
@@ -175,7 +181,7 @@ namespace DomainDetective {
         }
 
 
-        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains, List<string> path) {
+        private async Task<int> CountDnsLookups(string[] parts, HashSet<string> visitedDomains, List<string> path, InternalLogger? logger) {
             int dnsLookups = 0;
             foreach (var part in parts) {
                 if (part.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
@@ -193,9 +199,9 @@ namespace DomainDetective {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRecord).ToArray();
                             foreach (var rp in resultParts) {
-                                AddPartToResolvedLists(rp);
+                                AddPartToResolvedLists(rp, logger);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -203,9 +209,9 @@ namespace DomainDetective {
                                 foreach (var dnsResult in dnsResults) {
                                     var resultParts = TokenizeSpfRecord(dnsResult.Data).ToArray();
                                     foreach (var rp in resultParts) {
-                                        AddPartToResolvedLists(rp);
+                                        AddPartToResolvedLists(rp, logger);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                                 }
                             }
                         }
@@ -227,9 +233,9 @@ namespace DomainDetective {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRedirect).ToArray();
                             foreach (var rp in resultParts) {
-                                AddPartToResolvedLists(rp);
+                                AddPartToResolvedLists(rp, logger);
                             }
-                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
+                            dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
                             var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
                             dnsLookups++;
@@ -237,9 +243,9 @@ namespace DomainDetective {
                                 foreach (var dnsResult in dnsResults) {
                                     var resultParts = TokenizeSpfRecord(dnsResult.Data).ToArray();
                                     foreach (var rp in resultParts) {
-                                        AddPartToResolvedLists(rp);
+                                        AddPartToResolvedLists(rp, logger);
                                     }
-                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path);
+                                    dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                                 }
                             }
                         }
@@ -285,9 +291,10 @@ namespace DomainDetective {
             ExceedsTotalCharacterLimit = totalLength > 512;
         }
 
-        private void AddPartToList(string part) {
+        private void AddPartToList(string part, InternalLogger? logger) {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
+            ValidateMacros(token, logger);
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
@@ -324,10 +331,10 @@ namespace DomainDetective {
                 }
             }
 
-            AddPartToResolvedLists(part);
+            AddPartToResolvedLists(part, logger);
         }
 
-        private void AddPartToResolvedLists(string part) {
+        private void AddPartToResolvedLists(string part, InternalLogger? logger) {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
@@ -348,6 +355,50 @@ namespace DomainDetective {
                 if (!UnknownMechanisms.Contains(token)) {
                     UnknownMechanisms.Add(token);
                 }
+            }
+            ValidateMacros(token, logger);
+        }
+
+        private void ValidateMacros(string token, InternalLogger? logger) {
+            var index = token.IndexOf('%');
+            while (index >= 0 && index < token.Length) {
+                if (index + 1 >= token.Length) {
+                    _warnings.Add($"Invalid percent escape in token '{token}'");
+                    logger?.WriteWarning($"Invalid percent escape in token '{token}'");
+                    break;
+                }
+
+                var next = token[index + 1];
+                if (next == '%') {
+                    index = token.IndexOf('%', index + 2);
+                    continue;
+                }
+
+                if (next == '_' || next == '-') {
+                    index = token.IndexOf('%', index + 2);
+                    continue;
+                }
+
+                if (next == '{') {
+                    var end = token.IndexOf('}', index + 2);
+                    if (end == -1) {
+                        _warnings.Add($"Invalid SPF macro syntax in token '{token}'");
+                        logger?.WriteWarning($"Invalid SPF macro syntax in token '{token}'");
+                        break;
+                    }
+
+                    var macro = token.Substring(index, end - index + 1);
+                    if (!MacroRegex.IsMatch(macro)) {
+                        _warnings.Add($"Invalid SPF macro syntax: {macro}");
+                        logger?.WriteWarning($"Invalid SPF macro syntax: {macro}");
+                    }
+                    index = token.IndexOf('%', end + 1);
+                    continue;
+                }
+
+                _warnings.Add($"Invalid percent escape in token '{token}'");
+                logger?.WriteWarning($"Invalid percent escape in token '{token}'");
+                index = token.IndexOf('%', index + 1);
             }
         }
 
