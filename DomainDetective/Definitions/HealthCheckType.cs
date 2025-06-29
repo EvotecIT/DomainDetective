@@ -82,5 +82,7 @@ public enum HealthCheckType {
     /// <summary>Detect wildcard DNS responses.</summary>
     WILDCARDDNS,
     /// <summary>Test EDNS support on name servers.</summary>
-    EDNSSUPPORT
+    EDNSSUPPORT,
+    /// <summary>Detect CNAMEs pointing to flattening services.</summary>
+    FLATTENINGSERVICE
 }

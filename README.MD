@@ -28,6 +28,7 @@ Current capabilities include:
 - [x] Verify TLS-RPT
 - [x] Verify BIMI
 - [x] Check for dangling CNAME records
+- [x] Detect CNAME flattening services (e.g., Cloudflare)
 - [x] Verify Autodiscover
 - [x] Verify Website Connectivity
   - [x] Verify HTTP/2

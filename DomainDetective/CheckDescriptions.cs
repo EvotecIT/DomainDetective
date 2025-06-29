@@ -163,7 +163,11 @@ public static class CheckDescriptions {
             [HealthCheckType.EDNSSUPPORT] = new(
                 "Test EDNS support on name servers.",
                 null,
-                "Ensure name servers respond to EDNS queries.")
+                "Ensure name servers respond to EDNS queries."),
+            [HealthCheckType.FLATTENINGSERVICE] = new(
+                "Detect CNAMEs pointing to flattening services.",
+                null,
+                "Review CNAME targets and consider removing provider-specific aliases.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>
