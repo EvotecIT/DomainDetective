@@ -279,6 +279,10 @@ namespace DomainDetective {
         /// <para>Optional logger for diagnostic output.</para>
         /// </param>
         public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.CloudflareWireFormat, InternalLogger internalLogger = null) {
+            if (EqualityComparer<DnsEndpoint>.Default.Equals(dnsEndpoint, default)) {
+                throw new ArgumentNullException(nameof(dnsEndpoint));
+            }
+
             if (internalLogger != null) {
                 _logger = internalLogger;
             }
