@@ -40,9 +40,9 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying DNSSEC for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.DNSSEC });
             if (Raw) {
-                WriteObject(healthCheck.DNSSecAnalysis);
+                WriteObject(healthCheck.DnsSecAnalysis);
             } else {
-                DnsSecInfo info = DnsSecConverter.Convert(healthCheck.DNSSecAnalysis);
+                DnsSecInfo info = DnsSecConverter.Convert(healthCheck.DnsSecAnalysis);
                 WriteObject(info);
             }
         }

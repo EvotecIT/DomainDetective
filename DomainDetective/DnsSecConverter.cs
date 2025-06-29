@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace DomainDetective {
     /// <summary>
-    ///     Helper methods to convert <see cref="DNSSecAnalysis"/> results into
+    ///     Helper methods to convert <see cref="DnsSecAnalysis"/> results into
     ///     strongly typed objects.
     /// </summary>
     public static class DnsSecConverter {
@@ -12,7 +12,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="analysis">DNSSEC analysis instance.</param>
         /// <returns>Structured representation of the results.</returns>
-        public static DnsSecInfo Convert(DNSSecAnalysis analysis) {
+        public static DnsSecInfo Convert(DnsSecAnalysis analysis) {
             List<DsRecordInfo> dsRecords = new();
             if (analysis.DsRecords != null) {
                 foreach (string record in analysis.DsRecords) {
