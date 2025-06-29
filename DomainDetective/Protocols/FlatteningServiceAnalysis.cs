@@ -29,14 +29,15 @@ public class FlatteningServiceAnalysis
         "cloudflare.net"
     };
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (QueryDnsOverride != null)
         {
             return await QueryDnsOverride(name, type);
         }
 
-        return await DnsConfiguration.QueryDNS(name, type);
+        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -49,7 +50,7 @@ public class FlatteningServiceAnalysis
         IsFlatteningService = false;
         ct.ThrowIfCancellationRequested();
 
-        var cname = await QueryDns(domainName, DnsRecordType.CNAME);
+        var cname = await QueryDns(domainName, DnsRecordType.CNAME, ct);
         if (cname == null || cname.Length == 0)
         {
             logger?.WriteVerbose("No CNAME record found.");

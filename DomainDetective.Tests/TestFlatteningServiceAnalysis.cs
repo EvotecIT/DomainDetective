@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests;
@@ -34,5 +35,20 @@ public class TestFlatteningServiceAnalysis
         var analysis = Create("alias.example.net");
         await analysis.Analyze("example.com", new InternalLogger());
         Assert.False(analysis.IsFlatteningService);
+    }
+
+    [Fact]
+    public async Task HonorsCancellation()
+    {
+        using var cts = new CancellationTokenSource();
+        var analysis = new FlatteningServiceAnalysis
+        {
+            QueryDnsOverride = (name, type) => Task.Delay(Timeout.Infinite, cts.Token).ContinueWith(_ => Array.Empty<DnsAnswer>(), cts.Token)
+        };
+
+        var task = analysis.Analyze("example.com", new InternalLogger(), cts.Token);
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
     }
 }
