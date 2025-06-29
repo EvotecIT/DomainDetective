@@ -523,5 +523,34 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        [Fact]
+        public async Task LogsServerAndDomainOnError() {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            var logger = new InternalLogger();
+            LogEventArgs? eventArgs = null;
+            logger.OnErrorMessage += (_, e) => eventArgs = e;
+
+            var whois = new WhoisAnalysis();
+            var field = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var servers = (System.Collections.Generic.Dictionary<string, string>?)field?.GetValue(whois);
+            Assert.NotNull(servers);
+            var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var lockObj = lockField?.GetValue(whois);
+            Assert.NotNull(lockObj);
+            lock (lockObj!) {
+                servers!["sample"] = $"127.0.0.1:{port}";
+            }
+
+            await whois.QueryWhoisServer("example.sample", default);
+
+            Assert.NotNull(eventArgs);
+            Assert.Contains($"127.0.0.1:{port}", eventArgs!.FullMessage);
+            Assert.Contains("example.sample", eventArgs.FullMessage);
+        }
     }
 }
