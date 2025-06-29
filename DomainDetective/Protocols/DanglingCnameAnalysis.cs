@@ -23,6 +23,8 @@ public class DanglingCnameAnalysis {
     public bool TargetResolves { get; private set; }
     /// <summary>Gets a value indicating whether the target belongs to a known service.</summary>
     public bool KnownService { get; private set; }
+    /// <summary>If DNS lookups fail, explains why.</summary>
+    public string? FailureReason { get; private set; }
     /// <summary>Gets a value indicating whether the CNAME is dangling.</summary>
     public bool IsDangling => CnameRecordExists && !TargetResolves;
     /// <summary>Gets a value indicating whether the target is an unclaimed service.</summary>
@@ -50,9 +52,16 @@ public class DanglingCnameAnalysis {
         Target = null;
         TargetResolves = false;
         KnownService = false;
+        FailureReason = null;
         ct.ThrowIfCancellationRequested();
-
-        var cname = await QueryDns(domainName, DnsRecordType.CNAME);
+        DnsAnswer[] cname;
+        try {
+            cname = await QueryDns(domainName, DnsRecordType.CNAME);
+        } catch (Exception ex) {
+            FailureReason = $"DNS lookup failed: {ex.Message}";
+            logger?.WriteError("DNS lookup failed for {0}: {1}", domainName, ex.Message);
+            return;
+        }
         if (cname == null || cname.Length == 0) {
             logger?.WriteVerbose("No CNAME record found.");
             return;
@@ -63,9 +72,16 @@ public class DanglingCnameAnalysis {
         logger?.WriteVerbose("CNAME target {0}", Target);
 
         KnownService = _serviceDomains.Any(s => Target.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-
-        var a = await QueryDns(Target, DnsRecordType.A);
-        var aaaa = await QueryDns(Target, DnsRecordType.AAAA);
+        DnsAnswer[] a;
+        DnsAnswer[] aaaa;
+        try {
+            a = await QueryDns(Target, DnsRecordType.A);
+            aaaa = await QueryDns(Target, DnsRecordType.AAAA);
+        } catch (Exception ex) {
+            FailureReason = $"DNS lookup failed: {ex.Message}";
+            logger?.WriteError("DNS lookup failed for {0}: {1}", Target, ex.Message);
+            return;
+        }
         TargetResolves = (a != null && a.Any()) || (aaaa != null && aaaa.Any());
 
         if (!TargetResolves) {

@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
@@ -52,6 +53,14 @@ namespace DomainDetective.Tests {
             await analysis.Analyze("www.example.com", new InternalLogger());
 
             Assert.True(analysis.UnclaimedService);
+        }
+
+        [Fact]
+        public async Task DnsFailureSetsFailureReason() {
+            var analysis = Create((_, _) => throw new Exception("dns fail"));
+            await analysis.Analyze("www.example.com", new InternalLogger());
+
+            Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
         }
     }
 }
