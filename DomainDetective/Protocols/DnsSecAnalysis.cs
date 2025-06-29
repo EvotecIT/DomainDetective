@@ -276,7 +276,7 @@ namespace DomainDetective {
 
             try {
                 if (File.Exists(cacheFile) && DateTime.UtcNow - File.GetLastWriteTimeUtc(cacheFile) < TimeSpan.FromDays(7)) {
-                    var cached = await File.ReadAllTextAsync(cacheFile).ConfigureAwait(false);
+                    var cached = File.ReadAllText(cacheFile);
                     return ParseTrustAnchors(cached);
                 }
 
@@ -284,12 +284,12 @@ namespace DomainDetective {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
                 using var client = new HttpClient(handler);
                 var xml = await client.GetStringAsync(url).ConfigureAwait(false);
-                await File.WriteAllTextAsync(cacheFile, xml).ConfigureAwait(false);
+                File.WriteAllText(cacheFile, xml);
                 return ParseTrustAnchors(xml);
             } catch (Exception ex) {
                 logger?.WriteVerbose("Trust anchor download failed: {0}", ex.Message);
                 if (File.Exists(cacheFile)) {
-                    var cached = await File.ReadAllTextAsync(cacheFile).ConfigureAwait(false);
+                    var cached = File.ReadAllText(cacheFile);
                     return ParseTrustAnchors(cached);
                 }
                 return Array.Empty<string>();
