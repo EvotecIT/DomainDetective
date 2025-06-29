@@ -30,4 +30,25 @@ public class TestWildcardDnsAnalysis
 
         Assert.False(analysis.CatchAll);
     }
+
+    [Fact]
+    public async Task DetectsCatchAllIpv6()
+    {
+        var analysis = new WildcardDnsAnalysis
+        {
+            QueryDnsOverride = (_, type) =>
+            {
+                return type switch
+                {
+                    DnsRecordType.A => Task.FromResult(System.Array.Empty<DnsAnswer>()),
+                    DnsRecordType.AAAA => Task.FromResult(new[] { new DnsAnswer { DataRaw = "2001:0db8::1", Type = DnsRecordType.AAAA } }),
+                    _ => Task.FromResult(System.Array.Empty<DnsAnswer>())
+                };
+            }
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger(), sampleCount: 2);
+
+        Assert.True(analysis.CatchAll);
+    }
 }

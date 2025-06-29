@@ -1,6 +1,8 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -15,6 +17,8 @@ public class WildcardDnsAnalysis
     public List<string> TestedNames { get; private set; } = new();
     /// <summary>Names that returned a record.</summary>
     public List<string> ResolvedNames { get; private set; } = new();
+    /// <summary>Unique IP addresses returned for tested names.</summary>
+    public List<string> ResolvedAddresses { get; private set; } = new();
     /// <summary>Whether all random names resolved.</summary>
     public bool CatchAll { get; private set; }
 
@@ -41,6 +45,7 @@ public class WildcardDnsAnalysis
     {
         TestedNames.Clear();
         ResolvedNames.Clear();
+        ResolvedAddresses.Clear();
         CatchAll = false;
 
         for (int i = 0; i < sampleCount; i++)
@@ -48,9 +53,28 @@ public class WildcardDnsAnalysis
             string sub = $"{Guid.NewGuid():N}.{domainName}";
             TestedNames.Add(sub);
             var records = await QueryDns(sub, DnsRecordType.A);
+            if (records.Length == 0)
+            {
+                records = await QueryDns(sub, DnsRecordType.AAAA);
+            }
+
             if (records.Length > 0)
             {
                 ResolvedNames.Add(sub);
+
+                foreach (var rec in records)
+                {
+                    var data = rec.DataRaw ?? string.Empty;
+                    if (IPAddress.TryParse(data, out var ip))
+                    {
+                        data = ip.ToString();
+                    }
+
+                    if (!string.IsNullOrEmpty(data) && !ResolvedAddresses.Contains(data, StringComparer.OrdinalIgnoreCase))
+                    {
+                        ResolvedAddresses.Add(data);
+                    }
+                }
             }
         }
 
