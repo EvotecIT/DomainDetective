@@ -4,10 +4,13 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestNSAnalysis {
-        private static NSAnalysis CreateAnalysis(Func<string, DnsRecordType, Task<DnsAnswer[]>>? overrideFunc = null) {
+        private static NSAnalysis CreateAnalysis(
+            Func<string, DnsRecordType, Task<DnsAnswer[]>>? overrideFunc = null,
+            Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? fullOverride = null) {
             return new NSAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
-                QueryDnsOverride = overrideFunc
+                QueryDnsOverride = overrideFunc,
+                QueryDnsFullOverride = fullOverride
             };
         }
 
@@ -103,12 +106,14 @@ namespace DomainDetective.Tests {
             var childAnswers = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
             };
-            var analysis = CreateAnalysis((name, type) => {
-                if (type == DnsRecordType.NS) {
-                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns2.example.com" } });
-                }
-                return Task.FromResult(Array.Empty<DnsAnswer>());
-            });
+            var analysis = CreateAnalysis(
+                overrideFunc: (_, _) => Task.FromResult(Array.Empty<DnsAnswer>()),
+                fullOverride: (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+                    new DnsResponse {
+                        Answers = new[] { new DnsAnswer { DataRaw = "ns2.example.com", Type = DnsRecordType.NS } },
+                        Additional = Array.Empty<DnsAnswer>()
+                    }
+                }));
             await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
             await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
 
@@ -120,13 +125,42 @@ namespace DomainDetective.Tests {
             var childAnswers = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
             };
-            var analysis = CreateAnalysis((name, type) => {
-                return Task.FromResult(Array.Empty<DnsAnswer>());
-            });
+            var analysis = CreateAnalysis(
+                overrideFunc: (_, _) => Task.FromResult(Array.Empty<DnsAnswer>()),
+                fullOverride: (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+                    new DnsResponse {
+                        Answers = new[] { new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS } },
+                        Additional = Array.Empty<DnsAnswer>()
+                    }
+                }));
             await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
             await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
 
             Assert.False(analysis.GlueRecordsComplete);
+        }
+
+        [Fact]
+        public async Task DetectInconsistentGlue() {
+            var childAnswers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis(
+                overrideFunc: (name, type) => {
+                    if (name == "ns1.example.com" && (type == DnsRecordType.A || type == DnsRecordType.AAAA)) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "2.2.2.2" } });
+                    }
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                },
+                fullOverride: (_, _) => Task.FromResult<IEnumerable<DnsResponse>>(new[] {
+                    new DnsResponse {
+                        Answers = new[] { new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS } },
+                        Additional = new[] { new DnsAnswer { Name = "ns1.example.com", DataRaw = "1.1.1.1", Type = DnsRecordType.A } }
+                    }
+                }));
+            await analysis.AnalyzeNsRecords(childAnswers, new InternalLogger());
+            await analysis.AnalyzeParentDelegation("example.com", new InternalLogger());
+
+            Assert.False(analysis.GlueRecordsConsistent);
         }
 
         [Fact]

@@ -13,6 +13,7 @@ namespace DomainDetective {
     public class NSAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+        public Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
         public Func<string, Task<bool>>? RecursionTestOverride { private get; set; }
         public List<string> NsRecords { get; private set; } = new();
         public bool NsRecordExists { get; private set; }
@@ -40,6 +41,14 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryDNS(name, type);
         }
 
+        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type) {
+            if (QueryDnsFullOverride != null) {
+                return await QueryDnsFullOverride(name, type);
+            }
+
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type);
+        }
+
         private static string? GetParentZone(string domain) {
             if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
                 return null;
@@ -52,6 +61,37 @@ namespace DomainDetective {
             var a = new HashSet<string>(first?.Select(f => f.Data) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
             var b = new HashSet<string>(second?.Select(s => s.Data) ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
             return a.SetEquals(b);
+        }
+
+        /// <summary>
+        /// Queries the parent zone for NS records and glue information.
+        /// </summary>
+        public async Task<(List<string> NsRecords, Dictionary<string, List<string>> GlueRecords)> QueryParentNsGlue(string domainName, InternalLogger logger) {
+            List<string> nsRecords = new();
+            Dictionary<string, List<string>> glueRecords = new(StringComparer.OrdinalIgnoreCase);
+
+            var responses = (await QueryFullDns(domainName, DnsRecordType.NS)).ToArray();
+            if (responses.Length == 0) {
+                return (nsRecords, glueRecords);
+            }
+
+            var response = responses[0];
+            foreach (var rec in response.Answers ?? Array.Empty<DnsAnswer>()) {
+                nsRecords.Add(rec.Data.Trim('.'));
+            }
+
+            foreach (var add in response.Additional ?? Array.Empty<DnsAnswer>()) {
+                if (add.Type == DnsRecordType.A || add.Type == DnsRecordType.AAAA) {
+                    var host = add.Name.Trim('.');
+                    if (!glueRecords.TryGetValue(host, out var list)) {
+                        list = new List<string>();
+                        glueRecords[host] = list;
+                    }
+                    list.Add(add.Data);
+                }
+            }
+
+            return (nsRecords, glueRecords);
         }
 
         /// <summary>
@@ -126,10 +166,8 @@ namespace DomainDetective {
                 return;
             }
 
-            var parentNs = await QueryDns(domainName, DnsRecordType.NS);
-            foreach (var rec in parentNs) {
-                ParentNsRecords.Add(rec.Data.Trim('.'));
-            }
+            var (parentNs, glue) = await QueryParentNsGlue(domainName, logger);
+            ParentNsRecords = parentNs;
 
             if (!ParentNsRecords.Any()) {
                 GlueRecordsComplete = false;
@@ -140,19 +178,21 @@ namespace DomainDetective {
                 .SetEquals(NsRecords);
 
             foreach (var ns in ParentNsRecords) {
-                if (ns.EndsWith('.' + domainName, StringComparison.OrdinalIgnoreCase)) {
-                    var parentA = await QueryDns(ns, DnsRecordType.A);
-                    var parentAaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                    if ((parentA == null || !parentA.Any()) && (parentAaaa == null || !parentAaaa.Any())) {
-                        GlueRecordsComplete = false;
-                        continue;
-                    }
+                if (!ns.EndsWith('.' + domainName, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
 
-                    var childA = await QueryDns(ns, DnsRecordType.A);
-                    var childAaaa = await QueryDns(ns, DnsRecordType.AAAA);
-                    if (!AnswersMatch(parentA, childA) || !AnswersMatch(parentAaaa, childAaaa)) {
-                        GlueRecordsConsistent = false;
-                    }
+                glue.TryGetValue(ns, out var parentGlue);
+                if (parentGlue == null || parentGlue.Count == 0) {
+                    GlueRecordsComplete = false;
+                    continue;
+                }
+
+                var childA = await QueryDns(ns, DnsRecordType.A);
+                var childAaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                var combined = childA.Concat(childAaaa ?? Array.Empty<DnsAnswer>()).Select(a => a.Data);
+                if (!new HashSet<string>(parentGlue, StringComparer.OrdinalIgnoreCase).SetEquals(combined)) {
+                    GlueRecordsConsistent = false;
                 }
             }
         }

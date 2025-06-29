@@ -12,7 +12,7 @@ Current capabilities include:
 - [x] Verify DKIM
 - [x] Verify CAA
 - [x] Verify NS Records
-- [x] Verify Delegation
+- [x] Verify Delegation (parent NS and glue consistency)
 - [x] Verify SOA Records
 - [x] Verify MX Records
 - [x] Verify reverse DNS (PTR)
