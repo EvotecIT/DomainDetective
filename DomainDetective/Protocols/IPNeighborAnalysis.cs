@@ -24,6 +24,8 @@ public class IPNeighborAnalysis
 
     /// <summary>Results keyed by IP address.</summary>
     public List<IPNeighborResult> Results { get; private set; } = new();
+    /// <summary>Errors encountered during analysis.</summary>
+    public List<Exception> Errors { get; private set; } = new();
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -70,28 +72,50 @@ public class IPNeighborAnalysis
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
         Results = new List<IPNeighborResult>();
+        Errors = new List<Exception>();
         var answers = await QueryDns(domainName, DnsRecordType.A);
         var aaaa = await QueryDns(domainName, DnsRecordType.AAAA);
-        foreach (var record in answers.Concat(aaaa))
+
+        var tasks = answers.Concat(aaaa).Select(async record =>
         {
             ct.ThrowIfCancellationRequested();
             if (!IPAddress.TryParse(record.Data, out var ip))
             {
-                continue;
+                return;
             }
+
             var ipStr = ip.ToString();
             var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? ".ip6.arpa" : ".in-addr.arpa");
-            var ptr = await QueryDns(ptrName, DnsRecordType.PTR);
             var list = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (ptr.Length > 0)
+
+            try
             {
-                list.Add(ptr[0].Data.TrimEnd('.'));
+                var ptr = await QueryDns(ptrName, DnsRecordType.PTR);
+                if (ptr.Length > 0)
+                {
+                    list.Add(ptr[0].Data.TrimEnd('.'));
+                }
+
+                foreach (var dom in await QueryPassiveDns(ipStr, logger))
+                {
+                    list.Add(dom);
+                }
+
+                lock (Results)
+                {
+                    Results.Add(new IPNeighborResult { IpAddress = ipStr, Domains = list.ToList() });
+                }
             }
-            foreach (var dom in await QueryPassiveDns(ipStr, logger))
+            catch (Exception ex)
             {
-                list.Add(dom);
+                lock (Errors)
+                {
+                    Errors.Add(ex);
+                }
+                logger?.WriteError("Neighbor analysis failed for {0}: {1}", ipStr, ex.Message);
             }
-            Results.Add(new IPNeighborResult { IpAddress = ipStr, Domains = list.ToList() });
-        }
+        });
+
+        await Task.WhenAll(tasks);
     }
 }
