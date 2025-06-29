@@ -44,6 +44,6 @@ public sealed class CmdletTestFCrDns : AsyncPSCmdlet
     {
         _logger.WriteVerbose("Querying FCrDNS for domain: {0}", DomainName);
         await _healthCheck.Verify(DomainName, new[] { HealthCheckType.FCRDNS });
-        WriteObject(_healthCheck.FCrDnsAnalysis);
+        WriteObject(_healthCheck.FcrDnsAnalysis);
     }
 }

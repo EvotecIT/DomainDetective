@@ -387,7 +387,7 @@ internal class Program
                     HealthCheckType.DKIM => hc.DKIMAnalysis,
                     HealthCheckType.MX => hc.MXAnalysis,
                     HealthCheckType.REVERSEDNS => hc.ReverseDnsAnalysis,
-                    HealthCheckType.FCRDNS => hc.FCrDnsAnalysis,
+                    HealthCheckType.FCRDNS => hc.FcrDnsAnalysis,
                     HealthCheckType.CAA => hc.CAAAnalysis,
                     HealthCheckType.NS => hc.NSAnalysis,
                     HealthCheckType.DELEGATION => hc.NSAnalysis,
