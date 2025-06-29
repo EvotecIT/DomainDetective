@@ -87,7 +87,7 @@ namespace DomainDetective {
         /// Gets the DNSSEC analysis.
         /// </summary>
         /// <value>Information about DNSSEC chain validity.</value>
-        public DNSSecAnalysis DNSSecAnalysis { get; private set; } = new DNSSecAnalysis();
+        public DnsSecAnalysis DnsSecAnalysis { get; private set; } = new DnsSecAnalysis();
 
         /// <summary>
         /// Gets the MTA-STS analysis.

@@ -16,11 +16,11 @@ namespace DomainDetective.Tests {
         [Fact]
         public void SummaryUsesDnsSecResultWhenAvailable() {
             var healthCheck = new DomainHealthCheck();
-            var prop = typeof(DNSSecAnalysis).GetProperty(
+            var prop = typeof(DnsSecAnalysis).GetProperty(
                 "ChainValid",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
             )!;
-            prop.SetValue(healthCheck.DNSSecAnalysis, true);
+            prop.SetValue(healthCheck.DnsSecAnalysis, true);
 
             var summary = healthCheck.BuildSummary();
 
