@@ -159,7 +159,7 @@ namespace DomainDetective {
         /// <summary>Gets a flattened list of all DNSBL records returned.</summary>
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
 
-        internal InternalLogger Logger { get; set; }
+        internal InternalLogger Logger { get; set; } = new InternalLogger();
 
         /// <summary>
         /// Clears cached results allowing the instance to be reused.
@@ -176,11 +176,11 @@ namespace DomainDetective {
 
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
 
-            Logger.WriteVerbose($"Checking {domainName} against {DNSBLLists.Count} blacklists");
+            Logger?.WriteVerbose($"Checking {domainName} against {DNSBLLists.Count} blacklists");
             var resultsDomain = await ToListAsync(QueryDNSBL(DNSBLLists, domainName));
             ConvertToResults(domainName, resultsDomain);
 
-            Logger.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
+            Logger?.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
             foreach (var mxRecord in mxRecords) {
                 // Extract the IP address from the MX record data
                 string domainRecord = mxRecord.Data.Split(' ')[1];
@@ -190,7 +190,7 @@ namespace DomainDetective {
                     var ipAddress = response.Data;
                     // Perform the DNSBL check for the IP address
 
-                    Logger.WriteVerbose($"Checking {ipAddress} (MX record resolved) against {DNSBLLists.Count} blacklists");
+                    Logger?.WriteVerbose($"Checking {ipAddress} (MX record resolved) against {DNSBLLists.Count} blacklists");
                     var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
 
                     //// Add the MX record data to each DNSBLRecord
@@ -218,7 +218,7 @@ namespace DomainDetective {
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDNSBLRecords(string ipAddressOrHostname, InternalLogger logger) {
             Reset();
             Logger = logger;
-            Logger.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
+            Logger?.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var collected = new List<DNSBLRecord>();
             await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname)) {
                 collected.Add(record);
