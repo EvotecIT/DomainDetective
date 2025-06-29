@@ -29,6 +29,8 @@ namespace DomainDetective {
         public bool IsValid { get; set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; set; }
+        /// <summary>Gets whether the certificate matches the requested host.</summary>
+        public bool HostnameMatch { get; private set; }
         /// <summary>Gets or sets the number of days until expiry.</summary>
         public int DaysToExpire { get; set; }
         /// <summary>Gets the total validity period in days.</summary>
@@ -80,6 +82,8 @@ namespace DomainDetective {
         public bool Sha1Signature { get; private set; }
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
+        /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
+        public bool Tls13Used { get; private set; }
         /// <summary>Gets the negotiated cipher algorithm.</summary>
         public CipherAlgorithmType CipherAlgorithm { get; private set; }
         /// <summary>Gets the cipher strength.</summary>
@@ -112,6 +116,9 @@ namespace DomainDetective {
             Url = url;
             IsSelfSigned = false;
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
+#if NET8_0_OR_GREATER
+                handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
+#endif
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
                     Chain.Clear();
@@ -122,6 +129,7 @@ namespace DomainDetective {
                     }
                     IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
                     IsValid = policyErrors == SslPolicyErrors.None;
+                    HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return IsValid;
                 };
                 using (var client = new HttpClient(handler)) {
@@ -159,7 +167,10 @@ namespace DomainDetective {
 #else
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-                                using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, errors) => errors == SslPolicyErrors.None);
+                                using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
+                                    HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
+                                    return errors == SslPolicyErrors.None;
+                                });
 #if NET5_0_OR_GREATER
                                 var authOptions = new SslClientAuthenticationOptions { TargetHost = uri.Host };
                                 await ssl.AuthenticateAsClientAsync(authOptions, timeoutCts.Token);
@@ -440,12 +451,17 @@ namespace DomainDetective {
 #endif
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, false)
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
                 .WaitWithCancellation(timeoutCts.Token);
 #else
             await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
 #endif
             TlsProtocol = ssl.SslProtocol;
+#if NET8_0_OR_GREATER
+            Tls13Used = ssl.SslProtocol == SslProtocols.Tls13;
+#else
+            Tls13Used = (int)ssl.SslProtocol == 12288;
+#endif
             CipherAlgorithm = ssl.CipherAlgorithm;
             CipherStrength = ssl.CipherStrength;
 #if NET6_0_OR_GREATER

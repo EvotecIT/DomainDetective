@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
@@ -10,7 +11,15 @@ namespace DomainDetective {
     /// Provides functionality for retrieving and analysing MTA-STS policies.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MTASTSAnalysis {
+public class MTASTSAnalysis {
+    private record CacheEntry(string PolicyId, string Policy, DateTimeOffset Expires);
+    private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Duration a cached policy remains valid.</summary>
+    public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(1);
+
+    /// <summary>Removes all cached policies.</summary>
+    public static void ClearCache() => _cache.Clear();
         /// <summary>
         /// Gets the domain name that was analysed.
         /// </summary>
@@ -165,6 +174,15 @@ namespace DomainDetective {
             }
 
             string url = PolicyUrlOverride ?? $"https://mta-sts.{domainName}/.well-known/mta-sts.txt";
+            var key = PolicyUrlOverride ?? domainName;
+
+            if (_cache.TryGetValue(key, out var entry) && entry.Expires > DateTimeOffset.UtcNow && entry.PolicyId == PolicyId) {
+                PolicyPresent = true;
+                Policy = entry.Policy;
+                ParsePolicy(entry.Policy);
+                PolicyValid = PolicyValid && DnsRecordValid;
+                return;
+            }
 
             string content = await GetPolicy(url);
             if (content == null) {
@@ -177,6 +195,8 @@ namespace DomainDetective {
             Policy = content;
             ParsePolicy(content);
             PolicyValid = PolicyValid && DnsRecordValid;
+            var cacheEntry = new CacheEntry(PolicyId, content, DateTimeOffset.UtcNow.Add(CacheDuration));
+            _cache[key] = cacheEntry;
         }
 
         /// <summary>

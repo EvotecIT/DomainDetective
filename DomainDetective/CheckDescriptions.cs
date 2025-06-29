@@ -8,134 +8,167 @@ namespace DomainDetective;
 public static class CheckDescriptions {
     private static readonly IReadOnlyDictionary<HealthCheckType, CheckDescription> _map =
         new Dictionary<HealthCheckType, CheckDescription> {
+            // Verify DMARC
             [HealthCheckType.DMARC] = new(
-                "Perform a DMARC policy check.",
+                "Verify DMARC policy.",
                 "https://datatracker.ietf.org/doc/html/rfc7489",
                 "Publish a valid DMARC record."),
+            // Verify SPF
             [HealthCheckType.SPF] = new(
-                "Verify the SPF record.",
+                "Verify SPF record.",
                 "https://datatracker.ietf.org/doc/html/rfc7208",
                 "Add or correct the SPF TXT record."),
+            // Verify DKIM
             [HealthCheckType.DKIM] = new(
-                "Validate DKIM configuration.",
+                "Verify DKIM configuration.",
                 "https://datatracker.ietf.org/doc/html/rfc6376",
                 "Ensure DKIM selectors have valid keys."),
+            // Verify MX Records
             [HealthCheckType.MX] = new(
-                "Check MX records.",
+                "Verify MX records.",
                 "https://datatracker.ietf.org/doc/html/rfc5321",
                 "Create valid MX records and order them properly."),
+            // Verify reverse DNS (PTR)
             [HealthCheckType.REVERSEDNS] = new(
-                "Verify PTR records for MX hosts.",
+                "Verify reverse DNS (PTR).",
                 "https://datatracker.ietf.org/doc/html/rfc1035",
                 "Publish reverse DNS matching MX hostnames."),
+            // Verify forward-confirmed reverse DNS (FCrDNS)
             [HealthCheckType.FCRDNS] = new(
-                "Confirm PTR hostnames resolve back to the original IP.",
+                "Verify forward-confirmed reverse DNS (FCrDNS).",
                 "https://datatracker.ietf.org/doc/html/rfc1912",
                 "Ensure A/AAAA records match the reverse DNS."),
+            // Verify CAA
             [HealthCheckType.CAA] = new(
-                "Inspect CAA records.",
+                "Verify CAA records.",
                 "https://datatracker.ietf.org/doc/html/rfc6844",
                 "Configure allowed certificate authorities."),
+            // Verify NS Records
             [HealthCheckType.NS] = new(
                 "Verify NS records.",
                 null,
                 "Publish authoritative name servers."),
+            // Verify Delegation (parent NS and glue consistency)
             [HealthCheckType.DELEGATION] = new(
-                "Verify parent zone delegation records.",
+                "Verify delegation (parent NS and glue consistency).",
                 null,
                 "Ensure NS and glue data match the child zone."),
+            // Attempt Zone Transfer
             [HealthCheckType.ZONETRANSFER] = new(
                 "Attempt a zone transfer.",
                 null,
                 "Restrict AXFR to authenticated clients."),
+            // Verify DANE/TLSA (HTTPS on port 443 by default)
             [HealthCheckType.DANE] = new(
-                "Validate DANE information.",
+                "Verify DANE/TLSA.",
                 "https://datatracker.ietf.org/doc/html/rfc6698",
                 "Provide TLSA records for services."),
+            // Verify Blacklist (DNSBL)
             [HealthCheckType.DNSBL] = new(
-                "Check DNSBL listings.",
+                "Verify blacklist (DNSBL).",
                 null,
                 "Request delisting if blacklisted."),
+            // Verify DNSSEC
             [HealthCheckType.DNSSEC] = new(
-                "Validate DNSSEC configuration.",
+                "Verify DNSSEC.",
                 null,
                 "Sign zones and publish DS records."),
+            // Verify MTA-STS
             [HealthCheckType.MTASTS] = new(
-                "Check MTA-STS policy.",
+                "Verify MTA-STS.",
                 null,
                 "Publish a valid MTA-STS policy."),
+            // Verify TLS-RPT
             [HealthCheckType.TLSRPT] = new(
-                "Check TLS-RPT configuration.",
+                "Verify TLS-RPT.",
                 "https://datatracker.ietf.org/doc/html/rfc8460",
                 "Add a TLSRPT record with valid rua addresses."),
+            // Verify BIMI
             [HealthCheckType.BIMI] = new(
-                "Validate BIMI records.",
+                "Verify BIMI records.",
                 null,
                 "Provide a valid BIMI record and hosted logo."),
+            // Verify Autodiscover
             [HealthCheckType.AUTODISCOVER] = new(
-                "Check Autodiscover configuration.",
+                "Verify Autodiscover configuration.",
                 null,
                 "Publish SRV and CNAME records for Autodiscover."),
+            // Verify Certificate
             [HealthCheckType.CERT] = new(
-                "Inspect certificate records.",
+                "Verify website certificate.",
                 null,
                 "Ensure certificates are valid and not expired."),
+            // Verify SecurityTXT
             [HealthCheckType.SECURITYTXT] = new(
-                "Check for security.txt presence.",
+                "Verify SecurityTXT.",
                 null,
                 "Host a valid security.txt file."),
+            // Verify SOA Records
             [HealthCheckType.SOA] = new(
-                "Inspect SOA records.",
+                "Verify SOA records.",
                 null,
                 "Publish correct start of authority details."),
+            // Verify Open Relay (SMTP)
             [HealthCheckType.OPENRELAY] = new(
-                "Detect open SMTP relay.",
+                "Verify open relay (SMTP).",
                 null,
                 "Disable unauthenticated relaying."),
+            // Verify STARTTLS (detect advertisement downgrades)
             [HealthCheckType.STARTTLS] = new(
-                "Validate STARTTLS support and detect advertisement downgrades.",
+                "Verify STARTTLS and detect downgrades.",
                 null,
                 "Enable STARTTLS on mail servers."),
+            // Verify SMTP TLS
             [HealthCheckType.SMTPTLS] = new(
                 "Verify SMTP TLS configuration.",
                 null,
                 "Use modern TLS and strong ciphers."),
+            // Verify SMTP Banner
             [HealthCheckType.SMTPBANNER] = new(
-                "Capture SMTP banner information.",
+                "Verify SMTP banner.",
                 null,
                 "Verify host name and software identifiers."),
+            // Enumerate SMTP AUTH mechanisms
             [HealthCheckType.SMTPAUTH] = new(
                 "Enumerate SMTP AUTH mechanisms.",
                 null,
                 "Enable secure authentication methods and disable weak ones."),
+            // Verify Website Connectivity
             [HealthCheckType.HTTP] = new(
-                "Perform HTTP checks.",
+                "Verify website connectivity.",
                 null,
                 "Serve websites over HTTPS and respond correctly."),
+            // Verify HPKP
             [HealthCheckType.HPKP] = new(
-                "Validate HPKP configuration.",
+                "Verify HPKP configuration.",
                 null,
                 "Remove or update stale HPKP headers."),
+            // Query contact TXT record
             [HealthCheckType.CONTACT] = new(
                 "Query contact TXT record.",
                 null,
                 "Publish contact TXT information."),
+            // Parse message headers
             [HealthCheckType.MESSAGEHEADER] = new(
                 "Parse message headers.",
                 null,
                 "Inspect headers for anomalies."),
+            // Validate ARC headers
             [HealthCheckType.ARC] = new(
                 "Validate ARC headers.",
                 "https://datatracker.ietf.org/doc/html/rfc8617",
                 "Ensure ARC-Seal and ARC-Authentication-Results align."),
+            // Check for dangling CNAME records
             [HealthCheckType.DANGLINGCNAME] = new(
-                "Detect dangling CNAME records.",
+                "Check for dangling CNAME records.",
                 null,
                 "Remove or update broken CNAME targets."),
+            // Analyze DNS TTL
             [HealthCheckType.TTL] = new(
-                "Analyze DNS record TTL values.",
+                "Analyze DNS TTL.",
                 null,
                 "Adjust TTLs within recommended ranges."),
+            // Test common service ports for availability
             [HealthCheckType.PORTAVAILABILITY] = new(
                 "Test common service ports for availability.",
                 null,
@@ -144,30 +177,41 @@ public static class CheckDescriptions {
                 "Scan a host for open TCP and UDP ports.",
                 null,
                 "Harden or disable unnecessary services."),
+            // List IP neighbors via reverse/passive DNS
             [HealthCheckType.IPNEIGHBOR] = new(
-                "List domains hosted on the same IP address.",
+                "List IP neighbors via reverse or passive DNS.",
                 null,
                 "Investigate shared hosting risks."),
+            // Detect DNS tunneling from logs
             [HealthCheckType.DNSTUNNELING] = new(
-                "Analyze DNS logs for tunneling patterns.",
+                "Detect DNS tunneling from logs.",
                 null,
                 "Inspect queries for potential tunneling."),
+            // Check for typosquatting domains
             [HealthCheckType.TYPOSQUATTING] = new(
                 "Check for typosquatting domains.",
                 null,
                 "Monitor and register common look-alike domains."),
+            // Query reputation services for threats
             [HealthCheckType.THREATINTEL] = new(
                 "Query reputation services for threats.",
                 null,
                 "Review listed threats and request delisting"),
+            // Detect wildcard DNS catch-all
             [HealthCheckType.WILDCARDDNS] = new(
-                "Detect wildcard DNS responses.",
+                "Detect wildcard DNS catch-all.",
                 null,
                 "Remove or adjust catch-all DNS entries."),
+            // Verify EDNS support
             [HealthCheckType.EDNSSUPPORT] = new(
-                "Test EDNS support on name servers.",
+                "Verify EDNS support.",
                 null,
-                "Ensure name servers respond to EDNS queries.")
+                "Ensure name servers respond to EDNS queries."),
+            // Detect CNAME flattening services (e.g., Cloudflare)
+            [HealthCheckType.FLATTENINGSERVICE] = new(
+                "Detect CNAME flattening services.",
+                null,
+                "Review CNAME targets and consider removing provider-specific aliases.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

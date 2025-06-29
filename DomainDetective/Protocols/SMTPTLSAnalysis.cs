@@ -24,6 +24,8 @@ namespace DomainDetective {
             public int DaysToExpire { get; set; }
             public SslProtocols Protocol { get; set; }
             public bool SupportsTls13 { get; set; }
+            public bool Tls13Used { get; set; }
+            public bool HostnameMatch { get; set; }
             public CipherAlgorithmType CipherAlgorithm { get; set; }
             public int CipherStrength { get; set; }
             public string CipherSuite { get; set; } = string.Empty;
@@ -116,6 +118,7 @@ namespace DomainDetective {
 
                         using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) => {
                             result.CertificateValid = errors == SslPolicyErrors.None;
+                            result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                             result.Chain.Clear();
                             result.ChainErrors.Clear();
                             if (certificate is X509Certificate2 cert) {
@@ -156,8 +159,10 @@ namespace DomainDetective {
                             result.Protocol = ssl.SslProtocol;
 #if NET8_0_OR_GREATER
                             result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
+                            result.Tls13Used = result.SupportsTls13;
 #else
                             result.SupportsTls13 = (int)result.Protocol == 12288;
+                            result.Tls13Used = result.SupportsTls13;
 #endif
                         }
                     }

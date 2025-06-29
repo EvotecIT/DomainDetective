@@ -57,6 +57,7 @@ internal class Program
         var summaryOption = new Option<bool>("--summary", "Show condensed summary");
         var jsonOption = new Option<bool>("--json", "Output raw JSON");
         var subPolicyOption = new Option<bool>("--subdomain-policy", "Include DMARC sp tag in policy evaluation");
+        var danePortsOption = new Option<string?>("--dane-ports", "Comma separated list of DANE ports");
         var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
         var certOption = new Option<FileInfo?>("--cert", "Parse general certificate file and exit");
         root.Add(domainsArg);
@@ -65,6 +66,7 @@ internal class Program
         root.Add(summaryOption);
         root.Add(jsonOption);
         root.Add(subPolicyOption);
+        root.Add(danePortsOption);
         root.Add(smimeOption);
         root.Add(certOption);
 
@@ -163,6 +165,7 @@ internal class Program
             var summary = result.GetValue(summaryOption);
             var json = result.GetValue(jsonOption);
             var subPolicy = result.GetValue(subPolicyOption);
+            var danePortsValue = result.GetValue(danePortsOption);
             var smime = result.GetValue(smimeOption);
             var cert = result.GetValue(certOption);
 
@@ -198,7 +201,14 @@ internal class Program
             }
 
             var arr = selected.Count > 0 ? selected.ToArray() : null;
-            await RunChecks(domains, arr, checkHttp, json, summary, subPolicy);
+            int[]? danePorts = null;
+            if (!string.IsNullOrWhiteSpace(danePortsValue)) {
+                danePorts = danePortsValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(p => int.TryParse(p, out var val) ? val : 0)
+                    .Where(p => p > 0)
+                    .ToArray();
+            }
+            await RunChecks(domains, arr, checkHttp, json, summary, subPolicy, danePorts);
         });
 
         var config = new CommandLineConfiguration(root);
@@ -336,19 +346,19 @@ internal class Program
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, null);
         return 0;
     }
 
     /// <summary>
     /// Runs the selected health checks for the provided domains.
     /// </summary>
-    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy)
+    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, int[]? danePorts)
     {
         foreach (var domain in domains)
         {
             var hc = new DomainHealthCheck { Verbose = false, UseSubdomainPolicy = subdomainPolicy };
-            await hc.Verify(domain, checks);
+            await hc.Verify(domain, checks, null, null, danePorts);
             if (checkHttp)
             {
                 await hc.VerifyPlainHttp(domain);

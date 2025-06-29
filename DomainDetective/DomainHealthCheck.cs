@@ -259,6 +259,12 @@ namespace DomainDetective {
         /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
         public EdnsSupportAnalysis EDNSSUPPORTAnalysis => EdnsSupportAnalysis;
 
+        /// <summary>Gets the flattening service analysis.</summary>
+        /// <value>Information about CNAME flattening services.</value>
+        public FlatteningServiceAnalysis FlatteningServiceAnalysis { get; private set; } = new FlatteningServiceAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public FlatteningServiceAnalysis FLATTENINGSERVICEAnalysis => FlatteningServiceAnalysis;
+
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
         /// <summary>
@@ -326,6 +332,7 @@ namespace DomainDetective {
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
             WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
             EdnsSupportAnalysis.DnsConfiguration = DnsConfiguration;
+            FlatteningServiceAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);

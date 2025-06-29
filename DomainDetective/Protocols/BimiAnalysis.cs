@@ -39,6 +39,8 @@ namespace DomainDetective {
         public bool SvgValid { get; private set; }
         /// <summary>Gets a value indicating whether the downloaded VMC is valid.</summary>
         public bool ValidVmc { get; private set; }
+        /// <summary>Gets a value indicating whether the VMC certificate is signed by a trusted CA.</summary>
+        public bool VmcSignedByKnownRoot { get; private set; }
 
         /// <summary>
         /// Processes BIMI DNS records and populates analysis properties.
@@ -60,6 +62,7 @@ namespace DomainDetective {
             SvgFetched = false;
             SvgValid = false;
             ValidVmc = false;
+            VmcSignedByKnownRoot = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -122,7 +125,7 @@ namespace DomainDetective {
                     logger?.WriteWarning("BIMI authority URL does not use HTTPS: {0}", Authority);
                 }
 
-                ValidVmc = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
+                (ValidVmc, VmcSignedByKnownRoot) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
             }
         }
 
@@ -153,14 +156,14 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<bool> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private static async Task<(bool valid, bool signedByKnownRoot)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
-                    return false;
+                    return (false, false);
                 }
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
@@ -170,10 +173,15 @@ namespace DomainDetective {
                 chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
                 var signed = chain.Build(cert);
                 var notExpired = cert.NotAfter > DateTime.Now;
-                return signed && notExpired;
+
+                using var trustedChain = new X509Chain();
+                trustedChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                var trusted = trustedChain.Build(cert);
+
+                return (signed && notExpired, trusted && notExpired);
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI VMC {0}: {1}", url, ex.Message);
-                return false;
+                return (false, false);
             }
         }
 

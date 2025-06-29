@@ -21,6 +21,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <param name="Ports">Custom ports to query.</param>
+        [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServerName")]
+        public int[]? Ports;
+
         /// <param name="FullResponse">Return full analysis object.</param>
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
@@ -39,7 +43,8 @@ namespace DomainDetective.PowerShell {
         }
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DANE record for domain: {0}", DomainName);
-            await healthCheck.VerifyDANE(DomainName, [ServiceType.SMTP]);
+            var ports = Ports != null && Ports.Length > 0 ? Ports : new[] { (int)ServiceType.SMTP };
+            await healthCheck.VerifyDANE(DomainName, ports);
             WriteObject(healthCheck.DaneAnalysis);
         }
     }

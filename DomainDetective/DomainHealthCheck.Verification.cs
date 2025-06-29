@@ -2,10 +2,12 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
+using DomainDetective.Network;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
@@ -41,8 +43,9 @@ namespace DomainDetective {
         /// <param name="healthCheckTypes">Health checks to execute or <c>null</c> for defaults.</param>
         /// <param name="dkimSelectors">DKIM selectors to use when verifying DKIM.</param>
         /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
+        /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, CancellationToken cancellationToken = default) {
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, int[] danePorts = null, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -123,7 +126,11 @@ namespace DomainDetective {
                         await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
                         break;
                     case HealthCheckType.DANE:
-                        await VerifyDANE(domainName, daneServiceType, cancellationToken);
+                        if (danePorts != null && danePorts.Length > 0) {
+                            await VerifyDANE(domainName, danePorts, cancellationToken);
+                        } else {
+                            await VerifyDANE(domainName, daneServiceType, cancellationToken);
+                        }
                         break;
                     case HealthCheckType.DNSSEC:
                         DnsSecAnalysis = new DnsSecAnalysis();
@@ -226,12 +233,15 @@ namespace DomainDetective {
                         await VerifyTyposquatting(domainName, cancellationToken);
                         break;
                     case HealthCheckType.WILDCARDDNS:
-                        WildcardDnsAnalysis = new WildcardDnsAnalysis { DnsConfiguration = DnsConfiguration };
-                        await WildcardDnsAnalysis.Analyze(domainName, _logger);
+                        await VerifyWildcardDns(domainName);
                         break;
                     case HealthCheckType.EDNSSUPPORT:
                         EdnsSupportAnalysis = new EdnsSupportAnalysis { DnsConfiguration = DnsConfiguration };
                         await EdnsSupportAnalysis.Analyze(domainName, _logger);
+                        break;
+                    case HealthCheckType.FLATTENINGSERVICE:
+                        FlatteningServiceAnalysis = new FlatteningServiceAnalysis { DnsConfiguration = DnsConfiguration };
+                        await FlatteningServiceAnalysis.Analyze(domainName, _logger, cancellationToken);
                         break;
                     case HealthCheckType.THREATINTEL:
                         await VerifyThreatIntel(domainName, cancellationToken);
@@ -487,6 +497,20 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Tests authoritative name servers for EDNS support.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyEdnsSupport(string domainName, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            await EdnsSupportAnalysis.Analyze(domainName, _logger);
+        }
+
+        /// <summary>
         /// Analyzes a raw TLSRPT record.
         /// </summary>
         /// <param name="tlsRptRecord">TLSRPT record text.</param>
@@ -526,6 +550,20 @@ namespace DomainDetective {
                     Type = DnsRecordType.TXT
                 }
             }, _logger);
+        }
+
+        /// <summary>
+        /// Queries random subdomains to detect wildcard DNS behavior.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="sampleCount">Number of names to test.</param>
+        public async Task VerifyWildcardDns(string domainName, int sampleCount = 3) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            UpdateIsPublicSuffix(domainName);
+            WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
+            await WildcardDnsAnalysis.Analyze(domainName, _logger, sampleCount);
         }
 
         /// <summary>
@@ -886,6 +924,29 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Sends an ICMP echo request to a host.
+        /// </summary>
+        /// <param name="host">Target host name or address.</param>
+        /// <param name="timeout">Timeout in milliseconds.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task<PingReply> VerifyPing(string host, int timeout = 4000, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PingTraceroute.PingAsync(host, timeout, _logger);
+        }
+
+        /// <summary>
+        /// Performs a traceroute to the specified host.
+        /// </summary>
+        /// <param name="host">Target host name or address.</param>
+        /// <param name="maxHops">Maximum number of hops to probe.</param>
+        /// <param name="timeout">Timeout per hop in milliseconds.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task<IReadOnlyList<PingTraceroute.TracerouteHop>> VerifyTraceroute(string host, int maxHops = 30, int timeout = 4000, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await PingTraceroute.TracerouteAsync(host, maxHops, timeout, _logger);
+        }
+
+        /// <summary>
         /// Checks an IP address against configured DNS block lists.
         /// </summary>
         /// <param name="ipAddress">IP address to query.</param>
@@ -955,7 +1016,8 @@ namespace DomainDetective {
                 ExpiryDate = WhoisAnalysis.ExpiryDate,
                 ExpiresSoon = WhoisAnalysis.ExpiresSoon,
                 IsExpired = WhoisAnalysis.IsExpired,
-                RegistrarLocked = WhoisAnalysis.RegistrarLocked
+                RegistrarLocked = WhoisAnalysis.RegistrarLocked,
+                PrivacyProtected = WhoisAnalysis.PrivacyProtected
             };
         }
 
@@ -1040,6 +1102,7 @@ namespace DomainDetective {
             filtered.ThreatIntelAnalysis = active.Contains(HealthCheckType.THREATINTEL) ? CloneAnalysis(ThreatIntelAnalysis) : null;
             filtered.WildcardDnsAnalysis = active.Contains(HealthCheckType.WILDCARDDNS) ? CloneAnalysis(WildcardDnsAnalysis) : null;
             filtered.EdnsSupportAnalysis = active.Contains(HealthCheckType.EDNSSUPPORT) ? CloneAnalysis(EdnsSupportAnalysis) : null;
+            filtered.FlatteningServiceAnalysis = active.Contains(HealthCheckType.FLATTENINGSERVICE) ? CloneAnalysis(FlatteningServiceAnalysis) : null;
 
             return filtered;
         }
