@@ -4,9 +4,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.IO;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace DomainDetective {
     /// <summary>
@@ -260,6 +262,57 @@ namespace DomainDetective {
                 "PRIVATEOID" => 254,
                 _ => 0,
             };
+        }
+
+        /// <summary>
+        /// Downloads the current trust anchors published by IANA.
+        /// </summary>
+        /// <param name="logger">Optional logger for diagnostics.</param>
+        /// <returns>List of DS record strings for the root zone.</returns>
+        public static async Task<IReadOnlyList<string>> DownloadTrustAnchors(InternalLogger logger = null) {
+            const string url = "https://data.iana.org/root-anchors/root-anchors.xml";
+            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");
+            string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");
+
+            try {
+                if (File.Exists(cacheFile) && DateTime.UtcNow - File.GetLastWriteTimeUtc(cacheFile) < TimeSpan.FromDays(7)) {
+                    var cached = await File.ReadAllTextAsync(cacheFile).ConfigureAwait(false);
+                    return ParseTrustAnchors(cached);
+                }
+
+                Directory.CreateDirectory(cacheDir);
+                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+                using var client = new HttpClient(handler);
+                var xml = await client.GetStringAsync(url).ConfigureAwait(false);
+                await File.WriteAllTextAsync(cacheFile, xml).ConfigureAwait(false);
+                return ParseTrustAnchors(xml);
+            } catch (Exception ex) {
+                logger?.WriteVerbose("Trust anchor download failed: {0}", ex.Message);
+                if (File.Exists(cacheFile)) {
+                    var cached = await File.ReadAllTextAsync(cacheFile).ConfigureAwait(false);
+                    return ParseTrustAnchors(cached);
+                }
+                return Array.Empty<string>();
+            }
+        }
+
+        private static IReadOnlyList<string> ParseTrustAnchors(string xml) {
+            try {
+                var doc = XDocument.Parse(xml);
+                List<string> anchors = new();
+                foreach (var kd in doc.Descendants("KeyDigest")) {
+                    var keyTag = kd.Element("KeyTag")?.Value;
+                    var algorithm = kd.Element("Algorithm")?.Value;
+                    var digestType = kd.Element("DigestType")?.Value;
+                    var digest = kd.Element("Digest")?.Value;
+                    if (!string.IsNullOrEmpty(keyTag) && !string.IsNullOrEmpty(algorithm) && !string.IsNullOrEmpty(digestType) && !string.IsNullOrEmpty(digest)) {
+                        anchors.Add($"{keyTag} {algorithm} {digestType} {digest}");
+                    }
+                }
+                return anchors;
+            } catch {
+                return Array.Empty<string>();
+            }
         }
 
         /// <summary>
