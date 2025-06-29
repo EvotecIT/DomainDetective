@@ -225,6 +225,10 @@ namespace DomainDetective {
         /// <value>TCP port connectivity results.</value>
         public PortAvailabilityAnalysis PortAvailabilityAnalysis { get; private set; } = new PortAvailabilityAnalysis();
 
+        /// <summary>Gets the port scan analysis.</summary>
+        /// <value>Open port results.</value>
+        public PortScanAnalysis PortScanAnalysis { get; private set; } = new PortScanAnalysis();
+
         /// <summary>Gets the IP neighbor analysis.</summary>
         /// <value>Domains sharing the same IP address.</value>
         public IPNeighborAnalysis IPNeighborAnalysis { get; private set; } = new IPNeighborAnalysis();
@@ -315,6 +319,7 @@ namespace DomainDetective {
             };
 
             PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
+            PortScanAnalysis = new PortScanAnalysis();
 
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTunnelingAnalysis = new DnsTunnelingAnalysis();

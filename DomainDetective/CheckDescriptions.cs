@@ -140,6 +140,10 @@ public static class CheckDescriptions {
                 "Test common service ports for availability.",
                 null,
                 "Ensure required services accept connections."),
+            [HealthCheckType.PORTSCAN] = new(
+                "Scan a host for open TCP and UDP ports.",
+                null,
+                "Harden or disable unnecessary services."),
             [HealthCheckType.IPNEIGHBOR] = new(
                 "List domains hosted on the same IP address.",
                 null,

@@ -71,6 +71,8 @@ public enum HealthCheckType {
     TTL,
     /// <summary>Test common service ports for availability.</summary>
     PORTAVAILABILITY,
+    /// <summary>Scan a host for open TCP and UDP ports.</summary>
+    PORTSCAN,
     /// <summary>List domains hosted on the same IP address.</summary>
     IPNEIGHBOR,
     /// <summary>Analyze DNS logs for tunneling patterns.</summary>

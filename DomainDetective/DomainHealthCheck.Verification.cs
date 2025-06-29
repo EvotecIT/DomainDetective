@@ -213,6 +213,9 @@ namespace DomainDetective {
                     case HealthCheckType.PORTAVAILABILITY:
                         await CheckPortAvailability(domainName, null, cancellationToken);
                         break;
+                    case HealthCheckType.PORTSCAN:
+                        await ScanPorts(domainName, null, cancellationToken);
+                        break;
                     case HealthCheckType.IPNEIGHBOR:
                         await CheckIPNeighbors(domainName, cancellationToken);
                         break;
@@ -433,6 +436,20 @@ namespace DomainDetective {
                 ValidatePort(p);
             }
             await PortAvailabilityAnalysis.AnalyzeServers(new[] { host }, list, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Scans a host for open TCP and UDP ports.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="ports">Ports to scan. Defaults to the top 1000 ports.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) {
+            var list = ports?.ToArray() ?? PortScanAnalysis.DefaultPorts;
+            foreach (var p in list) {
+                ValidatePort(p);
+            }
+            await PortScanAnalysis.Scan(host, list, _logger, cancellationToken);
         }
 
         /// <summary>Queries neighbors sharing the same IP as <paramref name="domainName"/>.</summary>
@@ -1016,6 +1033,7 @@ namespace DomainDetective {
             filtered.DanglingCnameAnalysis = active.Contains(HealthCheckType.DANGLINGCNAME) ? CloneAnalysis(DanglingCnameAnalysis) : null;
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
             filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
+            filtered.PortScanAnalysis = active.Contains(HealthCheckType.PORTSCAN) ? CloneAnalysis(PortScanAnalysis) : null;
             filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null;
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
             filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null;
