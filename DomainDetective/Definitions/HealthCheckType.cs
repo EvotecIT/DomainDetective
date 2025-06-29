@@ -78,5 +78,9 @@ public enum HealthCheckType {
     /// <summary>Check for typosquatting domains.</summary>
     TYPOSQUATTING,
     /// <summary>Query reputation services for threats.</summary>
-    THREATINTEL
+    THREATINTEL,
+    /// <summary>Detect wildcard DNS responses.</summary>
+    WILDCARDDNS,
+    /// <summary>Test EDNS support on name servers.</summary>
+    EDNSSUPPORT
 }

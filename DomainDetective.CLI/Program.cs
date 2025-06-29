@@ -36,7 +36,9 @@ internal class Program
         ["autodiscover"] = HealthCheckType.AUTODISCOVER,
         ["ports"] = HealthCheckType.PORTAVAILABILITY,
         ["ipneighbor"] = HealthCheckType.IPNEIGHBOR,
-        ["dnstunneling"] = HealthCheckType.DNSTUNNELING
+        ["dnstunneling"] = HealthCheckType.DNSTUNNELING,
+        ["wildcarddns"] = HealthCheckType.WILDCARDDNS,
+        ["edns"] = HealthCheckType.EDNSSUPPORT
     };
 
     /// <summary>
@@ -390,6 +392,8 @@ internal class Program
                     HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,
                     HealthCheckType.IPNEIGHBOR => hc.IPNeighborAnalysis,
                     HealthCheckType.DNSTUNNELING => hc.DnsTunnelingAnalysis,
+                    HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
+                    HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
                     _ => null
                 };
                 if (data != null)

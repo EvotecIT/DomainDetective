@@ -43,6 +43,8 @@ Current capabilities include:
 - [x] Verify Blacklist (DNSBL)
 - [x] List IP neighbors via reverse/passive DNS
 - [x] Detect DNS tunneling from logs
+- [x] Detect wildcard DNS catch-all
+- [x] Verify EDNS support
 - [x] Check propagation of DNS records across the world/country/company
 - [x] Verify WHOIS
 - [ ] Other things that I haven't thought of yet
@@ -176,6 +178,18 @@ Analyze TTL values:
 
 ```powershell
 Test-DnsTtl -DomainName "example.com"
+```
+
+Check wildcard DNS:
+
+```powershell
+Test-WildcardDns -DomainName "example.com"
+```
+
+Check EDNS support:
+
+```powershell
+Test-EdnsSupport -DomainName "example.com"
 ```
 
 Analyze ARC headers from PowerShell:
