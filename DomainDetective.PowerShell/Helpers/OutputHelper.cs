@@ -32,6 +32,8 @@ namespace DomainDetective.PowerShell {
                     Flags = result.Flags,
                     ValidFlags = result.ValidFlags,
                     UnknownFlagCharacters = result.UnknownFlagCharacters,
+                    Canonicalization = result.Canonicalization,
+                    ValidCanonicalization = result.ValidCanonicalization,
                     KeyType = result.KeyType,
                     HashAlgorithm = result.HashAlgorithm
                 };
@@ -115,6 +117,10 @@ namespace DomainDetective.PowerShell {
         public bool ValidFlags { get; set; }
         /// <summary>Unexpected characters found in the flags.</summary>
         public string UnknownFlagCharacters { get; set; }
+        /// <summary>Canonicalization modes specified.</summary>
+        public string Canonicalization { get; set; }
+        /// <summary>Validation result for the canonicalization value.</summary>
+        public bool ValidCanonicalization { get; set; }
 
         /// <summary>Key type value.</summary>
         public string KeyType { get; set; }

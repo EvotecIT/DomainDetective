@@ -105,6 +105,13 @@ namespace DomainDetective {
                             analysis.ValidKeyType = string.Equals(value, "rsa", StringComparison.OrdinalIgnoreCase) ||
                                 string.Equals(value, "ed25519", StringComparison.OrdinalIgnoreCase);
                             break;
+                        case "c":
+                            analysis.Canonicalization = value;
+                            var parts = value.ToLowerInvariant().Split('/');
+                            analysis.ValidCanonicalization =
+                                (parts.Length is 1 or 2) &&
+                                parts.All(p => p == "simple" || p == "relaxed");
+                            break;
                         case "h":
                             analysis.HashAlgorithm = value;
                             break;
@@ -178,6 +185,10 @@ namespace DomainDetective {
         public string UnknownFlagCharacters { get; set; }
         /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
         public bool ValidFlags { get; set; }
+        /// <summary>Canonicalization modes specified in the record.</summary>
+        public string Canonicalization { get; set; }
+        /// <summary>Gets a value indicating whether the canonicalization string is valid.</summary>
+        public bool ValidCanonicalization { get; set; }
         /// <summary>Gets or sets the key type.</summary>
         public string KeyType { get; set; }
         /// <summary>Gets or sets the hash algorithm type.</summary>
