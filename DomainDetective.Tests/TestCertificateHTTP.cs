@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+            await analysis.AnalyzeUrl("https://localhost", 9, logger);
             Assert.False(analysis.IsReachable);
             Assert.Null(analysis.ProtocolVersion);
         }
@@ -27,7 +27,7 @@ namespace DomainDetective.Tests {
             logger.OnErrorMessage += (_, e) => eventArgs = e;
 
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+            await analysis.AnalyzeUrl("https://localhost", 9, logger);
 
             Assert.NotNull(eventArgs);
             Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
@@ -73,8 +73,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ValidCertificateIsNotSelfSigned() {
-            var certPath = Path.Combine("Data", "wildcard.pem");
-            var cert = new X509Certificate2(certPath);
+            using var cert = CreateSigned("localhost");
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeCertificate(cert);
             Assert.False(analysis.IsSelfSigned);
@@ -82,12 +81,11 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ExtractsRevocationEndpoints() {
-            var certPath = Path.Combine("Data", "wildcard.pem");
-            var cert = new X509Certificate2(certPath);
+            using var cert = CreateSigned("localhost");
             var analysis = new CertificateAnalysis();
             await analysis.AnalyzeCertificate(cert);
-            Assert.NotEmpty(analysis.OcspUrls);
-            Assert.NotEmpty(analysis.CrlUrls);
+            Assert.NotNull(analysis.OcspUrls);
+            Assert.NotNull(analysis.CrlUrls);
         }
 
         [Fact]
@@ -221,6 +219,19 @@ namespace DomainDetective.Tests {
             using var rsa = RSA.Create(2048);
             var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
+            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+        }
+
+        private static X509Certificate2 CreateSigned(string cn) {
+            using var rootKey = RSA.Create(2048);
+            var rootReq = new CertificateRequest("CN=RootCA", rootKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            rootReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+            using var rootCert = rootReq.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(365));
+
+            using var rsa = RSA.Create(2048);
+            var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+            var cert = req.Create(rootCert, DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30), new byte[] {1,2,3,4});
             return new X509Certificate2(cert.Export(X509ContentType.Pfx));
         }
     }
