@@ -1,4 +1,5 @@
 using DomainDetective;
+using DnsClientX;
 using Spectre.Console;
 using System.CommandLine;
 using System.CommandLine.Invocation;
@@ -159,7 +160,11 @@ internal class Program
         var dnsProp = new Command("DnsPropagation", "Check DNS propagation across public resolvers");
         var propDomain = new Option<string>("--domain", "Domain to query");
         var propType = new Option<DnsRecordType>("--record-type", "DNS record type");
-        var propServers = new Option<FileInfo>("--servers-file", () => new FileInfo("Data/DNS/PublicDNS.json"), "Servers JSON file");
+        var propServers = new Option<FileInfo>("--servers-file")
+        {
+            Description = "Servers JSON file",
+            DefaultValueFactory = _ => new FileInfo("Data/DNS/PublicDNS.json")
+        };
         var propJson = new Option<bool>("--json", "Output raw JSON");
         var propCompare = new Option<bool>("--compare-results", "Return aggregated comparison of results");
         dnsProp.Add(propDomain);
