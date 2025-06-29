@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -68,6 +69,8 @@ namespace DomainDetective {
         public bool Enabled { get; set; } = true;
         /// <summary>Gets or sets optional descriptive text.</summary>
         public string Comment { get; set; }
+        /// <summary>Gets or sets provider specific reply codes.</summary>
+        public Dictionary<string, DnsblReplyCode> ReplyCodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
         public DnsblEntry() { }
         public DnsblEntry(string domain, bool enabled = true, string comment = null) {
@@ -84,6 +87,36 @@ namespace DomainDetective {
     public partial class DNSBLAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
 
+        private static readonly List<DnsblEntry> _defaultEntries = new();
+        private static readonly List<DnsblEntry> _defaultDomainBlockLists = new();
+        private static Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase);
+        private const string DefaultUpdateUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/dnsbl.json";
+
+        static DNSBLAnalysis() {
+            using var stream = typeof(DNSBLAnalysis).Assembly.GetManifestResourceStream("DomainDetective.dnsbl.json");
+            if (stream != null) {
+                using var reader = new StreamReader(stream);
+                var json = reader.ReadToEnd();
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
+                if (config != null) {
+                    if (config.Providers != null) {
+                        foreach (var provider in config.Providers) {
+                            _defaultEntries.Add(provider);
+                            if (provider.ReplyCodes?.Count > 0) {
+                                _providerReplyCodes[provider.Domain] = provider.ReplyCodes.ToDictionary(
+                                    c => c.Key,
+                                    c => (c.Value.IsListed, c.Value.Meaning),
+                                    StringComparer.OrdinalIgnoreCase);
+                            }
+                        }
+                    }
+                    if (config.DomainBlockLists != null)
+                        _defaultDomainBlockLists.AddRange(config.DomainBlockLists);
+                }
+            }
+        }
+
         /// <summary>
         /// Gets the collection of configured DNSBL provider entries.
         /// Use <see cref="AddDNSBL(string, bool, string)"/>, <see cref="RemoveDNSBL(string)"/>,
@@ -93,135 +126,17 @@ namespace DomainDetective {
         /// <value>
         /// The DNSBL provider entries.
         /// </value>
-        internal List<DnsblEntry> DnsblEntries { get; } = new()
-        {
-            new("all.s5h.net"),
-            new("auth.spamrats.com"),
-            new("b.barracudacentral.org"),
-            new("bad.virusfree.cz"),
-            new("badconf.rhsbl.sorbs.net"),
-            new("bip.virusfree.cz"),
-            new("bl.0spam.org"),
-            new("bl.blocklist.de"),
-            new("bl.deadbeef.com"),
-            new("bl.mailspike.org"),
-            new("bl.nordspam.com"),
-            new("bl.spamcop.net"),
-            new("black.dnsbl.brukalai.lt"),
-            new("black.mail.abusix.zone"),
-            new("blackholes.five-ten-sg.com"),
-            new("blacklist.woody.ch"),
-            new("block.dnsbl.sorbs.net"),
-            new("bogons.cymru.com"),
-            new("cbl.abuseat.org"),
-            new("combined.abuse.ch"),
-            new("combined.mail.abusix.zone"),
-            new("combined.rbl.msrbl.net"),
-            new("db.wpbl.info"),
-            new("dbl.0spam.org"),
-            new("dbl.nordspam.com"),
-            new("dbl.spamhaus.org"),
-            new("dblack.mail.abusix.zone"),
-            new("diskhash.mail.abusix.zone"),
-            new("dnsbl.cyberlogic.net"),
-            new("dnsbl.dronebl.org"),
-            new("dnsbl.inps.de"),
-            new("dnsbl.justspam.org"),
-            new("dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("dnsbl-1.uceprotect.net"),
-            new("dnsbl-2.uceprotect.net"),
-            new("dnsbl-3.uceprotect.net"),
-            new("drone.abuse.ch"),
-            new("duinv.aupads.org"),
-            new("dul.dnsbl.sorbs.net"),
-            new("dul.ru"),
-            new("dyna.spamrats.com"),
-            new("dynamic.mail.abusix.zone"),
-            new("escalations.dnsbl.sorbs.net"),
-            new("exploit.mail.abusix.zone"),
-            new("hbl.spamhaus.org"),
-            new("hostkarma.junkemailfilter.com"),
-            new("http.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("images.rbl.msrbl.net"),
-            new("ips.backscatterer.org"),
-            new("ix.dnsbl.manitu.net"),
-            new("key.authbl.dq.spamhaus.net"),
-            new("korea.services.net"),
-            new("misc.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("nbl.0spam.org"),
-            new("new.spam.dnsbl.sorbs.net"),
-            new("nod.mail.abusix.zone"),
-            new("nomail.rhsbl.sorbs.net"),
-            new("noptr.spamrats.com"),
-            new("noservers.dnsbl.sorbs.net"),
-            new("ohps.dnsbl.net.au"),
-            new("old.spam.dnsbl.sorbs.net"),
-            new("omrs.dnsbl.net.au"),
-            new("orvedb.aupads.org"),
-            new("osps.dnsbl.net.au"),
-            new("osrs.dnsbl.net.au"),
-            new("owfs.dnsbl.net.au"),
-            new("owps.dnsbl.net.au"),
-            new("pbl.spamhaus.org"),
-            new("phishing.rbl.msrbl.net"),
-            new("probes.dnsbl.net.au"),
-            new("proxy.bl.gweep.ca"),
-            new("proxy.block.transip.nl"),
-            new("psbl.surriel.com"),
-            new("rbl.0spam.org"),
-            new("rbl.interserver.net"),
-            new("rbl.metunet.com"),
-            new("rdts.dnsbl.net.au"),
-            new("recent.spam.dnsbl.sorbs.net"),
-            new("relays.bl.gweep.ca"),
-            new("relays.bl.kundenserver.de"),
-            new("relays.nether.net"),
-            new("residential.block.transip.nl"),
-            new("rhsbl.sorbs.net"),
-            new("ricn.dnsbl.net.au"),
-            new("rmst.dnsbl.net.au"),
-            new("safe.dnsbl.sorbs.net"),
-            new("sbl.spamhaus.org"),
-            new("short.rbl.jp"),
-            new("shorthash.mail.abusix.zone"),
-            new("singular.ttk.pte.hu"),
-            new("smtp.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("socks.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("spam.abuse.ch"),
-            new("spam.dnsbl.anonmails.de"),
-            new("spam.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("spam.rbl.msrbl.net"),
-            new("spam.spamrats.com"),
-            new("spambot.bls.digibase.ca"),
-            new("spamlist.or.kr"),
-            new("spamrbl.imp.ch"),
-            new("spamsources.fabel.dk"),
-            new("t3direct.dnsbl.net.au"),
-            new("ubl.lashback.com"),
-            new("ubl.unsubscore.com"),
-            new("virbl.bit.nl"),
-            new("virus.rbl.jp"),
-            new("virus.rbl.msrbl.net"),
-            new("web.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("wormrbl.imp.ch"),
-            new("xbl.spamhaus.org"),
-            new("z.mailspike.net"),
-            new("zen.spamhaus.org"),
-            new("multi.uribl.com"),
-            new("zombie.dnsbl.sorbs.net", enabled: false, comment: "https://github.com/EvotecIT/PSBlackListChecker/issues/11"),
-            new("bl.emailbasura.org", enabled: false, comment: "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/8"),
-            new("dynip.rothen.com", enabled: false, comment: "dead as per https://github.com/EvotecIT/PSBlackListChecker/issues/9"),
-            new("bl.spamcannibal.org", enabled: false, comment: "now a parked domain"),
-            new("tor.ahbl.org", enabled: false, comment: "terminated in 2015"),
-            new("tor.dnsbl.sectoor.de", enabled: false, comment: "parked domain"),
-            new("torserver.tor.dnsbl.sectoor.de", enabled: false, comment: "as above"),
-            new("dnsbl.njabl.org", enabled: false, comment: "supposedly doesn't work properly anymore"),
-            new("dnsbl.ahbl.org", enabled: false, comment: "terminated in 2015"),
-            new("cdl.anti-spam.org.cn", enabled: false, comment: "Inactive")
-        };
+        internal List<DnsblEntry> DnsblEntries { get; } = new();
 
         public DNSBLAnalysis(DnsConfiguration dnsConfiguration = null) {
             DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
+            DnsblEntries.AddRange(_defaultEntries.Select(e => {
+                var entry = new DnsblEntry(e.Domain, e.Enabled, e.Comment);
+                if (e.ReplyCodes?.Count > 0)
+                    entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(e.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                return entry;
+            }));
+            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment)));
         }
 
         internal List<string> DNSBLLists => DnsblEntries
@@ -340,15 +255,6 @@ namespace DomainDetective {
             ["127.0.0.4"] = (true, "Blacklisted")
         };
 
-        private static readonly Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            ["hostkarma.junkemailfilter.com"] = new()
-            {
-                ["127.0.0.1"] = (false, "Whitelisted"),
-                ["127.0.0.2"] = (true, "Blacklisted"),
-                ["127.0.0.4"] = (false, "Whitelisted")
-            }
-        };
 
         private static (bool IsListed, string Meaning) GetReplyCodeMeaning(string blacklist, string reply) {
             if (string.IsNullOrEmpty(reply)) {
@@ -554,22 +460,67 @@ namespace DomainDetective {
             var json = File.ReadAllText(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
+            if (config != null) {
+                ApplyDnsblConfiguration(config, overwriteExisting, clearExisting);
+            }
+        }
 
-            if (config == null || config.Providers == null)
-                return;
-
+        private void ApplyDnsblConfiguration(DnsblConfiguration config, bool overwriteExisting, bool clearExisting) {
             if (clearExisting) {
                 ClearDNSBL();
+                _domainBlockLists.Clear();
+                _providerReplyCodes.Clear();
             }
 
-            foreach (var provider in config.Providers) {
-                var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
-                if (existing == null) {
-                    DnsblEntries.Add(new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment));
-                } else if (overwriteExisting) {
-                    existing.Enabled = provider.Enabled;
-                    existing.Comment = provider.Comment;
+            if (config.Providers != null) {
+                foreach (var provider in config.Providers) {
+                    var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
+                    if (existing == null) {
+                        var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment);
+                        if (provider.ReplyCodes?.Count > 0)
+                            entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                        DnsblEntries.Add(entry);
+                    } else if (overwriteExisting) {
+                        existing.Enabled = provider.Enabled;
+                        existing.Comment = provider.Comment;
+                        if (provider.ReplyCodes?.Count > 0)
+                            existing.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                    }
+
+                    if (provider.ReplyCodes?.Count > 0) {
+                        if (clearExisting || !_providerReplyCodes.TryGetValue(provider.Domain, out var map)) {
+                            map = new Dictionary<string, (bool, string)>(StringComparer.OrdinalIgnoreCase);
+                            _providerReplyCodes[provider.Domain] = map;
+                        }
+                        foreach (var code in provider.ReplyCodes) {
+                            if (!map.ContainsKey(code.Key) || overwriteExisting)
+                                map[code.Key] = (code.Value.IsListed, code.Value.Meaning);
+                        }
+                    }
                 }
+            }
+
+            if (config.DomainBlockLists != null) {
+                foreach (var entry in config.DomainBlockLists) {
+                    var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
+                    if (existing == null) {
+                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment));
+                    } else if (overwriteExisting) {
+                        existing.Enabled = entry.Enabled;
+                        existing.Comment = entry.Comment;
+                    }
+                }
+            }
+
+        }
+
+        public async Task UpdateDnsblDataAsync(string url = DefaultUpdateUrl, bool overwriteExisting = true) {
+            using var client = new HttpClient();
+            var json = await client.GetStringAsync(url);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
+            if (config != null) {
+                ApplyDnsblConfiguration(config, overwriteExisting, overwriteExisting);
             }
         }
     }
