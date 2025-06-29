@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -46,40 +45,38 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Resolves the specified host and returns a DnsEndPoint with address family.
+        /// Resolves the specified host and returns a <see cref="DnsEndPoint"/>
+        /// with address family information when an IP address is provided.
         /// </summary>
-        private static async Task<DnsEndPoint> GetEndPointAsync(string host, int port) {
-            if (IPAddress.TryParse(host, out IPAddress ip)) {
-                return new DnsEndPoint(host, port, ip.AddressFamily);
-            }
-
-            try {
-                var addresses = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
-                if (addresses.Any(a => a.AddressFamily == AddressFamily.InterNetworkV6)) {
-                    return new DnsEndPoint(host, port, AddressFamily.InterNetworkV6);
-                }
-                if (addresses.Any(a => a.AddressFamily == AddressFamily.InterNetwork)) {
-                    return new DnsEndPoint(host, port, AddressFamily.InterNetwork);
-                }
-            } catch {
-            }
-
-            return new DnsEndPoint(host, port);
+        private static DnsEndPoint GetEndPoint(string host, int port) {
+            return IPAddress.TryParse(host, out IPAddress? ip)
+                ? new DnsEndPoint(host, port, ip.AddressFamily)
+                : new DnsEndPoint(host, port);
         }
 
         /// <summary>
         /// Performs the low-level STARTTLS negotiation.
         /// </summary>
         private async Task<(bool Advertised, bool Downgrade)> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            var endPoint = await GetEndPointAsync(host, port).ConfigureAwait(false);
-            var client = endPoint.AddressFamily == AddressFamily.Unspecified ? new TcpClient() : new TcpClient(endPoint.AddressFamily);
+            var endPoint = GetEndPoint(host, port);
+            var client = endPoint.AddressFamily == AddressFamily.Unspecified
+                ? new TcpClient()
+                : new TcpClient(endPoint.AddressFamily);
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
 #if NET6_0_OR_GREATER
-                await client.Client.ConnectAsync(endPoint, timeoutCts.Token);
+                if (endPoint.AddressFamily == AddressFamily.Unspecified) {
+                    await client.ConnectAsync(host, port, timeoutCts.Token);
+                } else {
+                    await client.Client.ConnectAsync(endPoint, timeoutCts.Token);
+                }
 #else
-                await client.Client.ConnectAsync(endPoint).WaitWithCancellation(timeoutCts.Token);
+                if (endPoint.AddressFamily == AddressFamily.Unspecified) {
+                    await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+                } else {
+                    await client.Client.ConnectAsync(endPoint).WaitWithCancellation(timeoutCts.Token);
+                }
 #endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
