@@ -41,6 +41,8 @@ namespace DomainDetective {
         public bool ValidVmc { get; private set; }
         /// <summary>Gets a value indicating whether the VMC certificate is signed by a trusted CA.</summary>
         public bool VmcSignedByKnownRoot { get; private set; }
+        /// <summary>If an HTTP request fails, explains why.</summary>
+        public string? FailureReason { get; private set; }
 
         /// <summary>
         /// Processes BIMI DNS records and populates analysis properties.
@@ -63,6 +65,7 @@ namespace DomainDetective {
             SvgValid = false;
             ValidVmc = false;
             VmcSignedByKnownRoot = false;
+            FailureReason = null;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -129,34 +132,35 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<string> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<string?> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-                using (HttpClient client = new HttpClient(handler)) {
-                    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-                    using (var response = await client.GetAsync(url, cancellationToken)) {
-                        if (!response.IsSuccessStatusCode) {
-                            return null;
-                        }
-
-                        var bytes = await response.Content.ReadAsByteArrayAsync();
-                        if (url.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)) {
-                            using (var ms = new MemoryStream(bytes))
-                            using (var gz = new GZipStream(ms, CompressionMode.Decompress))
-                            using (var reader = new StreamReader(gz)) {
-                                return await reader.ReadToEndAsync();
-                            }
-                        }
-                        return System.Text.Encoding.UTF8.GetString(bytes);
-                    }
+                using var client = new HttpClient(handler);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+                using var response = await client.GetAsync(url, cancellationToken);
+                if (!response.IsSuccessStatusCode) {
+                    return null;
                 }
+
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                if (url.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)) {
+                    using var ms = new MemoryStream(bytes);
+                    using var gz = new GZipStream(ms, CompressionMode.Decompress);
+                    using var reader = new StreamReader(gz);
+                    return await reader.ReadToEndAsync();
+                }
+                return System.Text.Encoding.UTF8.GetString(bytes);
+            } catch (HttpRequestException ex) {
+                FailureReason = $"HTTP request failed: {ex.Message}";
+                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+                return null;
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI indicator {0}: {1}", url, ex.Message);
                 return null;
             }
         }
 
-        private static async Task<(bool valid, bool signedByKnownRoot)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(bool valid, bool signedByKnownRoot)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
                 using var client = new HttpClient(handler);
@@ -179,6 +183,10 @@ namespace DomainDetective {
                 var trusted = trustedChain.Build(cert);
 
                 return (signed && notExpired, trusted && notExpired);
+            } catch (HttpRequestException ex) {
+                FailureReason = $"HTTP request failed: {ex.Message}";
+                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+                return (false, false);
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI VMC {0}: {1}", url, ex.Message);
                 return (false, false);
