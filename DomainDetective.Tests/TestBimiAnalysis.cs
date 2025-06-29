@@ -51,6 +51,20 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task UnreachableIndicatorSetsFailureReason() {
+            var port = GetFreePort();
+            var record = $"v=BIMI1; l=http://localhost:{port}/logo.svg";            
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT }
+            };
+            var analysis = new BimiAnalysis();
+            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+            Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
+            Assert.False(analysis.SvgFetched);
+        }
+
+        [Fact]
         public async Task InvalidSvgFailsValidation() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
