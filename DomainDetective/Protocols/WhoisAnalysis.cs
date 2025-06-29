@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
@@ -68,6 +69,17 @@ public class WhoisAnalysis {
     // Lock object used to synchronize access to the WhoisServers dictionary
     // since Dictionary<TK,TV> is not thread safe for concurrent writes.
     private readonly object _whoisServersLock = new();
+
+    // Lock object used to synchronize access to the IpWhoisServers list.
+    private readonly object _ipWhoisServersLock = new();
+
+    // List of WHOIS servers queried for IP information. Modify this collection
+    // only while holding _ipWhoisServersLock to avoid race conditions.
+    private readonly List<string> IpWhoisServers = new() {
+        "whois.arin.net",
+        "whois.ripe.net",
+        "whois.apnic.net"
+    };
 
     // Mapping of TLDs to WHOIS servers. Modify this collection only while
     // holding _whoisServersLock to avoid race conditions in multi-threaded tests
@@ -870,6 +882,90 @@ public class WhoisAnalysis {
                 break;
             }
         }
+    }
+
+    /// <summary>
+    /// Queries ARIN, RIPE and APNIC WHOIS servers for IP information.
+    /// </summary>
+    /// <param name="ipAddress">IP address to query.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <returns>Tuple containing allocation and ASN when available.</returns>
+    public async Task<(string? Allocation, string? Asn)> QueryIpWhois(string ipAddress, CancellationToken cancellationToken = default) {
+        if (!IPAddress.TryParse(ipAddress, out _)) {
+            throw new ArgumentException("Invalid IP address", nameof(ipAddress));
+        }
+
+        string? allocation = null;
+        string? asn = null;
+
+        List<string> servers;
+        lock (_ipWhoisServersLock) {
+            servers = new List<string>(IpWhoisServers);
+        }
+
+        foreach (var server in servers) {
+            using var client = new TcpClient();
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(Timeout);
+            try {
+                var parts = server.Split(':');
+                var host = parts[0];
+                var port = 43;
+                if (parts.Length > 1 && int.TryParse(parts[1], out var customPort)) {
+                    port = customPort;
+                }
+
+                await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+
+                using NetworkStream stream = client.GetStream();
+                using (var writer = new StreamWriter(stream, Encoding.ASCII, 1024, leaveOpen: true)) {
+                    await writer.WriteLineAsync(ipAddress).WaitWithCancellation(timeoutCts.Token);
+                    await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                }
+
+                await stream.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms, 81920, timeoutCts.Token);
+                var bytes = ms.ToArray();
+                var response = Encoding.UTF8.GetString(bytes);
+                if (response.Contains('\uFFFD')) {
+                    response = Encoding.GetEncoding("ISO-8859-1").GetString(bytes);
+                }
+
+                foreach (var line in response.Split('\n')) {
+                    var trimmed = line.Trim();
+                    if (allocation == null &&
+                        (trimmed.StartsWith("inetnum:", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.StartsWith("NetRange:", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.StartsWith("route:", StringComparison.OrdinalIgnoreCase))) {
+                        var lineParts = trimmed.Split(':');
+                        if (lineParts.Length > 1) {
+                            allocation = lineParts[1].Trim();
+                        }
+                    } else if (asn == null &&
+                        (trimmed.StartsWith("origin", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.StartsWith("OriginAS", StringComparison.OrdinalIgnoreCase) ||
+                         trimmed.StartsWith("aut-num:", StringComparison.OrdinalIgnoreCase))) {
+                        var match = Regex.Match(trimmed, "AS\\d+", RegexOptions.IgnoreCase);
+                        if (match.Success) {
+                            asn = match.Value.ToUpperInvariant();
+                        }
+                    }
+
+                    if (allocation != null && asn != null) {
+                        break;
+                    }
+                }
+
+                if (allocation != null && asn != null) {
+                    break;
+                }
+            } catch (Exception ex) {
+                _logger.WriteError("Error querying IP WHOIS server: {0}", ex.Message);
+            }
+        }
+
+        return (allocation, asn);
     }
 
     /// <summary>
