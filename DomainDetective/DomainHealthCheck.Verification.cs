@@ -107,7 +107,7 @@ namespace DomainDetective {
                             .Select(r => r.Data.Split(' ')[1].Trim('.'))
                             .Where(h => !string.IsNullOrWhiteSpace(h));
                         await ReverseDnsAnalysis.AnalyzeHosts(rdnsHostsFcr, _logger);
-                        await FCrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
+                        await FcrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
                         break;
                     case HealthCheckType.CAA:
                         var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
@@ -1065,7 +1065,7 @@ namespace DomainDetective {
             filtered.DKIMAnalysis = active.Contains(HealthCheckType.DKIM) ? CloneAnalysis(DKIMAnalysis) : null;
             filtered.MXAnalysis = active.Contains(HealthCheckType.MX) ? CloneAnalysis(MXAnalysis) : null;
             filtered.ReverseDnsAnalysis = active.Contains(HealthCheckType.REVERSEDNS) ? CloneAnalysis(ReverseDnsAnalysis) : null;
-            filtered.FCrDnsAnalysis = active.Contains(HealthCheckType.FCRDNS) ? CloneAnalysis(FCrDnsAnalysis) : null;
+            filtered.FcrDnsAnalysis = active.Contains(HealthCheckType.FCRDNS) ? CloneAnalysis(FcrDnsAnalysis) : null;
             filtered.CAAAnalysis = active.Contains(HealthCheckType.CAA) ? CloneAnalysis(CAAAnalysis) : null;
             filtered.NSAnalysis =
                 active.Contains(HealthCheckType.NS) || active.Contains(HealthCheckType.DELEGATION)

@@ -54,10 +54,10 @@ namespace DomainDetective {
 
         /// <summary>Gets the forward-confirmed reverse DNS analysis.</summary>
         /// <value>Results verifying PTR hostnames resolve back to their IP.</value>
-        public FCrDnsAnalysis FCrDnsAnalysis { get; private set; } = new FCrDnsAnalysis();
+        public FCrDnsAnalysis FcrDnsAnalysis { get; private set; } = new FCrDnsAnalysis();
 
         /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
-        public FCrDnsAnalysis FCRDNSAnalysis => FCrDnsAnalysis;
+        public FCrDnsAnalysis FCRDNSAnalysis => FcrDnsAnalysis;
 
         /// <summary>
         /// Gets the CAA analysis.
@@ -302,7 +302,7 @@ namespace DomainDetective {
             };
 
             ReverseDnsAnalysis.DnsConfiguration = DnsConfiguration;
-            FCrDnsAnalysis.DnsConfiguration = DnsConfiguration;
+            FcrDnsAnalysis.DnsConfiguration = DnsConfiguration;
 
             NSAnalysis = new NSAnalysis() {
                 DnsConfiguration = DnsConfiguration
