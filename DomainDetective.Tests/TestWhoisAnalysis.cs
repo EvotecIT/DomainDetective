@@ -523,5 +523,40 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        [Fact]
+        public async Task LogsServerAndDomainOnError() {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            var loggerField = typeof(WhoisAnalysis).GetField("_logger", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var logger = (InternalLogger?)loggerField?.GetValue(null);
+            Assert.NotNull(logger);
+
+            LogEventArgs? eventArgs = null;
+            void Handler(object? sender, LogEventArgs e) => eventArgs = e;
+            logger!.OnErrorMessage += Handler;
+
+            var whois = new WhoisAnalysis();
+            var serversField = typeof(WhoisAnalysis).GetField("WhoisServers", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var servers = (System.Collections.Generic.Dictionary<string, string>?)serversField?.GetValue(whois);
+            Assert.NotNull(servers);
+            var lockField = typeof(WhoisAnalysis).GetField("_whoisServersLock", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var lockObj = lockField?.GetValue(whois);
+            Assert.NotNull(lockObj);
+            lock (lockObj!) {
+                servers!["sample"] = $"127.0.0.1:{port}";
+            }
+
+            await whois.QueryWhoisServer("example.sample", default);
+
+            logger.OnErrorMessage -= Handler;
+
+            Assert.NotNull(eventArgs);
+            Assert.Contains($"127.0.0.1:{port}", eventArgs!.FullMessage);
+            Assert.Contains("example.sample", eventArgs.FullMessage);
+        }
     }
 }
