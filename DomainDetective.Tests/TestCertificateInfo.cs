@@ -29,6 +29,7 @@ namespace DomainDetective.Tests {
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.IsSelfSigned);
+            Assert.Equal(1, analysis.Chain.Count);
         }
     }
 }

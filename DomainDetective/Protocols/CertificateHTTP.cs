@@ -127,7 +127,7 @@ namespace DomainDetective {
                             Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
-                    IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
+                    IsSelfSigned = Chain.Count == 1;
                     IsValid = policyErrors == SslPolicyErrors.None;
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return IsValid;
@@ -185,7 +185,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
-                                    IsSelfSigned = Certificate.Subject == Certificate.Issuer && Chain.Count == 1;
+                                    IsSelfSigned = Chain.Count == 1;
                                 }
                             } catch (Exception ex) {
                                 logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
@@ -352,7 +352,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
-            IsSelfSigned = certificate.Subject == certificate.Issuer && Chain.Count == 1;
+            IsSelfSigned = Chain.Count == 1;
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
