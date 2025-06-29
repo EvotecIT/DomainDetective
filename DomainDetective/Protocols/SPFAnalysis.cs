@@ -60,6 +60,7 @@ namespace DomainDetective {
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public bool CycleDetected { get; private set; }
         public string CyclePath { get; private set; }
+        public List<string> RedirectVisitedDomains { get; private set; } = new List<string>();
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
 
@@ -86,6 +87,7 @@ namespace DomainDetective {
             InvalidIpSyntax = false;
             CycleDetected = false;
             CyclePath = null;
+            RedirectVisitedDomains = new List<string>();
             _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             ARecords = new List<string>();
             Ipv4Records = new List<string>();
@@ -212,6 +214,7 @@ namespace DomainDetective {
                 } else if (part.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
                     var domain = part.Substring("redirect=".Length);
                     if (domain != string.Empty) {
+                        RedirectVisitedDomains.Add(domain);
                         if (!visitedDomains.Add(domain)) {
                             CycleDetected = true;
                             CyclePath ??= string.Join(" -> ", path.Concat(new[] { domain }));
