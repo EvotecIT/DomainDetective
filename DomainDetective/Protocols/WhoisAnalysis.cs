@@ -1005,10 +1005,15 @@ public class WhoisAnalysis {
     public async Task QueryIana(string domain, CancellationToken cancellationToken = default) {
         string json;
         if (IanaQueryOverride != null) {
-            json = await IanaQueryOverride(domain);
+            json = await IanaQueryOverride(domain).ConfigureAwait(false);
         } else {
             using var client = new HttpClient();
-            json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken);
+#if NETSTANDARD2_0 || NET472
+            using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+            json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+#else
+            json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+#endif
         }
 
         using var doc = JsonDocument.Parse(json);
