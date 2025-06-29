@@ -46,6 +46,7 @@ Current capabilities include:
 - [x] Detect DNS tunneling from logs
 - [x] Detect wildcard DNS catch-all
 - [x] Verify EDNS support
+- [x] Scan TCP/UDP ports for a host
 - [x] Check propagation of DNS records across the world/country/company
 - [x] Verify WHOIS
 - [ ] Other things that I haven't thought of yet

@@ -173,6 +173,10 @@ public static class CheckDescriptions {
                 "Test common service ports for availability.",
                 null,
                 "Ensure required services accept connections."),
+            [HealthCheckType.PORTSCAN] = new(
+                "Scan a host for open TCP and UDP ports.",
+                null,
+                "Harden or disable unnecessary services."),
             // List IP neighbors via reverse/passive DNS
             [HealthCheckType.IPNEIGHBOR] = new(
                 "List IP neighbors via reverse or passive DNS.",
