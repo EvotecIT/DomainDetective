@@ -41,6 +41,8 @@ namespace DomainDetective {
         public bool ValidVmc { get; private set; }
         /// <summary>Gets a value indicating whether the VMC certificate is signed by a trusted CA.</summary>
         public bool VmcSignedByKnownRoot { get; private set; }
+        /// <summary>Gets a value indicating whether the VMC contains a logotype.</summary>
+        public bool VmcContainsLogo { get; private set; }
         /// <summary>If an HTTP request fails, explains why.</summary>
         public string? FailureReason { get; private set; }
 
@@ -65,6 +67,7 @@ namespace DomainDetective {
             SvgValid = false;
             ValidVmc = false;
             VmcSignedByKnownRoot = false;
+            VmcContainsLogo = false;
             FailureReason = null;
 
             if (dnsResults == null) {
@@ -128,7 +131,7 @@ namespace DomainDetective {
                     logger?.WriteWarning("BIMI authority URL does not use HTTPS: {0}", Authority);
                 }
 
-                (ValidVmc, VmcSignedByKnownRoot) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
+                (ValidVmc, VmcSignedByKnownRoot, VmcContainsLogo) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
             }
         }
 
@@ -160,14 +163,14 @@ namespace DomainDetective {
             }
         }
 
-        private async Task<(bool valid, bool signedByKnownRoot)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
-                    return (false, false);
+                    return (false, false, false);
                 }
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
@@ -182,14 +185,16 @@ namespace DomainDetective {
                 trustedChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
                 var trusted = trustedChain.Build(cert);
 
-                return (signed && notExpired, trusted && notExpired);
+                var hasLogo = CertificateHasLogo(cert);
+
+                return (signed && notExpired, trusted && notExpired, hasLogo);
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
-                return (false, false);
+                return (false, false, false);
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI VMC {0}: {1}", url, ex.Message);
-                return (false, false);
+                return (false, false, false);
             }
         }
 
@@ -205,6 +210,19 @@ namespace DomainDetective {
             } catch {
                 return false;
             }
+        }
+
+        private static bool CertificateHasLogo(X509Certificate2 cert) {
+            foreach (var ext in cert.Extensions) {
+                var oid = ext.Oid?.Value;
+                if (oid == "1.3.6.1.5.5.7.1.12" || oid == "1.3.6.1.5.5.7.1.26") {
+                    var text = System.Text.Encoding.ASCII.GetString(ext.RawData);
+                    if (text.Contains("image/svg") || text.Contains("image/png")) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
     }
 }
