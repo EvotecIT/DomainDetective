@@ -32,6 +32,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public ServiceType[]? DaneServiceType;
 
+        /// <param name="DanePorts">Custom ports to check for DANE.</param>
+        [Parameter(Mandatory = false)]
+        public int[]? DanePorts;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -52,7 +56,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying domain health for domain: {0}", DomainName);
-            await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType);
+            await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType, DanePorts);
             var result = _healthCheck.FilterAnalyses(HealthCheckType);
             WriteObject(result);
         }

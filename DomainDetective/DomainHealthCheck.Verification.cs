@@ -43,8 +43,9 @@ namespace DomainDetective {
         /// <param name="healthCheckTypes">Health checks to execute or <c>null</c> for defaults.</param>
         /// <param name="dkimSelectors">DKIM selectors to use when verifying DKIM.</param>
         /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
+        /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, CancellationToken cancellationToken = default) {
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, int[] danePorts = null, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -125,7 +126,11 @@ namespace DomainDetective {
                         await ZoneTransferAnalysis.AnalyzeServers(domainName, servers, _logger, cancellationToken);
                         break;
                     case HealthCheckType.DANE:
-                        await VerifyDANE(domainName, daneServiceType, cancellationToken);
+                        if (danePorts != null && danePorts.Length > 0) {
+                            await VerifyDANE(domainName, danePorts, cancellationToken);
+                        } else {
+                            await VerifyDANE(domainName, daneServiceType, cancellationToken);
+                        }
                         break;
                     case HealthCheckType.DNSSEC:
                         DnsSecAnalysis = new DnsSecAnalysis();
