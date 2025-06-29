@@ -16,9 +16,3 @@
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
 
-## 1.0.3
-
-### What's Changed
-- Cached MTA-STS policies to avoid repeated downloads during a run. Configure the
-  expiration with `CacheDuration` or clear it using `ClearCache()`.
-
