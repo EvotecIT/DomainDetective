@@ -20,8 +20,7 @@ namespace DomainDetective {
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            using var client = new TcpClient();
-            var status = await TryRelay(client, host, port, logger, cancellationToken);
+            var status = await TryRelay(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = status;
         }
 
@@ -33,8 +32,7 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    using var client = new TcpClient();
-                    var status = await TryRelay(client, host, port, logger, cancellationToken);
+                    var status = await TryRelay(host, port, logger, cancellationToken);
                     ServerResults[$"{host}:{port}"] = status;
                 }
             }
@@ -43,7 +41,8 @@ namespace DomainDetective {
         /// <summary>
         /// Attempts to send a relay through the specified server.
         /// </summary>
-        private async Task<OpenRelayStatus> TryRelay(TcpClient client, string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<OpenRelayStatus> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+            using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {

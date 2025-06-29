@@ -224,5 +224,18 @@ namespace DomainDetective.Tests {
             listener.Stop();
             try { await serverTask; } catch (System.Exception) { }
         }
+
+        [Fact]
+        public async Task ConnectionFailureReturnsConnectionFailed() {
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+
+            var analysis = new OpenRelayAnalysis();
+            await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+
+            Assert.Equal(OpenRelayStatus.ConnectionFailed, analysis.ServerResults[$"localhost:{port}"]);
+        }
     }
 }
