@@ -187,7 +187,7 @@ namespace DomainDetective {
 
                 var hasLogo = CertificateHasLogo(cert);
 
-                return (signed && notExpired && hasLogo, trusted && notExpired, hasLogo);
+                return (signed && notExpired, trusted && notExpired, hasLogo);
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
