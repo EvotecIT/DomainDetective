@@ -78,6 +78,8 @@ namespace DomainDetective {
         public bool OriginAgentClusterPresent { get; private set; }
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
         public bool OriginAgentClusterEnabled { get; private set; }
+        /// <summary>Gets the URLs visited when following redirects.</summary>
+        public List<string> VisitedUrls { get; } = new();
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
         public int MaxRedirects { get; set; } = 10;
 
@@ -158,6 +160,7 @@ namespace DomainDetective {
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             Body = null;
+            VisitedUrls.Clear();
             MixedContentDetected = false;
             XssProtectionPresent = false;
             ExpectCtPresent = false;
@@ -185,7 +188,12 @@ namespace DomainDetective {
                 var currentUri = new Uri(url);
                 HttpResponseMessage response = null;
                 var redirects = 0;
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 while (true) {
+                    if (!visited.Add(currentUri.AbsoluteUri)) {
+                        throw new InvalidOperationException("Redirect loop detected.");
+                    }
+                    VisitedUrls.Add(currentUri.AbsoluteUri);
                     var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
                         Version = RequestVersion,
                         VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
@@ -200,11 +208,19 @@ namespace DomainDetective {
                         currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
                         continue;
                     }
+                    currentUri = response.RequestMessage?.RequestUri ?? currentUri;
                     break;
+                }
+                if (!visited.Contains(currentUri.AbsoluteUri)) {
+                    VisitedUrls.Add(currentUri.AbsoluteUri);
                 }
                 HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
 #else
+                VisitedUrls.Add(url);
                 HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
+                if (response.RequestMessage?.RequestUri != null && !string.Equals(response.RequestMessage.RequestUri.AbsoluteUri, url, StringComparison.OrdinalIgnoreCase)) {
+                    VisitedUrls.Add(response.RequestMessage.RequestUri.AbsoluteUri);
+                }
 #endif
 #if !NET6_0_OR_GREATER
                 HstsPreloaded = _hstsPreload.Contains(new Uri(url).Host);
