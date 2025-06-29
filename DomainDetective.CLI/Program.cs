@@ -381,7 +381,7 @@ internal class Program
                     HealthCheckType.ZONETRANSFER => hc.ZoneTransferAnalysis,
                     HealthCheckType.DANE => hc.DaneAnalysis,
                     HealthCheckType.DNSBL => hc.DNSBLAnalysis,
-                    HealthCheckType.DNSSEC => hc.DNSSecAnalysis,
+                    HealthCheckType.DNSSEC => hc.DnsSecAnalysis,
                     HealthCheckType.AUTODISCOVER => hc.AutodiscoverAnalysis,
                     HealthCheckType.CONTACT => hc.ContactInfoAnalysis,
                     HealthCheckType.ARC => hc.ArcAnalysis,

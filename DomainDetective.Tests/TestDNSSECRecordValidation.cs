@@ -8,7 +8,7 @@ namespace DomainDetective.Tests {
         [InlineData("cloudflare.com", DnsRecordType.A, true)]
         [InlineData("dnssec-failed.org", DnsRecordType.A, false)]
         public async Task ValidateRecordForZone(string domain, DnsRecordType type, bool expected) {
-            var analysis = new DNSSecAnalysis();
+            var analysis = new DnsSecAnalysis();
             bool result = await analysis.ValidateRecord(domain, type);
             Assert.Equal(expected, result);
         }

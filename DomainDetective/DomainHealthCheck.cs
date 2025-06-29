@@ -118,7 +118,7 @@ namespace DomainDetective {
         /// Gets the DNSSEC analysis.
         /// </summary>
         /// <value>Information about DNSSEC chain validity.</value>
-        public DNSSecAnalysis DNSSecAnalysis { get; private set; } = new DNSSecAnalysis();
+        public DnsSecAnalysis DnsSecAnalysis { get; private set; } = new DnsSecAnalysis();
 
         /// <summary>
         /// Gets the MTA-STS analysis.
@@ -479,8 +479,8 @@ namespace DomainDetective {
                         await VerifyDANE(domainName, daneServiceType, cancellationToken);
                         break;
                     case HealthCheckType.DNSSEC:
-                        DNSSecAnalysis = new DNSSecAnalysis();
-                        await DNSSecAnalysis.Analyze(domainName, _logger, DnsConfiguration);
+                        DnsSecAnalysis = new DnsSecAnalysis();
+                        await DnsSecAnalysis.Analyze(domainName, _logger, DnsConfiguration);
                         break;
                     case HealthCheckType.DNSBL:
                         await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
@@ -1279,7 +1279,7 @@ namespace DomainDetective {
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
                 DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis.MxRecordExists,
-                DnsSecValid = DNSSecAnalysis?.ChainValid ?? false,
+                DnsSecValid = DnsSecAnalysis?.ChainValid ?? false,
                 ExpiryDate = WhoisAnalysis.ExpiryDate,
                 ExpiresSoon = WhoisAnalysis.ExpiresSoon,
                 IsExpired = WhoisAnalysis.IsExpired,
@@ -1340,7 +1340,7 @@ namespace DomainDetective {
             filtered.ZoneTransferAnalysis = active.Contains(HealthCheckType.ZONETRANSFER) ? CloneAnalysis(ZoneTransferAnalysis) : null;
             filtered.DaneAnalysis = active.Contains(HealthCheckType.DANE) ? CloneAnalysis(DaneAnalysis) : null;
             filtered.DNSBLAnalysis = active.Contains(HealthCheckType.DNSBL) ? CloneAnalysis(DNSBLAnalysis) : null;
-            filtered.DNSSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DNSSecAnalysis) : null;
+            filtered.DnsSecAnalysis = active.Contains(HealthCheckType.DNSSEC) ? CloneAnalysis(DnsSecAnalysis) : null;
             filtered.MTASTSAnalysis = active.Contains(HealthCheckType.MTASTS) ? CloneAnalysis(MTASTSAnalysis) : null;
             filtered.TLSRPTAnalysis = active.Contains(HealthCheckType.TLSRPT) ? CloneAnalysis(TLSRPTAnalysis) : null;
             filtered.BimiAnalysis = active.Contains(HealthCheckType.BIMI) ? CloneAnalysis(BimiAnalysis) : null;
