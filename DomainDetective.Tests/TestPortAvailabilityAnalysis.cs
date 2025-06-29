@@ -11,10 +11,7 @@ namespace DomainDetective.Tests {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            var serverTask = Task.Run(async () => {
-                using var client = await listener.AcceptTcpClientAsync();
-                await Task.Delay(10);
-            });
+            var acceptTask = listener.AcceptTcpClientAsync();
 
             try {
                 var analysis = new PortAvailabilityAnalysis();
@@ -22,9 +19,9 @@ namespace DomainDetective.Tests {
                 var result = analysis.ServerResults[$"127.0.0.1:{port}"];
                 Assert.True(result.Success);
                 Assert.True(result.Latency > TimeSpan.Zero);
+                using var c = await acceptTask; // ensure the connection was accepted
             } finally {
                 listener.Stop();
-                await serverTask;
             }
         }
 
