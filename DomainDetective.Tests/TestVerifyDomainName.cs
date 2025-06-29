@@ -13,5 +13,11 @@ namespace DomainDetective.Tests {
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
                 await healthCheck.VerifySPF(domain));
         }
+
+        [Fact]
+        public async Task VerifyAcceptsUnicodeDomain() {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.VerifySPF("bücher.de");
+        }
     }
 }

@@ -7,12 +7,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
+using System.Globalization;
 using DomainDetective.Network;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
+        private static readonly IdnMapping _idn = new();
+
+        private static string ToAscii(string domainName) =>
+            _idn.GetAscii(domainName.Trim().Trim('.')).ToLowerInvariant();
+
         private void UpdateIsPublicSuffix(string domainName) {
-            IsPublicSuffix = _publicSuffixList.IsPublicSuffix(domainName);
+            var ascii = ToAscii(domainName);
+            IsPublicSuffix = _publicSuffixList.IsPublicSuffix(ascii);
         }
         /// Verifies DKIM records for the specified domain.
         /// </summary>
@@ -24,6 +31,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             if (selectors == null || selectors.Length == 0) {
                 await DKIMAnalysis.QueryWellKnownSelectors(domainName, DnsConfiguration, _logger, cancellationToken);
                 return;
@@ -49,6 +57,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
@@ -482,6 +491,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
@@ -492,6 +502,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(target)) {
                 throw new ArgumentNullException(nameof(target));
             }
+            target = ToAscii(target);
             UpdateIsPublicSuffix(target);
             await ThreatIntelAnalysis.Analyze(target, GoogleSafeBrowsingApiKey, PhishTankApiKey, VirusTotalApiKey, _logger, cancellationToken);
         }
@@ -506,6 +517,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             await EdnsSupportAnalysis.Analyze(domainName, _logger);
         }
@@ -561,6 +573,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
             await WildcardDnsAnalysis.Analyze(domainName, _logger, sampleCount);
@@ -603,6 +616,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
@@ -617,6 +631,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             MTASTSAnalysis = new MTASTSAnalysis {
                 PolicyUrlOverride = MtaStsPolicyUrlOverride,
@@ -635,6 +650,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
@@ -651,6 +667,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
@@ -667,6 +684,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
@@ -684,6 +702,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
@@ -700,6 +719,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             TLSRPTAnalysis = new TLSRPTAnalysis();
             var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
@@ -715,6 +735,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             BimiAnalysis = new BimiAnalysis();
             var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
@@ -730,6 +751,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             ContactInfoAnalysis = new ContactInfoAnalysis();
             var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
@@ -744,6 +766,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             var servers = nsRecords.Select(r => r.Data.Trim('.'));
@@ -759,6 +782,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             await NSAnalysis.AnalyzeNsRecords(ns, _logger);
@@ -769,6 +793,7 @@ namespace DomainDetective {
         /// Detects dangling CNAME records for the domain.
         /// </summary>
         public async Task VerifyDanglingCname(string domainName, CancellationToken cancellationToken = default) {
+            domainName = ToAscii(domainName);
             DanglingCnameAnalysis = new DanglingCnameAnalysis { DnsConfiguration = DnsConfiguration };
             await DanglingCnameAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
@@ -778,6 +803,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to verify.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task VerifyAutodiscover(string domainName, CancellationToken cancellationToken = default) {
+            domainName = ToAscii(domainName);
             AutodiscoverAnalysis = new AutodiscoverAnalysis();
             await AutodiscoverAnalysis.Analyze(domainName, DnsConfiguration, _logger, cancellationToken);
         }
@@ -792,6 +818,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             if (ports == null || ports.Length == 0) {
                 throw new ArgumentException("No ports provided.", nameof(ports));
@@ -827,7 +854,7 @@ namespace DomainDetective {
 
             foreach (var service in services.Distinct()) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var host = service.Host.TrimEnd('.');
+                var host = ToAscii(service.Host).TrimEnd('.');
                 var daneName = $"_{service.Port}._tcp.{host}";
                 var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 if (dane.Any()) {
@@ -848,6 +875,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             DaneAnalysis = new DANEAnalysis();
             if (serviceTypes == null || serviceTypes.Length == 0) {
@@ -919,6 +947,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
         }
@@ -981,6 +1010,7 @@ namespace DomainDetective {
         public async Task CheckWHOIS(string domain, CancellationToken cancellationToken = default) {
             var timeout = WhoisAnalysis.Timeout;
             WhoisAnalysis = new WhoisAnalysis { Timeout = timeout };
+            domain = ToAscii(domain);
             UpdateIsPublicSuffix(domain);
             await WhoisAnalysis.QueryWhoisServer(domain, cancellationToken);
         }
