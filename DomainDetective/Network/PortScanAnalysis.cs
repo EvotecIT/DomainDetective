@@ -72,33 +72,47 @@ public class PortScanAnalysis
         bool tcpOpen = false;
         bool udpOpen = false;
         var sw = Stopwatch.StartNew();
-        using (var client = new TcpClient())
+
+        IPAddress address;
+        if (!IPAddress.TryParse(host, out address))
+        {
+            try
+            {
+                address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
+            }
+            catch
+            {
+                return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed };
+            }
+        }
+
+        using (var client = new TcpClient(address.AddressFamily))
         using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
         {
             cts.CancelAfter(Timeout);
             try
             {
 #if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
+                await client.ConnectAsync(address, port, cts.Token).ConfigureAwait(false);
 #else
-                await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token).ConfigureAwait(false);
+                await client.ConnectAsync(address, port).WaitWithCancellation(cts.Token).ConfigureAwait(false);
 #endif
                 tcpOpen = true;
             }
             catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
             {
-                logger?.WriteVerbose("TCP {0}:{1} closed - {2}", host, port, ex.Message);
+                logger?.WriteVerbose("TCP {0}:{1} closed - {2}", address, port, ex.Message);
             }
         }
         sw.Stop();
 
-        using (var udp = new UdpClient())
+        using (var udp = new UdpClient(address.AddressFamily))
         {
             try
             {
                 udp.Client.SendTimeout = (int)Timeout.TotalMilliseconds;
                 udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
-                await udp.SendAsync(Array.Empty<byte>(), 0, host, port).ConfigureAwait(false);
+                await udp.SendAsync(Array.Empty<byte>(), 0, new IPEndPoint(address, port)).ConfigureAwait(false);
 #if NET8_0_OR_GREATER
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
@@ -118,7 +132,7 @@ public class PortScanAnalysis
             }
             catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
             {
-                logger?.WriteVerbose("UDP {0}:{1} closed - {2}", host, port, ex.Message);
+                logger?.WriteVerbose("UDP {0}:{1} closed - {2}", address, port, ex.Message);
             }
         }
 
