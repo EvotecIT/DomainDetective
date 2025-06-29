@@ -249,5 +249,23 @@ namespace DomainDetective.Tests {
             Assert.Null(analysis.SubPolicyShort);
             Assert.Equal("Quarantine (inherited)", analysis.SubPolicy);
         }
+
+        [Fact]
+        public async Task TrailingWhitespaceNotCountedTowardsLimit() {
+            var record = "v=DMARC1; p=none " + new string('a', 238) + "  ";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(record);
+
+            Assert.False(healthCheck.DmarcAnalysis.ExceedsCharacterLimit);
+        }
+
+        [Fact]
+        public async Task ExceedsCharacterLimitWhenTrimmed() {
+            var record = "v=DMARC1; p=none " + new string('a', 239);
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(record);
+
+            Assert.True(healthCheck.DmarcAnalysis.ExceedsCharacterLimit);
+        }
     }
 }

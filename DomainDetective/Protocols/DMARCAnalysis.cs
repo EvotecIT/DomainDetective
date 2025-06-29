@@ -124,7 +124,7 @@ namespace DomainDetective {
             logger.WriteVerbose($"Analyzing DMARC record {DmarcRecord}");
 
             // check the character limit
-            ExceedsCharacterLimit = DmarcRecord.Length > 255;
+            ExceedsCharacterLimit = DmarcRecord.Trim().Length > 255;
 
             // check the DMARC record starts correctly
             StartsCorrectly = DmarcRecord.StartsWith("v=DMARC1");
