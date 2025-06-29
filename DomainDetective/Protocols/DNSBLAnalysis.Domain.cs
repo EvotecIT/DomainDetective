@@ -15,7 +15,7 @@ namespace DomainDetective {
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
             Logger = logger;
-            Logger.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
+            Logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
             await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain)) {
                 collected.Add(record);

@@ -15,5 +15,17 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, eventArgs.ProgressCurrentSteps);
             Assert.Equal(5, eventArgs.ProgressTotalSteps);
         }
+
+        [Fact]
+        public void VerboseEventRaised() {
+            var logger = new InternalLogger();
+            LogEventArgs? eventArgs = null;
+            logger.OnVerboseMessage += (_, e) => eventArgs = e;
+
+            logger.WriteVerbose("hello");
+
+            Assert.NotNull(eventArgs);
+            Assert.Equal("hello", eventArgs!.Message);
+        }
     }
 }
