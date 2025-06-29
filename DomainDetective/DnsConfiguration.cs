@@ -42,7 +42,7 @@ namespace DomainDetective {
         public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(name)) {
-                throw new ArgumentNullException(nameof(name));
+                throw new ArgumentNullException(nameof(name), $"Domain name cannot be null or empty when querying {recordType} records.");
             }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
             if (filter != string.Empty) {
@@ -59,6 +59,9 @@ namespace DomainDetective {
         /// </summary>
         public async Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
+            if (names == null || names.Length == 0) {
+                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
+            }
             List<DnsAnswer> allAnswers = new();
 
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
@@ -82,7 +85,7 @@ namespace DomainDetective {
         public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (names == null || names.Length == 0) {
-                throw new ArgumentNullException(nameof(names));
+                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
             }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
             DnsResponse[] data = filter != string.Empty
