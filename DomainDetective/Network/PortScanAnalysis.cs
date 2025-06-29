@@ -100,12 +100,20 @@ public class PortScanAnalysis
                 udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
                 await udp.SendAsync(Array.Empty<byte>(), 0, host, port).ConfigureAwait(false);
 #if NET8_0_OR_GREATER
-                var result = await udp.ReceiveAsync(token).ConfigureAwait(false);
-                udpOpen = result.Buffer.Length >= 0;
+                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    cts.CancelAfter(Timeout);
+                    var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
+                    udpOpen = result.Buffer.Length >= 0;
+                }
 #else
-                var receiveTask = udp.ReceiveAsync();
-                await receiveTask.WaitWithCancellation(token).ConfigureAwait(false);
-                udpOpen = true;
+                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    cts.CancelAfter(Timeout);
+                    var receiveTask = udp.ReceiveAsync();
+                    await receiveTask.WaitWithCancellation(cts.Token).ConfigureAwait(false);
+                    udpOpen = true;
+                }
 #endif
             }
             catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
