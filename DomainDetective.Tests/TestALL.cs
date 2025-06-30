@@ -1,6 +1,6 @@
 namespace DomainDetective.Tests {
     public class TestAll {
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task TestAllHealthChecks() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false

@@ -26,7 +26,7 @@ namespace DomainDetective.Tests {
             }
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task TestDKIMByDomain() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = true

@@ -173,7 +173,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Invalid == false);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task TestCAARecordByDomain() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = false;

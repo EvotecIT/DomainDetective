@@ -21,7 +21,7 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DmarcAnalysis.SpfAShort == "s");
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task TestDMARCByDomain() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.Verbose = true;

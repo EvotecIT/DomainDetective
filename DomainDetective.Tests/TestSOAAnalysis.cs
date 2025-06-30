@@ -19,7 +19,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(1209600, healthCheck.SOAAnalysis.Expire);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task VerifySoaByDomain() {
             var healthCheck = new DomainHealthCheck { Verbose = false };
             await healthCheck.Verify("evotec.pl", [HealthCheckType.SOA]);

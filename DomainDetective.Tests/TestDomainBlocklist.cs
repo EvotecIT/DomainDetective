@@ -3,7 +3,7 @@ using DnsClientX;
 
 namespace DomainDetective.Tests {
     public class TestDomainBlocklist {
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task ListedDomainsReturnPositive() {
             var analysis = new DNSBLAnalysis {
                 DnsConfiguration = new DnsConfiguration { DnsEndpoint = DnsEndpoint.System }
@@ -23,7 +23,7 @@ namespace DomainDetective.Tests {
             Assert.True(resultUribl.IsBlacklisted);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task UnlistedDomainReturnsNegative() {
             var analysis = new DNSBLAnalysis {
                 DnsConfiguration = new DnsConfiguration { DnsEndpoint = DnsEndpoint.System }

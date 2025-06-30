@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestDANEnalysis {
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task TestDANERecordByDomain() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
@@ -76,7 +76,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(64, analysis.LengthOfCertificateAssociationData);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task HttpsQueriesAandAaaaRecords() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false
@@ -88,7 +88,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task HttpsQueriesAandAaaaRecordsUsingSystemResolver() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false,
@@ -112,7 +112,7 @@ namespace DomainDetective.Tests {
             Assert.NotNull(healthCheck.DaneAnalysis);
         }
 
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task EmptyServiceTypesDefaultsToSmtpHttps() {
             var healthCheck = new DomainHealthCheck {
                 Verbose = false

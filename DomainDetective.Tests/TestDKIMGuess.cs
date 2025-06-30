@@ -1,6 +1,6 @@
 namespace DomainDetective.Tests {
     public class TestDkimGuess {
-        [Fact]
+        [Fact(Skip="Requires network")]
         public async Task GuessSelectorsForDomain() {
             var healthCheck = new DomainHealthCheck { Verbose = false };
             await healthCheck.Verify("evotec.pl", new[] { HealthCheckType.DKIM });
