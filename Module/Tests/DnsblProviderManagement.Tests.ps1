@@ -42,5 +42,18 @@ Describe 'Import-DnsblConfig cmdlet' {
     It 'throws if Path is empty' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         { Import-DnsblConfig -Path '' } | Should -Throw
-}
+    }
+
+    It 'skips duplicate domains' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        $json = '{"providers":[{"domain":"dup.test"},{"domain":"DUP.test"}]}'
+        $path = Join-Path $env:TEMP ([guid]::NewGuid().ToString() + '.json')
+        $json | Set-Content -Path $path
+        try {
+            $result = Import-DnsblConfig -Path $path -ClearExisting
+            ($result.GetDNSBL() | Where-Object { $_.Domain -ieq 'dup.test' }).Count | Should -Be 1
+        } finally {
+            Remove-Item $path -ErrorAction SilentlyContinue
+        }
+    }
 }
