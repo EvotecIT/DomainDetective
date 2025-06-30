@@ -1155,11 +1155,16 @@ namespace DomainDetective {
         }
 
         private static string ValidateHostName(string domainName) {
-            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+            var trimmed = domainName?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+
+            if (Uri.CheckHostName(trimmed) == UriHostNameType.Unknown) {
                 throw new ArgumentException("Invalid host name.", nameof(domainName));
             }
 
-            return ToAscii(domainName);
+            return ToAscii(trimmed);
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>
