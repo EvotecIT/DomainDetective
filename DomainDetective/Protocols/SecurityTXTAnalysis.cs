@@ -136,23 +136,23 @@ namespace DomainDetective {
                     // Add the value to the appropriate list in the record
                     switch (currentField.ToLowerInvariant()) {
                         case "contact":
-                            if (Uri.TryCreate(value, UriKind.Absolute, out var contactUri)) {
-                                if (string.Equals(contactUri.Scheme, "mailto", StringComparison.OrdinalIgnoreCase)) {
-                                    try {
-                                        var address = new MailAddress(contactUri.AbsolutePath);
-                                        ContactEmail.Add(address.Address);
-                                    } catch (FormatException) {
-                                        Logger.WriteWarning("Invalid email format in Contact field");
-                                        RecordValid = false;
-                                    }
-                                } else {
-                                    if (!string.Equals(contactUri.Scheme, "http", StringComparison.OrdinalIgnoreCase) &&
-                                        !string.Equals(contactUri.Scheme, "https", StringComparison.OrdinalIgnoreCase) &&
-                                        !string.Equals(contactUri.Scheme, "tel", StringComparison.OrdinalIgnoreCase)) {
-                                        Logger.WriteWarning("Unrecognized URI scheme in Contact field");
-                                        RecordValid = false;
-                                    }
+                            if (value.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
+                                var emailPart = value.Substring("mailto:".Length);
+                                try {
+                                    var address = new MailAddress(emailPart);
+                                    ContactEmail.Add(address.Address);
+                                } catch (FormatException) {
+                                    Logger.WriteWarning("Invalid email format in Contact field");
+                                    RecordValid = false;
+                                }
+                            } else if (Uri.TryCreate(value, UriKind.Absolute, out var contactUri)) {
+                                if (string.Equals(contactUri.Scheme, "http", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(contactUri.Scheme, "https", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(contactUri.Scheme, "tel", StringComparison.OrdinalIgnoreCase)) {
                                     ContactWebsite.Add(contactUri.ToString());
+                                } else {
+                                    Logger.WriteWarning("Unrecognized URI scheme in Contact field");
+                                    RecordValid = false;
                                 }
                             } else if (value.Contains("@")) {
                                 try {
