@@ -3,6 +3,7 @@ using PgpCore.Models;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Mail;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -135,12 +136,35 @@ namespace DomainDetective {
                     // Add the value to the appropriate list in the record
                     switch (currentField.ToLowerInvariant()) {
                         case "contact":
-                            if (value.StartsWith("mailto:")) {
-                                ContactEmail.Add(value.Substring("mailto:".Length));
+                            if (value.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
+                                var emailPart = value.Substring("mailto:".Length);
+                                try {
+                                    var address = new MailAddress(emailPart);
+                                    ContactEmail.Add(address.Address);
+                                } catch (FormatException) {
+                                    Logger.WriteWarning("Invalid email format in Contact field");
+                                    RecordValid = false;
+                                }
+                            } else if (Uri.TryCreate(value, UriKind.Absolute, out var contactUri)) {
+                                if (string.Equals(contactUri.Scheme, "http", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(contactUri.Scheme, "https", StringComparison.OrdinalIgnoreCase) ||
+                                    string.Equals(contactUri.Scheme, "tel", StringComparison.OrdinalIgnoreCase)) {
+                                    ContactWebsite.Add(contactUri.ToString());
+                                } else {
+                                    Logger.WriteWarning("Unrecognized URI scheme in Contact field");
+                                    RecordValid = false;
+                                }
                             } else if (value.Contains("@")) {
-                                ContactEmail.Add(value);
+                                try {
+                                    var address = new MailAddress(value);
+                                    ContactEmail.Add(address.Address);
+                                } catch (FormatException) {
+                                    Logger.WriteWarning("Invalid email format in Contact field");
+                                    RecordValid = false;
+                                }
                             } else {
-                                ContactWebsite.Add(value);
+                                Logger.WriteWarning("Invalid Contact field format");
+                                RecordValid = false;
                             }
                             break;
                         case "acknowledgments":
