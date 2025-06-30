@@ -44,6 +44,9 @@ namespace DomainDetective {
         /// <summary>Gets the TTL values for each parent DS record.</summary>
         public IReadOnlyList<int> DsTtls { get; private set; } = new List<int>();
 
+        /// <summary>Gets the key tag of the root trust anchor.</summary>
+        public int RootKeyTag { get; private set; }
+
         /// <summary>
         /// Performs DNSSEC validation for the specified domain.
         /// </summary>
@@ -63,6 +66,7 @@ namespace DomainDetective {
             List<string> signatures = new();
             List<string> dsRecords = new();
             List<int> dsTtls = new();
+            int rootKeyTag = 0;
 
             while (true) {
                 var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
@@ -109,6 +113,12 @@ namespace DomainDetective {
 
                 int dot = current.IndexOf('.');
                 if (dot == -1) {
+                    if (dsResult.records.Count > 0) {
+                        string[] rootParts = dsResult.records[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (rootParts.Length > 0 && int.TryParse(rootParts[0], out int tag)) {
+                            rootKeyTag = tag;
+                        }
+                    }
                     break;
                 }
 
@@ -118,6 +128,7 @@ namespace DomainDetective {
 
             ChainValid = chainValid;
             DsTtls = dsTtls;
+            RootKeyTag = rootKeyTag;
 
             logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
         }

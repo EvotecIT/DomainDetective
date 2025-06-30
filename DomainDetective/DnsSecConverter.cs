@@ -42,6 +42,7 @@ namespace DomainDetective {
                 DsMatch = analysis.DsMatch,
                 ChainValid = analysis.ChainValid,
                 DsTtls = analysis.DsTtls,
+                RootKeyTag = analysis.RootKeyTag,
             };
         }
 
@@ -117,6 +118,9 @@ namespace DomainDetective {
 
         /// <summary>TTL values for each DS lookup in the validation chain.</summary>
         public IReadOnlyList<int> DsTtls { get; set; }
+
+        /// <summary>Key tag for the root trust anchor.</summary>
+        public int RootKeyTag { get; set; }
     }
 
     /// <summary>
