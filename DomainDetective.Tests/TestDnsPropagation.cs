@@ -47,16 +47,19 @@ namespace DomainDetective.Tests {
             var results = new[] {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.A,
                     Records = new[] { "1.1.1.1" },
                     Success = true
                 },
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    RecordType = DnsRecordType.A,
                     Records = new[] { "1.1.1.1" },
                     Success = true
                 },
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "9.9.9.9" },
+                    RecordType = DnsRecordType.A,
                     Records = new[] { "2.2.2.2" },
                     Success = true
                 }
@@ -72,11 +75,13 @@ namespace DomainDetective.Tests {
             var results = new[] {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.AAAA,
                     Records = new[] { "2001:0db8:0000:0000:0000:0000:0000:0001" },
                     Success = true
                 },
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    RecordType = DnsRecordType.AAAA,
                     Records = new[] { "2001:db8::1" },
                     Success = true
                 }
@@ -93,11 +98,13 @@ namespace DomainDetective.Tests {
             var results = new[] {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.AAAA,
                     Records = new[] { "2001:DB8::1" },
                     Success = true
                 },
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    RecordType = DnsRecordType.AAAA,
                     Records = new[] { "2001:db8::1" },
                     Success = true
                 }
@@ -114,11 +121,13 @@ namespace DomainDetective.Tests {
             var results = new[] {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.TXT,
                     Records = new[] { "Example" },
                     Success = true
                 },
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    RecordType = DnsRecordType.TXT,
                     Records = new[] { "example" },
                     Success = true
                 }
@@ -135,6 +144,7 @@ namespace DomainDetective.Tests {
             var results = new[] {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.A,
                     Records = null,
                     Success = true
                 }

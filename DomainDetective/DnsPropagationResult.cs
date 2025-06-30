@@ -1,3 +1,4 @@
+using DnsClientX;
 using System;
 using System.Collections.Generic;
 namespace DomainDetective {
@@ -8,6 +9,8 @@ namespace DomainDetective {
     public class DnsPropagationResult {
         /// <summary>Gets the server that was queried.</summary>
         public PublicDnsEntry Server { get; init; }
+        /// <summary>Gets the DNS record type that was queried.</summary>
+        public DnsRecordType RecordType { get; init; }
         /// <summary>Gets the records returned by the server.</summary>
         public IEnumerable<string> Records { get; init; }
         /// <summary>Gets the time the query took.</summary>
