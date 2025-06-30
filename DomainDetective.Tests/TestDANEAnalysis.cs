@@ -208,9 +208,13 @@ namespace DomainDetective.Tests {
             };
 
             var analysis = new DANEAnalysis();
-            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            await analysis.AnalyzeDANERecords(answers, logger);
 
             Assert.False(analysis.AnalysisResults[0].IsValidChoiceForHttps);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("not recommended for HTTPS"));
         }
 
         [Fact]
@@ -245,6 +249,26 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeDANERecords(answers, new InternalLogger());
 
             Assert.False(analysis.AnalysisResults[0].ValidDANERecord);
+        }
+
+        [Fact]
+        public async Task InvalidSelectorOrMatchingTypeTriggersWarning() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_25._tcp.example.com",
+                    DataRaw = "3 2 5 ABCD",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            await analysis.AnalyzeDANERecords(answers, logger);
+
+            Assert.Contains(warnings, w => w.FullMessage.Contains("selector value"));
+            Assert.Contains(warnings, w => w.FullMessage.Contains("matching type"));
         }
 
         [Fact]
