@@ -12,4 +12,6 @@ public class IPNeighborResult
     public string IpAddress { get; init; } = string.Empty;
     /// <summary>Domains associated with <see cref="IpAddress"/>.</summary>
     public List<string> Domains { get; set; } = new();
+    /// <summary>True when the origin is valid per RPKI.</summary>
+    public bool RPKIValid { get; init; }
 }
