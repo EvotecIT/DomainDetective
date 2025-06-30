@@ -121,22 +121,31 @@ namespace DomainDetective {
         private bool IsHexadecimal(string input) => System.Text.RegularExpressions.Regex.IsMatch(input, @"\A\b[0-9a-fA-F]+\b\Z");
 
         public static string GetQueryName(string emailAddress) {
-            if (string.IsNullOrWhiteSpace(emailAddress)) throw new ArgumentNullException(nameof(emailAddress));
+            if (string.IsNullOrWhiteSpace(emailAddress)) {
+                throw new ArgumentNullException(nameof(emailAddress));
+            }
+
             var at = emailAddress.IndexOf('@');
-            if (at < 1 || at == emailAddress.Length - 1) throw new ArgumentException("Invalid email address", nameof(emailAddress));
-            var local = CanonicalizeLocalPart(emailAddress[..at]);
-            var domain = emailAddress[(at + 1)..];
+            if (at < 1 || at == emailAddress.Length - 1) {
+                throw new ArgumentException("Invalid email address", nameof(emailAddress));
+            }
+
+            var local = CanonicalizeLocalPart(emailAddress.Substring(0, at));
+            var domain = emailAddress.Substring(at + 1);
+
             var bytes = Encoding.UTF8.GetBytes(local);
-            Span<byte> hash = stackalloc byte[32];
-            SHA256.HashData(bytes, hash);
-            var hex = Convert.ToHexString(hash.Slice(0, 28)).ToLowerInvariant();
+            using var sha = SHA256.Create();
+            var hash = sha.ComputeHash(bytes);
+            var truncated = new byte[28];
+            Array.Copy(hash, truncated, 28);
+            var hex = BitConverter.ToString(truncated).Replace("-", string.Empty).ToLowerInvariant();
             return $"{hex}._smimecert.{domain}";
         }
 
         private static string CanonicalizeLocalPart(string localPart) {
             localPart = localPart.Trim();
             if (localPart.StartsWith("\"") && localPart.EndsWith("\"")) {
-                localPart = localPart[1..^1];
+                localPart = localPart.Substring(1, localPart.Length - 2);
             }
             localPart = System.Text.RegularExpressions.Regex.Replace(localPart, @"\\(.)", "$1");
             localPart = System.Text.RegularExpressions.Regex.Replace(localPart, @"\(.*?\)", string.Empty);
