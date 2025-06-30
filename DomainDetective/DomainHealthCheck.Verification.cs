@@ -1018,7 +1018,7 @@ namespace DomainDetective {
                         records = new[] { new DnsAnswer { DataRaw = domainName } };
                         break;
                     default:
-                        throw new System.Exception("Service type not implemented.");
+                        throw new NotSupportedException("Service type not implemented.");
                 }
 
                 var recordData = records.Select(x => x.Data ?? x.DataRaw).Distinct();
