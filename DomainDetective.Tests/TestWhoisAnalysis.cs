@@ -136,6 +136,7 @@ namespace DomainDetective.Tests {
                 await whois.QueryWhoisServer("example.sample");
 
                 Assert.Equal("abuse@example.com", whois.RegistrarAbuseEmail);
+                Assert.Equal("abuse@example.com", whois.RegistrarAbuseContactEmail);
                 Assert.Equal("+1.1234567890", whois.RegistrarAbusePhone);
                 Assert.True(whois.ExpiresSoon);
                 Assert.False(whois.IsExpired);

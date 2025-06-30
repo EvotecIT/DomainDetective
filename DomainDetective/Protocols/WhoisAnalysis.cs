@@ -49,6 +49,7 @@ public class WhoisAnalysis {
     public string RegistrarWebsite { get; set; }
     public string RegistrarLicense { get; set; }
     public string RegistrarEmail { get; set; }
+    public string RegistrarAbuseContactEmail { get; set; }
     public string RegistrarAbuseEmail { get; set; }
     public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
@@ -459,6 +460,7 @@ public class WhoisAnalysis {
         } else {
             ParseWhoisDataDefault();
         }
+        ParseRegistrarAbuseContactEmail();
         UpdateExpiryFlags();
         UpdateRegistrarLock();
         UpdatePrivacyFlag();
@@ -687,6 +689,7 @@ public class WhoisAnalysis {
                 var value = line.Substring("   Registrar Abuse Contact Email:".Length).Trim();
                 RegistrarEmail = value;
                 RegistrarAbuseEmail = value;
+                RegistrarAbuseContactEmail = value;
             } else if (line.StartsWith("   Registrar Abuse Contact Phone:")) {
                 var value = line.Substring("   Registrar Abuse Contact Phone:".Length).Trim();
                 RegistrarTel = value;
@@ -725,6 +728,7 @@ public class WhoisAnalysis {
                 var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
                 RegistrarEmail = value;
                 RegistrarAbuseEmail = value;
+                RegistrarAbuseContactEmail = value;
             } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
                 var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
                 RegistrarTel = value;
@@ -884,6 +888,22 @@ public class WhoisAnalysis {
                 }
             } else if (trimmedLine.StartsWith("Flags:")) {
                 DnsSec = trimmedLine.Substring("Flags:".Length).Trim();
+            }
+        }
+    }
+
+    private void ParseRegistrarAbuseContactEmail() {
+        foreach (var line in WhoisData.Split('\n')) {
+            var trimmedLine = line.Trim();
+            if (trimmedLine.StartsWith("Registrar Abuse Contact Email:", StringComparison.OrdinalIgnoreCase)) {
+                RegistrarAbuseContactEmail = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                if (string.IsNullOrEmpty(RegistrarAbuseEmail)) {
+                    RegistrarAbuseEmail = RegistrarAbuseContactEmail;
+                }
+                if (string.IsNullOrEmpty(RegistrarEmail)) {
+                    RegistrarEmail = RegistrarAbuseContactEmail;
+                }
+                break;
             }
         }
     }
