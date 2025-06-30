@@ -7,7 +7,7 @@ namespace DomainDetective.Protocols {
     /// </summary>
     internal static class DNSKeyAnalysis {
         private static readonly HashSet<int> ValidAlgorithms = new() {
-            0, 1, 2, 3, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 23, 252, 253, 254,
+            1, 2, 3, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 23, 252, 253, 254,
         };
         /// <summary>
         /// Determines whether a string consists solely of hexadecimal characters.
