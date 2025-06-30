@@ -88,6 +88,16 @@ namespace DomainDetective {
                 analysis.ValidSelector = selectorParsed && ValidateSelector(selectorValue);
                 analysis.ValidCertificateAssociationData = IsHexadecimal(associationData);
 
+                if (!selectorParsed) {
+                    logger?.WriteWarning($"TLSA selector field '{selectorPart}' is not numeric");
+                } else if (!ValidateSelector(selectorValue)) {
+                    logger?.WriteWarning($"TLSA selector value '{selectorValue}' is invalid, expected 0 or 1");
+                }
+
+                if (!matchingParsed) {
+                    logger?.WriteWarning($"TLSA matching type field '{matchingPart}' is not numeric");
+                }
+
                 if (!usageParsed || !selectorParsed || !matchingParsed) {
                     analysis.ValidMatchingType = false;
                     AnalysisResults.Add(analysis);
@@ -108,6 +118,9 @@ namespace DomainDetective {
                 analysis.CorrectLengthOfCertificateAssociationData = matchingTypeValue == 0 || associationData.Length == expectedLength;
                 analysis.LengthOfCertificateAssociationData = associationData.Length;
                 analysis.ValidMatchingType = matchingTypeValue >= 0 && matchingTypeValue <= 2;
+                if (!analysis.ValidMatchingType) {
+                    logger?.WriteWarning($"TLSA matching type '{matchingTypeValue}' is invalid, expected 0, 1 or 2");
+                }
 
                 analysis.CertificateUsage = TranslateUsage(usageValue);
                 analysis.SelectorField = TranslateSelector(selectorValue);
@@ -123,9 +136,15 @@ namespace DomainDetective {
                 // - Selector: 1 (SPKI: SubjectPublicKeyInfo)
                 // - Matching Type: 1 (SHA-256: SHA-256 of Certificate or SPKI)
                 analysis.IsValidChoiceForSmtp = analysis.ServiceType == ServiceType.SMTP && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
+                if (analysis.ServiceType == ServiceType.SMTP && !analysis.IsValidChoiceForSmtp) {
+                    logger?.WriteWarning($"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for SMTP");
+                }
 
                 // For HTTPS, RFC 7671 recommends the same parameters
                 analysis.IsValidChoiceForHttps = analysis.ServiceType == ServiceType.HTTPS && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
+                if (analysis.ServiceType == ServiceType.HTTPS && !analysis.IsValidChoiceForHttps) {
+                    logger?.WriteWarning($"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for HTTPS");
+                }
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
 
