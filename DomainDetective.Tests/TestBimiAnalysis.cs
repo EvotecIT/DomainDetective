@@ -243,7 +243,7 @@ namespace DomainDetective.Tests {
                         await writer.WriteLineAsync($"Content-Type: {resp.contentType}");
                         await writer.WriteLineAsync($"Content-Length: {resp.data.Length}");
                         await writer.WriteLineAsync();
-                        await ssl.WriteAsync(resp.data);
+                        await ssl.WriteAsync(resp.data, 0, resp.data.Length, token);
                     }, token);
                 }
             } catch {
