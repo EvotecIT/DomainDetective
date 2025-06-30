@@ -43,8 +43,9 @@ namespace DomainDetective.Tests {
 
         [Theory]
         [InlineData("invalid host")]
-        [InlineData("foo/bar")] 
-        [InlineData("http://example.com")] 
+        [InlineData("foo/bar")]
+        [InlineData("http://example.com")]
+        [InlineData("localhost:70000")]
         public async Task VerifyPlainHttpThrowsIfDomainInvalid(string domain) {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentException>(async () =>

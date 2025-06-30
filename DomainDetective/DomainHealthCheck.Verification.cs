@@ -18,7 +18,12 @@ namespace DomainDetective {
             _idn.GetAscii(domainName.Trim().Trim('.')).ToLowerInvariant();
 
         private void UpdateIsPublicSuffix(string domainName) {
-            var ascii = ToAscii(domainName);
+            string host = domainName;
+            if (Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out var uri)) {
+                host = uri.Host;
+            }
+
+            var ascii = ToAscii(host);
             IsPublicSuffix = _publicSuffixList.IsPublicSuffix(ascii);
         }
         /// Verifies DKIM records for the specified domain.
@@ -1160,11 +1165,23 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
 
-            if (Uri.CheckHostName(trimmed) == UriHostNameType.Unknown) {
+            if (!Uri.TryCreate($"http://{trimmed}", UriKind.Absolute, out var uri)) {
                 throw new ArgumentException("Invalid host name.", nameof(domainName));
             }
 
-            return ToAscii(trimmed);
+            if (!string.IsNullOrEmpty(uri.PathAndQuery) && uri.PathAndQuery != "/" ||
+                !string.IsNullOrEmpty(uri.Fragment)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+
+            if (!uri.IsDefaultPort) {
+                if (uri.Port <= 0 || uri.Port > 65535) {
+                    throw new ArgumentException("Invalid port.", nameof(domainName));
+                }
+                return $"{ToAscii(uri.IdnHost)}:{uri.Port}";
+            }
+
+            return ToAscii(uri.IdnHost);
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>
