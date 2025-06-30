@@ -24,7 +24,6 @@ namespace DomainDetective {
         public bool PolicyValid => TlsRptRecordExists && StartsCorrectly && RuaDefined;
 
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
-            await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
 
             TlsRptRecord = null;
