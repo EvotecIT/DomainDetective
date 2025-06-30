@@ -137,13 +137,13 @@ namespace DomainDetective {
                 // - Matching Type: 1 (SHA-256: SHA-256 of Certificate or SPKI)
                 analysis.IsValidChoiceForSmtp = analysis.ServiceType == ServiceType.SMTP && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
                 if (analysis.ServiceType == ServiceType.SMTP && !analysis.IsValidChoiceForSmtp) {
-                    logger?.WriteWarning("TLSA selector {0} and matching type {1} are not recommended for SMTP", selectorValue, matchingTypeValue);
+                    logger?.WriteWarning($"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for SMTP");
                 }
 
                 // For HTTPS, RFC 7671 recommends the same parameters
                 analysis.IsValidChoiceForHttps = analysis.ServiceType == ServiceType.HTTPS && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
                 if (analysis.ServiceType == ServiceType.HTTPS && !analysis.IsValidChoiceForHttps) {
-                    logger?.WriteWarning("TLSA selector {0} and matching type {1} are not recommended for HTTPS", selectorValue, matchingTypeValue);
+                    logger?.WriteWarning($"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for HTTPS");
                 }
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
