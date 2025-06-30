@@ -25,6 +25,20 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task WarnsBelowLowerBound() {
+            var analysis = Create(299);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Contains(analysis.Warnings, w => w.Contains("shorter"));
+        }
+
+        [Fact]
+        public async Task WarnsAboveUpperBound() {
+            var analysis = Create(86401);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Contains(analysis.Warnings, w => w.Contains("exceeds"));
+        }
+
+        [Fact]
         public async Task NoWarningsInRange() {
             var analysis = Create(3600);
             await analysis.Analyze("example.com", new InternalLogger());

@@ -64,10 +64,10 @@ namespace DomainDetective {
 
             Evaluate("A", ATtls, 300, 86400);
             Evaluate("AAAA", AaaaTtls, 300, 86400);
-            Evaluate("MX", MxTtls, 3600, 172800);
-            Evaluate("NS", NsTtls, 3600, 604800);
+            Evaluate("MX", MxTtls, 300, 86400);
+            Evaluate("NS", NsTtls, 300, 86400);
             if (SoaTtl > 0) {
-                Evaluate("SOA", new[] { SoaTtl }, 3600, 86400);
+                Evaluate("SOA", new[] { SoaTtl }, 300, 86400);
             }
         }
 
