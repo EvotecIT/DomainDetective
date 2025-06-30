@@ -37,6 +37,11 @@ namespace DomainDetective {
                 return;
             }
 
+            var adsp = await DnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+            if (adsp.Any()) {
+                await DKIMAnalysis.AnalyzeAdspRecord(adsp, _logger);
+            }
+
             foreach (var selector in selectors) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var dkim = await DnsConfiguration.QueryDNS(name: $"{selector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
@@ -91,6 +96,11 @@ namespace DomainDetective {
                         var selectors = dkimSelectors;
                         if (selectors == null || selectors.Length == 0) {
                             selectors = Definitions.DKIMSelectors.GuessSelectors().ToArray();
+                        }
+
+                        var adsp = await DnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+                        if (adsp.Any()) {
+                            await DKIMAnalysis.AnalyzeAdspRecord(adsp, _logger);
                         }
 
                         foreach (var selector in selectors) {

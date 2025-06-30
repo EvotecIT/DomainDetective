@@ -209,5 +209,21 @@ namespace DomainDetective.Tests {
             Assert.False(result.WeakKey);
             Assert.Equal(2048, result.KeyLength);
         }
+
+        [Fact]
+        public async Task DetectsAdspRecord() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "dkim=all", Type = DnsRecordType.TXT }
+            };
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var analysis = new DkimAnalysis();
+            await analysis.AnalyzeAdspRecord(answers, logger);
+
+            Assert.True(analysis.AdspRecordExists);
+            Assert.Equal("dkim=all", analysis.AdspRecord);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("obsolete"));
+        }
     }
 }
