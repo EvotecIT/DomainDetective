@@ -65,6 +65,24 @@ namespace DomainDetective {
             return query;
         }
 
+        private static ushort ReadUInt16(byte[] buffer, ref int offset) {
+            var value = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+            offset += 2;
+            return value;
+        }
+
+        private static void SkipName(byte[] buffer, ref int offset) {
+            while (true) {
+                var len = buffer[offset++];
+                if (len == 0) { return; }
+                if ((len & 0xC0) == 0xC0) {
+                    offset++;
+                    return;
+                }
+                offset += len;
+            }
+        }
+
         private async Task<bool> AttemptZoneTransfer(string zone, string server, InternalLogger logger, CancellationToken token) {
             try {
                 using var client = new TcpClient();
@@ -103,6 +121,7 @@ namespace DomainDetective {
                 await stream.WriteAsync(query, 0, query.Length, cts.Token);
 #endif
                 var prefixBuffer = new byte[2];
+                var startSoaSeen = false;
                 while (true) {
 #if NET8_0_OR_GREATER
                     int read = await stream.ReadAsync(prefixBuffer, cts.Token);
@@ -114,39 +133,54 @@ namespace DomainDetective {
 
                     int respLen = (prefixBuffer[0] << 8) | prefixBuffer[1];
                     if (respLen < 12) {
-                        // invalid response length
                         await stream.ReadAsync(new byte[respLen], 0, respLen, cts.Token);
-                        continue;
+                        return false;
                     }
 
-                    var header = new byte[12];
+                    var message = new byte[respLen];
                     int received = 0;
-                    while (received < 12) {
+                    while (received < respLen) {
 #if NET8_0_OR_GREATER
-                        var r = await stream.ReadAsync(header.AsMemory(received, 12 - received), cts.Token);
+                        var r = await stream.ReadAsync(message.AsMemory(received, respLen - received), cts.Token);
 #else
-                        var r = await stream.ReadAsync(header, received, 12 - received, cts.Token);
+                        var r = await stream.ReadAsync(message, received, respLen - received, cts.Token);
 #endif
                         if (r == 0) { return false; }
                         received += r;
                     }
 
-                    int toSkip = respLen - 12;
-                    while (toSkip > 0) {
-                        var skipBuffer = new byte[Math.Min(toSkip, 4096)];
-#if NET8_0_OR_GREATER
-                        int r = await stream.ReadAsync(skipBuffer, cts.Token);
-#else
-                        int r = await stream.ReadAsync(skipBuffer, 0, skipBuffer.Length, cts.Token);
-#endif
-                        if (r == 0) { break; }
-                        toSkip -= r;
+                    int offset = 0;
+                    var respId = ReadUInt16(message, ref offset);
+                    var flags = ReadUInt16(message, ref offset);
+                    var qd = ReadUInt16(message, ref offset);
+                    var an = ReadUInt16(message, ref offset);
+                    offset += 4; // NSCOUNT + ARCOUNT
+                    if (respId != id) { return false; }
+                    var rcode = (byte)(flags & 0x0F);
+                    if (rcode != 0) { return false; }
+
+                    for (int i = 0; i < qd; i++) {
+                        SkipName(message, ref offset);
+                        offset += 4;
                     }
 
-                    var rcode = header[3] & 0x0F;
-                    var answerCount = (header[6] << 8) | header[7];
-                    if (rcode != 0) { return false; }
-                    if (answerCount > 0) { return true; }
+                    for (int i = 0; i < an; i++) {
+                        SkipName(message, ref offset);
+                        if (offset + 10 > message.Length) { return false; }
+                        var type = ReadUInt16(message, ref offset);
+                        offset += 2; // class
+                        offset += 4; // ttl
+                        var rdlen = ReadUInt16(message, ref offset);
+                        if (offset + rdlen > message.Length) { return false; }
+                        offset += rdlen;
+                        if (type == 6) {
+                            if (!startSoaSeen) {
+                                startSoaSeen = true;
+                            } else {
+                                return true;
+                            }
+                        }
+                    }
                 }
             } catch (OperationCanceledException) {
                 throw;
