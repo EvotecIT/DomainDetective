@@ -28,6 +28,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal("220 mail.example.com ESMTP Postfix", result.Banner);
                 Assert.True(result.HostnameMatch);
                 Assert.True(result.SoftwareMatch);
+                Assert.True(result.StartsWith220);
+                Assert.True(result.ContainsDomain);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -55,6 +57,35 @@ namespace DomainDetective.Tests {
                 var result = analysis.ServerResults[$"localhost:{port}"];
                 Assert.False(result.HostnameMatch);
                 Assert.False(result.SoftwareMatch);
+                Assert.True(result.StartsWith220);
+                Assert.True(result.ContainsDomain);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task MalformedBanner() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("500 invalid");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            try {
+                var analysis = new SMTPBannerAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                var result = analysis.ServerResults[$"localhost:{port}"];
+                Assert.False(result.StartsWith220);
+                Assert.False(result.ContainsDomain);
             } finally {
                 listener.Stop();
                 await serverTask;
