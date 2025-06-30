@@ -59,4 +59,27 @@ public class TestFCrDnsAnalysis
         var result = Assert.Single(analysis.Results);
         Assert.False(result.ForwardConfirmed);
     }
+
+    [Fact]
+    public async Task TrailingDotInPtrRecordIsHandled()
+    {
+        var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]>
+        {
+            [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.3" } },
+            [("mail.example.com", DnsRecordType.AAAA)] = Array.Empty<DnsAnswer>()
+        };
+        var analysis = CreateAnalysis(map);
+        var reverse = new[]
+        {
+            new ReverseDnsAnalysis.ReverseDnsResult
+            {
+                IpAddress = "1.1.1.3",
+                PtrRecord = "mail.example.com.",
+                ExpectedHost = "mail.example.com"
+            }
+        };
+        await analysis.Analyze(reverse);
+        var result = Assert.Single(analysis.Results);
+        Assert.True(result.ForwardConfirmed);
+    }
 }

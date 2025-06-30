@@ -53,14 +53,16 @@ public class FCrDnsAnalysis
                 continue;
             }
 
-            var a = await QueryDns(item.PtrRecord, DnsRecordType.A);
-            var aaaa = await QueryDns(item.PtrRecord, DnsRecordType.AAAA);
+            var normalizedPtr = item.PtrRecord.TrimEnd('.');
+
+            var a = await QueryDns(normalizedPtr, DnsRecordType.A);
+            var aaaa = await QueryDns(normalizedPtr, DnsRecordType.AAAA);
             bool match = a.Concat(aaaa).Any(r => r.Data == item.IpAddress);
-            logger?.WriteVerbose($"FCrDNS {item.PtrRecord} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
+            logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
             Results.Add(new FCrDnsResult
             {
                 IpAddress = item.IpAddress,
-                PtrRecord = item.PtrRecord,
+                PtrRecord = normalizedPtr,
                 ForwardConfirmed = match
             });
         }

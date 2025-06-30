@@ -43,7 +43,10 @@ namespace DomainDetective {
             public string? PtrRecord { get; set; }
             public string ExpectedHost { get; set; }
             /// <summary>True when <see cref="PtrRecord"/> equals <see cref="ExpectedHost"/>.</summary>
-            public bool IsValid => string.Equals(PtrRecord?.TrimEnd('.'), ExpectedHost.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+            public bool IsValid => string.Equals(
+                PtrRecord?.TrimEnd('.'),
+                ExpectedHost?.TrimEnd('.'),
+                StringComparison.OrdinalIgnoreCase);
             /// <summary>True when PTR hostname resolves back to <see cref="IpAddress"/>.</summary>
             public bool FcrDnsValid { get; set; }
         }
