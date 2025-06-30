@@ -76,7 +76,18 @@ internal static class CliHelpers
             }
             else
             {
-                table.AddRow(Markup.Escape(property.Name), Markup.Escape(FormatString(value?.ToString(), unicode)));
+                var stringValue = value?.ToString();
+                if (property.Name == "Mode" && stringValue is not null)
+                {
+                    var escaped = Markup.Escape(FormatString(stringValue, unicode));
+                    if (stringValue.Equals("testing", StringComparison.OrdinalIgnoreCase) ||
+                        stringValue.Equals("none", StringComparison.OrdinalIgnoreCase))
+                    {
+                        table.AddRow(Markup.Escape(property.Name), $"[yellow]{escaped}[/]");
+                        continue;
+                    }
+                }
+                table.AddRow(Markup.Escape(property.Name), Markup.Escape(FormatString(stringValue, unicode)));
             }
         }
     }
