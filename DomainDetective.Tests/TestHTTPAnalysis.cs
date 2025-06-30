@@ -461,6 +461,54 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CollectsUnknownHstsDirectives() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=1000; includeSubDomains; foo");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.Contains("foo", analysis.UnknownHstsDirectives);
+                Assert.Equal(1000, analysis.HstsMaxAge);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task InvalidHstsMaxAgeIsCollected() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=abc; includeSubDomains");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.Contains("max-age=abc", analysis.UnknownHstsDirectives);
+                Assert.Null(analysis.HstsMaxAge);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task DetectsHstsPreloaded() {
             var preloadPath = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json");
             File.WriteAllText(preloadPath, "[\"localhost\"]");
