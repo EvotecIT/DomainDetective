@@ -264,7 +264,11 @@ namespace DomainDetective {
                 }
             }
             pem = pem.Replace("\r", string.Empty).Replace("\n", string.Empty).Trim();
-            return Convert.FromBase64String(pem);
+            try {
+                return Convert.FromBase64String(pem);
+            } catch (FormatException ex) {
+                throw new FormatException("Invalid PEM data", ex);
+            }
         }
     }
 }
