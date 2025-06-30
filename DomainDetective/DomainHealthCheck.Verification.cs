@@ -37,7 +37,12 @@ namespace DomainDetective {
         }
 
         private void UpdateIsPublicSuffix(string domainName) {
-            var ascii = ToAscii(domainName);
+            string host = domainName;
+            if (Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out var uri)) {
+                host = uri.Host;
+            }
+
+            var ascii = ToAscii(host);
             IsPublicSuffix = _publicSuffixList.IsPublicSuffix(ascii);
         }
         /// Verifies DKIM records for the specified domain.
@@ -82,7 +87,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             IsPublicSuffix = false;
-            domainName = ToAscii(domainName);
+            domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
@@ -1059,7 +1064,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-            domainName = ToAscii(domainName);
+            domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
         }
@@ -1186,6 +1191,31 @@ namespace DomainDetective {
             if (port <= 0 || port > 65535) {
                 throw new ArgumentOutOfRangeException(nameof(port), "Port must be between 1 and 65535.");
             }
+        }
+
+        private static string ValidateHostName(string domainName) {
+            var trimmed = domainName?.Trim();
+            if (string.IsNullOrWhiteSpace(trimmed)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+
+            if (!Uri.TryCreate($"http://{trimmed}", UriKind.Absolute, out var uri)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+
+            if (!string.IsNullOrEmpty(uri.PathAndQuery) && uri.PathAndQuery != "/" ||
+                !string.IsNullOrEmpty(uri.Fragment)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+
+            if (!uri.IsDefaultPort) {
+                if (uri.Port <= 0 || uri.Port > 65535) {
+                    throw new ArgumentException("Invalid port.", nameof(domainName));
+                }
+                return $"{ToAscii(uri.IdnHost)}:{uri.Port}";
+            }
+
+            return ToAscii(uri.IdnHost);
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>

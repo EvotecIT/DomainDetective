@@ -158,6 +158,10 @@ public class MTASTSAnalysis {
         public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
             Reset();
             Logger = logger;
+
+            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
             Domain = domainName;
 
             var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
