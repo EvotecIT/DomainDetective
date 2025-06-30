@@ -28,7 +28,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new OpenRelayAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
-                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port}"]);
+                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port}"].Status); 
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -62,7 +62,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new OpenRelayAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
-                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port}"]);
+                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port}"].Status); 
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -130,7 +130,7 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeServer("localhost", port2, new InternalLogger());
                 Assert.Single(analysis.ServerResults);
                 Assert.False(analysis.ServerResults.ContainsKey($"localhost:{port1}"));
-                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port2}"]);
+                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port2}"].Status); 
             } finally {
                 listener2.Stop();
                 await serverTask2;
@@ -188,8 +188,8 @@ namespace DomainDetective.Tests {
                 var analysis = new OpenRelayAnalysis();
                 await analysis.AnalyzeServers(new[] { "localhost" }, new[] { port1, port2 }, new InternalLogger());
                 Assert.Equal(2, analysis.ServerResults.Count);
-                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port1}"]);
-                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port2}"]);
+                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port1}"].Status);
+                Assert.Equal(OpenRelayStatus.Denied, analysis.ServerResults[$"localhost:{port2}"].Status);
             } finally {
                 listener1.Stop();
                 listener2.Stop();
@@ -235,7 +235,9 @@ namespace DomainDetective.Tests {
             var analysis = new OpenRelayAnalysis();
             await analysis.AnalyzeServer("localhost", port, new InternalLogger());
 
-            Assert.Equal(OpenRelayStatus.ConnectionFailed, analysis.ServerResults[$"localhost:{port}"]);
+            var result = analysis.ServerResults[$"localhost:{port}"];
+            Assert.Equal(OpenRelayStatus.ConnectionFailed, result.Status);
+            Assert.NotNull(result.SocketErrorCode);
         }
 
         [Fact]
@@ -269,7 +271,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new OpenRelayAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
-                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port}"]);
+                Assert.Equal(OpenRelayStatus.AllowsRelay, analysis.ServerResults[$"localhost:{port}"].Status); 
             } finally {
                 listener.Stop();
                 await serverTask;

@@ -11,7 +11,16 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class OpenRelayAnalysis {
-        public Dictionary<string, OpenRelayStatus> ServerResults { get; private set; } = new();
+        /// <summary>Result of a single open relay check.</summary>
+        /// <para>Part of the DomainDetective project.</para>
+        public class OpenRelayResult {
+            /// <summary>Status of the relay attempt.</summary>
+            public OpenRelayStatus Status { get; init; }
+            /// <summary>Socket error code when <see cref="Status"/> is <see cref="OpenRelayStatus.ConnectionFailed"/>.</summary>
+            public SocketError? SocketErrorCode { get; init; }
+        }
+
+        public Dictionary<string, OpenRelayResult> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>
@@ -20,8 +29,8 @@ namespace DomainDetective {
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            var status = await TryRelay(host, port, logger, cancellationToken);
-            ServerResults[$"{host}:{port}"] = status;
+            var result = await TryRelay(host, port, logger, cancellationToken);
+            ServerResults[$"{host}:{port}"] = result;
         }
 
         /// <summary>
@@ -32,8 +41,8 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var status = await TryRelay(host, port, logger, cancellationToken);
-                    ServerResults[$"{host}:{port}"] = status;
+                    var result = await TryRelay(host, port, logger, cancellationToken);
+                    ServerResults[$"{host}:{port}"] = result;
                 }
             }
         }
@@ -41,7 +50,7 @@ namespace DomainDetective {
         /// <summary>
         /// Attempts to send a relay through the specified server.
         /// </summary>
-        private async Task<OpenRelayStatus> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<OpenRelayResult> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -77,16 +86,18 @@ namespace DomainDetective {
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
 
-                return mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250")
+                var status = mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250")
                     ? OpenRelayStatus.AllowsRelay
                     : OpenRelayStatus.Denied;
+                return new OpenRelayResult { Status = status };
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
                 logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
-                return OpenRelayStatus.ConnectionFailed;
+                SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
+                return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }
         }
 
