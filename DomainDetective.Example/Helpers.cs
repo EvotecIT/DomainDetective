@@ -28,7 +28,7 @@ namespace DomainDetective.Example {
         /// <param name="table">Table instance to add rows to.</param>
         /// <param name="obj">Object whose properties will be read.</param>
         /// <param name="listAsString">When true, list values are rendered as comma separated strings.</param>
-        private static void AddPropertiesTable(Table table, object obj, bool listAsString = false) {
+        private static void AddPropertiesTable(Table table, object obj, bool listAsString = false, bool unicode = false) {
             if (obj == null) {
                 return;
             }
@@ -76,7 +76,7 @@ namespace DomainDetective.Example {
         /// <param name="analysisOf">Title shown in the output panel.</param>
         /// <param name="objs">Object, dictionary or list to inspect.</param>
         /// <param name="perProperty">Currently unused.</param>
-        public static void ShowPropertiesTable(string analysisOf, object objs, bool perProperty = false) {
+        public static void ShowPropertiesTable(string analysisOf, object objs, bool perProperty = false, bool unicode = false) {
             var table = new Table();
             table.Border(TableBorder.Rounded);
 
@@ -102,12 +102,12 @@ namespace DomainDetective.Example {
                 table.AddColumn("Value");
 
                 foreach (var obj in list) {
-                    AddPropertiesTable(table, obj);
+                    AddPropertiesTable(table, obj, unicode: unicode);
                 }
             } else {
                 table.AddColumn("Property");
                 table.AddColumn("Value");
-                AddPropertiesTable(table, objs);
+                AddPropertiesTable(table, objs, unicode: unicode);
             }
 
             var panel = new Panel(table)

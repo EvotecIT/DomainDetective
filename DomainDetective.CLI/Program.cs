@@ -57,6 +57,7 @@ internal class Program
         var checkHttpOption = new Option<bool>("--check-http", "Perform plain HTTP check");
         var summaryOption = new Option<bool>("--summary", "Show condensed summary");
         var jsonOption = new Option<bool>("--json", "Output raw JSON");
+        var unicodeOption = new Option<bool>("--unicode", "Display Unicode domain names");
         var subPolicyOption = new Option<bool>("--subdomain-policy", "Include DMARC sp tag in policy evaluation");
         var danePortsOption = new Option<string?>("--dane-ports", "Comma separated list of DANE ports");
         var smimeOption = new Option<FileInfo?>("--smime", "Parse S/MIME certificate file and exit");
@@ -66,6 +67,7 @@ internal class Program
         root.Add(checkHttpOption);
         root.Add(summaryOption);
         root.Add(jsonOption);
+        root.Add(unicodeOption);
         root.Add(subPolicyOption);
         root.Add(danePortsOption);
         root.Add(smimeOption);
@@ -128,7 +130,7 @@ internal class Program
             {
                 analysis.SaveSnapshot();
             }
-            CliHelpers.ShowPropertiesTable($"WHOIS for {domain}", analysis);
+            CliHelpers.ShowPropertiesTable($"WHOIS for {domain}", analysis, false);
             if (changes != null && changes.Any())
             {
                 AnsiConsole.MarkupLine("[yellow]Changes since last snapshot:[/]");
@@ -263,6 +265,7 @@ internal class Program
             var summary = result.GetValue(summaryOption);
             var json = result.GetValue(jsonOption);
             var subPolicy = result.GetValue(subPolicyOption);
+            var unicode = result.GetValue(unicodeOption);
             var danePortsValue = result.GetValue(danePortsOption);
             var smime = result.GetValue(smimeOption);
             var cert = result.GetValue(certOption);
@@ -271,7 +274,7 @@ internal class Program
             {
                 var smimeAnalysis = new SmimeCertificateAnalysis();
                 smimeAnalysis.AnalyzeFile(smime.FullName);
-                CliHelpers.ShowPropertiesTable($"S/MIME certificate {smime.FullName}", smimeAnalysis);
+                CliHelpers.ShowPropertiesTable($"S/MIME certificate {smime.FullName}", smimeAnalysis, unicode);
                 return;
             }
 
@@ -279,7 +282,7 @@ internal class Program
             {
                 var certAnalysis = new CertificateAnalysis();
                 await certAnalysis.AnalyzeCertificate(new X509Certificate2(cert.FullName));
-                CliHelpers.ShowPropertiesTable($"Certificate {cert.FullName}", certAnalysis);
+                CliHelpers.ShowPropertiesTable($"Certificate {cert.FullName}", certAnalysis, unicode);
                 return;
             }
 
@@ -306,7 +309,7 @@ internal class Program
                     .Where(p => p > 0)
                     .ToArray();
             }
-            await RunChecks(domains, arr, checkHttp, json, summary, subPolicy, danePorts);
+            await RunChecks(domains, arr, checkHttp, json, summary, subPolicy, unicode, danePorts);
         });
 
         var config = new CommandLineConfiguration(root);
@@ -349,7 +352,7 @@ internal class Program
         }
         else
         {
-            CliHelpers.ShowPropertiesTable("Message Header Analysis", result);
+            CliHelpers.ShowPropertiesTable("Message Header Analysis", result, false);
         }
     }
 
@@ -389,7 +392,7 @@ internal class Program
         }
         else
         {
-            CliHelpers.ShowPropertiesTable("ARC Analysis", result);
+            CliHelpers.ShowPropertiesTable("ARC Analysis", result, false);
         }
     }
 
@@ -414,7 +417,7 @@ internal class Program
         }
         else
         {
-            CliHelpers.ShowPropertiesTable($"DNS Tunneling for {domain}", result);
+            CliHelpers.ShowPropertiesTable($"DNS Tunneling for {domain}", result, false);
         }
     }
 
@@ -444,19 +447,19 @@ internal class Program
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, null);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null);
         return 0;
     }
 
     /// <summary>
     /// Runs the selected health checks for the provided domains.
     /// </summary>
-    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, int[]? danePorts)
+    private static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts)
     {
         foreach (var domain in domains)
         {
             var logger = new InternalLogger();
-            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy };
+            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput };
             var needsPortScan = checks?.Contains(HealthCheckType.PORTSCAN) ?? false;
             if (needsPortScan)
             {
@@ -505,7 +508,7 @@ internal class Program
             if (summaryOnly)
             {
                 var summary = hc.BuildSummary();
-                CliHelpers.ShowPropertiesTable($"Summary for {domain}", summary);
+                CliHelpers.ShowPropertiesTable($"Summary for {domain}", summary, unicodeOutput);
                 continue;
             }
 
@@ -544,12 +547,12 @@ internal class Program
                 {
                     var desc = DomainHealthCheck.GetCheckDescription(check);
                     var header = desc != null ? $"{check} for {domain} - {desc.Summary}" : $"{check} for {domain}";
-                    CliHelpers.ShowPropertiesTable(header, data);
+                    CliHelpers.ShowPropertiesTable(header, data, unicodeOutput);
                 }
             }
             if (checkHttp)
             {
-                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis);
+                CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, unicodeOutput);
             }
         }
     }

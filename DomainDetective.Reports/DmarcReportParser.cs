@@ -4,11 +4,13 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Xml.Linq;
+using System.Globalization;
 
 namespace DomainDetective.Reports;
 
 /// <summary>Parser for zipped DMARC feedback reports.</summary>
 public static class DmarcReportParser {
+    private static readonly IdnMapping _idn = new();
     /// <summary>Parses the specified zip file and returns per-domain statistics.</summary>
     /// <param name="path">Path to the zipped XML feedback report.</param>
     public static IEnumerable<DmarcFeedbackSummary> ParseZip(string path) {
@@ -24,6 +26,11 @@ public static class DmarcReportParser {
         foreach (var record in doc.Descendants("record")) {
             string domain = record.Element("identifiers")?.Element("header_from")?.Value ?? string.Empty;
             if (string.IsNullOrEmpty(domain)) {
+                continue;
+            }
+            try {
+                domain = _idn.GetAscii(domain.Trim().Trim('.'));
+            } catch (ArgumentException) {
                 continue;
             }
             if (!table.TryGetValue(domain, out var summary)) {

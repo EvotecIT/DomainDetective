@@ -8,6 +8,9 @@ namespace DomainDetective {
         /// </summary>
         public bool UseSubdomainPolicy { get; set; }
 
+        /// <summary>Display domain names in Unicode where possible.</summary>
+        public bool UnicodeOutput { get; set; }
+
         /// <summary>DNS server used when querying records.</summary>
         /// <value>The endpoint for DNS queries.</value>
         public DnsEndpoint DnsEndpoint {
