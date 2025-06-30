@@ -20,8 +20,32 @@ public class TestEdnsSupportAnalysis
                 }
                 return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1", Type = DnsRecordType.A } });
             },
-            QueryServerOverride = _ => Task.FromResult(support)
+            QueryServerOverride = _ => Task.FromResult(new EdnsSupportInfo { Supported = support, UdpPayloadSize = 4096, DoBit = true })
         };
+    }
+
+    [Theory]
+    [InlineData(512, false)]
+    [InlineData(4096, true)]
+    public async Task ParsesUdpPayloadAndDoBit(int size, bool doBit)
+    {
+        var analysis = new EdnsSupportAnalysis
+        {
+            QueryDnsOverride = (name, type) =>
+            {
+                if (type == DnsRecordType.NS)
+                {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ns.example.com", Type = DnsRecordType.NS } });
+                }
+                return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1", Type = DnsRecordType.A } });
+            },
+            QueryServerOverride = _ => Task.FromResult(new EdnsSupportInfo { Supported = true, UdpPayloadSize = size, DoBit = doBit })
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger());
+        var result = analysis.ServerSupport.Values.First();
+        Assert.Equal(size, result.UdpPayloadSize);
+        Assert.Equal(doBit, result.DoBit);
     }
 
     [Fact]
@@ -29,7 +53,7 @@ public class TestEdnsSupportAnalysis
     {
         var analysis = Create(true);
         await analysis.Analyze("example.com", new InternalLogger());
-        Assert.Contains(analysis.ServerSupport.Values, v => v);
+        Assert.Contains(analysis.ServerSupport.Values, v => v.Supported);
     }
 
     [Fact]
@@ -37,7 +61,7 @@ public class TestEdnsSupportAnalysis
     {
         var analysis = Create(false);
         await analysis.Analyze("example.com", new InternalLogger());
-        Assert.Contains(analysis.ServerSupport.Values, v => !v);
+        Assert.Contains(analysis.ServerSupport.Values, v => !v.Supported);
     }
 
     [Fact]
@@ -110,7 +134,10 @@ public class TestEdnsSupportAnalysis
             };
 
             await analysis.Analyze("example.com", new InternalLogger());
-            Assert.True(analysis.ServerSupport.Values.First());
+            var result = analysis.ServerSupport.Values.First();
+            Assert.True(result.Supported);
+            Assert.Equal(4096, result.UdpPayloadSize);
+            Assert.False(result.DoBit); 
         }
         finally
         {

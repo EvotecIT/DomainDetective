@@ -17,7 +17,7 @@ public class TestEdnsSupportHealthCheck
             }
             return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1", Type = DnsRecordType.A } });
         };
-        hc.EdnsSupportAnalysis.QueryServerOverride = _ => Task.FromResult(support);
+        hc.EdnsSupportAnalysis.QueryServerOverride = _ => Task.FromResult(new EdnsSupportInfo { Supported = support, UdpPayloadSize = 4096, DoBit = true });
         return hc;
     }
 
@@ -26,7 +26,7 @@ public class TestEdnsSupportHealthCheck
     {
         var hc = Create(true);
         await hc.VerifyEdnsSupport("example.com");
-        Assert.Contains(hc.EdnsSupportAnalysis.ServerSupport.Values, v => v);
+        Assert.Contains(hc.EdnsSupportAnalysis.ServerSupport.Values, v => v.Supported);
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class TestEdnsSupportHealthCheck
     {
         var hc = Create(false);
         await hc.VerifyEdnsSupport("example.com");
-        Assert.Contains(hc.EdnsSupportAnalysis.ServerSupport.Values, v => !v);
+        Assert.Contains(hc.EdnsSupportAnalysis.ServerSupport.Values, v => !v.Supported);
     }
 
     [Theory]
