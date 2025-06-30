@@ -88,6 +88,12 @@ namespace DomainDetective {
                 analysis.ValidSelector = selectorParsed && ValidateSelector(selectorValue);
                 analysis.ValidCertificateAssociationData = IsHexadecimal(associationData);
 
+                if (!usageParsed) {
+                    logger?.WriteWarning($"TLSA usage field '{usagePart}' is not numeric");
+                } else if (!ValidateUsage(usageValue)) {
+                    logger?.WriteWarning($"TLSA usage '{usageValue}' is invalid, expected 0-3");
+                }
+
                 if (!selectorParsed) {
                     logger?.WriteWarning($"TLSA selector field '{selectorPart}' is not numeric");
                 } else if (!ValidateSelector(selectorValue)) {
