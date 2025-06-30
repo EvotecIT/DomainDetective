@@ -147,6 +147,9 @@ namespace DomainDetective {
         private async Task<string?> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+#if NET6_0_OR_GREATER
+                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+#endif
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
@@ -175,6 +178,9 @@ namespace DomainDetective {
         private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+#if NET6_0_OR_GREATER
+                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+#endif
                 using var client = new HttpClient(handler);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
