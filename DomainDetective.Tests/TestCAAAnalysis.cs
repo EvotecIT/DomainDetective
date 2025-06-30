@@ -203,5 +203,17 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidTag);
             Assert.False(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag);
         }
+
+        [Fact]
+        public async Task UnknownCriticalPropertyTagTriggersWarning() {
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+
+            await healthCheck.CheckCAA("1 foo \"bar\"");
+
+            Assert.Contains(warnings, w => w.FullMessage.Contains("Unknown CAA property tag"));
+        }
     }
 }
