@@ -22,5 +22,14 @@ namespace DomainDetective.Tests {
             await healthCheck.VerifySPF(domain);
             Assert.False(healthCheck.IsPublicSuffix);
         }
+
+        [Fact]
+        public async Task StateResetsAcrossMultipleDomains() {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.Verify("com", [HealthCheckType.SPF]);
+            Assert.True(healthCheck.IsPublicSuffix);
+            await healthCheck.Verify("example.com", [HealthCheckType.SPF]);
+            Assert.False(healthCheck.IsPublicSuffix);
+        }
     }
 }
