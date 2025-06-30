@@ -90,9 +90,10 @@ public class PortScanAnalysis
             }
         }
 
-        using (var client = new TcpClient(address.AddressFamily))
-        using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
+        var client = new TcpClient(address.AddressFamily);
+        try
         {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(Timeout);
             try
             {
@@ -107,6 +108,10 @@ public class PortScanAnalysis
             {
                 logger?.WriteVerbose("TCP {0}:{1} closed - {2}", address, port, ex.Message);
             }
+        }
+        finally
+        {
+            client.Dispose();
         }
         sw.Stop();
 

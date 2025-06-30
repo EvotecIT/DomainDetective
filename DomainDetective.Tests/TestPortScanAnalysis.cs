@@ -98,6 +98,22 @@ namespace DomainDetective.Tests {
                 await udpTask;
             }
         }
+
+        [Fact]
+        public async Task DetectsTcpClosedPort() {
+            var port = GetFreePort();
+            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
+            Assert.False(analysis.Results[port].TcpOpen);
+        }
+
+        private static int GetFreePort() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
     }
 }
 

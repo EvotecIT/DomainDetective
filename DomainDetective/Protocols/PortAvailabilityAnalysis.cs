@@ -51,27 +51,34 @@ public class PortAvailabilityAnalysis
 
     private async Task<PortResult> CheckPort(string host, int port, InternalLogger logger, CancellationToken token)
     {
-        using var client = new TcpClient();
-        client.SendTimeout = (int)Timeout.TotalMilliseconds;
-        client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        cts.CancelAfter(Timeout);
-        var sw = Stopwatch.StartNew();
+        var client = new TcpClient();
         try
         {
+            client.SendTimeout = (int)Timeout.TotalMilliseconds;
+            client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(Timeout);
+            var sw = Stopwatch.StartNew();
+            try
+            {
 #if NET6_0_OR_GREATER
-            await client.ConnectAsync(host, port, cts.Token);
+                await client.ConnectAsync(host, port, cts.Token);
 #else
-            await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
+                await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
 #endif
-            sw.Stop();
-            return new PortResult { Success = true, Latency = sw.Elapsed };
+                sw.Stop();
+                return new PortResult { Success = true, Latency = sw.Elapsed };
+            }
+            catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
+            {
+                sw.Stop();
+                logger?.WriteVerbose("Port {0}:{1} unreachable - {2}", host, port, ex.Message);
+                return new PortResult { Success = false, Latency = sw.Elapsed };
+            }
         }
-        catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
+        finally
         {
-            sw.Stop();
-            logger?.WriteVerbose("Port {0}:{1} unreachable - {2}", host, port, ex.Message);
-            return new PortResult { Success = false, Latency = sw.Elapsed };
+            client.Dispose();
         }
     }
 }
