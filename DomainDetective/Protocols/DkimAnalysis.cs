@@ -18,10 +18,16 @@ namespace DomainDetective {
         public const int MinimumRsaKeyBits = 1024;
         /// <summary>Gets the analysis results keyed by selector.</summary>
         public Dictionary<string, DkimRecordAnalysis> AnalysisResults { get; private set; } = new Dictionary<string, DkimRecordAnalysis>();
+        /// <summary>Gets the ADSP record text when present.</summary>
+        public string? AdspRecord { get; private set; }
+        /// <summary>Gets a value indicating whether an ADSP record exists.</summary>
+        public bool AdspRecordExists { get; private set; }
 
         /// <summary>Clears <see cref="AnalysisResults"/>.</summary>
         public void Reset() {
             AnalysisResults = new Dictionary<string, DkimRecordAnalysis>();
+            AdspRecord = null;
+            AdspRecordExists = false;
         }
 
         /// <summary>
@@ -131,6 +137,32 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Processes ADSP TXT records.
+        /// </summary>
+        /// <param name="dnsResults">TXT answers from the DNS query.</param>
+        /// <param name="logger">Logger used for warnings.</param>
+        public async Task AnalyzeAdspRecord(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            await Task.Yield();
+
+            AdspRecord = null;
+            AdspRecordExists = false;
+
+            if (dnsResults == null) {
+                logger?.WriteVerbose("DNS query returned no results.");
+                return;
+            }
+
+            var records = dnsResults.ToList();
+            AdspRecordExists = records.Any();
+            if (!AdspRecordExists) {
+                return;
+            }
+
+            AdspRecord = string.Join(" ", records.Select(r => r.Data));
+            logger?.WriteWarning("ADSP record found but ADSP is obsolete.");
+        }
+
+        /// <summary>
         /// Queries well known selector names and analyses any discovered records.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
@@ -140,6 +172,10 @@ namespace DomainDetective {
         /// <returns>The selector that returned a record, or <see langword="null"/>.</returns>
         public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
             Reset();
+            var adsp = await dnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+            if (adsp.Any()) {
+                await AnalyzeAdspRecord(adsp, logger);
+            }
 
             foreach (var selector in DKIMSelectors.GuessSelectors()) {
                 var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
