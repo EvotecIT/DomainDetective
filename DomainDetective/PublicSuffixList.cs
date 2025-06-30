@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -13,6 +14,7 @@ namespace DomainDetective {
         private readonly HashSet<string> _exactRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _wildcardRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _exceptionRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly IdnMapping _idn = new();
 
         internal PublicSuffixList() { }
 
@@ -63,7 +65,7 @@ namespace DomainDetective {
                 return false;
             }
 
-            domain = domain.Trim().Trim('.').ToLowerInvariant();
+            domain = _idn.GetAscii(domain.Trim().Trim('.')).ToLowerInvariant();
             if (_exceptionRules.Contains(domain)) {
                 return false;
             }
@@ -92,7 +94,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domain));
             }
 
-            var clean = domain.Trim().Trim('.').ToLowerInvariant();
+            var clean = _idn.GetAscii(domain.Trim().Trim('.')).ToLowerInvariant();
             var parts = clean.Split('.');
             if (parts.Length <= 1) {
                 return clean;
