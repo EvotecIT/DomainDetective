@@ -83,15 +83,19 @@ namespace DomainDetective {
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
 #if NET8_0_OR_GREATER
-                await reader.ReadLineAsync(timeoutCts.Token);
+                var banner = await reader.ReadLineAsync(timeoutCts.Token);
 #else
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                var banner = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
                 timeoutCts.Token.ThrowIfCancellationRequested();
+                if (banner == null || !banner.StartsWith("220")) {
+                    logger?.WriteWarning($"Unexpected banner sequence: {banner}");
+                }
                 await writer.WriteLineAsync($"EHLO example.com");
 
                 var capabilities = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
                 string line;
+                string? lastEhlo = null;
                 while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                     timeoutCts.Token.ThrowIfCancellationRequested();
                     logger?.WriteVerbose($"EHLO response: {line}");
@@ -100,12 +104,18 @@ namespace DomainDetective {
                         foreach (var part in capabilityLine.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries)) {
                             capabilities.Add(part);
                         }
+                        lastEhlo = line;
                         if (!line.StartsWith("250-")) {
                             break;
                         }
                     } else if (line.StartsWith("5") || line.StartsWith("4")) {
+                        logger?.WriteWarning($"Unexpected EHLO response: {line}");
                         break;
                     }
+                }
+
+                if (lastEhlo != null && lastEhlo.StartsWith("250-")) {
+                    logger?.WriteWarning("EHLO response ended without final 250 line");
                 }
 
                 bool advertised = capabilities.Contains("STARTTLS");
