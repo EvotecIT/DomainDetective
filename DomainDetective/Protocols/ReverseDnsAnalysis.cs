@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -15,6 +16,25 @@ namespace DomainDetective {
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
         public Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
+
+        private static readonly Regex _labelRegex = new(
+            "^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$",
+            RegexOptions.Compiled);
+
+        private static bool IsValidPtrName(string name) {
+            if (string.IsNullOrWhiteSpace(name) || !name.EndsWith(".", StringComparison.Ordinal)) {
+                return false;
+            }
+
+            var labels = name.TrimEnd('.').Split('.');
+            foreach (var label in labels) {
+                if (!_labelRegex.IsMatch(label)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
 
         /// <summary>Represents PTR lookup result for a single address.</summary>
         /// <para>Part of the DomainDetective project.</para>
@@ -88,7 +108,12 @@ namespace DomainDetective {
 
                     string? ptr = null;
                     if (ptrAnswers.Length > 0) {
-                        ptr = ptrAnswers[0].Data.TrimEnd('.');
+                        var rawPtr = ptrAnswers[0].Data;
+                        if (IsValidPtrName(rawPtr)) {
+                            ptr = rawPtr.TrimEnd('.');
+                        } else {
+                            logger?.WriteWarning($"Malformed PTR record: {rawPtr}");
+                        }
                     }
                     var result = new ReverseDnsResult {
                         IpAddress = ip.ToString(),
