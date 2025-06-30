@@ -245,6 +245,7 @@ await health.Verify("example.com");
 var summary = health.BuildSummary();
 Console.WriteLine($"Expires on: {summary.ExpiryDate}");
 Console.WriteLine($"Registrar lock: {summary.RegistrarLocked}");
+Console.WriteLine($"Is public suffix: {summary.IsPublicSuffix}");
 ```
 
 WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet. Comparing the latest data to the previous snapshot highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.

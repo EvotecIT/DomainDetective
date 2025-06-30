@@ -40,6 +40,13 @@ namespace DomainDetective {
         /// <summary>True when DNSSEC validation succeeded.</summary>
         public bool DnsSecValid { get; init; }
 
+        /// <summary>
+        /// Indicates whether the analyzed domain is itself a public suffix as
+        /// defined by <see href="https://datatracker.ietf.org/doc/html/rfc8499"/>
+        /// RFC&nbsp;8499.
+        /// </summary>
+        public bool IsPublicSuffix { get; init; }
+
         /// <summary>Expiration date reported by WHOIS.</summary>
         public string ExpiryDate { get; init; }
 
