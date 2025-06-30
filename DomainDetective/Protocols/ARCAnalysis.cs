@@ -75,23 +75,29 @@ namespace DomainDetective {
 
             foreach (var aar in ArcAuthenticationResultsHeaders) {
                 var inst = ParseInstance(aar);
-                if (inst != null) {
-                    allInstances.Add(inst.Value);
-                    aarInstances.Add(inst.Value);
+                if (inst == null) {
+                    ValidChain = false;
+                    return;
                 }
+
+                allInstances.Add(inst.Value);
+                aarInstances.Add(inst.Value);
             }
 
             foreach (var seal in ArcSealHeaders) {
-                var inst = ParseInstance(seal);
-                if (inst != null) {
-                    allInstances.Add(inst.Value);
-                    sealInstances.Add(inst.Value);
-                }
-
                 if (!HasSignature(seal)) {
                     ValidChain = false;
                     return;
                 }
+
+                var inst = ParseInstance(seal);
+                if (inst == null) {
+                    ValidChain = false;
+                    return;
+                }
+
+                allInstances.Add(inst.Value);
+                sealInstances.Add(inst.Value);
             }
 
             if (allInstances.Count == 0) {

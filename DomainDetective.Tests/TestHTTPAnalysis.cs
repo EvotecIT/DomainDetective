@@ -188,6 +188,31 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task LogsWarningWhenHttp3Downgraded() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Close();
+            });
+
+            try {
+                var logger = new InternalLogger();
+                var warnings = new List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, logger);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("HTTP/3"));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task ThrowsWhenMaxRedirectsExceeded() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
@@ -429,6 +454,54 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
                 Assert.True(analysis.PublicKeyPinsPresent);
                 Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task CollectsUnknownHstsDirectives() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=1000; includeSubDomains; foo");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.Contains("foo", analysis.UnknownHstsDirectives);
+                Assert.Equal(1000, analysis.HstsMaxAge);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task InvalidHstsMaxAgeIsCollected() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=abc; includeSubDomains");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.Contains("max-age=abc", analysis.UnknownHstsDirectives);
+                Assert.Null(analysis.HstsMaxAge);
             } finally {
                 listener.Stop();
                 await serverTask;

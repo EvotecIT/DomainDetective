@@ -67,6 +67,17 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task UnknownTagsAreCollected() {
+            var record = "v=TLSRPTv1;rua=mailto:a@example.com;foo=bar;test";
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, new InternalLogger());
+
+            Assert.Contains("foo=bar", analysis.UnknownTags);
+            Assert.Contains("test", analysis.UnknownTags);
+            Assert.True(analysis.PolicyValid);
+        }
+
+        [Fact]
         public async Task DetectMultipleRecords() {
             var answers = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "v=TLSRPTv1;rua=mailto:a@example.com", Type = DnsRecordType.TXT },
@@ -76,6 +87,16 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeTlsRptRecords(answers, new InternalLogger());
 
             Assert.True(analysis.MultipleRecords);
+            Assert.True(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task ValidRecordHasNoUnknownTags() {
+            var record = "v=TLSRPTv1;rua=mailto:reports@example.com";
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, new InternalLogger());
+
+            Assert.Empty(analysis.UnknownTags);
             Assert.True(analysis.PolicyValid);
         }
     }

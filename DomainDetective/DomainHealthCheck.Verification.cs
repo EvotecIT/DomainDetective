@@ -1053,6 +1053,7 @@ namespace DomainDetective {
                 DkimValid = dkimValid,
                 HasMxRecord = MXAnalysis.MxRecordExists,
                 DnsSecValid = DnsSecAnalysis?.ChainValid ?? false,
+                IsPublicSuffix = IsPublicSuffix,
                 ExpiryDate = WhoisAnalysis.ExpiryDate,
                 ExpiresSoon = WhoisAnalysis.ExpiresSoon,
                 IsExpired = WhoisAnalysis.IsExpired,

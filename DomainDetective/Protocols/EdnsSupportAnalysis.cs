@@ -11,14 +11,26 @@ namespace DomainDetective;
 /// Determines whether name servers respond to EDNS queries.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
+public record EdnsSupportInfo
+{
+    /// <summary>Whether EDNS is supported.</summary>
+    public bool Supported { get; init; }
+
+    /// <summary>The UDP payload size advertised by the server.</summary>
+    public int UdpPayloadSize { get; init; }
+
+    /// <summary>Indicates if the DO bit was set in the response.</summary>
+    public bool DoBit { get; init; }
+}
+
 public class EdnsSupportAnalysis
 {
     /// <summary>EDNS support results keyed by server.</summary>
-    public Dictionary<string, bool> ServerSupport { get; private set; } = new();
+    public Dictionary<string, EdnsSupportInfo> ServerSupport { get; private set; } = new();
 
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
-    public Func<string, Task<bool>>? QueryServerOverride { private get; set; }
+    public Func<string, Task<EdnsSupportInfo>>? QueryServerOverride { private get; set; }
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -76,19 +88,28 @@ public class EdnsSupportAnalysis
         return query;
     }
 
-    private static bool HasOptRecord(byte[] data)
+    private static EdnsSupportInfo ParseEdns(byte[] data)
     {
-        for (int i = 0; i < data.Length - 2; i++)
+        for (int i = 0; i < data.Length - 10; i++)
         {
             if (data[i] == 0x00 && data[i + 1] == 0x00 && data[i + 2] == 0x29)
             {
-                return true;
+                int udpPayload = data[i + 3] << 8 | data[i + 4];
+                int flags = data[i + 7] << 8 | data[i + 8];
+                bool doBit = (flags & 0x8000) != 0;
+                return new EdnsSupportInfo
+                {
+                    Supported = true,
+                    UdpPayloadSize = udpPayload,
+                    DoBit = doBit
+                };
             }
         }
-        return false;
+
+        return new EdnsSupportInfo { Supported = false, UdpPayloadSize = 0, DoBit = false };
     }
 
-    private static async Task<bool> QueryServerAsync(string ip)
+    private static async Task<EdnsSupportInfo> QueryServerAsync(string ip)
     {
         int port = 53;
         var host = ip;
@@ -130,7 +151,7 @@ public class EdnsSupportAnalysis
             var buf = new byte[2];
             if (await stream.ReadAsync(buf, cts.Token) != 2)
             {
-                return false;
+                return new EdnsSupportInfo { Supported = false };
             }
 #else
             await stream.WriteAsync(prefix, 0, 2, cts.Token);
@@ -139,7 +160,7 @@ public class EdnsSupportAnalysis
             var buf = new byte[2];
             if (await stream.ReadAsync(buf, 0, 2, cts.Token) != 2)
             {
-                return false;
+                return new EdnsSupportInfo { Supported = false };
             }
 #endif
             int respLen = buf[0] << 8 | buf[1];
@@ -160,12 +181,12 @@ public class EdnsSupportAnalysis
             }
             if (received < respLen)
             {
-                return false;
+                return new EdnsSupportInfo { Supported = false };
             }
             data = respData;
         }
 
-        return HasOptRecord(data);
+        return ParseEdns(data);
     }
 
     /// <summary>
@@ -183,7 +204,7 @@ public class EdnsSupportAnalysis
             var a = await QueryDns(host, DnsRecordType.A);
             foreach (var addr in a)
             {
-                bool support;
+                EdnsSupportInfo support;
                 if (QueryServerOverride != null)
                 {
                     support = await QueryServerOverride(addr.Data);
@@ -194,7 +215,7 @@ public class EdnsSupportAnalysis
                 }
 
                 ServerSupport[$"{host} ({addr.Data})"] = support;
-                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, addr.Data, support);
+                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, addr.Data, support.Supported);
             }
         }
     }

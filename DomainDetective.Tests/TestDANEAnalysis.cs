@@ -272,6 +272,25 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidUsageTriggersWarning() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    Name = "_25._tcp.example.com",
+                    DataRaw = "4 1 1 ABCD",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            await analysis.AnalyzeDANERecords(answers, logger);
+
+            Assert.Contains(warnings, w => w.FullMessage.Contains("usage '4' is invalid"));
+        }
+
+        [Fact]
         public async Task ServiceTypeDefaultsToHttps() {
             var record = "3 1 1 " + new string('A', 64);
             var analysis = new DANEAnalysis();
