@@ -51,4 +51,24 @@ public class TestWildcardDnsAnalysis
 
         Assert.True(analysis.CatchAll);
     }
+
+    [Fact]
+    public async Task NoCatchAllForDeeperWildcardOnly()
+    {
+        var analysis = new WildcardDnsAnalysis
+        {
+            QueryDnsOverride = (name, _) =>
+            {
+                // respond only when two random labels are present
+                var labels = name.Split('.');
+                return Task.FromResult(labels.Length == 4
+                    ? new[] { new DnsAnswer { Type = DnsRecordType.A } }
+                    : System.Array.Empty<DnsAnswer>());
+            }
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger(), sampleCount: 1);
+
+        Assert.False(analysis.CatchAll);
+    }
 }

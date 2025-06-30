@@ -48,31 +48,40 @@ public class WildcardDnsAnalysis
         ResolvedAddresses.Clear();
         CatchAll = false;
 
+        const int depthToCheck = 2;
         for (int i = 0; i < sampleCount; i++)
         {
-            string sub = $"{Guid.NewGuid():N}.{domainName}";
-            TestedNames.Add(sub);
-            var records = await QueryDns(sub, DnsRecordType.A);
-            if (records.Length == 0)
+            for (int depth = 1; depth <= depthToCheck; depth++)
             {
-                records = await QueryDns(sub, DnsRecordType.AAAA);
-            }
-
-            if (records.Length > 0)
-            {
-                ResolvedNames.Add(sub);
-
-                foreach (var rec in records)
+                string name = domainName;
+                for (int j = 0; j < depth; j++)
                 {
-                    var data = rec.DataRaw ?? string.Empty;
-                    if (IPAddress.TryParse(data, out var ip))
-                    {
-                        data = ip.ToString();
-                    }
+                    name = $"{Guid.NewGuid():N}.{name}";
+                }
 
-                    if (!string.IsNullOrEmpty(data) && !ResolvedAddresses.Contains(data, StringComparer.OrdinalIgnoreCase))
+                TestedNames.Add(name);
+                var records = await QueryDns(name, DnsRecordType.A);
+                if (records.Length == 0)
+                {
+                    records = await QueryDns(name, DnsRecordType.AAAA);
+                }
+
+                if (records.Length > 0)
+                {
+                    ResolvedNames.Add(name);
+
+                    foreach (var rec in records)
                     {
-                        ResolvedAddresses.Add(data);
+                        var data = rec.DataRaw ?? string.Empty;
+                        if (IPAddress.TryParse(data, out var ip))
+                        {
+                            data = ip.ToString();
+                        }
+
+                        if (!string.IsNullOrEmpty(data) && !ResolvedAddresses.Contains(data, StringComparer.OrdinalIgnoreCase))
+                        {
+                            ResolvedAddresses.Add(data);
+                        }
                     }
                 }
             }
