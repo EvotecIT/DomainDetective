@@ -544,13 +544,15 @@ namespace DomainDetective {
         }
 
         /// <summary>Queries reputation services for threat listings.</summary>
-        public async Task VerifyThreatIntel(string target, CancellationToken cancellationToken = default) {
-            if (string.IsNullOrWhiteSpace(target)) {
-                throw new ArgumentNullException(nameof(target));
+        /// <param name="domainName">Domain or IP address to check.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyThreatIntel(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
             }
-            target = ToAscii(target);
-            UpdateIsPublicSuffix(target);
-            await ThreatIntelAnalysis.Analyze(target, GoogleSafeBrowsingApiKey, PhishTankApiKey, VirusTotalApiKey, _logger, cancellationToken);
+            domainName = ToAscii(domainName);
+            UpdateIsPublicSuffix(domainName);
+            await ThreatIntelAnalysis.Analyze(domainName, GoogleSafeBrowsingApiKey, PhishTankApiKey, VirusTotalApiKey, _logger, cancellationToken);
         }
 
         /// <summary>
