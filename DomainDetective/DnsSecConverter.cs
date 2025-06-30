@@ -43,6 +43,7 @@ namespace DomainDetective {
                 ChainValid = analysis.ChainValid,
                 DsTtls = analysis.DsTtls,
                 RootKeyTag = analysis.RootKeyTag,
+                MismatchSummary = analysis.MismatchSummary
             };
         }
 
@@ -121,6 +122,9 @@ namespace DomainDetective {
 
         /// <summary>Key tag for the root trust anchor.</summary>
         public int RootKeyTag { get; set; }
+
+        /// <summary>Descriptions of any mismatches encountered.</summary>
+        public IReadOnlyList<string> MismatchSummary { get; set; }
     }
 
     /// <summary>

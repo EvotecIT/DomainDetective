@@ -15,3 +15,9 @@
 ### What's Changed
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
+
+## 1.0.3
+
+### What's Changed
+- DNSSEC validation now walks the delegation chain and checks DS records
+- DNSSEC analysis summarizes any mismatches for each chain element

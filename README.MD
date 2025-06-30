@@ -18,6 +18,8 @@ Current capabilities include:
 - [x] Verify reverse DNS (PTR)
 - [x] Verify forward-confirmed reverse DNS (FCrDNS)
 - [x] Verify DNSSEC
+- [x] Follow the delegation chain and validate DS records
+- [x] Summarize DNSSEC mismatches across the chain
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers
 - [x] Verify DANE/TLSA (HTTPS on port 443 by default)
