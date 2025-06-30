@@ -123,6 +123,16 @@ public static class CheckDescriptions {
                 "Verify SMTP TLS configuration.",
                 null,
                 "Use modern TLS and strong ciphers."),
+            // Verify IMAP TLS
+            [HealthCheckType.IMAPTLS] = new(
+                "Verify IMAP TLS configuration.",
+                null,
+                "Use modern TLS and strong ciphers."),
+            // Verify POP3 TLS
+            [HealthCheckType.POP3TLS] = new(
+                "Verify POP3 TLS configuration.",
+                null,
+                "Use modern TLS and strong ciphers."),
             // Verify SMTP Banner
             [HealthCheckType.SMTPBANNER] = new(
                 "Verify SMTP banner.",

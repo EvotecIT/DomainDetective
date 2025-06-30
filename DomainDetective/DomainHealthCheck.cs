@@ -148,6 +148,22 @@ namespace DomainDetective {
         public SMTPTLSAnalysis SmtpTlsAnalysis { get; private set; } = new SMTPTLSAnalysis();
 
         /// <summary>
+        /// Gets the IMAP TLS analysis.
+        /// </summary>
+        /// <value>Results of IMAP TLS capability checks.</value>
+        public IMAPTLSAnalysis ImapTlsAnalysis { get; private set; } = new IMAPTLSAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public IMAPTLSAnalysis IMAPTLSAnalysis => ImapTlsAnalysis;
+
+        /// <summary>
+        /// Gets the POP3 TLS analysis.
+        /// </summary>
+        /// <value>Results of POP3 TLS capability checks.</value>
+        public POP3TLSAnalysis Pop3TlsAnalysis { get; private set; } = new POP3TLSAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public POP3TLSAnalysis POP3TLSAnalysis => Pop3TlsAnalysis;
+
+        /// <summary>
         /// Gets the SMTP banner analysis.
         /// </summary>
         /// <value>Initial greetings from SMTP servers.</value>

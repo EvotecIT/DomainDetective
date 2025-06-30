@@ -210,6 +210,16 @@ namespace DomainDetective {
                         var smtpTlsHosts = mxRecordsForSmtpTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
+                    case HealthCheckType.IMAPTLS:
+                        var mxRecordsForImapTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var imapTlsHosts = mxRecordsForImapTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await ImapTlsAnalysis.AnalyzeServers(imapTlsHosts, 143, _logger, cancellationToken);
+                        break;
+                    case HealthCheckType.POP3TLS:
+                        var mxRecordsForPop3Tls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        var pop3TlsHosts = mxRecordsForPop3Tls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+                        await Pop3TlsAnalysis.AnalyzeServers(pop3TlsHosts, 110, _logger, cancellationToken);
+                        break;
                     case HealthCheckType.SMTPBANNER:
                         var mxRecordsForBanner = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
                         var bannerHosts = mxRecordsForBanner.Select(r => r.Data.Split(' ')[1].Trim('.'));
@@ -444,6 +454,28 @@ namespace DomainDetective {
         public async Task CheckSmtpTlsHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
             await SmtpTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks a host for IMAP TLS capabilities.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckImapTlsHost(string host, int port = 143, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await ImapTlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks a host for POP3 TLS capabilities.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckPop3TlsHost(string host, int port = 110, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await Pop3TlsAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -686,6 +718,38 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks all MX hosts for IMAP TLS configuration.
+        /// </summary>
+        /// <param name="domainName">Domain whose MX records are queried.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyIMAPTLS(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            domainName = ToAscii(domainName);
+            UpdateIsPublicSuffix(domainName);
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks all MX hosts for POP3 TLS configuration.
+        /// </summary>
+        /// <param name="domainName">Domain whose MX records are queried.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyPOP3TLS(string domainName, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            domainName = ToAscii(domainName);
+            UpdateIsPublicSuffix(domainName);
+            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var tlsHosts = mxRecordsForTls.Select(r => r.Data.Split(' ')[1].Trim('.'));
+            await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1130,6 +1194,8 @@ namespace DomainDetective {
             filtered.OpenRelayAnalysis = active.Contains(HealthCheckType.OPENRELAY) ? CloneAnalysis(OpenRelayAnalysis) : null;
             filtered.StartTlsAnalysis = active.Contains(HealthCheckType.STARTTLS) ? CloneAnalysis(StartTlsAnalysis) : null;
             filtered.SmtpTlsAnalysis = active.Contains(HealthCheckType.SMTPTLS) ? CloneAnalysis(SmtpTlsAnalysis) : null;
+            filtered.ImapTlsAnalysis = active.Contains(HealthCheckType.IMAPTLS) ? CloneAnalysis(ImapTlsAnalysis) : null;
+            filtered.Pop3TlsAnalysis = active.Contains(HealthCheckType.POP3TLS) ? CloneAnalysis(Pop3TlsAnalysis) : null;
             filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null;
             filtered.SmtpAuthAnalysis = active.Contains(HealthCheckType.SMTPAUTH) ? CloneAnalysis(SmtpAuthAnalysis) : null;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null;
