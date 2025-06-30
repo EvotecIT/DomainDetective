@@ -56,8 +56,8 @@ namespace DomainDetective {
             }
 
             foreach (var entry in servers) {
-                if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed) ||
-                    !string.Equals(parsed.ToString(), entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+                var canonical = GetCanonicalIp(entry.IPAddress);
+                if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
                     throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
                 }
 
@@ -87,8 +87,8 @@ namespace DomainDetective {
                 return;
             }
 
-            if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed) ||
-                !string.Equals(parsed.ToString(), entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+            var canonical = GetCanonicalIp(entry.IPAddress);
+            if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
                 throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
             }
 
@@ -169,6 +169,16 @@ namespace DomainDetective {
             return query.ToList();
         }
 
+        private static string GetCanonicalIp(string ipAddress) {
+            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+                throw new FormatException($"Invalid IP address '{ipAddress}'");
+            }
+
+            return parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? IPAddress.Parse(ipAddress).ToString()
+                : parsed.ToString();
+        }
+
         /// <summary>
         /// Asynchronously queries each provided server for the specified domain
         /// and record type.
@@ -233,7 +243,7 @@ namespace DomainDetective {
                     .Select(r =>
                         IPAddress.TryParse(r, out var ip)
                             ? ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                                ? ip.ToString().ToLowerInvariant()
+                                ? IPAddress.Parse(r).ToString().ToLowerInvariant()
                                 : ip.ToString()
                             : r.ToLowerInvariant())
                     .OrderBy(r => r);
