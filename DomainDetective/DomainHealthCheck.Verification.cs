@@ -62,6 +62,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            IsPublicSuffix = false;
             domainName = ToAscii(domainName);
             UpdateIsPublicSuffix(domainName);
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
