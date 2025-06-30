@@ -422,6 +422,9 @@ namespace DomainDetective {
                 if (string.IsNullOrWhiteSpace(trimmed))
                     continue;
 
+                if (trimmed.StartsWith(":%", StringComparison.Ordinal))
+                    continue;
+
                 bool enabled = true;
                 if (trimmed.StartsWith("#")) {
                     enabled = false;

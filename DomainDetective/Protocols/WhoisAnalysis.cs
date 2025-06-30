@@ -383,7 +383,7 @@ public class WhoisAnalysis {
             await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 
             using NetworkStream networkStream = tcpClient.GetStream();
-            using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true)) {
+            using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
                 await streamWriter.WriteLineAsync(domain).WaitWithCancellation(timeoutCts.Token);
                 await streamWriter.FlushAsync().WaitWithCancellation(timeoutCts.Token);
             }
@@ -953,7 +953,7 @@ public class WhoisAnalysis {
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 
                 using NetworkStream stream = client.GetStream();
-                using (var writer = new StreamWriter(stream, Encoding.ASCII, 1024, leaveOpen: true)) {
+                using (var writer = new StreamWriter(stream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
                     await writer.WriteLineAsync(ipAddress).WaitWithCancellation(timeoutCts.Token);
                     await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
                 }
