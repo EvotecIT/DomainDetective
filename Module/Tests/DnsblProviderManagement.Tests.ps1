@@ -47,7 +47,8 @@ Describe 'Import-DnsblConfig cmdlet' {
     It 'skips duplicate domains' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         $json = '{"providers":[{"domain":"dup.test"},{"domain":"DUP.test"}]}'
-        $path = Join-Path $env:TEMP ([guid]::NewGuid().ToString() + '.json')
+        $temp = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+        $path = Join-Path $temp ([guid]::NewGuid().ToString() + '.json')
         $json | Set-Content -Path $path
         try {
             $result = Import-DnsblConfig -Path $path -ClearExisting
