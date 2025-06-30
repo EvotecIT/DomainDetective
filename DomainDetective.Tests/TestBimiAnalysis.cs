@@ -1,5 +1,8 @@
 using DnsClientX;
 using System.Net;
+using System.Net.Sockets;
+using System.Net.Security;
+using System.Security.Authentication;
 using System.Text;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -45,15 +48,31 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.StartsCorrectly);
             Assert.Equal("http://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg", analysis.Location);
             Assert.False(analysis.LocationUsesHttps);
-            Assert.True(analysis.SvgFetched);
-            Assert.True(analysis.SvgValid);
-            Assert.Contains(warnings, w => w.FullMessage.Contains("does not use HTTPS"));
+            Assert.True(analysis.InvalidLocation);
+            Assert.False(analysis.SvgFetched);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("Invalid BIMI indicator location"));
+        }
+
+        [Fact]
+        public async Task InvalidSchemeMarksLocationInvalid() {
+            var record = "v=BIMI1; l=ftp://example.com/logo.svg";
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = record,
+                    Type = DnsRecordType.TXT
+                }
+            };
+            var analysis = new BimiAnalysis();
+            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.InvalidLocation);
+            Assert.False(analysis.SvgFetched);
         }
 
         [Fact]
         public async Task UnreachableIndicatorSetsFailureReason() {
             var port = GetFreePort();
-            var record = $"v=BIMI1; l=http://localhost:{port}/logo.svg";            
+            var record = $"v=BIMI1; l=https://localhost:{port}/logo.svg";
             var answers = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT }
             };
@@ -66,18 +85,13 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task InvalidSvgFailsValidation() {
-            using var listener = new HttpListener();
-            var prefix = $"http://localhost:{GetFreePort()}/";
-            listener.Prefixes.Add(prefix);
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            var serverTask = Task.Run(async () => {
-                var ctx = await listener.GetContextAsync();
-                ctx.Response.StatusCode = 200;
-                ctx.Response.ContentType = "image/svg+xml";
-                var buffer = Encoding.UTF8.GetBytes("<html></html>");
-                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                ctx.Response.Close();
-            });
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, _ => ("image/svg+xml", Encoding.UTF8.GetBytes("<html></html>")), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
 
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg";
@@ -90,6 +104,7 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.SvgFetched);
                 Assert.False(analysis.SvgValid);
             } finally {
+                cts.Cancel();
                 listener.Stop();
                 await serverTask;
             }
@@ -97,18 +112,13 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task MalformedSvgFailsValidation() {
-            using var listener = new HttpListener();
-            var prefix = $"http://localhost:{GetFreePort()}/";
-            listener.Prefixes.Add(prefix);
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            var serverTask = Task.Run(async () => {
-                var ctx = await listener.GetContextAsync();
-                ctx.Response.StatusCode = 200;
-                ctx.Response.ContentType = "image/svg+xml";
-                var buffer = Encoding.UTF8.GetBytes("<!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' 'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'><svg></svg>");
-                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                ctx.Response.Close();
-            });
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, _ => ("image/svg+xml", Encoding.UTF8.GetBytes("<!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.1//EN' 'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'><svg></svg>")), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
 
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg";
@@ -121,6 +131,7 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.SvgFetched);
                 Assert.False(analysis.SvgValid);
             } finally {
+                cts.Cancel();
                 listener.Stop();
                 await serverTask;
             }
@@ -128,25 +139,15 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ValidVmcCertificate() {
-            using var listener = new HttpListener();
-            var prefix = $"http://localhost:{GetFreePort()}/";
-            listener.Prefixes.Add(prefix);
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            var cert = CreateSelfSigned();
-            var serverTask = Task.Run(async () => {
-                for (var i = 0; i < 2; i++) {
-                    var ctx = await listener.GetContextAsync();
-                    if (ctx.Request.RawUrl!.EndsWith(".svg")) {
-                        var buffer = Encoding.UTF8.GetBytes("<svg></svg>");
-                        ctx.Response.ContentType = "image/svg+xml";
-                        await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    } else {
-                        var buffer = cert.Export(X509ContentType.Cert);
-                        await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    }
-                    ctx.Response.Close();
-                }
-            });
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, path => path.EndsWith(".svg")
+                ? ("image/svg+xml", Encoding.UTF8.GetBytes("<svg></svg>"))
+                : ("application/pkix-cert", cert.Export(X509ContentType.Cert)), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
 
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
@@ -158,6 +159,7 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.ValidVmc);
                 Assert.False(analysis.VmcSignedByKnownRoot);
             } finally {
+                cts.Cancel();
                 listener.Stop();
                 await serverTask;
             }
@@ -165,25 +167,15 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task VmcWithLogoMetadata() {
-            using var listener = new HttpListener();
-            var prefix = $"http://localhost:{GetFreePort()}/";
-            listener.Prefixes.Add(prefix);
+            using var cert = CreateVmc();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            var cert = CreateVmc();
-            var serverTask = Task.Run(async () => {
-                for (var i = 0; i < 2; i++) {
-                    var ctx = await listener.GetContextAsync();
-                    if (ctx.Request.RawUrl!.EndsWith(".svg")) {
-                        var buffer = Encoding.UTF8.GetBytes("<svg></svg>");
-                        ctx.Response.ContentType = "image/svg+xml";
-                        await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    } else {
-                        var buffer = cert.Export(X509ContentType.Cert);
-                        await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                    }
-                    ctx.Response.Close();
-                }
-            });
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, path => path.EndsWith(".svg")
+                ? ("image/svg+xml", Encoding.UTF8.GetBytes("<svg></svg>"))
+                : ("application/pkix-cert", cert.Export(X509ContentType.Cert)), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
 
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
@@ -194,6 +186,7 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.VmcContainsLogo);
                 Assert.True(analysis.ValidVmc);
             } finally {
+                cts.Cancel();
                 listener.Stop();
                 await serverTask;
             }
@@ -221,6 +214,41 @@ namespace DomainDetective.Tests {
             var port = ((IPEndPoint)socket.LocalEndpoint).Port;
             socket.Stop();
             return port;
+        }
+
+        private static async Task RunServer(TcpListener listener, X509Certificate2 cert, Func<string, (string contentType, byte[] data)> response, CancellationToken token) {
+            try {
+                while (!token.IsCancellationRequested) {
+                    var clientTask = listener.AcceptTcpClientAsync();
+                    var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                    if (completed != clientTask) {
+                        try { await clientTask; } catch { }
+                        break;
+                    }
+
+                    var client = await clientTask;
+                    _ = Task.Run(async () => {
+                        using var tcp = client;
+                        using var ssl = new SslStream(tcp.GetStream());
+                        await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                        using var reader = new StreamReader(ssl);
+                        using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        var requestLine = await reader.ReadLineAsync();
+                        if (requestLine == null) { return; }
+                        string line;
+                        do { line = await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(line));
+                        var path = requestLine.Split(' ')[1];
+                        var resp = response(path);
+                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                        await writer.WriteLineAsync($"Content-Type: {resp.contentType}");
+                        await writer.WriteLineAsync($"Content-Length: {resp.data.Length}");
+                        await writer.WriteLineAsync();
+                        await ssl.WriteAsync(resp.data, 0, resp.data.Length, token);
+                    }, token);
+                }
+            } catch {
+                // ignore on shutdown
+            }
         }
     }
 }
