@@ -177,6 +177,78 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void InvalidVersionInvalidatesPolicy() {
+            var policy = "version: STSv2\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.False(analysis.ValidVersion);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public void InvalidModeInvalidatesPolicy() {
+            var policy = "version: STSv1\nmode: invalid\nmx: mail.example.com\nmax_age: 86400";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.False(analysis.ValidMode);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public void InvalidMaxAgeInvalidatesPolicy() {
+            var policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: -1";
+            var analysis = new MTASTSAnalysis();
+            analysis.AnalyzePolicyText(policy);
+
+            Assert.False(analysis.ValidMaxAge);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task InvalidDnsRecordVersionFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSx; id=abc", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task InvalidDnsRecordMissingVersionFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "id=abc", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task InvalidDnsRecordMissingIdFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
         public async Task CachedPolicyReusedUntilExpiration() {
             MTASTSAnalysis.ClearCache();
             using var listener = new HttpListener();
