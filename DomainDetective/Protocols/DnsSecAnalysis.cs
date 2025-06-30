@@ -169,6 +169,9 @@ namespace DomainDetective {
                 var flags = ushort.Parse(keyParts[0]);
                 var protocol = byte.Parse(keyParts[1]);
                 var algorithm = AlgorithmNumber(keyParts[2]);
+                if (!DNSKeyAnalysis.IsValidAlgorithmNumber(algorithm)) {
+                    return false;
+                }
                 var publicKeyBytes = Convert.FromBase64String(keyParts[3]);
 
                 var rdata = new List<byte>();
@@ -184,6 +187,9 @@ namespace DomainDetective {
 
                 var keyTag = int.Parse(dsParts[0]);
                 var dsAlgorithm = AlgorithmNumber(dsParts[1]);
+                if (!DNSKeyAnalysis.IsValidAlgorithmNumber(dsAlgorithm)) {
+                    return false;
+                }
                 var digestType = int.Parse(dsParts[2]);
                 var digest = dsParts[3];
                 if (!DNSKeyAnalysis.IsHexadecimal(digest)) {
@@ -257,7 +263,7 @@ namespace DomainDetective {
             }
 
             if (int.TryParse(name, out int numeric)) {
-                return numeric;
+                return DNSKeyAnalysis.IsValidAlgorithmNumber(numeric) ? numeric : 0;
             }
 
             return name.ToUpperInvariant() switch {
