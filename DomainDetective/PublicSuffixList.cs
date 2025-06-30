@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -84,6 +85,31 @@ namespace DomainDetective {
             }
 
             return false;
+        }
+
+        public string GetRegistrableDomain(string domain) {
+            if (string.IsNullOrWhiteSpace(domain)) {
+                throw new ArgumentNullException(nameof(domain));
+            }
+
+            var clean = domain.Trim().Trim('.').ToLowerInvariant();
+            var parts = clean.Split('.');
+            if (parts.Length <= 1) {
+                return clean;
+            }
+
+            for (int i = 0; i < parts.Length; i++) {
+                var candidate = string.Join(".", parts.Skip(i));
+                if (IsPublicSuffix(candidate)) {
+                    if (i == 0) {
+                        return clean;
+                    }
+
+                    return string.Join(".", parts.Skip(i - 1));
+                }
+            }
+
+            return string.Join(".", parts.Skip(parts.Length - 2));
         }
     }
 }
