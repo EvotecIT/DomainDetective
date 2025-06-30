@@ -87,6 +87,9 @@
         <None Include="Data/dmarc2.xml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Include="Data/vmc.pem">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="Data/tlsrpt.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

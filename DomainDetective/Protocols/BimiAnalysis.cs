@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,6 +46,8 @@ namespace DomainDetective {
         public bool VmcSignedByKnownRoot { get; private set; }
         /// <summary>Gets a value indicating whether the VMC contains a logotype.</summary>
         public bool VmcContainsLogo { get; private set; }
+        /// <summary>Gets the downloaded VMC certificate instance.</summary>
+        public X509Certificate2? VmcCertificate { get; private set; }
         /// <summary>If an HTTP request fails, explains why.</summary>
         public string? FailureReason { get; private set; }
 
@@ -71,6 +74,7 @@ namespace DomainDetective {
             ValidVmc = false;
             VmcSignedByKnownRoot = false;
             VmcContainsLogo = false;
+            VmcCertificate = null;
             FailureReason = null;
 
             if (dnsResults == null) {
@@ -189,7 +193,15 @@ namespace DomainDetective {
                 }
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
-                var cert = new X509Certificate2(bytes);
+                X509Certificate2 cert;
+                try {
+                    cert = new X509Certificate2(bytes);
+                } catch (CryptographicException) {
+                    var text = System.Text.Encoding.ASCII.GetString(bytes);
+                    var pem = DecodePem(text);
+                    cert = new X509Certificate2(pem);
+                }
+                VmcCertificate = cert;
                 using var chain = new X509Chain();
                 chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
                 chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
@@ -238,6 +250,21 @@ namespace DomainDetective {
                 }
             }
             return false;
+        }
+
+        private static byte[] DecodePem(string pem) {
+            const string header = "-----BEGIN CERTIFICATE-----";
+            const string footer = "-----END CERTIFICATE-----";
+            var start = pem.IndexOf(header, StringComparison.Ordinal);
+            if (start >= 0) {
+                start += header.Length;
+                var end = pem.IndexOf(footer, start, StringComparison.Ordinal);
+                if (end >= 0) {
+                    pem = pem.Substring(start, end - start);
+                }
+            }
+            pem = pem.Replace("\r", string.Empty).Replace("\n", string.Empty).Trim();
+            return Convert.FromBase64String(pem);
         }
     }
 }
