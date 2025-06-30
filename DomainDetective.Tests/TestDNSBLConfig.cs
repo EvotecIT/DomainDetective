@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Linq;
+
 namespace DomainDetective.Tests {
     public class TestDnsblConfig {
         [Fact]
@@ -22,7 +26,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void LoadConfigAddsMissing() {
-            var json = "{\"providers\":[{\"domain\":\"added.test\"}]}";
+            var json = "{\"providers\":[{\"domain\":\"added.test\"}]}"; 
             var file = Path.GetTempFileName();
             try {
                 File.WriteAllText(file, json);
@@ -34,6 +38,26 @@ namespace DomainDetective.Tests {
 
                 Assert.Equal(before + 1, after);
                 Assert.Contains(analysis.GetDNSBL(), e => e.Domain == "added.test");
+            }
+            finally {
+                File.Delete(file);
+            }
+        }
+
+        [Fact]
+        public void LoadConfigSkipsDuplicateProviders() {
+            var json = "{\"providers\":[{\"domain\":\"dup.test\"},{\"domain\":\"DUP.Test\"}]}"; 
+            var file = Path.GetTempFileName();
+            try {
+                File.WriteAllText(file, json);
+
+                var analysis = new DNSBLAnalysis();
+                analysis.LoadDnsblConfig(file, clearExisting: true);
+
+                var entries = analysis.GetDNSBL()
+                    .Where(e => string.Equals(e.Domain, "dup.test", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                Assert.Single(entries);
             }
             finally {
                 File.Delete(file);

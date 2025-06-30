@@ -476,7 +476,11 @@ namespace DomainDetective {
             }
 
             if (config.Providers != null) {
+                var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var provider in config.Providers) {
+                    if (!processed.Add(provider.Domain))
+                        continue;
+
                     var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
                     if (existing == null) {
                         var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment);
