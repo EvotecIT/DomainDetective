@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Net;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -49,6 +51,8 @@ public class WhoisAnalysis {
     public bool PrivacyProtected { get; private set; }
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
     public string? SnapshotDirectory { get; set; }
+    public string RegistrarId { get; private set; }
+    public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
 
     private static readonly InternalLogger _logger = new();
     private static readonly string[] _licensePrefixes = {
@@ -997,6 +1001,50 @@ public class WhoisAnalysis {
         }
 
         return (allocation, asn);
+    }
+
+    /// <summary>
+    /// Queries IANA RDAP for registrar information.
+    /// </summary>
+    public async Task QueryIana(string domain, CancellationToken cancellationToken = default) {
+        string json;
+        if (IanaQueryOverride != null) {
+            json = await IanaQueryOverride(domain).ConfigureAwait(false);
+        } else {
+            using var client = new HttpClient();
+#if NETSTANDARD2_0 || NET472
+            using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+            json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+#else
+            json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+#endif
+        }
+
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("entities", out var entities)) {
+            foreach (var ent in entities.EnumerateArray()) {
+                if (ent.TryGetProperty("roles", out var roles)) {
+                    foreach (var role in roles.EnumerateArray()) {
+                        if (string.Equals(role.GetString(), "registrar", StringComparison.OrdinalIgnoreCase)) {
+                            if (ent.TryGetProperty("handle", out var handle)) {
+                                RegistrarId = handle.GetString();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (string.IsNullOrEmpty(CreationDate) && doc.RootElement.TryGetProperty("events", out var events)) {
+            foreach (var ev in events.EnumerateArray()) {
+                if (ev.TryGetProperty("eventAction", out var action) &&
+                    string.Equals(action.GetString(), "registration", StringComparison.OrdinalIgnoreCase) &&
+                    ev.TryGetProperty("eventDate", out var date)) {
+                    CreationDate = date.GetString();
+                    break;
+                }
+            }
+        }
     }
 
     /// <summary>

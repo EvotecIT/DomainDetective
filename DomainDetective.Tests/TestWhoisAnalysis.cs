@@ -525,6 +525,18 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task QueryIanaParsesData() {
+            var json = "{\"entities\":[{\"handle\":\"99\",\"roles\":[\"registrar\"]}],\"events\":[{\"eventAction\":\"registration\",\"eventDate\":\"2024-01-02T00:00:00Z\"}]}";
+
+            var whois = new WhoisAnalysis { IanaQueryOverride = _ => Task.FromResult(json) };
+
+            await whois.QueryIana("example.com");
+
+            Assert.Equal("99", whois.RegistrarId);
+            Assert.Equal("2024-01-02T00:00:00Z", whois.CreationDate);
+        }
+      
+        [Fact]
         public async Task LogsServerAndDomainOnError() {
             var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
             listener.Start();
