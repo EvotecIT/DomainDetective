@@ -1081,7 +1081,7 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries WHOIS information for a domain.
+        /// Queries WHOIS information and IANA RDAP for a domain.
         /// </summary>
         /// <param name="domain">Domain name to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -1091,6 +1091,7 @@ namespace DomainDetective {
             domain = ToAscii(domain);
             UpdateIsPublicSuffix(domain);
             await WhoisAnalysis.QueryWhoisServer(domain, cancellationToken);
+            await WhoisAnalysis.QueryIana(domain, cancellationToken);
         }
 
         /// <summary>
