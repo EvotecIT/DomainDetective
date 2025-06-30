@@ -100,8 +100,8 @@ namespace DomainDetective {
         /// <summary>Optional override to retrieve CT log data for testing.</summary>
         public Func<string, Task<string>>? CtLogQueryOverride { private get; set; }
 
-        /// <summary>Template URL for crt.sh queries. {0} is replaced with the SHA-256 fingerprint.</summary>
-        public string CtLogApiTemplate { get; set; } = "https://crt.sh/?sha256={0}&output=json";
+        /// <summary>CT log API templates. Each entry should contain a {0} placeholder for the SHA-256 fingerprint.</summary>
+        public List<string> CtLogApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.
@@ -302,17 +302,25 @@ namespace DomainDetective {
             }
 #endif
             var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
-            string json;
+            string json = string.Empty;
             if (CtLogQueryOverride != null) {
                 json = await CtLogQueryOverride(fingerprint);
             } else {
                 using var client = new HttpClient();
-                var url = string.Format(CtLogApiTemplate, fingerprint);
-                using var resp = await client.GetAsync(url, cancellationToken);
-                if (!resp.IsSuccessStatusCode) {
+                foreach (var template in CtLogApiTemplates) {
+                    var url = string.Format(template, fingerprint);
+                    using var resp = await client.GetAsync(url, cancellationToken);
+                    if (!resp.IsSuccessStatusCode) {
+                        continue;
+                    }
+                    json = await resp.Content.ReadAsStringAsync();
+                    if (!string.IsNullOrEmpty(json)) {
+                        break;
+                    }
+                }
+                if (string.IsNullOrEmpty(json)) {
                     return;
                 }
-                json = await resp.Content.ReadAsStringAsync();
             }
             try {
                 using var doc = JsonDocument.Parse(json);

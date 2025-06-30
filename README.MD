@@ -99,6 +99,7 @@ The `CertificateAnalysis` result now includes:
 - `IsSelfSigned` when the certificate subject equals the issuer and the chain length is one.
 - With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
 - `PresentInCtLogs` when the certificate appears in public CT logs.
+- `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 
 ### HTTP Security Headers
 `HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
