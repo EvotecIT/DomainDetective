@@ -63,7 +63,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             IsPublicSuffix = false;
-            domainName = ToAscii(domainName);
+            domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
             if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
                 healthCheckTypes = new[]                {
@@ -1025,7 +1025,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
-            domainName = ToAscii(domainName);
+            domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
             await HttpAnalysis.AnalyzeUrl($"http://{domainName}", false, _logger, cancellationToken: cancellationToken);
         }
@@ -1152,6 +1152,14 @@ namespace DomainDetective {
             if (port <= 0 || port > 65535) {
                 throw new ArgumentOutOfRangeException(nameof(port), "Port must be between 1 and 65535.");
             }
+        }
+
+        private static string ValidateHostName(string domainName) {
+            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+
+            return ToAscii(domainName);
         }
 
         /// <summary>Creates a copy with only the specified analyses included.</summary>

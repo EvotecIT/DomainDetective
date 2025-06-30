@@ -43,6 +43,10 @@ namespace DomainDetective {
         public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string pgpPublicKey = null) {
             Logger = logger;
 
+            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
+                throw new ArgumentException("Invalid host name.", nameof(domainName));
+            }
+
             Domain = domainName;
 
             string url = $"https://{domainName}/.well-known/security.txt";

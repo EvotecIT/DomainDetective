@@ -41,6 +41,16 @@ namespace DomainDetective.Tests {
                 await healthCheck.VerifyPlainHttp(domain));
         }
 
+        [Theory]
+        [InlineData("invalid host")]
+        [InlineData("foo/bar")] 
+        [InlineData("http://example.com")] 
+        public async Task VerifyPlainHttpThrowsIfDomainInvalid(string domain) {
+            var healthCheck = new DomainHealthCheck();
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifyPlainHttp(domain));
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();
