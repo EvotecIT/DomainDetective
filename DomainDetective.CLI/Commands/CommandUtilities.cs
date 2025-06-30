@@ -57,7 +57,7 @@ internal static class CommandUtilities {
         var result = hc.CheckMessageHeaders(headerText);
 
         if (json) {
-            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);
             Console.WriteLine(jsonText);
         } else {
             CliHelpers.ShowPropertiesTable("Message Header Analysis", result, false);
@@ -87,7 +87,7 @@ internal static class CommandUtilities {
         var result = hc.VerifyARC(headerText);
 
         if (json) {
-            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);
             Console.WriteLine(jsonText);
         } else {
             CliHelpers.ShowPropertiesTable("ARC Analysis", result, false);
@@ -106,7 +106,7 @@ internal static class CommandUtilities {
         hc.CheckDnsTunneling(domain);
         var result = hc.DnsTunnelingAnalysis;
         if (json) {
-            var jsonText = JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true });
+            var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);
             Console.WriteLine(jsonText);
         } else {
             CliHelpers.ShowPropertiesTable($"DNS Tunneling for {domain}", result, false);

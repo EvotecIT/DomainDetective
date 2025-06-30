@@ -30,7 +30,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         if (settings.Compare) {
             var groups = DnsPropagationAnalysis.CompareResults(results);
             if (settings.Json) {
-                Console.WriteLine(JsonSerializer.Serialize(groups));
+                Console.WriteLine(JsonSerializer.Serialize(groups, DomainHealthCheck.JsonOptions));
             } else {
                 foreach (var kvp in groups) {
                     Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress))}");
@@ -38,7 +38,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
             }
         } else {
             if (settings.Json) {
-                Console.WriteLine(JsonSerializer.Serialize(results));
+                Console.WriteLine(JsonSerializer.Serialize(results, DomainHealthCheck.JsonOptions));
             } else {
                 foreach (var r in results) {
                     Console.WriteLine($"{r.Server.IPAddress} {r.Success} {string.Join(',', r.Records)}");
