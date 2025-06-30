@@ -56,14 +56,7 @@ namespace DomainDetective {
             }
 
             foreach (var entry in servers) {
-                if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed)) {
-                    throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
-                }
-
-                var canonical = parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                    ? System.Net.IPAddress.Parse(entry.IPAddress).ToString()
-                    : parsed.ToString();
-
+                var canonical = GetCanonicalIp(entry.IPAddress);
                 if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
                     throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
                 }
@@ -94,14 +87,7 @@ namespace DomainDetective {
                 return;
             }
 
-            if (!System.Net.IPAddress.TryParse(entry.IPAddress, out var parsed)) {
-                throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
-            }
-
-            var canonical = parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                ? System.Net.IPAddress.Parse(entry.IPAddress).ToString()
-                : parsed.ToString();
-
+            var canonical = GetCanonicalIp(entry.IPAddress);
             if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
                 throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
             }
@@ -181,6 +167,16 @@ namespace DomainDetective {
                 query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);
             }
             return query.ToList();
+        }
+
+        private static string GetCanonicalIp(string ipAddress) {
+            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+                throw new FormatException($"Invalid IP address '{ipAddress}'");
+            }
+
+            return parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? IPAddress.Parse(ipAddress).ToString()
+                : parsed.ToString();
         }
 
         /// <summary>
