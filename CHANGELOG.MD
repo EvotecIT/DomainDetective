@@ -19,4 +19,5 @@
 ## 1.0.3
 
 ### What's Changed
-- DNSSEC analysis now summarizes mismatches for each chain element
+- DNSSEC validation now walks the delegation chain and checks DS records
+- DNSSEC analysis summarizes any mismatches for each chain element
