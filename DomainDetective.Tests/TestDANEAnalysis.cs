@@ -97,8 +97,9 @@ namespace DomainDetective.Tests {
             var logger = new InternalLogger();
             var warnings = new List<LogEventArgs>();
             logger.OnWarningMessage += (_, e) => warnings.Add(e);
-            var healthCheck = new DomainHealthCheck(DnsEndpoint.System, logger) {
-                Verbose = false
+            var healthCheck = new DomainHealthCheck(internalLogger: logger) {
+                Verbose = false,
+                DnsEndpoint = DnsEndpoint.System
             };
             await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
 
