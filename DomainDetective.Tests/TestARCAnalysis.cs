@@ -28,5 +28,14 @@ namespace DomainDetective.Tests {
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
+
+        [Fact]
+        public void EmptySignatureInvalidatesChain() {
+            var raw = File.ReadAllText("Data/arc-empty-sig.txt");
+            var hc = new DomainHealthCheck();
+            var result = hc.VerifyARC(raw);
+            Assert.True(result.ArcHeadersFound);
+            Assert.False(result.ValidChain);
+        }
     }
 }
