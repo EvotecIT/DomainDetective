@@ -117,9 +117,19 @@ namespace DomainDetective {
                         case "c":
                             analysis.Canonicalization = value;
                             var parts = value.ToLowerInvariant().Split('/');
-                            analysis.ValidCanonicalization =
-                                (parts.Length is 1 or 2) &&
-                                parts.All(p => p == "simple" || p == "relaxed");
+                            analysis.ValidCanonicalization = parts.Length is 1 or 2;
+                            foreach (var part in parts)
+                            {
+                                if (part != "simple" && part != "relaxed")
+                                {
+                                    analysis.ValidCanonicalization = false;
+                                    if (!analysis.UnknownCanonicalizationModes.Contains(part))
+                                    {
+                                        analysis.UnknownCanonicalizationModes.Add(part);
+                                        logger?.WriteError("Unknown canonicalization mode: {0}", part);
+                                    }
+                                }
+                            }
                             break;
                         case "h":
                             analysis.HashAlgorithm = value;
@@ -226,6 +236,8 @@ namespace DomainDetective {
         public string UnknownFlagCharacters { get; set; }
         /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
         public bool ValidFlags { get; set; }
+        /// <summary>Unrecognized canonicalization modes.</summary>
+        public List<string> UnknownCanonicalizationModes { get; } = new();
         /// <summary>Canonicalization modes specified in the record.</summary>
         public string Canonicalization { get; set; }
         /// <summary>Gets a value indicating whether the canonicalization string is valid.</summary>
