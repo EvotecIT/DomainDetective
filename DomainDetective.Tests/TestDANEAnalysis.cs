@@ -78,7 +78,10 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task HttpsQueriesAandAaaaRecords() {
-            var healthCheck = new DomainHealthCheck {
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger) {
                 Verbose = false
             };
             await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
@@ -86,19 +89,23 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
             Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
             Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("No DANE records"));
         }
 
         [Fact]
         public async Task HttpsQueriesAandAaaaRecordsUsingSystemResolver() {
-            var healthCheck = new DomainHealthCheck {
-                Verbose = false,
-                DnsEndpoint = DnsEndpoint.System
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(DnsEndpoint.System, logger) {
+                Verbose = false
             };
             await healthCheck.Verify("ipv6.google.com", [HealthCheckType.DANE], daneServiceType: [ServiceType.HTTPS]);
 
             Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
             Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
             Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("No DANE records"));
         }
 
         [Fact]
