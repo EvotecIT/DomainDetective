@@ -147,7 +147,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("test@example.com", healthCheck.DmarcAnalysis.MailtoRua[0]);
             Assert.Single(healthCheck.DmarcAnalysis.HttpRuf);
             Assert.Equal("https://reports.example.com", healthCheck.DmarcAnalysis.HttpRuf[0]);
-            Assert.Contains(warnings, w => w.FullMessage.Contains("uses HTTP"));
+            Assert.Contains(warnings, w => w.FullMessage.Contains("HTTP instead of HTTPS"));
         }
 
         [Fact]
