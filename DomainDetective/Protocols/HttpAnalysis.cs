@@ -27,6 +27,8 @@ namespace DomainDetective {
         public bool HstsIncludesSubDomains { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS max-age is shorter than 18 weeks.</summary>
         public bool HstsTooShort { get; private set; }
+        /// <summary>Collects unknown or invalid HSTS directives.</summary>
+        public List<string> UnknownHstsDirectives { get; private set; } = new();
         /// <summary>Gets a value indicating whether the host is on the HSTS preload list.</summary>
         public bool HstsPreloaded { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
@@ -172,6 +174,7 @@ namespace DomainDetective {
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
             HstsPreloaded = false;
+            UnknownHstsDirectives = new List<string>();
             PermissionsPolicyPresent = false;
             PermissionsPolicy.Clear();
             ReferrerPolicy = null;
@@ -340,6 +343,7 @@ namespace DomainDetective {
         private void ParseHsts(string headerValue) {
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
+            UnknownHstsDirectives = new List<string>();
             if (string.IsNullOrEmpty(headerValue)) {
                 return;
             }
@@ -351,9 +355,15 @@ namespace DomainDetective {
                     var value = trimmed.Substring(8);
                     if (int.TryParse(value, out var ma)) {
                         HstsMaxAge = ma;
+                    } else if (!UnknownHstsDirectives.Contains(trimmed)) {
+                        UnknownHstsDirectives.Add(trimmed);
                     }
                 } else if (trimmed.Equals("includesubdomains", StringComparison.OrdinalIgnoreCase)) {
                     HstsIncludesSubDomains = true;
+                } else if (trimmed.Equals("preload", StringComparison.OrdinalIgnoreCase)) {
+                    // preload directive is ignored for analysis
+                } else if (!string.IsNullOrEmpty(trimmed) && !UnknownHstsDirectives.Contains(trimmed)) {
+                    UnknownHstsDirectives.Add(trimmed);
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
