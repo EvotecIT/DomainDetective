@@ -16,3 +16,7 @@
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
 
+## 1.0.3
+
+### What's Changed
+- warn when CAA records use unknown critical tags
