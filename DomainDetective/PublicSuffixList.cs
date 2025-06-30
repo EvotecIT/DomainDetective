@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -12,6 +14,7 @@ namespace DomainDetective {
         private readonly HashSet<string> _exactRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _wildcardRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _exceptionRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly IdnMapping _idn = new();
 
         internal PublicSuffixList() { }
 
@@ -62,7 +65,7 @@ namespace DomainDetective {
                 return false;
             }
 
-            domain = domain.Trim().Trim('.').ToLowerInvariant();
+            domain = _idn.GetAscii(domain.Trim().Trim('.')).ToLowerInvariant();
             if (_exceptionRules.Contains(domain)) {
                 return false;
             }
@@ -84,6 +87,31 @@ namespace DomainDetective {
             }
 
             return false;
+        }
+
+        public string GetRegistrableDomain(string domain) {
+            if (string.IsNullOrWhiteSpace(domain)) {
+                throw new ArgumentNullException(nameof(domain));
+            }
+
+            var clean = _idn.GetAscii(domain.Trim().Trim('.')).ToLowerInvariant();
+            var parts = clean.Split('.');
+            if (parts.Length <= 1) {
+                return clean;
+            }
+
+            for (int i = 0; i < parts.Length; i++) {
+                var candidate = string.Join(".", parts.Skip(i));
+                if (IsPublicSuffix(candidate)) {
+                    if (i == 0) {
+                        return clean;
+                    }
+
+                    return string.Join(".", parts.Skip(i - 1));
+                }
+            }
+
+            return string.Join(".", parts.Skip(parts.Length - 2));
         }
     }
 }

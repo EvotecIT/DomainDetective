@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Linq;
 using DnsClientX;
+using DomainDetective;
 
 namespace DomainDetective.Tests {
     public class TestDMARCAnalysis {
@@ -192,17 +194,14 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task AlignmentStrictVsRelaxed() {
-            string GetOrg(string domain) {
-                var parts = domain.Split('.');
-                return string.Join(".", parts.Skip(Math.Max(0, parts.Length - 2)));
-            }
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
 
             var strictRecord = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "v=DMARC1; p=reject; adkim=s; aspf=s", Type = DnsRecordType.TXT }
             };
             var analysisStrict = new DmarcAnalysis();
             await analysisStrict.AnalyzeDmarcRecords(strictRecord, new InternalLogger());
-            analysisStrict.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", GetOrg);
+            analysisStrict.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", list.GetRegistrableDomain);
             Assert.False(analysisStrict.SpfAligned);
             Assert.False(analysisStrict.DkimAligned);
 
@@ -211,9 +210,22 @@ namespace DomainDetective.Tests {
             };
             var analysisRelaxed = new DmarcAnalysis();
             await analysisRelaxed.AnalyzeDmarcRecords(relaxedRecord, new InternalLogger());
-            analysisRelaxed.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", GetOrg);
+            analysisRelaxed.EvaluateAlignment("mail.example.com", "bounce.example.com", "example.com", list.GetRegistrableDomain);
             Assert.True(analysisRelaxed.SpfAligned);
             Assert.True(analysisRelaxed.DkimAligned);
+        }
+
+        [Fact]
+        public async Task AlignmentUsesPublicSuffixForMultiLabelTld() {
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            var record = new[] { new DnsAnswer { DataRaw = "v=DMARC1; p=reject", Type = DnsRecordType.TXT } };
+            var analysis = new DmarcAnalysis();
+            await analysis.AnalyzeDmarcRecords(record, new InternalLogger());
+
+            analysis.EvaluateAlignment("mail.example.co.uk", "bounce.example.co.uk", "example.co.uk", list.GetRegistrableDomain);
+
+            Assert.True(analysis.SpfAligned);
+            Assert.True(analysis.DkimAligned);
         }
 
         [Theory]
