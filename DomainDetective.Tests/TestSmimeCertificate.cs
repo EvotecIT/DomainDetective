@@ -21,5 +21,16 @@ namespace DomainDetective.Tests {
             Assert.False(string.IsNullOrEmpty(analysis.Certificate.Subject));
             Assert.True(analysis.DaysValid > 0);
         }
+
+        [Fact]
+        public void InvalidCertificateFailsValidation() {
+            var analysis = new SmimeCertificateAnalysis();
+            var path = Path.Combine("Data", "weak.pem");
+            analysis.AnalyzeFile(path);
+
+            Assert.False(analysis.IsValid);
+            Assert.False(analysis.HasSecureEmailEku);
+            Assert.False(analysis.IsTrustedRoot);
+        }
     }
 }

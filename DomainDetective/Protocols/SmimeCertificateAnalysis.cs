@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
@@ -17,8 +18,14 @@ public class SmimeCertificateAnalysis {
     /// <summary>Gets the certificate chain.</summary>
     public List<X509Certificate2> Chain { get; } = new();
 
-    /// <summary>Gets a value indicating whether the certificate chain is valid.</summary>
+    /// <summary>Gets a value indicating whether the certificate chain is valid and trusted.</summary>
     public bool IsValid { get; private set; }
+
+    /// <summary>Gets a value indicating whether the certificate chain is rooted in a trusted store.</summary>
+    public bool IsTrustedRoot { get; private set; }
+
+    /// <summary>Gets a value indicating whether the certificate includes the Secure Email EKU.</summary>
+    public bool HasSecureEmailEku { get; private set; }
 
     /// <summary>Gets the number of days until the certificate expires.</summary>
     public int DaysToExpire { get; private set; }
@@ -49,8 +56,14 @@ public class SmimeCertificateAnalysis {
             Certificate = new X509Certificate2(data);
         }
 
-        var chain = new X509Chain();
-        IsValid = chain.Build(Certificate);
+        var chain = new X509Chain { ChainPolicy = { RevocationMode = X509RevocationMode.NoCheck } };
+        var chainValid = chain.Build(Certificate);
+        IsTrustedRoot = !chain.ChainStatus.Any(s => s.Status == X509ChainStatusFlags.UntrustedRoot);
+        HasSecureEmailEku = Certificate.Extensions
+            .OfType<X509EnhancedKeyUsageExtension>()
+            .SelectMany(e => e.EnhancedKeyUsages.Cast<Oid>())
+            .Any(o => o.Value == "1.3.6.1.5.5.7.3.4");
+        IsValid = chainValid && HasSecureEmailEku && IsTrustedRoot;
         Chain.Clear();
         foreach (var element in chain.ChainElements) {
             Chain.Add(new X509Certificate2(element.Certificate.RawData));
