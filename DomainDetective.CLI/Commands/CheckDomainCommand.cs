@@ -36,6 +36,9 @@ internal sealed class CheckDomainSettings : CommandSettings {
 
     [CommandOption("--cert")]
     public FileInfo? Cert { get; set; }
+
+    [CommandOption("--no-progress")]
+    public bool NoProgress { get; set; }
 }
 
 internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
@@ -88,7 +91,8 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             settings.Summary,
             settings.SubdomainPolicy,
             settings.Unicode,
-            danePorts);
+            danePorts,
+            !settings.NoProgress);
 
         return 0;
     }

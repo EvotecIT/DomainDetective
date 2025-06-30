@@ -66,7 +66,7 @@ namespace DomainDetective {
         /// <param name="port">Port used for HTTPS.</param>
         /// <param name="logger">Logger instance for diagnostics.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
-        public async Task Analyze(IEnumerable<string> hosts, int port = 443, InternalLogger? logger = null, CancellationToken cancellationToken = default) {
+        public async Task Analyze(IEnumerable<string> hosts, int port = 443, InternalLogger? logger = null, CancellationToken cancellationToken = default, bool showProgress = true) {
             logger ??= new InternalLogger();
             Results.Clear();
             var list = hosts.ToList();
@@ -74,7 +74,9 @@ namespace DomainDetective {
             foreach (var host in list) {
                 cancellationToken.ThrowIfCancellationRequested();
                 processed++;
-                logger.WriteProgress("CertificateMonitor", host, processed * 100d / list.Count, processed, list.Count);
+                if (showProgress) {
+                    logger.WriteProgress("CertificateMonitor", host, processed * 100d / list.Count, processed, list.Count);
+                }
                 var analysis = new CertificateAnalysis();
                 await analysis.AnalyzeUrl(host, port, logger, cancellationToken);
                 var entry = new Entry {

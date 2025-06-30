@@ -133,14 +133,14 @@ internal static class CommandUtilities {
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null, true);
         return 0;
     }
 
-    internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts) {
+    internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress) {
         foreach (var domain in domains) {
-            var logger = new InternalLogger();
-            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput };
+            var logger = new InternalLogger { IsProgress = showProgress };
+            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
             var needsPortScan = checks?.Contains(HealthCheckType.PORTSCAN) ?? false;
             if (needsPortScan) {
                 await AnsiConsole.Progress().StartAsync(async ctx => {
