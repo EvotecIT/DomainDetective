@@ -1,6 +1,7 @@
 using DomainDetective;
 using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 
@@ -40,8 +41,7 @@ internal static class CommandUtilities {
         string? headerText = null;
         if (file != null) {
             if (!file.Exists) {
-                AnsiConsole.MarkupLine($"[red]File not found: {file.FullName}[/]");
-                return;
+                throw new FileNotFoundException($"File not found: {file.FullName}", file.FullName);
             }
             headerText = File.ReadAllText(file.FullName);
         } else if (!string.IsNullOrWhiteSpace(header)) {
@@ -70,8 +70,7 @@ internal static class CommandUtilities {
         string? headerText = null;
         if (file != null) {
             if (!file.Exists) {
-                AnsiConsole.MarkupLine($"[red]File not found: {file.FullName}[/]");
-                return;
+                throw new FileNotFoundException($"File not found: {file.FullName}", file.FullName);
             }
             headerText = File.ReadAllText(file.FullName);
         } else if (!string.IsNullOrWhiteSpace(header)) {
@@ -98,8 +97,7 @@ internal static class CommandUtilities {
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     internal static void AnalyzeDnsTunneling(string domain, string filePath, bool json) {
         if (!File.Exists(filePath)) {
-            AnsiConsole.MarkupLine($"[red]File not found: {filePath}[/]");
-            return;
+            throw new FileNotFoundException($"File not found: {filePath}", filePath);
         }
         var lines = File.ReadAllLines(filePath);
         var hc = new DomainHealthCheck { DnsTunnelingLogs = lines };
