@@ -179,10 +179,14 @@ namespace DomainDetective {
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <returns>A list of query results.</returns>
         public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers, CancellationToken cancellationToken = default) {
-            var results = new List<DnsPropagationResult>();
-            var tasks = servers.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
-            results.AddRange(await Task.WhenAll(tasks));
-            return results;
+            var serverList = servers?.ToList() ?? new List<PublicDnsEntry>();
+            if (serverList.Count == 0) {
+                return new List<DnsPropagationResult>();
+            }
+
+            var tasks = serverList.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
+            var results = await Task.WhenAll(tasks);
+            return results.ToList();
         }
 
         private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
