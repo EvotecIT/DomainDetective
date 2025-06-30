@@ -2,6 +2,7 @@ using DnsClientX;
 using DomainDetective;
 using System.Net;
 using System.Threading;
+using System.Linq;
 namespace DomainDetective.Tests {
     public class TestDnsPropagation {
         [Fact]
@@ -40,6 +41,13 @@ namespace DomainDetective.Tests {
 
             await Assert.ThrowsAsync<OperationCanceledException>(async () =>
                 await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, cts.Token));
+        }
+
+        [Fact]
+        public async Task QueryReturnsEmptyWhenNoServers() {
+            var analysis = new DnsPropagationAnalysis();
+            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, Enumerable.Empty<PublicDnsEntry>());
+            Assert.Empty(results);
         }
 
         [Fact]
