@@ -44,5 +44,12 @@ namespace DomainDetective.Tests {
             await analysis.Analyze("example.com", new InternalLogger());
             Assert.Empty(analysis.Warnings);
         }
+
+        [Fact]
+        public async Task MaxTtlPasses() {
+            var analysis = Create(86400);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Empty(analysis.Warnings);
+        }
     }
 }
