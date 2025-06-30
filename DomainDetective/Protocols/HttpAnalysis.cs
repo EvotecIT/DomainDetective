@@ -56,6 +56,8 @@ namespace DomainDetective {
         public bool Http2Supported { get; private set; }
         /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
         public bool Http3Supported { get; private set; }
+        /// <summary>Gets the QUIC version advertised in the Alt-Svc header.</summary>
+        public string? QuicVersion { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string Body { get; private set; }
         /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
@@ -174,6 +176,7 @@ namespace DomainDetective {
             HstsPreloaded = false;
             PermissionsPolicyPresent = false;
             PermissionsPolicy.Clear();
+            QuicVersion = null;
             ReferrerPolicy = null;
             XFrameOptions = null;
             CrossOriginOpenerPolicy = null;
@@ -234,19 +237,34 @@ namespace DomainDetective {
 #if NET6_0_OR_GREATER
                     Http3Supported = response.Version >= HttpVersion.Version30;
                     Http2Supported = response.Version >= HttpVersion.Version20;
+                    if (RequestVersion >= HttpVersion.Version30 && response.Version < HttpVersion.Version30) {
+                        logger?.WriteWarning("Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
+                    }
 #else
                     Http2Supported = response.Version.Major >= 2;
                     Http3Supported = false;
 #endif
                 }
+                string? altSvcHeader = null;
                 string? hstsHeader = null;
                 string? expectCtHeader = null;
+                if (response.Headers.TryGetValues("Alt-Svc", out var altValues)) {
+                    altSvcHeader = string.Join(",", altValues);
+                }
                 if (response.Headers.TryGetValues("Strict-Transport-Security", out var hstsValues)) {
                     hstsHeader = string.Join(",", hstsValues);
                 }
                 if (response.Headers.TryGetValues("Expect-CT", out var expectCtValues)) {
                     expectCtHeader = string.Join(",", expectCtValues);
                 }
+#if NET6_0_OR_GREATER
+                if (IsReachable && ProtocolVersion >= HttpVersion.Version30) {
+                    QuicVersion = ParseQuicVersion(altSvcHeader);
+                    if (!string.IsNullOrEmpty(QuicVersion) && !QuicVersion.Equals("h3", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteWarning("HTTP/3 negotiated but Alt-Svc advertises {0}", QuicVersion);
+                    }
+                }
+#endif
                 if (checkHsts) {
                     HstsPresent = hstsHeader != null;
                 }
@@ -435,6 +453,24 @@ namespace DomainDetective {
             OriginAgentClusterPresent = true;
             OriginAgentClusterEnabled = headerValue.Trim().Equals("?1", StringComparison.Ordinal);
         }
+
+#if NET6_0_OR_GREATER
+        private static string? ParseQuicVersion(string? headerValue) {
+            if (string.IsNullOrEmpty(headerValue)) {
+                return null;
+            }
+            var entries = headerValue.Split(',');
+            foreach (var entry in entries) {
+                var trimmed = entry.Trim();
+                if (trimmed.StartsWith("h3", StringComparison.OrdinalIgnoreCase) ||
+                    trimmed.StartsWith("quic", StringComparison.OrdinalIgnoreCase)) {
+                    var eq = trimmed.IndexOf('=');
+                    return eq > 0 ? trimmed.Substring(0, eq) : trimmed;
+                }
+            }
+            return null;
+        }
+#endif
 
         /// <summary>
         /// Convenience method to check a URL with default logging.
