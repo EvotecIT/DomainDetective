@@ -221,6 +221,34 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidDnsRecordMissingVersionFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "id=abc", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task InvalidDnsRecordMissingIdFails() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+            Assert.True(analysis.DnsRecordPresent);
+            Assert.False(analysis.DnsRecordValid);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
         public async Task CachedPolicyReusedUntilExpiration() {
             MTASTSAnalysis.ClearCache();
             using var listener = new HttpListener();
