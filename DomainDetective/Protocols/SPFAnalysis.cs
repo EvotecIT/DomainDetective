@@ -135,6 +135,7 @@ namespace DomainDetective {
             foreach (var record in spfRecordList) {
                 SpfRecords.AddRange(record.DataStringsEscaped);
             }
+            WarnIfSpfRecordChunksTooLong(logger);
             // However for analysis we only need the Data, as provided by DnsClientX
             if (dnsResults.Count() == 1) {
                 SpfRecord = dnsResults.First().Data;
@@ -291,6 +292,15 @@ namespace DomainDetective {
                 }
             }
             ExceedsTotalCharacterLimit = totalLength > 512;
+        }
+
+        private void WarnIfSpfRecordChunksTooLong(InternalLogger? logger) {
+            for (int i = 0; i < SpfRecords.Count; i++) {
+                if (SpfRecords[i].Length > 255) {
+                    _warnings.Add($"SPF record chunk {i + 1} exceeds 255 characters.");
+                    logger?.WriteWarning($"SPF record chunk {i + 1} exceeds 255 characters.");
+                }
+            }
         }
 
         private void AddPartToList(string part, InternalLogger? logger) {
