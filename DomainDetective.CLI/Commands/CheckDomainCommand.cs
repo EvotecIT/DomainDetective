@@ -1,6 +1,7 @@
 using DomainDetective;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using System.IO;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.CLI;
@@ -40,6 +41,9 @@ internal sealed class CheckDomainSettings : CommandSettings {
 internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
     public override async Task<int> ExecuteAsync(CommandContext context, CheckDomainSettings settings) {
         if (settings.Smime != null) {
+            if (!settings.Smime.Exists) {
+                throw new FileNotFoundException("S/MIME certificate file not found", settings.Smime.FullName);
+            }
             var smimeAnalysis = new SmimeCertificateAnalysis();
             smimeAnalysis.AnalyzeFile(settings.Smime.FullName);
             CliHelpers.ShowPropertiesTable($"S/MIME certificate {settings.Smime.FullName}", smimeAnalysis, settings.Unicode);
@@ -47,6 +51,9 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
         }
 
         if (settings.Cert != null) {
+            if (!settings.Cert.Exists) {
+                throw new FileNotFoundException("Certificate file not found", settings.Cert.FullName);
+            }
             var certAnalysis = new CertificateAnalysis();
             await certAnalysis.AnalyzeCertificate(new X509Certificate2(settings.Cert.FullName));
             CliHelpers.ShowPropertiesTable($"Certificate {settings.Cert.FullName}", certAnalysis, settings.Unicode);

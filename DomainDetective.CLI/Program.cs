@@ -1,11 +1,13 @@
+using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 
 namespace DomainDetective.CLI;
 
 internal static class Program {
     [RequiresDynamicCode("Calls Spectre.Console.Cli.CommandApp.CommandApp(ITypeRegistrar)")]
-    public static Task<int> Main(string[] args) {
+    public static async Task<int> Main(string[] args) {
         var app = new CommandApp();
         app.Configure(config => {
             config.SetApplicationName("DomainDetective");
@@ -24,6 +26,11 @@ internal static class Program {
             config.AddCommand<BuildDmarcCommand>("BuildDmarcRecord")
                 .WithDescription("Interactively build a DMARC record");
         });
-        return app.RunAsync(args);
+        try {
+            return await app.RunAsync(args);
+        } catch (FileNotFoundException ex) {
+            AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
+            return 1;
+        }
     }
 }
