@@ -80,6 +80,9 @@
         <None Include="Data/weak.pem">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Include="Data/vmc.pem">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="Data/tlsrpt.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

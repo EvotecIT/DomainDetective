@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Net.Security;
 using System.Security.Authentication;
 using System.Text;
+using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
@@ -185,6 +186,36 @@ namespace DomainDetective.Tests {
 
                 Assert.True(analysis.VmcContainsLogo);
                 Assert.True(analysis.ValidVmc);
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task VmcFromFileServedOverHttp() {
+            var pem = await File.ReadAllTextAsync(Path.Combine("Data", "vmc.pem"));
+            var certBytes = System.Text.Encoding.ASCII.GetBytes(pem);
+            using var cert = new X509Certificate2(certBytes);
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, path =>
+                path.EndsWith(".svg")
+                    ? ("image/svg+xml", Encoding.UTF8.GetBytes("<svg></svg>"))
+                    : ("application/pkix-cert", cert.Export(X509ContentType.Cert)), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
+
+            try {
+                var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
+                var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
+                var analysis = new BimiAnalysis();
+                await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+                Assert.True(analysis.ValidVmc);
+                Assert.True(analysis.VmcContainsLogo);
             } finally {
                 cts.Cancel();
                 listener.Stop();
