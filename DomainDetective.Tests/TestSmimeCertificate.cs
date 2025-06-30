@@ -43,5 +43,14 @@ namespace DomainDetective.Tests {
             Assert.Equal(expected, analysis.DaysToExpire);
             Assert.Equal(analysis.Certificate.NotAfter < DateTime.UtcNow, analysis.IsExpired);
         }
+
+        [Fact]
+        public void CorruptedPemThrowsFormatException() {
+            var analysis = new SmimeCertificateAnalysis();
+            var path = Path.Combine("Data", "corrupt.pem");
+
+            var ex = Assert.Throws<FormatException>(() => analysis.AnalyzeFile(path));
+            Assert.Contains("Invalid PEM", ex.Message);
+        }
     }
 }

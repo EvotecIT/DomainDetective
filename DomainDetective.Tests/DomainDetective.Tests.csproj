@@ -83,6 +83,9 @@
         <None Include="Data/vmc.pem">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Include="Data/corrupt.pem">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="Data/tlsrpt.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
