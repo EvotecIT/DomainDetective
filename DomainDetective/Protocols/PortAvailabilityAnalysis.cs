@@ -51,9 +51,10 @@ public class PortAvailabilityAnalysis
 
     private async Task<PortResult> CheckPort(string host, int port, InternalLogger logger, CancellationToken token)
     {
-        var client = new TcpClient();
+        TcpClient? client = null;
         try
         {
+            client = new TcpClient();
             client.SendTimeout = (int)Timeout.TotalMilliseconds;
             client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -78,7 +79,7 @@ public class PortAvailabilityAnalysis
         }
         finally
         {
-            client.Dispose();
+            client?.Dispose();
         }
     }
 }

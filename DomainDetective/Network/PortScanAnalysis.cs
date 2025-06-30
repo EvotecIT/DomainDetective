@@ -90,9 +90,10 @@ public class PortScanAnalysis
             }
         }
 
-        var client = new TcpClient(address.AddressFamily);
+        TcpClient? client = null;
         try
         {
+            client = new TcpClient(address.AddressFamily);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(Timeout);
             try
@@ -111,7 +112,7 @@ public class PortScanAnalysis
         }
         finally
         {
-            client.Dispose();
+            client?.Dispose();
         }
         sw.Stop();
 
