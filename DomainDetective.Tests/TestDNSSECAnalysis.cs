@@ -13,6 +13,7 @@ namespace DomainDetective.Tests {
             Assert.NotEmpty(healthCheck.DnsSecAnalysis.DsTtls);
             Assert.NotEmpty(healthCheck.DnsSecAnalysis.Rrsigs);
             Assert.NotEqual(0, healthCheck.DnsSecAnalysis.RootKeyTag);
+            Assert.Empty(healthCheck.DnsSecAnalysis.MismatchSummary);
         }
 
         [Fact]
@@ -21,6 +22,7 @@ namespace DomainDetective.Tests {
             await healthCheck.Verify("dnssec-failed.org", [HealthCheckType.DNSSEC]);
 
             Assert.False(healthCheck.DnsSecAnalysis.ChainValid);
+            Assert.NotEmpty(healthCheck.DnsSecAnalysis.MismatchSummary);
         }
     }
 }

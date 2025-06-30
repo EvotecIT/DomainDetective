@@ -17,6 +17,13 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DnsSecAnalysis {
+        private readonly List<string> _mismatchSummary = new();
+
+        /// <summary>
+        /// Gets a list describing mismatches encountered while validating the
+        /// DNSSEC chain.
+        /// </summary>
+        public IReadOnlyList<string> MismatchSummary => _mismatchSummary;
         /// <summary>Gets the DS records returned for the domain.</summary>
         public IReadOnlyList<string> DsRecords { get; private set; } = new List<string>();
 
@@ -59,6 +66,7 @@ namespace DomainDetective {
 
             client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
 
+            _mismatchSummary.Clear();
             bool chainValid = true;
             bool first = true;
             string current = domainName;
@@ -67,6 +75,7 @@ namespace DomainDetective {
             List<string> dsRecords = new();
             List<int> dsTtls = new();
             int rootKeyTag = 0;
+            string? rootDsRecord = null;
 
             while (true) {
                 var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
@@ -99,6 +108,20 @@ namespace DomainDetective {
                     dsMatch = VerifyDsMatch(ksk, dsResult.records[0], current);
                 }
 
+                if (!keyAd) {
+                    _mismatchSummary.Add($"DNSKEY for {current} not authenticated");
+                }
+                if (dsResult.records.Count == 0) {
+                    _mismatchSummary.Add($"No DS record for {current}");
+                } else {
+                    if (!dsResult.ad) {
+                        _mismatchSummary.Add($"DS for {current} not authenticated");
+                    }
+                    if (!dsMatch) {
+                        _mismatchSummary.Add($"DS mismatch for {current}");
+                    }
+                }
+
                 if (first) {
                     DnsKeys = zoneKeys;
                     Signatures = zoneSigs;
@@ -114,6 +137,7 @@ namespace DomainDetective {
                 int dot = current.IndexOf('.');
                 if (dot == -1) {
                     if (dsResult.records.Count > 0) {
+                        rootDsRecord = dsResult.records[0];
                         string[] rootParts = dsResult.records[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         if (rootParts.Length > 0 && int.TryParse(rootParts[0], out int tag)) {
                             rootKeyTag = tag;
@@ -124,6 +148,14 @@ namespace DomainDetective {
 
                 current = current.Substring(dot + 1);
                 first = false;
+            }
+
+            if (!string.IsNullOrEmpty(rootDsRecord)) {
+                var anchors = await DownloadTrustAnchors(logger).ConfigureAwait(false);
+                if (!anchors.Contains(rootDsRecord, StringComparer.OrdinalIgnoreCase)) {
+                    chainValid = false;
+                    _mismatchSummary.Add("Root DS record does not match IANA trust anchors");
+                }
             }
 
             ChainValid = chainValid;
