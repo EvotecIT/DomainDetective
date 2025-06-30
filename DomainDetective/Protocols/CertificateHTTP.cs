@@ -100,8 +100,8 @@ namespace DomainDetective {
         /// <summary>Optional override to retrieve CT log data for testing.</summary>
         public Func<string, Task<string>>? CtLogQueryOverride { private get; set; }
 
-        /// <summary>Template URL for crt.sh queries. {0} is replaced with the SHA-256 fingerprint.</summary>
-        public string CtLogApiTemplate { get; set; } = "https://crt.sh/?sha256={0}&output=json";
+        /// <summary>Template URLs for CT log queries. {0} is replaced with the SHA-256 fingerprint.</summary>
+        public List<string> CtLogApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.
@@ -302,23 +302,37 @@ namespace DomainDetective {
             }
 #endif
             var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
-            string json;
             if (CtLogQueryOverride != null) {
-                json = await CtLogQueryOverride(fingerprint);
-            } else {
-                using var client = new HttpClient();
-                var url = string.Format(CtLogApiTemplate, fingerprint);
-                using var resp = await client.GetAsync(url, cancellationToken);
-                if (!resp.IsSuccessStatusCode) {
-                    return;
-                }
-                json = await resp.Content.ReadAsStringAsync();
+                var json = await CtLogQueryOverride(fingerprint);
+                PresentInCtLogs = TryParseCtResponse(json);
+                return;
             }
+
+            using var client = new HttpClient();
+            foreach (var template in CtLogApiTemplates) {
+                var url = string.Format(template, fingerprint);
+                try {
+                    using var resp = await client.GetAsync(url, cancellationToken);
+                    if (!resp.IsSuccessStatusCode) {
+                        continue;
+                    }
+                    var json = await resp.Content.ReadAsStringAsync();
+                    if (TryParseCtResponse(json)) {
+                        PresentInCtLogs = true;
+                        break;
+                    }
+                } catch {
+                    // ignore request failures
+                }
+            }
+        }
+
+        private static bool TryParseCtResponse(string json) {
             try {
                 using var doc = JsonDocument.Parse(json);
-                PresentInCtLogs = doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0;
+                return doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0;
             } catch {
-                // ignore parse errors
+                return false;
             }
         }
 
