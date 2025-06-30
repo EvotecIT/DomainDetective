@@ -107,6 +107,12 @@ namespace DomainDetective {
                     dsMatch = VerifyDsMatch(ksk, dsResult.records[0], current);
                 }
 
+                foreach (string rec in dsResult.records) {
+                    if (!IsDsDigestLengthValid(rec)) {
+                        logger?.WriteWarning("DS record for {0} has unexpected digest length", current);
+                    }
+                }
+
                 if (!keyAd) {
                     _mismatchSummary.Add($"DNSKEY for {current} not authenticated");
                 }
@@ -180,6 +186,23 @@ namespace DomainDetective {
             }
 
             return (records, ttl, ad);
+        }
+
+        private static bool IsDsDigestLengthValid(string record) {
+            var parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 4 || !int.TryParse(parts[2], out int digestType)) {
+                return true;
+            }
+
+            int expected = digestType switch {
+                1 => 40,
+                2 => 64,
+                3 => 64,
+                4 => 96,
+                _ => 0,
+            };
+
+            return expected == 0 || parts[3].Length == expected;
         }
 
         /// <summary>
