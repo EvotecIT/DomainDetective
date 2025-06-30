@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestMessageHeaderAnalysis {
         [Fact]
         public void ParseMessageHeaders() {
-            var raw = File.ReadAllText("Data/sample-headers.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "sample-headers.txt"));
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(raw, new InternalLogger());
 

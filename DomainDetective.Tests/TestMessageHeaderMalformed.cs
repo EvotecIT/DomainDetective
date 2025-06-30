@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestMessageHeaderMalformed {
         [Fact]
         public void ParseHeadersWithMalformedLines() {
-            var raw = File.ReadAllText("Data/sample-headers-malformed.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "sample-headers-malformed.txt"));
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(raw, new InternalLogger());
 

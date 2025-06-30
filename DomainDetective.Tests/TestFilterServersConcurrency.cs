@@ -6,7 +6,7 @@ namespace DomainDetective.Tests {
     public class TestFilterServersConcurrency {
         [Fact]
         public async Task FilterServersHandlesConcurrency() {
-            var file = "Data/DNS/PublicDNS.json";
+            var file = Path.Combine("Data", "DNS", "PublicDNS.json");
             var analysis = new DnsPropagationAnalysis();
             analysis.LoadServers(file, clearExisting: true);
 

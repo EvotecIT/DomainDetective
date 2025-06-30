@@ -6,7 +6,7 @@ namespace DomainDetective.Tests {
     public class TestTlsRptJsonParser {
         [Fact]
         public void ParseSampleReport() {
-            var summaries = TlsRptJsonParser.ParseReport("Data/tlsrpt.json").ToList();
+            var summaries = TlsRptJsonParser.ParseReport(Path.Combine("Data", "tlsrpt.json")).ToList();
             Assert.Single(summaries);
             Assert.Equal("mx.example.com", summaries[0].MxHost);
             Assert.Equal(90, summaries[0].SuccessfulSessions);

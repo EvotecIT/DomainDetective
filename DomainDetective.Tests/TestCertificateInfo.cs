@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestCertificateInfo {
         [Fact]
         public async Task WeakCertificateFlagsSet() {
-            var cert = new X509Certificate2("Data/weak.pem");
+            var cert = new X509Certificate2(Path.Combine("Data", "weak.pem"));
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.WeakKey);
@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task StrongCertificateNotFlagged() {
-            var cert = new X509Certificate2("Data/wildcard.pem");
+            var cert = new X509Certificate2(Path.Combine("Data", "wildcard.pem"));
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.False(analysis.WeakKey);
@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task SelfSignedFlagSet() {
-            var cert = new X509Certificate2("Data/wildcard.pem");
+            var cert = new X509Certificate2(Path.Combine("Data", "wildcard.pem"));
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.IsSelfSigned);

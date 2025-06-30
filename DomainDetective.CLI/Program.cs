@@ -165,7 +165,7 @@ internal class Program
         var propServers = new Option<FileInfo>("--servers-file")
         {
             Description = "Servers JSON file",
-            DefaultValueFactory = _ => new FileInfo("Data/DNS/PublicDNS.json")
+            DefaultValueFactory = _ => new FileInfo(Path.Combine("Data", "DNS", "PublicDNS.json"))
         };
         var propJson = new Option<bool>("--json", "Output raw JSON");
         var propCompare = new Option<bool>("--compare-results", "Return aggregated comparison of results");

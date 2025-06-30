@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestMessageHeaderDuplicates {
         [Fact]
         public void ParseHeadersWithDuplicates() {
-            var raw = File.ReadAllText("Data/sample-headers-duplicate.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "sample-headers-duplicate.txt"));
             var analysis = new MessageHeaderAnalysis();
             analysis.Parse(raw, new InternalLogger());
 

@@ -4,7 +4,7 @@ namespace DomainDetective.Tests {
     public class TestARCAnalysis {
         [Fact]
         public void ValidArcChain() {
-            var raw = File.ReadAllText("Data/arc-valid.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "arc-valid.txt"));
             var hc = new DomainHealthCheck();
             var result = hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
@@ -13,7 +13,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void InvalidArcChain() {
-            var raw = File.ReadAllText("Data/arc-invalid.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "arc-invalid.txt"));
             var hc = new DomainHealthCheck();
             var result = hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
@@ -22,7 +22,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void MissingSignatureInvalidatesChain() {
-            var raw = File.ReadAllText("Data/arc-missing-sig.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "arc-missing-sig.txt"));
             var hc = new DomainHealthCheck();
             var result = hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
@@ -31,7 +31,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void EmptySignatureInvalidatesChain() {
-            var raw = File.ReadAllText("Data/arc-empty-sig.txt");
+            var raw = File.ReadAllText(Path.Combine("Data", "arc-empty-sig.txt"));
             var hc = new DomainHealthCheck();
             var result = hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
