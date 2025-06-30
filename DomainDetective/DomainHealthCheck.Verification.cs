@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
+using System.Linq.Expressions;
 using System.Globalization;
 using DomainDetective.Network;
 
@@ -1226,8 +1227,18 @@ namespace DomainDetective {
             "MemberwiseClone",
             BindingFlags.Instance | BindingFlags.NonPublic);
 
+        private static class Cloner<T> where T : class {
+            internal static readonly Func<T, T> Delegate = CreateDelegate();
+
+            private static Func<T, T> CreateDelegate() {
+                ParameterExpression param = Expression.Parameter(typeof(T), "source");
+                UnaryExpression body = Expression.Convert(Expression.Call(param, _cloneMethod), typeof(T));
+                return Expression.Lambda<Func<T, T>>(body, param).Compile();
+            }
+        }
+
         private static T CloneAnalysis<T>(T analysis) where T : class {
-            return analysis == null ? null : (T)_cloneMethod.Invoke(analysis, null);
+            return analysis == null ? null : Cloner<T>.Delegate(analysis);
         }
     }
 }
