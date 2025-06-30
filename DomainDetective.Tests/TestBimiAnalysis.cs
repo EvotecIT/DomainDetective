@@ -51,6 +51,22 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidSchemeMarksLocationInvalid() {
+            var record = "v=BIMI1; l=ftp://example.com/logo.svg";
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = record,
+                    Type = DnsRecordType.TXT
+                }
+            };
+            var analysis = new BimiAnalysis();
+            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.InvalidLocation);
+            Assert.False(analysis.SvgFetched);
+        }
+
+        [Fact]
         public async Task UnreachableIndicatorSetsFailureReason() {
             var port = GetFreePort();
             var record = $"v=BIMI1; l=http://localhost:{port}/logo.svg";            

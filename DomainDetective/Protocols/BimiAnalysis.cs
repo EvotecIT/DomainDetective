@@ -33,6 +33,8 @@ namespace DomainDetective {
         public bool AuthorityUsesHttps { get; private set; }
         /// <summary>Gets a value indicating whether the domain opted out of publishing an indicator.</summary>
         public bool DeclinedToPublish { get; private set; }
+        /// <summary>Gets a value indicating whether <see cref="Location"/> uses an unsupported scheme or file type.</summary>
+        public bool InvalidLocation { get; private set; }
         /// <summary>Gets a value indicating whether the indicator SVG file was downloaded.</summary>
         public bool SvgFetched { get; private set; }
         /// <summary>Gets a value indicating whether the downloaded SVG is valid.</summary>
@@ -63,6 +65,7 @@ namespace DomainDetective {
             LocationUsesHttps = false;
             AuthorityUsesHttps = false;
             DeclinedToPublish = false;
+            InvalidLocation = false;
             SvgFetched = false;
             SvgValid = false;
             ValidVmc = false;
@@ -99,6 +102,12 @@ namespace DomainDetective {
                 switch (key) {
                     case "l":
                         Location = value;
+                        InvalidLocation = !(value.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                            && (value.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
+                                || value.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)));
+                        if (InvalidLocation) {
+                            logger?.WriteWarning("Invalid BIMI indicator location {0}", value);
+                        }
                         break;
                     case "a":
                         Authority = value;
@@ -111,7 +120,7 @@ namespace DomainDetective {
 
             DeclinedToPublish = string.IsNullOrEmpty(Location) && string.IsNullOrEmpty(Authority);
 
-            if (!string.IsNullOrEmpty(Location)) {
+            if (!string.IsNullOrEmpty(Location) && !InvalidLocation) {
                 if (!LocationUsesHttps) {
                     logger?.WriteWarning("BIMI indicator location does not use HTTPS: {0}", Location);
                 }
