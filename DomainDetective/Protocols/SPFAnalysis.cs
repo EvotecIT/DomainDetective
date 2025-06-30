@@ -70,7 +70,9 @@ namespace DomainDetective {
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
 
-        private static readonly Regex MacroRegex = new(@"%\{[slodipvhcrt](?:\d+)?r?(?:[.\-+,/_=]*)?\}", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex MacroRegex = new(
+            @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{0,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public void Reset() {
             SpfRecord = null;
@@ -388,7 +390,7 @@ namespace DomainDetective {
                     }
 
                     var macro = token.Substring(index, end - index + 1);
-                    if (!MacroRegex.IsMatch(macro)) {
+                    if (!IsValidMacro(macro)) {
                         _warnings.Add($"Invalid SPF macro syntax: {macro}");
                         logger?.WriteWarning($"Invalid SPF macro syntax: {macro}");
                     }
@@ -400,6 +402,20 @@ namespace DomainDetective {
                 logger?.WriteWarning($"Invalid percent escape in token '{token}'");
                 index = token.IndexOf('%', index + 1);
             }
+        }
+
+        private static bool IsValidMacro(string macro) {
+            var match = MacroRegex.Match(macro);
+            if (!match.Success) {
+                return false;
+            }
+
+            if (match.Groups["digits"].Success &&
+                (!int.TryParse(match.Groups["digits"].Value, out var digits) || digits > 99)) {
+                return false;
+            }
+
+            return true;
         }
 
         private static bool IsAllowedMechanismOrModifier(string token) {
