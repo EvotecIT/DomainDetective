@@ -157,17 +157,20 @@ namespace DomainDetective {
                         }
 #endif
                         if (Certificate == null && Http3Supported) {
+                            TcpClient? tcp = null;
+                            CancellationTokenSource? timeoutCts = null;
+                            SslStream? ssl = null;
                             try {
                                 var uri = new Uri(url);
-                                using var tcp = new TcpClient();
-                                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                                tcp = new TcpClient();
+                                timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
 #if NET6_0_OR_GREATER
                                 await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
 #else
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-                                using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
+                                ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                                     return errors == SslPolicyErrors.None;
                                 });
@@ -189,6 +192,10 @@ namespace DomainDetective {
                                 }
                             } catch (Exception ex) {
                                 logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
+                            } finally {
+                                ssl?.Dispose();
+                                timeoutCts?.Dispose();
+                                tcp?.Dispose();
                             }
                         }
                         if (Certificate != null) {
@@ -441,34 +448,43 @@ namespace DomainDetective {
         }
 
         private async Task PopulateTlsInfo(Uri uri, int port, CancellationToken token) {
-            using var tcp = new TcpClient();
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            timeoutCts.CancelAfter(Timeout);
+            TcpClient? tcp = null;
+            CancellationTokenSource? timeoutCts = null;
+            SslStream? ssl = null;
+            try {
+                tcp = new TcpClient();
+                timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                timeoutCts.CancelAfter(Timeout);
 #if NET6_0_OR_GREATER
-            await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
+                await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
 #else
-            await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
+                await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-            using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+                ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
-                .WaitWithCancellation(timeoutCts.Token);
+                await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
+                    .WaitWithCancellation(timeoutCts.Token);
 #else
-            await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
+                await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
 #endif
-            TlsProtocol = ssl.SslProtocol;
+                TlsProtocol = ssl.SslProtocol;
 #if NET8_0_OR_GREATER
-            Tls13Used = ssl.SslProtocol == SslProtocols.Tls13;
+                Tls13Used = ssl.SslProtocol == SslProtocols.Tls13;
 #else
-            Tls13Used = (int)ssl.SslProtocol == 12288;
+                Tls13Used = (int)ssl.SslProtocol == 12288;
 #endif
-            CipherAlgorithm = ssl.CipherAlgorithm;
-            CipherStrength = ssl.CipherStrength;
+                CipherAlgorithm = ssl.CipherAlgorithm;
+                CipherStrength = ssl.CipherStrength;
 #if NET6_0_OR_GREATER
-            CipherSuite = ssl.NegotiatedCipherSuite.ToString();
+                CipherSuite = ssl.NegotiatedCipherSuite.ToString();
 #endif
-            if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
-                DhKeyBits = ssl.KeyExchangeStrength;
+                if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
+                    DhKeyBits = ssl.KeyExchangeStrength;
+                }
+            } finally {
+                ssl?.Dispose();
+                timeoutCts?.Dispose();
+                tcp?.Dispose();
             }
         }
     }

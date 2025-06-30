@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
         public async Task UnreachableHostSetsIsReachableFalse() {
             var logger = new InternalLogger();
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+            await analysis.AnalyzeUrl("https://localhost", 9, logger);
             Assert.False(analysis.IsReachable);
             Assert.Null(analysis.ProtocolVersion);
         }
@@ -27,7 +27,7 @@ namespace DomainDetective.Tests {
             logger.OnErrorMessage += (_, e) => eventArgs = e;
 
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://nonexistent.invalid", 443, logger);
+            await analysis.AnalyzeUrl("https://localhost", 9, logger);
 
             Assert.NotNull(eventArgs);
             Assert.Contains(nameof(HttpRequestException), eventArgs!.FullMessage);
@@ -36,39 +36,55 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task ValidHostSetsProtocolVersion() {
-            var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
-            Assert.True(analysis.ProtocolVersion?.Major >= 1);
-            Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
-            if (analysis.ProtocolVersion >= new Version(3, 0)) {
-                Assert.True(analysis.Http3Supported);
+            using var cert = CreateSelfSigned("localhost");
+            using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
+            store.Open(OpenFlags.ReadWrite);
+            store.Add(cert);
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                await analysis.AnalyzeUrl($"https://localhost", port, logger);
+                Assert.True(analysis.ProtocolVersion?.Major >= 1);
+                Assert.Equal(analysis.ProtocolVersion >= new Version(2, 0), analysis.Http2Supported);
+                Assert.False(analysis.Http3Supported);
+            } finally {
+                store.Remove(cert);
+                store.Close();
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
             }
         }
 
         [Fact]
         public async Task ValidCertificateProvidesExpirationInfo() {
-            var logger = new InternalLogger();
+            using var cert = CreateSelfSigned("localhost");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.DaysValid > 0);
             Assert.Equal(analysis.DaysToExpire < 0, analysis.IsExpired);
         }
 
         [Fact]
         public async Task ValidCertificateIsNotSelfSigned() {
-            var logger = new InternalLogger();
+            using var cert = CreateSigned("localhost");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            await analysis.AnalyzeCertificate(cert);
             Assert.False(analysis.IsSelfSigned);
             Assert.True(analysis.Chain.Count > 1);
         }
 
         [Fact]
         public async Task ExtractsRevocationEndpoints() {
-            var logger = new InternalLogger();
+            using var cert = CreateSigned("localhost");
             var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
-            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
+            await analysis.AnalyzeCertificate(cert);
             Assert.NotNull(analysis.OcspUrls);
             Assert.NotNull(analysis.CrlUrls);
         }
@@ -84,12 +100,30 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task CapturesCipherSuiteWhenEnabled() {
-            var logger = new InternalLogger();
-            var analysis = new CertificateAnalysis { CaptureTlsDetails = true };
-            await analysis.AnalyzeUrl("https://www.google.com", 443, logger);
-            Assert.False(string.IsNullOrEmpty(analysis.CipherSuite));
-            if (analysis.DhKeyBits > 0) {
-                Assert.True(analysis.DhKeyBits > 0);
+            using var cert = CreateSelfSigned("localhost");
+            using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
+            store.Open(OpenFlags.ReadWrite);
+            store.Add(cert);
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => RunServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
+
+            try {
+                var logger = new InternalLogger();
+                var analysis = new CertificateAnalysis { CaptureTlsDetails = true, CtLogQueryOverride = _ => Task.FromResult("[]") };
+                await analysis.AnalyzeUrl($"https://localhost", port, logger);
+                Assert.False(string.IsNullOrEmpty(analysis.CipherSuite));
+                if (analysis.DhKeyBits > 0) {
+                    Assert.True(analysis.DhKeyBits > 0);
+                }
+            } finally {
+                store.Remove(cert);
+                store.Close();
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
             }
         }
 
@@ -152,19 +186,29 @@ namespace DomainDetective.Tests {
 
                     var client = await clientTask;
                     _ = Task.Run(async () => {
-                        using var tcp = client;
-                        using var ssl = new SslStream(tcp.GetStream());
-                        await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
-                        using var reader = new StreamReader(ssl);
-                        using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
-                        await reader.ReadLineAsync();
-                        string line;
-                        do {
-                            line = await reader.ReadLineAsync();
-                        } while (!string.IsNullOrEmpty(line));
-                        await writer.WriteLineAsync("HTTP/1.1 200 OK");
-                        await writer.WriteLineAsync("Content-Length: 0");
-                        await writer.WriteLineAsync();
+                        TcpClient? tcp = client;
+                        SslStream? ssl = null;
+                        StreamReader? reader = null;
+                        StreamWriter? writer = null;
+                        try {
+                            ssl = new SslStream(tcp.GetStream());
+                            await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
+                            reader = new StreamReader(ssl);
+                            writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                            await reader.ReadLineAsync();
+                            string line;
+                            do {
+                                line = await reader.ReadLineAsync();
+                            } while (!string.IsNullOrEmpty(line));
+                            await writer.WriteLineAsync("HTTP/1.1 200 OK");
+                            await writer.WriteLineAsync("Content-Length: 0");
+                            await writer.WriteLineAsync();
+                        } finally {
+                            writer?.Dispose();
+                            reader?.Dispose();
+                            ssl?.Dispose();
+                            tcp?.Dispose();
+                        }
                     }, token);
                 }
             } catch {
@@ -176,6 +220,19 @@ namespace DomainDetective.Tests {
             using var rsa = RSA.Create(2048);
             var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
             var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
+            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+        }
+
+        private static X509Certificate2 CreateSigned(string cn) {
+            using var rootKey = RSA.Create(2048);
+            var rootReq = new CertificateRequest("CN=RootCA", rootKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            rootReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+            using var rootCert = rootReq.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(365));
+
+            using var rsa = RSA.Create(2048);
+            var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+            var cert = req.Create(rootCert, DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30), new byte[] {1,2,3,4});
             return new X509Certificate2(cert.Export(X509ContentType.Pfx));
         }
     }
