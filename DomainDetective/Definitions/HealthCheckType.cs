@@ -51,6 +51,10 @@ public enum HealthCheckType {
     STARTTLS,
     /// <summary>Verify SMTP TLS configuration.</summary>
     SMTPTLS,
+    /// <summary>Verify IMAP TLS configuration.</summary>
+    IMAPTLS,
+    /// <summary>Verify POP3 TLS configuration.</summary>
+    POP3TLS,
     /// <summary>Capture SMTP banner information.</summary>
     SMTPBANNER,
     /// <summary>Enumerate SMTP AUTH mechanisms.</summary>

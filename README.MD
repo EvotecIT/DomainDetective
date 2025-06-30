@@ -24,6 +24,8 @@ Current capabilities include:
 - [x] Verify STARTTLS (detect advertisement downgrades)
 - [x] Verify MTA-STS
 - [x] Verify SMTP TLS
+- [x] Verify IMAP TLS
+- [x] Verify POP3 TLS
 - [x] Verify SMTP Banner
 - [x] Verify TLS-RPT
 - [x] Verify BIMI

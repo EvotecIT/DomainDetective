@@ -532,6 +532,8 @@ internal class Program
                     HealthCheckType.ARC => hc.ArcAnalysis,
                     HealthCheckType.DANGLINGCNAME => hc.DanglingCnameAnalysis,
                     HealthCheckType.SMTPBANNER => hc.SmtpBannerAnalysis,
+                    HealthCheckType.IMAPTLS => hc.ImapTlsAnalysis,
+                    HealthCheckType.POP3TLS => hc.Pop3TlsAnalysis,
                     HealthCheckType.PORTAVAILABILITY => hc.PortAvailabilityAnalysis,
                     HealthCheckType.PORTSCAN => hc.PortScanAnalysis,
                     HealthCheckType.IPNEIGHBOR => hc.IPNeighborAnalysis,
