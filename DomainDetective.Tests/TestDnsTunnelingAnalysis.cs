@@ -20,5 +20,13 @@ namespace DomainDetective.Tests {
             analysis.Analyze("example.com", logs);
             Assert.Contains(analysis.Alerts, a => a.Reason.Contains("High"));
         }
+
+        [Fact]
+        public void SkipsNullEntries() {
+            var analysis = new DnsTunnelingAnalysis();
+            string?[] logs = { null, "", "  ", "2024-01-01T00:00:00Z sub.example.com" };
+            analysis.Analyze("example.com", logs);
+            Assert.Empty(analysis.Alerts);
+        }
     }
 }

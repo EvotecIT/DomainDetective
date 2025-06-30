@@ -22,10 +22,14 @@ public class DnsTunnelingAnalysis
     /// </summary>
     /// <param name="domainName">Domain to inspect.</param>
     /// <param name="logLines">Lines from DNS query logs.</param>
-    public void Analyze(string domainName, IEnumerable<string> logLines)
+    public void Analyze(string domainName, IEnumerable<string?>? logLines)
     {
         Alerts = new List<DnsTunnelingAlert>();
         var queue = new Queue<DateTimeOffset>();
+        if (logLines == null)
+        {
+            return;
+        }
         foreach (var line in logLines)
         {
             if (string.IsNullOrWhiteSpace(line))
