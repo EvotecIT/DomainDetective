@@ -1142,6 +1142,9 @@ namespace DomainDetective {
         /// </returns>
         public string ToJson(JsonSerializerOptions options = null) {
             options ??= new JsonSerializerOptions { WriteIndented = true };
+            if (UnicodeOutput && options.Converters.All(c => c is not IdnStringConverter)) {
+                options.Converters.Add(new IdnStringConverter(true));
+            }
             return JsonSerializer.Serialize(this, options);
         }
 

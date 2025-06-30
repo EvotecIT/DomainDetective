@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Globalization;
 using System.Management.Automation;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -16,6 +17,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DmarcAggregate")]
     public sealed class CmdletTestDmarcAggregate : AsyncPSCmdlet {
+        private static readonly IdnMapping _idn = new();
         /// <param name="Path">Path to the aggregate report.</param>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
@@ -43,6 +45,11 @@ namespace DomainDetective.PowerShell {
             foreach (var record in doc.Descendants("record")) {
                 string domain = record.Element("identifiers")?.Element("header_from")?.Value ?? defaultDomain;
                 if (string.IsNullOrEmpty(domain)) {
+                    continue;
+                }
+                try {
+                    domain = _idn.GetAscii(domain.Trim().Trim('.'));
+                } catch (ArgumentException) {
                     continue;
                 }
                 if (!table.TryGetValue(domain, out var summary)) {

@@ -20,10 +20,17 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class WhoisAnalysis {
     private string TLD { get; set; }
+    private static readonly IdnMapping _idn = new();
     private string _domainName;
     public string DomainName {
         get => _domainName;
-        set => _domainName = value;
+        set {
+            try {
+                _domainName = _idn.GetAscii(value.Trim().Trim('.'));
+            } catch (ArgumentException) {
+                _domainName = value;
+            }
+        }
     }
     public string Tld => TLD;
     public string Registrar { get; set; }
