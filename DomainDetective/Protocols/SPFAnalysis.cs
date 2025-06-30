@@ -71,7 +71,7 @@ namespace DomainDetective {
         public IReadOnlyList<string> Warnings => _warnings;
 
         private static readonly Regex MacroRegex = new(
-            @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{0,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
+            @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{1,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         public void Reset() {
