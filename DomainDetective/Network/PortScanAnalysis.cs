@@ -122,7 +122,7 @@ public class PortScanAnalysis
                 {
                     cts.CancelAfter(Timeout);
                     var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
-                    udpOpen = result.Buffer.Length >= 0;
+                    udpOpen = result.Buffer.Length > 0;
                 }
 #else
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
