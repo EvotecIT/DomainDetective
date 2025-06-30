@@ -195,7 +195,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task VmcFromFileServedOverHttp() {
-            var vmcBytes = await File.ReadAllBytesAsync(Path.Combine("Data", "vmc.pem"));
+            var vmcBytes = File.ReadAllBytes(Path.Combine("Data", "vmc.pem"));
             using var cert = CreateSelfSigned();
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
