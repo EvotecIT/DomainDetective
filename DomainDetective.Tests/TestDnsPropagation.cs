@@ -207,5 +207,37 @@ namespace DomainDetective.Tests {
                 File.Delete(file);
             }
         }
+
+        [Theory]
+        [InlineData("2001:db8:0:0:0:0:0:1")]
+        [InlineData("2001:db8:0:0::1")]
+        public void AddServerThrowsForNonCanonicalIpv6(string address) {
+            var analysis = new DnsPropagationAnalysis();
+            var entry = new PublicDnsEntry { IPAddress = address };
+            Assert.Throws<FormatException>(() => analysis.AddServer(entry));
+        }
+
+        [Fact]
+        public void CompareResultsHandlesIpv6ZoneIndex() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "1.1.1.1" },
+                    RecordType = DnsRecordType.AAAA,
+                    Records = new[] { "fe80::1%2" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = "8.8.8.8" },
+                    RecordType = DnsRecordType.AAAA,
+                    Records = new[] { "fe80:0:0:0:0:0:0:1%2" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Single(groups);
+            Assert.Equal(2, groups.First().Value.Count);
+            Assert.Equal(IPAddress.Parse("fe80::1%2").ToString(), groups.Keys.First());
+        }
     }
 }
