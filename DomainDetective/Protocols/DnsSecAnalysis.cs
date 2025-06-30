@@ -75,7 +75,6 @@ namespace DomainDetective {
             List<string> dsRecords = new();
             List<int> dsTtls = new();
             int rootKeyTag = 0;
-            string? rootDsRecord = null;
 
             while (true) {
                 var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
@@ -137,7 +136,6 @@ namespace DomainDetective {
                 int dot = current.IndexOf('.');
                 if (dot == -1) {
                     if (dsResult.records.Count > 0) {
-                        rootDsRecord = dsResult.records[0];
                         string[] rootParts = dsResult.records[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         if (rootParts.Length > 0 && int.TryParse(rootParts[0], out int tag)) {
                             rootKeyTag = tag;
@@ -150,11 +148,11 @@ namespace DomainDetective {
                 first = false;
             }
 
-            if (!string.IsNullOrEmpty(rootDsRecord)) {
-                var anchors = await DownloadTrustAnchors(logger).ConfigureAwait(false);
-                if (!anchors.Contains(rootDsRecord, StringComparer.OrdinalIgnoreCase)) {
-                    chainValid = false;
-                    _mismatchSummary.Add("Root DS record does not match IANA trust anchors");
+            var anchors = await DownloadTrustAnchors(logger).ConfigureAwait(false);
+            if (anchors.Count > 0 && rootKeyTag == 0) {
+                string[] parts = anchors[0].Split(' ');
+                if (parts.Length > 0 && int.TryParse(parts[0], out int tag)) {
+                    rootKeyTag = tag;
                 }
             }
 
