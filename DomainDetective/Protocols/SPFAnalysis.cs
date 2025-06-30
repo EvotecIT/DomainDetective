@@ -294,6 +294,7 @@ namespace DomainDetective {
             ExceedsTotalCharacterLimit = totalLength > 512;
         }
 
+        /// <summary>Adds warnings for SPF TXT chunks over 255 characters.</summary>
         private void WarnIfSpfRecordChunksTooLong(InternalLogger? logger) {
             for (int i = 0; i < SpfRecords.Count; i++) {
                 if (SpfRecords[i].Length > 255) {
