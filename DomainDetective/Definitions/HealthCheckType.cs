@@ -27,6 +27,8 @@ public enum HealthCheckType {
     ZONETRANSFER,
     /// <summary>Validate DANE information.</summary>
     DANE,
+    /// <summary>Query S/MIMEA records.</summary>
+    SMIMEA,
     /// <summary>Check DNSBL listings.</summary>
     DNSBL,
     /// <summary>Validate DNSSEC configuration.</summary>

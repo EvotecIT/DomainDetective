@@ -63,6 +63,10 @@ public static class CheckDescriptions {
                 "Verify DANE/TLSA.",
                 "https://datatracker.ietf.org/doc/html/rfc6698",
                 "Provide TLSA records for services."),
+            [HealthCheckType.SMIMEA] = new(
+                "Query S/MIMEA records.",
+                "https://www.rfc-editor.org/rfc/rfc8162",
+                "Publish SMIMEA records for user certificates."),
             // Verify Blacklist (DNSBL)
             [HealthCheckType.DNSBL] = new(
                 "Verify blacklist (DNSBL).",
