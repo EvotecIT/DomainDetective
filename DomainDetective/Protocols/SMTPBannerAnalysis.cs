@@ -19,6 +19,10 @@ namespace DomainDetective {
             public bool HostnameMatch { get; init; }
             /// <summary>True when <see cref="SMTPBannerAnalysis.ExpectedSoftware"/> is found in the banner.</summary>
             public bool SoftwareMatch { get; init; }
+            /// <summary>True when banner begins with the 220 greeting code.</summary>
+            public bool StartsWith220 { get; init; }
+            /// <summary>True when banner contains a domain name after the greeting code.</summary>
+            public bool ContainsDomain { get; init; }
         }
 
         /// <summary>Results for each host and port.</summary>
@@ -77,9 +81,18 @@ namespace DomainDetective {
                 } catch (IOException) {
                     // disconnect
                 }
+                bool startsWith220 = banner?.StartsWith("220", StringComparison.Ordinal) ?? false;
+                string? domain = null;
+                if (startsWith220 && banner != null) {
+                    var parts = banner.Split(new[] { ' ' }, 3, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])) {
+                        domain = parts[1];
+                    }
+                }
+                bool containsDomain = !string.IsNullOrWhiteSpace(domain);
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;
-                return new BannerResult { Banner = banner, HostnameMatch = hostMatch, SoftwareMatch = softMatch };
+                return new BannerResult { Banner = banner, HostnameMatch = hostMatch, SoftwareMatch = softMatch, StartsWith220 = startsWith220, ContainsDomain = containsDomain };
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {
