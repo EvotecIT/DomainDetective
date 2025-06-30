@@ -179,6 +179,9 @@ namespace DomainDetective {
                         AutodiscoverAnalysis = new AutodiscoverAnalysis();
                         await AutodiscoverAnalysis.Analyze(domainName, DnsConfiguration, _logger, cancellationToken);
                         break;
+                    case HealthCheckType.CERT:
+                        await VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken);
+                        break;
                     case HealthCheckType.SECURITYTXT:
                         // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
                         SecurityTXTAnalysis = new SecurityTXTAnalysis();
