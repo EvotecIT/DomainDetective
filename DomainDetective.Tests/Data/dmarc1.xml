@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feedback>
+  <record>
+    <row>
+      <policy_evaluated>
+        <dkim>pass</dkim>
+        <spf>pass</spf>
+      </policy_evaluated>
+    </row>
+    <identifiers>
+      <header_from>example.com</header_from>
+    </identifiers>
+  </record>
+  <record>
+    <row>
+      <policy_evaluated>
+        <dkim>fail</dkim>
+        <spf>fail</spf>
+      </policy_evaluated>
+    </row>
+    <identifiers>
+      <header_from>example.net</header_from>
+    </identifiers>
+  </record>
+</feedback>
