@@ -85,6 +85,12 @@ namespace DomainDetective {
         public DANEAnalysis DaneAnalysis { get; private set; } = new DANEAnalysis();
 
         /// <summary>
+        /// Gets the SMIMEA analysis.
+        /// </summary>
+        /// <value>SMIMEA records and validation output.</value>
+        public SMIMEAAnalysis SmimeaAnalysis { get; private set; } = new SMIMEAAnalysis();
+
+        /// <summary>
         /// Gets the DNS block list analysis.
         /// </summary>
         /// <value>DNSBL lookup results.</value>

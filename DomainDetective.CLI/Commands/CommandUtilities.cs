@@ -18,6 +18,7 @@ internal static class CommandUtilities {
         ["delegation"] = HealthCheckType.DELEGATION,
         ["zonetransfer"] = HealthCheckType.ZONETRANSFER,
         ["dane"] = HealthCheckType.DANE,
+        ["smimea"] = HealthCheckType.SMIMEA,
         ["dnssec"] = HealthCheckType.DNSSEC,
         ["dnsbl"] = HealthCheckType.DNSBL,
         ["contact"] = HealthCheckType.CONTACT,
