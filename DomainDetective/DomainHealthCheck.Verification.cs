@@ -19,19 +19,16 @@ namespace DomainDetective {
 
         private static string CreateServiceQuery(int port, string domain) {
 #if NET6_0_OR_GREATER
-            return string.Create(domain.Length + 12, (port, domain), static (span, state) => {
-                var (p, d) = state;
-                var written = 0;
-                span[written++] = '_';
-                p.TryFormat(span.Slice(written), out var digits);
-                written += digits;
-                span[written++] = '.';
-                span[written++] = '_';
-                span[written++] = 't';
-                span[written++] = 'c';
-                span[written++] = 'p';
-                span[written++] = '.';
-                d.AsSpan().CopyTo(span.Slice(written));
+            var portString = port.ToString(CultureInfo.InvariantCulture);
+            return string.Create(portString.Length + domain.Length + 7, (portString, domain), static (span, state) => {
+                var (digits, host) = state;
+                var pos = 0;
+                span[pos++] = '_';
+                digits.AsSpan().CopyTo(span[pos..]);
+                pos += digits.Length;
+                "._tcp.".AsSpan().CopyTo(span[pos..]);
+                pos += 6;
+                host.AsSpan().CopyTo(span[pos..]);
             });
 #else
             return $"_{port}._tcp.{domain}";
