@@ -17,6 +17,27 @@ namespace DomainDetective {
         private static string ToAscii(string domainName) =>
             _idn.GetAscii(domainName.Trim().Trim('.')).ToLowerInvariant();
 
+        private static string CreateServiceQuery(int port, string domain) {
+#if NET6_0_OR_GREATER
+            return string.Create(domain.Length + 12, (port, domain), static (span, state) => {
+                var (p, d) = state;
+                var written = 0;
+                span[written++] = '_';
+                p.TryFormat(span.Slice(written), out var digits);
+                written += digits;
+                span[written++] = '.';
+                span[written++] = '_';
+                span[written++] = 't';
+                span[written++] = 'c';
+                span[written++] = 'p';
+                span[written++] = '.';
+                d.AsSpan().CopyTo(span.Slice(written));
+            });
+#else
+            return $"_{port}._tcp.{domain}";
+#endif
+        }
+
         private void UpdateIsPublicSuffix(string domainName) {
             var ascii = ToAscii(domainName);
             IsPublicSuffix = _publicSuffixList.IsPublicSuffix(ascii);
@@ -910,7 +931,8 @@ namespace DomainDetective {
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var dane = await DnsConfiguration.QueryDNS($"_{port}._tcp.{domainName}", DnsRecordType.TLSA, cancellationToken: cancellationToken);
+            var query = CreateServiceQuery(port, domainName);
+            var dane = await DnsConfiguration.QueryDNS(query, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
 
@@ -933,7 +955,7 @@ namespace DomainDetective {
             foreach (var service in services.Distinct()) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var host = ToAscii(service.Host).TrimEnd('.');
-                var daneName = $"_{service.Port}._tcp.{host}";
+                var daneName = CreateServiceQuery(service.Port, host);
                 var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 if (dane.Any()) {
                     allDaneRecords.AddRange(dane);
@@ -990,7 +1012,7 @@ namespace DomainDetective {
                 foreach (var record in recordData) {
                     cancellationToken.ThrowIfCancellationRequested();
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
-                    var daneRecord = $"_{port}._tcp.{domain}";
+                    var daneRecord = CreateServiceQuery(port, domain);
                     var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                     if (dane.Any()) {
                         allDaneRecords.AddRange(dane);
