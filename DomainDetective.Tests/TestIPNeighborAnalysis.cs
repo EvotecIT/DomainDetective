@@ -14,10 +14,11 @@ namespace DomainDetective.Tests {
                     if (type == DnsRecordType.PTR) return Task.FromResult(new[] { new DnsAnswer { DataRaw = "ptr.example.com." } });
                     return Task.FromResult(System.Array.Empty<DnsAnswer>());
                 },
-                PassiveDnsLookupOverride = ip => Task.FromResult(new List<string> { "foo.com" })
+                PassiveDnsLookupOverride = ip => Task.FromResult(new List<string> { "foo.com" }),
+                RPKIValidationOverride = ip => Task.FromResult(true)
             };
             await analysis.Analyze("example.com", new InternalLogger());
-            Assert.Contains(analysis.Results, r => r.IpAddress == "1.1.1.1" && r.Domains.Contains("foo.com"));
+            Assert.Contains(analysis.Results, r => r.IpAddress == "1.1.1.1" && r.Domains.Contains("foo.com") && r.RPKIValid);
         }
 
         [Fact]

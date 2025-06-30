@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -26,6 +27,8 @@ public class IPNeighborAnalysis
     public List<IPNeighborResult> Results { get; private set; } = new();
     /// <summary>Errors encountered during analysis.</summary>
     public List<Exception> Errors { get; private set; } = new();
+    /// <summary>Override for RPKI validity checks.</summary>
+    public Func<string, Task<bool>>? RPKIValidationOverride { private get; set; }
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -66,6 +69,37 @@ public class IPNeighborAnalysis
         }
     }
 
+    private async Task<bool> QueryRpki(string ip, InternalLogger logger)
+    {
+        if (RPKIValidationOverride != null)
+        {
+            return await RPKIValidationOverride(ip);
+        }
+
+        try
+        {
+            using var client = new HttpClient();
+            var prefixResp = await client.GetAsync($"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
+            prefixResp.EnsureSuccessStatusCode();
+            using var prefixStream = await prefixResp.Content.ReadAsStreamAsync();
+            var prefixDoc = await JsonDocument.ParseAsync(prefixStream);
+            var prefix = prefixDoc.RootElement.GetProperty("data").GetProperty("resource").GetString();
+            var asn = prefixDoc.RootElement.GetProperty("data").GetProperty("asns")[0].GetProperty("asn").GetInt32();
+            var rpkiUrl = $"https://stat.ripe.net/data/rpki-validation/data.json?prefix={prefix}&resource=AS{asn}";
+            using var rpkiResp = await client.GetAsync(rpkiUrl);
+            rpkiResp.EnsureSuccessStatusCode();
+            using var rpkiStream = await rpkiResp.Content.ReadAsStreamAsync();
+            var rpkiDoc = await JsonDocument.ParseAsync(rpkiStream);
+            var status = rpkiDoc.RootElement.GetProperty("data").GetProperty("status").GetString();
+            return !string.Equals(status, "invalid", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            logger?.WriteError("RPKI query failed for {0}: {1}", ip, ex.Message);
+            return true;
+        }
+    }
+
     /// <summary>
     /// Queries PTR and passive DNS for all IPs of <paramref name="domainName"/>.
     /// </summary>
@@ -101,9 +135,15 @@ public class IPNeighborAnalysis
                     list.Add(dom);
                 }
 
+                var rpkiValid = await QueryRpki(ipStr, logger);
+
                 lock (Results)
                 {
-                    Results.Add(new IPNeighborResult { IpAddress = ipStr, Domains = list.ToList() });
+                    Results.Add(new IPNeighborResult {
+                        IpAddress = ipStr,
+                        Domains = list.ToList(),
+                        RPKIValid = rpkiValid
+                    });
                 }
             }
             catch (Exception ex)
