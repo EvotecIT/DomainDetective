@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Checks if an SMTP server is an open relay.</summary>
-    /// <para>Returns an <see cref="OpenRelayStatus"/> describing the result.</para>
+    /// <para>Returns an <see cref="OpenRelayAnalysis.OpenRelayResult"/> describing the result.</para>
     /// <example>
     ///   <summary>Test a mail server.</summary>
     /// <para>Part of the DomainDetective project.</para>
