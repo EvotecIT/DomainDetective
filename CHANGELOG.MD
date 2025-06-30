@@ -15,3 +15,8 @@
 ### What's Changed
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
+
+## 1.0.3
+
+### What's Changed
+- DNSSEC analysis now summarizes mismatches for each chain element
