@@ -208,7 +208,7 @@ namespace DomainDetective {
                         await VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken);
                         break;
                     case HealthCheckType.SECURITYTXT:
-                        // lets reset the SecurityTXTAnalysis, so it's overwritten completly on next run
+                        // lets reset the SecurityTXTAnalysis, so it's overwritten completely on next run
                         SecurityTXTAnalysis = new SecurityTXTAnalysis();
                         await SecurityTXTAnalysis.AnalyzeSecurityTxtRecord(domainName, _logger);
                         break;
