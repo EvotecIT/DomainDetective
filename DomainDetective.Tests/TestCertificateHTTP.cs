@@ -65,7 +65,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidCertificateProvidesExpirationInfo() {
             using var cert = CreateSelfSigned("localhost");
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.True(analysis.DaysValid > 0);
             Assert.Equal(analysis.DaysToExpire < 0, analysis.IsExpired);
@@ -74,7 +74,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidCertificateIsNotSelfSigned() {
             using var cert = CreateSigned("localhost");
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.False(analysis.IsSelfSigned);
         }
@@ -82,7 +82,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ExtractsRevocationEndpoints() {
             using var cert = CreateSigned("localhost");
-            var analysis = new CertificateAnalysis();
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
             await analysis.AnalyzeCertificate(cert);
             Assert.NotNull(analysis.OcspUrls);
             Assert.NotNull(analysis.CrlUrls);
@@ -111,7 +111,7 @@ namespace DomainDetective.Tests {
 
             try {
                 var logger = new InternalLogger();
-                var analysis = new CertificateAnalysis { CaptureTlsDetails = true };
+                var analysis = new CertificateAnalysis { CaptureTlsDetails = true, CtLogQueryOverride = _ => Task.FromResult("[]") };
                 await analysis.AnalyzeUrl($"https://localhost", port, logger);
                 Assert.False(string.IsNullOrEmpty(analysis.CipherSuite));
                 if (analysis.DhKeyBits > 0) {

@@ -18,7 +18,7 @@ namespace DomainDetective.Tests {
 
             try {
                 var monitor = new CertificateMonitor();
-                await monitor.Analyze(new[] { $"https://localhost", "https://localhost" }, port);
+                await monitor.Analyze(new[] { $"https://localhost", "https://localhost" }, port, null, _ => Task.FromResult("[]"));
                 Assert.Equal(2, monitor.Results.Count);
                 Assert.True(monitor.ValidCount >= 1);
             } finally {
