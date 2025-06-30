@@ -274,6 +274,26 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task MacroWithDigitsAndReverseValid() {
+            var spfRecord = "v=spf1 redirect=%{d1r}.spf.example.com";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.Empty(healthCheck.SpfAnalysis.Warnings);
+        }
+
+        [Fact]
+        public async Task InvalidMacroSequenceProducesWarning() {
+            var spfRecord = "v=spf1 exists:%{drr}.example.com";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(spfRecord);
+
+            Assert.NotEmpty(healthCheck.SpfAnalysis.Warnings);
+        }
+
+        [Fact]
         public async Task NestedIncludesPopulateResolvedCollections() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 include:b.example.com a:host.test ip4:10.10.10.10 mx:mx.test -all";
