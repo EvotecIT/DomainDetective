@@ -45,11 +45,11 @@ public class ThreatIntelAnalysis
         return await resp.Content.ReadAsStringAsync();
     }
 
-    private async Task<string> QueryGoogle(string target, string apiKey, CancellationToken ct)
+    private async Task<string> QueryGoogle(string domainName, string apiKey, CancellationToken ct)
     {
         if (GoogleSafeBrowsingOverride != null)
         {
-            return await GoogleSafeBrowsingOverride(target);
+            return await GoogleSafeBrowsingOverride(domainName);
         }
 
         var url = $"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={apiKey}";
@@ -61,7 +61,7 @@ public class ThreatIntelAnalysis
                 threatTypes = new[] { "MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE", "POTENTIALLY_HARMFUL_APPLICATION" },
                 platformTypes = new[] { "ANY_PLATFORM" },
                 threatEntryTypes = new[] { "URL" },
-                threatEntries = new[] { new { url = target } }
+                threatEntries = new[] { new { url = domainName } }
             }
         };
         var json = JsonSerializer.Serialize(payload);
@@ -70,29 +70,29 @@ public class ThreatIntelAnalysis
         return await ReadAsStringAsync(resp);
     }
 
-    private async Task<string> QueryPhishTank(string target, string apiKey, CancellationToken ct)
+    private async Task<string> QueryPhishTank(string domainName, string apiKey, CancellationToken ct)
     {
         if (PhishTankOverride != null)
         {
-            return await PhishTankOverride(target);
+            return await PhishTankOverride(domainName);
         }
 
-        var url = $"https://checkurl.phishtank.com/checkurl/?format=json&app_key={apiKey}&url={Uri.EscapeDataString(target)}";
+        var url = $"https://checkurl.phishtank.com/checkurl/?format=json&app_key={apiKey}&url={Uri.EscapeDataString(domainName)}";
         using var resp = await _client.GetAsync(url, ct);
         return await ReadAsStringAsync(resp);
     }
 
-    private async Task<string> QueryVirusTotal(string target, string apiKey, CancellationToken ct)
+    private async Task<string> QueryVirusTotal(string domainName, string apiKey, CancellationToken ct)
     {
         if (VirusTotalOverride != null)
         {
-            return await VirusTotalOverride(target);
+            return await VirusTotalOverride(domainName);
         }
 
-        var isIp = System.Net.IPAddress.TryParse(target, out _);
+        var isIp = System.Net.IPAddress.TryParse(domainName, out _);
         var url = isIp
-            ? $"https://www.virustotal.com/api/v3/ip_addresses/{target}"
-            : $"https://www.virustotal.com/api/v3/domains/{target}";
+            ? $"https://www.virustotal.com/api/v3/ip_addresses/{domainName}"
+            : $"https://www.virustotal.com/api/v3/domains/{domainName}";
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Add("x-apikey", apiKey);
         using var resp = await _client.SendAsync(request, ct);
@@ -138,7 +138,7 @@ public class ThreatIntelAnalysis
     /// <summary>
     /// Queries all enabled reputation services.
     /// </summary>
-    public async Task Analyze(string target, string? googleApiKey, string? phishTankApiKey, string? virusTotalApiKey, InternalLogger logger, CancellationToken ct = default)
+    public async Task Analyze(string domainName, string? googleApiKey, string? phishTankApiKey, string? virusTotalApiKey, InternalLogger logger, CancellationToken ct = default)
     {
         ListedByGoogle = false;
         ListedByPhishTank = false;
@@ -149,7 +149,7 @@ public class ThreatIntelAnalysis
         {
             try
             {
-                var json = await QueryGoogle(target, googleApiKey, ct);
+                var json = await QueryGoogle(domainName, googleApiKey, ct);
                 ListedByGoogle = ParseGoogle(json);
             }
             catch (Exception ex)
@@ -163,7 +163,7 @@ public class ThreatIntelAnalysis
         {
             try
             {
-                var json = await QueryPhishTank(target, phishTankApiKey, ct);
+                var json = await QueryPhishTank(domainName, phishTankApiKey, ct);
                 ListedByPhishTank = ParsePhishTank(json);
             }
             catch (Exception ex)
@@ -177,7 +177,7 @@ public class ThreatIntelAnalysis
         {
             try
             {
-                var json = await QueryVirusTotal(target, virusTotalApiKey, ct);
+                var json = await QueryVirusTotal(domainName, virusTotalApiKey, ct);
                 ListedByVirusTotal = ParseVirusTotal(json);
             }
             catch (Exception ex)
