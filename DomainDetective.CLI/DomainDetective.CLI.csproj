@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="Spectre.Console" Version="0.50.0" />
-    <PackageReference Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.50.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
