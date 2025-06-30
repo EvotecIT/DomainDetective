@@ -69,9 +69,9 @@ public class SmimeCertificateAnalysis {
             Chain.Add(new X509Certificate2(element.Certificate.RawData));
         }
 
-        DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
+        DaysToExpire = (int)(Certificate.NotAfter - DateTime.UtcNow).TotalDays;
         DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
-        IsExpired = Certificate.NotAfter < DateTime.Now;
+        IsExpired = Certificate.NotAfter < DateTime.UtcNow;
     }
 
     /// <summary>
