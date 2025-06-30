@@ -205,13 +205,22 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CriticalBitIsDetected() {
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckCAA("129 issue \"letsencrypt.org\"");
+
+            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Critical);
+        }
+
+        [Fact]
         public async Task UnknownCriticalPropertyTagTriggersWarning() {
             var logger = new InternalLogger();
             var warnings = new List<LogEventArgs>();
             logger.OnWarningMessage += (_, e) => warnings.Add(e);
             var healthCheck = new DomainHealthCheck(internalLogger: logger);
 
-            await healthCheck.CheckCAA("1 foo \"bar\"");
+            await healthCheck.CheckCAA("129 foo \"bar\"");
 
             Assert.Contains(warnings, w => w.FullMessage.Contains("Unknown CAA property tag"));
         }
