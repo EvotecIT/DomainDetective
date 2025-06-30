@@ -89,5 +89,19 @@ namespace DomainDetective.Tests {
             var result = Assert.Single(analysis.Results);
             Assert.Equal("mail.example.com", result.PtrRecord);
         }
+
+        [Fact]
+        public async Task MalformedPtrRecordIgnored() {
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.3" } },
+                [("1.1.1.3.in-addr.arpa", DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "bad_host" } }
+            };
+            var analysis = CreateAnalysis(map);
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" });
+            var result = Assert.Single(analysis.Results);
+            Assert.Null(result.PtrRecord);
+            Assert.False(result.IsValid);
+            Assert.False(result.FcrDnsValid);
+        }
     }
 }
