@@ -103,19 +103,28 @@ namespace DomainDetective {
                 return null;
             }
 
-            string? current = line;
-            while (current.StartsWith("250-") || current.StartsWith("220-")) {
+            string code = line.Length >= 3 ? line.Substring(0, 3) : string.Empty;
+            string? lastLine = line;
+
+            while (line.Length >= 4 && line[3] == '-') {
 #if NET8_0_OR_GREATER
-                current = await reader.ReadLineAsync(token);
+                line = await reader.ReadLineAsync(token);
 #else
-                current = await reader.ReadLineAsync().WaitWithCancellation(token);
+                line = await reader.ReadLineAsync().WaitWithCancellation(token);
 #endif
-                if (current == null) {
+                if (line == null) {
+                    break;
+                }
+
+                if (line.StartsWith(code, StringComparison.Ordinal)) {
+                    lastLine = line;
+                } else {
+                    // Start of next response; ignore extra line
                     break;
                 }
             }
 
-            return current;
+            return lastLine;
         }
     }
 }
