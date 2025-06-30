@@ -533,12 +533,12 @@ namespace DomainDetective {
         /// <param name="host">Target host name.</param>
         /// <param name="ports">Ports to scan. Defaults to the top 1000 ports.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default) {
+        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default, bool showProgress = true) {
             var list = ports?.ToArray() ?? PortScanAnalysis.DefaultPorts;
             foreach (var p in list) {
                 ValidatePort(p);
             }
-            await PortScanAnalysis.Scan(host, list, _logger, cancellationToken);
+            await PortScanAnalysis.Scan(host, list, _logger, cancellationToken, showProgress);
         }
 
         /// <summary>Queries neighbors sharing the same IP as <paramref name="domainName"/>.</summary>

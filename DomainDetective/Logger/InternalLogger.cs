@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DomainDetective {
     /// <summary>
@@ -7,6 +8,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class InternalLogger {
         private readonly object _lock = new object();
+        private readonly Dictionary<string, int> _progressSteps = new();
 
         /// <summary>
         /// Define Verbose message event
@@ -81,11 +83,25 @@ namespace DomainDetective {
                 var roundedPercent = (int)Math.Round(percentCompleted);
                 OnProgressMessage?.Invoke(this, new LogEventArgs(activity, currentOperation, currentSteps, totalSteps, roundedPercent));
                 if (IsProgress) {
-                    var percentText = percentCompleted.ToString("F1");
-                    if (currentSteps.HasValue && totalSteps.HasValue) {
-                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}% ({3} out of {4})", activity, currentOperation, percentText, currentSteps, totalSteps);
-                    } else {
-                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}%", activity, currentOperation, percentText);
+                    var bucket = roundedPercent / 10;
+                    if (!_progressSteps.TryGetValue(activity, out var last) || bucket > last) {
+                        _progressSteps[activity] = bucket;
+                        var percentText = percentCompleted.ToString("F1");
+                        if (currentSteps.HasValue && totalSteps.HasValue) {
+                            Console.WriteLine(
+                                "[progress] activity: {0} / operation: {1} / percent completed: {2}% ({3} out of {4})",
+                                activity,
+                                currentOperation,
+                                percentText,
+                                currentSteps,
+                                totalSteps);
+                        } else {
+                            Console.WriteLine(
+                                "[progress] activity: {0} / operation: {1} / percent completed: {2}%",
+                                activity,
+                                currentOperation,
+                                percentText);
+                        }
                     }
                 }
             }

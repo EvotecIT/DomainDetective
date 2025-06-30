@@ -42,7 +42,7 @@ public class PortScanAnalysis
     public static IReadOnlyList<int> DefaultPorts => _topPorts;
 
     /// <summary>Performs a scan against the host.</summary>
-    public async Task Scan(string host, IEnumerable<int>? ports, InternalLogger? logger = null, CancellationToken cancellationToken = default)
+    public async Task Scan(string host, IEnumerable<int>? ports, InternalLogger? logger = null, CancellationToken cancellationToken = default, bool showProgress = true)
     {
         Results.Clear();
         var list = ports ?? _topPorts;
@@ -65,7 +65,9 @@ public class PortScanAnalysis
             {
                 semaphore.Release();
                 var done = Interlocked.Increment(ref processed);
-                logger?.WriteProgress("PortScan", port.ToString(), done * 100d / total, done, total);
+                if (showProgress) {
+                    logger?.WriteProgress("PortScan", port.ToString(), done * 100d / total, done, total);
+                }
             }
         });
         await Task.WhenAll(tasks).ConfigureAwait(false);
