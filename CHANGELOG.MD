@@ -16,3 +16,10 @@
 - Added TTL analysis for common DNS record types
 - New `Test-DnsTtl` PowerShell cmdlet
 
+## 1.0.3
+
+### What's Changed
+- Added parser verifying `v=TLSRPTv1; rua=mailto:` values
+- Unknown TLSRPT tags are now reported
+- Expanded tests with valid and invalid TLSRPT examples
+

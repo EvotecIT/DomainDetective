@@ -19,6 +19,7 @@ namespace DomainDetective {
         public List<string> MailtoRua { get; private set; } = new();
         public List<string> HttpRua { get; private set; } = new();
         public List<string> InvalidRua { get; private set; } = new();
+        public List<string> UnknownTags { get; private set; } = new();
 
         public bool PolicyValid => TlsRptRecordExists && StartsCorrectly && RuaDefined;
 
@@ -34,6 +35,7 @@ namespace DomainDetective {
             MailtoRua = new List<string>();
             HttpRua = new List<string>();
             InvalidRua = new List<string>();
+            UnknownTags = new List<string>();
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -57,17 +59,28 @@ namespace DomainDetective {
 
             foreach (var part in (TlsRptRecord ?? string.Empty).Split(';')) {
                 var kv = part.Split(new[] { '=' }, 2);
-                if (kv.Length != 2) {
-                    continue;
-                }
-
-                var key = kv[0].Trim();
-                var value = kv[1].Trim();
-                switch (key) {
-                    case "rua":
-                        RuaDefined = true;
-                        AddUriToList(value, MailtoRua, HttpRua, InvalidRua);
-                        break;
+                if (kv.Length == 2) {
+                    var key = kv[0].Trim();
+                    var value = kv[1].Trim();
+                    switch (key.ToLowerInvariant()) {
+                        case "rua":
+                            RuaDefined = true;
+                            AddUriToList(value, MailtoRua, HttpRua, InvalidRua);
+                            break;
+                        case "v":
+                            break;
+                        default:
+                            var tagPair = $"{key}={value}";
+                            if (!UnknownTags.Contains(tagPair)) {
+                                UnknownTags.Add(tagPair);
+                            }
+                            break;
+                    }
+                } else {
+                    var unknown = part.Trim();
+                    if (!string.IsNullOrEmpty(unknown) && !UnknownTags.Contains(unknown)) {
+                        UnknownTags.Add(unknown);
+                    }
                 }
             }
         }
