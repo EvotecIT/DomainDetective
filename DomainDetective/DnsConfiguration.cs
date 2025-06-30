@@ -10,6 +10,11 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DnsConfiguration {
+        internal const string DefaultUserAgent = "Mozilla/5.0";
+        /// <summary>
+        /// Gets or sets the default User-Agent header for DNS queries.
+        /// </summary>
+        public string UserAgent { get; set; } = DefaultUserAgent;
         /// <summary>
         /// Gets or sets the DNS endpoint.
         /// </summary>
@@ -45,6 +50,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(name), $"Domain name cannot be null or empty when querying {recordType} records.");
             }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            client.EndpointConfiguration.UserAgent = UserAgent;
             if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);
                 return data.Answers;
@@ -65,6 +71,7 @@ namespace DomainDetective {
             List<DnsAnswer> allAnswers = new();
 
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            client.EndpointConfiguration.UserAgent = UserAgent;
             DnsResponse[] data;
             if (filter != string.Empty) {
                 data = await client.ResolveFilter(names, recordType, filter);
@@ -88,6 +95,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
             }
             ClientX client = new(endpoint: DnsEndpoint, DnsSelectionStrategy);
+            client.EndpointConfiguration.UserAgent = UserAgent;
             DnsResponse[] data = filter != string.Empty
                 ? await client.ResolveFilter(names, recordType, filter)
                 : await client.Resolve(names, recordType);

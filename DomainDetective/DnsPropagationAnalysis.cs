@@ -193,6 +193,7 @@ namespace DomainDetective {
             var sw = Stopwatch.StartNew();
             try {
                 var client = new ClientX(server.IPAddress, DnsRequestFormat.DnsOverUDP, 53);
+                client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
                 cancellationToken.ThrowIfCancellationRequested();
                 var response = await client.Resolve(domain, recordType);
                 sw.Stop();
