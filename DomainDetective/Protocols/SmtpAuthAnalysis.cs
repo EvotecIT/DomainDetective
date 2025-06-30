@@ -13,28 +13,44 @@ namespace DomainDetective {
     public class SmtpAuthAnalysis {
         /// <summary>Supported authentication methods per server.</summary>
         public Dictionary<string, string[]> ServerMechanisms { get; } = new();
+        /// <summary>Advertised capabilities per server.</summary>
+        public Dictionary<string, string[]> ServerCapabilities { get; } = new();
+        /// <summary>Whether to capture EHLO capabilities.</summary>
+        public bool InspectCapabilities { get; set; }
         /// <summary>Connection timeout.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
         /// <summary>Checks a single server for AUTH capabilities.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerMechanisms.Clear();
+            if (InspectCapabilities) {
+                ServerCapabilities.Clear();
+            }
             cancellationToken.ThrowIfCancellationRequested();
-            var mechs = await QueryAuth(host, port, logger, cancellationToken);
-            ServerMechanisms[$"{host}:{port}"] = mechs;
+            var result = await QueryAuth(host, port, logger, cancellationToken);
+            ServerMechanisms[$"{host}:{port}"] = result.Mechanisms;
+            if (InspectCapabilities) {
+                ServerCapabilities[$"{host}:{port}"] = result.Capabilities;
+            }
         }
 
         /// <summary>Checks multiple servers for AUTH capabilities.</summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerMechanisms.Clear();
+            if (InspectCapabilities) {
+                ServerCapabilities.Clear();
+            }
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var mechs = await QueryAuth(host, port, logger, cancellationToken);
-                ServerMechanisms[$"{host}:{port}"] = mechs;
+                var result = await QueryAuth(host, port, logger, cancellationToken);
+                ServerMechanisms[$"{host}:{port}"] = result.Mechanisms;
+                if (InspectCapabilities) {
+                    ServerCapabilities[$"{host}:{port}"] = result.Capabilities;
+                }
             }
         }
 
-        private async Task<string[]> QueryAuth(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(string[] Mechanisms, string[] Capabilities)> QueryAuth(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
             using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -56,6 +72,7 @@ namespace DomainDetective {
                 await writer.WriteLineAsync($"EHLO example.com");
 
                 var mechanisms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 bool hasAuth = false;
                 bool has8BitMime = false;
                 string? line;
@@ -69,9 +86,13 @@ namespace DomainDetective {
                             foreach (var part in authPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
                                 mechanisms.Add(part);
                             }
+                            capabilities.Add("AUTH");
                             hasAuth = true;
-                        } else if (string.Equals(cap, "8BITMIME", StringComparison.OrdinalIgnoreCase)) {
-                            has8BitMime = true;
+                        } else {
+                            capabilities.Add(cap.Split(' ')[0]);
+                            if (string.Equals(cap, "8BITMIME", StringComparison.OrdinalIgnoreCase)) {
+                                has8BitMime = true;
+                            }
                         }
                         if (!line.StartsWith("250-", StringComparison.Ordinal)) {
                             break;
@@ -98,10 +119,13 @@ namespace DomainDetective {
                     logger?.WriteWarning("SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
                 }
 
-                return mechanisms.Count == 0 ? Array.Empty<string>() : new List<string>(mechanisms).ToArray();
+                return (
+                    mechanisms.Count == 0 ? Array.Empty<string>() : new List<string>(mechanisms).ToArray(),
+                    capabilities.Count == 0 ? Array.Empty<string>() : new List<string>(capabilities).ToArray()
+                );
             } catch (Exception ex) {
                 logger?.WriteError("SMTP AUTH check failed for {0}:{1} - {2}", host, port, ex.Message);
-                return Array.Empty<string>();
+                return (Array.Empty<string>(), Array.Empty<string>());
             }
         }
     }
