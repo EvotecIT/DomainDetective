@@ -14,6 +14,11 @@ namespace DomainDetective {
         private PublicSuffixList _publicSuffixList;
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
+        public static readonly JsonSerializerOptions JsonOptions = new()
+        {
+            WriteIndented = true
+        };
+
         /// <summary>
         /// Indicates whether the last verified domain is itself a public suffix.
         /// </summary>

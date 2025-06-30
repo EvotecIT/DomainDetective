@@ -64,7 +64,7 @@ public class ThreatIntelAnalysis
                 threatEntries = new[] { new { url = domainName } }
             }
         };
-        var json = JsonSerializer.Serialize(payload);
+        var json = JsonSerializer.Serialize(payload, DomainHealthCheck.JsonOptions);
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
         using var resp = await _client.PostAsync(url, content, ct);
         return await ReadAsStringAsync(resp);
