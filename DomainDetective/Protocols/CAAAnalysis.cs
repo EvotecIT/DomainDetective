@@ -129,6 +129,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     if (flag < 0 || flag > 255) {
                         analysis.InvalidFlag = true;
                     }
+                    analysis.Critical = (flag & 1) == 1;
 
                     // Validate tag and set the Tag property
                     var validTags = new Dictionary<string, CAATagType>(StringComparer.OrdinalIgnoreCase) {
@@ -142,7 +143,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     } else {
                         analysis.Tag = CAATagType.Unknown;
                         analysis.InvalidTag = true;
-                        if (flag == 1) {
+                        if (analysis.Critical) {
                             logger?.WriteWarning("Unknown CAA property tag '{0}' flagged as critical", tag);
                         }
                     }
@@ -345,6 +346,8 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         public string CAARecord { get; set; }
         /// <summary>Gets or sets the flag field.</summary>
         public string Flag { get; set; }
+        /// <summary>Gets or sets a value indicating whether the critical bit is set.</summary>
+        public bool Critical { get; set; }
         /// <summary>Gets or sets the parsed tag type.</summary>
         public CAATagType Tag { get; set; }
         /// <summary>Gets or sets the record value.</summary>
