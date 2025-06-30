@@ -17,6 +17,20 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void ProgressEventHandlesSmallTotals() {
+            var logger = new InternalLogger();
+            LogEventArgs? eventArgs = null;
+            logger.OnProgressMessage += (_, e) => eventArgs = e;
+
+            logger.WriteProgress("activity", "operation", 1 * 100d / 2, 1, 2);
+            Assert.NotNull(eventArgs);
+            Assert.Equal(50, eventArgs!.ProgressPercentage);
+
+            logger.WriteProgress("activity", "operation", 1 * 100d / 3, 1, 3);
+            Assert.Equal(33, eventArgs!.ProgressPercentage);
+        }
+
+        [Fact]
         public void VerboseEventRaised() {
             var logger = new InternalLogger();
             LogEventArgs? eventArgs = null;

@@ -74,7 +74,7 @@ namespace DomainDetective {
             foreach (var host in list) {
                 cancellationToken.ThrowIfCancellationRequested();
                 processed++;
-                logger.WriteProgress("CertificateMonitor", host, processed * 100 / list.Count, processed, list.Count);
+                logger.WriteProgress("CertificateMonitor", host, processed * 100d / list.Count, processed, list.Count);
                 var analysis = new CertificateAnalysis();
                 await analysis.AnalyzeUrl(host, port, logger, cancellationToken);
                 var entry = new Entry {
