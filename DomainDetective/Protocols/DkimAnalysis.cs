@@ -88,6 +88,10 @@ namespace DomainDetective {
                                 analysis.ValidRsaKeyLength = analysis.KeyLength >= MinimumRsaKeyBits;
                                 analysis.WeakKey = analysis.KeyLength > 0 && analysis.KeyLength < 2048;
                                 analysis.ValidPublicKey = analysis.ValidRsaKeyLength;
+                                if (analysis.WeakKey)
+                                {
+                                    logger?.WriteWarning("DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
+                                }
                                 } catch (Exception) {
                                     analysis.ValidPublicKey = false;
                                     analysis.ValidRsaKeyLength = false;
