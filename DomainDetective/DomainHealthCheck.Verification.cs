@@ -89,7 +89,7 @@ namespace DomainDetective {
             IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
-            if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
+            if (healthCheckTypes == null) {
                 healthCheckTypes = new[]                {
                     HealthCheckType.DMARC,
                     HealthCheckType.SPF,
@@ -104,6 +104,10 @@ namespace DomainDetective {
             }
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
+
+            if (healthCheckTypes.Length == 0) {
+                return;
+            }
 
             foreach (var healthCheckType in healthCheckTypes) {
                 cancellationToken.ThrowIfCancellationRequested();
