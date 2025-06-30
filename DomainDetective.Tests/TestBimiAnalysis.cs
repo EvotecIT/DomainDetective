@@ -195,9 +195,8 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task VmcFromFileServedOverHttp() {
-            var pem = await File.ReadAllTextAsync(Path.Combine("Data", "vmc.pem"));
-            var certBytes = System.Text.Encoding.ASCII.GetBytes(pem);
-            using var cert = new X509Certificate2(certBytes);
+            var vmcBytes = await File.ReadAllBytesAsync(Path.Combine("Data", "vmc.pem"));
+            using var cert = CreateSelfSigned();
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -205,7 +204,7 @@ namespace DomainDetective.Tests {
             var serverTask = Task.Run(() => RunServer(listener, cert, path =>
                 path.EndsWith(".svg")
                     ? ("image/svg+xml", Encoding.UTF8.GetBytes("<svg></svg>"))
-                    : ("application/pkix-cert", cert.Export(X509ContentType.Cert)), cts.Token), cts.Token);
+                    : ("application/pkix-cert", vmcBytes), cts.Token), cts.Token);
             var prefix = $"https://localhost:{port}/";
 
             try {
