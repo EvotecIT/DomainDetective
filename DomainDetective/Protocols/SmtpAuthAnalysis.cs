@@ -56,6 +56,8 @@ namespace DomainDetective {
                 await writer.WriteLineAsync($"EHLO example.com");
 
                 var mechanisms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                bool hasAuth = false;
+                bool has8BitMime = false;
                 string? line;
                 while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                     timeoutCts.Token.ThrowIfCancellationRequested();
@@ -67,6 +69,9 @@ namespace DomainDetective {
                             foreach (var part in authPart.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
                                 mechanisms.Add(part);
                             }
+                            hasAuth = true;
+                        } else if (string.Equals(cap, "8BITMIME", StringComparison.OrdinalIgnoreCase)) {
+                            has8BitMime = true;
                         }
                         if (!line.StartsWith("250-", StringComparison.Ordinal)) {
                             break;
@@ -87,6 +92,10 @@ namespace DomainDetective {
                     await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 } catch (IOException) {
                     // ignore
+                }
+
+                if (hasAuth && !has8BitMime) {
+                    logger?.WriteWarning("SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
                 }
 
                 return mechanisms.Count == 0 ? Array.Empty<string>() : new List<string>(mechanisms).ToArray();
