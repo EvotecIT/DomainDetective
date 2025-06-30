@@ -65,7 +65,7 @@ public class PortScanAnalysis
             {
                 semaphore.Release();
                 var done = Interlocked.Increment(ref processed);
-                logger?.WriteProgress("PortScan", port.ToString(), done * 100 / total, done, total);
+                logger?.WriteProgress("PortScan", port.ToString(), done * 100d / total, done, total);
             }
         });
         await Task.WhenAll(tasks).ConfigureAwait(false);

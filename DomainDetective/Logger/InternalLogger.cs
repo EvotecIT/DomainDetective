@@ -76,14 +76,16 @@ namespace DomainDetective {
             IsVerbose = isVerbose;
         }
 
-        public void WriteProgress(string activity, string currentOperation, int percentCompleted, int? currentSteps = null, int? totalSteps = null) {
+        public void WriteProgress(string activity, string currentOperation, double percentCompleted, int? currentSteps = null, int? totalSteps = null) {
             lock (_lock) {
-                OnProgressMessage?.Invoke(this, new LogEventArgs(activity, currentOperation, currentSteps, totalSteps, percentCompleted));
+                var roundedPercent = (int)Math.Round(percentCompleted);
+                OnProgressMessage?.Invoke(this, new LogEventArgs(activity, currentOperation, currentSteps, totalSteps, roundedPercent));
                 if (IsProgress) {
+                    var percentText = percentCompleted.ToString("F1");
                     if (currentSteps.HasValue && totalSteps.HasValue) {
-                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}% ({3} out of {4})", activity, currentOperation, percentCompleted, currentSteps, totalSteps);
+                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}% ({3} out of {4})", activity, currentOperation, percentText, currentSteps, totalSteps);
                     } else {
-                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}%", activity, currentOperation, percentCompleted);
+                        Console.WriteLine("[progress] activity: {0} / operation: {1} / percent completed: {2}%", activity, currentOperation, percentText);
                     }
                 }
             }
