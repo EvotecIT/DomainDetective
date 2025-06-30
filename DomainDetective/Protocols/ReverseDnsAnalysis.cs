@@ -101,6 +101,9 @@ namespace DomainDetective {
                                 var tcpConfig = new DnsConfiguration(DnsEndpoint.SystemTcp, DnsConfiguration.DnsSelectionStrategy);
                                 ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR);
                             }
+                            if (ptrAnswers.Length == 0) {
+                                logger?.WriteWarning($"PTR query for {ip} was truncated and returned no records after TCP retry");
+                            }
                         }
                     } else {
                         ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR);

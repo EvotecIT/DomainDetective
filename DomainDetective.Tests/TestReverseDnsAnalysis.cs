@@ -91,6 +91,28 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task WarnsWhenTruncatedPtrEmpty() {
+            var ip = IPAddress.Parse("2001::2");
+            var ptrName = ip.ToPtrFormat() + ".ip6.arpa";
+            var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
+                [("mail.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { DataRaw = ip.ToString() } },
+                [("mail.example.com", DnsRecordType.A)] = Array.Empty<DnsAnswer>(),
+                [(ptrName, DnsRecordType.PTR)] = Array.Empty<DnsAnswer>()
+            };
+            var full = new Dictionary<(string, DnsRecordType), IEnumerable<DnsResponse>> {
+                [(ptrName, DnsRecordType.PTR)] = new[] { new DnsResponse { IsTruncated = true, Answers = Array.Empty<DnsAnswer>() } }
+            };
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var analysis = CreateAnalysis(map, full);
+            await analysis.AnalyzeHosts(new[] { "mail.example.com" }, logger);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("no records after TCP retry"));
+            var result = Assert.Single(analysis.Results);
+            Assert.Null(result.PtrRecord);
+        }
+
+        [Fact]
         public async Task MalformedPtrRecordIgnored() {
             var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]> {
                 [("mail.example.com", DnsRecordType.A)] = new[] { new DnsAnswer { DataRaw = "1.1.1.3" } },
