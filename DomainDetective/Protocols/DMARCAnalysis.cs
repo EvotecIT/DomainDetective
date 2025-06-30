@@ -253,19 +253,20 @@ namespace DomainDetective {
                     } catch {
                         InvalidReportUri = true;
                     }
-                } else if (u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
-                    if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttps) {
-                        httpList.Add(u);
-                    } else {
-                        InvalidReportUri = true;
-                    }
-                } else if (u.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+
+                if (!Uri.TryCreate(u, UriKind.Absolute, out var parsed)) {
+                    logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
+                    InvalidReportUri = true;
+                    continue;
+                }
+
+                if (parsed.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
+                    httpList.Add(u);
+                } else if (parsed.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
                     logger?.WriteWarning("Report URI {0} uses HTTP instead of HTTPS.", u);
-                    if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) && parsed.Scheme == Uri.UriSchemeHttp) {
-                        httpList.Add(u);
-                    } else {
-                        InvalidReportUri = true;
-                    }
+                    httpList.Add(u);
                 } else {
                     logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
                     InvalidReportUri = true;
