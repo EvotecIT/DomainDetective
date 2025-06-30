@@ -917,7 +917,11 @@ namespace DomainDetective {
                 allDaneRecords.AddRange(dane);
             }
 
-            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            if (allDaneRecords.Count > 0) {
+                await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            } else {
+                _logger.WriteWarning("No DANE records found.");
+            }
         }
 
         /// <summary>
@@ -943,7 +947,11 @@ namespace DomainDetective {
                 }
             }
 
-            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            if (allDaneRecords.Count > 0) {
+                await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            } else {
+                _logger.WriteWarning("No DANE records found.");
+            }
         }
 
         /// <summary>
@@ -1001,7 +1009,11 @@ namespace DomainDetective {
                 }
 
             }
-            await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            if (allDaneRecords.Count > 0) {
+                await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger);
+            } else {
+                _logger.WriteWarning("No DANE records found.");
+            }
         }
 
         /// <summary>
