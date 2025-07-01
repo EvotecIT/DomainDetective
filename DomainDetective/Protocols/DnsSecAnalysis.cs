@@ -54,6 +54,9 @@ namespace DomainDetective {
         /// <summary>Gets the key tag of the root trust anchor.</summary>
         public int RootKeyTag { get; private set; }
 
+        /// <summary>Threshold for raising RRSIG expiration warnings.</summary>
+        public TimeSpan RrsigExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(14);
+
         /// <summary>
         /// Performs DNSSEC validation for the specified domain.
         /// </summary>
@@ -93,7 +96,13 @@ namespace DomainDetective {
                             zoneKeys.Add(data);
                         } else if (type == 46) {
                             zoneSigs.Add(data);
-                            zoneSigInfos.Add(ParseRrsig(data));
+                            RrsigInfo sig = ParseRrsig(data);
+                            zoneSigInfos.Add(sig);
+                            if (sig.Expiration != DateTimeOffset.MinValue &&
+                                sig.Expiration - DateTimeOffset.UtcNow <= RrsigExpirationWarningThreshold) {
+                                double days = (sig.Expiration - DateTimeOffset.UtcNow).TotalDays;
+                                logger?.WriteWarning("RRSIG for {0} expires in {1:F0} days", current, Math.Ceiling(days));
+                            }
                         }
                     }
                 }
