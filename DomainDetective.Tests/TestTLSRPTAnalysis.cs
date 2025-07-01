@@ -99,5 +99,19 @@ namespace DomainDetective.Tests {
             Assert.Empty(analysis.UnknownTags);
             Assert.True(analysis.PolicyValid);
         }
+
+        [Fact]
+        public async Task MissingRuaLogsWarning() {
+            var record = "v=TLSRPTv1";
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var analysis = new TLSRPTAnalysis();
+
+            await analysis.AnalyzeTlsRptRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, logger);
+
+            Assert.False(analysis.PolicyValid);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("rua"));
+        }
     }
 }

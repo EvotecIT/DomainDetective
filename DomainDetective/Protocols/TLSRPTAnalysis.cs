@@ -82,6 +82,10 @@ namespace DomainDetective {
                     }
                 }
             }
+
+            if (!RuaDefined) {
+                logger?.WriteWarning("TLSRPT record missing rua tag.");
+            }
         }
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList) {
