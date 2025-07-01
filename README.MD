@@ -22,7 +22,7 @@ Current capabilities include:
 - [x] Summarize DNSSEC mismatches across the chain
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers
-- [x] Verify DANE/TLSA (HTTPS on port 443 by default)
+ - [x] Verify DANE/TLSA (queries `_tcp` or `_udp` names, HTTPS on port 443 by default)
 - [x] Query S/MIMEA records
 - [x] Verify STARTTLS (detect advertisement downgrades)
 - [x] Verify MTA-STS

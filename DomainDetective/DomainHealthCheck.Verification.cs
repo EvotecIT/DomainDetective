@@ -36,6 +36,14 @@ namespace DomainDetective {
 #endif
         }
 
+        private static void ValidateServiceQueryProtocol(string query) {
+            bool hasTcp = query.IndexOf("._tcp.", StringComparison.OrdinalIgnoreCase) >= 0;
+            bool hasUdp = query.IndexOf("._udp.", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!hasTcp && !hasUdp) {
+                throw new InvalidOperationException($"Invalid service query '{query}', expected _tcp or _udp suffix.");
+            }
+        }
+
         private void UpdateIsPublicSuffix(string domainName) {
             string host = domainName;
             if (Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out var uri)) {
@@ -926,7 +934,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries TLSA records for specific ports on a domain.
+        /// Queries TLSA records for specific ports on a domain. Generated names use
+        /// the `_tcp` or `_udp` label depending on the protocol.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
         /// <param name="ports">Ports to check for DANE.</param>
@@ -949,8 +958,9 @@ namespace DomainDetective {
             var allDaneRecords = new List<DnsAnswer>();
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
-            var query = CreateServiceQuery(port, domainName);
-            var dane = await DnsConfiguration.QueryDNS(query, DnsRecordType.TLSA, cancellationToken: cancellationToken);
+                var query = CreateServiceQuery(port, domainName);
+                ValidateServiceQueryProtocol(query);
+                var dane = await DnsConfiguration.QueryDNS(query, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
 
@@ -962,7 +972,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries TLSA records for the provided service definitions.
+        /// Queries TLSA records for the provided service definitions. Generated names
+        /// include the `_tcp` or `_udp` label as appropriate.
         /// </summary>
         /// <param name="services">Services to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
@@ -978,6 +989,7 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 var host = ToAscii(service.Host).TrimEnd('.');
                 var daneName = CreateServiceQuery(service.Port, host);
+                ValidateServiceQueryProtocol(daneName);
                 var dane = await DnsConfiguration.QueryDNS(daneName, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                 if (dane.Any()) {
                     allDaneRecords.AddRange(dane);
@@ -992,7 +1004,8 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Queries TLSA records based on common service types.
+        /// Queries TLSA records based on common service types. Generated names use
+        /// the `_tcp` or `_udp` label.
         /// </summary>
         /// <param name="domainName">Domain to query.</param>
         /// <param name="serviceTypes">Services to investigate.</param>
@@ -1039,6 +1052,7 @@ namespace DomainDetective {
                     cancellationToken.ThrowIfCancellationRequested();
                     var domain = fromMx ? record.Split(' ')[1].Trim('.') : record;
                     var daneRecord = CreateServiceQuery(port, domain);
+                    ValidateServiceQueryProtocol(daneRecord);
                     var dane = await DnsConfiguration.QueryDNS(daneRecord, DnsRecordType.TLSA, cancellationToken: cancellationToken);
                     if (dane.Any()) {
                         allDaneRecords.AddRange(dane);

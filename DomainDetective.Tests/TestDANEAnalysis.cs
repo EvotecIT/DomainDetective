@@ -306,5 +306,23 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(ServiceType.HTTPS, analysis.AnalysisResults[0].ServiceType);
         }
+
+        [Fact]
+        public async Task UdpNamesAreRecognized() {
+            var answers = new[] {
+                new DnsAnswer {
+                    Name = "_443._udp.example.com",
+                    DataRaw = $"3 1 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            var result = analysis.AnalysisResults[0];
+            Assert.True(result.ValidDANERecord);
+            Assert.Equal(ServiceType.HTTPS, result.ServiceType);
+        }
     }
 }
