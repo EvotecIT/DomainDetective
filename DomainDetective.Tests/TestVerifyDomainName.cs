@@ -19,5 +19,13 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck();
             await healthCheck.VerifySPF("bücher.de");
         }
+
+        [Fact]
+        public async Task VerifyThrowsIfLabelTooLong() {
+            var healthCheck = new DomainHealthCheck();
+            var domain = new string('a', 64) + ".com";
+            await Assert.ThrowsAsync<ArgumentException>(async () =>
+                await healthCheck.VerifySPF(domain));
+        }
     }
 }

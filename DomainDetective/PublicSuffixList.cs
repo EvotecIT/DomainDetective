@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Net.Http;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -15,6 +15,7 @@ namespace DomainDetective {
         private readonly HashSet<string> _wildcardRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _exceptionRules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         private static readonly IdnMapping _idn = new();
+        private const int MaxLabelLength = 63;
 
         internal PublicSuffixList() { }
 
@@ -65,7 +66,9 @@ namespace DomainDetective {
                 return false;
             }
 
-            domain = _idn.GetAscii(domain.Trim().Trim('.')).ToLowerInvariant();
+            domain = _idn.GetAscii(domain.Trim().Trim('.'));
+            ValidateLabels(domain);
+            domain = domain.ToLowerInvariant();
             if (_exceptionRules.Contains(domain)) {
                 return false;
             }
@@ -112,6 +115,15 @@ namespace DomainDetective {
             }
 
             return string.Join(".", parts.Skip(parts.Length - 2));
+        }
+
+        private static void ValidateLabels(string domain) {
+            foreach (var label in domain.Split('.')) {
+                if (label.Length > MaxLabelLength) {
+                    throw new ArgumentException(
+                        $"Domain label '{label}' exceeds {MaxLabelLength} characters.", nameof(domain));
+                }
+            }
         }
     }
 }
