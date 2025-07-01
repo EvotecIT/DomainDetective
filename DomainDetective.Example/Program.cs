@@ -66,6 +66,9 @@ public static partial class Program {
         await ExampleAnalyseDnsPropagationRegions();
         await ExampleAnalyseDnsTtl();
         await ExampleDomainSummary();
+        await ExampleAnalyseThreatIntel();
+        await ExampleAnalyseTyposquatting();
+        await ExampleAnalyseEdnsSupport();
 
         //await ExampleQueryDNS();
         //await ExampleAnalyseByStringWHOIS();
