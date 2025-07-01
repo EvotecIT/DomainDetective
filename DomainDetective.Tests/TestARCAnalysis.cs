@@ -37,5 +37,14 @@ namespace DomainDetective.Tests {
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
+
+        [Fact]
+        public void OutOfOrderChainIsInvalid() {
+            var raw = File.ReadAllText("Data/arc-out-of-order.txt");
+            var hc = new DomainHealthCheck();
+            var result = hc.VerifyARC(raw);
+            Assert.True(result.ArcHeadersFound);
+            Assert.False(result.ValidChain);
+        }
     }
 }
