@@ -53,7 +53,7 @@ namespace DomainDetective {
         }
 
         public static async Task<PublicSuffixList> LoadFromUrlAsync(string url) {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
             using var stream = await client.GetStreamAsync(url);
             return Load(stream);
         }

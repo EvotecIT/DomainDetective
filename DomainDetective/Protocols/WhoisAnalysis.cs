@@ -1018,7 +1018,7 @@ public class WhoisAnalysis {
         if (IanaQueryOverride != null) {
             json = await IanaQueryOverride(domain).ConfigureAwait(false);
         } else {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
 #if NETSTANDARD2_0 || NET472
             using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
             json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

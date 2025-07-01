@@ -258,7 +258,7 @@ namespace DomainDetective {
                     var gen = new OcspReqGenerator();
                     gen.AddRequest(id);
                     var req = gen.Generate();
-                    using var client = new HttpClient();
+                    var client = SharedHttpClient.Instance;
                     using var content = new ByteArrayContent(req.GetEncoded());
                     content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/ocsp-request");
                     using var resp = await client.PostAsync(OcspUrls[0], content, cancellationToken);
@@ -275,7 +275,7 @@ namespace DomainDetective {
                 }
 
                 if (CrlUrls.Count > 0) {
-                    using var client = new HttpClient();
+                    var client = SharedHttpClient.Instance;
                     using var resp = await client.GetAsync(CrlUrls[0], cancellationToken);
                     if (resp.IsSuccessStatusCode) {
                         var bytes = await resp.Content.ReadAsByteArrayAsync();
@@ -306,7 +306,7 @@ namespace DomainDetective {
             if (CtLogQueryOverride != null) {
                 json = await CtLogQueryOverride(fingerprint);
             } else {
-                using var client = new HttpClient();
+                var client = SharedHttpClient.Instance;
                 foreach (var template in CtLogApiTemplates) {
                     var url = string.Format(template, fingerprint);
                     using var resp = await client.GetAsync(url, cancellationToken);
