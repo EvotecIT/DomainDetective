@@ -30,6 +30,8 @@ public class MailTlsAnalysis
         public bool StartTlsAdvertised { get; set; }
         public bool CertificateValid { get; set; }
         public int DaysToExpire { get; set; }
+        public int DaysValid { get; set; }
+        public bool IsExpired { get; set; }
         public SslProtocols Protocol { get; set; }
         public bool SupportsTls13 { get; set; }
         public bool Tls13Used { get; set; }
@@ -38,8 +40,10 @@ public class MailTlsAnalysis
         public int CipherStrength { get; set; }
         public string CipherSuite { get; set; } = string.Empty;
         public int DhKeyBits { get; set; }
+        public X509Certificate2? Certificate { get; set; }
         public List<X509Certificate2> Chain { get; } = new();
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
+        public bool ChainValid => ChainErrors.Count == 0;
     }
 
     /// <summary>Stores results for each server.</summary>
@@ -97,7 +101,10 @@ public class MailTlsAnalysis
                     result.ChainErrors.Clear();
                     if (certificate is X509Certificate2 cert)
                     {
+                        result.Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                         result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
+                        result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
+                        result.IsExpired = cert.NotAfter < DateTime.Now;
                         if (chain != null)
                         {
                             foreach (var element in chain.ChainElements)
@@ -291,7 +298,10 @@ public class MailTlsAnalysis
                 result.ChainErrors.Clear();
                 if (certificate is X509Certificate2 cert)
                 {
+                    result.Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                     result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
+                    result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
+                    result.IsExpired = cert.NotAfter < DateTime.Now;
                     if (chain != null)
                     {
                         foreach (var element in chain.ChainElements)
