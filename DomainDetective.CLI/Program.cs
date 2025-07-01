@@ -34,6 +34,8 @@ internal static class Program {
                 .WithDescription("Check DNS propagation across public resolvers");
             config.AddCommand<BuildDmarcCommand>("BuildDmarcRecord")
                 .WithDescription("Interactively build a DMARC record");
+            config.AddCommand<RefreshSuffixListCommand>("RefreshSuffixList")
+                .WithDescription("Download the latest public suffix list");
             config.AddCommand<TestSmimeaCommand>("TestSMIMEA")
                 .WithDescription("Query SMIMEA record for an email address");
         });

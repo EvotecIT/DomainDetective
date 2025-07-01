@@ -1,5 +1,7 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
@@ -50,5 +52,21 @@ namespace DomainDetective {
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
         /// <value>The DNS configuration instance.</value>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+
+        /// <summary>
+        /// Directory used for caching downloaded data.
+        /// </summary>
+        public string CacheDirectory {
+            get {
+                if (_cacheDirectory is null) {
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    _cacheDirectory = Path.Combine(home, ".domain-detective");
+                }
+                return _cacheDirectory;
+            }
+            set => _cacheDirectory = value;
+        }
+
+        private string? _cacheDirectory;
     }
 }
