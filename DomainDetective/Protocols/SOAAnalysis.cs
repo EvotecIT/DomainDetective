@@ -1,6 +1,9 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -13,6 +16,8 @@ namespace DomainDetective {
         public string? PrimaryNameServer { get; private set; }
         public string? ResponsibleMailbox { get; private set; }
         public long SerialNumber { get; private set; }
+        public bool SerialFormatValid { get; private set; }
+        public string? SerialFormatSuggestion { get; private set; }
         public int Refresh { get; private set; }
         public int Retry { get; private set; }
         public int Expire { get; private set; }
@@ -29,6 +34,8 @@ namespace DomainDetective {
             PrimaryNameServer = null;
             ResponsibleMailbox = null;
             SerialNumber = 0;
+            SerialFormatValid = false;
+            SerialFormatSuggestion = null;
             Refresh = 0;
             Retry = 0;
             Expire = 0;
@@ -54,13 +61,19 @@ namespace DomainDetective {
             if (parts?.Length >= 7) {
                 PrimaryNameServer = parts[0].TrimEnd('.');
                 ResponsibleMailbox = parts[1].TrimEnd('.');
-                long.TryParse(parts[2], out var serial);
+                var serialText = parts[2];
+                long.TryParse(serialText, out var serial);
                 int.TryParse(parts[3], out var refresh);
                 int.TryParse(parts[4], out var retry);
                 int.TryParse(parts[5], out var expire);
                 int.TryParse(parts[6], out var minimum);
 
                 SerialNumber = serial;
+                SerialFormatValid = Regex.IsMatch(serialText, "^\\d{10}$") &&
+                    DateTime.TryParseExact(serialText.Substring(0, 8), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+                if (!SerialFormatValid) {
+                    SerialFormatSuggestion = "Use YYYYMMDDnn serial format.";
+                }
                 Refresh = refresh;
                 Retry = retry;
                 Expire = expire;

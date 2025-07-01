@@ -17,6 +17,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(3600, healthCheck.SOAAnalysis.Refresh);
             Assert.Equal(600, healthCheck.SOAAnalysis.Retry);
             Assert.Equal(1209600, healthCheck.SOAAnalysis.Expire);
+            Assert.True(healthCheck.SOAAnalysis.SerialFormatValid);
         }
 
         [Fact]
@@ -29,6 +30,17 @@ namespace DomainDetective.Tests {
             }
 
             Assert.True(healthCheck.SOAAnalysis.SerialNumber > 0);
+        }
+
+        [Fact]
+        public async Task InvalidSerialProvidesSuggestion() {
+            var soaRecord = "ns1.example.com. hostmaster.example.com. 2023 3600 600 1209600 300";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSOA(soaRecord);
+
+            Assert.True(healthCheck.SOAAnalysis.RecordExists);
+            Assert.False(healthCheck.SOAAnalysis.SerialFormatValid);
+            Assert.False(string.IsNullOrEmpty(healthCheck.SOAAnalysis.SerialFormatSuggestion));
         }
     }
 }
