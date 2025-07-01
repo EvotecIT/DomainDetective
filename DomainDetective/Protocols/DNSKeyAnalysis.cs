@@ -9,6 +9,10 @@ namespace DomainDetective.Protocols {
         private static readonly HashSet<int> ValidAlgorithms = new() {
             1, 2, 3, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16, 17, 23, 252, 253, 254,
         };
+
+        private static readonly HashSet<int> DeprecatedAlgorithms = new() {
+            1, 3, 5, 6, 7, 12,
+        };
         /// <summary>
         /// Determines whether a string consists solely of hexadecimal characters.
         /// </summary>
@@ -18,6 +22,10 @@ namespace DomainDetective.Protocols {
 
         internal static bool IsValidAlgorithmNumber(int number) {
             return ValidAlgorithms.Contains(number);
+        }
+
+        internal static bool IsDeprecatedAlgorithmNumber(int number) {
+            return DeprecatedAlgorithms.Contains(number);
         }
     }
 }
