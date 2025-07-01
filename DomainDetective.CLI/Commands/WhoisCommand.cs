@@ -1,6 +1,7 @@
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Text.Json;
+using System.Threading;
 
 namespace DomainDetective.CLI;
 
@@ -19,7 +20,7 @@ internal sealed class WhoisCommand : AsyncCommand<WhoisSettings> {
     public override async Task<int> ExecuteAsync(CommandContext context, WhoisSettings settings) {
         var analysis = new WhoisAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         var domain = CliHelpers.ToAscii(settings.Domain);
-        await analysis.QueryWhoisServer(domain);
+        await analysis.QueryWhoisServer(domain, Program.CancellationToken);
         IEnumerable<string>? changes = null;
         if (settings.Diff && settings.SnapshotPath != null) {
             changes = analysis.GetWhoisChanges();

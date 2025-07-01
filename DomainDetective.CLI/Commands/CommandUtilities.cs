@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using System.Threading;
 
 namespace DomainDetective.CLI;
 
@@ -112,7 +113,7 @@ internal static class CommandUtilities {
         }
     }
 
-    internal static async Task<int> RunWizard() {
+    internal static async Task<int> RunWizard(CancellationToken cancellationToken) {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
         var domainInput = AnsiConsole.Prompt(new TextPrompt<string>("Enter domain(s) [comma separated]:")
             .Validate(input => string.IsNullOrWhiteSpace(input)
@@ -134,11 +135,11 @@ internal static class CommandUtilities {
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null, true);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null, true, cancellationToken);
         return 0;
     }
 
-    internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress) {
+    internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, CancellationToken cancellationToken) {
         foreach (var domain in domains) {
             var logger = new InternalLogger { IsProgress = showProgress };
             var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
@@ -155,18 +156,18 @@ internal static class CommandUtilities {
 
                     logger.OnProgressMessage += Handler;
                     try {
-                        await hc.Verify(domain, checks, null, null, danePorts);
+                        await hc.Verify(domain, checks, null, null, danePorts, cancellationToken);
                         if (checkHttp) {
-                            await hc.VerifyPlainHttp(domain);
+                            await hc.VerifyPlainHttp(domain, cancellationToken);
                         }
                     } finally {
                         logger.OnProgressMessage -= Handler;
                     }
                 });
             } else {
-                await hc.Verify(domain, checks, null, null, danePorts);
+                await hc.Verify(domain, checks, null, null, danePorts, cancellationToken);
                 if (checkHttp) {
-                    await hc.VerifyPlainHttp(domain);
+                    await hc.VerifyPlainHttp(domain, cancellationToken);
                 }
             }
 

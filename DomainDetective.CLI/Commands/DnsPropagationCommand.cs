@@ -1,6 +1,7 @@
 using DnsClientX;
 using Spectre.Console.Cli;
 using System.Text.Json;
+using System.Threading;
 
 namespace DomainDetective.CLI;
 
@@ -27,7 +28,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         analysis.LoadServers(settings.ServersFile.FullName, clearExisting: true);
         var servers = analysis.Servers;
         var domain = CliHelpers.ToAscii(settings.Domain);
-        var results = await analysis.QueryAsync(domain, settings.RecordType, servers);
+        var results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);
         if (settings.Compare) {
             var groups = DnsPropagationAnalysis.CompareResults(results);
             if (settings.Json) {
