@@ -168,6 +168,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task RufSizeWarningWhenTooLarge() {
+            var dmarcRecord = "v=DMARC1; p=none; ruf=mailto:reports@example.com!20m";
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+
+            await healthCheck.CheckDMARC(dmarcRecord);
+
+            Assert.Single(healthCheck.DmarcAnalysis.MailtoRuf);
+            Assert.Equal("reports@example.com", healthCheck.DmarcAnalysis.MailtoRuf[0]);
+            Assert.Single(healthCheck.DmarcAnalysis.RufSizeLimits);
+            Assert.Equal(20 * 1024 * 1024, healthCheck.DmarcAnalysis.RufSizeLimits[0]);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("10MB"));
+        }
+
+        [Fact]
         public async Task UnknownTagsAreCollected() {
             var dmarcRecord = "v=DMARC1; p=none; foo=bar; test; x=y";
             var healthCheck = new DomainHealthCheck();

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Mail;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
@@ -60,6 +61,7 @@ namespace DomainDetective {
         public string Ruf { get; private set; }
         public List<string> MailtoRuf { get; private set; } = new List<string>();
         public List<string> HttpRuf { get; private set; } = new List<string>();
+        public List<long?> RufSizeLimits { get; private set; } = new List<long?>();
         public List<string> UnknownTags { get; private set; } = new List<string>();
 
         // short versions of the tags
@@ -90,6 +92,7 @@ namespace DomainDetective {
             Ruf = null;
             MailtoRuf = new List<string>();
             HttpRuf = new List<string>();
+            RufSizeLimits = new List<long?>();
             UnknownTags = new List<string>();
             SubPolicyShort = null;
             PolicyShort = null;
@@ -196,7 +199,7 @@ namespace DomainDetective {
                             break;
                         case "ruf":
                             Ruf = value;
-                            AddUriToList(value, MailtoRuf, HttpRuf, logger);
+                            AddUriToList(value, MailtoRuf, HttpRuf, logger, true);
                             break;
                         default:
                             var tagPair = $"{key}={value}";
@@ -241,10 +244,20 @@ namespace DomainDetective {
             Pct ??= 100;
         }
 
-        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null) {
+        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null, bool isRuf = false) {
             var uris = uri.Split(',');
             foreach (var raw in uris) {
                 var u = raw.Trim();
+                long? sizeLimit = null;
+                var exIdx = u.LastIndexOf('!');
+                if (exIdx > -1 && exIdx < u.Length - 1) {
+                    var sizePart = u.Substring(exIdx + 1);
+                    var parsedSize = ParseSize(sizePart);
+                    if (parsedSize.HasValue) {
+                        sizeLimit = parsedSize.Value;
+                        u = u.Substring(0, exIdx);
+                    }
+                }
                 if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
                     var address = u.Substring(7);
                     try {
@@ -252,6 +265,12 @@ namespace DomainDetective {
                         mailtoList.Add(address);
                     } catch {
                         InvalidReportUri = true;
+                    }
+                    if (isRuf) {
+                        RufSizeLimits.Add(sizeLimit);
+                        if (sizeLimit.HasValue && sizeLimit.Value > 10 * 1024 * 1024) {
+                            logger?.WriteWarning("Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
+                        }
                     }
                     continue;
                 }
@@ -270,6 +289,12 @@ namespace DomainDetective {
                 } else {
                     logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
                     InvalidReportUri = true;
+                }
+                if (isRuf) {
+                    RufSizeLimits.Add(sizeLimit);
+                    if (sizeLimit.HasValue && sizeLimit.Value > 10 * 1024 * 1024) {
+                        logger?.WriteWarning("Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
+                    }
                 }
             }
         }
@@ -331,6 +356,26 @@ namespace DomainDetective {
 
         private string TranslateReportingInterval(int interval) {
             return $"{interval / 86400} days";
+        }
+
+        private static long? ParseSize(string sizePart) {
+            if (string.IsNullOrWhiteSpace(sizePart)) {
+                return null;
+            }
+
+            var match = Regex.Match(sizePart, "^([0-9]+)([kKmMgGtT])?$");
+            if (!match.Success) {
+                return null;
+            }
+
+            var value = long.Parse(match.Groups[1].Value);
+            return match.Groups[2].Value.ToLowerInvariant() switch {
+                "k" => value * 1024L,
+                "m" => value * 1024L * 1024L,
+                "g" => value * 1024L * 1024L * 1024L,
+                "t" => value * 1024L * 1024L * 1024L * 1024L,
+                _ => value,
+            };
         }
 
         /// <summary>
