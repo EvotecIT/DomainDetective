@@ -12,7 +12,7 @@ internal sealed class IPAddressJsonConverter : JsonConverter<IPAddress>
         var value = reader.GetString();
         if (!IPAddress.TryParse(value, out var ip))
         {
-            throw new JsonException($"Invalid IP address '{value}'");
+            throw new FormatException($"Invalid IP address '{value}'");
         }
         return ip;
     }
