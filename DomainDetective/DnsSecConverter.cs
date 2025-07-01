@@ -179,5 +179,8 @@ namespace DomainDetective {
 
         /// <summary>Signature expiration time.</summary>
         public DateTimeOffset Expiration { get; set; }
+
+        /// <summary>Days remaining until the signature expires.</summary>
+        public double DaysRemaining => (Expiration - DateTimeOffset.UtcNow).TotalDays;
     }
 }
