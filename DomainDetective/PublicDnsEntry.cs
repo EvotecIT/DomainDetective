@@ -7,7 +7,7 @@ namespace DomainDetective {
         /// <summary>Gets the country of the DNS server.</summary>
         public string Country { get; init; }
         /// <summary>Gets the IP address of the DNS server.</summary>
-        public string IPAddress { get; init; }
+        public System.Net.IPAddress IPAddress { get; init; }
         /// <summary>Gets the host name of the DNS server.</summary>
         public string HostName { get; init; }
         /// <summary>Gets the location description.</summary>

@@ -35,7 +35,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
                 Console.WriteLine(JsonSerializer.Serialize(groups, DomainHealthCheck.JsonOptions));
             } else {
                 foreach (var kvp in groups) {
-                    Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress))}");
+                    Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress.ToString()))}");
                 }
             }
         } else {

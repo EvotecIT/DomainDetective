@@ -50,6 +50,7 @@ namespace DomainDetective {
 
             var json = File.ReadAllText(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            options.Converters.Add(new IPAddressJsonConverter());
             var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
             if (servers == null) {
                 return;
@@ -57,7 +58,7 @@ namespace DomainDetective {
 
             foreach (var entry in servers) {
                 var canonical = GetCanonicalIp(entry.IPAddress);
-                if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+                if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
                     throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
                 }
 
@@ -71,7 +72,7 @@ namespace DomainDetective {
                     Enabled = entry.Enabled
                 };
 
-                if (_servers.All(s => s.IPAddress != trimmed.IPAddress)) {
+                if (_servers.All(s => !s.IPAddress.Equals(trimmed.IPAddress))) {
                     _servers.Add(trimmed);
                 }
             }
@@ -83,16 +84,16 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="entry">The server entry to add.</param>
         public void AddServer(PublicDnsEntry entry) {
-            if (entry == null || string.IsNullOrWhiteSpace(entry.IPAddress)) {
+            if (entry == null || entry.IPAddress == null) {
                 return;
             }
 
             var canonical = GetCanonicalIp(entry.IPAddress);
-            if (!string.Equals(canonical, entry.IPAddress, StringComparison.OrdinalIgnoreCase)) {
+            if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
                 throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
             }
 
-            if (_servers.All(s => s.IPAddress != entry.IPAddress)) {
+            if (_servers.All(s => !s.IPAddress.Equals(entry.IPAddress))) {
                 _servers.Add(entry);
             }
         }
@@ -102,7 +103,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void RemoveServer(string ipAddress) {
-            var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
+            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+                return;
+            }
+            var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
             if (existing != null) {
                 _servers.Remove(existing);
             }
@@ -113,7 +117,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void DisableServer(string ipAddress) {
-            var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
+            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+                return;
+            }
+            var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
             if (existing != null && existing.Enabled) {
                 var index = _servers.IndexOf(existing);
                 _servers[index] = new PublicDnsEntry {
@@ -133,7 +140,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void EnableServer(string ipAddress) {
-            var existing = _servers.FirstOrDefault(s => s.IPAddress == ipAddress);
+            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+                return;
+            }
+            var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
             if (existing != null && !existing.Enabled) {
                 var index = _servers.IndexOf(existing);
                 _servers[index] = new PublicDnsEntry {
@@ -169,14 +179,10 @@ namespace DomainDetective {
             return query.ToList();
         }
 
-        private static string GetCanonicalIp(string ipAddress) {
-            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
-                throw new FormatException($"Invalid IP address '{ipAddress}'");
-            }
-
-            return parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                ? IPAddress.Parse(ipAddress).ToString()
-                : parsed.ToString();
+        private static string GetCanonicalIp(IPAddress ipAddress) {
+            return ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? IPAddress.Parse(ipAddress.ToString()).ToString()
+                : ipAddress.ToString();
         }
 
         /// <summary>
@@ -202,7 +208,7 @@ namespace DomainDetective {
         private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
             var sw = Stopwatch.StartNew();
             try {
-                var client = new ClientX(server.IPAddress, DnsRequestFormat.DnsOverUDP, 53);
+                var client = new ClientX(server.IPAddress.ToString(), DnsRequestFormat.DnsOverUDP, 53);
                 client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
                 cancellationToken.ThrowIfCancellationRequested();
                 var response = await client.Resolve(domain, recordType);
