@@ -545,6 +545,89 @@ namespace DomainDetective {
 
             return tokens;
         }
+
+        /// <summary>
+        /// Produces a flattened SPF record by resolving include and redirect modifiers.
+        /// </summary>
+        public async Task<string> GetFlattenedSpf(InternalLogger? logger = null) {
+            if (string.IsNullOrEmpty(SpfRecord)) {
+                return string.Empty;
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tokens = TokenizeSpfRecord(SpfRecord);
+            var flattened = await FlattenTokens(tokens, visited, logger);
+            var record = string.Join(" ", flattened);
+
+            if (record.Length > 512) {
+                _warnings.Add("Flattened SPF record exceeds 512 characters.");
+                logger?.WriteWarning("Flattened SPF record exceeds 512 characters.");
+            } else if (record.Length > 255) {
+                _warnings.Add("Flattened SPF record exceeds 255 characters.");
+                logger?.WriteWarning("Flattened SPF record exceeds 255 characters.");
+            }
+
+            return record;
+        }
+
+        private async Task<List<string>> FlattenTokens(IEnumerable<string> tokens, HashSet<string> visited, InternalLogger? logger) {
+            List<string> result = new();
+            foreach (var t in tokens) {
+                var token = t.Trim('"');
+                if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
+                    var domain = token.Substring(8);
+                    if (!string.IsNullOrEmpty(domain)) {
+                        if (!visited.Add(domain)) {
+                            CycleDetected = true;
+                            _warnings.Add($"Cycle detected when flattening include {domain}");
+                            logger?.WriteWarning($"Cycle detected when flattening include {domain}");
+                            continue;
+                        }
+
+                        string? includeRecord = null;
+                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
+                            includeRecord = fakeRecord;
+                        } else {
+                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            if (answers != null && answers.Length > 0) {
+                                includeRecord = answers[0].Data;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(includeRecord)) {
+                            var flattened = await FlattenTokens(TokenizeSpfRecord(includeRecord), visited, logger);
+                            result.AddRange(flattened.Where(x => !x.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)));
+                        }
+
+                        visited.Remove(domain);
+                    }
+                } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
+                    var domain = token.Substring(9);
+                    if (!string.IsNullOrEmpty(domain)) {
+                        string? redirectRecord = null;
+                        if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
+                            redirectRecord = fakeRecord;
+                        } else {
+                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            if (answers != null && answers.Length > 0) {
+                                redirectRecord = answers[0].Data;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(redirectRecord)) {
+                            return await FlattenTokens(TokenizeSpfRecord(redirectRecord), visited, logger);
+                        }
+                    }
+                } else {
+                    if (!token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)) {
+                        result.Add(token);
+                    }
+                }
+            }
+
+            result.Insert(0, "v=spf1");
+            return result;
+        }
     }
 
     /// <summary>
