@@ -181,8 +181,8 @@ namespace DomainDetective {
             // check if the SPF record contains exists: with no domain
             CheckForNullDnsLookups(parts);
 
-            // clear fake DNS entries after analysis to avoid cross-run contamination
-            TestSpfRecords.Clear();
+            // keep TestSpfRecords intact so subsequent operations like
+            // GetFlattenedSpf can resolve fake DNS records in unit tests
         }
 
 
@@ -554,6 +554,8 @@ namespace DomainDetective {
                 return string.Empty;
             }
 
+            _warnings.Clear();
+
             var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var tokens = TokenizeSpfRecord(SpfRecord);
             var flattened = await FlattenTokens(tokens, visited, logger);
@@ -596,7 +598,9 @@ namespace DomainDetective {
 
                         if (!string.IsNullOrEmpty(includeRecord)) {
                             var flattened = await FlattenTokens(TokenizeSpfRecord(includeRecord), visited, logger);
-                            result.AddRange(flattened.Where(x => !x.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)));
+                            result.AddRange(flattened.Where(x =>
+                                !x.Equals("v=spf1", StringComparison.OrdinalIgnoreCase) &&
+                                !IsAllMechanism(x)));
                         }
 
                         visited.Remove(domain);
