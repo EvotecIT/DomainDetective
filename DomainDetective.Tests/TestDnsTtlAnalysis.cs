@@ -1,12 +1,19 @@
 using DnsClientX;
+using System;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests {
     public class TestDnsTtlAnalysis {
-        private static DnsTtlAnalysis Create(int ttl) {
+        private static DnsTtlAnalysis Create(int ttl, bool dnssec = false) {
             return new DnsTtlAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
-                QueryDnsOverride = (_, type) => Task.FromResult(new[] { new DnsAnswer { TTL = ttl, Type = type } })
+                QueryDnsOverride = (_, type) => {
+                    if (type == DnsRecordType.DS && !dnssec) {
+                        return Task.FromResult(Array.Empty<DnsAnswer>());
+                    }
+
+                    return Task.FromResult(new[] { new DnsAnswer { TTL = ttl, Type = type } });
+                }
             };
         }
 
@@ -48,6 +55,20 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task MaxTtlPasses() {
             var analysis = Create(86400);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Empty(analysis.Warnings);
+        }
+
+        [Fact]
+        public async Task WarnsForDnssecZoneBelow3600() {
+            var analysis = Create(1800, dnssec: true);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Contains(analysis.Warnings, w => w.Contains("DNSSEC-signed"));
+        }
+
+        [Fact]
+        public async Task NoWarningForNonDnssecZoneBelow3600() {
+            var analysis = Create(1800);
             await analysis.Analyze("example.com", new InternalLogger());
             Assert.Empty(analysis.Warnings);
         }

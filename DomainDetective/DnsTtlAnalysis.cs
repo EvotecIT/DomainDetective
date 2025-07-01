@@ -12,6 +12,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DnsTtlAnalysis {
         private readonly List<string> _warnings = new();
+        public bool DnsSecSigned { get; private set; }
 
         /// <summary>Gets TTL values for A records.</summary>
         public IReadOnlyList<int> ATtls { get; private set; } = Array.Empty<int>();
@@ -55,6 +56,9 @@ namespace DomainDetective {
             var mxRecords = await QueryDns(domainName, DnsRecordType.MX);
             var nsRecords = await QueryDns(domainName, DnsRecordType.NS);
             var soaRecords = await QueryDns(domainName, DnsRecordType.SOA);
+            var dsRecords = await QueryDns(domainName, DnsRecordType.DS);
+
+            DnsSecSigned = dsRecords.Length > 0;
 
             ATtls = aRecords.Select(r => r.TTL).ToArray();
             AaaaTtls = aaaaRecords.Select(r => r.TTL).ToArray();
@@ -62,17 +66,20 @@ namespace DomainDetective {
             NsTtls = nsRecords.Select(r => r.TTL).ToArray();
             SoaTtl = soaRecords.Length > 0 ? soaRecords[0].TTL : 0;
 
-            Evaluate("A", ATtls, 300, 86400);
-            Evaluate("AAAA", AaaaTtls, 300, 86400);
-            Evaluate("MX", MxTtls, 300, 86400);
-            Evaluate("NS", NsTtls, 300, 86400);
+            Evaluate("A", ATtls, 300, 86400, DnsSecSigned);
+            Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned);
+            Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned);
+            Evaluate("NS", NsTtls, 300, 86400, DnsSecSigned);
             if (SoaTtl > 0) {
-                Evaluate("SOA", new[] { SoaTtl }, 300, 86400);
+                Evaluate("SOA", new[] { SoaTtl }, 300, 86400, DnsSecSigned);
             }
         }
 
-        private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max) {
+        private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned) {
             foreach (var ttl in ttls) {
+                if (dnssecSigned && ttl >= min && ttl < 3600) {
+                    _warnings.Add($"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.");
+                }
                 if (ttl < min) {
                     _warnings.Add($"{recordType} TTL {ttl} is shorter than recommended {min} seconds.");
                 } else if (ttl > max) {
