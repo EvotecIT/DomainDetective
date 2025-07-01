@@ -50,5 +50,11 @@ namespace DomainDetective {
         /// <summary>Holds DNS client configuration used throughout analyses.</summary>
         /// <value>The DNS configuration instance.</value>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+
+        /// <summary>Maximum Levenshtein distance used for typosquatting detection.</summary>
+        public int TyposquattingLevenshteinThreshold { get; set; } = 1;
+
+        /// <summary>Enable detection of homoglyph characters.</summary>
+        public bool EnableHomoglyphDetection { get; set; } = true;
     }
 }

@@ -587,6 +587,8 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
+            TyposquattingAnalysis.LevenshteinThreshold = TyposquattingLevenshteinThreshold;
+            TyposquattingAnalysis.DetectHomoglyphs = EnableHomoglyphDetection;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
 
