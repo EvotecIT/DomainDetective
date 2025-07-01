@@ -51,5 +51,6 @@
 
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
+        <PackageReference Include="Spectre.Console" Version="0.50.0" />
     </ItemGroup>
 </Project>
