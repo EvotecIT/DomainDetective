@@ -120,6 +120,15 @@ namespace DomainDetective {
                     if (!IsDsDigestLengthValid(rec)) {
                         logger?.WriteWarning("DS record for {0} has unexpected digest length", current);
                     }
+                    var parts = rec.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2) {
+                        int alg = AlgorithmNumber(parts[1]);
+                        if (!DNSKeyAnalysis.IsValidAlgorithmNumber(alg)) {
+                            logger?.WriteWarning("DS record for {0} contains unknown algorithm {1}", current, parts[1]);
+                        } else if (DNSKeyAnalysis.IsDeprecatedAlgorithmNumber(alg)) {
+                            logger?.WriteWarning("DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
+                        }
+                    }
                 }
 
                 if (!keyAd) {
