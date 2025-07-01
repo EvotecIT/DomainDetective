@@ -16,7 +16,8 @@ namespace DomainDetective {
 
         public static readonly JsonSerializerOptions JsonOptions = new()
         {
-            WriteIndented = true
+            WriteIndented = true,
+            Converters = { new IPAddressJsonConverter() }
         };
 
         /// <summary>
