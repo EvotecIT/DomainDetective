@@ -3,6 +3,7 @@ using Spectre.Console;
 using Spectre.Console.Cli;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.CLI;
@@ -65,7 +66,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
         }
 
         if (settings.Domains.Length == 0) {
-            await CommandUtilities.RunWizard();
+            await CommandUtilities.RunWizard(Program.CancellationToken);
             return 0;
         }
 
@@ -97,7 +98,8 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             settings.SubdomainPolicy,
             settings.Unicode,
             danePorts,
-            !settings.NoProgress);
+            !settings.NoProgress,
+            Program.CancellationToken);
 
         return 0;
     }

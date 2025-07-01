@@ -6,8 +6,17 @@ using System.IO;
 namespace DomainDetective.CLI;
 
 internal static class Program {
+    internal static CancellationToken CancellationToken { get; private set; }
+
     [RequiresDynamicCode("Calls Spectre.Console.Cli.CommandApp.CommandApp(ITypeRegistrar)")]
     public static async Task<int> Main(string[] args) {
+        using var cts = new CancellationTokenSource();
+        CancellationToken = cts.Token;
+        Console.CancelKeyPress += (_, e) => {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
         var app = new CommandApp();
         app.Configure(config => {
             config.SetApplicationName("DomainDetective");
@@ -29,9 +38,12 @@ internal static class Program {
                 .WithDescription("Query SMIMEA record for an email address");
         });
         try {
-            return await app.RunAsync(args);
+            return await app.RunAsync(args).WaitAsync(cts.Token);
         } catch (FileNotFoundException ex) {
             AnsiConsole.MarkupLine($"[red]{ex.Message}[/]");
+            return 1;
+        } catch (OperationCanceledException) {
+            AnsiConsole.MarkupLine("[yellow]Operation cancelled.[/]");
             return 1;
         }
     }
