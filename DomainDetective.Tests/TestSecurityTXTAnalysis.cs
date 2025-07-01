@@ -155,7 +155,7 @@ namespace DomainDetective.Tests {
             listener.Prefixes.Add(prefix);
             listener.Start();
 
-            var expires = DateTime.UtcNow.AddMilliseconds(500).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var expires = DateTime.UtcNow.AddSeconds(1).ToString("yyyy-MM-ddTHH:mm:ssZ");
             var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
             int hitCount = 0;
             var serverTask = Task.Run(async () => {
@@ -178,7 +178,7 @@ namespace DomainDetective.Tests {
 
                 Assert.Equal(1, hitCount);
 
-                await Task.Delay(600);
+                await Task.Delay(1100);
                 await healthCheck.Verify(domain, new[] { HealthCheckType.SECURITYTXT });
 
                 Assert.Equal(2, hitCount);
