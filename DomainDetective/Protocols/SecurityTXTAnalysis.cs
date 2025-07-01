@@ -1,6 +1,7 @@
 using PgpCore;
 using PgpCore.Models;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Mail;
@@ -12,6 +13,10 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SecurityTXTAnalysis {
+        private record CacheEntry(string Content, string Url, bool FallbackUsed, DateTimeOffset Expires);
+        private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+        public static void ClearCache() => _cache.Clear();
         public string Domain { get; set; }
         public bool RecordPresent { get; set; }
         public bool RecordValid { get; set; }
@@ -49,18 +54,36 @@ namespace DomainDetective {
 
             Domain = domainName;
 
+            if (_cache.TryGetValue(domainName, out var entry) && entry.Expires > DateTimeOffset.UtcNow) {
+                RecordPresent = true;
+                Url = entry.Url;
+                FallbackUsed = entry.FallbackUsed;
+                ParseSecurityTxt(entry.Content, pgpPublicKey, entry.Url);
+                return;
+            }
+
             string url = $"https://{domainName}/.well-known/security.txt";
             string response = await GetSecurityTxt(url);
+            bool fallback = false;
             if (response == null) {
                 url = $"http://{domainName}/security.txt";
                 response = await GetSecurityTxt(url);
-                FallbackUsed = true;
+                fallback = true;
             }
 
             if (response != null) {
                 RecordPresent = true;
                 Url = url;
+                FallbackUsed = fallback;
                 ParseSecurityTxt(response, pgpPublicKey, url);
+
+                if (DateTimeOffset.TryParse(Expires, out var expires)) {
+                    entry = new CacheEntry(response, url, fallback, expires);
+                } else {
+                    entry = new CacheEntry(response, url, fallback, DateTimeOffset.UtcNow.AddHours(1));
+                }
+
+                _cache[domainName] = entry;
             }
         }
 

@@ -147,6 +147,47 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task CachedSecurityTxtReusedUntilExpiration() {
+            SecurityTXTAnalysis.ClearCache();
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+
+            var expires = DateTime.UtcNow.AddMilliseconds(500).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
+            int hitCount = 0;
+            var serverTask = Task.Run(async () => {
+                while (listener.IsListening) {
+                    var ctx = await listener.GetContextAsync();
+                    hitCount++;
+                    ctx.Response.StatusCode = 200;
+                    ctx.Response.ContentType = "text/plain";
+                    var buffer = Encoding.UTF8.GetBytes(content);
+                    await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                    ctx.Response.Close();
+                }
+            });
+
+            try {
+                var healthCheck = new DomainHealthCheck();
+                var domain = prefix.Replace("http://", string.Empty).TrimEnd('/');
+                await healthCheck.Verify(domain, new[] { HealthCheckType.SECURITYTXT });
+                await healthCheck.Verify(domain, new[] { HealthCheckType.SECURITYTXT });
+
+                Assert.Equal(1, hitCount);
+
+                await Task.Delay(600);
+                await healthCheck.Verify(domain, new[] { HealthCheckType.SECURITYTXT });
+
+                Assert.Equal(2, hitCount);
+            } finally {
+                listener.Stop();
+                await Task.Delay(50);
+            }
+        }
+
         private static int GetFreePort() {
             var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             listener.Start();
