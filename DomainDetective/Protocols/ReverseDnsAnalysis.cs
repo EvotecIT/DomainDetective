@@ -41,13 +41,15 @@ namespace DomainDetective {
         public class ReverseDnsResult {
             public string IpAddress { get; set; }
             public string? PtrRecord { get; set; }
+            /// <summary>All PTR records returned for the IP.</summary>
+            public List<string> PtrRecords { get; } = new();
             public string ExpectedHost { get; set; }
             /// <summary>True when <see cref="PtrRecord"/> equals <see cref="ExpectedHost"/>.</summary>
             public bool IsValid => string.Equals(
                 PtrRecord?.TrimEnd('.'),
                 ExpectedHost?.TrimEnd('.'),
                 StringComparison.OrdinalIgnoreCase);
-            /// <summary>True when PTR hostname resolves back to <see cref="IpAddress"/>.</summary>
+            /// <summary>True when any PTR hostname resolves back to <see cref="IpAddress"/>.</summary>
             public bool FcrDnsValid { get; set; }
         }
 
@@ -112,30 +114,37 @@ namespace DomainDetective {
                         ptrAnswers = await QueryDns(ptrName, DnsRecordType.PTR);
                     }
 
-                    string? ptr = null;
-                    if (ptrAnswers.Length > 0) {
-                        var rawPtr = ptrAnswers[0].Data;
+                    var ptrs = new List<string>();
+                    foreach (var ans in ptrAnswers) {
+                        var rawPtr = ans.Data;
                         if (IsValidPtrName(rawPtr)) {
-                            ptr = rawPtr.TrimEnd('.');
+                            ptrs.Add(rawPtr.TrimEnd('.'));
                         } else {
                             logger?.WriteWarning($"Malformed PTR record: {rawPtr}");
                         }
                     }
+
+                    string? ptr = ptrs.FirstOrDefault();
                     var result = new ReverseDnsResult {
                         IpAddress = ip.ToString(),
                         PtrRecord = ptr,
                         ExpectedHost = host.TrimEnd('.')
                     };
+                    result.PtrRecords.AddRange(ptrs);
 
-                    if (!string.IsNullOrWhiteSpace(ptr)) {
-                        var fwdA = await QueryDns(ptr, DnsRecordType.A);
-                        var fwdAaaa = await QueryDns(ptr, DnsRecordType.AAAA);
-                        result.FcrDnsValid = fwdA.Concat(fwdAaaa)
-                            .Any(r => string.Equals(r.Data, ip.ToString(), StringComparison.Ordinal));
+                    if (ptrs.Count > 0) {
+                        foreach (var p in ptrs) {
+                            var fwdA = await QueryDns(p, DnsRecordType.A);
+                            var fwdAaaa = await QueryDns(p, DnsRecordType.AAAA);
+                            if (fwdA.Concat(fwdAaaa).Any(r => string.Equals(r.Data, ip.ToString(), StringComparison.Ordinal))) {
+                                result.FcrDnsValid = true;
+                                break;
+                            }
+                        }
                     }
 
                     Results.Add(result);
-                    logger?.WriteVerbose($"PTR for {ip} -> {ptr}");
+                    logger?.WriteVerbose($"PTR for {ip} -> {string.Join(", ", ptrs)}");
                 }
             }
         }

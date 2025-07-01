@@ -20,7 +20,8 @@ public class FCrDnsAnalysis
     public class FCrDnsResult
     {
         public string IpAddress { get; set; }
-        public string? PtrRecord { get; set; }
+        public List<string> PtrRecords { get; set; } = new();
+        public string? PtrRecord => PtrRecords.FirstOrDefault();
         /// <summary>True when PTR hostname resolves to the original IP.</summary>
         public bool ForwardConfirmed { get; set; }
     }
@@ -47,22 +48,30 @@ public class FCrDnsAnalysis
         Results = new List<FCrDnsResult>();
         foreach (var item in reverseResults)
         {
-            if (string.IsNullOrWhiteSpace(item.PtrRecord))
+            var ptrs = item.PtrRecords;
+            if (ptrs.Count == 0 && !string.IsNullOrWhiteSpace(item.PtrRecord))
             {
-                Results.Add(new FCrDnsResult { IpAddress = item.IpAddress, PtrRecord = item.PtrRecord, ForwardConfirmed = false });
-                continue;
+                ptrs = new List<string> { item.PtrRecord.TrimEnd('.') };
             }
 
-            var normalizedPtr = item.PtrRecord.TrimEnd('.');
+            bool match = false;
+            foreach (var ptr in ptrs)
+            {
+                var normalizedPtr = ptr.TrimEnd('.');
+                var a = await QueryDns(normalizedPtr, DnsRecordType.A);
+                var aaaa = await QueryDns(normalizedPtr, DnsRecordType.AAAA);
+                logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
+                if (a.Concat(aaaa).Any(r => r.Data == item.IpAddress))
+                {
+                    match = true;
+                    break;
+                }
+            }
 
-            var a = await QueryDns(normalizedPtr, DnsRecordType.A);
-            var aaaa = await QueryDns(normalizedPtr, DnsRecordType.AAAA);
-            bool match = a.Concat(aaaa).Any(r => r.Data == item.IpAddress);
-            logger?.WriteVerbose($"FCrDNS {normalizedPtr} -> {string.Join(", ", a.Concat(aaaa).Select(r => r.Data))}");
             Results.Add(new FCrDnsResult
             {
                 IpAddress = item.IpAddress,
-                PtrRecord = normalizedPtr,
+                PtrRecords = ptrs.Select(p => p.TrimEnd('.')).ToList(),
                 ForwardConfirmed = match
             });
         }
