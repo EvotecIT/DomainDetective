@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Management.Automation;
 using System.Net.Http;
+using DomainDetective;
 using Spectre.Console;
 
 namespace DomainDetective.PowerShell {
@@ -118,7 +119,7 @@ namespace DomainDetective.PowerShell {
                 return;
             }
             try {
-                using var client = new HttpClient();
+                var client = SharedHttpClient.Instance;
                 var data = new Dictionary<string, string> {
                     ["domain"] = DomainName,
                     ["record"] = record

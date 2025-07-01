@@ -522,7 +522,7 @@ namespace DomainDetective {
         }
 
         public async Task UpdateDnsblDataAsync(string url = DefaultUpdateUrl, bool overwriteExisting = true) {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
             var json = await client.GetStringAsync(url);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);

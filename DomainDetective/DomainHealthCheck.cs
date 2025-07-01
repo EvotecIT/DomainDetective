@@ -383,7 +383,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="url">Optional URL to fetch the list from.</param>
         public async Task RefreshPublicSuffixListAsync(string url = DefaultPublicSuffixListUrl) {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
             using var stream = await client.GetStreamAsync(url);
             var updated = PublicSuffixList.Load(stream);
             _publicSuffixList = updated;

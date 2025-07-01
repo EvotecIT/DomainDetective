@@ -48,7 +48,7 @@ public class IPNeighborAnalysis
 
         try
         {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
             var url = $"https://api.hackertarget.com/reverseiplookup/?q={ip}";
             using var resp = await client.GetAsync(url);
             if (!resp.IsSuccessStatusCode)
@@ -78,7 +78,7 @@ public class IPNeighborAnalysis
 
         try
         {
-            using var client = new HttpClient();
+            var client = SharedHttpClient.Instance;
             var prefixResp = await client.GetAsync($"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
             prefixResp.EnsureSuccessStatusCode();
             using var prefixStream = await prefixResp.Content.ReadAsStreamAsync();
