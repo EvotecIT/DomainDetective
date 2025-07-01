@@ -10,6 +10,8 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMTPBannerAnalysis {
+        private const int MaxBannerLength = 512;
+        private const int MaxBannerTextLength = MaxBannerLength - 2; // exclude CRLF
         /// <summary>Result of a banner check.</summary>
         /// <para>Part of the DomainDetective project.</para>
         public class BannerResult {
@@ -68,6 +70,10 @@ namespace DomainDetective {
 #else
                 var banner = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
+                if (banner != null && banner.Length > MaxBannerTextLength) {
+                    logger?.WriteWarning("Banner from {0}:{1} exceeded {2} bytes and was truncated.", host, port, MaxBannerLength);
+                    banner = banner.Substring(0, MaxBannerTextLength);
+                }
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 try {
 #if NET8_0_OR_GREATER

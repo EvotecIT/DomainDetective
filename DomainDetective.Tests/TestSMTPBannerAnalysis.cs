@@ -139,5 +139,36 @@ namespace DomainDetective.Tests {
                 await serverTask2;
             }
         }
+
+        [Fact]
+        public async Task TruncatesLongBanner() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                var longBanner = "220 " + new string('A', 600);
+                await writer.WriteLineAsync(longBanner);
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            try {
+                var logger = new InternalLogger();
+                var warnings = new System.Collections.Generic.List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                var analysis = new SMTPBannerAnalysis();
+                await analysis.AnalyzeServer("localhost", port, logger);
+                var result = analysis.ServerResults[$"localhost:{port}"];
+                Assert.Equal(510, result.Banner!.Length);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("truncated"));
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
     }
 }
