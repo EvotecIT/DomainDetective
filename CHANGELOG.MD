@@ -21,3 +21,9 @@
 ### What's Changed
 - DNSSEC validation now walks the delegation chain and checks DS records
 - DNSSEC analysis summarizes any mismatches for each chain element
+
+## 1.0.4
+
+### What's Changed
+- SOA analysis now validates serial number format and suggests using `YYYYMMDDnn`
+  when an invalid pattern is detected
