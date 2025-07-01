@@ -399,12 +399,12 @@ namespace DomainDetective {
             using var responseStream = await client.GetStreamAsync(url);
             using var memory = new MemoryStream();
             await responseStream.CopyToAsync(memory);
-            memory.Position = 0;
-            _publicSuffixList = PublicSuffixList.Load(memory);
-            memory.Position = 0;
-            using (var file = File.Create(cacheFile)) {
-                memory.CopyTo(file);
-            }
+            var bytes = memory.ToArray();
+
+            using var loadStream = new MemoryStream(bytes, writable: false);
+            _publicSuffixList = PublicSuffixList.Load(loadStream);
+            File.WriteAllBytes(cacheFile, bytes);
+
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
