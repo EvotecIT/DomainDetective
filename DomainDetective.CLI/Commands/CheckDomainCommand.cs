@@ -2,6 +2,7 @@ using DomainDetective;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 
 namespace DomainDetective.CLI;
@@ -67,6 +68,10 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             await CommandUtilities.RunWizard();
             return 0;
         }
+
+        settings.Domains = settings.Domains
+            .Select(CliHelpers.ToAscii)
+            .ToArray();
 
         var selected = new List<HealthCheckType>();
         foreach (var check in settings.Checks.SelectMany(c => c.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))) {

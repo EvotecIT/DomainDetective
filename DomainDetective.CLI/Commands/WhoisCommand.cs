@@ -18,7 +18,8 @@ internal sealed class WhoisSettings : CommandSettings {
 internal sealed class WhoisCommand : AsyncCommand<WhoisSettings> {
     public override async Task<int> ExecuteAsync(CommandContext context, WhoisSettings settings) {
         var analysis = new WhoisAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
-        await analysis.QueryWhoisServer(settings.Domain);
+        var domain = CliHelpers.ToAscii(settings.Domain);
+        await analysis.QueryWhoisServer(domain);
         IEnumerable<string>? changes = null;
         if (settings.Diff && settings.SnapshotPath != null) {
             changes = analysis.GetWhoisChanges();
@@ -26,7 +27,7 @@ internal sealed class WhoisCommand : AsyncCommand<WhoisSettings> {
         if (settings.SnapshotPath != null) {
             analysis.SaveSnapshot();
         }
-        CliHelpers.ShowPropertiesTable($"WHOIS for {settings.Domain}", analysis, false);
+        CliHelpers.ShowPropertiesTable($"WHOIS for {domain}", analysis, false);
         if (changes != null && changes.Any()) {
             AnsiConsole.MarkupLine("[yellow]Changes since last snapshot:[/]");
             foreach (var line in changes) {

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using DomainDetective;
@@ -10,6 +11,11 @@ public static partial class Program {
         if (args.Length > 0 && args.Any(a => !a.StartsWith("-"))) {
             var outputJson = args.Contains("--json");
             var domain = args.First(a => !a.StartsWith("-"));
+            var idn = new IdnMapping();
+            try {
+                domain = idn.GetAscii(domain.Trim().Trim('.'));
+            } catch (ArgumentException) {
+            }
             var healthCheck = new DomainHealthCheck();
             await healthCheck.Verify(domain);
             if (outputJson) {

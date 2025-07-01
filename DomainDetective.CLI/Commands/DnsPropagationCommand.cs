@@ -26,7 +26,8 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         var analysis = new DnsPropagationAnalysis();
         analysis.LoadServers(settings.ServersFile.FullName, clearExisting: true);
         var servers = analysis.Servers;
-        var results = await analysis.QueryAsync(settings.Domain, settings.RecordType, servers);
+        var domain = CliHelpers.ToAscii(settings.Domain);
+        var results = await analysis.QueryAsync(domain, settings.RecordType, servers);
         if (settings.Compare) {
             var groups = DnsPropagationAnalysis.CompareResults(results);
             if (settings.Json) {
