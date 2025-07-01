@@ -14,8 +14,8 @@ public static partial class Program {
     public static async Task ExampleAnalyseByDomainDMARC() {
         var healthCheck = new DomainHealthCheck();
         healthCheck.Verbose = false;
-        await healthCheck.Verify("evotec.pl", [HealthCheckType.DMARC]);
-        //ShowProperties("DMARC for evotec.pl ", healthCheck.DmarcAnalysis);
-        Helpers.ShowPropertiesTable("DMARC for evotec.pl ", healthCheck.DmarcAnalysis);
+        await healthCheck.Verify("xn--bcher-kva.ch", [HealthCheckType.DMARC]);
+        //ShowProperties("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
+        Helpers.ShowPropertiesTable("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
     }
 }

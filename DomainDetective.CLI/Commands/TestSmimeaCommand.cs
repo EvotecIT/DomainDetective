@@ -10,7 +10,14 @@ namespace DomainDetective.CLI {
     internal sealed class TestSmimeaCommand : AsyncCommand<TestSmimeaSettings> {
         public override async Task<int> ExecuteAsync(CommandContext context, TestSmimeaSettings settings) {
             var hc = new DomainHealthCheck();
-            await hc.VerifySMIMEA(settings.Email);
+            var email = settings.Email;
+            var at = email.IndexOf('@');
+            if (at > 0) {
+                var local = email[..at];
+                var domain = email[(at + 1)..];
+                email = $"{local}@{CliHelpers.ToAscii(domain)}";
+            }
+            await hc.VerifySMIMEA(email);
             CliHelpers.ShowPropertiesTable($"SMIMEA for {settings.Email}", hc.SmimeaAnalysis, false);
             return 0;
         }

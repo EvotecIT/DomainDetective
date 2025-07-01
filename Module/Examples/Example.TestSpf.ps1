@@ -12,3 +12,7 @@ $ResultsMicrosoft | Format-List
 $ResultsEvotec = Test-SpfRecord -DomainName 'evotec.pl' -Verbose
 $ResultsEvotec | Format-Table
 $ResultsEvotec | Format-List
+
+$ResultsIdn = Test-SpfRecord -DomainName 'xn--bcher-kva.ch' -Verbose
+$ResultsIdn | Format-Table
+$ResultsIdn | Format-List

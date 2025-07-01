@@ -7,3 +7,7 @@ $Whois | Format-List
 
 $Example = Get-WhoisInfo -DomainName 'example.com'
 $Example | Format-List
+
+$Idn = Get-WhoisInfo -DomainName 'xn--bcher-kva.ch'
+$Idn | Format-List
+

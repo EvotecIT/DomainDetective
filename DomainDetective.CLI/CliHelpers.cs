@@ -32,6 +32,23 @@ internal static class CliHelpers
         }
     }
 
+    internal static string ToAscii(string? domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return domain ?? string.Empty;
+        }
+
+        try
+        {
+            return _idn.GetAscii(domain.Trim().Trim('.'));
+        }
+        catch (ArgumentException)
+        {
+            return domain;
+        }
+    }
+
     private static void AddProperties(Table table, object obj, bool listAsString = false, bool unicode = false)
     {
         if (obj == null)
