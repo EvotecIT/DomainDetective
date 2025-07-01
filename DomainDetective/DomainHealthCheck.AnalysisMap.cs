@@ -9,10 +9,10 @@ namespace DomainDetective
 
     static DomainHealthCheck()
     {
-        var map = new Dictionary<HealthCheckType, PropertyInfo?>();
+        Dictionary<HealthCheckType, PropertyInfo?> map = new();
         foreach (HealthCheckType check in Enum.GetValues(typeof(HealthCheckType)))
         {
-            var property = typeof(DomainHealthCheck).GetProperty($"{check}Analysis");
+            PropertyInfo? property = typeof(DomainHealthCheck).GetProperty($"{check}Analysis");
             map[check] = property;
         }
 
@@ -27,9 +27,9 @@ namespace DomainDetective
     /// </returns>
     public IReadOnlyDictionary<HealthCheckType, object?> GetAnalysisMap()
     {
-        var map = new Dictionary<HealthCheckType, object?>(AnalysisPropertyMap.Count);
+        Dictionary<HealthCheckType, object?> map = new(AnalysisPropertyMap.Count);
 
-        foreach (var kvp in AnalysisPropertyMap)
+        foreach (KeyValuePair<HealthCheckType, PropertyInfo?> kvp in AnalysisPropertyMap)
         {
             map[kvp.Key] = kvp.Value?.GetValue(this);
         }
