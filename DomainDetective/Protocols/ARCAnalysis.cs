@@ -69,9 +69,8 @@ namespace DomainDetective {
 
             ArcHeadersFound = ArcSealHeaders.Count > 0 || ArcAuthenticationResultsHeaders.Count > 0;
 
-            var allInstances = new SortedSet<int>();
-            var aarInstances = new HashSet<int>();
-            var sealInstances = new HashSet<int>();
+            var aarSequence = new List<int>();
+            var sealSequence = new List<int>();
 
             foreach (var aar in ArcAuthenticationResultsHeaders) {
                 var inst = ParseInstance(aar);
@@ -80,8 +79,7 @@ namespace DomainDetective {
                     return;
                 }
 
-                allInstances.Add(inst.Value);
-                aarInstances.Add(inst.Value);
+                aarSequence.Add(inst.Value);
             }
 
             foreach (var seal in ArcSealHeaders) {
@@ -96,22 +94,20 @@ namespace DomainDetective {
                     return;
                 }
 
-                allInstances.Add(inst.Value);
-                sealInstances.Add(inst.Value);
+                sealSequence.Add(inst.Value);
             }
 
-            if (allInstances.Count == 0) {
+            if (aarSequence.Count == 0 || sealSequence.Count == 0 || aarSequence.Count != sealSequence.Count) {
                 ValidChain = false;
                 return;
             }
 
-            int expected = 1;
-            foreach (var i in allInstances) {
-                if (i != expected || !aarInstances.Contains(i) || !sealInstances.Contains(i)) {
+            for (int index = 0; index < aarSequence.Count; index++) {
+                var expected = index + 1;
+                if (aarSequence[index] != expected || sealSequence[index] != expected) {
                     ValidChain = false;
                     return;
                 }
-                expected++;
             }
 
             ValidChain = true;
