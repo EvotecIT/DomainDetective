@@ -143,14 +143,18 @@ internal static class CommandUtilities {
         foreach (var domain in domains) {
             var logger = new InternalLogger { IsProgress = showProgress };
             var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
-            var needsPortScan = checks?.Contains(HealthCheckType.PORTSCAN) ?? false;
-            if (needsPortScan) {
+
+            if (showProgress) {
                 await AnsiConsole.Progress().StartAsync(async ctx => {
-                    ProgressTask? task = null;
+                    ProgressTask? portTask = null;
+                    ProgressTask? hcTask = null;
                     void Handler(object? _, LogEventArgs e) {
                         if (e.ProgressActivity == "PortScan" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
-                            task ??= ctx.AddTask($"Port scan for {domain}", maxValue: e.ProgressTotalSteps.Value);
-                            task.Value = e.ProgressCurrentSteps.Value;
+                            portTask ??= ctx.AddTask($"Port scan for {domain}", maxValue: e.ProgressTotalSteps.Value);
+                            portTask.Value = e.ProgressCurrentSteps.Value;
+                        } else if (e.ProgressActivity == "HealthCheck" && e.ProgressTotalSteps.HasValue && e.ProgressCurrentSteps.HasValue) {
+                            hcTask ??= ctx.AddTask($"Health checks for {domain}", maxValue: e.ProgressTotalSteps.Value);
+                            hcTask.Value = e.ProgressCurrentSteps.Value;
                         }
                     }
 
