@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
                     KeyType = result.KeyType,
                     HashAlgorithm = result.HashAlgorithm,
                     CreationDate = result.CreationDate,
-                    OldKey = result.OldKey
+                    OldKey = result.OldKey,
+                    DeprecatedTags = result.DeprecatedTags
                 };
             }
         }
@@ -140,6 +141,9 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>True when <see cref="CreationDate"/> is over 12 months old.</summary>
         public bool OldKey { get; set; }
+
+        /// <summary>Deprecated DKIM tags detected in the record.</summary>
+        public IReadOnlyList<string> DeprecatedTags { get; set; }
     }
 
     /// <summary>
