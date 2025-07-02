@@ -129,7 +129,7 @@ namespace DomainDetective {
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
-                        await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName);
+                        await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain);
                         DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
                         break;
                     case HealthCheckType.SPF:
