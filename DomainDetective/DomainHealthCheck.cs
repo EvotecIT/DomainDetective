@@ -381,6 +381,7 @@ namespace DomainDetective {
 
         /// <summary>
         /// Downloads the latest public suffix list and refreshes cached data.
+        /// Cached data newer than seven days is reused unless <paramref name="force" /> is true.
         /// </summary>
         /// <param name="url">Optional URL to fetch the list from.</param>
         /// <param name="force">Ignore the cache and download fresh data.</param>

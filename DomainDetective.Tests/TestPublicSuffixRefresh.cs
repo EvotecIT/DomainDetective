@@ -21,8 +21,9 @@ namespace DomainDetective.Tests {
                 await reader.ReadLineAsync();
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
                 var header = $"HTTP/1.1 200 OK\r\nContent-Length: {fileContent.Length}\r\n\r\n";
-                await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(header));
-                await stream.WriteAsync(fileContent);
+                var headerBytes = System.Text.Encoding.ASCII.GetBytes(header);
+                await stream.WriteAsync(headerBytes, 0, headerBytes.Length);
+                await stream.WriteAsync(fileContent, 0, fileContent.Length);
             });
             try {
                 var hc = new DomainHealthCheck { CacheDirectory = dir };
