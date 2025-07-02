@@ -86,6 +86,15 @@ namespace DomainDetective {
                     _warnings.Add($"{recordType} TTL {ttl} exceeds recommended {max} seconds.");
                 }
             }
+
+            if ((recordType == "A" || recordType == "AAAA") && ATtls.Any() && AaaaTtls.Any()) {
+                var avgA = ATtls.Average();
+                var avgAaaa = AaaaTtls.Average();
+                var ratio = Math.Max(avgA, avgAaaa) / Math.Min(avgA, avgAaaa);
+                if (ratio >= 2 && !_warnings.Any(w => w.StartsWith("A and AAAA TTLs differ", StringComparison.Ordinal))) {
+                    _warnings.Add($"A and AAAA TTLs differ significantly: A {avgA} vs AAAA {avgAaaa} seconds.");
+                }
+            }
         }
     }
 }
