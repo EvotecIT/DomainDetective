@@ -172,6 +172,8 @@ namespace DomainDetective.Tests {
                 var analysis = new DnsPropagationAnalysis();
                 analysis.LoadServers(file, clearExisting: true);
 
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+
                 var server = Assert.Single(analysis.Servers);
                 Assert.Equal("Test", server.Country);
                 Assert.Equal("example.com", server.HostName);
@@ -191,6 +193,7 @@ namespace DomainDetective.Tests {
                 File.WriteAllText(file, json);
                 var analysis = new DnsPropagationAnalysis();
                 Assert.Throws<FormatException>(() => analysis.LoadServers(file, clearExisting: true));
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
             }
             finally {
                 File.Delete(file);

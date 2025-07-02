@@ -513,6 +513,7 @@ namespace DomainDetective.Tests {
             var preloadPath = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json");
             File.WriteAllText(preloadPath, "[\"localhost\"]");
             HttpAnalysis.LoadHstsPreloadList(preloadPath);
+            using (File.Open(preloadPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
@@ -530,6 +531,7 @@ namespace DomainDetective.Tests {
             } finally {
                 listener.Stop();
                 await serverTask;
+                File.Delete(preloadPath);
             }
         }
 

@@ -48,10 +48,11 @@ namespace DomainDetective {
                 _servers.Clear();
             }
 
-            var json = File.ReadAllText(filePath);
+            using var stream = File.OpenRead(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             options.Converters.Add(new IPAddressJsonConverter());
-            var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
+            var servers = JsonSerializer.DeserializeAsync<List<PublicDnsEntry>>(stream, options)
+                .GetAwaiter().GetResult();
             if (servers == null) {
                 return;
             }

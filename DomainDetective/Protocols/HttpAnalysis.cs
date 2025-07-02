@@ -124,12 +124,12 @@ namespace DomainDetective {
                 return;
             }
             try {
-                var json = File.ReadAllText(filePath);
-                using var doc = JsonDocument.Parse(json);
-                var entries = doc.RootElement.EnumerateArray()
-                    .Select(e => e.GetString())
-                    .Where(s => !string.IsNullOrWhiteSpace(s));
-                _hstsPreload = new HashSet<string>(entries!, StringComparer.OrdinalIgnoreCase);
+                using var stream = File.OpenRead(filePath);
+                var entries = JsonSerializer.DeserializeAsync<string[]>(stream)
+                    .GetAwaiter().GetResult()
+                    ?.Where(s => !string.IsNullOrWhiteSpace(s))
+                    ?? Enumerable.Empty<string>();
+                _hstsPreload = new HashSet<string>(entries, StringComparer.OrdinalIgnoreCase);
             } catch {
                 // ignore malformed preload files
             }

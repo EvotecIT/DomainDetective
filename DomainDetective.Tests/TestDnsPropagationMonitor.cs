@@ -46,6 +46,7 @@ public class TestDnsPropagationMonitor {
                 QueryOverride = (servers, _) => { passed.AddRange(servers); return Task.FromResult(new List<DnsPropagationResult>()); }
             };
             monitor.LoadServers(file);
+            using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
             monitor.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("3.3.3.3"), Enabled = true });
             await monitor.RunAsync();
             Assert.Equal(2, passed.Count);

@@ -13,6 +13,7 @@ namespace DomainDetective.Tests {
 
                 var analysis = new DNSBLAnalysis();
                 analysis.LoadDnsblConfig(file, clearExisting: true);
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
 
                 var entries = analysis.GetDNSBL().ToList();
                 Assert.Equal(2, entries.Count);
@@ -34,6 +35,7 @@ namespace DomainDetective.Tests {
                 var analysis = new DNSBLAnalysis();
                 var before = analysis.GetDNSBL().Count;
                 analysis.LoadDnsblConfig(file);
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
                 var after = analysis.GetDNSBL().Count;
 
                 Assert.Equal(before + 1, after);
@@ -53,6 +55,7 @@ namespace DomainDetective.Tests {
 
                 var analysis = new DNSBLAnalysis();
                 analysis.LoadDnsblConfig(file, clearExisting: true);
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
 
                 var entries = analysis.GetDNSBL()
                     .Where(e => string.Equals(e.Domain, "dup.test", StringComparison.OrdinalIgnoreCase))

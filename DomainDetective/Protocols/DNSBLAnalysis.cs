@@ -460,9 +460,10 @@ namespace DomainDetective {
                 throw new FileNotFoundException($"DNSBL config file not found: {filePath}");
             }
 
-            var json = File.ReadAllText(filePath);
+            using var stream = File.OpenRead(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var config = JsonSerializer.Deserialize<DnsblConfiguration>(json, options);
+            var config = JsonSerializer.DeserializeAsync<DnsblConfiguration>(stream, options)
+                .GetAwaiter().GetResult();
             if (config != null) {
                 ApplyDnsblConfiguration(config, overwriteExisting, clearExisting);
             }
