@@ -53,7 +53,7 @@ namespace DomainDetective {
             options.Converters.Add(new IPAddressJsonConverter());
             var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
             if (servers == null) {
-                return;
+                throw new InvalidDataException("DNS server list is empty or invalid.");
             }
 
             foreach (var entry in servers) {
