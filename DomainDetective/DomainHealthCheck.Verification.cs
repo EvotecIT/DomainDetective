@@ -1220,6 +1220,34 @@ namespace DomainDetective {
                 a.DkimRecordExists && a.StartsCorrectly && a.PublicKeyExists &&
                 a.ValidPublicKey && a.KeyTypeExists && a.ValidKeyType && a.ValidFlags);
 
+            var hints = new List<string>();
+
+            static void AddHint(List<string> list, HealthCheckType type) {
+                var hint = CheckDescriptions.Get(type)?.Remediation;
+                if (!string.IsNullOrWhiteSpace(hint)) {
+                    list.Add(hint);
+                }
+            }
+
+            if (!spfValid) {
+                AddHint(hints, HealthCheckType.SPF);
+            }
+            if (!dmarcValid) {
+                AddHint(hints, HealthCheckType.DMARC);
+            }
+            if (!dkimValid) {
+                AddHint(hints, HealthCheckType.DKIM);
+            }
+            if (MXAnalysis is { MxRecordExists: false }) {
+                AddHint(hints, HealthCheckType.MX);
+            }
+            if (!(DnsSecAnalysis?.ChainValid ?? false)) {
+                AddHint(hints, HealthCheckType.DNSSEC);
+            }
+            if (WhoisAnalysis.IsExpired || WhoisAnalysis.ExpiresSoon) {
+                hints.Add("Renew the domain registration.");
+            }
+
             return new DomainSummary {
                 HasSpfRecord = SpfAnalysis.SpfRecordExists,
                 SpfValid = spfValid,
@@ -1228,14 +1256,15 @@ namespace DomainDetective {
                 DmarcValid = dmarcValid,
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
                 DkimValid = dkimValid,
-                HasMxRecord = MXAnalysis.MxRecordExists,
+                HasMxRecord = MXAnalysis?.MxRecordExists ?? false,
                 DnsSecValid = DnsSecAnalysis?.ChainValid ?? false,
                 IsPublicSuffix = IsPublicSuffix,
                 ExpiryDate = WhoisAnalysis.ExpiryDate,
                 ExpiresSoon = WhoisAnalysis.ExpiresSoon,
                 IsExpired = WhoisAnalysis.IsExpired,
                 RegistrarLocked = WhoisAnalysis.RegistrarLocked,
-                PrivacyProtected = WhoisAnalysis.PrivacyProtected
+                PrivacyProtected = WhoisAnalysis.PrivacyProtected,
+                Hints = hints.ToArray()
             };
         }
 

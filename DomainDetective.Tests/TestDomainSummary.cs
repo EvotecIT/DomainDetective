@@ -11,6 +11,7 @@ namespace DomainDetective.Tests {
             var summary = filtered.BuildSummary();
 
             Assert.False(summary.DnsSecValid);
+            Assert.Contains("Sign zones and publish DS records.", summary.Hints);
         }
 
         [Fact]
@@ -39,11 +40,36 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDMARC(dmarcRecord);
             await healthCheck.CheckDKIM(dkimRecord);
 
-            var summary = healthCheck.BuildSummary();
+            var dnsSecProp = typeof(DnsSecAnalysis).GetProperty(
+                "ChainValid",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+            )!;
+            dnsSecProp.SetValue(healthCheck.DnsSecAnalysis, true);
+
+            var summary = healthCheck
+                .FilterAnalyses(new[]
+                {
+                    HealthCheckType.SPF,
+                    HealthCheckType.DMARC,
+                    HealthCheckType.DKIM,
+                    HealthCheckType.DNSSEC
+                })
+                .BuildSummary();
 
             Assert.True(summary.SpfValid);
             Assert.True(summary.DmarcValid);
             Assert.True(summary.DkimValid);
+            Assert.Empty(summary.Hints);
+        }
+
+        [Fact]
+        public void SummaryProvidesHintsWhenChecksFail() {
+            var healthCheck = new DomainHealthCheck();
+            var summary = healthCheck.BuildSummary();
+
+            Assert.Contains("Add or correct the SPF TXT record.", summary.Hints);
+            Assert.Contains("Publish a valid DMARC record.", summary.Hints);
+            Assert.Contains("Ensure DKIM selectors have valid keys.", summary.Hints);
         }
     }
 }

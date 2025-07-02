@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace DomainDetective {
     /// <summary>
     ///     Represents condensed results of domain health checks.
@@ -61,5 +64,8 @@ namespace DomainDetective {
 
         /// <summary>True when WHOIS data is privacy protected.</summary>
         public bool PrivacyProtected { get; init; }
+
+        /// <summary>Collection of recommended remediation hints.</summary>
+        public IReadOnlyList<string> Hints { get; init; } = Array.Empty<string>();
     }
 }
