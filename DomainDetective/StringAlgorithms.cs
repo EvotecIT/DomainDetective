@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-namespace DomainDetective {
-    internal static class StringAlgorithms {
+namespace DomainDetective;
+
+internal static class StringAlgorithms {
         private static readonly Dictionary<char, char[]> _confusables = new() {
             ['a'] = new[] { '\u0430', '\uFF41' },
             ['e'] = new[] { '\u0435', '\uFF45' },
@@ -54,4 +55,3 @@ namespace DomainDetective {
             return false;
         }
     }
-}
