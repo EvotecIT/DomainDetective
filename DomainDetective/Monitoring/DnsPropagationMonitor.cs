@@ -53,8 +53,14 @@ namespace DomainDetective.Monitoring {
         public void Stop() => _timer?.Dispose();
 
         /// <summary>Loads DNS servers from JSON file.</summary>
-        /// <param name="filePath">Path to server list.</param>
-        public void LoadServers(string filePath) => _analysis.LoadServers(filePath, clearExisting: true);
+        /// <param name="filePath">Path to server list. If null or empty the builtin list is loaded.</param>
+        public void LoadServers(string? filePath) {
+            if (string.IsNullOrWhiteSpace(filePath)) {
+                _analysis.LoadBuiltinServers();
+            } else {
+                _analysis.LoadServers(filePath, clearExisting: true);
+            }
+        }
 
         /// <summary>Loads DNS servers from the embedded list.</summary>
         public void LoadBuiltinServers() => _analysis.LoadBuiltinServers();
