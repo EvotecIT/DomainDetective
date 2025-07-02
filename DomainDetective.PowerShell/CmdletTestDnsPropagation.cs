@@ -1,7 +1,9 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Management.Automation;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -9,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Test propagation of an A record.</summary>
-    ///   <code>Test-DnsPropagation -DomainName example.com -RecordType A -ServersFile ./PublicDNS.json</code>
+    ///   <code>$file = Join-Path (Split-Path ([System.Reflection.Assembly]::GetExecutingAssembly().Location)) 'Data/DNS/PublicDNS.json'; Test-DnsPropagation -DomainName example.com -RecordType A -ServersFile $file</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DnsPropagation", DefaultParameterSetName = "ServersFile")]
     public sealed class CmdletTestDnsPropagation : AsyncPSCmdlet {
@@ -51,7 +53,10 @@ namespace DomainDetective.PowerShell {
             internalLoggerPowerShell.ResetActivityIdCounter();
             _analysis = new DnsPropagationAnalysis();
             if (!string.IsNullOrWhiteSpace(ServersFile)) {
-                _analysis.LoadServers(ServersFile, clearExisting: true);
+                var path = Path.IsPathRooted(ServersFile)
+                    ? ServersFile
+                    : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, ServersFile);
+                _analysis.LoadServers(path, clearExisting: true);
             } else {
                 _analysis.LoadBuiltinServers();
             }
