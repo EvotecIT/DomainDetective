@@ -1,5 +1,7 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
@@ -51,6 +53,22 @@ namespace DomainDetective {
         /// <value>The DNS configuration instance.</value>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
+        /// <summary>
+        /// Directory used for caching downloaded data.
+        /// </summary>
+        public string CacheDirectory {
+            get {
+                if (_cacheDirectory is null) {
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    _cacheDirectory = Path.Combine(home, ".domain-detective");
+                }
+                return _cacheDirectory;
+            }
+            set => _cacheDirectory = value;
+        }
+
+        private string? _cacheDirectory;
+      
         /// <summary>Maximum Levenshtein distance used for typosquatting detection.</summary>
         public int TyposquattingLevenshteinThreshold { get; set; } = 1;
 

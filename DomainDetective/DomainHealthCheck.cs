@@ -381,13 +381,31 @@ namespace DomainDetective {
 
         /// <summary>
         /// Downloads the latest public suffix list and refreshes cached data.
+        /// Cached data newer than seven days is reused unless <paramref name="force" /> is true.
         /// </summary>
         /// <param name="url">Optional URL to fetch the list from.</param>
-        public async Task RefreshPublicSuffixListAsync(string url = DefaultPublicSuffixListUrl) {
+        /// <param name="force">Ignore the cache and download fresh data.</param>
+        public async Task RefreshPublicSuffixListAsync(string url = DefaultPublicSuffixListUrl, bool force = false) {
+            Directory.CreateDirectory(CacheDirectory);
+            var cacheFile = Path.Combine(CacheDirectory, "public_suffix_list.dat");
+
+            if (!force && File.Exists(cacheFile) && DateTime.UtcNow - File.GetLastWriteTimeUtc(cacheFile) < TimeSpan.FromDays(7)) {
+                using var file = File.OpenRead(cacheFile);
+                _publicSuffixList = PublicSuffixList.Load(file);
+                TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
+                return;
+            }
+
             var client = SharedHttpClient.Instance;
-            using var stream = await client.GetStreamAsync(url);
-            var updated = PublicSuffixList.Load(stream);
-            _publicSuffixList = updated;
+            using var responseStream = await client.GetStreamAsync(url);
+            using var memory = new MemoryStream();
+            await responseStream.CopyToAsync(memory);
+            var bytes = memory.ToArray();
+
+            using var loadStream = new MemoryStream(bytes, writable: false);
+            _publicSuffixList = PublicSuffixList.Load(loadStream);
+            File.WriteAllBytes(cacheFile, bytes);
+
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
