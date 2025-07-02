@@ -86,7 +86,9 @@ namespace DomainDetective {
                 logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
 
-                var status = mailResp != null && mailResp.StartsWith("250") && rcptResp != null && rcptResp.StartsWith("250")
+                int mailCode = ParseStatusCode(mailResp);
+                int rcptCode = ParseStatusCode(rcptResp);
+                var status = mailCode >= 200 && mailCode < 300 && rcptCode >= 200 && rcptCode < 300 && mailCode != 550 && mailCode != 551 && rcptCode != 550 && rcptCode != 551
                     ? OpenRelayStatus.AllowsRelay
                     : OpenRelayStatus.Denied;
                 return new OpenRelayResult { Status = status };
@@ -99,6 +101,13 @@ namespace DomainDetective {
                 SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
                 return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }
+        }
+
+        private static int ParseStatusCode(string? response) {
+            if (response != null && response.Length >= 3 && int.TryParse(response.Substring(0, 3), out int code)) {
+                return code;
+            }
+            return -1;
         }
 
         /// <summary>
