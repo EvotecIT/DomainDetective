@@ -13,20 +13,25 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Test propagation of an A record.</summary>
     ///   <code>$file = Join-Path (Split-Path ([System.Reflection.Assembly]::GetExecutingAssembly().Location)) 'Data/DNS/PublicDNS.json'; Test-DnsPropagation -DomainName example.com -RecordType A -ServersFile $file</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DnsPropagation", DefaultParameterSetName = "ServersFile")]
+    [Cmdlet(
+        VerbsDiagnostic.Test,
+        "DnsPropagation",
+        DefaultParameterSetName = "Builtin")]
     public sealed class CmdletTestDnsPropagation : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Builtin")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServersFile")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
         /// <param name="RecordType">DNS record type to test.</param>
+        [Parameter(Mandatory = true, Position = 1, ParameterSetName = "Builtin")]
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServersFile")]
         public DnsRecordType RecordType;
 
         /// <param name="ServersFile">Path to JSON file with DNS servers.</param>
-        [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServersFile")]
-        public string? ServersFile;
+        [Parameter(Mandatory = true, Position = 2, ParameterSetName = "ServersFile")]
+        public string ServersFile;
 
         /// <param name="Country">Filter servers by country.</param>
         [Parameter(Mandatory = false)]
@@ -52,10 +57,12 @@ namespace DomainDetective.PowerShell {
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _analysis = new DnsPropagationAnalysis();
-            if (!string.IsNullOrWhiteSpace(ServersFile)) {
+            if (ParameterSetName == "ServersFile") {
                 var path = Path.IsPathRooted(ServersFile)
                     ? ServersFile
-                    : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, ServersFile);
+                    : Path.Combine(
+                        Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
+                        ServersFile);
                 _analysis.LoadServers(path, clearExisting: true);
             } else {
                 _analysis.LoadBuiltinServers();
