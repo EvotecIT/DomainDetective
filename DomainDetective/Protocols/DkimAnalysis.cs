@@ -3,8 +3,10 @@ using DomainDetective.Definitions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 
@@ -142,6 +144,29 @@ namespace DomainDetective {
                 }
             }
 
+            // attempt to parse creation timestamp from the full record
+            var match = Regex.Match(
+                analysis.DkimRecord,
+                "(?:n=|created=|creation=|date=|timestamp=)(?<date>\\d{4}-\\d{2}-\\d{2}|\\d{8})",
+                RegexOptions.IgnoreCase);
+            if (match.Success &&
+                DateTime.TryParseExact(
+                    match.Groups["date"].Value,
+                    new[] { "yyyy-MM-dd", "yyyyMMdd" },
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal |
+                        DateTimeStyles.AdjustToUniversal,
+                    out var parsed)) {
+                analysis.CreationDate = parsed;
+                if (DateTime.UtcNow - parsed > TimeSpan.FromDays(365)) {
+                    analysis.OldKey = true;
+                    logger?.WriteWarning(
+                        "DKIM key for selector {0} appears older than 12 months ({1:yyyy-MM-dd}).",
+                        selector,
+                        parsed);
+                }
+            }
+
             // check the public key exists
             analysis.PublicKeyExists = !string.IsNullOrEmpty(analysis.PublicKey);
             // check the service type exists
@@ -250,5 +275,9 @@ namespace DomainDetective {
         public string KeyType { get; set; }
         /// <summary>Gets or sets the hash algorithm type.</summary>
         public string HashAlgorithm { get; set; }
+        /// <summary>Date the record appears to have been created.</summary>
+        public DateTime? CreationDate { get; set; }
+        /// <summary>True when <see cref="CreationDate"/> is over 12 months old.</summary>
+        public bool OldKey { get; set; }
     }
 }
