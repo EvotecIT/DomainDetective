@@ -115,14 +115,34 @@ namespace DomainDetective.Tests {
                 }
             };
 
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
             var analysis = new DmarcAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
                 QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>())
             };
-            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com");
+            await analysis.AnalyzeDmarcRecords(answers, new InternalLogger(), "example.com", list.GetRegistrableDomain);
 
             Assert.True(analysis.ExternalReportAuthorization.ContainsKey("external.com"));
             Assert.False(analysis.ExternalReportAuthorization["external.com"]);
+        }
+
+        [Fact]
+        public async Task WarnsOnMisalignedReportAddresses() {
+            var record = new[] {
+                new DnsAnswer {
+                    DataRaw = "v=DMARC1; p=none; rua=mailto:reports@external.com",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var list = PublicSuffixList.Load(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "public_suffix_list.dat"));
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var analysis = new DmarcAnalysis { QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>()) };
+            await analysis.AnalyzeDmarcRecords(record, logger, "example.com", list.GetRegistrableDomain);
+
+            Assert.Contains(warnings, w => w.FullMessage.Contains("reports@external.com") && w.FullMessage.Contains("example.com"));
         }
         
         [Fact]
