@@ -72,5 +72,24 @@ namespace DomainDetective.Tests {
             await analysis.Analyze("example.com", new InternalLogger());
             Assert.Empty(analysis.Warnings);
         }
+
+        [Fact]
+        public async Task WarnsWhenAAndAaaaTtlsDiffer() {
+            var analysis = new DnsTtlAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (_, type) => {
+                    if (type == DnsRecordType.DS) {
+                        return Task.FromResult(Array.Empty<DnsAnswer>());
+                    }
+
+                    var ttl = type == DnsRecordType.A ? 300 : 3600;
+                    return Task.FromResult(new[] { new DnsAnswer { TTL = ttl, Type = type } });
+                }
+            };
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            Assert.Contains(analysis.Warnings, w => w.Contains("differ significantly"));
+        }
     }
 }
