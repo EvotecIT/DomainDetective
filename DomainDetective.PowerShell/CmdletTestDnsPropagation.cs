@@ -23,9 +23,8 @@ namespace DomainDetective.PowerShell {
         public DnsRecordType RecordType;
 
         /// <param name="ServersFile">Path to JSON file with DNS servers.</param>
-        [Parameter(Mandatory = true, Position = 2, ParameterSetName = "ServersFile")]
-        [ValidateNotNullOrEmpty]
-        public string ServersFile;
+        [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServersFile")]
+        public string? ServersFile;
 
         /// <param name="Country">Filter servers by country.</param>
         [Parameter(Mandatory = false)]
@@ -51,7 +50,11 @@ namespace DomainDetective.PowerShell {
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _analysis = new DnsPropagationAnalysis();
-            _analysis.LoadServers(ServersFile, clearExisting: true);
+            if (!string.IsNullOrWhiteSpace(ServersFile)) {
+                _analysis.LoadServers(ServersFile, clearExisting: true);
+            } else {
+                _analysis.LoadBuiltinServers();
+            }
             return Task.CompletedTask;
         }
 

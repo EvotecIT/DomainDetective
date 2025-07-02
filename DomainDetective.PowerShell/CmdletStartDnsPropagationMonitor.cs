@@ -30,7 +30,7 @@ namespace DomainDetective.PowerShell {
 
         /// <param name="ServersFile">Path to JSON file with DNS servers.</param>
         [Parameter(Mandatory = false, ParameterSetName = "File")]
-        public string ServersFile = "Data/DNS/PublicDNS.json";
+        public string? ServersFile;
 
         /// <param name="DnsServer">One or more custom DNS servers.</param>
         [Parameter(Mandatory = false, ParameterSetName = "Custom")]
@@ -60,7 +60,11 @@ namespace DomainDetective.PowerShell {
             _monitor.Interval = TimeSpan.FromSeconds(IntervalSeconds);
             _monitor.Country = Country;
             _monitor.Location = Location;
-            _monitor.LoadServers(ServersFile);
+            if (!string.IsNullOrWhiteSpace(ServersFile)) {
+                _monitor.LoadServers(ServersFile);
+            } else {
+                _monitor.LoadBuiltinServers();
+            }
             if (ParameterSetName == "Custom") {
                 foreach (var ip in DnsServer) {
                     if (System.Net.IPAddress.TryParse(ip, out var parsed)) {

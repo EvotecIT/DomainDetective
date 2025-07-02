@@ -7,9 +7,8 @@ namespace DomainDetective.Tests {
     public class TestDnsPropagation {
         [Fact]
         public void LoadServersAddsEntries() {
-            var file = "Data/DNS/PublicDNS.json";
             var analysis = new DnsPropagationAnalysis();
-            analysis.LoadServers(file, clearExisting: true);
+            analysis.LoadBuiltinServers();
             Assert.NotEmpty(analysis.Servers);
         }
 
