@@ -37,10 +37,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\Data\DNS\PublicDNS.json">
-            <Link>Data/DNS/PublicDNS.json</Link>
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
         <None Include="..\Data\public_suffix_list.dat">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

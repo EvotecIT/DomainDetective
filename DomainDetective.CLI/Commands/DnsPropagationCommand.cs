@@ -13,7 +13,7 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     public DnsRecordType RecordType { get; set; }
 
     [CommandOption("--servers-file")]
-    public FileInfo ServersFile { get; set; } = new FileInfo("Data/DNS/PublicDNS.json");
+    public FileInfo? ServersFile { get; set; }
 
     [CommandOption("--json")]
     public bool Json { get; set; }
@@ -25,7 +25,11 @@ internal sealed class DnsPropagationSettings : CommandSettings {
 internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSettings> {
     public override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings) {
         var analysis = new DnsPropagationAnalysis();
-        analysis.LoadServers(settings.ServersFile.FullName, clearExisting: true);
+        if (settings.ServersFile != null) {
+            analysis.LoadServers(settings.ServersFile.FullName, clearExisting: true);
+        } else {
+            analysis.LoadBuiltinServers();
+        }
         var servers = analysis.Servers;
         var domain = CliHelpers.ToAscii(settings.Domain);
         var results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);

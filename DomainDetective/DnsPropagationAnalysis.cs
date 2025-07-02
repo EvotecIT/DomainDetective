@@ -79,6 +79,51 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Loads DNS servers from the embedded resource.
+        /// </summary>
+        /// <param name="clearExisting">Whether to clear existing entries.</param>
+        public void LoadBuiltinServers(bool clearExisting = true) {
+            if (clearExisting) {
+                _servers.Clear();
+            }
+
+            using var stream = typeof(DnsPropagationAnalysis).Assembly.GetManifestResourceStream("DomainDetective.DNS.PublicDNS.json");
+            if (stream == null) {
+                return;
+            }
+
+            using var reader = new StreamReader(stream);
+            var json = reader.ReadToEnd();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            options.Converters.Add(new IPAddressJsonConverter());
+            var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
+            if (servers == null) {
+                return;
+            }
+
+            foreach (var entry in servers) {
+                var canonical = GetCanonicalIp(entry.IPAddress);
+                if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
+                    throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
+                }
+
+                var trimmed = new PublicDnsEntry {
+                    Country = entry.Country?.Trim(),
+                    IPAddress = entry.IPAddress,
+                    HostName = entry.HostName?.Trim(),
+                    Location = entry.Location?.Trim(),
+                    ASN = entry.ASN,
+                    ASNName = entry.ASNName?.Trim(),
+                    Enabled = entry.Enabled
+                };
+
+                if (_servers.All(s => !s.IPAddress.Equals(trimmed.IPAddress))) {
+                    _servers.Add(trimmed);
+                }
+            }
+        }
+
+        /// <summary>
         /// Adds the specified DNS server to the list of known servers if it is
         /// not already present.
         /// </summary>

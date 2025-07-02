@@ -56,6 +56,9 @@ namespace DomainDetective.Monitoring {
         /// <param name="filePath">Path to server list.</param>
         public void LoadServers(string filePath) => _analysis.LoadServers(filePath, clearExisting: true);
 
+        /// <summary>Loads DNS servers from the embedded list.</summary>
+        public void LoadBuiltinServers() => _analysis.LoadBuiltinServers();
+
         /// <summary>Runs a single propagation check.</summary>
         public async Task RunAsync(CancellationToken ct = default) {
             IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location);
