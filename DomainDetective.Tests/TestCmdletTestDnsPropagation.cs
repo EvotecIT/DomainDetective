@@ -24,7 +24,7 @@ public class TestCmdletTestDnsPropagation {
     [Fact]
     public void RunsWithServersFileParameterSet() {
         var file = Path.GetTempFileName();
-        File.WriteAllText(file, "[{\"IPAddress\":\"192.0.2.1\"}]");
+        File.WriteAllText(file, "[{\"IPAddress\":\"192.0.2.1\",\"Country\":\"US\",\"ASN\":\"AS0\"}]");
         using var ps = Pwsh.Create();
         ps.AddCommand("Import-Module").AddArgument(typeof(CmdletTestDnsPropagation).Assembly.Location).Invoke();
         ps.Commands.Clear();
