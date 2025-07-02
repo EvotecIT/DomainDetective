@@ -38,5 +38,29 @@ namespace DomainDetective.Tests {
 
             Assert.Contains("foo.examp1e.co.uk", hc.TyposquattingAnalysis.Variants);
         }
+
+        [Fact]
+        public async Task LevenshteinThresholdLimitsVariants() {
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                LevenshteinThreshold = 0
+            };
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            Assert.Empty(analysis.Variants);
+        }
+
+        [Fact]
+        public async Task DetectsHomoglyphCharacters() {
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                DetectHomoglyphs = true
+            };
+
+            await analysis.Analyze("ex\u0430mple.com", new InternalLogger());
+
+            Assert.True(analysis.ContainsHomoglyphs);
+        }
     }
 }
