@@ -57,17 +57,14 @@ namespace DomainDetective {
             }
 
             foreach (var entry in servers) {
-                var canonical = GetCanonicalIp(entry.IPAddress);
-                if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
-                    throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
-                }
+                ValidateEntry(entry);
 
                 var trimmed = new PublicDnsEntry {
-                    Country = entry.Country?.Trim(),
+                    Country = entry.Country.Trim(),
                     IPAddress = entry.IPAddress,
                     HostName = entry.HostName?.Trim(),
                     Location = entry.Location?.Trim(),
-                    ASN = entry.ASN,
+                    ASN = entry.ASN.Trim(),
                     ASNName = entry.ASNName?.Trim(),
                     Enabled = entry.Enabled
                 };
@@ -102,17 +99,14 @@ namespace DomainDetective {
             }
 
             foreach (var entry in servers) {
-                var canonical = GetCanonicalIp(entry.IPAddress);
-                if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
-                    throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
-                }
+                ValidateEntry(entry);
 
                 var trimmed = new PublicDnsEntry {
-                    Country = entry.Country?.Trim(),
+                    Country = entry.Country.Trim(),
                     IPAddress = entry.IPAddress,
                     HostName = entry.HostName?.Trim(),
                     Location = entry.Location?.Trim(),
-                    ASN = entry.ASN,
+                    ASN = entry.ASN.Trim(),
                     ASNName = entry.ASNName?.Trim(),
                     Enabled = entry.Enabled
                 };
@@ -228,6 +222,25 @@ namespace DomainDetective {
             return ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                 ? IPAddress.Parse(ipAddress.ToString()).ToString()
                 : ipAddress.ToString();
+        }
+
+        private static void ValidateEntry(PublicDnsEntry entry) {
+            if (entry.IPAddress == null) {
+                throw new FormatException("IPAddress is missing");
+            }
+
+            var canonical = GetCanonicalIp(entry.IPAddress);
+            if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
+                throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Country?.Trim())) {
+                throw new FormatException("Country is missing");
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.ASN?.Trim())) {
+                throw new FormatException("ASN is missing");
+            }
         }
 
         /// <summary>
