@@ -1,7 +1,9 @@
 using DnsClientX;
 using DomainDetective.Monitoring;
 using System;
+using System.IO;
 using System.Management.Automation;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -61,7 +63,10 @@ namespace DomainDetective.PowerShell {
             _monitor.Country = Country;
             _monitor.Location = Location;
             if (!string.IsNullOrWhiteSpace(ServersFile)) {
-                _monitor.LoadServers(ServersFile);
+                var path = Path.IsPathRooted(ServersFile)
+                    ? ServersFile
+                    : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, ServersFile);
+                _monitor.LoadServers(path);
             } else {
                 _monitor.LoadBuiltinServers();
             }
