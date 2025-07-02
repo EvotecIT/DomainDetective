@@ -30,7 +30,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "Custom")]
         public DnsRecordType RecordType;
 
-        /// <param name="ServersFile">Path to JSON file with DNS servers.</param>
+        /// <param name="ServersFile">Path to JSON file with DNS servers. If omitted the file
+        /// <c>Data/DNS/PublicDNS.json</c> in the module directory is used when present.</param>
         [Parameter(Mandatory = false, ParameterSetName = "File")]
         public string? ServersFile;
 
@@ -62,13 +63,21 @@ namespace DomainDetective.PowerShell {
             _monitor.Interval = TimeSpan.FromSeconds(IntervalSeconds);
             _monitor.Country = Country;
             _monitor.Location = Location;
+            var moduleBase = this.MyInvocation.MyCommand.Module?.ModuleBase
+                ?? Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
+                ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(ServersFile)) {
                 var path = Path.IsPathRooted(ServersFile)
                     ? ServersFile
-                    : Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty, ServersFile);
+                    : Path.Combine(moduleBase, ServersFile);
                 _monitor.LoadServers(path);
             } else {
-                _monitor.LoadBuiltinServers();
+                var defaultFile = Path.Combine(moduleBase, "Data", "DNS", "PublicDNS.json");
+                if (File.Exists(defaultFile)) {
+                    _monitor.LoadServers(defaultFile);
+                } else {
+                    _monitor.LoadBuiltinServers();
+                }
             }
             if (ParameterSetName == "Custom") {
                 foreach (var ip in DnsServer) {
