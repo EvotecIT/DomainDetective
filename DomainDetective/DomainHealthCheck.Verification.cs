@@ -1218,7 +1218,7 @@ namespace DomainDetective {
             if (!dkimValid) {
                 AddHint(hints, HealthCheckType.DKIM);
             }
-            if (!MXAnalysis.MxRecordExists) {
+            if (MXAnalysis is { MxRecordExists: false }) {
                 AddHint(hints, HealthCheckType.MX);
             }
             if (!(DnsSecAnalysis?.ChainValid ?? false)) {
@@ -1236,7 +1236,7 @@ namespace DomainDetective {
                 DmarcValid = dmarcValid,
                 HasDkimRecord = DKIMAnalysis.AnalysisResults.Values.Any(a => a.DkimRecordExists),
                 DkimValid = dkimValid,
-                HasMxRecord = MXAnalysis.MxRecordExists,
+                HasMxRecord = MXAnalysis?.MxRecordExists ?? false,
                 DnsSecValid = DnsSecAnalysis?.ChainValid ?? false,
                 IsPublicSuffix = IsPublicSuffix,
                 ExpiryDate = WhoisAnalysis.ExpiryDate,

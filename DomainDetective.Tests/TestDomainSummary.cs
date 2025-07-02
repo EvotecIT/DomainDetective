@@ -40,7 +40,21 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDMARC(dmarcRecord);
             await healthCheck.CheckDKIM(dkimRecord);
 
-            var summary = healthCheck.BuildSummary();
+            var dnsSecProp = typeof(DnsSecAnalysis).GetProperty(
+                "ChainValid",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+            )!;
+            dnsSecProp.SetValue(healthCheck.DnsSecAnalysis, true);
+
+            var summary = healthCheck
+                .FilterAnalyses(new[]
+                {
+                    HealthCheckType.SPF,
+                    HealthCheckType.DMARC,
+                    HealthCheckType.DKIM,
+                    HealthCheckType.DNSSEC
+                })
+                .BuildSummary();
 
             Assert.True(summary.SpfValid);
             Assert.True(summary.DmarcValid);
