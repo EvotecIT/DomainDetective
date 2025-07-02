@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DomainDetective;
 
@@ -36,7 +37,9 @@ namespace DomainDetective.PowerShell {
                     Canonicalization = result.Canonicalization,
                     ValidCanonicalization = result.ValidCanonicalization,
                     KeyType = result.KeyType,
-                    HashAlgorithm = result.HashAlgorithm
+                    HashAlgorithm = result.HashAlgorithm,
+                    CreationDate = result.CreationDate,
+                    OldKey = result.OldKey
                 };
             }
         }
@@ -131,6 +134,12 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Hash algorithm used by the key.</summary>
         public string HashAlgorithm { get; set; }
+
+        /// <summary>Date the record appears to have been created.</summary>
+        public DateTime? CreationDate { get; set; }
+
+        /// <summary>True when <see cref="CreationDate"/> is over 12 months old.</summary>
+        public bool OldKey { get; set; }
     }
 
     /// <summary>

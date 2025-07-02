@@ -1,3 +1,4 @@
+using System;
 using DnsClientX;
 
 namespace DomainDetective.Tests {
@@ -232,6 +233,19 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.AdspRecordExists);
             Assert.Equal("dkim=all", analysis.AdspRecord);
             Assert.Contains(warnings, w => w.FullMessage.Contains("obsolete"));
+        }
+
+        [Fact]
+        public async Task ParsesCreationDateAndDetectsOldKey() {
+            const string record =
+                "v=DKIM1; k=rsa; n=2000-01-01; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
+
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDKIM(record);
+
+            var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
+            Assert.Equal(new DateTime(2000, 1, 1), result.CreationDate!.Value.Date);
+            Assert.True(result.OldKey);
         }
     }
 }
