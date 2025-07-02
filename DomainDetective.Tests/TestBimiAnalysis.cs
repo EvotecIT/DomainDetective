@@ -12,22 +12,40 @@ namespace DomainDetective.Tests {
     public class TestBimiAnalysis {
         [Fact]
         public async Task ParseBimiRecord() {
-            var record = "v=BIMI1; l=https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg";
-            var answers = new List<DnsAnswer> {
-                new DnsAnswer {
-                    DataRaw = record,
-                    Type = DnsRecordType.TXT
-                }
-            };
-            var analysis = new BimiAnalysis();
-            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() =>
+                RunServer(
+                    listener,
+                    cert,
+                    _ => ("image/svg+xml", Encoding.UTF8.GetBytes("<svg width='64' height='64' viewBox='0 0 64 64'></svg>")),
+                    cts.Token),
+                cts.Token);
+            var prefix = $"https://localhost:{port}/";
 
-            Assert.True(analysis.BimiRecordExists);
-            Assert.True(analysis.StartsCorrectly);
-            Assert.Equal("https://upload.wikimedia.org/wikipedia/commons/a/a7/React-icon.svg", analysis.Location);
-            Assert.True(analysis.LocationUsesHttps);
-            Assert.True(analysis.SvgFetched);
-            Assert.True(analysis.SvgValid);
+            try {
+                var record = $"v=BIMI1; l={prefix}logo.svg";
+                var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
+                var analysis = new BimiAnalysis();
+                await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+                Assert.True(analysis.BimiRecordExists);
+                Assert.True(analysis.StartsCorrectly);
+                Assert.Equal($"{prefix}logo.svg", analysis.Location);
+                Assert.True(analysis.LocationUsesHttps);
+                Assert.True(analysis.SvgFetched);
+                Assert.True(analysis.SvgValid);
+                Assert.True(analysis.DimensionsValid);
+                Assert.True(analysis.ViewBoxValid);
+                Assert.True(analysis.SvgSizeValid);
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
         }
 
         [Fact]

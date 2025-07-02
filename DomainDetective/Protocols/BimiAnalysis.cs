@@ -238,23 +238,24 @@ namespace DomainDetective {
 
         private bool ValidateSvg(string svgContent, int byteSize, InternalLogger logger) {
             const int maxSize = 32 * 1024;
-            try {
-                SvgSizeValid = byteSize <= maxSize;
-                if (!SvgSizeValid) {
-                    logger?.WriteWarning("BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
-                }
+            SvgSizeValid = byteSize <= maxSize;
+            if (!SvgSizeValid) {
+                logger?.WriteWarning("BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
+            }
 
+            try {
                 var settings = new XmlReaderSettings {
                     DtdProcessing = DtdProcessing.Prohibit,
                     XmlResolver = null
                 };
                 using var reader = XmlReader.Create(new StringReader(svgContent), settings);
                 var doc = XDocument.Load(reader);
-                if (!doc.Root?.Name.LocalName.Equals("svg", StringComparison.OrdinalIgnoreCase) == true) {
+                var root = doc.Root;
+                var isSvg = root?.Name.LocalName.Equals("svg", StringComparison.OrdinalIgnoreCase) == true;
+                if (!isSvg) {
                     return false;
                 }
 
-                var root = doc.Root;
                 var widthStr = root.Attribute("width")?.Value;
                 var heightStr = root.Attribute("height")?.Value;
                 DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == 64 && h == 64;
@@ -268,7 +269,7 @@ namespace DomainDetective {
                     logger?.WriteWarning("BIMI SVG viewBox must be '0 0 64 64'");
                 }
 
-                return SvgSizeValid && DimensionsValid && ViewBoxValid;
+                return isSvg;
             } catch {
                 return false;
             }
