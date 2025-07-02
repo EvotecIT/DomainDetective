@@ -40,6 +40,15 @@ public class TyposquattingAnalysis
     /// <summary>Variants that resolve in DNS.</summary>
     public List<string> ActiveDomains { get; private set; } = new();
 
+    /// <summary>Maximum allowed Levenshtein distance when generating variants.</summary>
+    public int LevenshteinThreshold { get; set; } = 1;
+
+    /// <summary>Flag to detect homoglyph characters in input.</summary>
+    public bool DetectHomoglyphs { get; set; } = true;
+
+    /// <summary>Indicates whether input contains homoglyph characters.</summary>
+    public bool ContainsHomoglyphs { get; private set; }
+
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
         if (QueryDnsOverride != null)
@@ -92,7 +101,7 @@ public class TyposquattingAnalysis
         return (pre, lbl, sfx);
     }
 
-    private static IEnumerable<string> BuildVariants(string domainName, PublicSuffixList list)
+    private static IEnumerable<string> BuildVariants(string domainName, PublicSuffixList list, int threshold)
     {
         var (prefix, label, suffix) = SplitDomain(domainName, list);
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -103,7 +112,11 @@ public class TyposquattingAnalysis
             var v = label.Remove(i, 1);
             if (v.Length > 0)
             {
-                set.Add(prefix + v + suffix);
+                var candidate = prefix + v + suffix;
+                if (StringAlgorithms.LevenshteinDistance(domainName, candidate) <= threshold)
+                {
+                    set.Add(candidate);
+                }
             }
         }
 
@@ -111,7 +124,11 @@ public class TyposquattingAnalysis
         for (int i = 0; i < label.Length; i++)
         {
             var v = label.Insert(i, label[i].ToString());
-            set.Add(prefix + v + suffix);
+            var candidate = prefix + v + suffix;
+            if (StringAlgorithms.LevenshteinDistance(domainName, candidate) <= threshold)
+            {
+                set.Add(candidate);
+            }
         }
 
         // homoglyphs
@@ -122,7 +139,11 @@ public class TyposquattingAnalysis
                 foreach (var sub in subs)
                 {
                     var v = label.Substring(0, i) + sub + label.Substring(i + 1);
-                    set.Add(prefix + v + suffix);
+                    var candidate = prefix + v + suffix;
+                    if (StringAlgorithms.LevenshteinDistance(domainName, candidate) <= threshold)
+                    {
+                        set.Add(candidate);
+                    }
                 }
             }
         }
@@ -136,7 +157,13 @@ public class TyposquattingAnalysis
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
         var list = PublicSuffixList ?? new PublicSuffixList();
-        Variants = BuildVariants(domainName, list).ToList();
+        ContainsHomoglyphs = DetectHomoglyphs && StringAlgorithms.ContainsHomoglyphs(domainName);
+        if (ContainsHomoglyphs)
+        {
+            logger?.WriteWarning("Domain contains homoglyph characters: {0}", domainName);
+        }
+
+        Variants = BuildVariants(domainName, list, LevenshteinThreshold).ToList();
         ActiveDomains = new List<string>();
 
         foreach (var variant in Variants)

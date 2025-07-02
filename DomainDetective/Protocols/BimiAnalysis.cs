@@ -40,6 +40,12 @@ namespace DomainDetective {
         public bool SvgFetched { get; private set; }
         /// <summary>Gets a value indicating whether the downloaded SVG is valid.</summary>
         public bool SvgValid { get; private set; }
+        /// <summary>Gets a value indicating whether the SVG size is within limits.</summary>
+        public bool SvgSizeValid { get; private set; }
+        /// <summary>Gets a value indicating whether the SVG width and height are correct.</summary>
+        public bool DimensionsValid { get; private set; }
+        /// <summary>Gets a value indicating whether the SVG viewBox is valid.</summary>
+        public bool ViewBoxValid { get; private set; }
         /// <summary>Gets a value indicating whether the downloaded VMC is valid.</summary>
         public bool ValidVmc { get; private set; }
         /// <summary>Gets a value indicating whether the VMC certificate is signed by a trusted CA.</summary>
@@ -71,6 +77,9 @@ namespace DomainDetective {
             InvalidLocation = false;
             SvgFetched = false;
             SvgValid = false;
+            SvgSizeValid = false;
+            DimensionsValid = false;
+            ViewBoxValid = false;
             ValidVmc = false;
             VmcSignedByKnownRoot = false;
             VmcContainsLogo = false;
@@ -129,10 +138,10 @@ namespace DomainDetective {
                     logger?.WriteWarning("BIMI indicator location does not use HTTPS: {0}", Location);
                 }
 
-                var svg = await DownloadIndicator(Location, logger, cancellationToken);
+                var (svg, size) = await DownloadIndicator(Location, logger, cancellationToken);
                 if (svg != null) {
                     SvgFetched = true;
-                    SvgValid = ValidateSvg(svg);
+                    SvgValid = ValidateSvg(svg, size, logger);
                     logger?.WriteVerbose("Successfully downloaded BIMI indicator from {0}", Location);
                 } else {
                     logger?.WriteWarning("Failed to download BIMI indicator from {0}", Location);
@@ -148,7 +157,7 @@ namespace DomainDetective {
             }
         }
 
-        private async Task<string?> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
                 using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
 #if NET6_0_OR_GREATER
@@ -158,7 +167,7 @@ namespace DomainDetective {
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
-                    return null;
+                    return (null, 0);
                 }
 
                 var bytes = await response.Content.ReadAsByteArrayAsync();
@@ -166,16 +175,18 @@ namespace DomainDetective {
                     using var ms = new MemoryStream(bytes);
                     using var gz = new GZipStream(ms, CompressionMode.Decompress);
                     using var reader = new StreamReader(gz);
-                    return await reader.ReadToEndAsync();
+                    var text = await reader.ReadToEndAsync();
+                    return (text, System.Text.Encoding.UTF8.GetByteCount(text));
                 }
-                return System.Text.Encoding.UTF8.GetString(bytes);
+                var str = System.Text.Encoding.UTF8.GetString(bytes);
+                return (str, bytes.Length);
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
-                return null;
+                return (null, 0);
             } catch (Exception ex) {
                 logger?.WriteError("Error downloading BIMI indicator {0}: {1}", url, ex.Message);
-                return null;
+                return (null, 0);
             }
         }
 
@@ -225,7 +236,13 @@ namespace DomainDetective {
             }
         }
 
-        private static bool ValidateSvg(string svgContent) {
+        private bool ValidateSvg(string svgContent, int byteSize, InternalLogger logger) {
+            const int maxSize = 32 * 1024;
+            SvgSizeValid = byteSize <= maxSize;
+            if (!SvgSizeValid) {
+                logger?.WriteWarning("BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
+            }
+
             try {
                 var settings = new XmlReaderSettings {
                     DtdProcessing = DtdProcessing.Prohibit,
@@ -233,7 +250,26 @@ namespace DomainDetective {
                 };
                 using var reader = XmlReader.Create(new StringReader(svgContent), settings);
                 var doc = XDocument.Load(reader);
-                return doc.Root?.Name.LocalName.Equals("svg", StringComparison.OrdinalIgnoreCase) == true;
+                var root = doc.Root;
+                var isSvg = root?.Name.LocalName.Equals("svg", StringComparison.OrdinalIgnoreCase) == true;
+                if (!isSvg) {
+                    return false;
+                }
+
+                var widthStr = root.Attribute("width")?.Value;
+                var heightStr = root.Attribute("height")?.Value;
+                DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == 64 && h == 64;
+                if (!DimensionsValid) {
+                    logger?.WriteWarning("BIMI SVG width and height must be 64x64");
+                }
+
+                var viewBox = root.Attribute("viewBox")?.Value;
+                ViewBoxValid = viewBox == "0 0 64 64";
+                if (!ViewBoxValid) {
+                    logger?.WriteWarning("BIMI SVG viewBox must be '0 0 64 64'");
+                }
+
+                return isSvg;
             } catch {
                 return false;
             }

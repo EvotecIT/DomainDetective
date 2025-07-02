@@ -106,6 +106,10 @@ The `CertificateAnalysis` result now includes:
 - `PresentInCtLogs` when the certificate appears in public CT logs.
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 
+### Verifying SMTP TLS
+`SMTPTLSAnalysis` now stores the negotiated certificate and reports expiration
+details and chain validity for each server.
+
 ### HTTP Security Headers
 `HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
 `HttpAnalysis` also sets `HstsPreloaded` when the host is found in the bundled HSTS preload list.

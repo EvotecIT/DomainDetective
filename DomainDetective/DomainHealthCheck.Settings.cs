@@ -68,5 +68,11 @@ namespace DomainDetective {
         }
 
         private string? _cacheDirectory;
+      
+        /// <summary>Maximum Levenshtein distance used for typosquatting detection.</summary>
+        public int TyposquattingLevenshteinThreshold { get; set; } = 1;
+
+        /// <summary>Enable detection of homoglyph characters.</summary>
+        public bool EnableHomoglyphDetection { get; set; } = true;
     }
 }

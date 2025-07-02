@@ -115,8 +115,17 @@ namespace DomainDetective {
 
             healthCheckTypes = healthCheckTypes.Distinct().ToArray();
 
+            var totalChecks = healthCheckTypes.Length;
+            var processedChecks = 0;
+
             foreach (var healthCheckType in healthCheckTypes) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger.WriteProgress(
+                    "HealthCheck",
+                    healthCheckType.ToString(),
+                    processedChecks * 100d / totalChecks,
+                    processedChecks,
+                    totalChecks);
                 switch (healthCheckType) {
                     case HealthCheckType.DMARC:
                         var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
@@ -313,10 +322,19 @@ namespace DomainDetective {
                     case HealthCheckType.THREATINTEL:
                         await VerifyThreatIntel(domainName, cancellationToken);
                         break;
-                    default:
-                        _logger.WriteError("Unknown health check type: {0}", healthCheckType);
-                        throw new NotSupportedException("Health check type not implemented.");
+                default:
+                    _logger.WriteError("Unknown health check type: {0}", healthCheckType);
+                    throw new NotSupportedException("Health check type not implemented.");
                 }
+
+                processedChecks++;
+                _logger.WriteInformation("{0} check completed", healthCheckType);
+                _logger.WriteProgress(
+                    "HealthCheck",
+                    healthCheckType.ToString(),
+                    processedChecks * 100d / totalChecks,
+                    processedChecks,
+                    totalChecks);
             }
         }
 
@@ -587,6 +605,8 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
+            TyposquattingAnalysis.LevenshteinThreshold = TyposquattingLevenshteinThreshold;
+            TyposquattingAnalysis.DetectHomoglyphs = EnableHomoglyphDetection;
             await TyposquattingAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
 

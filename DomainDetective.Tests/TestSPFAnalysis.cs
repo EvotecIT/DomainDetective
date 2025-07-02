@@ -406,5 +406,30 @@ namespace DomainDetective.Tests {
 
             Assert.DoesNotContain("v=spf1", healthCheck.SpfAnalysis.UnknownMechanisms);
         }
+
+        [Fact]
+        public async Task GetFlattenedSpfResolvesIncludes() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.1 -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com -all");
+
+            var flattened = await healthCheck.SpfAnalysis.GetFlattenedSpf();
+
+            Assert.Equal("v=spf1 ip4:192.0.2.1 -all", flattened);
+        }
+
+        [Fact]
+        public async Task GetFlattenedSpfWarnsWhenTooLong() {
+            var record = "v=spf1 " + string.Join(" ", Enumerable.Range(0, 40).Select(i => $"ip4:192.0.2.{i}")) + " -all";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckSPF(record);
+
+            var flattened = await healthCheck.SpfAnalysis.GetFlattenedSpf();
+
+            Assert.Contains("Flattened SPF record exceeds", healthCheck.SpfAnalysis.Warnings.First());
+            Assert.Equal(record, flattened);
+        }
     }
 }
