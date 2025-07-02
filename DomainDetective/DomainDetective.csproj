@@ -17,7 +17,7 @@
   <ItemGroup>
       <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
     <EmbeddedResource Include="..\Data\dnsbl.json" />
-    <EmbeddedResource Include="..\Data\DNS\PublicDNS.json" />
+    <EmbeddedResource Include="..\Data\DNS\PublicDNS.json" LogicalName="DomainDetective.DNS.PublicDNS.json" />
   </ItemGroup>
 
   <ItemGroup>
