@@ -17,11 +17,5 @@
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="..\Data\DNS\PublicDNS.json">
-      <Link>Data/DNS/PublicDNS.json</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
 </Project>
