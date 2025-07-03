@@ -1,14 +1,13 @@
-namespace DomainDetective;
-
-/// <summary>
-/// Builder for querying DNS servers by country, location and count.
-/// </summary>
-public sealed class DnsServerQuery {
-    /// <summary>Selected country.</summary>
-    public CountryId? Country { get; private set; }
-    /// <summary>Selected location.</summary>
-    public LocationId? Location { get; private set; }
-    /// <summary>Number of servers to take.</summary>
+namespace DomainDetective {
+    /// <summary>
+    /// Builder for querying DNS servers by country, location and count.
+    /// </summary>
+    public sealed class DnsServerQuery {
+        /// <summary>Selected country.</summary>
+        public CountryId? Country { get; private set; }
+        /// <summary>Selected location.</summary>
+        public LocationId? Location { get; private set; }
+        /// <summary>Number of servers to take.</summary>
     public int? TakeCount { get; private set; }
 
     /// <summary>Creates a new query instance.</summary>
@@ -46,5 +45,6 @@ public sealed class DnsServerQuery {
     public DnsServerQuery Take(int count) {
         TakeCount = count > 0 ? count : null;
         return this;
+    }
     }
 }
