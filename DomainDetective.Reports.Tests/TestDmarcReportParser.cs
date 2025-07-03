@@ -1,9 +1,9 @@
 using System.IO;
-using DomainDetective.Reports;
 using System.IO.Compression;
 using System.Linq;
+using DomainDetective.Reports;
 
-namespace DomainDetective.Tests;
+namespace DomainDetective.Reports.Tests;
 
 public class TestDmarcReportParser {
     private static byte[] CreateZip(string xml) {
