@@ -237,6 +237,19 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task AdspRecordWithEmptyDataIgnored() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = string.Empty, Type = DnsRecordType.TXT }
+            };
+
+            var analysis = new DkimAnalysis();
+            await analysis.AnalyzeAdspRecord(answers, new InternalLogger());
+
+            Assert.True(analysis.AdspRecordExists);
+            Assert.Null(analysis.AdspRecord);
+        }
+
+        [Fact]
         public async Task ParsesCreationDateAndDetectsOldKey() {
             const string record =
                 "v=DKIM1; k=rsa; n=2000-01-01; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
