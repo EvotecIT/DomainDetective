@@ -337,6 +337,54 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task HstsHeaderFromPreloadSiteIsEligible() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.HstsPreloadEligible);
+                Assert.False(analysis.HstsTooShort);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task HstsHeaderFiveMinutesNotEligibleForPreload() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                ctx.Response.Headers.Add("Strict-Transport-Security", "max-age=300; includeSubDomains");
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.False(analysis.HstsPreloadEligible);
+                Assert.True(analysis.HstsTooShort);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task DetectsUnsafeContentSecurityPolicyDirectives() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";

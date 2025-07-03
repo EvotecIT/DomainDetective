@@ -31,6 +31,8 @@ namespace DomainDetective {
         public List<string> UnknownHstsDirectives { get; private set; } = new();
         /// <summary>Gets a value indicating whether the host is on the HSTS preload list.</summary>
         public bool HstsPreloaded { get; private set; }
+        /// <summary>Gets a value indicating whether the HSTS header meets preload list requirements.</summary>
+        public bool HstsPreloadEligible { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
         public bool XssProtectionPresent { get; private set; }
         /// <summary>Gets a value indicating whether the Expect-CT header was present.</summary>
@@ -176,6 +178,7 @@ namespace DomainDetective {
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
             HstsPreloaded = false;
+            HstsPreloadEligible = false;
             UnknownHstsDirectives = new List<string>();
             PermissionsPolicyPresent = false;
             PermissionsPolicy.Clear();
@@ -385,6 +388,7 @@ namespace DomainDetective {
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
+            HstsPreloadEligible = HstsIncludesSubDomains && HstsMaxAge.HasValue && HstsMaxAge.Value >= 31536000;
         }
 
         private void ParseContentSecurityPolicy(string headerValue) {
