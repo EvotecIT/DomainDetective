@@ -100,14 +100,18 @@ namespace DomainDetective.Tests {
             listener.Start();
             var expires = DateTime.UtcNow.AddDays(-1).ToString("yyyy-MM-ddTHH:mm:ssZ");
             var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
-            var serverTask = Task.Run(async () => {
-                var ctx = await listener.GetContextAsync();
-                ctx.Response.StatusCode = 200;
-                ctx.Response.ContentType = "text/plain";
-                var buffer = Encoding.UTF8.GetBytes(content);
-                await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-                ctx.Response.Close();
-            });
+              var serverTask = Task.Run(async () => {
+                  try {
+                      var ctx = await listener.GetContextAsync();
+                      ctx.Response.StatusCode = 200;
+                      ctx.Response.ContentType = "text/plain";
+                      var buffer = Encoding.UTF8.GetBytes(content);
+                      await ctx.Response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+                      ctx.Response.Close();
+                  } catch (ObjectDisposedException) {
+                      // HttpListener was stopped before GetContextAsync completed
+                  }
+              });
 
             try {
                 var healthCheck = new DomainHealthCheck();
