@@ -218,7 +218,16 @@ namespace DomainDetective {
                 return;
             }
 
-            AdspRecord = string.Join(" ", records.Select(r => r.Data));
+            var chunks = records
+                .Select(r => r.Data)
+                .Where(d => !string.IsNullOrEmpty(d))
+                .ToList();
+
+            if (!chunks.Any()) {
+                return;
+            }
+
+            AdspRecord = string.Join(" ", chunks);
             logger?.WriteWarning("ADSP record found but ADSP is obsolete.");
         }
 
