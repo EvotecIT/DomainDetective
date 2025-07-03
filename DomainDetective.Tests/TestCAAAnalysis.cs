@@ -208,7 +208,7 @@ namespace DomainDetective.Tests {
         public async Task CriticalBitIsDetected() {
             var healthCheck = new DomainHealthCheck();
 
-            await healthCheck.CheckCAA("129 issue \"letsencrypt.org\"");
+            await healthCheck.CheckCAA("128 issue \"letsencrypt.org\"");
 
             Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].Critical);
         }
@@ -220,9 +220,22 @@ namespace DomainDetective.Tests {
             logger.OnWarningMessage += (_, e) => warnings.Add(e);
             var healthCheck = new DomainHealthCheck(internalLogger: logger);
 
-            await healthCheck.CheckCAA("129 foo \"bar\"");
+            await healthCheck.CheckCAA("128 foo \"bar\"");
 
             Assert.Contains(warnings, w => w.FullMessage.Contains("Unknown CAA property tag"));
+        }
+
+        [Fact]
+        public async Task ReservedFlagBitsTriggerWarning() {
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+
+            await healthCheck.CheckCAA("129 issue \"letsencrypt.org\"");
+
+            Assert.True(healthCheck.CAAAnalysis.AnalysisResults[0].InvalidFlag);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("reserved flag bits"));
         }
     }
 }
