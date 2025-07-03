@@ -298,6 +298,56 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public async Task CachedPolicyRespectsMaxAge() {
+            MTASTSAnalysis.ClearCache();
+            using var listener = new HttpListener();
+            var port = GetFreePort();
+            var prefix = $"http://localhost:{port}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+
+            const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 1";
+            int hitCount = 0;
+            var serverTask = Task.Run(async () => {
+                while (listener.IsListening) {
+                    var ctx = await listener.GetContextAsync();
+                    if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                        hitCount++;
+                        var data = Encoding.UTF8.GetBytes(policy);
+                        ctx.Response.StatusCode = 200;
+                        await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
+                    } else {
+                        ctx.Response.StatusCode = 404;
+                    }
+                    ctx.Response.Close();
+                }
+            });
+
+            try {
+                var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+                var analysis = new MTASTSAnalysis {
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                    DnsConfiguration = new DnsConfiguration(),
+                    CacheDuration = TimeSpan.FromSeconds(10)
+                };
+
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+                Assert.Equal(1, hitCount);
+
+                await Task.Delay(1100);
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+
+                Assert.Equal(2, hitCount);
+            } finally {
+                listener.Stop();
+                await Task.Delay(50);
+            }
+        }
+
         private static int GetFreePort() {
             var l = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
             l.Start();

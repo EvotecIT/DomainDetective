@@ -15,7 +15,10 @@ public class MTASTSAnalysis {
     private record CacheEntry(string PolicyId, string Policy, DateTimeOffset Expires);
     private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Duration a cached policy remains valid.</summary>
+    /// <summary>
+    /// Upper limit for how long a fetched policy is cached. The actual
+    /// expiration is the lesser of this value and the policy's <c>max_age</c>.
+    /// </summary>
     public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(1);
 
     /// <summary>Removes all cached policies.</summary>
@@ -199,7 +202,14 @@ public class MTASTSAnalysis {
             Policy = content;
             ParsePolicy(content);
             PolicyValid = PolicyValid && DnsRecordValid;
-            var cacheEntry = new CacheEntry(PolicyId, content, DateTimeOffset.UtcNow.Add(CacheDuration));
+            var expiration = DateTimeOffset.UtcNow.Add(CacheDuration);
+            if (ValidMaxAge && MaxAge > 0) {
+                var maxAgeExpiration = DateTimeOffset.UtcNow.Add(TimeSpan.FromSeconds(MaxAge));
+                if (maxAgeExpiration < expiration) {
+                    expiration = maxAgeExpiration;
+                }
+            }
+            var cacheEntry = new CacheEntry(PolicyId, content, expiration);
             _cache[key] = cacheEntry;
         }
 
