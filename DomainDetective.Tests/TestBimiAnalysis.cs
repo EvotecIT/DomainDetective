@@ -318,11 +318,34 @@ namespace DomainDetective.Tests {
                     Type = DnsRecordType.TXT
                 }
             };
-            var analysis = new BimiAnalysis { HttpHandlerFactory = () => mock };
+
+            var analysis = new BimiAnalysis {
+                HttpHandlerFactory = () => new RedirectMockHandler(mock)
+            };
             await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
             Assert.True(analysis.SvgFetched);
             Assert.True(analysis.SvgValid);
+        }
+
+        private sealed class RedirectMockHandler : DelegatingHandler {
+            public RedirectMockHandler(HttpMessageHandler inner)
+                : base(inner) { }
+
+            protected override async Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                var response = await base.SendAsync(request, cancellationToken);
+                if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400
+                    && response.Headers.Location != null) {
+                    var follow = new HttpRequestMessage(request.Method, response.Headers.Location);
+                    foreach (var header in request.Headers) {
+                        follow.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                    response = await base.SendAsync(follow, cancellationToken);
+                }
+                return response;
+            }
         }
 
         private static X509Certificate2 CreateSelfSigned() {
