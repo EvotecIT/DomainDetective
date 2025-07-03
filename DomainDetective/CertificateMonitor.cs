@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Timer = System.Threading.Timer;
@@ -33,6 +34,29 @@ namespace DomainDetective {
         private int _monitorPort;
         private InternalLogger? _monitorLogger;
 
+        /// <summary>Directory used to cache certificate data.</summary>
+        public string CacheDirectory { get; set; } =
+            Path.Combine(Path.GetTempPath(), "DomainDetective", "cert-monitor");
+
+        /// <summary>Duration cached files are kept.</summary>
+        public TimeSpan CacheRetention { get; set; } = TimeSpan.FromDays(7);
+
+        private void CleanExpiredCacheEntries() {
+            try {
+                if (!Directory.Exists(CacheDirectory)) {
+                    return;
+                }
+
+                foreach (var file in Directory.GetFiles(CacheDirectory)) {
+                    if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > CacheRetention) {
+                        File.Delete(file);
+                    }
+                }
+            } catch {
+                // ignore errors from cleanup
+            }
+        }
+
         /// <summary>Indicates whether monitoring is active.</summary>
         public bool IsRunning => _timer != null;
 
@@ -49,6 +73,7 @@ namespace DomainDetective {
         /// <param name="logger">Optional logger instance.</param>
         public void Start(IEnumerable<string> hosts, TimeSpan interval, int port = 443, InternalLogger? logger = null) {
             Stop();
+            CleanExpiredCacheEntries();
             _monitorHosts = hosts.ToList();
             _monitorPort = port;
             _monitorLogger = logger;
