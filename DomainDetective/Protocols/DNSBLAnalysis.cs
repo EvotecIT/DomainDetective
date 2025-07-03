@@ -356,6 +356,7 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
+            dnsbl = dnsbl.ToLowerInvariant();
             var entry = DnsblEntries.FirstOrDefault(e =>
                 StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl));
             if (entry == null) {
@@ -386,6 +387,10 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="dnsbl">Blacklist host name.</param>
         public void RemoveDNSBL(string dnsbl) {
+            if (string.IsNullOrWhiteSpace(dnsbl))
+                return;
+
+            dnsbl = dnsbl.ToLowerInvariant();
             var entry = DnsblEntries.FirstOrDefault(e =>
                 string.Equals(e.Domain, dnsbl, StringComparison.OrdinalIgnoreCase));
             if (entry != null) {
