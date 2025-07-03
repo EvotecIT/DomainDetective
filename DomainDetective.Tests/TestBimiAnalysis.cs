@@ -7,6 +7,8 @@ using System.Text;
 using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Http;
+using RichardSzalay.MockHttp;
 
 namespace DomainDetective.Tests {
     public class TestBimiAnalysis {
@@ -297,6 +299,30 @@ namespace DomainDetective.Tests {
                 listener.Stop();
                 await serverTask;
             }
+        }
+
+        [Fact]
+        public async Task RedirectIsFollowedWhenDownloadingSvg() {
+            var mock = new MockHttpMessageHandler();
+            mock.When("https://example.com/logo.svg").Respond(_ => {
+                var resp = new HttpResponseMessage(HttpStatusCode.Moved);
+                resp.Headers.Location = new Uri("https://example.com/logo2.svg");
+                return resp;
+            });
+            mock.When("https://example.com/logo2.svg")
+                .Respond("image/svg+xml", "<svg width='64' height='64' viewBox='0 0 64 64'></svg>");
+
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=BIMI1; l=https://example.com/logo.svg",
+                    Type = DnsRecordType.TXT
+                }
+            };
+            var analysis = new BimiAnalysis { HttpHandlerFactory = () => mock };
+            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.SvgFetched);
+            Assert.True(analysis.SvgValid);
         }
 
         private static X509Certificate2 CreateSelfSigned() {

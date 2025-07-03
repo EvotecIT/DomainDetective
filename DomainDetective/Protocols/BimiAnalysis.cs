@@ -57,6 +57,9 @@ namespace DomainDetective {
         /// <summary>If an HTTP request fails, explains why.</summary>
         public string? FailureReason { get; private set; }
 
+        /// <summary>Factory for creating custom HTTP handlers.</summary>
+        internal Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
+
         /// <summary>
         /// Processes BIMI DNS records and populates analysis properties.
         /// </summary>
@@ -159,11 +162,8 @@ namespace DomainDetective {
 
         private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-#if NET6_0_OR_GREATER
-                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-#endif
-                using var client = new HttpClient(handler);
+                var (handler, dispose) = GetHandler();
+                using var client = new HttpClient(handler, dispose);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
@@ -192,11 +192,8 @@ namespace DomainDetective {
 
         private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-#if NET6_0_OR_GREATER
-                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-#endif
-                using var client = new HttpClient(handler);
+                var (handler, dispose) = GetHandler();
+                using var client = new HttpClient(handler, dispose);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
                 using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
@@ -305,6 +302,17 @@ namespace DomainDetective {
             } catch (FormatException ex) {
                 throw new FormatException("Invalid PEM data", ex);
             }
+        }
+
+        private (HttpMessageHandler handler, bool dispose) GetHandler() {
+            if (HttpHandlerFactory != null) {
+                return (HttpHandlerFactory(), false);
+            }
+            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+#if NET6_0_OR_GREATER
+            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+#endif
+            return (handler, true);
         }
     }
 }
