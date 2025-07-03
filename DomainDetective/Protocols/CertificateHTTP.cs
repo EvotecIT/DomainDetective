@@ -16,6 +16,7 @@ using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Ocsp;
 using Org.BouncyCastle.X509;
+using DnsClientX;
 
 namespace DomainDetective {
     /// <summary>
@@ -102,6 +103,28 @@ namespace DomainDetective {
 
         /// <summary>CT log API templates. Each entry should contain a {0} placeholder for the SHA-256 fingerprint.</summary>
         public List<string> CtLogApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
+
+        internal static IEnumerable<string> ExtractMxHosts(IEnumerable<DnsAnswer> records)
+        {
+            foreach (DnsAnswer record in records)
+            {
+                string data = record.Data ?? record.DataRaw;
+                if (string.IsNullOrWhiteSpace(data))
+                {
+                    continue;
+                }
+
+                string[] parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2)
+                {
+                    string host = parts[1].Trim('.');
+                    if (!string.IsNullOrWhiteSpace(host))
+                    {
+                        yield return host;
+                    }
+                }
+            }
+        }
 
         /// <summary>
         /// Retrieves the certificate from the specified HTTPS endpoint.

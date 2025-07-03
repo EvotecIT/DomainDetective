@@ -8,6 +8,9 @@ using System.Net.Security;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Collections.Generic;
+using System.Linq;
+using DnsClientX;
 
 namespace DomainDetective.Tests {
     public class TestCertificateHTTP {
@@ -139,6 +142,20 @@ namespace DomainDetective.Tests {
             }
         }
 #endif
+
+        [Fact]
+        public void ExtractMxHostsSkipsInvalid() {
+            List<DnsAnswer> records = new () {
+                new DnsAnswer { DataRaw = "10 mx1.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "20 ", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "30", Type = DnsRecordType.MX }
+            };
+
+            List<string> hosts = CertificateAnalysis.ExtractMxHosts(records).ToList();
+
+            Assert.Single(hosts);
+            Assert.Equal("mx1.example.com", hosts[0]);
+        }
 
         private static async Task RunServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token) {
             try {
