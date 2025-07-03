@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -241,13 +242,7 @@ namespace DomainDetective {
         }
 
         private static string GetCanonicalIp(IPAddress ipAddress) {
-            var text = ipAddress.ToString();
-            var percent = text.IndexOf('%');
-            if (percent > 0) {
-                text = text.Substring(0, percent);
-            }
-
-            return IPAddress.Parse(text).ToString();
+            return IPAddress.Parse(ipAddress.ToString()).ToString();
         }
 
         internal static bool TryParseIPAddress(string value, out IPAddress address) {
@@ -256,12 +251,34 @@ namespace DomainDetective {
             }
 
             var percent = value.IndexOf('%');
-            if (percent > 0) {
-                return IPAddress.TryParse(value.Substring(0, percent), out address);
+            if (percent <= 0) {
+                address = null!;
+                return false;
             }
 
-            address = null!;
-            return false;
+            var ipPart = value.Substring(0, percent);
+            var zonePart = value.Substring(percent + 1);
+
+            if (!IPAddress.TryParse(ipPart, out var ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetworkV6) {
+                address = null!;
+                return false;
+            }
+
+            if (uint.TryParse(zonePart, out var index)) {
+                address = new IPAddress(ip.GetAddressBytes(), index);
+                return true;
+            }
+
+            var nic = NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(n => string.Equals(n.Name, zonePart, StringComparison.OrdinalIgnoreCase));
+            if (nic?.GetIPProperties()?.GetIPv6Properties() is not null) {
+                var scope = (uint)nic.GetIPProperties().GetIPv6Properties().Index;
+                address = new IPAddress(ip.GetAddressBytes(), scope);
+                return true;
+            }
+
+            address = ip;
+            return true;
         }
 
         /// <summary>
@@ -327,11 +344,7 @@ namespace DomainDetective {
                 var normalizedRecords = res.Records
                     .Select(r =>
                         TryParseIPAddress(r, out var ip)
-                            ? ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                                ? IPAddress.Parse(r.IndexOf('%') > 0 ? r.Substring(0, r.IndexOf('%')) : r)
-                                    .ToString()
-                                    .ToLowerInvariant()
-                                : ip.ToString()
+                            ? IPAddress.Parse(ip.ToString()).ToString().ToLowerInvariant()
                             : r.ToLowerInvariant())
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
