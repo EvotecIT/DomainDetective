@@ -94,8 +94,13 @@ namespace DomainDetective {
             }
         }
 
+        private static readonly Regex FoldingWhitespace = new("\r?\n[ \t]+", RegexOptions.Compiled);
+        private static readonly Regex LinearWhitespace = new("[ \t]+", RegexOptions.Compiled);
+
         private static string CanonicalizeValue(string value) {
-            return Regex.Replace(value, "[ \t]+", " ").Trim();
+            var noFold = FoldingWhitespace.Replace(value, " ");
+            var collapsed = LinearWhitespace.Replace(noFold, " ");
+            return collapsed.Trim();
         }
 
         private void AddHeaderValue(string field, string value) {
