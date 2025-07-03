@@ -46,11 +46,15 @@ namespace DomainDetective.Monitoring {
 
         /// <summary>Starts the monitor.</summary>
         public void Start() {
+            Stop();
             _timer = new Timer(async _ => await RunAsync(), null, TimeSpan.Zero, Interval);
         }
 
         /// <summary>Stops the monitor.</summary>
-        public void Stop() => _timer?.Dispose();
+        public void Stop() {
+            _timer?.Dispose();
+            _timer = null;
+        }
 
         /// <summary>Loads DNS servers from JSON file.</summary>
         /// <param name="filePath">Path to server list. If null or empty the builtin list is loaded.</param>
