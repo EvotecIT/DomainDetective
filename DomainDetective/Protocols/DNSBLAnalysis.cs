@@ -277,12 +277,16 @@ namespace DomainDetective {
             return reply.StartsWith("127.") ? (true, "Listed") : (true, string.Empty);
         }
 
+        private static string FormatDnsblName(IPAddress ipAddress) {
+            return ipAddress.ToPtrFormat();
+        }
+
         private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
 
             // Check if the input is an IP address or a hostname
             string name;
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
-                name = ipAddress.ToPtrFormat();
+                name = FormatDnsblName(ipAddress);
             } else {
                 // Use the hostname and append the DNSBL list
                 name = ipAddressOrHostname;
