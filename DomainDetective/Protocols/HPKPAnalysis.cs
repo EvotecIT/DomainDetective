@@ -23,6 +23,13 @@ namespace DomainDetective {
         public string? Header { get; private set; }
 
         /// <summary>
+        /// Gets or sets a value indicating that the certificate is self-signed.
+        /// When true a single pin is considered sufficient and will not cause
+        /// <see cref="PinsValid"/> to be false.
+        /// </summary>
+        public bool SelfSignedCertificate { get; set; }
+
+        /// <summary>
         /// Performs an HTTP request to retrieve the Public-Key-Pins header and
         /// verifies that any advertised pins are valid base64-encoded SHA-256
         /// hashes.
@@ -73,7 +80,7 @@ namespace DomainDetective {
                         IncludesSubDomains = true;
                     }
                 }
-                PinsValid = valid && Pins.Count >= 2;
+                PinsValid = valid && (SelfSignedCertificate ? Pins.Count >= 1 : Pins.Count >= 2);
             } catch (Exception ex) {
                 logger?.WriteError("HPKP check failed for {0}: {1}", url, ex.Message);
             }
