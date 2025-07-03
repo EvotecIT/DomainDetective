@@ -211,13 +211,15 @@ namespace DomainDetective {
         /// <param name="location">Location filter.</param>
         /// <param name="take">If specified, randomly selects this many servers.</param>
         /// <returns>The filtered server list.</returns>
-        public IEnumerable<PublicDnsEntry> FilterServers(string country = null, string location = null, int? take = null) {
+        public IEnumerable<PublicDnsEntry> FilterServers(CountryId? country = null, LocationId? location = null, int? take = null) {
             IEnumerable<PublicDnsEntry> query = _servers.Where(s => s.Enabled);
-            if (!string.IsNullOrWhiteSpace(country)) {
-                query = query.Where(s => string.Equals(s.Country, country, StringComparison.OrdinalIgnoreCase));
+            if (country.HasValue) {
+                var name = country.Value.ToName();
+                query = query.Where(s => string.Equals(s.Country, name, StringComparison.OrdinalIgnoreCase));
             }
-            if (!string.IsNullOrWhiteSpace(location)) {
-                query = query.Where(s => s.Location != null && s.Location.IndexOf(location, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (location.HasValue) {
+                var name = location.Value.ToName();
+                query = query.Where(s => s.Location != null && s.Location.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
             }
             if (take.HasValue) {
                 query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);

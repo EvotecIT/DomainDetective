@@ -35,14 +35,14 @@ public class TestDnsPropagationMonitor {
     [Fact]
     public async Task HonorsCountryFilterAndCustomServers() {
         var passed = new List<PublicDnsEntry>();
-        var json = "[ { \"Country\": \"US\", \"IPAddress\": \"1.1.1.1\", \"Enabled\": true }, { \"Country\": \"DE\", \"IPAddress\": \"2.2.2.2\", \"Enabled\": true } ]";
+        var json = "[ { \"Country\": \"United States\", \"IPAddress\": \"1.1.1.1\", \"Enabled\": true }, { \"Country\": \"Germany\", \"IPAddress\": \"2.2.2.2\", \"Enabled\": true } ]";
         var file = System.IO.Path.GetTempFileName();
         try {
             System.IO.File.WriteAllText(file, json);
             var monitor = new DnsPropagationMonitor {
                 Domain = "example.com",
                 RecordType = DnsClientX.DnsRecordType.A,
-                Country = "US",
+                Country = CountryId.UnitedStates,
                 QueryOverride = (servers, _) => { passed.AddRange(servers); return Task.FromResult(new List<DnsPropagationResult>()); }
             };
             monitor.LoadServers(file);

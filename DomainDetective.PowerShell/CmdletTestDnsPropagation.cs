@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using DomainDetective;
 using System.Collections.Generic;
 using System.IO;
 using System.Management.Automation;
@@ -35,11 +36,11 @@ namespace DomainDetective.PowerShell {
 
         /// <param name="Country">Filter servers by country.</param>
         [Parameter(Mandatory = false)]
-        public string Country;
+        public CountryId? Country;
 
         /// <param name="Location">Filter servers by location.</param>
         [Parameter(Mandatory = false)]
-        public string Location;
+        public LocationId? Location;
 
         /// <param name="Take">Limit the number of servers queried.</param>
         [Parameter(Mandatory = false)]

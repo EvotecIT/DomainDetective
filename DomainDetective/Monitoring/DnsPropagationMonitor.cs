@@ -25,10 +25,10 @@ namespace DomainDetective.Monitoring {
         public Func<IEnumerable<PublicDnsEntry>, CancellationToken, Task<List<DnsPropagationResult>>>? QueryOverride { private get; set; }
 
         /// <summary>Country filter for builtin servers.</summary>
-        public string? Country { get; set; }
+        public CountryId? Country { get; set; }
 
         /// <summary>Location filter for builtin servers.</summary>
-        public string? Location { get; set; }
+        public LocationId? Location { get; set; }
 
         /// <summary>Additional user supplied servers.</summary>
         public List<PublicDnsEntry> CustomServers { get; } = new();
