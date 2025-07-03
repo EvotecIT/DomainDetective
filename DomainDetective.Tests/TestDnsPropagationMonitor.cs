@@ -56,4 +56,20 @@ public class TestDnsPropagationMonitor {
             System.IO.File.Delete(file);
         }
     }
+
+    [Fact]
+    public void CanStartAndStopMultipleTimes() {
+        var monitor = new DnsPropagationMonitor {
+            Domain = "example.com",
+            RecordType = DnsClientX.DnsRecordType.A,
+            QueryOverride = (_, _) => Task.FromResult(new List<DnsPropagationResult>())
+        };
+        var timerField = typeof(DnsPropagationMonitor).GetField("_timer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        for (int i = 0; i < 3; i++) {
+            monitor.Start();
+            Assert.NotNull(timerField.GetValue(monitor));
+            monitor.Stop();
+            Assert.Null(timerField.GetValue(monitor));
+        }
+    }
 }
