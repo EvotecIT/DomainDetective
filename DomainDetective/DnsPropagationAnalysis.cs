@@ -227,6 +227,19 @@ namespace DomainDetective {
             return query.ToList();
         }
 
+        /// <summary>
+        /// Filters servers using a <see cref="DnsServerQuery"/> builder.
+        /// </summary>
+        /// <param name="query">Query builder specifying filters.</param>
+        /// <returns>The filtered server list.</returns>
+        public IEnumerable<PublicDnsEntry> FilterServers(DnsServerQuery? query) {
+            if (query == null) {
+                return FilterServers();
+            }
+
+            return FilterServers(query.Country, query.Location, query.TakeCount);
+        }
+
         private static string GetCanonicalIp(IPAddress ipAddress) {
             return ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                 ? IPAddress.Parse(ipAddress.ToString()).ToString()
