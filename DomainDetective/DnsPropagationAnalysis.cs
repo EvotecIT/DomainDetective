@@ -54,7 +54,7 @@ namespace DomainDetective {
             var servers = JsonSerializer.DeserializeAsync<List<PublicDnsEntry>>(stream, options)
                 .GetAwaiter().GetResult();
             if (servers == null) {
-                return;
+                throw new InvalidDataException("DNS server list is empty or invalid.");
             }
 
             foreach (var entry in servers) {
