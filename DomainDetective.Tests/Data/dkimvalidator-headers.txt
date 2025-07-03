@@ -1,0 +1,19 @@
+Delivered-To: someuser@dkimvalidator.com
+Return-Path: <sender@example.com>
+Received: from mail.example.com (mail.example.com. [192.0.2.1])
+        by mx.google.com with ESMTPS id q1si1234567qke.12.2024.11.09.12.34.56
+        for <someuser@dkimvalidator.com>
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Wed, 09 Nov 2024 12:34:56 -0800 (PST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
+        d=example.com; s=selector1; t=1615567890;
+        h=from:to:subject:date:message-id:mime-version:content-type;
+        bh=abc123; b=def456
+Authentication-Results: dkimvalidator.com;
+        dkim=pass (1024-bit key) header.d=example.com header.i=@example.com header.b=def456;
+        spf=pass smtp.mailfrom=sender@example.com;
+        dmarc=pass header.from=example.com
+From: sender@example.com
+To: someuser@dkimvalidator.com
+Subject: DKIMValidator Test
+Date: Wed, 9 Nov 2024 12:34:56 -0800

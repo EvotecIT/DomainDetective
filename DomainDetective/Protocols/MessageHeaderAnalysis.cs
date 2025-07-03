@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace DomainDetective {
     /// <summary>
@@ -93,15 +94,25 @@ namespace DomainDetective {
             }
         }
 
+        private static readonly Regex FoldingWhitespace = new("\r?\n[ \t]+", RegexOptions.Compiled);
+        private static readonly Regex LinearWhitespace = new("[ \t]+", RegexOptions.Compiled);
+
+        private static string CanonicalizeValue(string value) {
+            var noFold = FoldingWhitespace.Replace(value, " ");
+            var collapsed = LinearWhitespace.Replace(noFold, " ");
+            return collapsed.Trim();
+        }
+
         private void AddHeaderValue(string field, string value) {
+            var normalized = CanonicalizeValue(value);
             if (Headers.TryGetValue(field, out var existing)) {
                 if (!DuplicateHeaders.TryGetValue(field, out var list)) {
                     list = new List<string> { existing };
                     DuplicateHeaders[field] = list;
                 }
-                list.Add(value);
+                list.Add(normalized);
             }
-            Headers[field] = value;
+            Headers[field] = normalized;
 
             var lower = field.ToLowerInvariant();
             switch (lower) {
