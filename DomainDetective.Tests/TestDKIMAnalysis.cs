@@ -196,15 +196,16 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
-        public async Task WeakKeyFlagSetFor1024BitKey() {
-            const string record = "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCqrIpQkyykYEQbNzvHfgGsiYfoyX3b3Z6CPMHa5aNn/Bd8skLaqwK9vj2fHn70DA+X67L/pV2U5VYDzb5AUfQeD6NPDwZ7zLRc0XtX+5jyHWhHueSQT8uo6acMA+9JrVHdRfvtlQo8Oag8SLIkhaUea3xqZpijkQR/qHmo3GIfnQIDAQAB;";
+        public async Task FailsValidationFor512BitKey() {
+            const string record = "v=DKIM1; k=rsa; p=MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBANYkh3Tqv0f70ACXB6PdpgIRnmX06BMA/5HXYhSggzSJ1ROtTNpo0pmATwwthSMleldrWUVcxf+A5sQ/jvWVnBMCAwEAAQ==;";
 
             var healthCheck = new DomainHealthCheck();
             await healthCheck.CheckDKIM(record);
 
             var result = healthCheck.DKIMAnalysis.AnalysisResults["default"];
-            Assert.True(result.WeakKey);
-            Assert.Equal(1024, result.KeyLength);
+            Assert.False(result.ValidPublicKey);
+            Assert.False(result.ValidRsaKeyLength);
+            Assert.Equal(512, result.KeyLength);
         }
 
         [Fact]
