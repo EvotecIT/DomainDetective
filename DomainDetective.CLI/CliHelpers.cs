@@ -2,6 +2,7 @@ using Spectre.Console;
 using System;
 using System.Collections;
 using System.Linq;
+using System.Text;
 using System.Globalization;
 
 namespace DomainDetective.CLI;
@@ -143,5 +144,34 @@ internal static class CliHelpers
             Expand = true
         };
         AnsiConsole.Write(panel);
+    }
+
+    internal static string? ReadLineRaw()
+    {
+        var builder = new StringBuilder();
+        while (true)
+        {
+            var ch = Console.In.Read();
+            if (ch == -1)
+            {
+                return builder.Length == 0 ? null : builder.ToString();
+            }
+
+            builder.Append((char)ch);
+            if (ch == '\n')
+            {
+                break;
+            }
+            if (ch == '\r')
+            {
+                if (Console.In.Peek() == '\n')
+                {
+                    builder.Append((char)Console.In.Read());
+                }
+                break;
+            }
+        }
+
+        return builder.ToString();
     }
 }

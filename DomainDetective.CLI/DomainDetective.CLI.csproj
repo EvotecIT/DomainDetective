@@ -16,6 +16,11 @@
     <PackageReference Include="Spectre.Console.Cli" Version="0.50.0" />
   </ItemGroup>
   <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>DomainDetective.CLI.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
   </ItemGroup>
 </Project>
