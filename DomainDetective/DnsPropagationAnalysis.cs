@@ -123,17 +123,24 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="entry">The server entry to add.</param>
         public void AddServer(PublicDnsEntry entry) {
-            if (entry == null || entry.IPAddress == null) {
+            if (entry == null) {
                 return;
             }
 
-            var canonical = GetCanonicalIp(entry.IPAddress);
-            if (!string.Equals(canonical, entry.IPAddress.ToString(), StringComparison.OrdinalIgnoreCase)) {
-                throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
-            }
+            ValidateEntry(entry);
 
-            if (_servers.All(s => !s.IPAddress.Equals(entry.IPAddress))) {
-                _servers.Add(entry);
+            var trimmed = new PublicDnsEntry {
+                Country = entry.Country.Trim(),
+                IPAddress = entry.IPAddress,
+                HostName = entry.HostName?.Trim(),
+                Location = entry.Location?.Trim(),
+                ASN = entry.ASN.Trim(),
+                ASNName = entry.ASNName?.Trim(),
+                Enabled = entry.Enabled
+            };
+
+            if (_servers.All(s => !s.IPAddress.Equals(trimmed.IPAddress))) {
+                _servers.Add(trimmed);
             }
         }
 
