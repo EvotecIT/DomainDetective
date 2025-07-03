@@ -8,6 +8,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze ARC headers from a file.</summary>
+    ///   <code>Test-Arc -File './headers.txt'</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Analyze ARC headers from pipeline input.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-Arc</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "Arc", DefaultParameterSetName = "Text")]
