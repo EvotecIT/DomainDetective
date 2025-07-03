@@ -149,7 +149,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void RemoveServer(string ipAddress) {
-            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+            if (!TryParseIPAddress(ipAddress, out var parsed)) {
                 return;
             }
             var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
@@ -163,7 +163,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void DisableServer(string ipAddress) {
-            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+            if (!TryParseIPAddress(ipAddress, out var parsed)) {
                 return;
             }
             var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
@@ -186,7 +186,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="ipAddress">IP address of the server.</param>
         public void EnableServer(string ipAddress) {
-            if (!IPAddress.TryParse(ipAddress, out var parsed)) {
+            if (!TryParseIPAddress(ipAddress, out var parsed)) {
                 return;
             }
             var existing = _servers.FirstOrDefault(s => s.IPAddress.Equals(parsed));
@@ -241,9 +241,27 @@ namespace DomainDetective {
         }
 
         private static string GetCanonicalIp(IPAddress ipAddress) {
-            return ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                ? IPAddress.Parse(ipAddress.ToString()).ToString()
-                : ipAddress.ToString();
+            var text = ipAddress.ToString();
+            var percent = text.IndexOf('%');
+            if (percent > 0) {
+                text = text.Substring(0, percent);
+            }
+
+            return IPAddress.Parse(text).ToString();
+        }
+
+        internal static bool TryParseIPAddress(string value, out IPAddress address) {
+            if (IPAddress.TryParse(value, out address)) {
+                return true;
+            }
+
+            var percent = value.IndexOf('%');
+            if (percent > 0) {
+                return IPAddress.TryParse(value.Substring(0, percent), out address);
+            }
+
+            address = null!;
+            return false;
         }
 
         /// <summary>
@@ -308,9 +326,11 @@ namespace DomainDetective {
             foreach (var res in results.Where(r => r.Success && r.Records != null)) {
                 var normalizedRecords = res.Records
                     .Select(r =>
-                        IPAddress.TryParse(r, out var ip)
+                        TryParseIPAddress(r, out var ip)
                             ? ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
-                                ? IPAddress.Parse(r).ToString().ToLowerInvariant()
+                                ? IPAddress.Parse(r.IndexOf('%') > 0 ? r.Substring(0, r.IndexOf('%')) : r)
+                                    .ToString()
+                                    .ToLowerInvariant()
                                 : ip.ToString()
                             : r.ToLowerInvariant())
                     .OrderBy(r => r);

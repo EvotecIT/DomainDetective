@@ -10,7 +10,7 @@ internal sealed class IPAddressJsonConverter : JsonConverter<IPAddress>
     public override IPAddress Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         var value = reader.GetString();
-        if (!IPAddress.TryParse(value, out var ip))
+        if (!DnsPropagationAnalysis.TryParseIPAddress(value, out var ip))
         {
             var index = reader.TokenStartIndex;
             throw new FormatException($"Invalid IP address '{value}' at index {index}");

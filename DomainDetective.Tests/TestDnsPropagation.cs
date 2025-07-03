@@ -222,5 +222,36 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, groups.First().Value.Count);
             Assert.Equal(IPAddress.Parse("fe80::1%2").ToString(), groups.Keys.First());
         }
+
+        [Fact]
+        public void CompareResultsHandlesIpv6ZoneName() {
+            var results = new[] {
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1") },
+                    RecordType = DnsRecordType.AAAA,
+                    Records = new[] { "fe80::1%eth0" },
+                    Success = true
+                },
+                new DnsPropagationResult {
+                    Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("8.8.8.8") },
+                    RecordType = DnsRecordType.AAAA,
+                    Records = new[] { "fe80::1%2" },
+                    Success = true
+                }
+            };
+
+            var groups = DnsPropagationAnalysis.CompareResults(results);
+            Assert.Single(groups);
+            Assert.Equal(2, groups.First().Value.Count);
+            Assert.Equal(IPAddress.Parse("fe80::1%2").ToString(), groups.Keys.First());
+        }
+
+        [Fact]
+        public void RemoveServerParsesZoneName() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("fe80::1%2"), Country = "Test" });
+            analysis.RemoveServer("fe80::1%eth0");
+            Assert.Empty(analysis.Servers);
+        }
     }
 }
