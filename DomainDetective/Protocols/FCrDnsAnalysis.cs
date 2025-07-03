@@ -2,6 +2,8 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 
 namespace DomainDetective;
@@ -52,6 +54,15 @@ public class FCrDnsAnalysis
             if (ptrs.Count == 0 && !string.IsNullOrWhiteSpace(item.PtrRecord))
             {
                 ptrs = new List<string> { item.PtrRecord.TrimEnd('.') };
+            }
+
+            if (ptrs.Count == 0 && IPAddress.TryParse(item.IpAddress, out var ip) &&
+                ip.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                var ptrName = ip.ToPtrFormat() + ".ip6.arpa";
+                var answers = await QueryDns(ptrName, DnsRecordType.PTR);
+                ptrs = answers.Select(a => a.Data.TrimEnd('.')).ToList();
+                logger?.WriteVerbose($"FCrDNS PTR {ptrName} -> {string.Join(", ", ptrs)}");
             }
 
             bool match = false;
