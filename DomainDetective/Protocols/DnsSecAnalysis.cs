@@ -385,8 +385,16 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[6], out int keyTag);
 
+            string algorithm = parts[1];
+            if (int.TryParse(parts[1], out int algNum)) {
+                string name = DNSKeyAnalysis.AlgorithmName(algNum);
+                if (!string.IsNullOrEmpty(name)) {
+                    algorithm = name;
+                }
+            }
+
             return new RrsigInfo {
-                Algorithm = parts[1],
+                Algorithm = algorithm,
                 KeyTag = keyTag,
                 Inception = inception,
                 Expiration = expiration,

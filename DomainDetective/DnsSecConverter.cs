@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DomainDetective.Protocols;
 
 namespace DomainDetective {
     /// <summary>
@@ -59,9 +60,16 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[0], out int keyTag);
             _ = int.TryParse(parts[2], out int digestType);
+            string algorithm = parts[1];
+            if (int.TryParse(parts[1], out int algNum)) {
+                string name = DNSKeyAnalysis.AlgorithmName(algNum);
+                if (!string.IsNullOrEmpty(name)) {
+                    algorithm = name;
+                }
+            }
             return new DsRecordInfo {
                 KeyTag = keyTag,
-                Algorithm = parts[1],
+                Algorithm = algorithm,
                 DigestType = digestType,
                 Digest = parts[3],
             };
@@ -79,10 +87,17 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[0], out int flags);
             _ = byte.TryParse(parts[1], out byte protocol);
+            string algorithm = parts[2];
+            if (int.TryParse(parts[2], out int algNum)) {
+                string name = DNSKeyAnalysis.AlgorithmName(algNum);
+                if (!string.IsNullOrEmpty(name)) {
+                    algorithm = name;
+                }
+            }
             return new DnsKeyInfo {
                 Flags = flags,
                 Protocol = protocol,
-                Algorithm = parts[2],
+                Algorithm = algorithm,
                 PublicKey = parts[3],
             };
         }
