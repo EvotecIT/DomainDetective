@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Tests;
@@ -81,5 +82,50 @@ public class TestFCrDnsAnalysis
         await analysis.Analyze(reverse);
         var result = Assert.Single(analysis.Results);
         Assert.True(result.ForwardConfirmed);
+    }
+
+    [Fact]
+    public async Task ValidIpv6ForwardConfirmation()
+    {
+        var ip = IPAddress.Parse("2001::1");
+        var ptr = ip.ToPtrFormat() + ".ip6.arpa";
+        var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]>
+        {
+            [("mail.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { DataRaw = ip.ToString() } },
+            [("mail.example.com", DnsRecordType.A)] = Array.Empty<DnsAnswer>(),
+            [(ptr, DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "mail.example.com." } }
+        };
+        var rdns = CreateReverse(map);
+        await rdns.AnalyzeHosts(new[] { "mail.example.com" });
+        var analysis = CreateAnalysis(map);
+        await analysis.Analyze(rdns.Results);
+        var result = Assert.Single(analysis.Results);
+        Assert.True(result.ForwardConfirmed);
+    }
+
+    [Fact]
+    public async Task QueriesIpv6PtrWhenMissing()
+    {
+        var ip = IPAddress.Parse("2001::2");
+        var ptr = ip.ToPtrFormat() + ".ip6.arpa";
+        var map = new Dictionary<(string, DnsRecordType), DnsAnswer[]>
+        {
+            [(ptr, DnsRecordType.PTR)] = new[] { new DnsAnswer { DataRaw = "mail.example.com." } },
+            [("mail.example.com", DnsRecordType.AAAA)] = new[] { new DnsAnswer { DataRaw = ip.ToString() } },
+            [("mail.example.com", DnsRecordType.A)] = Array.Empty<DnsAnswer>()
+        };
+        var analysis = CreateAnalysis(map);
+        var reverse = new[]
+        {
+            new ReverseDnsAnalysis.ReverseDnsResult
+            {
+                IpAddress = ip.ToString(),
+                ExpectedHost = "mail.example.com"
+            }
+        };
+        await analysis.Analyze(reverse);
+        var result = Assert.Single(analysis.Results);
+        Assert.True(result.ForwardConfirmed);
+        Assert.Equal("mail.example.com", result.PtrRecord);
     }
 }
