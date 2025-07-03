@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public void AddAndRemoveServerWorks() {
             var analysis = new DnsPropagationAnalysis();
-            var entry = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1"), Country = "Test" };
+            var entry = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1"), Country = "Test", ASN = "AS0" };
             analysis.AddServer(entry);
             Assert.Contains(analysis.Servers, s => s.IPAddress.Equals(IPAddress.Parse("1.1.1.1")));
             analysis.RemoveServer("1.1.1.1");
@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task QueryHandlesDownServer() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test", ASN = "AS0" });
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers);
             Assert.Single(results);
             Assert.False(results[0].Success);
@@ -34,7 +34,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task QueryHonorsCancellation() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test", ASN = "AS0" });
             using var cts = new CancellationTokenSource();
             cts.Cancel();
 

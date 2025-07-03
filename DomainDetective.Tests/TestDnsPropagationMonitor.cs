@@ -35,7 +35,7 @@ public class TestDnsPropagationMonitor {
     [Fact]
     public async Task HonorsCountryFilterAndCustomServers() {
         var passed = new List<PublicDnsEntry>();
-        var json = "[ { \"Country\": \"US\", \"IPAddress\": \"1.1.1.1\", \"Enabled\": true }, { \"Country\": \"DE\", \"IPAddress\": \"2.2.2.2\", \"Enabled\": true } ]";
+        var json = "[ { \"Country\": \"US\", \"IPAddress\": \"1.1.1.1\", \"ASN\": \"AS0\", \"Enabled\": true }, { \"Country\": \"DE\", \"IPAddress\": \"2.2.2.2\", \"ASN\": \"AS0\", \"Enabled\": true } ]";
         var file = System.IO.Path.GetTempFileName();
         try {
             System.IO.File.WriteAllText(file, json);
@@ -46,7 +46,7 @@ public class TestDnsPropagationMonitor {
                 QueryOverride = (servers, _) => { passed.AddRange(servers); return Task.FromResult(new List<DnsPropagationResult>()); }
             };
             monitor.LoadServers(file);
-            monitor.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("3.3.3.3"), Enabled = true });
+            monitor.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("3.3.3.3"), Country = "US", ASN = "AS0", Enabled = true });
             await monitor.RunAsync();
             Assert.Equal(2, passed.Count);
             Assert.Contains(passed, p => p.IPAddress.Equals(IPAddress.Parse("1.1.1.1")));
