@@ -31,6 +31,8 @@ namespace DomainDetective {
         public List<string> UnknownHstsDirectives { get; private set; } = new();
         /// <summary>Gets a value indicating whether the host is on the HSTS preload list.</summary>
         public bool HstsPreloaded { get; private set; }
+        /// <summary>Gets a value indicating whether the preload token was found in the HSTS header.</summary>
+        public bool HstsPreloadDirectivePresent { get; private set; }
         /// <summary>Gets a value indicating whether the HSTS header meets preload list requirements.</summary>
         public bool HstsPreloadEligible { get; private set; }
         /// <summary>Gets a value indicating whether the X-XSS-Protection header was present.</summary>
@@ -178,6 +180,7 @@ namespace DomainDetective {
             HstsIncludesSubDomains = false;
             HstsTooShort = false;
             HstsPreloaded = false;
+            HstsPreloadDirectivePresent = false;
             HstsPreloadEligible = false;
             UnknownHstsDirectives = new List<string>();
             PermissionsPolicyPresent = false;
@@ -364,6 +367,7 @@ namespace DomainDetective {
         private void ParseHsts(string headerValue) {
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
+            HstsPreloadDirectivePresent = false;
             UnknownHstsDirectives = new List<string>();
             if (string.IsNullOrEmpty(headerValue)) {
                 return;
@@ -382,13 +386,13 @@ namespace DomainDetective {
                 } else if (trimmed.Equals("includesubdomains", StringComparison.OrdinalIgnoreCase)) {
                     HstsIncludesSubDomains = true;
                 } else if (trimmed.Equals("preload", StringComparison.OrdinalIgnoreCase)) {
-                    // preload directive is ignored for analysis
+                    HstsPreloadDirectivePresent = true;
                 } else if (!string.IsNullOrEmpty(trimmed) && !UnknownHstsDirectives.Contains(trimmed)) {
                     UnknownHstsDirectives.Add(trimmed);
                 }
             }
             HstsTooShort = HstsMaxAge.HasValue && HstsMaxAge.Value < 10886400;
-            HstsPreloadEligible = HstsIncludesSubDomains && HstsMaxAge.HasValue && HstsMaxAge.Value >= 31536000;
+            HstsPreloadEligible = HstsPreloadDirectivePresent && HstsIncludesSubDomains && HstsMaxAge.HasValue && HstsMaxAge.Value >= 31536000;
         }
 
         private void ParseContentSecurityPolicy(string headerValue) {

@@ -352,6 +352,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.True(analysis.HstsPreloadDirectivePresent);
                 Assert.True(analysis.HstsPreloadEligible);
                 Assert.False(analysis.HstsTooShort);
             } finally {
@@ -376,6 +377,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, true, new InternalLogger(), collectHeaders: true);
+                Assert.False(analysis.HstsPreloadDirectivePresent);
                 Assert.False(analysis.HstsPreloadEligible);
                 Assert.True(analysis.HstsTooShort);
             } finally {
