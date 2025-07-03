@@ -20,6 +20,7 @@ Current capabilities include:
 - [x] Verify DNSSEC
 - [x] Follow the delegation chain and validate DS records
 - [x] Summarize DNSSEC mismatches across the chain
+- [x] Map DNSSEC algorithm numbers to names per RFC 4034
 - [x] Analyze DNS TTL
 - [x] Validate ARC headers
  - [x] Verify DANE/TLSA (queries `_tcp` or `_udp` names, HTTPS on port 443 by default)
