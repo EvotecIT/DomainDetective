@@ -27,5 +27,32 @@ namespace DomainDetective.Protocols {
         internal static bool IsDeprecatedAlgorithmNumber(int number) {
             return DeprecatedAlgorithms.Contains(number);
         }
+
+        internal static string AlgorithmName(int number) {
+            return number switch {
+                1 => "RSAMD5",
+                2 => "DH",
+                3 => "DSA",
+                4 => "ECC",
+                5 => "RSASHA1",
+                6 => "DSANSEC3SHA1",
+                7 => "RSASHA1NSEC3SHA1",
+                8 => "RSASHA256",
+                9 => "RESERVED",
+                10 => "RSASHA512",
+                11 => "RESERVED",
+                12 => "ECCGOST",
+                13 => "ECDSAP256SHA256",
+                14 => "ECDSAP384SHA384",
+                15 => "ED25519",
+                16 => "ED448",
+                17 => "SM2SM3",
+                23 => "ECC-GOST12",
+                252 => "INDIRECT",
+                253 => "PRIVATEDNS",
+                254 => "PRIVATEOID",
+                _ => string.Empty,
+            };
+        }
     }
 }
