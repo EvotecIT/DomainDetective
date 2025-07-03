@@ -92,6 +92,33 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task SelfSignedAllowsSinglePin() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var pin = Convert.ToBase64String(Enumerable.Repeat((byte)6, 32).ToArray());
+            var header = $"pin-sha256=\"{pin}\"; max-age=100";
+            var task = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.Headers.Add("Public-Key-Pins", header);
+                ctx.Response.Close();
+            });
+            try {
+                var analysis = new HPKPAnalysis { SelfSignedCertificate = true };
+                await analysis.AnalyzeUrl(prefix, new InternalLogger());
+                Assert.True(analysis.HeaderPresent);
+                Assert.True(analysis.PinsValid);
+                Assert.Single(analysis.Pins);
+                Assert.Equal(pin, analysis.Pins.First());
+                Assert.Equal(100, analysis.MaxAge);
+            } finally {
+                listener.Stop();
+                await task;
+            }
+        }
+
+        [Fact]
         public async Task HeaderMissing() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
