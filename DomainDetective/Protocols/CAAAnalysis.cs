@@ -128,8 +128,11 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                     analysis.Flag = flag.ToString();
                     if (flag < 0 || flag > 255) {
                         analysis.InvalidFlag = true;
+                    } else if ((flag & 0x7F) != 0 && flag != 128) {
+                        analysis.InvalidFlag = true;
+                        logger?.WriteWarning($"CAA record uses reserved flag bits: {flag}");
                     }
-                    analysis.Critical = (flag & 1) == 1;
+                    analysis.Critical = (flag & 0x80) == 0x80;
 
                     // Validate tag and set the Tag property
                     var validTags = new Dictionary<string, CAATagType>(StringComparer.OrdinalIgnoreCase) {
