@@ -7,6 +7,8 @@ using System.Text;
 using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Http;
+using RichardSzalay.MockHttp;
 
 namespace DomainDetective.Tests {
     public class TestBimiAnalysis {
@@ -296,6 +298,53 @@ namespace DomainDetective.Tests {
                 cts.Cancel();
                 listener.Stop();
                 await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task RedirectIsFollowedWhenDownloadingSvg() {
+            var mock = new MockHttpMessageHandler();
+            mock.When("https://example.com/logo.svg").Respond(_ => {
+                var resp = new HttpResponseMessage(HttpStatusCode.Moved);
+                resp.Headers.Location = new Uri("https://example.com/logo2.svg");
+                return resp;
+            });
+            mock.When("https://example.com/logo2.svg")
+                .Respond("image/svg+xml", "<svg width='64' height='64' viewBox='0 0 64 64'></svg>");
+
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer {
+                    DataRaw = "v=BIMI1; l=https://example.com/logo.svg",
+                    Type = DnsRecordType.TXT
+                }
+            };
+
+            var analysis = new BimiAnalysis {
+                HttpHandlerFactory = () => new RedirectMockHandler(mock)
+            };
+            await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.SvgFetched);
+            Assert.True(analysis.SvgValid);
+        }
+
+        private sealed class RedirectMockHandler : DelegatingHandler {
+            public RedirectMockHandler(HttpMessageHandler inner)
+                : base(inner) { }
+
+            protected override async Task<HttpResponseMessage> SendAsync(
+                HttpRequestMessage request,
+                CancellationToken cancellationToken) {
+                var response = await base.SendAsync(request, cancellationToken);
+                if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400
+                    && response.Headers.Location != null) {
+                    var follow = new HttpRequestMessage(request.Method, response.Headers.Location);
+                    foreach (var header in request.Headers) {
+                        follow.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
+                    response = await base.SendAsync(follow, cancellationToken);
+                }
+                return response;
             }
         }
 
