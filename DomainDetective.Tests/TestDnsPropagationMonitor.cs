@@ -42,7 +42,7 @@ public class TestDnsPropagationMonitor {
             var monitor = new DnsPropagationMonitor {
                 Domain = "example.com",
                 RecordType = DnsClientX.DnsRecordType.A,
-                Country = "US",
+                Country = CountryId.UnitedStates,
                 QueryOverride = (servers, _) => { passed.AddRange(servers); return Task.FromResult(new List<DnsPropagationResult>()); }
             };
             monitor.LoadServers(file);

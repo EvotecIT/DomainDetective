@@ -48,12 +48,13 @@ namespace DomainDetective {
                 _servers.Clear();
             }
 
-            var json = File.ReadAllText(filePath);
+            using var stream = File.OpenRead(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             options.Converters.Add(new IPAddressJsonConverter());
-            var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
+            var servers = JsonSerializer.DeserializeAsync<List<PublicDnsEntry>>(stream, options)
+                .GetAwaiter().GetResult();
             if (servers == null) {
-                return;
+                throw new InvalidDataException("DNS server list is empty or invalid.");
             }
 
             foreach (var entry in servers) {
@@ -211,18 +212,33 @@ namespace DomainDetective {
         /// <param name="location">Location filter.</param>
         /// <param name="take">If specified, randomly selects this many servers.</param>
         /// <returns>The filtered server list.</returns>
-        public IEnumerable<PublicDnsEntry> FilterServers(string country = null, string location = null, int? take = null) {
+        public IEnumerable<PublicDnsEntry> FilterServers(CountryId? country = null, LocationId? location = null, int? take = null) {
             IEnumerable<PublicDnsEntry> query = _servers.Where(s => s.Enabled);
-            if (!string.IsNullOrWhiteSpace(country)) {
-                query = query.Where(s => string.Equals(s.Country, country, StringComparison.OrdinalIgnoreCase));
+            if (country.HasValue) {
+                var name = country.Value.ToName();
+                query = query.Where(s => string.Equals(s.Country, name, StringComparison.OrdinalIgnoreCase));
             }
-            if (!string.IsNullOrWhiteSpace(location)) {
-                query = query.Where(s => s.Location != null && s.Location.IndexOf(location, StringComparison.OrdinalIgnoreCase) >= 0);
+            if (location.HasValue) {
+                var name = location.Value.ToName();
+                query = query.Where(s => s.Location != null && s.Location.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
             }
             if (take.HasValue) {
                 query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);
             }
             return query.ToList();
+        }
+
+        /// <summary>
+        /// Filters servers using a <see cref="DnsServerQuery"/> builder.
+        /// </summary>
+        /// <param name="query">Query builder specifying filters.</param>
+        /// <returns>The filtered server list.</returns>
+        public IEnumerable<PublicDnsEntry> FilterServers(DnsServerQuery? query) {
+            if (query == null) {
+                return FilterServers();
+            }
+
+            return FilterServers(query.Country, query.Location, query.TakeCount);
         }
 
         private static string GetCanonicalIp(IPAddress ipAddress) {

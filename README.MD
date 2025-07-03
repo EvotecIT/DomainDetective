@@ -106,6 +106,13 @@ The `CertificateAnalysis` result now includes:
 - `PresentInCtLogs` when the certificate appears in public CT logs.
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 
+### DKIM Analysis
+`DkimRecordAnalysis` exposes several indicators:
+
+- `WeakKey` when the RSA key is under 2048 bits.
+- `OldKey` when the creation date is over 12 months old.
+- `DeprecatedTags` listing tags such as `g` or `h=sha1`.
+
 ### Verifying SMTP TLS
 `SMTPTLSAnalysis` now stores the negotiated certificate and reports expiration
 details and chain validity for each server.

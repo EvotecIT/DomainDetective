@@ -139,6 +139,19 @@ namespace DomainDetective {
                             break;
                         case "h":
                             analysis.HashAlgorithm = value;
+                            if (value.IndexOf("sha1", StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                analysis.DeprecatedTags.Add($"h={value}");
+                                logger?.WriteWarning("Deprecated hash algorithm detected: {0}", value);
+                            }
+                            break;
+                        case "g":
+                            analysis.DeprecatedTags.Add("g");
+                            logger?.WriteWarning("DKIM tag 'g' is deprecated and ignored");
+                            break;
+                        case "q":
+                            analysis.DeprecatedTags.Add("q");
+                            logger?.WriteWarning("DKIM tag 'q' is deprecated and ignored");
                             break;
                     }
                 }
@@ -267,6 +280,8 @@ namespace DomainDetective {
         public bool ValidFlags { get; set; }
         /// <summary>Unrecognized canonicalization modes.</summary>
         public List<string> UnknownCanonicalizationModes { get; } = new();
+        /// <summary>Lists deprecated tags or values detected in the record.</summary>
+        public List<string> DeprecatedTags { get; } = new();
         /// <summary>Canonicalization modes specified in the record.</summary>
         public string Canonicalization { get; set; }
         /// <summary>Gets a value indicating whether the canonicalization string is valid.</summary>

@@ -75,7 +75,11 @@ namespace DomainDetective {
         public bool IsPctValid { get; private set; }
         public int ReportingIntervalShort { get; private set; }
 
-        public async Task AnalyzeDmarcRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, string? domainName = null) {
+        public async Task AnalyzeDmarcRecords(
+            IEnumerable<DnsAnswer> dnsResults,
+            InternalLogger logger,
+            string? domainName = null,
+            Func<string, string>? getOrgDomain = null) {
             // reset all properties so repeated calls don't accumulate data
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
@@ -217,15 +221,28 @@ namespace DomainDetective {
             }
 
             var reportDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string? orgDomain = null;
+            if (domainName != null && getOrgDomain != null) {
+                orgDomain = getOrgDomain(domainName);
+            }
             foreach (var mail in MailtoRua.Concat(MailtoRuf)) {
                 var at = mail.IndexOf('@');
                 if (at > -1 && at < mail.Length - 1) {
-                    reportDomains.Add(mail.Substring(at + 1));
+                    var domain = mail.Substring(at + 1);
+                    reportDomains.Add(domain);
+                    if (orgDomain != null && getOrgDomain != null &&
+                        !string.Equals(getOrgDomain(domain), orgDomain, StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteWarning("Report address {0} is not aligned with {1}.", mail, domainName);
+                    }
                 }
             }
             foreach (var http in HttpRua.Concat(HttpRuf)) {
                 if (Uri.TryCreate(http, UriKind.Absolute, out var uri)) {
                     reportDomains.Add(uri.Host);
+                    if (orgDomain != null && getOrgDomain != null &&
+                        !string.Equals(getOrgDomain(uri.Host), orgDomain, StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteWarning("Report address {0} is not aligned with {1}.", http, domainName);
+                    }
                 }
             }
 

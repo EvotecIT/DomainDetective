@@ -18,6 +18,7 @@
       <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
     <EmbeddedResource Include="..\Data\dnsbl.json" />
     <EmbeddedResource Include="..\Data\DNS\PublicDNS.json" LogicalName="DomainDetective.DNS.PublicDNS.json" />
+    <AdditionalFiles Include="..\Data\DNS\PublicDNS.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,5 +31,9 @@
     <None Include="..\Data\hsts_preload.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DomainDetective.Generators\DomainDetective.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

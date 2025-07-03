@@ -1,5 +1,6 @@
 using DnsClientX;
 using DomainDetective.Monitoring;
+using DomainDetective;
 using System;
 using System.IO;
 using System.Management.Automation;
@@ -41,11 +42,11 @@ namespace DomainDetective.PowerShell {
 
         /// <param name="Country">Filter builtin servers by country.</param>
         [Parameter(Mandatory = false)]
-        public string? Country;
+        public CountryId? Country;
 
         /// <param name="Location">Filter builtin servers by location.</param>
         [Parameter(Mandatory = false)]
-        public string? Location;
+        public LocationId? Location;
 
         /// <param name="IntervalSeconds">Polling interval in seconds.</param>
         [Parameter(Mandatory = false)]

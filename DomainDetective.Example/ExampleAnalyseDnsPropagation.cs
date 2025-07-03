@@ -1,18 +1,15 @@
 using DnsClientX;
 using System;
-using System.IO;
+using DomainDetective;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Example {
     internal class ExampleAnalyseDnsPropagationClass {
         public static async Task Run() {
             var analysis = new DnsPropagationAnalysis();
-            var baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty;
-            var file = Path.Combine(baseDir, "Data", "DNS", "PublicDNS.json");
-            analysis.LoadServers(file);
-            var servers = analysis.FilterServers(country: "United States", take: 3);
+            analysis.LoadBuiltinServers();
+            var servers = analysis.FilterServers(country: CountryId.UnitedStates, take: 3);
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, servers);
             foreach (var result in results) {
                 Console.WriteLine($"{result.Server.IPAddress} - Success:{result.Success} Records:{string.Join(',', result.Records)} Time:{result.Duration.TotalMilliseconds}ms");
