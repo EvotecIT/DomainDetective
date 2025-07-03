@@ -14,14 +14,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDNSBL(address);
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
-            var expected = string.Join(
-                ".",
-                IPAddress
-                    .Parse(address)
-                    .GetAddressBytes()
-                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                    .Select(n => n.ToString("x"))
-                    .Reverse());
+            var expected = IPAddress.Parse(address).ToPtrFormat();
             Assert.Equal(expected, record.IPAddress);
             Assert.Equal(address, record.OriginalIPAddress);
         }
@@ -35,14 +28,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDNSBL(address);
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
-            var nibble = string.Join(
-                ".",
-                IPAddress
-                    .Parse(address)
-                    .GetAddressBytes()
-                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                    .Select(n => n.ToString("x"))
-                    .Reverse());
+            var nibble = IPAddress.Parse(address).ToPtrFormat();
             Assert.Equal($"{nibble}.example.test", record.FQDN);
         }
 
@@ -55,13 +41,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDNSBL(address);
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
-            var expected = string.Join(
-                ".",
-                IPAddress.IPv6Loopback
-                    .GetAddressBytes()
-                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                    .Select(n => n.ToString("x"))
-                    .Reverse());
+            var expected = IPAddress.IPv6Loopback.ToPtrFormat();
             Assert.Equal(expected, record.IPAddress);
         }
 
@@ -73,14 +53,7 @@ namespace DomainDetective.Tests {
                 "ConvertToResults",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-            var nibble = string.Join(
-                ".",
-                IPAddress
-                    .Parse(address)
-                    .GetAddressBytes()
-                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                    .Select(n => n.ToString("x"))
-                    .Reverse());
+            var nibble = IPAddress.Parse(address).ToPtrFormat();
 
             var record = new DNSBLRecord {
                 IPAddress = nibble,
@@ -107,14 +80,7 @@ namespace DomainDetective.Tests {
                 "ConvertToResults",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-            var nibble = string.Join(
-                ".",
-                IPAddress
-                    .Parse(address)
-                    .GetAddressBytes()
-                    .SelectMany(b => new[] { b >> 4 & 0xF, b & 0xF })
-                    .Select(n => n.ToString("x"))
-                    .Reverse());
+            var nibble = IPAddress.Parse(address).ToPtrFormat();
 
             var record = new DNSBLRecord {
                 IPAddress = nibble,

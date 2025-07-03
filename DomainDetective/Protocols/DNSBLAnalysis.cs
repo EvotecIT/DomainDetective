@@ -278,21 +278,7 @@ namespace DomainDetective {
         }
 
         private static string FormatDnsblName(IPAddress ipAddress) {
-            if (ipAddress.AddressFamily == AddressFamily.InterNetworkV6) {
-                return string.Join(
-                    ".",
-                    ipAddress
-                        .GetAddressBytes()
-                        .SelectMany(b => new[] { (b >> 4) & 0xF, b & 0xF })
-                        .Select(n => n.ToString("x"))
-                        .Reverse());
-            }
-
-            return string.Join(
-                ".",
-                ipAddress
-                    .GetAddressBytes()
-                    .Reverse());
+            return ipAddress.ToPtrFormat();
         }
 
         private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
