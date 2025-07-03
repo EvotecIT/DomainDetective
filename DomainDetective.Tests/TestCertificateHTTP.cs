@@ -145,13 +145,13 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void ExtractMxHostsSkipsInvalid() {
-            var records = new List<DnsAnswer> {
+            List<DnsAnswer> records = new () {
                 new DnsAnswer { DataRaw = "10 mx1.example.com", Type = DnsRecordType.MX },
                 new DnsAnswer { DataRaw = "20 ", Type = DnsRecordType.MX },
                 new DnsAnswer { DataRaw = "30", Type = DnsRecordType.MX }
             };
 
-            var hosts = CertificateAnalysis.ExtractMxHosts(records).ToList();
+            List<string> hosts = CertificateAnalysis.ExtractMxHosts(records).ToList();
 
             Assert.Single(hosts);
             Assert.Equal("mx1.example.com", hosts[0]);

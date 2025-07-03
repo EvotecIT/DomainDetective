@@ -106,18 +106,18 @@ namespace DomainDetective {
 
         internal static IEnumerable<string> ExtractMxHosts(IEnumerable<DnsAnswer> records)
         {
-            foreach (var record in records)
+            foreach (DnsAnswer record in records)
             {
-                var data = record.Data ?? record.DataRaw;
+                string data = record.Data ?? record.DataRaw;
                 if (string.IsNullOrWhiteSpace(data))
                 {
                     continue;
                 }
 
-                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                string[] parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length >= 2)
                 {
-                    var host = parts[1].Trim('.');
+                    string host = parts[1].Trim('.');
                     if (!string.IsNullOrWhiteSpace(host))
                     {
                         yield return host;

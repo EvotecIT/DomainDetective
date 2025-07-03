@@ -233,40 +233,40 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.OPENRELAY:
                         var mxRecordsForRelay = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var hosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForRelay);
-                        foreach (var host in hosts) {
+                        IEnumerable<string> hosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForRelay);
+                        foreach (string host in hosts) {
                             cancellationToken.ThrowIfCancellationRequested();
                             await OpenRelayAnalysis.AnalyzeServer(host, 25, _logger, cancellationToken);
                         }
                         break;
                     case HealthCheckType.STARTTLS:
                         var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+                        IEnumerable<string> tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
                         await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { 25 }, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SMTPTLS:
                         var mxRecordsForSmtpTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var smtpTlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForSmtpTls);
+                        IEnumerable<string> smtpTlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForSmtpTls);
                         await SmtpTlsAnalysis.AnalyzeServers(smtpTlsHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.IMAPTLS:
                         var mxRecordsForImapTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var imapTlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForImapTls);
+                        IEnumerable<string> imapTlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForImapTls);
                         await ImapTlsAnalysis.AnalyzeServers(imapTlsHosts, 143, _logger, cancellationToken);
                         break;
                     case HealthCheckType.POP3TLS:
                         var mxRecordsForPop3Tls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var pop3TlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForPop3Tls);
+                        IEnumerable<string> pop3TlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForPop3Tls);
                         await Pop3TlsAnalysis.AnalyzeServers(pop3TlsHosts, 110, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SMTPBANNER:
                         var mxRecordsForBanner = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var bannerHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForBanner);
+                        IEnumerable<string> bannerHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForBanner);
                         await SmtpBannerAnalysis.AnalyzeServers(bannerHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.SMTPAUTH:
                         var mxRecordsForAuth = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                        var authHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForAuth);
+                        IEnumerable<string> authHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForAuth);
                         await SmtpAuthAnalysis.AnalyzeServers(authHosts, 25, _logger, cancellationToken);
                         break;
                     case HealthCheckType.HTTP:
@@ -765,7 +765,7 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            IEnumerable<string> tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
         }
 
@@ -781,7 +781,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            IEnumerable<string> tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, 25, _logger, cancellationToken);
         }
 
@@ -797,7 +797,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            IEnumerable<string> tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
         }
 
@@ -813,7 +813,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            IEnumerable<string> tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }
 
@@ -1070,7 +1070,7 @@ namespace DomainDetective {
                     cancellationToken.ThrowIfCancellationRequested();
                     string domain;
                     if (fromMx) {
-                        var parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        string[] parts = record.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         if (parts.Length < 2 || string.IsNullOrWhiteSpace(parts[1])) {
                             continue;
                         }
