@@ -27,3 +27,10 @@
 ### What's Changed
 - SOA analysis now validates serial number format and suggests using `YYYYMMDDnn`
   when an invalid pattern is detected
+
+## 1.0.5
+
+### What's Changed
+- Evaluate Strict-Transport-Security header for preload readiness
+- Added property to report if the `preload` token is present
+- Added tests for headers from hstspreload.org
