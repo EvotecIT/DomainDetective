@@ -242,7 +242,15 @@ namespace DomainDetective {
         }
 
         private static string GetCanonicalIp(IPAddress ipAddress) {
-            return IPAddress.Parse(ipAddress.ToString()).ToString();
+            if (ipAddress == null) {
+                throw new ArgumentNullException(nameof(ipAddress));
+            }
+
+            if (ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6) {
+                return new IPAddress(ipAddress.GetAddressBytes(), ipAddress.ScopeId).ToString();
+            }
+
+            return new IPAddress(ipAddress.GetAddressBytes()).ToString();
         }
 
         internal static bool TryParseIPAddress(string value, out IPAddress address) {
@@ -349,7 +357,7 @@ namespace DomainDetective {
                 var normalizedRecords = res.Records
                     .Select(r =>
                         TryParseIPAddress(r, out var ip)
-                            ? IPAddress.Parse(ip.ToString()).ToString().ToLowerInvariant()
+                            ? GetCanonicalIp(ip).ToLowerInvariant()
                             : r.ToLowerInvariant())
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
