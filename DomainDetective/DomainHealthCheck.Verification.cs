@@ -458,6 +458,18 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Analyzes multiple DANE records.
+        /// </summary>
+        /// <param name="daneRecords">Collection of TLSA record texts.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckDANE(IEnumerable<string> daneRecords, CancellationToken cancellationToken = default) {
+            var answers = daneRecords.Select(record => new DnsAnswer {
+                DataRaw = record
+            }).ToList();
+            await DaneAnalysis.AnalyzeDANERecords(answers, _logger);
+        }
+
+        /// <summary>
         /// Analyzes a raw SMIMEA record.
         /// </summary>
         /// <param name="smimeaRecord">SMIMEA record text.</param>
