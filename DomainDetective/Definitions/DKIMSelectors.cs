@@ -26,6 +26,39 @@ namespace DomainDetective.Definitions {
 
         internal static readonly string[] AmazonSes = new[] { "amazonses" };
 
+        private static readonly string[] Dmarcian = new[] {
+            "selector1",
+            "selector2",
+            "selector3",
+            "selector4",
+            "k1",
+            "k2",
+            "mail",
+            "mandrill",
+            "mx",
+            "s1024",
+            "s2048",
+            "s1",
+            "s2",
+            "mx1",
+            "mx2",
+            "mailchannels",
+            "default",
+            "google",
+            "mta",
+            "smtp",
+            "dkim",
+            "spf",
+            "mail1",
+            "mail2",
+            "api",
+            "key1",
+            "key2",
+            "selector2019",
+            "selector2020",
+            "selector2021"
+        };
+
         /// <summary>
         /// Returns a deduplicated list of known DKIM selectors.
         /// </summary>
@@ -40,6 +73,7 @@ namespace DomainDetective.Definitions {
                 .Concat(CPanel)
                 .Concat(Fastmail)
                 .Concat(AmazonSes)
+                .Concat(Dmarcian)
                 .Distinct();
         }
     }
