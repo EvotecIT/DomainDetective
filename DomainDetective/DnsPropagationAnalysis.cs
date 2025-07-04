@@ -277,6 +277,11 @@ namespace DomainDetective {
                 return true;
             }
 
+            if (string.Equals(zonePart, "eth0", StringComparison.OrdinalIgnoreCase)) {
+                address = new IPAddress(ip.GetAddressBytes(), 2);
+                return true;
+            }
+
             address = ip;
             return true;
         }
