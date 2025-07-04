@@ -68,6 +68,11 @@ namespace DomainDetective {
 
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
         public List<SpfTestResult> SpfTestResults { get; private set; } = new List<SpfTestResult>();
+        public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+        private const int MaxDnsLookups = 10;
+        public int ExpDnsLookupsCount { get; private set; }
+        public bool ExpExceedsDnsLookups { get; private set; }
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
 
@@ -119,6 +124,8 @@ namespace DomainDetective {
             SpfPartAnalyses = new List<SpfPartAnalysis>();
             SpfTestResults = new List<SpfTestResult>();
             _warnings.Clear();
+            ExpDnsLookupsCount = 0;
+            ExpExceedsDnsLookups = false;
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
@@ -632,6 +639,199 @@ namespace DomainDetective {
             result.Insert(0, "v=spf1");
             return result;
         }
+
+        private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
+        {
+            if (QueryDnsOverride != null)
+            {
+                return await QueryDnsOverride(name, type);
+            }
+
+            if (type == DnsRecordType.TXT && TestSpfRecords.TryGetValue(name, out var txt))
+            {
+                return new[] { new DnsAnswer { DataRaw = txt, Type = DnsRecordType.TXT } };
+            }
+
+            return await DnsConfiguration.QueryDNS(name, type);
+        }
+
+        private static string ApplyTransform(string value, string digits, bool reverse, string delims)
+        {
+            var separators = string.IsNullOrEmpty(delims) ? new[] { '.' } : delims.ToCharArray();
+            var parts = value.Split(separators, StringSplitOptions.None);
+            if (reverse)
+            {
+                Array.Reverse(parts);
+            }
+
+            if (!string.IsNullOrEmpty(digits) && int.TryParse(digits, out var count))
+            {
+                if (count < parts.Length)
+                {
+                    parts = parts.Skip(parts.Length - count).ToArray();
+                }
+            }
+
+            return string.Join(".", parts);
+        }
+
+        private async Task<string> ExpandMacrosAsync(string text, IPAddress ip, string sender, string helo, string domain, InternalLogger? logger)
+        {
+            var result = new System.Text.StringBuilder();
+            for (int i = 0; i < text.Length;)
+            {
+                var idx = text.IndexOf('%', i);
+                if (idx == -1 || idx == text.Length - 1)
+                {
+                    result.Append(text.Substring(i));
+                    break;
+                }
+
+                result.Append(text.Substring(i, idx - i));
+                var next = text[idx + 1];
+                if (next == '%')
+                {
+                    result.Append('%');
+                    i = idx + 2;
+                    continue;
+                }
+
+                if (next == '_')
+                {
+                    result.Append(' ');
+                    i = idx + 2;
+                    continue;
+                }
+
+                if (next == '-')
+                {
+                    result.Append("%20");
+                    i = idx + 2;
+                    continue;
+                }
+
+                if (next != '{')
+                {
+                    result.Append('%');
+                    i = idx + 1;
+                    continue;
+                }
+
+                var end = text.IndexOf('}', idx + 2);
+                if (end == -1)
+                {
+                    result.Append(text.Substring(idx));
+                    break;
+                }
+
+                var macro = text.Substring(idx, end - idx + 1);
+                var match = MacroRegex.Match(macro);
+                if (!match.Success)
+                {
+                    result.Append(macro);
+                    i = end + 1;
+                    continue;
+                }
+
+                if (ExpDnsLookupsCount > MaxDnsLookups)
+                {
+                    ExpExceedsDnsLookups = true;
+                    return string.Empty;
+                }
+
+                var letter = match.Groups["letter"].Value[0];
+                var digits = match.Groups["digits"].Value;
+                var rev = match.Groups["reverse"].Success;
+                var delims = match.Groups["delims"].Value;
+                var upper = char.IsUpper(letter);
+                letter = char.ToLowerInvariant(letter);
+
+                string value = letter switch
+                {
+                    's' => sender,
+                    'l' => sender.Split('@')[0],
+                    'o' => sender.Contains('@') ? sender.Split('@')[1] : domain,
+                    'd' => domain,
+                    'i' => ip.ToString(),
+                    'h' => helo,
+                    'v' => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "in-addr" : "ip6",
+                    'c' => ip.ToString(),
+                    'r' => helo,
+                    't' => DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    'p' => await GetPtrDomain(ip, logger),
+                    _ => string.Empty
+                };
+
+                value = ApplyTransform(value, digits, rev, delims);
+                if (upper)
+                {
+                    value = Uri.EscapeDataString(value);
+                }
+
+                result.Append(value);
+                i = end + 1;
+            }
+
+            return result.ToString();
+        }
+
+        private async Task<string> GetPtrDomain(IPAddress ip, InternalLogger? logger)
+        {
+            ExpDnsLookupsCount++;
+            var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? ".in-addr.arpa" : ".ip6.arpa");
+            var ptr = await QueryDns(ptrName, DnsRecordType.PTR);
+            if (ptr.Length == 0)
+            {
+                return "unknown";
+            }
+
+            var host = ptr[0].Data.TrimEnd('.');
+            ExpDnsLookupsCount++;
+            var a = await QueryDns(host, DnsRecordType.A);
+            ExpDnsLookupsCount++;
+            var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+            if (a.Concat(aaaa).Any(r => r.Data == ip.ToString()))
+            {
+                return host;
+            }
+
+            return "unknown";
+        }
+
+        public async Task<string?> GetExplanationText(IPAddress ip, string sender, string helo, string domain, InternalLogger? logger = null)
+        {
+            if (string.IsNullOrEmpty(ExpValue))
+            {
+                return null;
+            }
+
+            ExpDnsLookupsCount = 0;
+            ExpExceedsDnsLookups = false;
+            var target = await ExpandMacrosAsync(ExpValue, ip, sender, helo, domain, logger);
+            if (ExpExceedsDnsLookups || ExpDnsLookupsCount > MaxDnsLookups)
+            {
+                ExpExceedsDnsLookups = true;
+                return null;
+            }
+
+            ExpDnsLookupsCount++;
+            var txt = await QueryDns(target, DnsRecordType.TXT);
+            if (txt.Length != 1)
+            {
+                return null;
+            }
+
+            var explanationTemplate = string.Concat(txt[0].DataStringsEscaped);
+            var explanation = await ExpandMacrosAsync(explanationTemplate, ip, sender, helo, domain, logger);
+            if (ExpExceedsDnsLookups || ExpDnsLookupsCount > MaxDnsLookups)
+            {
+                ExpExceedsDnsLookups = true;
+                return null;
+            }
+
+            return explanation;
+        }
+
     }
 
     /// <summary>
