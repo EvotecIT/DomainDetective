@@ -47,6 +47,7 @@ namespace DomainDetective {
         public string ExpValue { get; private set; }
         public string RedirectValue { get; private set; }
         public string AllMechanism { get; private set; }
+        public string? DomainName { get; private set; }
 
         public List<string> ResolvedARecords { get; private set; } = new List<string>();
         public List<string> ResolvedIpv4Records { get; private set; } = new List<string>();
@@ -116,13 +117,15 @@ namespace DomainDetective {
             ExpValue = null;
             RedirectValue = null;
             AllMechanism = null;
+            DomainName = null;
             SpfPartAnalyses = new List<SpfPartAnalysis>();
             SpfTestResults = new List<SpfTestResult>();
             _warnings.Clear();
         }
 
-        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, string? domainName = null) {
             Reset();
+            DomainName = domainName;
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
                 return;
@@ -631,6 +634,78 @@ namespace DomainDetective {
 
             result.Insert(0, "v=spf1");
             return result;
+        }
+
+        /// <summary>
+        /// Flattens the SPF record into a list of IP addresses.
+        /// </summary>
+        public async Task<List<string>> GetFlattenedIpAddresses(InternalLogger? logger = null) {
+            if (string.IsNullOrEmpty(SpfRecord)) {
+                return new List<string>();
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tokens = TokenizeSpfRecord(SpfRecord);
+            var flattened = await FlattenTokens(tokens, visited, logger);
+            HashSet<string> ips = new(StringComparer.OrdinalIgnoreCase);
+            int lookups = DnsLookupsCount;
+
+            foreach (var t in flattened) {
+                var token = t.Trim('"');
+                var normalized = token.TrimStart('+', '-', '~', '?');
+                if (normalized.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) ||
+                    normalized.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
+                    ips.Add(normalized.Substring(normalized.IndexOf(':') + 1));
+                } else if (normalized.StartsWith("a", StringComparison.OrdinalIgnoreCase)) {
+                    var domain = GetMechanismDomain(normalized, "a", DomainName);
+                    if (!string.IsNullOrEmpty(domain)) {
+                        var a = await DnsConfiguration.QueryDNS(domain, DnsRecordType.A);
+                        var aaaa = await DnsConfiguration.QueryDNS(domain, DnsRecordType.AAAA);
+                        foreach (var r in a) { ips.Add(r.Data); }
+                        foreach (var r in aaaa) { ips.Add(r.Data); }
+                        lookups += 2;
+                    }
+                } else if (normalized.StartsWith("mx", StringComparison.OrdinalIgnoreCase)) {
+                    var domain = GetMechanismDomain(normalized, "mx", DomainName);
+                    if (!string.IsNullOrEmpty(domain)) {
+                        var mx = await DnsConfiguration.QueryDNS(domain, DnsRecordType.MX);
+                        lookups++;
+                        foreach (var mxRec in mx) {
+                            var parts = mxRec.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length == 2) {
+                                var host = parts[1].TrimEnd('.');
+                                var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
+                                var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
+                                foreach (var r in a) { ips.Add(r.Data); }
+                                foreach (var r in aaaa) { ips.Add(r.Data); }
+                                lookups += 2;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (lookups > 10) {
+                _warnings.Add("SPF record exceeds DNS lookup limit of 10.");
+                logger?.WriteWarning("SPF record exceeds DNS lookup limit of 10.");
+            }
+
+            return ips.ToList();
+        }
+
+        private static string? GetMechanismDomain(string token, string mechanism, string? defaultDomain) {
+            var value = token.Substring(mechanism.Length);
+            if (value.StartsWith(":", StringComparison.Ordinal)) {
+                value = value.Substring(1);
+            }
+            if (value.StartsWith("/", StringComparison.Ordinal)) {
+                value = string.Empty;
+            }
+            var slash = value.IndexOf('/');
+            if (slash >= 0) {
+                value = value.Substring(0, slash);
+            }
+            return string.IsNullOrEmpty(value) ? defaultDomain : value;
         }
     }
 

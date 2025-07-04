@@ -134,7 +134,7 @@ namespace DomainDetective {
                         break;
                     case HealthCheckType.SPF:
                         var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
-                        await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+                        await SpfAnalysis.AnalyzeSpfRecords(spf, _logger, domainName);
                         break;
                     case HealthCheckType.DKIM:
                         var selectors = dkimSelectors;
@@ -730,7 +730,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
-            await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
+            await SpfAnalysis.AnalyzeSpfRecords(spf, _logger, domainName);
         }
 
         /// <summary>
