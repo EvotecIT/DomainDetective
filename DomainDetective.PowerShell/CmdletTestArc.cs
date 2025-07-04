@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.IO;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -7,14 +8,23 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Analyze ARC headers from a file.</summary>
+    ///   <code>Test-Arc -File './headers.txt'</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Analyze ARC headers from pipeline input.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-Arc</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "Arc")]
+    [Cmdlet(VerbsDiagnostic.Test, "Arc", DefaultParameterSetName = "Text")]
     public sealed class CmdletTestArc : AsyncPSCmdlet {
         /// <param name="HeaderText">Raw header text.</param>
-        [Parameter(Mandatory = true, Position = 0)]
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Text", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string HeaderText;
+        public string HeaderText { get; set; } = string.Empty;
+
+        /// <param name="File">Path to a file containing ARC headers.</param>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "File")]
+        [ValidateNotNullOrEmpty]
+        public string File { get; set; } = string.Empty;
 
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
@@ -30,12 +40,15 @@ namespace DomainDetective.PowerShell {
                 this.WriteProgress,
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint.System, _logger);
+            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
             return Task.CompletedTask;
         }
 
         protected override Task ProcessRecordAsync() {
-            var result = _healthCheck.VerifyARC(HeaderText, CancelToken);
+            var text = ParameterSetName == "File"
+                ? System.IO.File.ReadAllText(File)
+                : HeaderText;
+            var result = _healthCheck.VerifyARC(text, CancelToken);
             WriteObject(result);
             return Task.CompletedTask;
         }
