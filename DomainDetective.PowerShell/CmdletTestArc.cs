@@ -40,7 +40,7 @@ namespace DomainDetective.PowerShell {
                 this.WriteProgress,
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint.CloudflareWireFormat, _logger);
+            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
             return Task.CompletedTask;
         }
 
