@@ -8,5 +8,11 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("selector1"));
             Assert.True(healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("selector2"));
         }
+        [Fact]
+        public void GuessSelectorsIncludesDmarcianData() {
+            var selectors = DomainDetective.Definitions.DKIMSelectors.GuessSelectors().ToList();
+            Assert.Contains("selector2019", selectors);
+            Assert.True(selectors.Count > 17);
+        }
     }
 }
