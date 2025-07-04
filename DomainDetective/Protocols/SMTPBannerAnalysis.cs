@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 namespace DomainDetective {
@@ -25,6 +26,39 @@ namespace DomainDetective {
             public bool StartsWith220 { get; init; }
             /// <summary>True when banner contains a domain name after the greeting code.</summary>
             public bool ContainsDomain { get; init; }
+            /// <summary>True when the banner conforms to RFC 5321 format.</summary>
+            public bool ValidFormat { get; init; }
+        }
+
+        private static readonly Regex _labelRegex = new(
+            "^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$",
+            RegexOptions.Compiled);
+
+        private static bool IsValidDomain(string domain) {
+            if (domain.StartsWith("[") && domain.EndsWith("]", StringComparison.Ordinal)) {
+                return true;
+            }
+
+            foreach (var label in domain.Split('.')) {
+                if (!_labelRegex.IsMatch(label)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsValidBannerFormat(string? banner) {
+            if (string.IsNullOrWhiteSpace(banner)) {
+                return false;
+            }
+
+            var match = Regex.Match(banner, "^220(?:-|\\s)(\\S+)");
+            if (!match.Success) {
+                return false;
+            }
+
+            return IsValidDomain(match.Groups[1].Value);
         }
 
         /// <summary>Results for each host and port.</summary>
@@ -96,9 +130,13 @@ namespace DomainDetective {
                     }
                 }
                 bool containsDomain = !string.IsNullOrWhiteSpace(domain);
+                bool validFormat = IsValidBannerFormat(banner);
+                if (!validFormat && banner != null) {
+                    logger?.WriteWarning($"Banner from {host}:{port} is not RFC 5321 compliant: {banner}");
+                }
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;
-                return new BannerResult { Banner = banner, HostnameMatch = hostMatch, SoftwareMatch = softMatch, StartsWith220 = startsWith220, ContainsDomain = containsDomain };
+                return new BannerResult { Banner = banner, HostnameMatch = hostMatch, SoftwareMatch = softMatch, StartsWith220 = startsWith220, ContainsDomain = containsDomain, ValidFormat = validFormat };
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {
