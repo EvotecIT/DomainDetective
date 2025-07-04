@@ -41,6 +41,16 @@ namespace DomainDetective {
                     SmimeaRecord = record.Data,
                     EmailAddress = record.Name
                 };
+                if (!string.IsNullOrEmpty(record.Name)) {
+                    var match = System.Text.RegularExpressions.Regex.Match(
+                        record.Name,
+                        @"^[0-9a-f]{56}\._smimecert\.[^.].*$",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    analysis.ValidServiceAndProtocol = match.Success;
+                    if (!match.Success) {
+                        logger?.WriteWarning($"SMIMEA host name '{record.Name}' is invalid");
+                    }
+                }
                 logger?.WriteVerbose($"Analyzing SMIMEA record {record.Data}");
                 var components = record.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 analysis.NumberOfFields = components.Length;
@@ -164,6 +174,8 @@ namespace DomainDetective {
         public bool ValidSelector { get; set; }
         public bool ValidMatchingType { get; set; }
         public bool ValidCertificateAssociationData { get; set; }
+        /// <summary>True when the record name uses the '_smimecert' label without a protocol.</summary>
+        public bool ValidServiceAndProtocol { get; set; }
         public string CertificateUsage { get; set; }
         public string SelectorField { get; set; }
         public string MatchingTypeField { get; set; }
