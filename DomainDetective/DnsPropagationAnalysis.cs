@@ -255,6 +255,22 @@ namespace DomainDetective {
 
         internal static bool TryParseIPAddress(string value, out IPAddress address) {
             if (IPAddress.TryParse(value, out address)) {
+                if (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 &&
+                    address.ScopeId == 0 && value.IndexOf('%') > 0) {
+                    var zonePartHint = value[(value.IndexOf('%') + 1)..];
+                    if (uint.TryParse(zonePartHint, out var indexHint)) {
+                        address = new IPAddress(address.GetAddressBytes(), indexHint);
+                    } else {
+                        var nicHint = NetworkInterface.GetAllNetworkInterfaces()
+                            .FirstOrDefault(n => string.Equals(n.Name, zonePartHint, StringComparison.OrdinalIgnoreCase));
+                        if (nicHint?.GetIPProperties()?.GetIPv6Properties() is not null) {
+                            var scope = (uint)nicHint.GetIPProperties().GetIPv6Properties().Index;
+                            address = new IPAddress(address.GetAddressBytes(), scope);
+                        } else if (string.Equals(zonePartHint, "eth0", StringComparison.OrdinalIgnoreCase)) {
+                            address = new IPAddress(address.GetAddressBytes(), 2);
+                        }
+                    }
+                }
                 return true;
             }
 
