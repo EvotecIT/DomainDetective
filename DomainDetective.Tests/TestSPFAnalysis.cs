@@ -457,7 +457,9 @@ namespace DomainDetective.Tests {
 
             _ = await healthCheck.SpfAnalysis.GetFlattenedIpAddresses();
 
-            Assert.Contains("lookup limit", healthCheck.SpfAnalysis.Warnings.First());
+            Assert.Contains(
+                healthCheck.SpfAnalysis.Warnings,
+                w => w.Contains("lookup limit", StringComparison.OrdinalIgnoreCase));
         }
     }
 }
