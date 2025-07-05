@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -90,10 +91,19 @@ namespace DomainDetective {
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList) {
             var uris = uri.Split(',');
-            foreach (var u in uris) {
+            foreach (var raw in uris) {
+                var u = raw.Trim();
                 if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
-                    mailtoList.Add(u.Substring(7));
-                } else if (u.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                    var part = u.Substring(7);
+                    try {
+                        var decoded = Uri.UnescapeDataString(part);
+                        _ = new MailAddress(decoded);
+                        mailtoList.Add(decoded);
+                    } catch {
+                        invalidList.Add(u);
+                    }
+                } else if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) &&
+                           parsed.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
                     httpList.Add(u);
                 } else {
                     invalidList.Add(u);

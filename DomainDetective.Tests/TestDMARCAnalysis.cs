@@ -205,6 +205,33 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task PercentEncodedAddressesAreDecoded() {
+            var record = "v=DMARC1; p=none; rua=mailto:test%2Balias@example.com; ruf=mailto:test%2Bforensic@example.com";
+            var healthCheck = new DomainHealthCheck();
+
+            await healthCheck.CheckDMARC(record);
+
+            Assert.Contains("test+alias@example.com", healthCheck.DmarcAnalysis.MailtoRua);
+            Assert.Contains("test+forensic@example.com", healthCheck.DmarcAnalysis.MailtoRuf);
+        }
+
+        [Fact]
+        public async Task InvalidSchemeSetsFlag() {
+            var record = "v=DMARC1; p=none; rua=ftp://reports.example.com";
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+
+            await healthCheck.CheckDMARC(record);
+
+            Assert.True(healthCheck.DmarcAnalysis.InvalidReportUri);
+            Assert.Empty(healthCheck.DmarcAnalysis.MailtoRua);
+            Assert.Empty(healthCheck.DmarcAnalysis.HttpRua);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("missing a scheme"));
+        }
+
+        [Fact]
         public async Task UnknownTagsAreCollected() {
             var dmarcRecord = "v=DMARC1; p=none; foo=bar; test; x=y";
             var healthCheck = new DomainHealthCheck();
