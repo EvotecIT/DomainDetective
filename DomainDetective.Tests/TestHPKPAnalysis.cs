@@ -119,6 +119,34 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task WarnsOnHpKPHeader() {
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var pin1 = Convert.ToBase64String(Enumerable.Repeat((byte)7, 32).ToArray());
+            var pin2 = Convert.ToBase64String(Enumerable.Repeat((byte)8, 32).ToArray());
+            var header = $"pin-sha256=\"{pin1}\"; pin-sha256=\"{pin2}\"; max-age=200";
+            var task = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.Headers.Add("Public-Key-Pins", header);
+                ctx.Response.Close();
+            });
+            try {
+                var logger = new InternalLogger();
+                var warnings = new List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
+                var analysis = new HPKPAnalysis();
+                await analysis.AnalyzeUrl(prefix, logger);
+                Assert.True(analysis.HeaderPresent);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("obsolete"));
+            } finally {
+                listener.Stop();
+                await task;
+            }
+        }
+
+        [Fact]
         public async Task HeaderMissing() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";
