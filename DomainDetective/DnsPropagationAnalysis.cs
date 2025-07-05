@@ -302,9 +302,12 @@ namespace DomainDetective {
         /// records returned.
         /// </summary>
         /// <param name="results">The results to compare.</param>
-        /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>
-        public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
-            var comparison = new Dictionary<string, List<PublicDnsEntry>>();
+        /// <returns>
+        /// A dictionary keyed by the record returned and listing the servers along with
+        /// their country and location.
+        /// </returns>
+        public static Dictionary<string, List<DnsComparisonEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
+            var comparison = new Dictionary<string, List<DnsComparisonEntry>>();
             foreach (var res in results.Where(r => r.Success && r.Records != null)) {
                 var normalizedRecords = res.Records
                     .Select(r =>
@@ -316,12 +319,37 @@ namespace DomainDetective {
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
                 if (!comparison.TryGetValue(key, out var list)) {
-                    list = new List<PublicDnsEntry>();
+                    list = new List<DnsComparisonEntry>();
                     comparison[key] = list;
                 }
-                list.Add(res.Server);
+                list.Add(new DnsComparisonEntry {
+                    IPAddress = res.Server.IPAddress.ToString(),
+                    Country = res.Server.Country,
+                    Location = res.Server.Location
+                });
             }
             return comparison;
+        }
+
+        /// <summary>
+        /// Flattens comparison results into <see cref="DnsComparisonDetail"/> objects.
+        /// </summary>
+        /// <param name="results">The results to analyze.</param>
+        /// <returns>List of details for each server and record set.</returns>
+        public static List<DnsComparisonDetail> GetComparisonDetails(IEnumerable<DnsPropagationResult> results) {
+            var groups = CompareResults(results);
+            var details = new List<DnsComparisonDetail>();
+            foreach (var kvp in groups) {
+                foreach (var entry in kvp.Value) {
+                    details.Add(new DnsComparisonDetail {
+                        Records = kvp.Key,
+                        IPAddress = entry.IPAddress,
+                        Country = entry.Country,
+                        Location = entry.Location
+                    });
+                }
+            }
+            return details;
         }
     }
 }

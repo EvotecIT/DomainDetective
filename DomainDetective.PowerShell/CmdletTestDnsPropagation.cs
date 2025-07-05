@@ -75,8 +75,8 @@ namespace DomainDetective.PowerShell {
             IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, Take);
             var results = await _analysis.QueryAsync(DomainName, RecordType, servers);
             if (CompareResults) {
-                var comparison = DnsPropagationAnalysis.CompareResults(results);
-                WriteObject(comparison);
+                var details = DnsPropagationAnalysis.GetComparisonDetails(results);
+                WriteObject(details, true);
             } else {
                 WriteObject(results, true);
             }

@@ -74,7 +74,7 @@ namespace DomainDetective.Tests {
 
             var groups = DnsPropagationAnalysis.CompareResults(results);
             Assert.Equal(2, groups.Count);
-            Assert.Contains(groups, g => g.Value.Any(s => s.IPAddress.Equals(IPAddress.Parse("9.9.9.9"))));
+            Assert.Contains(groups, g => g.Value.Any(s => s.IPAddress == "9.9.9.9"));
         }
 
         [Fact]
