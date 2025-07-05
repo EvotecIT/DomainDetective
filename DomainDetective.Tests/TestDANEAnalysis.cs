@@ -162,6 +162,27 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task InvalidCombinationsAreRejected() {
+            var healthCheck = new DomainHealthCheck {
+                Verbose = false
+            };
+
+            var sha256 = new string('A', 64);
+            var invalid = new[] {
+                $"4 1 1 {sha256}",
+                $"1 2 1 {sha256}",
+                $"1 1 3 {sha256}",
+                "-1 0 0 ABCD"
+            };
+
+            foreach (var record in invalid) {
+                await healthCheck.CheckDANE(record);
+                var analysis = healthCheck.DaneAnalysis.AnalysisResults[0];
+                Assert.False(analysis.ValidDANERecord, record);
+            }
+        }
+
+        [Fact]
         public async Task VerifyDaneThrowsIfPortsNull() {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentException>(async () =>
