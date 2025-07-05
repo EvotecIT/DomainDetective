@@ -22,6 +22,7 @@ namespace DomainDetective {
         public int Retry { get; private set; }
         public int Expire { get; private set; }
         public int Minimum { get; private set; }
+        public int NegativeCacheTtl { get; private set; }
         public bool RecordExists { get; private set; }
 
         /// <summary>
@@ -40,6 +41,7 @@ namespace DomainDetective {
             Retry = 0;
             Expire = 0;
             Minimum = 0;
+            NegativeCacheTtl = 0;
             RecordExists = false;
 
             if (dnsResults == null) {
@@ -78,6 +80,11 @@ namespace DomainDetective {
                 Retry = retry;
                 Expire = expire;
                 Minimum = minimum;
+                NegativeCacheTtl = Math.Min(record.TTL, Minimum);
+            }
+
+            if (NegativeCacheTtl == 0) {
+                NegativeCacheTtl = Math.Min(record.TTL, Minimum);
             }
 
             logger?.WriteVerbose($"Analyzed SOA record {record.Data}");
