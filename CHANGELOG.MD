@@ -34,4 +34,3 @@
 - Evaluate Strict-Transport-Security header for preload readiness
 - Added property to report if the `preload` token is present
 - Added tests for headers from hstspreload.org
-
