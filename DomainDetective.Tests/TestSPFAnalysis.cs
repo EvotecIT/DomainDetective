@@ -435,6 +435,36 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task GetFlattenedIpAddressesReturnsIps() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.3 -all";
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com ip4:192.0.2.1 -all");
+
+            var ips = await healthCheck.SpfAnalysis.GetFlattenedIpAddresses();
+
+            Assert.Contains("192.0.2.1", ips);
+            Assert.Contains("192.0.2.3", ips);
+        }
+
+        [Fact]
+        public async Task GetFlattenedIpAddressesWarnsOnTooManyLookups() {
+            var record = "v=spf1 " + string.Join(" ", Enumerable.Range(0, 12).Select(i => $"include:a{i}.example.com")) + " -all";
+            var healthCheck = new DomainHealthCheck();
+            foreach (var i in Enumerable.Range(0, 12)) {
+                healthCheck.SpfAnalysis.TestSpfRecords[$"a{i}.example.com"] = "v=spf1 ip4:192.0.2.1 -all";
+            }
+
+            await healthCheck.CheckSPF(record);
+
+            _ = await healthCheck.SpfAnalysis.GetFlattenedIpAddresses();
+
+            Assert.Contains(
+                healthCheck.SpfAnalysis.Warnings,
+                w => w.Contains("lookup limit", StringComparison.OrdinalIgnoreCase));
+        }
+         
+        [Fact]
         public async Task ExpModifierReturnsExplanation() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.SpfAnalysis.TestSpfRecords["explain.example.com"] = "%{i} is not authorized";
