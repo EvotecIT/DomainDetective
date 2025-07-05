@@ -93,6 +93,7 @@ namespace DomainDetective.Tests {
                 await analysis.Scan("127.0.0.1", new[] { udpPort }, new InternalLogger());
 
                 Assert.False(analysis.Results[udpPort].UdpOpen);
+                Assert.False(string.IsNullOrEmpty(analysis.Results[udpPort].Error));
             } finally {
                 udpServer.Close();
                 await udpTask;
@@ -105,6 +106,15 @@ namespace DomainDetective.Tests {
             var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
             await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
             Assert.False(analysis.Results[port].TcpOpen);
+            Assert.False(string.IsNullOrEmpty(analysis.Results[port].Error));
+        }
+
+        [Fact]
+        public async Task UnresolvableHostRecordsError() {
+            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            await analysis.Scan("nonexistent.example.invalid", new[] { 80 }, new InternalLogger());
+            Assert.False(analysis.Results[80].TcpOpen);
+            Assert.False(string.IsNullOrEmpty(analysis.Results[80].Error));
         }
 
         private static int GetFreePort() {
