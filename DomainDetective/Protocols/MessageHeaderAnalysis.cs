@@ -225,8 +225,17 @@ namespace DomainDetective {
             if (input.Length == 0 || input.Length % 4 != 0) {
                 return false;
             }
+#if NET6_0_OR_GREATER
             Span<byte> buffer = stackalloc byte[input.Length];
             return Convert.TryFromBase64String(input, buffer, out _);
+#else
+            try {
+                Convert.FromBase64String(input);
+                return true;
+            } catch (FormatException) {
+                return false;
+            }
+#endif
         }
 
         private void ComputeTransitTime() {
