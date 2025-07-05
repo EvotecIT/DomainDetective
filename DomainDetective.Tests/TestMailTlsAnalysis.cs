@@ -70,7 +70,7 @@ public class TestMailTlsAnalysis
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         using var cts = new CancellationTokenSource();
-        var serverTask = Task.Run(() => RunPop3ServerNoTls(listener, cert, cts.Token), cts.Token);
+        var serverTask = Task.Run(() => RunPop3ServerNoTls(listener, cts.Token), cts.Token);
 
         try
         {
@@ -165,7 +165,7 @@ public class TestMailTlsAnalysis
         }
     }
 
-    private static async Task RunPop3ServerNoTls(TcpListener listener, X509Certificate2 cert, CancellationToken token)
+    private static async Task RunPop3ServerNoTls(TcpListener listener, CancellationToken token)
     {
         try
         {
