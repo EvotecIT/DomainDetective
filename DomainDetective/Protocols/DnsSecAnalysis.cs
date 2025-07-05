@@ -266,7 +266,7 @@ namespace DomainDetective {
                     return false;
                 }
 
-                int computedKeyTag = ComputeKeyTag(rdata);
+                int computedKeyTag = ComputeKeyTag(dnskey);
                 if (computedKeyTag != keyTag || dsAlgorithm != algorithm) {
                     return false;
                 }
@@ -303,6 +303,41 @@ namespace DomainDetective {
             }
             ac += (ac >> 16) & 0xFFFF;
             return ac & 0xFFFF;
+        }
+
+        /// <summary>
+        /// Computes the DNSSEC key tag from a DNSKEY record.
+        /// </summary>
+        /// <param name="dnskeyRecord">Full DNSKEY record string.</param>
+        /// <returns>Key tag value or 0 if parsing fails.</returns>
+        public static int ComputeKeyTag(string dnskeyRecord) {
+            if (string.IsNullOrWhiteSpace(dnskeyRecord)) {
+                return 0;
+            }
+
+            var parts = dnskeyRecord.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 4) {
+                return 0;
+            }
+
+            if (!ushort.TryParse(parts[0], out ushort flags) ||
+                !byte.TryParse(parts[1], out byte protocol)) {
+                return 0;
+            }
+
+            int algorithm = AlgorithmNumber(parts[2]);
+            if (!DNSKeyAnalysis.IsValidAlgorithmNumber(algorithm)) {
+                return 0;
+            }
+
+            byte[] publicKeyBytes = Convert.FromBase64String(parts[3]);
+            List<byte> rdata = new();
+            rdata.AddRange(BitConverter.GetBytes(flags).Reverse());
+            rdata.Add(protocol);
+            rdata.Add((byte)algorithm);
+            rdata.AddRange(publicKeyBytes);
+
+            return ComputeKeyTag(rdata);
         }
 
         /// <summary>
