@@ -56,6 +56,8 @@ namespace DomainDetective {
                     return;
                 }
 
+                logger?.WriteWarning("HPKP header found but HPKP is obsolete (RFC 7469).");
+
                 var parts = (Header ?? string.Empty).Split(';');
                 var valid = true;
                 foreach (var part in parts) {
