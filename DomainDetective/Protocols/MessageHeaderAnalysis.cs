@@ -40,6 +40,8 @@ namespace DomainDetective {
         public string? ArcResult { get; private set; }
         /// <summary>Optional spam related headers.</summary>
         public Dictionary<string, string> SpamHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Ignored DKIM-Signature headers with invalid signature values.</summary>
+        public List<string> InvalidDkimSignatures { get; } = new();
 
         /// <summary>
         /// Parses <paramref name="rawHeaders"/> into strongly typed properties.
@@ -105,6 +107,13 @@ namespace DomainDetective {
 
         private void AddHeaderValue(string field, string value) {
             var normalized = CanonicalizeValue(value);
+            var lower = field.ToLowerInvariant();
+
+            if (lower == "dkim-signature" && !HasValidSignature(normalized)) {
+                InvalidDkimSignatures.Add(normalized);
+                return;
+            }
+
             if (Headers.TryGetValue(field, out var existing)) {
                 if (!DuplicateHeaders.TryGetValue(field, out var list)) {
                     list = new List<string> { existing };
@@ -114,7 +123,6 @@ namespace DomainDetective {
             }
             Headers[field] = normalized;
 
-            var lower = field.ToLowerInvariant();
             switch (lower) {
                 case "received":
                     ReceivedChain.Add(value);
@@ -199,6 +207,35 @@ namespace DomainDetective {
                     ArcResult = trimmed.Substring(4).Trim();
                 }
             }
+        }
+
+        private static bool HasValidSignature(string value) {
+            foreach (var part in value.Split(';')) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("b=", StringComparison.OrdinalIgnoreCase)) {
+                    var sig = trimmed.Substring(2).Trim();
+                    return IsValidBase64(sig);
+                }
+            }
+            return false;
+        }
+
+        private static bool IsValidBase64(string input) {
+            input = input.Trim();
+            if (input.Length == 0 || input.Length % 4 != 0) {
+                return false;
+            }
+#if NET6_0_OR_GREATER
+            Span<byte> buffer = stackalloc byte[input.Length];
+            return Convert.TryFromBase64String(input, buffer, out _);
+#else
+            try {
+                Convert.FromBase64String(input);
+                return true;
+            } catch (FormatException) {
+                return false;
+            }
+#endif
         }
 
         private void ComputeTransitTime() {
