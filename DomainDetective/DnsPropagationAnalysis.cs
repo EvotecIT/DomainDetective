@@ -255,15 +255,30 @@ namespace DomainDetective {
         /// <param name="servers">Servers to query.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <returns>A list of query results.</returns>
-        public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers, CancellationToken cancellationToken = default) {
+        public async Task<List<DnsPropagationResult>> QueryAsync(
+            string domain,
+            DnsRecordType recordType,
+            IEnumerable<PublicDnsEntry> servers,
+            CancellationToken cancellationToken = default,
+            IProgress<double>? progress = null) {
             var serverList = servers?.ToList() ?? new List<PublicDnsEntry>();
             if (serverList.Count == 0) {
                 return new List<DnsPropagationResult>();
             }
 
-            var tasks = serverList.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
-            var results = await Task.WhenAll(tasks);
-            return results.ToList();
+            var tasks = serverList
+                .Select(server => QueryServerAsync(domain, recordType, server, cancellationToken))
+                .ToList();
+            var results = new List<DnsPropagationResult>(serverList.Count);
+            var completed = 0;
+            while (tasks.Count > 0) {
+                var task = await Task.WhenAny(tasks);
+                tasks.Remove(task);
+                results.Add(await task);
+                completed++;
+                progress?.Report(completed * 100d / serverList.Count);
+            }
+            return results;
         }
 
         private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {

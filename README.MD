@@ -163,6 +163,11 @@ Query an S/MIMEA record:
 ```bash
 ddcli TestSMIMEA user@example.com
 ```
+Check DNS propagation:
+```bash
+ddcli DnsPropagation --domain example.com --record-type A
+```
+Progress is displayed as each resolver responds.
 
 ### Interactive CLI Wizard
 
