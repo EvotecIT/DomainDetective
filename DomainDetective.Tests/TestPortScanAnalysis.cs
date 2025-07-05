@@ -109,6 +109,14 @@ namespace DomainDetective.Tests {
             Assert.False(string.IsNullOrEmpty(analysis.Results[port].Error));
         }
 
+        [Fact]
+        public async Task UnresolvableHostRecordsError() {
+            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            await analysis.Scan("nonexistent.example.invalid", new[] { 80 }, new InternalLogger());
+            Assert.False(analysis.Results[80].TcpOpen);
+            Assert.False(string.IsNullOrEmpty(analysis.Results[80].Error));
+        }
+
         private static int GetFreePort() {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
