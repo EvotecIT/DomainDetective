@@ -71,4 +71,26 @@ public class TestWildcardDnsAnalysis
 
         Assert.False(analysis.CatchAll);
     }
+
+    [Fact]
+    public async Task FallsBackToNsWhenSoaMissing()
+    {
+        var analysis = new WildcardDnsAnalysis
+        {
+            QueryDnsOverride = (_, type) =>
+            {
+                return type switch
+                {
+                    DnsRecordType.SOA => Task.FromResult(System.Array.Empty<DnsAnswer>()),
+                    DnsRecordType.NS => Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.NS } }),
+                    _ => Task.FromResult(System.Array.Empty<DnsAnswer>())
+                };
+            }
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger(), sampleCount: 1);
+
+        Assert.False(analysis.SoaExists);
+        Assert.True(analysis.NsExists);
+    }
 }
