@@ -241,19 +241,10 @@ public class MailTlsAnalysis
                     result.StartTlsAdvertised = capabilities.Contains("STLS");
                     if (!result.StartTlsAdvertised)
                     {
-                        await writer.WriteLineAsync("STLS").WaitWithCancellation(timeoutCts.Token);
-                        var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                        if (resp != null && resp.StartsWith("+OK"))
-                        {
-                            result.StartTlsAdvertised = true;
-                        }
-                        else
-                        {
-                            await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
-                            await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-                            await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                            return result;
-                        }
+                        await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                        await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                        await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                        return result;
                     }
                     break;
             }
