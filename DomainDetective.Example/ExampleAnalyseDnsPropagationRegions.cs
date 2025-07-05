@@ -22,11 +22,10 @@ namespace DomainDetective.Example {
                 }
             }
 
-            var comparison = DnsPropagationAnalysis.CompareResults(results);
+            var details = DnsPropagationAnalysis.GetComparisonDetails(results);
             Console.WriteLine("\nSummary by record set:");
-            foreach (var kvp in comparison) {
-                var countries = string.Join(',', kvp.Value.Select(s => s.Country));
-                Console.WriteLine($"Record set: {kvp.Key} seen by {kvp.Value.Count} servers ({countries})");
+            foreach (var d in details) {
+                Console.WriteLine($"{d.Records}: {d.IPAddress} ({d.Country}/{d.Location})");
             }
         }
     }

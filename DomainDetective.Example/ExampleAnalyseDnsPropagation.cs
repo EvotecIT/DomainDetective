@@ -15,9 +15,9 @@ namespace DomainDetective.Example {
                 Console.WriteLine($"{result.Server.IPAddress} - Success:{result.Success} Records:{string.Join(',', result.Records)} Time:{result.Duration.TotalMilliseconds}ms");
             }
 
-            var comparison = DnsPropagationAnalysis.CompareResults(results);
-            foreach (var kvp in comparison) {
-                Console.WriteLine($"Record set: {kvp.Key} seen by {kvp.Value.Count} servers");
+            var details = DnsPropagationAnalysis.GetComparisonDetails(results);
+            foreach (var d in details) {
+                Console.WriteLine($"{d.Records}: {d.IPAddress} ({d.Country}/{d.Location})");
             }
         }
     }

@@ -40,12 +40,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         var domain = CliHelpers.ToAscii(settings.Domain);
         var results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);
         if (settings.Compare) {
-            var groups = DnsPropagationAnalysis.CompareResults(results);
+            var details = DnsPropagationAnalysis.GetComparisonDetails(results);
             if (settings.Json) {
-                Console.WriteLine(JsonSerializer.Serialize(groups, DomainHealthCheck.JsonOptions));
+                Console.WriteLine(JsonSerializer.Serialize(details, DomainHealthCheck.JsonOptions));
             } else {
-                foreach (var kvp in groups) {
-                    Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress.ToString()))}");
+                foreach (var d in details) {
+                    Console.WriteLine($"{d.Records}: {d.IPAddress} ({d.Country}/{d.Location})");
                 }
             }
         } else {
