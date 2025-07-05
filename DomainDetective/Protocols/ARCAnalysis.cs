@@ -67,20 +67,11 @@ namespace DomainDetective {
                 return;
             }
 
-            ArcHeadersFound = ArcSealHeaders.Count > 0 || ArcAuthenticationResultsHeaders.Count > 0;
+            ArcHeadersFound = ArcSealHeaders.Count > 0 ||
+                              ArcAuthenticationResultsHeaders.Count > 0;
 
-            var aarSequence = new List<int>();
-            var sealSequence = new List<int>();
-
-            foreach (var aar in ArcAuthenticationResultsHeaders) {
-                var inst = ParseInstance(aar);
-                if (inst == null) {
-                    ValidChain = false;
-                    return;
-                }
-
-                aarSequence.Add(inst.Value);
-            }
+            var sealInstances = new HashSet<int>();
+            var aarInstances = new HashSet<int>();
 
             foreach (var seal in ArcSealHeaders) {
                 if (!HasSignature(seal)) {
@@ -89,22 +80,30 @@ namespace DomainDetective {
                 }
 
                 var inst = ParseInstance(seal);
-                if (inst == null) {
+                if (inst == null || !sealInstances.Add(inst.Value)) {
                     ValidChain = false;
                     return;
                 }
-
-                sealSequence.Add(inst.Value);
             }
 
-            if (aarSequence.Count == 0 || sealSequence.Count == 0 || aarSequence.Count != sealSequence.Count) {
+            foreach (var aar in ArcAuthenticationResultsHeaders) {
+                var inst = ParseInstance(aar);
+                if (inst == null || !aarInstances.Add(inst.Value)) {
+                    ValidChain = false;
+                    return;
+                }
+            }
+
+            if (sealInstances.Count == 0 ||
+                sealInstances.Count != aarInstances.Count ||
+                !sealInstances.SetEquals(aarInstances)) {
                 ValidChain = false;
                 return;
             }
 
-            for (int index = 0; index < aarSequence.Count; index++) {
-                var expected = index + 1;
-                if (aarSequence[index] != expected || sealSequence[index] != expected) {
+            var ordered = sealInstances.OrderBy(i => i).ToArray();
+            for (var i = 0; i < ordered.Length; i++) {
+                if (ordered[i] != i + 1) {
                     ValidChain = false;
                     return;
                 }
