@@ -86,6 +86,8 @@ namespace DomainDetective {
         public bool OriginAgentClusterPresent { get; private set; }
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
         public bool OriginAgentClusterEnabled { get; private set; }
+        /// <summary>Gets a value indicating whether cross-origin isolation is enabled.</summary>
+        public bool CrossOriginIsolationEnabled { get; private set; }
         /// <summary>Gets the URLs visited when following redirects.</summary>
         public List<string> VisitedUrls { get; } = new();
         /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
@@ -193,6 +195,7 @@ namespace DomainDetective {
             CrossOriginResourcePolicy = null;
             OriginAgentClusterPresent = false;
             OriginAgentClusterEnabled = false;
+            CrossOriginIsolationEnabled = false;
             SecurityHeaders.Clear();
             MissingSecurityHeaders.Clear();
             try {
@@ -320,6 +323,11 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Origin-Agent-Cluster", out var oac)) {
                         ParseOriginAgentCluster(oac.Value);
                     }
+                    CrossOriginIsolationEnabled = OriginAgentClusterEnabled &&
+                        (string.Equals(CrossOriginOpenerPolicy, "same-origin", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(CrossOriginOpenerPolicy, "same-origin-plus-COEP", StringComparison.OrdinalIgnoreCase)) &&
+                        (string.Equals(CrossOriginEmbedderPolicy, "require-corp", StringComparison.OrdinalIgnoreCase) ||
+                         string.Equals(CrossOriginEmbedderPolicy, "credentialless", StringComparison.OrdinalIgnoreCase));
                     if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
                         ParseExpectCt(ect.Value);
                     }
