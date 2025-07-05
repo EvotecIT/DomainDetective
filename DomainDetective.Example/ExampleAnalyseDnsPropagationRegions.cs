@@ -1,7 +1,7 @@
 using DnsClientX;
 using System;
+using DomainDetective;
 using System.Linq;
-
 using System.Threading.Tasks;
 
 namespace DomainDetective.Example {
@@ -11,7 +11,13 @@ namespace DomainDetective.Example {
             analysis.LoadBuiltinServers();
 
             var servers = analysis.FilterServers(take: 8);
-            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, servers);
+            var progress = new Progress<double>(p => Console.WriteLine($"Progress: {p:F0}%"));
+            var results = await analysis.QueryAsync(
+                "example.com",
+                DnsRecordType.A,
+                servers,
+                cancellationToken: default,
+                progress: progress);
 
             var grouped = results.GroupBy(r => r.Server.Country);
             foreach (var group in grouped) {

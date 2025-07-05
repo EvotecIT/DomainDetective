@@ -26,6 +26,7 @@ Test-NsRecord -DomainName "example.com" -Verbose
   $file = Join-Path (Split-Path ([System.Reflection.Assembly]::GetExecutingAssembly().Location)) 'Data/DNS/PublicDNS.json'
   Test-DnsPropagation -DomainName "example.com" -RecordType A -ServersFile $file -CompareResults
   ```
+  Progress is reported via `Write-Progress`.
 - `Test-CaaRecord` – validates CAA entries.
   ```powershell
   Test-CaaRecord -DomainName "example.com"
