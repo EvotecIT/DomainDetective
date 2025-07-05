@@ -8,9 +8,9 @@ Received: from mail.example.com (mail.example.com. [192.0.2.1])
 DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed;
         d=example.com; s=selector1; t=1615567890;
         h=from:to:subject:date:message-id:mime-version:content-type;
-        bh=abc123; b=def456
+        bh=abc123; b=ZGVmNDU2
 Authentication-Results: dkimvalidator.com;
-        dkim=pass (1024-bit key) header.d=example.com header.i=@example.com header.b=def456;
+        dkim=pass (1024-bit key) header.d=example.com header.i=@example.com header.b=ZGVmNDU2;
         spf=pass smtp.mailfrom=sender@example.com;
         dmarc=pass header.from=example.com
 From: sender@example.com
