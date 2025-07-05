@@ -170,6 +170,13 @@ namespace DomainDetective {
                     return (null, 0);
                 }
 
+                var mediaType = response.Content.Headers.ContentType?.MediaType;
+                if (!"image/svg+xml".Equals(mediaType, StringComparison.OrdinalIgnoreCase)) {
+                    FailureReason = $"Invalid Content-Type: {mediaType}";
+                    logger?.WriteWarning("Invalid BIMI indicator MIME type {0}", mediaType);
+                    return (null, 0);
+                }
+
                 var bytes = await response.Content.ReadAsByteArrayAsync();
                 if (url.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)) {
                     using var ms = new MemoryStream(bytes);
