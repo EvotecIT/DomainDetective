@@ -62,6 +62,31 @@ public class TestMailTlsAnalysis
         }
     }
 
+    [Fact]
+    public async Task Pop3TlsMissingCapability()
+    {
+        using var cert = CreateSelfSigned();
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var cts = new CancellationTokenSource();
+        var serverTask = Task.Run(() => RunPop3ServerNoTls(listener, cts.Token), cts.Token);
+
+        try
+        {
+            var analysis = new POP3TLSAnalysis();
+            await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+            var result = analysis.ServerResults[$"localhost:{port}"];
+            Assert.False(result.StartTlsAdvertised);
+        }
+        finally
+        {
+            cts.Cancel();
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
     private static async Task RunImapServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token)
     {
         try
@@ -131,6 +156,44 @@ public class TestMailTlsAnalysis
                     await ssl.AuthenticateAsServerAsync(cert, false, protocol, false);
                     using var sslReader = new StreamReader(ssl);
                     await sslReader.ReadLineAsync();
+                }, token);
+            }
+        }
+        catch
+        {
+            // ignore on shutdown
+        }
+    }
+
+    private static async Task RunPop3ServerNoTls(TcpListener listener, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var clientTask = listener.AcceptTcpClientAsync();
+                var completed = await Task.WhenAny(clientTask, Task.Delay(Timeout.Infinite, token));
+                if (completed != clientTask)
+                {
+                    try { await clientTask; } catch { }
+                    break;
+                }
+
+                var client = await clientTask;
+                _ = Task.Run(async () =>
+                {
+                    using var tcp = client;
+                    using var stream = tcp.GetStream();
+                    using var reader = new StreamReader(stream);
+                    using var writer = new StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                    await writer.WriteLineAsync("+OK POP3 ready");
+                    await reader.ReadLineAsync();
+                    await writer.WriteLineAsync("+OK\r\nUSER\r\n.");
+                    var cmd = await reader.ReadLineAsync();
+                    if (cmd == "QUIT")
+                    {
+                        await writer.WriteLineAsync("+OK");
+                    }
                 }, token);
             }
         }

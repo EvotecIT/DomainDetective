@@ -1,4 +1,6 @@
 using DnsClientX;
+using DomainDetective;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using System.Reflection;
 using System.Text.Json;
@@ -22,6 +24,9 @@ internal sealed class DnsPropagationSettings : CommandSettings {
 
     [CommandOption("--compare-results")]
     public bool Compare { get; set; }
+
+    [CommandOption("--no-progress")]
+    public bool NoProgress { get; set; }
 }
 
 internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSettings> {
@@ -38,14 +43,24 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         }
         var servers = analysis.Servers;
         var domain = CliHelpers.ToAscii(settings.Domain);
-        var results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);
+
+        List<DnsPropagationResult> results = new();
+        if (settings.NoProgress) {
+            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);
+        } else {
+            await AnsiConsole.Progress().StartAsync(async ctx => {
+                var task = ctx.AddTask($"Query {domain}", maxValue: 100);
+                var progress = new Progress<double>(p => task.Value = p);
+                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress);
+            });
+        }
         if (settings.Compare) {
-            var groups = DnsPropagationAnalysis.CompareResults(results);
+            var details = DnsPropagationAnalysis.GetComparisonDetails(results);
             if (settings.Json) {
-                Console.WriteLine(JsonSerializer.Serialize(groups, DomainHealthCheck.JsonOptions));
+                Console.WriteLine(JsonSerializer.Serialize(details, DomainHealthCheck.JsonOptions));
             } else {
-                foreach (var kvp in groups) {
-                    Console.WriteLine($"{kvp.Key}: {string.Join(',', kvp.Value.Select(s => s.IPAddress.ToString()))}");
+                foreach (var d in details) {
+                    Console.WriteLine($"{d.Records}: {d.IPAddress} ({d.Country}/{d.Location})");
                 }
             }
         } else {

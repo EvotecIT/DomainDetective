@@ -215,12 +215,11 @@ namespace DomainDetective {
             int expected = digestType switch {
                 1 => 40,
                 2 => 64,
-                3 => 64,
                 4 => 96,
-                _ => 0,
+                _ => -1,
             };
 
-            return expected == 0 || parts[3].Length == expected;
+            return expected < 0 || parts[3].Length == expected;
         }
 
         /// <summary>

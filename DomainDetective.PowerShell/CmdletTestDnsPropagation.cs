@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using DomainDetective;
 using System.Collections.Generic;
+using System.Linq;
 using System.IO;
 using System.Management.Automation;
 using System.Reflection;
@@ -73,10 +74,20 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, Take);
-            var results = await _analysis.QueryAsync(DomainName, RecordType, servers);
+            var serverList = servers.ToList();
+            var progress = new Progress<double>(p => {
+                var record = new ProgressRecord(1, "DnsPropagation", $"{p:F0}% complete") {
+                    PercentComplete = (int)p
+                };
+                if (p >= 100) {
+                    record.RecordType = ProgressRecordType.Completed;
+                }
+                WriteProgress(record);
+            });
+            var results = await _analysis.QueryAsync(DomainName, RecordType, serverList, CancelToken, progress);
             if (CompareResults) {
-                var comparison = DnsPropagationAnalysis.CompareResults(results);
-                WriteObject(comparison);
+                var details = DnsPropagationAnalysis.GetComparisonDetails(results);
+                WriteObject(details, true);
             } else {
                 WriteObject(results, true);
             }

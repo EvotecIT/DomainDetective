@@ -255,15 +255,30 @@ namespace DomainDetective {
         /// <param name="servers">Servers to query.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         /// <returns>A list of query results.</returns>
-        public async Task<List<DnsPropagationResult>> QueryAsync(string domain, DnsRecordType recordType, IEnumerable<PublicDnsEntry> servers, CancellationToken cancellationToken = default) {
+        public async Task<List<DnsPropagationResult>> QueryAsync(
+            string domain,
+            DnsRecordType recordType,
+            IEnumerable<PublicDnsEntry> servers,
+            CancellationToken cancellationToken = default,
+            IProgress<double>? progress = null) {
             var serverList = servers?.ToList() ?? new List<PublicDnsEntry>();
             if (serverList.Count == 0) {
                 return new List<DnsPropagationResult>();
             }
 
-            var tasks = serverList.Select(server => QueryServerAsync(domain, recordType, server, cancellationToken));
-            var results = await Task.WhenAll(tasks);
-            return results.ToList();
+            var tasks = serverList
+                .Select(server => QueryServerAsync(domain, recordType, server, cancellationToken))
+                .ToList();
+            var results = new List<DnsPropagationResult>(serverList.Count);
+            var completed = 0;
+            while (tasks.Count > 0) {
+                var task = await Task.WhenAny(tasks);
+                tasks.Remove(task);
+                results.Add(await task);
+                completed++;
+                progress?.Report(completed * 100d / serverList.Count);
+            }
+            return results;
         }
 
         private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
@@ -302,9 +317,12 @@ namespace DomainDetective {
         /// records returned.
         /// </summary>
         /// <param name="results">The results to compare.</param>
-        /// <returns>A dictionary keyed by the record returned and listing the servers that returned it.</returns>
-        public static Dictionary<string, List<PublicDnsEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
-            var comparison = new Dictionary<string, List<PublicDnsEntry>>();
+        /// <returns>
+        /// A dictionary keyed by the record returned and listing the servers along with
+        /// their country and location.
+        /// </returns>
+        public static Dictionary<string, List<DnsComparisonEntry>> CompareResults(IEnumerable<DnsPropagationResult> results) {
+            var comparison = new Dictionary<string, List<DnsComparisonEntry>>();
             foreach (var res in results.Where(r => r.Success && r.Records != null)) {
                 var normalizedRecords = res.Records
                     .Select(r =>
@@ -316,12 +334,37 @@ namespace DomainDetective {
                     .OrderBy(r => r);
                 var key = string.Join(",", normalizedRecords);
                 if (!comparison.TryGetValue(key, out var list)) {
-                    list = new List<PublicDnsEntry>();
+                    list = new List<DnsComparisonEntry>();
                     comparison[key] = list;
                 }
-                list.Add(res.Server);
+                list.Add(new DnsComparisonEntry {
+                    IPAddress = res.Server.IPAddress.ToString(),
+                    Country = res.Server.Country,
+                    Location = res.Server.Location
+                });
             }
             return comparison;
+        }
+
+        /// <summary>
+        /// Flattens comparison results into <see cref="DnsComparisonDetail"/> objects.
+        /// </summary>
+        /// <param name="results">The results to analyze.</param>
+        /// <returns>List of details for each server and record set.</returns>
+        public static List<DnsComparisonDetail> GetComparisonDetails(IEnumerable<DnsPropagationResult> results) {
+            var groups = CompareResults(results);
+            var details = new List<DnsComparisonDetail>();
+            foreach (var kvp in groups) {
+                foreach (var entry in kvp.Value) {
+                    details.Add(new DnsComparisonDetail {
+                        Records = kvp.Key,
+                        IPAddress = entry.IPAddress,
+                        Country = entry.Country,
+                        Location = entry.Location
+                    });
+                }
+            }
+            return details;
         }
     }
 }

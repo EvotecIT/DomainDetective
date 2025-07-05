@@ -30,6 +30,7 @@ namespace DomainDetective.Tests {
                 Assert.True(result.SoftwareMatch);
                 Assert.True(result.StartsWith220);
                 Assert.True(result.ContainsDomain);
+                Assert.True(result.ValidFormat);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -59,14 +60,18 @@ namespace DomainDetective.Tests {
                 Assert.False(result.SoftwareMatch);
                 Assert.True(result.StartsWith220);
                 Assert.True(result.ContainsDomain);
+                Assert.True(result.ValidFormat);
             } finally {
                 listener.Stop();
                 await serverTask;
             }
         }
 
-        [Fact]
-        public async Task MalformedBanner() {
+        [Theory]
+        [InlineData("500 invalid")]
+        [InlineData("220nospace")]
+        [InlineData("220 example..com ESMTP")] 
+        public async Task MalformedBanner(string banner) {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -75,17 +80,20 @@ namespace DomainDetective.Tests {
                 using var stream = client.GetStream();
                 using var reader = new System.IO.StreamReader(stream);
                 using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
-                await writer.WriteLineAsync("500 invalid");
+                await writer.WriteLineAsync(banner);
                 await reader.ReadLineAsync();
                 await writer.WriteLineAsync("221 bye");
             });
 
             try {
+                var logger = new InternalLogger();
+                var warnings = new System.Collections.Generic.List<LogEventArgs>();
+                logger.OnWarningMessage += (_, e) => warnings.Add(e);
                 var analysis = new SMTPBannerAnalysis();
-                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                await analysis.AnalyzeServer("localhost", port, logger);
                 var result = analysis.ServerResults[$"localhost:{port}"];
-                Assert.False(result.StartsWith220);
-                Assert.False(result.ContainsDomain);
+                Assert.False(result.ValidFormat);
+                Assert.Contains(warnings, w => w.FullMessage.Contains("RFC 5321"));
             } finally {
                 listener.Stop();
                 await serverTask;

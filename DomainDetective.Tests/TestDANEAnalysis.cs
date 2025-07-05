@@ -324,5 +324,20 @@ namespace DomainDetective.Tests {
             Assert.True(result.ValidDANERecord);
             Assert.Equal(ServiceType.HTTPS, result.ServiceType);
         }
+
+        [Fact]
+        public async Task MultipleRecordsAreValidated() {
+            var records = new[] {
+                $"3 1 1 {new string('A', 64)}",
+                $"3 1 1 {new string('B', 64)}"
+            };
+
+            var healthCheck = new DomainHealthCheck { Verbose = false };
+            await healthCheck.CheckDANE(records);
+
+            Assert.Equal(2, healthCheck.DaneAnalysis.NumberOfRecords);
+            Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
+            Assert.Equal(2, healthCheck.DaneAnalysis.AnalysisResults.Count);
+        }
     }
 }

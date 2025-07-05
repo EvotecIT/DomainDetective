@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace DomainDetective.Tests {
     public class TestSpfAnalysis {
         [Fact]
@@ -460,6 +462,31 @@ namespace DomainDetective.Tests {
             Assert.Contains(
                 healthCheck.SpfAnalysis.Warnings,
                 w => w.Contains("lookup limit", StringComparison.OrdinalIgnoreCase));
+        }
+         
+        [Fact]
+        public async Task ExpModifierReturnsExplanation() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["explain.example.com"] = "%{i} is not authorized";
+
+            await healthCheck.CheckSPF("v=spf1 -all exp=explain.example.com");
+
+            var explanation = await healthCheck.SpfAnalysis.GetExplanationText(IPAddress.Parse("192.0.2.1"), "user@example.com", "mail.example.com", "example.com");
+
+            Assert.Equal("192.0.2.1 is not authorized", explanation);
+        }
+
+        [Fact]
+        public async Task ExpModifierRespectsLookupLimit() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["explain.example.com"] = "%{p} %{p} %{p} %{p}";
+
+            await healthCheck.CheckSPF("v=spf1 -all exp=explain.example.com");
+
+            var explanation = await healthCheck.SpfAnalysis.GetExplanationText(IPAddress.Parse("8.8.8.8"), "user@example.com", "mail.example.com", "example.com");
+
+            Assert.Null(explanation);
+            Assert.True(healthCheck.SpfAnalysis.ExpExceedsDnsLookups);
         }
     }
 }
