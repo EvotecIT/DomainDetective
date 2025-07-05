@@ -21,12 +21,11 @@ Test-NsRecord -DomainName "example.com" -Verbose
   ```powershell
   Test-DkimRecord -DomainName "example.com" -Selectors "selector1" -Verbose
   ```
-- `Test-DnsPropagation` – checks how DNS records propagate across public resolvers.
+- `Test-DnsPropagation` – checks how DNS records propagate across public resolvers. Progress is reported via `Write-Progress`.
   ```powershell
   $file = Join-Path (Split-Path ([System.Reflection.Assembly]::GetExecutingAssembly().Location)) 'Data/DNS/PublicDNS.json'
   Test-DnsPropagation -DomainName "example.com" -RecordType A -ServersFile $file -CompareResults
   ```
-  Progress is reported via `Write-Progress`.
 - `Test-CaaRecord` – validates CAA entries.
   ```powershell
   Test-CaaRecord -DomainName "example.com"
