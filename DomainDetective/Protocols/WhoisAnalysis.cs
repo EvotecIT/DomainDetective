@@ -81,6 +81,10 @@ public class WhoisAnalysis {
         "privacy protection"
     };
 
+    private static readonly Regex _expiryDateRegex = new(
+        "^\\s*(Registry Expiry Date:|Expiry date:|expire:|renewal date:)\\s*(.*)$",
+        RegexOptions.IgnoreCase);
+
     private void SetExpiryDate(string value) {
         if (DateTime.TryParse(value, CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
@@ -89,6 +93,20 @@ public class WhoisAnalysis {
         } else {
             ExpiryDate = value.Trim();
         }
+    }
+
+    private void NormalizeExpiryDateInData() {
+        if (string.IsNullOrEmpty(ExpiryDate) || string.IsNullOrEmpty(WhoisData)) {
+            return;
+        }
+        var lines = WhoisData.Split('\n');
+        for (var i = 0; i < lines.Length; i++) {
+            var match = _expiryDateRegex.Match(lines[i]);
+            if (match.Success) {
+                lines[i] = $"{match.Groups[1].Value} {ExpiryDate}";
+            }
+        }
+        WhoisData = string.Join("\n", lines);
     }
 
     private void ParseRegistrarLicense(string trimmedLine) {
@@ -422,6 +440,7 @@ public class WhoisAnalysis {
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
             ParseWhoisData();
+            NormalizeExpiryDateInData();
         } catch (Exception ex) {
             _logger.WriteError(
                 "Error querying WHOIS server {0} for domain {1}: {2}",
