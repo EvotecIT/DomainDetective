@@ -612,19 +612,19 @@ namespace DomainDetective {
                     addresses.Add(token.Substring(4));
                 } else if (token.Equals("a", StringComparison.OrdinalIgnoreCase) || token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                     var host = token.Length > 2 ? token.Substring(2) : domainName;
-                    var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
-                    var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
+                    var a = await QueryDns(host, DnsRecordType.A);
+                    var aaaa = await QueryDns(host, DnsRecordType.AAAA);
                     foreach (var ans in a.Concat(aaaa)) {
                         addresses.Add(ans.Data);
                     }
                 } else if (token.Equals("mx", StringComparison.OrdinalIgnoreCase) || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
                     var hostDomain = token.Length > 3 ? token.Substring(3) : domainName;
-                    var mxRecords = await DnsConfiguration.QueryDNS(hostDomain, DnsRecordType.MX);
+                    var mxRecords = await QueryDns(hostDomain, DnsRecordType.MX);
                     foreach (var mx in mxRecords) {
                         var parts = mx.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         var host = parts.Length == 2 ? parts[1].TrimEnd('.') : mx.Data.TrimEnd('.');
-                        var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
-                        var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
+                        var a = await QueryDns(host, DnsRecordType.A);
+                        var aaaa = await QueryDns(host, DnsRecordType.AAAA);
                         foreach (var ans in a.Concat(aaaa)) {
                             addresses.Add(ans.Data);
                         }
