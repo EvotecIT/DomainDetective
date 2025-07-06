@@ -334,11 +334,14 @@ namespace DomainDetective {
 
             foreach (var pair in responses) {
                 if (pair.Value.Count == 0) {
+                    var blacklist = pair.Key.Length > name.Length + 1
+                        ? pair.Key.Substring(name.Length + 1)
+                        : string.Empty;
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
                         OriginalIPAddress = ipAddressOrHostname,
                         FQDN = pair.Key,
-                        BlackList = pair.Key.Substring(name.Length + 1),
+                        BlackList = blacklist,
                         IsBlackListed = false,
                         Answer = string.Empty,
                         ReplyMeaning = string.Empty,
@@ -346,11 +349,14 @@ namespace DomainDetective {
                     yield return dnsblRecord;
                 } else {
                     foreach (var record in pair.Value) {
+                        var blacklist = record.Name.Length > name.Length + 1
+                            ? record.Name.Substring(name.Length + 1)
+                            : string.Empty;
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
                             OriginalIPAddress = ipAddressOrHostname,
                             FQDN = record.Name,
-                            BlackList = record.Name.Substring(name.Length + 1),
+                            BlackList = blacklist,
                             IsBlackListed = true,
                             Answer = record.Data,
                         };
