@@ -533,6 +533,38 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task CrossOriginIsolationDisabledForUriportsHeaders() {
+            var headersPath = Path.Combine("Data", "uriports-headers.txt");
+            var headers = File.ReadAllLines(headersPath).Skip(1);
+            using var listener = new HttpListener();
+            var prefix = $"http://localhost:{GetFreePort()}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                ctx.Response.StatusCode = 200;
+                foreach (var line in headers) {
+                    var idx = line.IndexOf(':');
+                    if (idx > 0) {
+                        var name = line.Substring(0, idx);
+                        var value = line.Substring(idx + 1).TrimStart();
+                        ctx.Response.Headers.Add(name, value);
+                    }
+                }
+                ctx.Response.Close();
+            });
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl(prefix, false, new InternalLogger(), collectHeaders: true);
+                Assert.False(analysis.CrossOriginIsolationEnabled);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
         public async Task DetectsPublicKeyPinsHeaderWithWarning() {
             using var listener = new HttpListener();
             var prefix = $"http://localhost:{GetFreePort()}/";

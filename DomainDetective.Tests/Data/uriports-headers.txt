@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+server: envoy
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+x-xss-protection: 0
+x-content-type-options: nosniff
+referrer-policy: strict-origin-when-cross-origin
+report-to: {"group":"default","max_age":2592000,"endpoints":[{"url":"https://leemankuiper.uriports.com/reports"}],"include_subdomains":true}
+reporting-endpoints: default="https://leemankuiper.uriports.com/reports"
+permissions-policy: microphone=();report-to=default, camera=();report-to=default, fullscreen=(self);report-to=default, payment=(self);report-to=default
+x-frame-options: SAMEORIGIN
+content-security-policy: default-src 'none'; script-src 'self'; img-src 'self' data: https:; connect-src https://*.uriports.com; style-src 'self' 'unsafe-inline'; font-src 'self'; form-action 'self' https://app.uriports.com; base-uri 'self'; frame-ancestors 'self'; object-src 'self'; manifest-src 'self'; block-all-mixed-content; report-uri https://leemankuiper.uriports.com/reports/enforce
+nel: {"report_to":"default","max_age":2592000,"include_subdomains":true,"failure_fraction":1.0,"success_fraction":0.0001}

@@ -472,12 +472,17 @@ namespace DomainDetective {
         private void ParseOriginAgentCluster(string headerValue) {
             OriginAgentClusterPresent = false;
             OriginAgentClusterEnabled = false;
-            if (string.IsNullOrEmpty(headerValue)) {
+            if (string.IsNullOrWhiteSpace(headerValue)) {
                 return;
             }
 
             OriginAgentClusterPresent = true;
-            OriginAgentClusterEnabled = headerValue.Trim().Equals("?1", StringComparison.Ordinal);
+            var trimmed = headerValue.Trim();
+            if (trimmed.StartsWith("?", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(1);
+            }
+
+            OriginAgentClusterEnabled = string.Equals(trimmed, "1", StringComparison.Ordinal);
         }
 
 #if NET6_0_OR_GREATER
