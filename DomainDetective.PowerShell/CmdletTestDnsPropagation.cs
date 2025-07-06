@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using DomainDetective;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -14,6 +15,10 @@ namespace DomainDetective.PowerShell {
     /// <example>
     ///   <summary>Test propagation of an A record.</summary>
     ///   <code>$file = Join-Path (Split-Path ([System.Reflection.Assembly]::GetExecutingAssembly().Location)) 'Data/DNS/PublicDNS.json'; Test-DnsPropagation -DomainName example.com -RecordType A -ServersFile $file</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Select servers by country.</summary>
+    ///   <code>Test-DnsPropagation -DomainName example.com -RecordType A -CountryCount @{PL=3;DE=2}</code>
     /// </example>
     [Cmdlet(
         VerbsDiagnostic.Test,
@@ -47,6 +52,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int? Take;
 
+        /// <param name="CountryCount">Select number of servers per country.</param>
+        [Parameter(Mandatory = false)]
+        public Hashtable? CountryCount;
+
         /// <param name="CompareResults">Return aggregated comparison of results.</param>
         [Parameter(Mandatory = false)]
         public SwitchParameter CompareResults;
@@ -73,7 +82,21 @@ namespace DomainDetective.PowerShell {
         }
 
         protected override async Task ProcessRecordAsync() {
-            IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, Take);
+            IEnumerable<PublicDnsEntry> servers;
+            if (CountryCount != null && CountryCount.Count > 0) {
+                var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (DictionaryEntry de in CountryCount) {
+                    if (de.Key == null || de.Value == null) {
+                        continue;
+                    }
+                    if (int.TryParse(de.Value.ToString(), out var count)) {
+                        dict[de.Key.ToString() ?? string.Empty] = count;
+                    }
+                }
+                servers = _analysis.SelectServers(dict);
+            } else {
+                servers = _analysis.FilterServers(Country, Location, Take);
+            }
             var serverList = servers.ToList();
             var progress = new Progress<double>(p => {
                 var record = new ProgressRecord(1, "DnsPropagation", $"{p:F0}% complete") {
