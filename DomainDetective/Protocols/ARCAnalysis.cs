@@ -70,8 +70,8 @@ namespace DomainDetective {
             ArcHeadersFound = ArcSealHeaders.Count > 0 ||
                               ArcAuthenticationResultsHeaders.Count > 0;
 
-            var sealInstances = new HashSet<int>();
-            var aarInstances = new HashSet<int>();
+            var sealSequence = new List<int>();
+            var aarSequence = new List<int>();
 
             foreach (var seal in ArcSealHeaders) {
                 if (!HasSignature(seal)) {
@@ -80,30 +80,43 @@ namespace DomainDetective {
                 }
 
                 var inst = ParseInstance(seal);
-                if (inst == null || !sealInstances.Add(inst.Value)) {
+                if (inst == null) {
                     ValidChain = false;
                     return;
                 }
+
+                sealSequence.Add(inst.Value);
             }
 
             foreach (var aar in ArcAuthenticationResultsHeaders) {
                 var inst = ParseInstance(aar);
-                if (inst == null || !aarInstances.Add(inst.Value)) {
+                if (inst == null) {
                     ValidChain = false;
                     return;
                 }
+
+                aarSequence.Add(inst.Value);
             }
 
-            if (sealInstances.Count == 0 ||
-                sealInstances.Count != aarInstances.Count ||
-                !sealInstances.SetEquals(aarInstances)) {
+            if (sealSequence.Count == 0 ||
+                aarSequence.Count == 0 ||
+                sealSequence.Count != aarSequence.Count) {
                 ValidChain = false;
                 return;
             }
 
-            var ordered = sealInstances.OrderBy(i => i).ToArray();
-            for (var i = 0; i < ordered.Length; i++) {
-                if (ordered[i] != i + 1) {
+            var count = sealSequence.Count;
+            bool ascending = sealSequence[0] == 1 && aarSequence[0] == 1;
+            bool descending = sealSequence[0] == count && aarSequence[0] == count;
+
+            if (!ascending && !descending) {
+                ValidChain = false;
+                return;
+            }
+
+            for (var index = 0; index < count; index++) {
+                var expected = ascending ? index + 1 : count - index;
+                if (sealSequence[index] != expected || aarSequence[index] != expected) {
                     ValidChain = false;
                     return;
                 }
