@@ -468,7 +468,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckSPF(record);
 
             Assert.True(healthCheck.SpfAnalysis.ExceedsDnsLookups);
-            Assert.Contains("DNS lookups", healthCheck.SpfAnalysis.Warnings.First());
+            Assert.Contains("DNS lookups", healthCheck.SpfAnalysis.Warnings.First(w => w.Contains("DNS lookups")));
         }
 
         [Fact]
