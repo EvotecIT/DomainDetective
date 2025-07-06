@@ -14,11 +14,11 @@ namespace DomainDetective.Tests {
         public async Task DetectsSnapshotChanges() {
             var first = string.Join("\n", new[] {
                 "Domain Name: snapshot.local",
-                "Registry Expiry Date: 2024-01-01"
+                "Registry Expiry Date: 2024-01-01T01:00:00+01:00"
             });
             var second = string.Join("\n", new[] {
                 "Domain Name: snapshot.local",
-                "Registry Expiry Date: 2025-01-01"
+                "Registry Expiry Date: 2025-01-01T02:00:00+02:00"
             });
             var dir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
             Directory.CreateDirectory(dir);
@@ -83,8 +83,8 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
 
-            Assert.Contains("+ Registry Expiry Date: 2025-01-01", diff);
-            Assert.Contains("- Registry Expiry Date: 2024-01-01", diff);
+            Assert.Contains("+ Registry Expiry Date: 2025-01-01T00:00:00Z", diff);
+            Assert.Contains("- Registry Expiry Date: 2024-01-01T00:00:00Z", diff);
         }
     }
 }

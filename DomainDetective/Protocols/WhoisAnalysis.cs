@@ -81,6 +81,34 @@ public class WhoisAnalysis {
         "privacy protection"
     };
 
+    private static readonly Regex _expiryDateRegex = new(
+        "^\\s*(Registry Expiry Date:|Expiry date:|expire:|renewal date:)\\s*(.*)$",
+        RegexOptions.IgnoreCase);
+
+    private void SetExpiryDate(string value) {
+        if (DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var expiry)) {
+            ExpiryDate = expiry.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+        } else {
+            ExpiryDate = value.Trim();
+        }
+    }
+
+    private void NormalizeExpiryDateInData() {
+        if (string.IsNullOrEmpty(ExpiryDate) || string.IsNullOrEmpty(WhoisData)) {
+            return;
+        }
+        var lines = WhoisData.Split('\n');
+        for (var i = 0; i < lines.Length; i++) {
+            var match = _expiryDateRegex.Match(lines[i]);
+            if (match.Success) {
+                lines[i] = $"{match.Groups[1].Value} {ExpiryDate}";
+            }
+        }
+        WhoisData = string.Join("\n", lines);
+    }
+
     private void ParseRegistrarLicense(string trimmedLine) {
         foreach (var prefix in _licensePrefixes) {
             if (trimmedLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) {
@@ -412,6 +440,7 @@ public class WhoisAnalysis {
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
             ParseWhoisData();
+            NormalizeExpiryDateInData();
         } catch (Exception ex) {
             _logger.WriteError(
                 "Error querying WHOIS server {0} for domain {1}: {2}",
@@ -494,7 +523,7 @@ public class WhoisAnalysis {
                         if (trimmedLine.StartsWith("Registered on:")) {
                             CreationDate = trimmedLine.Substring("Registered on:".Length).Trim();
                         } else if (trimmedLine.StartsWith("Expiry date:")) {
-                            ExpiryDate = trimmedLine.Substring("Expiry date:".Length).Trim();
+                            SetExpiryDate(trimmedLine.Substring("Expiry date:".Length).Trim());
                         } else if (trimmedLine.StartsWith("Last updated:")) {
                             LastUpdated = trimmedLine.Substring("Last updated:".Length).Trim();
                         }
@@ -595,7 +624,7 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("registered:")) {
                 CreationDate = trimmedLine.Substring("registered:".Length).Trim();
             } else if (trimmedLine.StartsWith("expire:")) {
-                ExpiryDate = trimmedLine.Substring("expire:".Length).Trim();
+                SetExpiryDate(trimmedLine.Substring("expire:".Length).Trim());
             } else if (trimmedLine.StartsWith("registrar:")) {
                 Registrar = trimmedLine.Substring("registrar:".Length).Trim();
             } else if (trimmedLine.StartsWith("nserver:")) {
@@ -634,7 +663,7 @@ public class WhoisAnalysis {
                 } else if (trimmedLine.StartsWith("registered:")) {
                     CreationDate = trimmedLine.Substring("registered:".Length).Trim();
                 } else if (trimmedLine.StartsWith("expire:")) {
-                    ExpiryDate = trimmedLine.Substring("expire:".Length).Trim();
+                    SetExpiryDate(trimmedLine.Substring("expire:".Length).Trim());
                 } else if (trimmedLine.StartsWith("registrar:")) {
                     Registrar = trimmedLine.Substring("registrar:".Length).Trim();
                 } else if (trimmedLine.StartsWith("registrant:")) {
@@ -678,7 +707,7 @@ public class WhoisAnalysis {
             } else if (line.StartsWith("   Creation Date:")) {
                 CreationDate = line.Substring("   Creation Date:".Length).Trim();
             } else if (line.StartsWith("   Registry Expiry Date:")) {
-                ExpiryDate = line.Substring("   Registry Expiry Date:".Length).Trim();
+                SetExpiryDate(line.Substring("   Registry Expiry Date:".Length).Trim());
             } else if (line.Contains("Updated Date:")) {
                 LastUpdated = line.Substring("   Updated Date:".Length).Trim();
             } else if (line.StartsWith("   Name Server:")) {
@@ -716,7 +745,7 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Creation Date:")) {
                 CreationDate = trimmedLine.Substring("Creation Date:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registry Expiry Date:")) {
-                ExpiryDate = trimmedLine.Substring("Registry Expiry Date:".Length).Trim();
+                SetExpiryDate(trimmedLine.Substring("Registry Expiry Date:".Length).Trim());
             } else if (trimmedLine.StartsWith("Updated Date:")) {
                 LastUpdated = trimmedLine.Substring("Updated Date:".Length).Trim();
             } else if (trimmedLine.StartsWith("Name Server:")) {
@@ -771,7 +800,7 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("Creation Date:")) {
                 CreationDate = trimmedLine.Substring("Creation Date:".Length).Trim();
             } else if (trimmedLine.StartsWith("Registry Expiry Date:")) {
-                ExpiryDate = trimmedLine.Substring("Registry Expiry Date:".Length).Trim();
+                SetExpiryDate(trimmedLine.Substring("Registry Expiry Date:".Length).Trim());
             } else if (trimmedLine.StartsWith("Updated Date:")) {
                 LastUpdated = trimmedLine.Substring("Updated Date:".Length).Trim();
             } else if (trimmedLine.StartsWith("Name Server:")) {
@@ -812,7 +841,7 @@ public class WhoisAnalysis {
             } else if (trimmedLine.StartsWith("created:")) {
                 CreationDate = trimmedLine.Substring("created:".Length).Trim();
             } else if (trimmedLine.StartsWith("renewal date:")) {
-                ExpiryDate = trimmedLine.Substring("renewal date:".Length).Trim();
+                SetExpiryDate(trimmedLine.Substring("renewal date:".Length).Trim());
             } else if (trimmedLine.StartsWith("registrant type:")) {
                 RegistrantType = trimmedLine.Substring("registrant type:".Length).Trim();
             } else if (trimmedLine.StartsWith("last modified:")) {
