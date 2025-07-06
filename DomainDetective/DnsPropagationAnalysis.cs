@@ -306,6 +306,9 @@ namespace DomainDetective {
                     Records = response.Answers.Select(a => a.Data),
                     Success = response.Answers.Any()
                 };
+            } catch (TaskCanceledException) {
+                sw.Stop();
+                throw new OperationCanceledException(cancellationToken);
             } catch (OperationCanceledException) {
                 sw.Stop();
                 throw;
