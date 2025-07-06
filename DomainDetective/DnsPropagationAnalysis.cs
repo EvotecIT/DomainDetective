@@ -271,7 +271,11 @@ namespace DomainDetective {
             using var semaphore = new SemaphoreSlim(maxParallelism);
             var tasks = serverList
                 .Select(async server => {
-                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try {
+                        await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    } catch (TaskCanceledException) {
+                        throw new OperationCanceledException(cancellationToken);
+                    }
                     try {
                         return await QueryServerAsync(domain, recordType, server, cancellationToken).ConfigureAwait(false);
                     } finally {
