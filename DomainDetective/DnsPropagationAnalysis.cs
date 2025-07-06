@@ -211,7 +211,12 @@ namespace DomainDetective {
         /// <param name="location">Location filter.</param>
         /// <param name="take">If specified, randomly selects this many servers.</param>
         /// <returns>The filtered server list.</returns>
-        public IEnumerable<PublicDnsEntry> FilterServers(CountryId? country = null, LocationId? location = null, int? take = null) {
+        public IEnumerable<PublicDnsEntry> FilterServers(
+            CountryId? country = null,
+            LocationId? location = null,
+            int? take = null,
+            string? asn = null,
+            string? asnName = null) {
             IEnumerable<PublicDnsEntry> query = _servers.Where(s => s.Enabled);
             if (country.HasValue) {
                 var name = country.Value.ToName();
@@ -220,6 +225,12 @@ namespace DomainDetective {
             if (location.HasValue) {
                 var name = location.Value.ToName();
                 query = query.Where(s => s.Location != null && s.Location.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+            }
+            if (!string.IsNullOrWhiteSpace(asn)) {
+                query = query.Where(s => string.Equals(s.ASN, asn, StringComparison.OrdinalIgnoreCase));
+            }
+            if (!string.IsNullOrWhiteSpace(asnName)) {
+                query = query.Where(s => s.ASNName != null && s.ASNName.IndexOf(asnName, StringComparison.OrdinalIgnoreCase) >= 0);
             }
             if (take.HasValue) {
                 query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);
@@ -237,7 +248,19 @@ namespace DomainDetective {
                 return FilterServers();
             }
 
-            return FilterServers(query.Country, query.Location, query.TakeCount);
+            return FilterServers(query.Country, query.Location, query.TakeCount, query.ASN, query.ASNName);
+        }
+
+        /// <summary>
+        /// Gets distinct ASNs from the loaded server list.
+        /// </summary>
+        /// <returns>Collection of ASN and ASN name pairs.</returns>
+        public IEnumerable<(string Asn, string? Name)> GetAsns() {
+            return _servers
+                .Where(s => !string.IsNullOrWhiteSpace(s.ASN))
+                .Select(s => (s.ASN!, s.ASNName))
+                .Distinct()
+                .ToList();
         }
 
         private static string GetCanonicalIp(IPAddress ipAddress) {

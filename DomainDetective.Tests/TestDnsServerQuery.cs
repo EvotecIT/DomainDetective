@@ -31,5 +31,27 @@ namespace DomainDetective.Tests {
             Assert.True(servers.Count <= 2);
             Assert.All(servers, s => Assert.Equal("Poland", s.Country));
         }
+
+        [Fact]
+        public void BuilderFiltersByAsn() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltinServers();
+            var asn = analysis.Servers.First().ASN;
+            var query = DnsServerQuery.Create().FromAsn(asn!);
+            var servers = analysis.FilterServers(query).ToList();
+            Assert.NotEmpty(servers);
+            Assert.All(servers, s => Assert.Equal(asn, s.ASN));
+        }
+
+        [Fact]
+        public void BuilderFiltersByAsnName() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltinServers();
+            var name = analysis.Servers.First(s => !string.IsNullOrWhiteSpace(s.ASNName)).ASNName!;
+            var query = DnsServerQuery.Create().FromAsnName(name[..3]);
+            var servers = analysis.FilterServers(query).ToList();
+            Assert.NotEmpty(servers);
+            Assert.All(servers, s => Assert.Contains(name[..3], s.ASNName!, System.StringComparison.OrdinalIgnoreCase));
+        }
     }
 }

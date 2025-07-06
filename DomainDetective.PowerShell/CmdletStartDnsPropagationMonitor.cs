@@ -48,6 +48,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public LocationId? Location;
 
+        /// <param name="Asn">Filter builtin servers by ASN.</param>
+        [Parameter(Mandatory = false)]
+        public string? Asn;
+
+        /// <param name="AsnName">Filter builtin servers by ASN name.</param>
+        [Parameter(Mandatory = false)]
+        public string? AsnName;
+
         /// <param name="IntervalSeconds">Polling interval in seconds.</param>
         [Parameter(Mandatory = false)]
         public int IntervalSeconds = 300;
@@ -64,6 +72,8 @@ namespace DomainDetective.PowerShell {
             _monitor.Interval = TimeSpan.FromSeconds(IntervalSeconds);
             _monitor.Country = Country;
             _monitor.Location = Location;
+            _monitor.Asn = Asn;
+            _monitor.AsnName = AsnName;
             var moduleBase = this.MyInvocation.MyCommand.Module?.ModuleBase
                 ?? Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
                 ?? string.Empty;

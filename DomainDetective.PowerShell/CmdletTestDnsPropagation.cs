@@ -43,6 +43,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public LocationId? Location;
 
+        /// <param name="Asn">Filter servers by ASN.</param>
+        [Parameter(Mandatory = false)]
+        public string? Asn;
+
+        /// <param name="AsnName">Filter servers by ASN name.</param>
+        [Parameter(Mandatory = false)]
+        public string? AsnName;
+
         /// <param name="Take">Limit the number of servers queried.</param>
         [Parameter(Mandatory = false)]
         public int? Take;
@@ -73,7 +81,7 @@ namespace DomainDetective.PowerShell {
         }
 
         protected override async Task ProcessRecordAsync() {
-            IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, Take);
+            IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, Take, Asn, AsnName);
             var serverList = servers.ToList();
             var progress = new Progress<double>(p => {
                 var record = new ProgressRecord(1, "DnsPropagation", $"{p:F0}% complete") {

@@ -22,6 +22,12 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     [CommandOption("--json")]
     public bool Json { get; set; }
 
+    [CommandOption("--asn")]
+    public string? Asn { get; set; }
+
+    [CommandOption("--asn-name")]
+    public string? AsnName { get; set; }
+
     [CommandOption("--compare-results")]
     public bool Compare { get; set; }
 
@@ -41,7 +47,7 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
         } else {
             analysis.LoadBuiltinServers();
         }
-        var servers = analysis.Servers;
+        var servers = analysis.FilterServers(asn: settings.Asn, asnName: settings.AsnName);
         var domain = CliHelpers.ToAscii(settings.Domain);
 
         List<DnsPropagationResult> results = new();

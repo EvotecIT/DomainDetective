@@ -30,6 +30,12 @@ namespace DomainDetective.Monitoring {
         /// <summary>Location filter for builtin servers.</summary>
         public LocationId? Location { get; set; }
 
+        /// <summary>ASN filter for builtin servers.</summary>
+        public string? Asn { get; set; }
+
+        /// <summary>ASN name filter for builtin servers.</summary>
+        public string? AsnName { get; set; }
+
         /// <summary>Additional user supplied servers.</summary>
         public List<PublicDnsEntry> CustomServers { get; } = new();
 
@@ -71,7 +77,7 @@ namespace DomainDetective.Monitoring {
 
         /// <summary>Runs a single propagation check.</summary>
         public async Task RunAsync(CancellationToken ct = default) {
-            IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location);
+            IEnumerable<PublicDnsEntry> servers = _analysis.FilterServers(Country, Location, null, Asn, AsnName);
             servers = servers.Concat(CustomServers.Where(s => s.Enabled));
             var serverList = servers.ToList();
             var results = QueryOverride != null

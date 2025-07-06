@@ -10,3 +10,6 @@ $PublicServers | Format-Table
 
 $TxtCheck = Test-DnsPropagation -DomainName 'evotec.pl' -RecordType TXT -CompareResults
 $TxtCheck | Format-Table
+
+# Filter servers by ASN
+$AsnExample = Test-DnsPropagation -DomainName 'example.com' -RecordType A -Asn '396982' -Take 0

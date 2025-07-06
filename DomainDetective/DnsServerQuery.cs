@@ -1,6 +1,6 @@
 namespace DomainDetective {
     /// <summary>
-    /// Builder for querying DNS servers by country, location and count.
+    /// Builder for querying DNS servers by country, location, ASN and count.
     /// </summary>
     public sealed class DnsServerQuery {
         /// <summary>Selected country.</summary>
@@ -8,7 +8,13 @@ namespace DomainDetective {
         /// <summary>Selected location.</summary>
         public LocationId? Location { get; private set; }
         /// <summary>Number of servers to take.</summary>
-    public int? TakeCount { get; private set; }
+        public int? TakeCount { get; private set; }
+
+        /// <summary>Selected ASN.</summary>
+        public string? ASN { get; private set; }
+
+        /// <summary>Selected ASN name.</summary>
+        public string? ASNName { get; private set; }
 
     /// <summary>Creates a new query instance.</summary>
     public static DnsServerQuery Create() => new();
@@ -41,10 +47,22 @@ namespace DomainDetective {
         return this;
     }
 
-    /// <summary>Limits the number of servers returned.</summary>
-    public DnsServerQuery Take(int count) {
-        TakeCount = count > 0 ? count : null;
-        return this;
-    }
+        /// <summary>Limits the number of servers returned.</summary>
+        public DnsServerQuery Take(int count) {
+            TakeCount = count > 0 ? count : null;
+            return this;
+        }
+
+        /// <summary>Filters by ASN.</summary>
+        public DnsServerQuery FromAsn(string asn) {
+            ASN = string.IsNullOrWhiteSpace(asn) ? null : asn.Trim();
+            return this;
+        }
+
+        /// <summary>Filters by ASN name.</summary>
+        public DnsServerQuery FromAsnName(string name) {
+            ASNName = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+            return this;
+        }
     }
 }
