@@ -301,29 +301,47 @@ namespace DomainDetective {
 
             var responses = new Dictionary<string, List<DnsAnswer>>();
 
-            var resultA = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.A);
-            foreach (var dnsResponse in resultA) {
-                responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+            try {
+                var resultA = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.A);
+                foreach (var dnsResponse in resultA) {
+                    responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+                }
+            } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
+                // fallback to empty responses when the system DNS configuration is invalid
+                foreach (var query in queries) {
+                    responses[query] = new List<DnsAnswer>();
+                }
             }
 
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6) {
-                var resultAaaa = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.AAAA);
-                foreach (var dnsResponse in resultAaaa) {
-                    if (!responses.ContainsKey(dnsResponse.Questions[0].Name)) {
-                        responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
-                    } else {
-                        responses[dnsResponse.Questions[0].Name].AddRange(dnsResponse.Answers);
+                try {
+                    var resultAaaa = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.AAAA);
+                    foreach (var dnsResponse in resultAaaa) {
+                        if (!responses.ContainsKey(dnsResponse.Questions[0].Name)) {
+                            responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+                        } else {
+                            responses[dnsResponse.Questions[0].Name].AddRange(dnsResponse.Answers);
+                        }
+                    }
+                } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
+                    foreach (var query in queries) {
+                        if (!responses.ContainsKey(query)) {
+                            responses[query] = new List<DnsAnswer>();
+                        }
                     }
                 }
             }
 
             foreach (var pair in responses) {
                 if (pair.Value.Count == 0) {
+                    var blacklist = pair.Key.Length > name.Length + 1
+                        ? pair.Key.Substring(name.Length + 1)
+                        : string.Empty;
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
                         OriginalIPAddress = ipAddressOrHostname,
                         FQDN = pair.Key,
-                        BlackList = pair.Key.Substring(name.Length + 1),
+                        BlackList = blacklist,
                         IsBlackListed = false,
                         Answer = string.Empty,
                         ReplyMeaning = string.Empty,
@@ -331,11 +349,14 @@ namespace DomainDetective {
                     yield return dnsblRecord;
                 } else {
                     foreach (var record in pair.Value) {
+                        var blacklist = record.Name.Length > name.Length + 1
+                            ? record.Name.Substring(name.Length + 1)
+                            : string.Empty;
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
                             OriginalIPAddress = ipAddressOrHostname,
                             FQDN = record.Name,
-                            BlackList = record.Name.Substring(name.Length + 1),
+                            BlackList = blacklist,
                             IsBlackListed = true,
                             Answer = record.Data,
                         };

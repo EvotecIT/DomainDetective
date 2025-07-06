@@ -24,6 +24,8 @@ public class PortScanAnalysis
         public bool UdpOpen { get; init; }
         /// <summary>Latency of the TCP connection attempt.</summary>
         public TimeSpan TcpLatency { get; init; }
+        /// <summary>Socket exception message, if the scan failed.</summary>
+        public string? Error { get; init; }
     }
 
     /// <summary>Scan results keyed by port number.</summary>
@@ -78,6 +80,7 @@ public class PortScanAnalysis
         bool tcpOpen = false;
         bool udpOpen = false;
         var sw = Stopwatch.StartNew();
+        string? error = null;
 
         IPAddress address;
         if (!IPAddress.TryParse(host, out address))
@@ -86,9 +89,10 @@ public class PortScanAnalysis
             {
                 address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
             }
-            catch
+            catch (Exception ex)
             {
-                return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed };
+                error = ex.Message;
+                return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed, Error = error };
             }
         }
 
@@ -110,6 +114,7 @@ public class PortScanAnalysis
             catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
             {
                 logger?.WriteVerbose("TCP {0}:{1} closed - {2}", address, port, ex.Message);
+                error = ex.Message;
             }
         }
         finally
@@ -145,10 +150,11 @@ public class PortScanAnalysis
             catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
             {
                 logger?.WriteVerbose("UDP {0}:{1} closed - {2}", address, port, ex.Message);
+                error = ex.Message;
             }
         }
 
-        return new ScanResult { TcpOpen = tcpOpen, UdpOpen = udpOpen, TcpLatency = sw.Elapsed };
+        return new ScanResult { TcpOpen = tcpOpen, UdpOpen = udpOpen, TcpLatency = sw.Elapsed, Error = error };
     }
 
     /// <summary>Determines whether the host has a reachable IPv6 address.</summary>
