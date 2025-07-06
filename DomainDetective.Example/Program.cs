@@ -27,6 +27,7 @@ public static partial class Program {
         }
         await ExampleAnalyseByDnsSPF();
         await ExampleAnalyseByStringSPF();
+        await ExampleFlattenSpfIps();
 
         await ExampleAnalyseByStringDMARC();
         await ExampleAnalyseByDomainDMARC();

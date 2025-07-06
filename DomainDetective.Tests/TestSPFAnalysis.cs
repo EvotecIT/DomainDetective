@@ -1,4 +1,6 @@
+using DnsClientX;
 using System.Net;
+using System.Linq;
 
 namespace DomainDetective.Tests {
     public class TestSpfAnalysis {
@@ -432,6 +434,41 @@ namespace DomainDetective.Tests {
 
             Assert.Contains("Flattened SPF record exceeds", healthCheck.SpfAnalysis.Warnings.First());
             Assert.Equal(record, flattened);
+        }
+
+        [Fact]
+        public async Task FlattenedIpAddressesResolveHosts() {
+            var healthCheck = new DomainHealthCheck();
+            healthCheck.SpfAnalysis.TestSpfRecords["a.example.com"] = "v=spf1 ip4:192.0.2.1 -all";
+            healthCheck.SpfAnalysis.QueryDnsOverride = (name, type) => {
+                return (name, type) switch {
+                    ("mx.example.com", DnsRecordType.MX) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "10 mail.example.com" } }),
+                    ("mail.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "203.0.113.5" } }),
+                    _ => Task.FromResult(Array.Empty<DnsAnswer>())
+                };
+            };
+
+            await healthCheck.CheckSPF("v=spf1 include:a.example.com mx:mx.example.com -all");
+
+            var ips = await healthCheck.SpfAnalysis.GetFlattenedIpAddresses("example.com");
+
+            Assert.Contains("192.0.2.1", ips);
+            Assert.Contains("203.0.113.5", ips);
+        }
+
+        [Fact]
+        public async Task WarnsWhenDnsLookupLimitExceeded() {
+            var includes = string.Join(" ", Enumerable.Range(0, 11).Select(i => $"include:a{i}.example.com"));
+            var record = $"v=spf1 {includes} -all";
+            var healthCheck = new DomainHealthCheck();
+            foreach (var i in Enumerable.Range(0, 11)) {
+                healthCheck.SpfAnalysis.TestSpfRecords[$"a{i}.example.com"] = "v=spf1 -all";
+            }
+
+            await healthCheck.CheckSPF(record);
+
+            Assert.True(healthCheck.SpfAnalysis.ExceedsDnsLookups);
+            Assert.Contains("DNS lookups", healthCheck.SpfAnalysis.Warnings.First());
         }
 
         [Fact]

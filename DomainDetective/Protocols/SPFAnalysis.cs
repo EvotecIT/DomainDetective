@@ -190,6 +190,8 @@ namespace DomainDetective {
 
             // keep TestSpfRecords intact so subsequent operations like
             // GetFlattenedSpf can resolve fake DNS records in unit tests
+
+            WarnIfExceedsDnsLookups(logger);
         }
 
 
@@ -312,6 +314,16 @@ namespace DomainDetective {
                     _warnings.Add($"SPF record chunk {i + 1} exceeds 255 characters.");
                     logger?.WriteWarning($"SPF record chunk {i + 1} exceeds 255 characters.");
                 }
+            }
+        }
+
+        private void WarnIfExceedsDnsLookups(InternalLogger? logger) {
+            if (ExceedsDnsLookups) {
+                var message = $"SPF record requires {DnsLookupsCount} DNS lookups which exceeds the limit of {MaxDnsLookups}.";
+                if (!_warnings.Contains(message)) {
+                    _warnings.Add(message);
+                }
+                logger?.WriteWarning(message);
             }
         }
 
@@ -577,6 +589,50 @@ namespace DomainDetective {
             }
 
             return record;
+        }
+
+        /// <summary>
+        /// Returns all IP addresses referenced by the SPF record after resolving includes and redirects.
+        /// </summary>
+        /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
+        public async Task<List<string>> GetFlattenedIpAddresses(string domainName, InternalLogger? logger = null) {
+            if (string.IsNullOrEmpty(SpfRecord)) {
+                return new List<string>();
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tokens = await FlattenTokens(TokenizeSpfRecord(SpfRecord), visited, logger);
+            var addresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var t in tokens) {
+                var token = t.Trim('"');
+                if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
+                    addresses.Add(token.Substring(4));
+                } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
+                    addresses.Add(token.Substring(4));
+                } else if (token.Equals("a", StringComparison.OrdinalIgnoreCase) || token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
+                    var host = token.Length > 2 ? token.Substring(2) : domainName;
+                    var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
+                    var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
+                    foreach (var ans in a.Concat(aaaa)) {
+                        addresses.Add(ans.Data);
+                    }
+                } else if (token.Equals("mx", StringComparison.OrdinalIgnoreCase) || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
+                    var hostDomain = token.Length > 3 ? token.Substring(3) : domainName;
+                    var mxRecords = await DnsConfiguration.QueryDNS(hostDomain, DnsRecordType.MX);
+                    foreach (var mx in mxRecords) {
+                        var parts = mx.Data.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var host = parts.Length == 2 ? parts[1].TrimEnd('.') : mx.Data.TrimEnd('.');
+                        var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
+                        var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
+                        foreach (var ans in a.Concat(aaaa)) {
+                            addresses.Add(ans.Data);
+                        }
+                    }
+                }
+            }
+
+            return addresses.ToList();
         }
 
         private async Task<List<string>> FlattenTokens(IEnumerable<string> tokens, HashSet<string> visited, InternalLogger? logger) {
