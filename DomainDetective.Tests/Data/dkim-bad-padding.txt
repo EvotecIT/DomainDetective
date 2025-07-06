@@ -1,0 +1,6 @@
+From: sender@example.com
+To: recipient@example.com
+Subject: Bad DKIM
+Date: Thu, 1 Jan 2025 00:00:00 +0000
+DKIM-Signature: v=1; a=rsa-sha256; d=example.com; s=selector1; h=from:to:subject:date; bh=abc123; b=abc
+

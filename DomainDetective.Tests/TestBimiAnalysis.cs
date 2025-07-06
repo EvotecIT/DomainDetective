@@ -1,14 +1,14 @@
 using DnsClientX;
-using System.Net;
-using System.Net.Sockets;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Text;
+using RichardSzalay.MockHttp;
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Net.Http;
-using RichardSzalay.MockHttp;
+using System.Text;
 
 namespace DomainDetective.Tests {
     public class TestBimiAnalysis {
@@ -124,6 +124,32 @@ namespace DomainDetective.Tests {
 
                 Assert.True(analysis.SvgFetched);
                 Assert.False(analysis.SvgValid);
+            } finally {
+                cts.Cancel();
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task IndicatorWithWrongMimeTypeIsRejected() {
+            using var cert = CreateSelfSigned();
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            using var cts = new CancellationTokenSource();
+            var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAWgmWQ0AAAAASUVORK5CYII=");
+            var serverTask = Task.Run(() => RunServer(listener, cert, _ => ("image/png", png), cts.Token), cts.Token);
+            var prefix = $"https://localhost:{port}/";
+
+            try {
+                var record = $"v=BIMI1; l={prefix}logo.svg";
+                var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
+                var analysis = new BimiAnalysis();
+                await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
+
+                Assert.False(analysis.SvgFetched);
+                Assert.False(string.IsNullOrEmpty(analysis.FailureReason));
             } finally {
                 cts.Cancel();
                 listener.Stop();

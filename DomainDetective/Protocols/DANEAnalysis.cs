@@ -123,10 +123,11 @@ namespace DomainDetective {
 
                 analysis.CorrectLengthOfCertificateAssociationData = matchingTypeValue == 0 || associationData.Length == expectedLength;
                 analysis.LengthOfCertificateAssociationData = associationData.Length;
-                analysis.ValidMatchingType = matchingTypeValue >= 0 && matchingTypeValue <= 2;
+                analysis.ValidMatchingType = ValidateMatchingType(matchingTypeValue);
                 if (!analysis.ValidMatchingType) {
                     logger?.WriteWarning($"TLSA matching type '{matchingTypeValue}' is invalid, expected 0, 1 or 2");
                 }
+
 
                 analysis.CertificateUsage = TranslateUsage(usageValue);
                 analysis.SelectorField = TranslateSelector(selectorValue);
@@ -173,6 +174,13 @@ namespace DomainDetective {
                 _ => false,
             };
         }
+        private bool ValidateMatchingType(int matchingValue) {
+            return matchingValue switch {
+                0 or 1 or 2 => true,
+                _ => false,
+            };
+        }
+
         private string TranslateUsage(int usage) {
             return usage switch {
                 0 => "PKIX-TA: CA Constraint",

@@ -42,5 +42,35 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.SOAAnalysis.SerialFormatValid);
             Assert.False(string.IsNullOrEmpty(healthCheck.SOAAnalysis.SerialFormatSuggestion));
         }
+
+        [Fact]
+        public async Task NegativeCacheTtlUsesMinimum() {
+            var analysis = new SOAAnalysis();
+            var records = new[] {
+                new DnsAnswer {
+                    DataRaw = "ns1.example.com. hostmaster.example.com. 2023102301 3600 600 1209600 300",
+                    Type = DnsRecordType.SOA,
+                    TTL = 7200
+                }
+            };
+            await analysis.AnalyzeSoaRecords(records, new InternalLogger());
+
+            Assert.Equal(300, analysis.NegativeCacheTtl);
+        }
+
+        [Fact]
+        public async Task NegativeCacheTtlUsesSoaTtlWhenLower() {
+            var analysis = new SOAAnalysis();
+            var records = new[] {
+                new DnsAnswer {
+                    DataRaw = "ns1.example.com. hostmaster.example.com. 2023102301 3600 600 1209600 7200",
+                    Type = DnsRecordType.SOA,
+                    TTL = 600
+                }
+            };
+            await analysis.AnalyzeSoaRecords(records, new InternalLogger());
+
+            Assert.Equal(600, analysis.NegativeCacheTtl);
+        }
     }
 }

@@ -22,6 +22,11 @@ public class WildcardDnsAnalysis
     /// <summary>Whether all random names resolved.</summary>
     public bool CatchAll { get; private set; }
 
+    /// <summary>Whether the domain has an SOA record.</summary>
+    public bool SoaExists { get; private set; }
+    /// <summary>Whether the domain has NS records.</summary>
+    public bool NsExists { get; private set; }
+
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
@@ -47,6 +52,16 @@ public class WildcardDnsAnalysis
         ResolvedNames.Clear();
         ResolvedAddresses.Clear();
         CatchAll = false;
+        SoaExists = false;
+        NsExists = false;
+
+        var soa = await QueryDns(domainName, DnsRecordType.SOA);
+        SoaExists = soa.Length > 0;
+        if (!SoaExists)
+        {
+            var ns = await QueryDns(domainName, DnsRecordType.NS);
+            NsExists = ns.Length > 0;
+        }
 
         const int depthToCheck = 2;
         for (int i = 0; i < sampleCount; i++)

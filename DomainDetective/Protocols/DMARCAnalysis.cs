@@ -276,12 +276,14 @@ namespace DomainDetective {
                     }
                 }
                 if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
-                    var address = u.Substring(7);
+                    var addressPart = u.Substring(7);
                     try {
-                        _ = new System.Net.Mail.MailAddress(address);
-                        mailtoList.Add(address);
+                        var decoded = Uri.UnescapeDataString(addressPart);
+                        _ = new System.Net.Mail.MailAddress(decoded);
+                        mailtoList.Add(decoded);
                     } catch {
                         InvalidReportUri = true;
+                        logger?.WriteWarning("Report URI {0} is not a valid email address.", u);
                     }
                     if (isRuf) {
                         RufSizeLimits.Add(sizeLimit);

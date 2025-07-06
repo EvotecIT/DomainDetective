@@ -1,0 +1,6 @@
+ARC-Seal: i=3; a=rsa-sha256; cv=pass; d=clochette.example.org; s=clochette; t=12345; b=CU87XzXlNlk5X/yW4l73UvPUcP9ivwYWxyBWcVrRs7+HPx3K05nJhny2fvymbReAmOA9GTH/y+k9kEc59hAKVg==
+ARC-Authentication-Results: i=3; clochette.example.org; spf=fail smtp.from=jqd@d1.example; dkim=fail (512-bit key) header.i=@d1.example; dmarc=fail; arc=pass (as.2.gmail.example=pass, ams.2.gmail.example=pass, as.1.lists.example.org=pass, ams.1.lists.example.org=fail (message has been altered))
+ARC-Seal: i=2; a=rsa-sha256; cv=pass; d=gmail.example; s=20120806; t=12345; b=Zpukh/kJL4Q7Kv391FKwTepgS56dgHIcdhhJZjsalhqkFIQQAJ4T9BE8jjLXWpRNuh81yqnT1/jHn086RwezGw==
+ARC-Authentication-Results: i=2; gmail.example; spf=fail smtp.from=jqd@d1.example; dkim=fail (512-bit key) header.i=@example.org; dmarc=fail; arc=pass (as.1.lists.example.org=pass, ams.1.lists.example.org=pass)
+ARC-Seal: i=1; a=rsa-sha256; cv=none; d=lists.example.org; s=dk-lists; t=12345; b=TlCCKzgk3TrAa+G77gYYO8Fxk4q/Ml0biqduZJeOYh6+0zhwQ8u/lHxLi21pxu347isLSuNtvIagIvAQna9a5A==
+ARC-Authentication-Results: i=1; lists.example.org; spf=pass smtp.mfrom=jqd@d1.example; dkim=pass (512-bit key) header.i=@d1.example; dmarc=pass

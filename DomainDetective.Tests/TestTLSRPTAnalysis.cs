@@ -67,6 +67,16 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task PercentEncodedRuaIsDecoded() {
+            var record = "v=TLSRPTv1;rua=mailto:reports%2Btls@example.com";
+            var analysis = new TLSRPTAnalysis();
+            await analysis.AnalyzeTlsRptRecords(new[] { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, new InternalLogger());
+
+            Assert.Single(analysis.MailtoRua);
+            Assert.Equal("reports+tls@example.com", analysis.MailtoRua[0]);
+        }
+
+        [Fact]
         public async Task UnknownTagsAreCollected() {
             var record = "v=TLSRPTv1;rua=mailto:a@example.com;foo=bar;test";
             var analysis = new TLSRPTAnalysis();

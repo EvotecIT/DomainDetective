@@ -370,6 +370,18 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Checks certificates for multiple URLs concurrently.
+        /// </summary>
+        /// <param name="urls">The URLs. If no scheme is provided, "https://" will be prepended.</param>
+        /// <param name="port">The port.</param>
+        /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
+        /// <returns>List of populated <see cref="CertificateAnalysis"/> instances.</returns>
+        public static async Task<IReadOnlyList<CertificateAnalysis>> CheckWebsiteCertificates(IEnumerable<string> urls, int port = 443, CancellationToken cancellationToken = default) {
+            var tasks = urls.Select(u => CheckWebsiteCertificate(u, port, cancellationToken));
+            return await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+
+        /// <summary>
         /// Analyzes a provided certificate without performing any network operations.
         /// </summary>
         /// <param name="certificate">Certificate instance to inspect.</param>
