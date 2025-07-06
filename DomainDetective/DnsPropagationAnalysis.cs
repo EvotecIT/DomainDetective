@@ -240,6 +240,55 @@ namespace DomainDetective {
             return FilterServers(query.Country, query.Location, query.TakeCount);
         }
 
+        /// <summary>
+        /// Selects a combined list of servers from multiple countries.
+        /// </summary>
+        /// <param name="countryCounts">Dictionary mapping country code or name to the number of servers to take.</param>
+        /// <returns>List of selected servers.</returns>
+        /// <example>
+        ///   <summary>Select two servers from Poland and one from Germany.</summary>
+        ///   <code>
+        /// var servers = analysis.SelectServers(new Dictionary&lt;string, int&gt; { ["PL"] = 2, ["DE"] = 1 });
+        /// </code>
+        /// </example>
+        public List<PublicDnsEntry> SelectServers(Dictionary<string, int> countryCounts) {
+            var result = new List<PublicDnsEntry>();
+            if (countryCounts == null || countryCounts.Count == 0) {
+                return result;
+            }
+
+            var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kvp in countryCounts) {
+                if (kvp.Value <= 0) {
+                    continue;
+                }
+
+                string name;
+                if (CountryIdExtensions.TryParse(kvp.Key, out var id)) {
+                    name = id.ToName();
+                } else {
+                    try {
+                        var region = new System.Globalization.RegionInfo(kvp.Key);
+                        name = region.EnglishName;
+                        if (!CountryIdExtensions.TryParse(name, out id)) {
+                            continue;
+                        }
+                    } catch (ArgumentException) {
+                        continue;
+                    }
+                }
+
+                var servers = FilterServers(id, null, kvp.Value);
+                foreach (var server in servers) {
+                    if (added.Add(server.IPAddress.ToString())) {
+                        result.Add(server);
+                    }
+                }
+            }
+
+            return result;
+        }
+
         private static string GetCanonicalIp(IPAddress ipAddress) {
             return ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
                 ? IPAddress.Parse(ipAddress.ToString()).ToString()
