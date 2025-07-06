@@ -487,6 +487,14 @@ namespace DomainDetective.Tests {
         public async Task ExpModifierRespectsLookupLimit() {
             var healthCheck = new DomainHealthCheck();
             healthCheck.SpfAnalysis.TestSpfRecords["explain.example.com"] = "%{p} %{p} %{p} %{p}";
+            healthCheck.SpfAnalysis.QueryDnsOverride = (name, type) => {
+                return (name, type) switch {
+                    ("8.8.8.8.in-addr.arpa", DnsRecordType.PTR) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "dns.google.", Type = DnsRecordType.PTR } }),
+                    ("dns.google", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "8.8.8.8", Type = DnsRecordType.A } }),
+                    ("dns.google", DnsRecordType.AAAA) => Task.FromResult(Array.Empty<DnsAnswer>()),
+                    _ => Task.FromResult(Array.Empty<DnsAnswer>())
+                };
+            };
 
             await healthCheck.CheckSPF("v=spf1 -all exp=explain.example.com");
 
