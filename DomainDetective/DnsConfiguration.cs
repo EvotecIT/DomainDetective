@@ -29,7 +29,7 @@ namespace DomainDetective {
         /// Initializes a new instance of the <see cref="DnsConfiguration"/> class with default values.
         /// </summary>
         public DnsConfiguration() {
-            DnsEndpoint = DnsEndpoint.CloudflareWireFormat;
+            DnsEndpoint = DnsEndpoint.System;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
         }
 
