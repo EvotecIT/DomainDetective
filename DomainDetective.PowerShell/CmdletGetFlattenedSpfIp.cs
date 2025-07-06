@@ -20,7 +20,7 @@ namespace DomainDetective.PowerShell {
 
         /// <param name="DnsEndpoint">DNS server used for queries.</param>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
-        public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
+        public DnsEndpoint DnsEndpoint = DnsEndpoint.CloudflareWireFormat;
 
         /// <param name="TestSpfRecord">Optional SPF record used for testing to avoid DNS lookups.</param>
         [Parameter(Mandatory = false)]
@@ -42,7 +42,7 @@ namespace DomainDetective.PowerShell {
             internalLoggerPowerShell.ResetActivityIdCounter();
 
             if (EqualityComparer<DnsEndpoint>.Default.Equals(DnsEndpoint, default)) {
-                DnsEndpoint = DnsEndpoint.System;
+                DnsEndpoint = DnsEndpoint.CloudflareWireFormat;
             }
 
             _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
@@ -54,7 +54,11 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Flattening SPF IPs for domain: {0}", DomainName);
-            await _healthCheck.VerifySPF(DomainName);
+            if (!string.IsNullOrEmpty(TestSpfRecord)) {
+                await _healthCheck.CheckSPF(TestSpfRecord);
+            } else {
+                await _healthCheck.VerifySPF(DomainName);
+            }
             var ips = await _healthCheck.SpfAnalysis.GetFlattenedIpAddresses(DomainName, _logger);
             WriteObject(ips, true);
         }
