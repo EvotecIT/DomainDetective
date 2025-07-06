@@ -26,7 +26,7 @@ namespace DomainDetective.Tests {
         public async Task QueryHandlesDownServer() {
             var analysis = new DnsPropagationAnalysis();
             analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
-            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers);
+            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, maxParallelism: 1);
             Assert.Single(results);
             Assert.False(results[0].Success);
         }
@@ -39,13 +39,13 @@ namespace DomainDetective.Tests {
             cts.Cancel();
 
             await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-                await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, cts.Token));
+                await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, cts.Token, maxParallelism: 1));
         }
 
         [Fact]
         public async Task QueryReturnsEmptyWhenNoServers() {
             var analysis = new DnsPropagationAnalysis();
-            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, Enumerable.Empty<PublicDnsEntry>());
+            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, Enumerable.Empty<PublicDnsEntry>(), maxParallelism: 1);
             Assert.Empty(results);
         }
 

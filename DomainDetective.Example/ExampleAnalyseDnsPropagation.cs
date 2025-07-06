@@ -16,7 +16,8 @@ namespace DomainDetective.Example {
                 DnsRecordType.A,
                 servers,
                 cancellationToken: default,
-                progress: progress);
+                progress: progress,
+                maxParallelism: 4);
             foreach (var result in results) {
                 Console.WriteLine($"{result.Server.IPAddress} - Success:{result.Success} Records:{string.Join(',', result.Records)} Time:{result.Duration.TotalMilliseconds}ms");
             }

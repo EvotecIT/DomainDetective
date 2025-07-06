@@ -17,7 +17,8 @@ namespace DomainDetective.Example {
                 DnsRecordType.A,
                 servers,
                 cancellationToken: default,
-                progress: progress);
+                progress: progress,
+                maxParallelism: 4);
 
             var grouped = results.GroupBy(r => r.Server.Country);
             foreach (var group in grouped) {

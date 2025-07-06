@@ -33,6 +33,9 @@ namespace DomainDetective.Monitoring {
         /// <summary>Additional user supplied servers.</summary>
         public List<PublicDnsEntry> CustomServers { get; } = new();
 
+        /// <summary>Maximum concurrent DNS queries.</summary>
+        public int MaxParallelism { get; set; }
+
         private readonly DnsPropagationAnalysis _analysis = new();
         private Timer? _timer;
 
@@ -76,7 +79,7 @@ namespace DomainDetective.Monitoring {
             var serverList = servers.ToList();
             var results = QueryOverride != null
                 ? await QueryOverride(serverList, ct)
-                : await _analysis.QueryAsync(Domain, RecordType, serverList, ct);
+                : await _analysis.QueryAsync(Domain, RecordType, serverList, ct, null, MaxParallelism);
             var groups = DnsPropagationAnalysis.CompareResults(results);
             if (groups.Count > 1) {
                 var message = $"Propagation discrepancy for {Domain} ({RecordType})";
