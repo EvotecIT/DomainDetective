@@ -128,12 +128,6 @@ namespace DomainDetective {
                     logger?.WriteWarning($"TLSA matching type '{matchingTypeValue}' is invalid, expected 0, 1 or 2");
                 }
 
-                analysis.ValidUsageSelectorMatching =
-                    ValidateTlsaCombination(usageValue, selectorValue, matchingTypeValue);
-                if (!analysis.ValidUsageSelectorMatching) {
-                    logger?.WriteWarning(
-                        $"TLSA combination usage {usageValue}, selector {selectorValue}, matching type {matchingTypeValue} is invalid");
-                }
 
                 analysis.CertificateUsage = TranslateUsage(usageValue);
                 analysis.SelectorField = TranslateSelector(selectorValue);
@@ -159,7 +153,7 @@ namespace DomainDetective {
                     logger?.WriteWarning($"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for HTTPS");
                 }
 
-                analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData && analysis.ValidUsageSelectorMatching;
+                analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
 
                 // Add the analysis to the results
                 AnalysisResults.Add(analysis);
@@ -187,11 +181,6 @@ namespace DomainDetective {
             };
         }
 
-        private bool ValidateTlsaCombination(int usageValue, int selectorValue, int matchingTypeValue) {
-            return ValidateUsage(usageValue)
-                && ValidateSelector(selectorValue)
-                && ValidateMatchingType(matchingTypeValue);
-        }
         private string TranslateUsage(int usage) {
             return usage switch {
                 0 => "PKIX-TA: CA Constraint",
@@ -247,8 +236,6 @@ namespace DomainDetective {
         public bool ValidMatchingType { get; set; }
         /// <summary>Gets or sets whether the certificate association data is valid hexadecimal.</summary>
         public bool ValidCertificateAssociationData { get; set; }
-        /// <summary>Gets or sets whether usage, selector and matching type combination is valid.</summary>
-        public bool ValidUsageSelectorMatching { get; set; }
         /// <summary>Gets or sets a value indicating whether this configuration is recommended for SMTP.</summary>
         public bool IsValidChoiceForSmtp { get; set; }
         /// <summary>Gets or sets a value indicating whether this configuration is recommended for HTTPS.</summary>
