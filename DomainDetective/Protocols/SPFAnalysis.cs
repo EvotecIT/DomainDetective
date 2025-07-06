@@ -621,7 +621,7 @@ namespace DomainDetective {
                     var hostDomain = token.Length > 3 ? token.Substring(3) : domainName;
                     var mxRecords = await DnsConfiguration.QueryDNS(hostDomain, DnsRecordType.MX);
                     foreach (var mx in mxRecords) {
-                        var parts = mx.Data.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var parts = mx.Data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         var host = parts.Length == 2 ? parts[1].TrimEnd('.') : mx.Data.TrimEnd('.');
                         var a = await DnsConfiguration.QueryDNS(host, DnsRecordType.A);
                         var aaaa = await DnsConfiguration.QueryDNS(host, DnsRecordType.AAAA);
