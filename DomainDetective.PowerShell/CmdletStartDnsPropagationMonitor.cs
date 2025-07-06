@@ -56,6 +56,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? WebhookUrl;
 
+        /// <param name="MaxParallelism">Maximum concurrent DNS queries.</param>
+        [Parameter(Mandatory = false)]
+        public int MaxParallelism = 0;
+
         private readonly DnsPropagationMonitor _monitor = new();
 
         protected override Task BeginProcessingAsync() {
@@ -64,6 +68,7 @@ namespace DomainDetective.PowerShell {
             _monitor.Interval = TimeSpan.FromSeconds(IntervalSeconds);
             _monitor.Country = Country;
             _monitor.Location = Location;
+            _monitor.MaxParallelism = MaxParallelism;
             var moduleBase = this.MyInvocation.MyCommand.Module?.ModuleBase
                 ?? Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
                 ?? string.Empty;

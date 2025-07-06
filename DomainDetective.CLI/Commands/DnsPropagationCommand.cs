@@ -25,6 +25,9 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     [CommandOption("--compare-results")]
     public bool Compare { get; set; }
 
+    [CommandOption("--max-parallelism")]
+    public int MaxParallelism { get; set; }
+
     [CommandOption("--no-progress")]
     public bool NoProgress { get; set; }
 }
@@ -46,12 +49,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
 
         List<DnsPropagationResult> results = new();
         if (settings.NoProgress) {
-            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken);
+            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, null, settings.MaxParallelism);
         } else {
             await AnsiConsole.Progress().StartAsync(async ctx => {
                 var task = ctx.AddTask($"Query {domain}", maxValue: 100);
                 var progress = new Progress<double>(p => task.Value = p);
-                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress);
+                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism);
             });
         }
         if (settings.Compare) {

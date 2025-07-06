@@ -260,14 +260,24 @@ namespace DomainDetective {
             DnsRecordType recordType,
             IEnumerable<PublicDnsEntry> servers,
             CancellationToken cancellationToken = default,
-            IProgress<double>? progress = null) {
+            IProgress<double>? progress = null,
+            int maxParallelism = 0) {
             var serverList = servers?.ToList() ?? new List<PublicDnsEntry>();
             if (serverList.Count == 0) {
                 return new List<DnsPropagationResult>();
             }
+            maxParallelism = maxParallelism <= 0 ? serverList.Count : Math.Min(maxParallelism, serverList.Count);
 
+            using var semaphore = new SemaphoreSlim(maxParallelism);
             var tasks = serverList
-                .Select(server => QueryServerAsync(domain, recordType, server, cancellationToken))
+                .Select(async server => {
+                    await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try {
+                        return await QueryServerAsync(domain, recordType, server, cancellationToken).ConfigureAwait(false);
+                    } finally {
+                        semaphore.Release();
+                    }
+                })
                 .ToList();
             var results = new List<DnsPropagationResult>(serverList.Count);
             var completed = 0;
