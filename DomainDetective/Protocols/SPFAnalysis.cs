@@ -333,21 +333,24 @@ namespace DomainDetective {
         }
 
         private static string TrimQuotes(string value) {
-            if (value.Length > 1) {
-                if (value.StartsWith("\\\"", StringComparison.Ordinal) && value.EndsWith("\\\"", StringComparison.Ordinal)) {
-                    return value.Substring(2, value.Length - 4);
-                }
-                if (value.StartsWith("\\\"", StringComparison.Ordinal) && value.EndsWith("\"", StringComparison.Ordinal)) {
-                    return value.Substring(2, value.Length - 3);
-                }
-                if (value.StartsWith("\"", StringComparison.Ordinal) && value.EndsWith("\\\"", StringComparison.Ordinal)) {
-                    return value.Substring(1, value.Length - 3);
-                }
-                if (value.StartsWith("\"", StringComparison.Ordinal) && value.EndsWith("\"", StringComparison.Ordinal)) {
-                    return value.Substring(1, value.Length - 2);
-                }
+            var trimmed = value.Trim();
+            if (trimmed.Length == 0) {
+                return trimmed;
             }
-            return value;
+
+            if (trimmed.StartsWith("\\\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(2);
+            } else if (trimmed.StartsWith("\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(1);
+            }
+
+            if (trimmed.EndsWith("\\\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(0, trimmed.Length - 2);
+            } else if (trimmed.EndsWith("\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(0, trimmed.Length - 1);
+            }
+
+            return trimmed;
         }
 
         private void AddPartToList(string part, InternalLogger? logger) {
