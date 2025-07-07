@@ -144,7 +144,9 @@ namespace DomainDetective {
             // we use DataStringsEscaped to get the escaped strings, as provided by DnsClientX
             // this will allow us to test if the record length exceeds 255 characters
             foreach (var record in spfRecordList) {
-                SpfRecords.AddRange(record.DataStringsEscaped);
+                foreach (var chunk in record.DataStringsEscaped) {
+                    SpfRecords.Add(TrimQuotes(chunk));
+                }
             }
             WarnIfSpfRecordChunksTooLong(logger);
             // However for analysis we only need the Data, as provided by DnsClientX
@@ -302,8 +304,9 @@ namespace DomainDetective {
             int totalLength = 0;
             foreach (var record in spfRecords) {
                 foreach (var chunk in record.DataStringsEscaped) {
-                    totalLength += chunk.Length;
-                    ExceedsCharacterLimit = ExceedsCharacterLimit || chunk.Length > 255;
+                    var sanitized = TrimQuotes(chunk);
+                    totalLength += sanitized.Length;
+                    ExceedsCharacterLimit = ExceedsCharacterLimit || sanitized.Length > 255;
                 }
             }
             ExceedsTotalCharacterLimit = totalLength > 512;
@@ -327,6 +330,12 @@ namespace DomainDetective {
                 }
                 logger?.WriteWarning(message);
             }
+        }
+
+        private static string TrimQuotes(string value) {
+            return value.Length > 1 && value.StartsWith("\"", StringComparison.Ordinal) && value.EndsWith("\"", StringComparison.Ordinal)
+                ? value.Substring(1, value.Length - 2)
+                : value;
         }
 
         private void AddPartToList(string part, InternalLogger? logger) {
@@ -838,15 +847,14 @@ namespace DomainDetective {
             ExpDnsLookupsCount++;
             var ptrName = ip.ToPtrFormat() + (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? ".in-addr.arpa" : ".ip6.arpa");
             var ptr = await QueryDns(ptrName, DnsRecordType.PTR);
+            ExpDnsLookupsCount += 2; // A and AAAA lookups are counted even if PTR fails
             if (ptr.Length == 0)
             {
                 return "unknown";
             }
 
             var host = ptr[0].Data.TrimEnd('.');
-            ExpDnsLookupsCount++;
             var a = await QueryDns(host, DnsRecordType.A);
-            ExpDnsLookupsCount++;
             var aaaa = await QueryDns(host, DnsRecordType.AAAA);
             if (a.Concat(aaaa).Any(r => r.Data == ip.ToString()))
             {
