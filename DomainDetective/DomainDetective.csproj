@@ -1,39 +1,41 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
-		<TargetFrameworks>net472;netstandard2.0;net8.0</TargetFrameworks>
-		<LangVersion>Latest</LangVersion>
-	</PropertyGroup>
+    <PropertyGroup>
+        <TargetFrameworks>net472;netstandard2.0;net8.0</TargetFrameworks>
+        <LangVersion>Latest</LangVersion>
+    </PropertyGroup>
 
-        <ItemGroup>
-                <PackageReference Include="DnsClientX" Version="0.4.0" />
-                <PackageReference Include="MailKit" Version="4.13.0" />
-                <PackageReference Include="PgpCore" Version="6.5.2" />
-        </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="DnsClientX" Version="0.5.0" />
+        <PackageReference Include="MailKit" Version="4.13.0" />
+        <PackageReference Include="PgpCore" Version="6.5.2" />
+    </ItemGroup>
 
-  <ItemGroup>
-          <Folder Include="Dictionaries\" />
-  </ItemGroup>
-  <ItemGroup>
-      <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
-    <EmbeddedResource Include="..\Data\dnsbl.json" />
-    <EmbeddedResource Include="..\Data\DNS\PublicDNS.json" LogicalName="DomainDetective.DNS.PublicDNS.json" />
-    <AdditionalFiles Include="..\Data\DNS\PublicDNS.json" />
-  </ItemGroup>
+    <ItemGroup>
+        <Folder Include="Dictionaries\" />
+    </ItemGroup>
+    <ItemGroup>
+        <!-- DNSBL list is built into the code. Use LoadDNSBL to load external files if required. -->
+        <EmbeddedResource Include="..\Data\dnsbl.json" />
+        <EmbeddedResource Include="..\Data\DNS\PublicDNS.json"
+            LogicalName="DomainDetective.DNS.PublicDNS.json" />
+        <AdditionalFiles Include="..\Data\DNS\PublicDNS.json" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>DomainDetective.Tests</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="..\Data\public_suffix_list.dat" />
-    <None Include="..\Data\hsts_preload.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>DomainDetective.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="..\Data\public_suffix_list.dat" />
+        <None Include="..\Data\hsts_preload.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\DomainDetective.Generators\DomainDetective.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\DomainDetective.Generators\DomainDetective.Generators.csproj"
+            OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
 </Project>
