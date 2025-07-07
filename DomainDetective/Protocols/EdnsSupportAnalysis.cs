@@ -23,13 +23,22 @@ public record EdnsSupportInfo
     public bool DoBit { get; init; }
 }
 
+/// <summary>
+/// Performs EDNS capability checks against authoritative servers.
+/// </summary>
+/// <para>Part of the DomainDetective project.</para>
 public class EdnsSupportAnalysis
 {
     /// <summary>EDNS support results keyed by server.</summary>
     public Dictionary<string, EdnsSupportInfo> ServerSupport { get; private set; } = new();
 
+    /// <summary>Configuration for DNS queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
+
+    /// <summary>Allows overriding DNS queries for testing.</summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+    /// <summary>Allows overriding server queries for testing.</summary>
     public Func<string, Task<EdnsSupportInfo>>? QueryServerOverride { private get; set; }
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)

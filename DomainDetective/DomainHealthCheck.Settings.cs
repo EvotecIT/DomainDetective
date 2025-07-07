@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using System.IO;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides configuration options and tunables for domain health checks.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck {
         /// <summary>
         /// When true, DMARC policy strength evaluation checks the <c>sp</c> tag.

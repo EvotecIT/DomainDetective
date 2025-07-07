@@ -4,6 +4,10 @@ using System.Reflection;
 
 namespace DomainDetective
 {
+    /// <summary>
+    /// Provides helper methods mapping health check types to results.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck {
         private static readonly IReadOnlyDictionary<HealthCheckType, PropertyInfo?> AnalysisPropertyMap;
 
