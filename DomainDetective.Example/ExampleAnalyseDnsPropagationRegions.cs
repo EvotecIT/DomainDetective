@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Example {
     internal class ExampleAnalyseDnsPropagationRegionsClass {
+        /// <summary>
+        /// Runs a DNS propagation query across random regions.
+        /// </summary>
         public static async Task Run() {
             var analysis = new DnsPropagationAnalysis();
             analysis.LoadBuiltinServers();

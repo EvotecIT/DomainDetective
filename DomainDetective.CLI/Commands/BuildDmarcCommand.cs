@@ -3,7 +3,11 @@ using Spectre.Console.Cli;
 
 namespace DomainDetective.CLI;
 
+/// <summary>
+/// Interactive helper for building a DMARC record.
+/// </summary>
 internal sealed class BuildDmarcCommand : Command<CommandSettings> {
+    /// <inheritdoc/>
     public override int Execute(CommandContext context, CommandSettings settings) {
         var policy = AnsiConsole.Prompt(new SelectionPrompt<string>()
             .Title("Select policy (p)")

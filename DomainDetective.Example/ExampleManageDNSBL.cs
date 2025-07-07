@@ -3,6 +3,9 @@ using System.Threading.Tasks;
 namespace DomainDetective.Example;
 
 public static partial class Program {
+    /// <summary>
+    /// Illustrates management of DNSBL providers.
+    /// </summary>
     public static Task ExampleManageDnsbl() {
         var analysis = new DNSBLAnalysis();
 

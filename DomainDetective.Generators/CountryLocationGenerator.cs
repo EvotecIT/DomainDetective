@@ -9,10 +9,15 @@ using System.Text.Json;
 namespace DomainDetective.Generators;
 
 [Generator]
+/// <summary>
+/// Generates enums mapping countries and locations based on the PublicDNS.json additional file.
+/// </summary>
 public sealed class CountryLocationGenerator : ISourceGenerator {
+    /// <inheritdoc/>
     public void Initialize(GeneratorInitializationContext context) {
     }
 
+    /// <inheritdoc/>
     public void Execute(GeneratorExecutionContext context) {
         var file = context.AdditionalFiles.FirstOrDefault(f => f.Path.EndsWith("PublicDNS.json"));
         if (file == null) {

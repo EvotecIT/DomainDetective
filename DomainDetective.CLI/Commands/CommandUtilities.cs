@@ -8,6 +8,9 @@ using System.Threading;
 
 namespace DomainDetective.CLI;
 
+/// <summary>
+/// Helper methods used by CLI commands.
+/// </summary>
 internal static class CommandUtilities {
     internal static readonly Dictionary<string, HealthCheckType> Options = new() {
         ["dmarc"] = HealthCheckType.DMARC,
