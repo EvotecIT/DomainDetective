@@ -391,11 +391,7 @@ namespace DomainDetective.Tests {
         }
 
         private static int GetFreePort() {
-            var socket = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-            socket.Start();
-            var port = ((IPEndPoint)socket.LocalEndpoint).Port;
-            socket.Stop();
-            return port;
+            return PortHelper.GetFreePort();
         }
 
         private static async Task RunServer(TcpListener listener, X509Certificate2 cert, Func<string, (string contentType, byte[] data)> response, CancellationToken token) {
