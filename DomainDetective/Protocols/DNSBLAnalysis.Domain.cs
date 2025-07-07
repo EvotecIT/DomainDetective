@@ -7,11 +7,20 @@ namespace DomainDetective {
     public partial class DNSBLAnalysis {
         private static readonly List<DnsblEntry> _domainBlockLists = new();
 
+        /// <summary>
+        /// Gets the list of enabled domain based DNS block lists.
+        /// </summary>
         internal List<string> DomainDNSBLLists => _domainBlockLists
             .Where(e => e.Enabled)
             .Select(e => e.Domain)
             .ToList();
 
+        /// <summary>
+        /// Queries all configured domain block lists for the specified domain.
+        /// </summary>
+        /// <param name="domain">Domain name to test.</param>
+        /// <param name="logger">Instance used to log progress.</param>
+        /// <returns>Enumerable of individual DNSBL records.</returns>
         public async IAsyncEnumerable<DNSBLRecord> AnalyzeDomainBlocklists(string domain, InternalLogger logger) {
             Reset();
             Logger = logger;
@@ -24,6 +33,12 @@ namespace DomainDetective {
             ConvertToResults(domain, collected);
         }
 
+        /// <summary>
+        /// Determines whether the domain appears on any configured domain block list.
+        /// </summary>
+        /// <param name="domain">Domain name to test.</param>
+        /// <param name="logger">Instance used to log progress.</param>
+        /// <returns><c>true</c> if the domain is listed; otherwise <c>false</c>.</returns>
         public async Task<bool> IsDomainListedAsync(string domain, InternalLogger logger) {
             await ToListAsync(AnalyzeDomainBlocklists(domain, logger));
             return Results.TryGetValue(domain, out var result) && result.IsBlacklisted;
