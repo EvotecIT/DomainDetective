@@ -10,8 +10,13 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class ContactInfoAnalysis {
+    /// <summary>Raw contact TXT record.</summary>
     public string? ContactRecord { get; private set; }
+
+    /// <summary>True when a contact record was located.</summary>
     public bool RecordExists { get; private set; }
+
+    /// <summary>Parsed key-value fields from the record.</summary>
     public Dictionary<string, string> Fields { get; } = new();
 
     /// <summary>

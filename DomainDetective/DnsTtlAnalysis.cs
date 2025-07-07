@@ -12,6 +12,10 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DnsTtlAnalysis {
         private readonly List<string> _warnings = new();
+
+        /// <summary>
+        /// Indicates whether the zone is signed with DNSSEC.
+        /// </summary>
         public bool DnsSecSigned { get; private set; }
 
         /// <summary>Gets TTL values for A records.</summary>
@@ -27,7 +31,12 @@ namespace DomainDetective {
         /// <summary>Collection of warning messages produced during analysis.</summary>
         public IReadOnlyList<string> Warnings => _warnings;
 
+        /// <summary>Provides DNS query implementation details.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>
+        /// Optional override for DNS queries, primarily used for testing.
+        /// </summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {

@@ -27,7 +27,12 @@ public class WildcardDnsAnalysis
     /// <summary>Whether the domain has NS records.</summary>
     public bool NsExists { get; private set; }
 
+    /// <summary>Configuration used for DNS lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
+
+    /// <summary>
+    /// Optional DNS query delegate for testing purposes.
+    /// </summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)

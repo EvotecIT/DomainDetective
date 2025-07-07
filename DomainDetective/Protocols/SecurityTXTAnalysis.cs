@@ -16,12 +16,26 @@ namespace DomainDetective {
         private record CacheEntry(string Content, string Url, bool FallbackUsed, DateTimeOffset Expires);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Clears cached security.txt content used across instances.
+        /// </summary>
         public static void ClearCache() => _cache.Clear();
+        /// <summary>Domain that was analyzed.</summary>
         public string Domain { get; set; }
+
+        /// <summary>True when a security.txt record was found.</summary>
         public bool RecordPresent { get; set; }
+
+        /// <summary>True when the record passed validation.</summary>
         public bool RecordValid { get; set; }
+
+        /// <summary>Indicates the record is signed with PGP.</summary>
         public bool PGPSigned { get; set; }
+
+        /// <summary>Set when fallback retrieval method was used.</summary>
         public bool FallbackUsed { get; set; }
+
+        /// <summary>URL from which the record was downloaded.</summary>
         public string Url { get; set; }
         public HashSet<string> DuplicateTags { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Fields that can appear multiple times as List<string>
