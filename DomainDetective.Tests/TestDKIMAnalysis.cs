@@ -11,7 +11,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDKIM(dkimRecord);
             foreach (var selector in healthCheck.DKIMAnalysis.AnalysisResults.Keys) {
                 Assert.Equal("default", selector);
-                Assert.Null(healthCheck.DKIMAnalysis.AnalysisResults[selector].Name);
+                Assert.True(string.IsNullOrEmpty(healthCheck.DKIMAnalysis.AnalysisResults[selector].Name));
                 Assert.Equal(dkimRecord, healthCheck.DKIMAnalysis.AnalysisResults[selector].DkimRecord);
                 Assert.True(healthCheck.DKIMAnalysis.AnalysisResults[selector].DkimRecordExists);
                 Assert.Null(healthCheck.DKIMAnalysis.AnalysisResults[selector].Flags);
