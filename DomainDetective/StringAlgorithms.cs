@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace DomainDetective;
 
+/// <summary>
+/// Provides helper algorithms for string comparison and analysis.
+/// </summary>
 internal static class StringAlgorithms {
         private static readonly Dictionary<char, char[]> _confusables = new() {
             ['a'] = new[] { '\u0430', '\uFF41' },
@@ -16,6 +19,12 @@ internal static class StringAlgorithms {
             ['b'] = new[] { '\u0432', '\uFF42' }
         };
 
+        /// <summary>
+        /// Calculates the Levenshtein distance between two strings.
+        /// </summary>
+        /// <param name="source">The first string.</param>
+        /// <param name="target">The second string.</param>
+        /// <returns>The edit distance between <paramref name="source"/> and <paramref name="target"/>.</returns>
         public static int LevenshteinDistance(string source, string target)
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
@@ -34,6 +43,11 @@ internal static class StringAlgorithms {
             return d[n, m];
         }
 
+        /// <summary>
+        /// Determines whether the input contains likely homoglyph characters.
+        /// </summary>
+        /// <param name="input">The string to inspect.</param>
+        /// <returns><c>true</c> if homoglyphs were found; otherwise <c>false</c>.</returns>
         public static bool ContainsHomoglyphs(string input)
         {
             if (string.IsNullOrEmpty(input))

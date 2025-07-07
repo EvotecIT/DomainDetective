@@ -349,11 +349,7 @@ namespace DomainDetective.Tests {
         }
 
         private static int GetFreePort() {
-            var l = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-            l.Start();
-            var p = ((IPEndPoint)l.LocalEndpoint).Port;
-            l.Stop();
-            return p;
+            return PortHelper.GetFreePort();
         }
     }
 }

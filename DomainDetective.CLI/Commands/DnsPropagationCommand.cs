@@ -9,30 +9,44 @@ using System.IO;
 
 namespace DomainDetective.CLI;
 
+/// <summary>
+/// Settings for <see cref="DnsPropagationCommand"/>.
+/// </summary>
 internal sealed class DnsPropagationSettings : CommandSettings {
+    /// <summary>Domain to query.</summary>
     [CommandOption("--domain")]
     public string Domain { get; set; } = string.Empty;
 
+    /// <summary>Record type to check.</summary>
     [CommandOption("--record-type")]
     public DnsRecordType RecordType { get; set; }
 
+    /// <summary>Optional file containing DNS server definitions.</summary>
     [CommandOption("--servers-file")]
     public FileInfo? ServersFile { get; set; }
 
+    /// <summary>Output JSON results.</summary>
     [CommandOption("--json")]
     public bool Json { get; set; }
 
+    /// <summary>Compare results across servers.</summary>
     [CommandOption("--compare-results")]
     public bool Compare { get; set; }
 
+    /// <summary>Maximum number of concurrent queries.</summary>
     [CommandOption("--max-parallelism")]
     public int MaxParallelism { get; set; }
 
+    /// <summary>Disable progress display.</summary>
     [CommandOption("--no-progress")]
     public bool NoProgress { get; set; }
 }
 
+/// <summary>
+/// Checks DNS propagation across multiple public servers.
+/// </summary>
 internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSettings> {
+    /// <inheritdoc/>
     public override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings) {
         var analysis = new DnsPropagationAnalysis();
         if (settings.ServersFile != null) {

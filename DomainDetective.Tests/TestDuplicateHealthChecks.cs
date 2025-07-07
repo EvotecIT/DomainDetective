@@ -45,11 +45,7 @@ namespace DomainDetective.Tests {
         }
 
         private static int GetFreePort() {
-            var socket = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
-            socket.Start();
-            var port = ((IPEndPoint)socket.LocalEndpoint).Port;
-            socket.Stop();
-            return port;
+            return PortHelper.GetFreePort();
         }
     }
 }

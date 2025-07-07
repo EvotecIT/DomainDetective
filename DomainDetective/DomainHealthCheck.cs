@@ -10,6 +10,10 @@ using System.Net.Http;
 using System.Reflection;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Performs a collection of DNS and security related checks for a domain.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck : Settings {
         private PublicSuffixList _publicSuffixList;
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";

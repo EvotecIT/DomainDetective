@@ -2,7 +2,11 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Example;
 
+/// <summary>
+/// Demonstrates analysis of SECURITYTXT files.
+/// </summary>
 public static partial class Program {
+    /// <summary>Runs the SECURITYTXT example.</summary>
     public static async Task ExampleAnalyseSecurityTXT() {
         var healthCheck = new DomainHealthCheck();
         healthCheck.Verbose = false;
