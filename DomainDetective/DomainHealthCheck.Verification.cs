@@ -12,6 +12,10 @@ using System.Globalization;
 using DomainDetective.Network;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Contains verification methods used by <see cref="DomainHealthCheck"/>.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck {
         private static readonly IdnMapping _idn = new();
 
