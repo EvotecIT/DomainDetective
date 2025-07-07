@@ -129,7 +129,8 @@ public class PortScanAnalysis
             {
                 udp.Client.SendTimeout = (int)Timeout.TotalMilliseconds;
                 udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
-                await udp.SendAsync(Array.Empty<byte>(), 0, new IPEndPoint(address, port)).ConfigureAwait(false);
+                udp.Connect(address, port);
+                await udp.SendAsync(Array.Empty<byte>(), 0).ConfigureAwait(false);
 #if NET8_0_OR_GREATER
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
