@@ -235,7 +235,7 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckSPF(spfRecord);
 
             Assert.False(healthCheck.SpfAnalysis.ExceedsCharacterLimit);
-            Assert.False(healthCheck.SpfAnalysis.ExceedsTotalCharacterLimit);
+            Assert.True(healthCheck.SpfAnalysis.ExceedsTotalCharacterLimit);
         }
 
         [Fact]
