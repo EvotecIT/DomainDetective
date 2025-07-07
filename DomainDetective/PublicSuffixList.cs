@@ -31,6 +31,11 @@ namespace DomainDetective {
             return Load(stream);
         }
 
+        /// <summary>
+        /// Loads the public suffix list from an open <see cref="Stream"/>.
+        /// </summary>
+        /// <param name="stream">Stream containing the list data.</param>
+        /// <returns>An initialized <see cref="PublicSuffixList"/> instance.</returns>
         public static PublicSuffixList Load(Stream stream) {
             var list = new PublicSuffixList();
             using var reader = new StreamReader(stream);
@@ -52,6 +57,11 @@ namespace DomainDetective {
             return list;
         }
 
+        /// <summary>
+        /// Downloads and loads the public suffix list from the given URL.
+        /// </summary>
+        /// <param name="url">HTTP or HTTPS address of the list.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public static async Task<PublicSuffixList> LoadFromUrlAsync(string url) {
             var client = SharedHttpClient.Instance;
             using var stream = await client.GetStreamAsync(url);

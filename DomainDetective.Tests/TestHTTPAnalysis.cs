@@ -560,7 +560,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsHstsPreloaded() {
-            var preloadPath = Path.Combine(AppContext.BaseDirectory, "hsts_preload.json");
+            var preloadPath = Path.Combine(Path.GetTempPath(), $"hsts_preload_{Guid.NewGuid():N}.json");
             File.WriteAllText(preloadPath, "[\"localhost\"]");
             HttpAnalysis.LoadHstsPreloadList(preloadPath);
             using (File.Open(preloadPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }

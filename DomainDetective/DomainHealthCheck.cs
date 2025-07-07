@@ -18,6 +18,9 @@ namespace DomainDetective {
         private PublicSuffixList _publicSuffixList;
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
+        /// <summary>
+        /// Serialization settings used when persisting analysis data.
+        /// </summary>
         public static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true,

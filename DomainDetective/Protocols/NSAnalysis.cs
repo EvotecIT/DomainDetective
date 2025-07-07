@@ -11,9 +11,16 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class NSAnalysis {
+        /// <summary>Configuration used for DNS queries.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>Allows injection of a DNS query implementation for testing.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+        /// <summary>Optional full DNS query override that returns raw responses.</summary>
         public Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
+
+        /// <summary>Optional override for recursion testing logic.</summary>
         public Func<string, Task<bool>>? RecursionTestOverride { private get; set; }
         public List<string> NsRecords { get; private set; } = new();
         public bool NsRecordExists { get; private set; }

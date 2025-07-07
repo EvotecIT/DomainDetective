@@ -12,10 +12,19 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class TLSRPTAnalysis {
+        /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
+
+        /// <summary>Indicates whether a TLSRPT record exists.</summary>
         public bool TlsRptRecordExists { get; private set; }
+
+        /// <summary>Indicates whether multiple records were found.</summary>
         public bool MultipleRecords { get; private set; }
+
+        /// <summary>Indicates whether the record starts with v=TLSRPTv1.</summary>
         public bool StartsCorrectly { get; private set; }
+
+        /// <summary>True when at least one RUA destination is defined.</summary>
         public bool RuaDefined { get; private set; }
         public List<string> MailtoRua { get; private set; } = new();
         public List<string> HttpRua { get; private set; } = new();

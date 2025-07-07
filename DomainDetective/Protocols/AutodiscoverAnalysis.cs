@@ -10,7 +10,10 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class AutodiscoverAnalysis {
+        /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>Optional DNS query override.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
         /// <summary>Gets a value indicating whether the _autodiscover._tcp SRV record exists.</summary>
         public bool SrvRecordExists { get; private set; }

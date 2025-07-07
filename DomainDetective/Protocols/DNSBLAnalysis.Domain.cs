@@ -4,6 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 
 namespace DomainDetective {
+    /// <summary>
+    /// Provides domain-based DNS block list analysis functionality.
+    /// </summary>
     public partial class DNSBLAnalysis {
         private static readonly List<DnsblEntry> _domainBlockLists = new();
 

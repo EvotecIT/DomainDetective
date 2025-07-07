@@ -20,6 +20,8 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class SpfAnalysis {
         internal DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>Combined SPF record text.</summary>
         public string SpfRecord { get; private set; }
         public List<string> SpfRecords { get; private set; } = new List<string>();
         public bool SpfRecordExists { get; private set; } // should be true

@@ -34,6 +34,10 @@ public class ThreatIntelAnalysis
 
     internal HttpClient Client => _client;
 
+    /// <summary>
+    /// Initializes a new instance of <see cref="ThreatIntelAnalysis"/>.
+    /// </summary>
+    /// <param name="client">Optional HTTP client used for requests.</param>
     public ThreatIntelAnalysis(HttpClient? client = null)
     {
         _client = client ?? _staticClient;
