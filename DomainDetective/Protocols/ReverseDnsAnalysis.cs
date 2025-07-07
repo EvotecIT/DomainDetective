@@ -13,8 +13,13 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class ReverseDnsAnalysis {
+        /// <summary>Provides DNS configuration for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>Optional DNS query override.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+        /// <summary>Optional override returning raw DNS responses.</summary>
         public Func<string, DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
 
         private static readonly Regex _labelRegex = new(

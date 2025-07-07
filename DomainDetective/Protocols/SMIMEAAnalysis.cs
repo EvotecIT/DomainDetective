@@ -12,6 +12,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMIMEAAnalysis {
+        /// <summary>Detailed analysis results for each SMIMEA record.</summary>
         public List<SMIMEARecordAnalysis> AnalysisResults { get; private set; } = new();
         public int NumberOfRecords { get; private set; }
         public bool HasDuplicateRecords { get; private set; }

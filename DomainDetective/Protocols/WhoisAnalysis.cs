@@ -22,6 +22,8 @@ public class WhoisAnalysis {
     private string TLD { get; set; }
     private static readonly IdnMapping _idn = new();
     private string _domainName;
+
+    /// <summary>The domain name being queried.</summary>
     public string DomainName {
         get => _domainName;
         set {
@@ -32,21 +34,52 @@ public class WhoisAnalysis {
             }
         }
     }
+    /// <summary>Top-level domain portion of <see cref="DomainName"/>.</summary>
     public string Tld => TLD;
+
+    /// <summary>WHOIS registrar name.</summary>
     public string Registrar { get; set; }
+
+    /// <summary>Creation date string as returned by the server.</summary>
     public string CreationDate { get; set; }
+
+    /// <summary>Expiry date string as returned by the server.</summary>
     public string ExpiryDate { get; set; }
+
+    /// <summary>Last updated date string.</summary>
     public string LastUpdated { get; set; }
+
+    /// <summary>Entity the domain is registered to.</summary>
     public string RegisteredTo { get; set; }
+
+    /// <summary>Name servers listed in the response.</summary>
     public List<string> NameServers { get; set; } = new List<string>();
+
+    /// <summary>Timeout applied when querying WHOIS servers.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Type of registrant if provided.</summary>
     public string RegistrantType { get; set; }
+
+    /// <summary>Registrant country code.</summary>
     public string Country { get; set; }
+
+    /// <summary>DNSSEC status string.</summary>
     public string DnsSec { get; set; }
+
+    /// <summary>Raw DNS record returned, if any.</summary>
     public string DnsRecord { get; set; }
+
+    /// <summary>Registrar address text.</summary>
     public string RegistrarAddress { get; set; }
+
+    /// <summary>Registrar phone number.</summary>
     public string RegistrarTel { get; set; }
+
+    /// <summary>Registrar website URL.</summary>
     public string RegistrarWebsite { get; set; }
+
+    /// <summary>Registrar licence identifier.</summary>
     public string RegistrarLicense { get; set; }
     public string RegistrarEmail { get; set; }
     public string RegistrarAbuseEmail { get; set; }

@@ -18,15 +18,33 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class MXAnalysis {
+        /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
+
+        /// <summary>Optional DNS query override.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
+
+        /// <summary>MX records discovered during analysis.</summary>
         public List<string> MxRecords { get; private set; } = new List<string>();
+
+        /// <summary>Indicates whether at least one MX record exists.</summary>
         public bool MxRecordExists { get; private set; } // should be true
+        /// <summary>Indicates that a record incorrectly points to a CNAME.</summary>
         public bool PointsToCname { get; private set; } // should be false
+
+        /// <summary>Indicates that a record incorrectly points to an IP address.</summary>
         public bool PointsToIpAddress { get; private set; } // should be false
+
+        /// <summary>Indicates that a record points to a non-existent domain.</summary>
         public bool PointsToNonExistentDomain { get; private set; } // should be false
+
+        /// <summary>Indicates that a record points to a domain without A/AAAA records.</summary>
         public bool PointsToDomainWithoutAOrAaaaRecord { get; private set; } // should be false
+
+        /// <summary>Indicates whether MX priorities appear in ascending order.</summary>
         public bool PrioritiesInOrder { get; private set; } // RFC 5321 section 5.1
+
+        /// <summary>Indicates whether backup MX servers are present.</summary>
         public bool HasBackupServers { get; private set; }
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
