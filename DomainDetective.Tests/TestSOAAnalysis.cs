@@ -20,13 +20,13 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.SOAAnalysis.SerialFormatValid);
         }
 
-        [Fact]
+        [SkippableFact]
         public async Task VerifySoaByDomain() {
             var healthCheck = new DomainHealthCheck { Verbose = false };
             await healthCheck.Verify("evotec.pl", [HealthCheckType.SOA]);
 
             if (!healthCheck.SOAAnalysis.RecordExists) {
-                throw SkipException.ForSkip("SOA record not found");
+                throw Xunit.Sdk.SkipException.ForSkip("SOA record not found");
             }
 
             Assert.True(healthCheck.SOAAnalysis.SerialNumber > 0);

@@ -24,6 +24,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="Xunit.SkippableFact" Version="1.5.23" />
         <PackageReference Include="RichardSzalay.MockHttp" Version="7.0.0" />
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
         <PackageReference Include="coverlet.collector" Version="6.0.4">
