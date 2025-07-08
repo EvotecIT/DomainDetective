@@ -87,6 +87,9 @@ namespace DomainDetective {
     public partial class DNSBLAnalysis {
         public DnsConfiguration DnsConfiguration { get; set; }
 
+        /// <summary>Optional override for DNS queries used for testing.</summary>
+        public Func<string[], DnsRecordType, Task<IEnumerable<DnsResponse>>>? QueryDnsFullOverride { private get; set; }
+
         private static readonly List<DnsblEntry> _defaultEntries = new();
         private static readonly List<DnsblEntry> _defaultDomainBlockLists = new();
         private static Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase);
@@ -168,6 +171,14 @@ namespace DomainDetective {
             Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
             Logger = null;
+        }
+
+        private async Task<IEnumerable<DnsResponse>> QueryFullDns(string[] names, DnsRecordType type) {
+            if (QueryDnsFullOverride != null) {
+                return await QueryDnsFullOverride(names, type);
+            }
+
+            return await DnsConfiguration.QueryFullDNS(names, type);
         }
 
         internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
@@ -299,12 +310,13 @@ namespace DomainDetective {
                 queries.Add(query);
             }
 
-            var responses = new Dictionary<string, List<DnsAnswer>>();
+            var responses = new Dictionary<string, List<DnsAnswer>>(StringComparer.OrdinalIgnoreCase);
 
             try {
-                var resultA = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.A);
-                foreach (var dnsResponse in resultA) {
-                    responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+                var resultA = (await QueryFullDns(queries.ToArray(), DnsRecordType.A)).ToArray();
+                for (int i = 0; i < queries.Count; i++) {
+                    var answers = i < resultA.Length ? resultA[i].Answers : Array.Empty<DnsAnswer>();
+                    responses[queries[i]] = answers?.ToList() ?? new List<DnsAnswer>();
                 }
             } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
                 // fallback to empty responses when the system DNS configuration is invalid
@@ -315,12 +327,13 @@ namespace DomainDetective {
 
             if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6) {
                 try {
-                    var resultAaaa = await DnsConfiguration.QueryFullDNS(queries.ToArray(), DnsRecordType.AAAA);
-                    foreach (var dnsResponse in resultAaaa) {
-                        if (!responses.ContainsKey(dnsResponse.Questions[0].Name)) {
-                            responses[dnsResponse.Questions[0].Name] = dnsResponse.Answers.ToList();
+                    var resultAaaa = (await QueryFullDns(queries.ToArray(), DnsRecordType.AAAA)).ToArray();
+                    for (int i = 0; i < queries.Count; i++) {
+                        var answers = i < resultAaaa.Length ? resultAaaa[i].Answers : Array.Empty<DnsAnswer>();
+                        if (!responses.ContainsKey(queries[i])) {
+                            responses[queries[i]] = answers?.ToList() ?? new List<DnsAnswer>();
                         } else {
-                            responses[dnsResponse.Questions[0].Name].AddRange(dnsResponse.Answers);
+                            responses[queries[i]].AddRange(answers ?? Array.Empty<DnsAnswer>());
                         }
                     }
                 } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
