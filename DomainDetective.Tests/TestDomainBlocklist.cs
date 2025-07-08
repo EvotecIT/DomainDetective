@@ -1,6 +1,5 @@
 using DomainDetective;
 using DnsClientX;
-using Xunit.Sdk;
 
 namespace DomainDetective.Tests {
     public class TestDomainBlocklist {
@@ -15,16 +14,12 @@ namespace DomainDetective.Tests {
 
             await analysis.IsDomainListedAsync("dbltest.com", new InternalLogger());
             var resultSpamhaus = analysis.Results["dbltest.com"];
-            if (!resultSpamhaus.ListedBlacklist.Contains("dbl.spamhaus.org")) {
-                throw Xunit.Sdk.SkipException.ForSkip("Spamhaus DNSBL not reachable");
-            }
+            Skip.If(!resultSpamhaus.ListedBlacklist.Contains("dbl.spamhaus.org"), "Spamhaus DNSBL not reachable");
             Assert.True(resultSpamhaus.IsBlacklisted);
 
             await analysis.IsDomainListedAsync("test.uribl.com", new InternalLogger());
             var resultUribl = analysis.Results["test.uribl.com"];
-            if (!resultUribl.ListedBlacklist.Contains("multi.uribl.com")) {
-                throw Xunit.Sdk.SkipException.ForSkip("URIBL DNSBL not reachable");
-            }
+            Skip.If(!resultUribl.ListedBlacklist.Contains("multi.uribl.com"), "URIBL DNSBL not reachable");
             Assert.True(resultUribl.IsBlacklisted);
         }
 

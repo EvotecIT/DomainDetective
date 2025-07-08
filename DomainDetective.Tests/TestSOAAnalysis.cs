@@ -1,4 +1,3 @@
-using Xunit.Sdk;
 using DnsClientX;
 using System.Threading.Tasks;
 
@@ -25,9 +24,7 @@ namespace DomainDetective.Tests {
             var healthCheck = new DomainHealthCheck { Verbose = false };
             await healthCheck.Verify("evotec.pl", [HealthCheckType.SOA]);
 
-            if (!healthCheck.SOAAnalysis.RecordExists) {
-                throw Xunit.Sdk.SkipException.ForSkip("SOA record not found");
-            }
+            Skip.If(!healthCheck.SOAAnalysis.RecordExists, "SOA record not found");
 
             Assert.True(healthCheck.SOAAnalysis.SerialNumber > 0);
         }
