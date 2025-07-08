@@ -333,9 +333,24 @@ namespace DomainDetective {
         }
 
         private static string TrimQuotes(string value) {
-            return value.Length > 1 && value.StartsWith("\"", StringComparison.Ordinal) && value.EndsWith("\"", StringComparison.Ordinal)
-                ? value.Substring(1, value.Length - 2)
-                : value;
+            var trimmed = value.Trim();
+            if (trimmed.Length == 0) {
+                return trimmed;
+            }
+
+            if (trimmed.StartsWith("\\\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(2);
+            } else if (trimmed.StartsWith("\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(1);
+            }
+
+            if (trimmed.EndsWith("\\\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(0, trimmed.Length - 2);
+            } else if (trimmed.EndsWith("\"", StringComparison.Ordinal)) {
+                trimmed = trimmed.Substring(0, trimmed.Length - 1);
+            }
+
+            return trimmed;
         }
 
         private void AddPartToList(string part, InternalLogger? logger) {
