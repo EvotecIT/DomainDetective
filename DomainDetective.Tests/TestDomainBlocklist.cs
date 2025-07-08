@@ -22,8 +22,20 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ListedDomainsReturnPositive() {
             var map = new Dictionary<string, DnsAnswer[]>(StringComparer.OrdinalIgnoreCase) {
-                ["dbltest.com.dbl.spamhaus.org"] = new[] { new DnsAnswer { DataRaw = "127.0.0.2", Type = DnsRecordType.A } },
-                ["test.uribl.com.multi.uribl.com"] = new[] { new DnsAnswer { DataRaw = "127.0.0.2", Type = DnsRecordType.A } }
+                ["dbltest.com.dbl.spamhaus.org"] = new[] {
+                    new DnsAnswer {
+                        Name = "dbltest.com.dbl.spamhaus.org",
+                        DataRaw = "127.0.0.2",
+                        Type = DnsRecordType.A
+                    }
+                },
+                ["test.uribl.com.multi.uribl.com"] = new[] {
+                    new DnsAnswer {
+                        Name = "test.uribl.com.multi.uribl.com",
+                        DataRaw = "127.0.0.2",
+                        Type = DnsRecordType.A
+                    }
+                }
             };
             var analysis = CreateAnalysis(map);
             analysis.ClearDNSBL();
