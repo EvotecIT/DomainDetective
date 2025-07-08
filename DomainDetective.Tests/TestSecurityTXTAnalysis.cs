@@ -8,7 +8,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task ValidSecurityTxtIsParsed() {
             using var listener = new HttpListener();
-            var prefix = $"http://localhost:{GetFreePort()}/";
+            var prefix = $"http://127.0.0.1:{GetFreePort()}/";
             listener.Prefixes.Add(prefix);
             listener.Start();
             var expires = DateTime.UtcNow.AddDays(30).ToString("yyyy-MM-ddTHH:mm:ssZ");
@@ -159,7 +159,7 @@ namespace DomainDetective.Tests {
             listener.Prefixes.Add(prefix);
             listener.Start();
 
-            var expires = DateTime.UtcNow.AddSeconds(1).ToString("yyyy-MM-ddTHH:mm:ssZ");
+            var expires = DateTime.UtcNow.AddSeconds(2).ToString("yyyy-MM-ddTHH:mm:ssZ");
             var content = $"Contact: mailto:admin@example.com\nExpires: {expires}";
             int hitCount = 0;
             var serverTask = Task.Run(async () => {
@@ -182,7 +182,7 @@ namespace DomainDetective.Tests {
 
                 Assert.Equal(1, hitCount);
 
-                await Task.Delay(1100);
+                await Task.Delay(2100);
                 await healthCheck.Verify(domain, new[] { HealthCheckType.SECURITYTXT });
 
                 Assert.Equal(2, hitCount);
