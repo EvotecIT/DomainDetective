@@ -74,6 +74,15 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task WarnsOnZeroTtl() {
+            var analysis = Create(0);
+            await analysis.Analyze("example.com", new InternalLogger());
+            Assert.Equal(0, analysis.SoaTtl);
+            Assert.Equal(5, analysis.Warnings.Count);
+            Assert.All(analysis.Warnings, w => Assert.Contains("shorter", w));
+        }
+
+        [Fact]
         public async Task WarnsWhenAAndAaaaTtlsDiffer() {
             var analysis = new DnsTtlAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
