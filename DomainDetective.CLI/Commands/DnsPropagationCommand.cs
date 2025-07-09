@@ -40,6 +40,10 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     /// <summary>Disable progress display.</summary>
     [CommandOption("--no-progress")]
     public bool NoProgress { get; set; }
+
+    /// <summary>Include geolocation information.</summary>
+    [CommandOption("--geo")]
+    public bool Geo { get; set; }
 }
 
 /// <summary>
@@ -63,12 +67,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
 
         List<DnsPropagationResult> results = new();
         if (settings.NoProgress) {
-            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, null, settings.MaxParallelism);
+            results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, null, settings.MaxParallelism, settings.Geo);
         } else {
             await AnsiConsole.Progress().StartAsync(async ctx => {
                 var task = ctx.AddTask($"Query {domain}", maxValue: 100);
                 var progress = new Progress<double>(p => task.Value = p);
-                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism);
+                results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism, settings.Geo);
             });
         }
         if (settings.Compare) {
@@ -85,7 +89,13 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
                 Console.WriteLine(JsonSerializer.Serialize(results, DomainHealthCheck.JsonOptions));
             } else {
                 foreach (var r in results) {
-                    Console.WriteLine($"{r.Server.IPAddress} {r.Success} {string.Join(',', r.Records)}");
+                    var records = r.Records.Select(rec => {
+                        if (settings.Geo && r.Geo != null && r.Geo.TryGetValue(rec, out var info)) {
+                            return $"{rec} ({info.Country}/{info.City})";
+                        }
+                        return rec;
+                    });
+                    Console.WriteLine($"{r.Server.IPAddress} {r.Success} {string.Join(',', records)}");
                 }
             }
         }

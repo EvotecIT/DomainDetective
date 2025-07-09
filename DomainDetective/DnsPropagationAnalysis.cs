@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.Json;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -30,6 +31,12 @@ namespace DomainDetective {
         /// Gets the collection of configured DNS servers.
         /// </summary>
         public IReadOnlyList<PublicDnsEntry> Servers => _servers;
+
+        /// <summary>Override DNS queries for testing.</summary>
+        internal Func<string, DnsRecordType, PublicDnsEntry, CancellationToken, Task<IEnumerable<string>>>? DnsQueryOverride { get; set; }
+
+        /// <summary>Override geolocation lookup for testing.</summary>
+        internal Func<string, CancellationToken, Task<GeoLocationInfo?>>? GeoLookupOverride { get; set; }
 
         /// <summary>
         /// Loads DNS server definitions from a JSON file.
@@ -295,6 +302,31 @@ namespace DomainDetective {
                 : ipAddress.ToString();
         }
 
+        internal async Task<GeoLocationInfo?> GetGeoLocationAsync(string ip, CancellationToken ct) {
+            if (GeoLookupOverride != null) {
+                return await GeoLookupOverride(ip, ct).ConfigureAwait(false);
+            }
+
+            var url = $"https://ipwho.is/{ip}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await SharedHttpClient.Instance.SendAsync(request, ct).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) {
+                return null;
+            }
+#if NET6_0_OR_GREATER
+            using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+#else
+            using var stream = await response.Content.ReadAsStreamAsync().WaitWithCancellation(ct).ConfigureAwait(false);
+#endif
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+            if (doc.RootElement.TryGetProperty("success", out var success) && success.ValueKind == JsonValueKind.False) {
+                return null;
+            }
+            var country = doc.RootElement.TryGetProperty("country", out var cElem) ? cElem.GetString() : null;
+            var city = doc.RootElement.TryGetProperty("city", out var cityElem) ? cityElem.GetString() : null;
+            return new GeoLocationInfo { Country = country, City = city };
+        }
+
         /// <summary>
         /// Asynchronously queries each provided server for the specified domain
         /// and record type.
@@ -310,7 +342,8 @@ namespace DomainDetective {
             IEnumerable<PublicDnsEntry> servers,
             CancellationToken cancellationToken = default,
             IProgress<double>? progress = null,
-            int maxParallelism = 0) {
+            int maxParallelism = 0,
+            bool includeGeo = false) {
             var serverList = servers?.ToList() ?? new List<PublicDnsEntry>();
             if (serverList.Count == 0) {
                 return new List<DnsPropagationResult>();
@@ -326,7 +359,7 @@ namespace DomainDetective {
                         throw new OperationCanceledException(cancellationToken);
                     }
                     try {
-                        return await QueryServerAsync(domain, recordType, server, cancellationToken).ConfigureAwait(false);
+                        return await QueryServerAsync(domain, recordType, server, includeGeo, cancellationToken).ConfigureAwait(false);
                     } finally {
                         semaphore.Release();
                     }
@@ -344,20 +377,42 @@ namespace DomainDetective {
             return results;
         }
 
-        private static async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, CancellationToken cancellationToken) {
+        private async Task<DnsPropagationResult> QueryServerAsync(string domain, DnsRecordType recordType, PublicDnsEntry server, bool includeGeo, CancellationToken cancellationToken) {
             var sw = Stopwatch.StartNew();
             try {
-                var client = new ClientX(server.IPAddress.ToString(), DnsRequestFormat.DnsOverUDP, 53);
-                client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
-                cancellationToken.ThrowIfCancellationRequested();
-                var response = await client.Resolve(domain, recordType);
+                IEnumerable<string> records;
+                if (DnsQueryOverride != null) {
+                    records = await DnsQueryOverride(domain, recordType, server, cancellationToken).ConfigureAwait(false);
+                } else {
+                    var client = new ClientX(server.IPAddress.ToString(), DnsRequestFormat.DnsOverUDP, 53);
+                    client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var response = await client.Resolve(domain, recordType);
+                    records = response.Answers.Select(a => a.Data);
+                }
                 sw.Stop();
+
+                Dictionary<string, GeoLocationInfo>? geo = null;
+                if (includeGeo) {
+                    geo = new();
+                    foreach (var rec in records) {
+                        if (IPAddress.TryParse(rec, out var ip)) {
+                            var ipStr = GetCanonicalIp(ip);
+                            var info = await GetGeoLocationAsync(ipStr, cancellationToken).ConfigureAwait(false);
+                            if (info != null) {
+                                geo[ipStr] = info;
+                            }
+                        }
+                    }
+                }
+
                 return new DnsPropagationResult {
                     Server = server,
                     RecordType = recordType,
                     Duration = sw.Elapsed,
-                    Records = response.Answers.Select(a => a.Data),
-                    Success = response.Answers.Any()
+                    Records = records,
+                    Success = records.Any(),
+                    Geo = geo
                 };
             } catch (TaskCanceledException) {
                 sw.Stop();
@@ -373,7 +428,8 @@ namespace DomainDetective {
                     Duration = sw.Elapsed,
                     Error = ex.Message,
                     Success = false,
-                    Records = Array.Empty<string>()
+                    Records = Array.Empty<string>(),
+                    Geo = null
                 };
             }
         }
