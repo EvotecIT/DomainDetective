@@ -30,6 +30,7 @@ namespace DomainDetective.Protocols {
 
         internal static string AlgorithmName(int number) {
             return number switch {
+                0 => "DELETE",
                 1 => "RSAMD5",
                 2 => "DH",
                 3 => "DSA",
@@ -51,8 +52,8 @@ namespace DomainDetective.Protocols {
                 252 => "INDIRECT",
                 253 => "PRIVATEDNS",
                 254 => "PRIVATEOID",
+                255 => "RESERVED",
                 _ => string.Empty,
             };
         }
-    }
-}
+    }}
