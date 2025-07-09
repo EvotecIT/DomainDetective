@@ -53,9 +53,7 @@ namespace DomainDetective {
                 if (!string.IsNullOrEmpty(record.Name)) {
                     var match = System.Text.RegularExpressions.Regex.Match(record.Name, @"^_(\d+)\._(tcp|udp)\.");
                     if (match.Success && int.TryParse(match.Groups[1].Value, out var port)) {
-                        if (Enum.IsDefined(typeof(ServiceType), port)) {
-                            analysis.ServiceType = (ServiceType)port;
-                        }
+                        analysis.ServiceType = (ServiceType)port;
                     }
                 }
                 logger.WriteVerbose($"Analyzing DANE record {record.Data}");
