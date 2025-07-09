@@ -15,7 +15,8 @@ namespace DomainDetective {
 
     /// <summary>Filters by country name.</summary>
     public DnsServerQuery FromCountry(string name) {
-        if (CountryIdExtensions.TryParse(name, out var id)) {
+        if (!string.IsNullOrWhiteSpace(name) &&
+            CountryIdExtensions.TryParse(name.Trim().ToUpperInvariant(), out var id)) {
             Country = id;
         }
         return this;
@@ -29,7 +30,8 @@ namespace DomainDetective {
 
     /// <summary>Filters by location name.</summary>
     public DnsServerQuery FromLocation(string name) {
-        if (LocationIdExtensions.TryParse(name, out var id)) {
+        if (!string.IsNullOrWhiteSpace(name) &&
+            LocationIdExtensions.TryParse(name.Trim().ToUpperInvariant(), out var id)) {
             Location = id;
         }
         return this;

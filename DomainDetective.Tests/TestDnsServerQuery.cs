@@ -31,5 +31,25 @@ namespace DomainDetective.Tests {
             Assert.True(servers.Count <= 2);
             Assert.All(servers, s => Assert.Equal("Poland", s.Country));
         }
+
+        [Fact]
+        public void BuilderIsCaseInsensitive() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltinServers();
+            var query = DnsServerQuery.Create().FromCountry("poland");
+            var servers = analysis.FilterServers(query).ToList();
+            Assert.NotEmpty(servers);
+            Assert.All(servers, s => Assert.Equal("Poland", s.Country));
+        }
+
+        [Fact]
+        public void BuilderIsCaseInsensitiveForLocation() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltinServers();
+            var query = DnsServerQuery.Create().FromLocation("kabul");
+            var servers = analysis.FilterServers(query).ToList();
+            Assert.NotEmpty(servers);
+            Assert.All(servers, s => Assert.Contains("Kabul", s.Location!, StringComparison.OrdinalIgnoreCase));
+        }
     }
 }
