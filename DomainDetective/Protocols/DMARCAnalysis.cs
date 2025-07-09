@@ -33,7 +33,7 @@ namespace DomainDetective {
 
         public string Policy => TranslatePolicy(PolicyShort);
         public string SubPolicy => TranslateSubPolicy();
-        public string ReportingInterval => TranslateReportingInterval(ReportingIntervalShort);
+        public string ReportingInterval => TranslateReportingInterval(ReportingIntervalShort, _logger);
         public string Percent => TranslatePercentage();
         public string SpfAlignment => TranslateAlignment(SpfAShort);
         public string DkimAlignment => TranslateAlignment(DkimAShort);
@@ -73,7 +73,11 @@ namespace DomainDetective {
         public int? Pct { get; private set; }
         public int? OriginalPct { get; private set; }
         public bool IsPctValid { get; private set; }
-        public int ReportingIntervalShort { get; private set; }
+        public string ReportingIntervalShort { get; private set; }
+
+        private InternalLogger? _logger;
+
+        private const int DefaultReportingInterval = 86400;
 
         public async Task AnalyzeDmarcRecords(
             IEnumerable<DnsAnswer> dnsResults,
@@ -81,6 +85,7 @@ namespace DomainDetective {
             string? domainName = null,
             Func<string, string>? getOrgDomain = null) {
             // reset all properties so repeated calls don't accumulate data
+            _logger = logger;
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
             DmarcRecordExists = false;
@@ -108,7 +113,7 @@ namespace DomainDetective {
             InvalidReportUri = false;
             Pct = null;
             OriginalPct = null;
-            ReportingIntervalShort = 0;
+            ReportingIntervalShort = string.Empty;
             ExternalReportAuthorization = new Dictionary<string, bool>();
 
             if (dnsResults == null) {
@@ -157,10 +162,8 @@ namespace DomainDetective {
                             break;
                         case "ri":
                             // RFC 7489 section 6.3 defines 'ri' as the reporting
-                            // interval in seconds.  It must be a numeric value.
-                            if (int.TryParse(value, out var ri)) {
-                                ReportingIntervalShort = ri;
-                            }
+                            // interval in seconds. It must be a numeric value.
+                            ReportingIntervalShort = value;
                             break;
                         case "fo":
                             FoShort = value;
@@ -373,8 +376,18 @@ namespace DomainDetective {
             return $"{Pct}% of messages are subjected to filtering.";
         }
 
-        private string TranslateReportingInterval(int interval) {
-            return $"{interval / 86400} days";
+        private string TranslateReportingInterval(string interval, InternalLogger? logger = null) {
+            if (!int.TryParse(interval, out var seconds)) {
+                logger?.WriteWarning("Invalid reporting interval '{0}'. Defaulting to {1} seconds.", interval, DefaultReportingInterval);
+                seconds = DefaultReportingInterval;
+                ReportingIntervalShort = DefaultReportingInterval.ToString();
+            }
+
+            if (seconds <= 0) {
+                seconds = DefaultReportingInterval;
+            }
+
+            return $"{seconds / 86400} days";
         }
 
         private static long? ParseSize(string sizePart) {
