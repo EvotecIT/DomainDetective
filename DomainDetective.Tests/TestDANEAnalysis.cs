@@ -347,6 +347,24 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task NonDefaultPortIsPreserved() {
+            var answers = new[] {
+                new DnsAnswer {
+                    Name = "_444._tcp.example.com",
+                    DataRaw = $"3 1 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            var result = analysis.AnalysisResults[0];
+            Assert.True(result.ValidDANERecord);
+            Assert.Equal((ServiceType)444, result.ServiceType);
+        }
+
+        [Fact]
         public async Task MultipleRecordsAreValidated() {
             var records = new[] {
                 $"3 1 1 {new string('A', 64)}",
@@ -360,5 +378,4 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
             Assert.Equal(2, healthCheck.DaneAnalysis.AnalysisResults.Count);
         }
-    }
-}
+    }}
