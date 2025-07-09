@@ -24,8 +24,9 @@ namespace DomainDetective.Tests {
 
             try {
                 var analysis = new MailLatencyAnalysis { Timeout = TimeSpan.FromSeconds(5) };
-                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
-                var result = analysis.ServerResults[$"localhost:{port}"];
+                var host = IPAddress.Loopback.ToString();
+                await analysis.AnalyzeServer(host, port, new InternalLogger());
+                var result = analysis.ServerResults[$"{host}:{port}"];
                 Assert.True(result.BannerSuccess);
                 Assert.True(result.BannerTime >= TimeSpan.FromMilliseconds(200));
             } finally {
