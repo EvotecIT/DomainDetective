@@ -80,5 +80,30 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.ValidMxConfiguration);
             Assert.True(analysis.PointsToIpAddress);
         }
-    }
-}
+
+        [Fact]
+        public async Task DetectStableOrderingWithDuplicates() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "10 mail1.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "20 mail2.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "20 mail3.example.com", Type = DnsRecordType.MX }
+            };
+            var analysis = CreateAnalysis();
+            await analysis.AnalyzeMxRecords(answers, new InternalLogger());
+
+            Assert.True(analysis.PrioritiesInOrder);
+        }
+
+        [Fact]
+        public async Task DetectOutOfOrderWithDuplicate() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "10 mail1.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "20 mail2.example.com", Type = DnsRecordType.MX },
+                new DnsAnswer { DataRaw = "10 mail3.example.com", Type = DnsRecordType.MX }
+            };
+            var analysis = CreateAnalysis();
+            await analysis.AnalyzeMxRecords(answers, new InternalLogger());
+
+            Assert.False(analysis.PrioritiesInOrder);
+        }
+    }}
