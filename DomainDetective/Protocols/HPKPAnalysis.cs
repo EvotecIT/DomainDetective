@@ -36,6 +36,14 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="url">The URL to request.</param>
         /// <param name="logger">Logger used for error reporting.</param>
+        private static readonly HttpClient _client;
+
+        static HPKPAnalysis()
+        {
+            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            _client = new HttpClient(handler, disposeHandler: false);
+        }
+
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
             HeaderPresent = false;
             PinsValid = false;
@@ -45,9 +53,7 @@ namespace DomainDetective {
             IncludesSubDomains = false;
 
             try {
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-                using var client = new HttpClient(handler);
-                using var response = await client.GetAsync(url);
+                using var response = await _client.GetAsync(url);
                 if (response.Headers.TryGetValues("Public-Key-Pins", out var values)) {
                     Header = string.Join(";", values);
                 }

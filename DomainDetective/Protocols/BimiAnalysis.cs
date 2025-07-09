@@ -17,7 +17,7 @@ namespace DomainDetective {
     /// Analyse BIMI records according to draft specifications.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class BimiAnalysis {
+public class BimiAnalysis {
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }
         /// <summary>Gets a value indicating whether a BIMI record was found.</summary>
@@ -160,12 +160,36 @@ namespace DomainDetective {
             }
         }
 
+        private static readonly HttpClient _client;
+        private static readonly HttpClientHandler _handler;
+
+        static BimiAnalysis()
+        {
+            _handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+#if NET6_0_OR_GREATER
+            _handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+#endif
+            _client = new HttpClient(_handler, disposeHandler: false);
+            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        }
+
+        private HttpClient GetClient(out bool dispose)
+        {
+            if (HttpHandlerFactory != null)
+            {
+                dispose = true;
+                return new HttpClient(HttpHandlerFactory(), disposeHandler: true);
+            }
+
+            dispose = false;
+            return _client;
+        }
+
         private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                var (handler, dispose) = GetHandler();
-                using var client = new HttpClient(handler, dispose);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-                using var response = await client.GetAsync(url, cancellationToken);
+                var client = GetClient(out var dispose);
+                try {
+                    using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
                     return (null, 0);
                 }
@@ -186,7 +210,12 @@ namespace DomainDetective {
                     return (text, System.Text.Encoding.UTF8.GetByteCount(text));
                 }
                 var str = System.Text.Encoding.UTF8.GetString(bytes);
-                return (str, bytes.Length);
+                    return (str, bytes.Length);
+                } finally {
+                    if (dispose) {
+                        client.Dispose();
+                    }
+                }
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
@@ -199,10 +228,9 @@ namespace DomainDetective {
 
         private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                var (handler, dispose) = GetHandler();
-                using var client = new HttpClient(handler, dispose);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-                using var response = await client.GetAsync(url, cancellationToken);
+                var client = GetClient(out var dispose);
+                try {
+                    using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
                     return (false, false, false);
                 }
@@ -229,7 +257,12 @@ namespace DomainDetective {
 
                 var hasLogo = CertificateHasLogo(cert);
 
-                return (signed && notExpired, trusted && notExpired, hasLogo);
+                    return (signed && notExpired, trusted && notExpired, hasLogo);
+                } finally {
+                    if (dispose) {
+                        client.Dispose();
+                    }
+                }
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
                 logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
@@ -313,13 +346,9 @@ namespace DomainDetective {
 
         private (HttpMessageHandler handler, bool dispose) GetHandler() {
             if (HttpHandlerFactory != null) {
-                return (HttpHandlerFactory(), false);
+                return (HttpHandlerFactory(), true);
             }
-            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-#if NET6_0_OR_GREATER
-            handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-#endif
-            return (handler, true);
+
+            return (_handler, false);
         }
-    }
-}
+    }}

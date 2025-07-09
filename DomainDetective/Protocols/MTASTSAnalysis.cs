@@ -227,12 +227,18 @@ public class MTASTSAnalysis {
         /// </summary>
         /// <param name="url">The policy URL.</param>
         /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
+        private static readonly HttpClient _client;
+
+        static MTASTSAnalysis()
+        {
+            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            _client = new HttpClient(handler, disposeHandler: false);
+            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
+        }
+
         private async Task<string> GetPolicy(string url) {
             try {
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-                using HttpClient client = new(handler);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
-                var response = await client.GetAsync(url);
+                var response = await _client.GetAsync(url);
                 if (response.IsSuccessStatusCode) {
                     return await response.Content.ReadAsStringAsync();
                 }
