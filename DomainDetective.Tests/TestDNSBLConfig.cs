@@ -66,5 +66,23 @@ namespace DomainDetective.Tests {
                 File.Delete(file);
             }
         }
-    }
-}
+
+        [Fact]
+        public void DefaultPortIs53() {
+            var json = "{\"providers\":[{\"domain\":\"test.port\"}]}";
+            var file = Path.GetTempFileName();
+            try {
+                File.WriteAllText(file, json);
+
+                var analysis = new DNSBLAnalysis();
+                analysis.LoadDnsblConfig(file, clearExisting: true);
+                using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
+
+                var entry = Assert.Single(analysis.GetDNSBL());
+                Assert.Equal(53, entry.Port);
+            }
+            finally {
+                File.Delete(file);
+            }
+        }
+    }}
