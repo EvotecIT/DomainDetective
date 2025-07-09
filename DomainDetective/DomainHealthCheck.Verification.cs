@@ -54,6 +54,11 @@ namespace DomainDetective {
             string host = domainName;
             if (Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out var uri)) {
                 host = uri.Host;
+            } else {
+                try {
+                    host = _idn.GetAscii(domainName.Trim().Trim('.'));
+                } catch (ArgumentException) {
+                }
             }
 
             var ascii = NormalizeDomain(host);
@@ -1321,7 +1326,27 @@ namespace DomainDetective {
             }
 
             if (!Uri.TryCreate($"http://{trimmed}", UriKind.Absolute, out var uri)) {
-                throw new ArgumentException("Invalid host name.", nameof(domainName));
+                // older frameworks may not handle IDN automatically
+                var host = trimmed;
+                var portIndex = trimmed.LastIndexOf(':');
+                if (portIndex > 0 && trimmed.IndexOf(':') == portIndex &&
+                    int.TryParse(trimmed.Substring(portIndex + 1), out _)) {
+                    host = trimmed.Substring(0, portIndex);
+                }
+
+                try {
+                    host = _idn.GetAscii(host.Trim().Trim('.'));
+                } catch (ArgumentException) {
+                    throw new ArgumentException("Invalid host name.", nameof(domainName));
+                }
+
+                var rebuilt = portIndex > 0 && trimmed.IndexOf(':') == portIndex
+                    ? host + trimmed.Substring(portIndex)
+                    : host;
+
+                if (!Uri.TryCreate($"http://{rebuilt}", UriKind.Absolute, out uri)) {
+                    throw new ArgumentException("Invalid host name.", nameof(domainName));
+                }
             }
 
             if (!string.IsNullOrEmpty(uri.PathAndQuery) && uri.PathAndQuery != "/" ||
