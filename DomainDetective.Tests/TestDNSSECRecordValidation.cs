@@ -23,5 +23,12 @@ namespace DomainDetective.Tests {
             bool result = (bool)method.Invoke(null, new object[] { record })!;
             Assert.True(result);
         }
-    }
-}
+
+        [Fact]
+        public async Task AnalysisWithoutDsRecordsSetsDsMatchFalse() {
+            var analysis = new DnsSecAnalysis();
+            await analysis.Analyze("example.com", null);
+            Assert.False(analysis.DsMatch);
+            Assert.Empty(analysis.DsRecords);
+        }
+    }}
