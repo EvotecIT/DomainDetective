@@ -33,10 +33,16 @@ namespace DomainDetective {
         private record CacheEntry(string? Header, DateTimeOffset Expires);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-        /// <summary>Maximum time a cached header is considered valid.</summary>
+        /// <summary>
+        /// Maximum time a cached header is considered valid. Tests may override
+        /// this to speed up expiration.
+        /// </summary>
         public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(1);
 
-        /// <summary>Removes all cached results.</summary>
+        /// <summary>
+        /// Removes all cached results. Primarily used in unit tests to ensure
+        /// isolation between runs.
+        /// </summary>
         public static void ClearCache() => _cache.Clear();
 
         /// <summary>
