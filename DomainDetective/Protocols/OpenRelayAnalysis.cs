@@ -66,7 +66,7 @@ namespace DomainDetective {
 
                 await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
-                await writer.WriteLineAsync($"HELO example.com");
+                await writer.WriteLineAsync($"HELO {host}");
                 await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("MAIL FROM:<test@example.com>");
