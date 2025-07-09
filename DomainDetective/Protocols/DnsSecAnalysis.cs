@@ -116,13 +116,15 @@ namespace DomainDetective {
                 var dsResult = await FetchDsRecords(current, client);
                 dsTtls.Add(dsResult.ttl);
 
+                List<string> currentDsRecords = dsResult.records ?? new List<string>();
+
                 bool dsMatch = false;
-                if (zoneKeys.Count > 0 && dsResult.records.Count > 0) {
+                if (zoneKeys.Count > 0 && currentDsRecords.Count > 0) {
                     var ksk = zoneKeys.FirstOrDefault(k => k.StartsWith("257")) ?? zoneKeys[0];
-                    dsMatch = VerifyDsMatch(ksk, dsResult.records[0], current);
+                    dsMatch = VerifyDsMatch(ksk, currentDsRecords[0], current);
                 }
 
-                foreach (string rec in dsResult.records) {
+                foreach (string rec in currentDsRecords) {
                     if (!IsDsDigestLengthValid(rec)) {
                         logger?.WriteWarning("DS record for {0} has unexpected digest length", current);
                     }
@@ -140,7 +142,7 @@ namespace DomainDetective {
                 if (!keyAd) {
                     _mismatchSummary.Add($"DNSKEY for {current} not authenticated");
                 }
-                if (dsResult.records.Count == 0) {
+                if (currentDsRecords.Count == 0) {
                     _mismatchSummary.Add($"No DS record for {current}");
                 } else {
                     if (!dsResult.ad) {
@@ -155,7 +157,7 @@ namespace DomainDetective {
                     DnsKeys = zoneKeys;
                     Signatures = zoneSigs;
                     Rrsigs = zoneSigInfos;
-                    DsRecords = dsResult.records;
+                    DsRecords = currentDsRecords;
                     AuthenticData = keyAd;
                     DsAuthenticData = dsResult.ad;
                     DsMatch = dsMatch;
@@ -165,8 +167,8 @@ namespace DomainDetective {
 
                 int dot = current.IndexOf('.');
                 if (dot == -1) {
-                    if (dsResult.records.Count > 0) {
-                        string[] rootParts = dsResult.records[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (currentDsRecords.Count > 0) {
+                        string[] rootParts = currentDsRecords[0].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         if (rootParts.Length > 0 && int.TryParse(rootParts[0], out int tag)) {
                             rootKeyTag = tag;
                         }
@@ -236,6 +238,9 @@ namespace DomainDetective {
         /// <param name="domainName">Domain name used in the calculation.</param>
         /// <returns><c>true</c> if the DS record corresponds to the DNSKEY; otherwise <c>false</c>.</returns>
         private static bool VerifyDsMatch(string dnskey, string dsRecord, string domainName) {
+            if (string.IsNullOrWhiteSpace(dnskey) || string.IsNullOrWhiteSpace(dsRecord)) {
+                return false;
+            }
             try {
                 var keyParts = dnskey.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (keyParts.Length < 4) {
