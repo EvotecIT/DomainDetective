@@ -28,5 +28,17 @@ namespace DomainDetective.Tests {
             Assert.NotNull(result.Geo);
             Assert.Equal("Test", result.Geo!["1.2.3.4"].City);
         }
+
+        [Fact]
+        public async Task QueryAsyncWithoutGeoProducesNull() {
+            var analysis = new DnsPropagationAnalysis {
+                DnsQueryOverride = (_, _, _, _) => Task.FromResult<IEnumerable<string>>(new[] { "1.2.3.4" }),
+                GeoLookupOverride = (_, _) => Task.FromResult<GeoLocationInfo?>(new GeoLocationInfo { Country = "US", City = "Nope" })
+            };
+            var server = new PublicDnsEntry { IPAddress = IPAddress.Loopback, Country = "Test", Enabled = true };
+            var results = await analysis.QueryAsync("example.com", DnsRecordType.A, new[] { server }, includeGeo: false);
+            var result = Assert.Single(results);
+            Assert.Null(result.Geo);
+        }
     }
 }
