@@ -41,5 +41,15 @@ namespace DomainDetective.Tests {
             Assert.NotEmpty(servers);
             Assert.All(servers, s => Assert.Equal("Poland", s.Country));
         }
+
+        [Fact]
+        public void BuilderIsCaseInsensitiveForLocation() {
+            var analysis = new DnsPropagationAnalysis();
+            analysis.LoadBuiltinServers();
+            var query = DnsServerQuery.Create().FromLocation("kabul");
+            var servers = analysis.FilterServers(query).ToList();
+            Assert.NotEmpty(servers);
+            Assert.All(servers, s => Assert.Contains("Kabul", s.Location!, StringComparison.OrdinalIgnoreCase));
+        }
     }
 }
