@@ -19,5 +19,8 @@ namespace DomainDetective {
         public bool Success { get; init; }
         /// <summary>Gets an error message if the query failed.</summary>
         public string Error { get; init; }
+
+        /// <summary>Gets geolocation information for returned IP addresses.</summary>
+        public IReadOnlyDictionary<string, GeoLocationInfo>? Geo { get; init; }
     }
 }
