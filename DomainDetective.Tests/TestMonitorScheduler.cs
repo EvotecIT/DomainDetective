@@ -42,4 +42,34 @@ public class TestMonitorScheduler
         Assert.Contains(notifier.Messages, m => m.Contains("Certificate expired"));
         Assert.Contains(notifier.Messages, m => m.Contains("Changes detected"));
     }
+
+    [Fact]
+    public async Task RunAsync_IsThreadSafe()
+    {
+        var notifier = new CaptureNotifier();
+        var callCount = 0;
+        var scheduler = new MonitorScheduler
+        {
+            Notifier = notifier,
+            SummaryOverride = async _ =>
+            {
+                Interlocked.Increment(ref callCount);
+                await Task.Delay(100);
+                return new DomainSummary { HasMxRecord = true, ExpiryDate = "2025" };
+            },
+            CertificateOverride = _ => Task.FromResult(new CertificateMonitor.Entry
+            {
+                Host = "example.com",
+                Expired = true,
+                ExpiryDate = System.DateTime.UtcNow.AddDays(-1),
+                Analysis = new CertificateAnalysis()
+            })
+        };
+        scheduler.Domains.Add("example.com");
+
+        await Task.WhenAll(scheduler.RunAsync(), scheduler.RunAsync());
+
+        Assert.Equal(1, callCount);
+        Assert.Single(notifier.Messages);
+    }
 }

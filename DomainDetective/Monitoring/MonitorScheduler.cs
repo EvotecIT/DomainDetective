@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -25,7 +26,8 @@ public class MonitorScheduler
     /// <summary>Override certificate check for testing.</summary>
     public Func<string, Task<CertificateMonitor.Entry>>? CertificateOverride { private get; set; }
 
-    private readonly Dictionary<string, DomainSummary> _previous = new();
+    private readonly ConcurrentDictionary<string, DomainSummary> _previous = new();
+    private readonly SemaphoreSlim _runLock = new(1, 1);
     private Timer? _timer;
 
     /// <summary>Starts the scheduler.</summary>
@@ -40,34 +42,46 @@ public class MonitorScheduler
     /// <summary>Runs all analyses once.</summary>
     public async Task RunAsync(CancellationToken ct = default)
     {
-        foreach (var domain in Domains)
+        if (!await _runLock.WaitAsync(0, ct))
         {
-            ct.ThrowIfCancellationRequested();
-            var summary = SummaryOverride != null
-                ? await SummaryOverride(domain)
-                : await BuildSummaryAsync(domain, ct);
+            return;
+        }
 
-            if (_previous.TryGetValue(domain, out var prev))
+        try
+        {
+            foreach (var domain in Domains)
             {
-                if (!AreSummariesEqual(prev, summary) && Notifier != null)
+                ct.ThrowIfCancellationRequested();
+                var summary = SummaryOverride != null
+                    ? await SummaryOverride(domain)
+                    : await BuildSummaryAsync(domain, ct);
+
+                if (_previous.TryGetValue(domain, out var prev))
                 {
-                    await Notifier.SendAsync($"Changes detected for {domain}", ct);
+                    if (!AreSummariesEqual(prev, summary) && Notifier != null)
+                    {
+                        await Notifier.SendAsync($"Changes detected for {domain}", ct);
+                    }
+                }
+                _previous[domain] = summary;
+
+                var cert = CertificateOverride != null
+                    ? await CertificateOverride(domain)
+                    : await CheckCertificateAsync(domain, ct);
+
+                if (cert.Expired && Notifier != null)
+                {
+                    await Notifier.SendAsync($"Certificate expired for {domain}", ct);
+                }
+                else if (!cert.Expired && (cert.ExpiryDate - DateTime.UtcNow).TotalDays <= 30 && Notifier != null)
+                {
+                    await Notifier.SendAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct);
                 }
             }
-            _previous[domain] = summary;
-
-            var cert = CertificateOverride != null
-                ? await CertificateOverride(domain)
-                : await CheckCertificateAsync(domain, ct);
-
-            if (cert.Expired && Notifier != null)
-            {
-                await Notifier.SendAsync($"Certificate expired for {domain}", ct);
-            }
-            else if (!cert.Expired && (cert.ExpiryDate - DateTime.UtcNow).TotalDays <= 30 && Notifier != null)
-            {
-                await Notifier.SendAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct);
-            }
+        }
+        finally
+        {
+            _runLock.Release();
         }
     }
 
