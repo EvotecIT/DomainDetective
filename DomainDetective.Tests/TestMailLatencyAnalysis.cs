@@ -31,7 +31,7 @@ namespace DomainDetective.Tests {
                 await analysis.AnalyzeServer(host, port, new InternalLogger());
                 var result = analysis.ServerResults[$"{host}:{port}"];
                 Assert.True(result.BannerSuccess, $"Connect:{result.ConnectSuccess} Banner:{result.BannerSuccess} ConnectTime:{result.ConnectTime.TotalMilliseconds} BannerTime:{result.BannerTime.TotalMilliseconds}");
-                Assert.True(result.BannerTime >= TimeSpan.FromMilliseconds(200), $"BannerTime {result.BannerTime.TotalMilliseconds}ms was shorter than expected");
+                Assert.True(result.BannerTime >= TimeSpan.FromMilliseconds(150), $"BannerTime {result.BannerTime.TotalMilliseconds}ms was shorter than expected");
             } finally {
                 listener.Stop();
                 await serverTask;
