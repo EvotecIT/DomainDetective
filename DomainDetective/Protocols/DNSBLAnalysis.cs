@@ -72,11 +72,15 @@ namespace DomainDetective {
         /// <summary>Gets or sets provider specific reply codes.</summary>
         public Dictionary<string, DnsblReplyCode> ReplyCodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Gets or sets the DNS port to use for queries.</summary>
+        public int Port { get; set; } = 53;
+
         public DnsblEntry() { }
-        public DnsblEntry(string domain, bool enabled = true, string comment = null) {
+        public DnsblEntry(string domain, bool enabled = true, string comment = null, int port = 53) {
             Domain = domain;
             Enabled = enabled;
             Comment = comment;
+            Port = port;
         }
     }
 
@@ -134,12 +138,12 @@ namespace DomainDetective {
         public DNSBLAnalysis(DnsConfiguration dnsConfiguration = null) {
             DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
             DnsblEntries.AddRange(_defaultEntries.Select(e => {
-                var entry = new DnsblEntry(e.Domain, e.Enabled, e.Comment);
+                var entry = new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port);
                 if (e.ReplyCodes?.Count > 0)
                     entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(e.ReplyCodes, StringComparer.OrdinalIgnoreCase);
                 return entry;
             }));
-            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment)));
+            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
         }
 
         internal List<string> DNSBLLists => DnsblEntries
@@ -390,7 +394,8 @@ namespace DomainDetective {
         /// <param name="dnsbl">Blacklist host name.</param>
         /// <param name="enabled">Whether the entry should be queried.</param>
         /// <param name="comment">Optional descriptive comment.</param>
-        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null) {
+        /// <param name="port">DNS port used when querying.</param>
+        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null, int port = 53) {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 
@@ -398,10 +403,11 @@ namespace DomainDetective {
             var entry = DnsblEntries.FirstOrDefault(e =>
                 StringComparer.OrdinalIgnoreCase.Equals(e.Domain, dnsbl));
             if (entry == null) {
-                DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment));
+                DnsblEntries.Add(new DnsblEntry(dnsbl, enabled, comment, port));
             } else {
                 entry.Enabled = enabled;
                 entry.Comment = comment;
+                entry.Port = port;
             }
         }
 
@@ -527,13 +533,14 @@ namespace DomainDetective {
 
                     var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
                     if (existing == null) {
-                        var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment);
+                        var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment, provider.Port);
                         if (provider.ReplyCodes?.Count > 0)
                             entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
                         DnsblEntries.Add(entry);
                     } else if (overwriteExisting) {
                         existing.Enabled = provider.Enabled;
                         existing.Comment = provider.Comment;
+                        existing.Port = provider.Port;
                         if (provider.ReplyCodes?.Count > 0)
                             existing.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
                     }
@@ -555,10 +562,11 @@ namespace DomainDetective {
                 foreach (var entry in config.DomainBlockLists) {
                     var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
                     if (existing == null) {
-                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment));
+                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
                     } else if (overwriteExisting) {
                         existing.Enabled = entry.Enabled;
                         existing.Comment = entry.Comment;
+                        existing.Port = entry.Port;
                     }
                 }
             }
@@ -574,5 +582,4 @@ namespace DomainDetective {
                 ApplyDnsblConfiguration(config, overwriteExisting, overwriteExisting);
             }
         }
-    }
-}
+    }}
