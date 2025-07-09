@@ -18,15 +18,15 @@ namespace DomainDetective {
         /// </summary>
         public bool DnsSecSigned { get; private set; }
 
-        /// <summary>Gets TTL values for A records.</summary>
+        /// <summary>Gets TTL values for A records including zero values.</summary>
         public IReadOnlyList<int> ATtls { get; private set; } = Array.Empty<int>();
-        /// <summary>Gets TTL values for AAAA records.</summary>
+        /// <summary>Gets TTL values for AAAA records including zero values.</summary>
         public IReadOnlyList<int> AaaaTtls { get; private set; } = Array.Empty<int>();
-        /// <summary>Gets TTL values for MX records.</summary>
+        /// <summary>Gets TTL values for MX records including zero values.</summary>
         public IReadOnlyList<int> MxTtls { get; private set; } = Array.Empty<int>();
-        /// <summary>Gets TTL values for NS records.</summary>
+        /// <summary>Gets TTL values for NS records including zero values.</summary>
         public IReadOnlyList<int> NsTtls { get; private set; } = Array.Empty<int>();
-        /// <summary>Gets the TTL value for the SOA record.</summary>
+        /// <summary>Gets the TTL value for the SOA record; zero indicates no TTL or missing record.</summary>
         public int SoaTtl { get; private set; }
         /// <summary>Collection of warning messages produced during analysis.</summary>
         public IReadOnlyList<string> Warnings => _warnings;
@@ -79,7 +79,7 @@ namespace DomainDetective {
             Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned);
             Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned);
             Evaluate("NS", NsTtls, 300, 86400, DnsSecSigned);
-            if (SoaTtl > 0) {
+            if (soaRecords.Length > 0) {
                 Evaluate("SOA", new[] { SoaTtl }, 300, 86400, DnsSecSigned);
             }
         }
