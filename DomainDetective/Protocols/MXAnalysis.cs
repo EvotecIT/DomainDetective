@@ -87,14 +87,14 @@ namespace DomainDetective {
 
             var preferences = parsed.Select(p => p.Preference).ToList();
             if (preferences.Count > 1) {
-                var ordered = true;
-                for (var i = 1; i < preferences.Count; i++) {
-                    if (preferences[i] < preferences[i - 1]) {
-                        ordered = false;
-                        break;
-                    }
-                }
-                PrioritiesInOrder = ordered;
+                var stableSorted = parsed
+                    .Select((p, index) => (p.Preference, index))
+                    .OrderBy(p => p.Preference)
+                    .ThenBy(p => p.index)
+                    .Select(p => p.Preference)
+                    .ToList();
+
+                PrioritiesInOrder = preferences.SequenceEqual(stableSorted);
                 HasBackupServers = preferences.Distinct().Count() > 1;
             }
 
