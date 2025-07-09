@@ -6,7 +6,7 @@ namespace DomainDetective;
 /// <summary>
 /// Provides a single static <see cref="HttpClient"/> instance for the process.
 /// </summary>
-public static class SharedHttpClient
+public sealed class SharedHttpClient : IHttpClientFactory
 {
     /// <summary>
     /// Gets the shared <see cref="HttpClient"/> instance.
@@ -18,4 +18,7 @@ public static class SharedHttpClient
         Instance = new HttpClient();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Instance.Dispose();
     }
+
+    /// <inheritdoc/>
+    public HttpClient CreateClient() => Instance;
 }

@@ -63,11 +63,17 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to validate.</param>
         /// <param name="logger">Optional logger used for diagnostics.</param>
         /// <param name="dnsConfiguration">Optional DNS configuration.</param>
-        public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null) {
-            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            using HttpClient client = new(handler);
+        private static readonly HttpClient _client;
 
-            client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+        static DnsSecAnalysis()
+        {
+            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            _client = new HttpClient(handler, disposeHandler: false);
+            _client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+        }
+
+        public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null) {
+            var client = _client;
 
             _mismatchSummary.Clear();
             bool chainValid = true;
@@ -452,9 +458,7 @@ namespace DomainDetective {
                 }
 
                 Directory.CreateDirectory(cacheDir);
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-                using var client = new HttpClient(handler);
-                var xml = await client.GetStringAsync(url).ConfigureAwait(false);
+                var xml = await _client.GetStringAsync(url).ConfigureAwait(false);
                 File.WriteAllText(cacheFile, xml);
                 return ParseTrustAnchors(xml);
             } catch (Exception ex) {
@@ -493,10 +497,7 @@ namespace DomainDetective {
         /// <param name="type">Record type to validate.</param>
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type) {
-            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-            using HttpClient client = new(handler);
-
-            client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+            var client = _client;
 
             var queryUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type={(int)type}&do=1";
             var response = await client.GetStringAsync(queryUri);
@@ -515,5 +516,4 @@ namespace DomainDetective {
 
             return ad && hasSig;
         }
-    }
-}
+    }}

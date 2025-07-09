@@ -12,7 +12,7 @@ namespace DomainDetective {
     /// Downloads and validates security.txt files according to the specification.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SecurityTXTAnalysis {
+public class SecurityTXTAnalysis {
         private record CacheEntry(string Content, string Url, bool FallbackUsed, DateTimeOffset Expires);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -104,19 +104,22 @@ namespace DomainDetective {
         /// <summary>
         /// Downloads the security.txt file from the specified URL.
         /// </summary>
+        private static readonly HttpClient _client;
+
+        static SecurityTXTAnalysis()
+        {
+            var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
+            _client = new HttpClient(handler, disposeHandler: false);
+            _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
+        }
+
         private async Task<string> GetSecurityTxt(string url) {
             try {
-                using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-                using (HttpClient client = new HttpClient(handler)) {
-                    // Set the User-Agent header to mimic a popular web browser
-                    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
-
-                    var response = await client.GetAsync(url);
-                    if (response.IsSuccessStatusCode && response.Content.Headers.ContentType.MediaType == "text/plain") {
-                        return await response.Content.ReadAsStringAsync();
-                    } else {
-                        return null;
-                    }
+                var response = await _client.GetAsync(url);
+                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType.MediaType == "text/plain") {
+                    return await response.Content.ReadAsStringAsync();
+                } else {
+                    return null;
                 }
             } catch (Exception ex) {
                 Logger?.WriteDebug("Failed to download security.txt from {0}: {1}", url, ex.Message);

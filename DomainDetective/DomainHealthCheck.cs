@@ -27,6 +27,9 @@ namespace DomainDetective {
             Converters = { new IPAddressJsonConverter() }
         };
 
+        /// <summary>Factory used to obtain <see cref="HttpClient"/> instances.</summary>
+        public IHttpClientFactory HttpClientFactory { get; set; } = new SharedHttpClient();
+
         /// <summary>
         /// Indicates whether the last verified domain is itself a public suffix.
         /// </summary>
@@ -403,7 +406,7 @@ namespace DomainDetective {
                 return;
             }
 
-            var client = SharedHttpClient.Instance;
+            var client = HttpClientFactory.CreateClient();
             using var responseStream = await client.GetStreamAsync(url);
             using var memory = new MemoryStream();
             await responseStream.CopyToAsync(memory);
@@ -416,5 +419,4 @@ namespace DomainDetective {
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
-    }
-}
+    }}
