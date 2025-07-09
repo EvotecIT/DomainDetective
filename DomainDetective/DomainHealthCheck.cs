@@ -189,6 +189,14 @@ namespace DomainDetective {
         public SMTPBannerAnalysis SmtpBannerAnalysis { get; private set; } = new SMTPBannerAnalysis();
 
         /// <summary>
+        /// Gets the mail latency analysis.
+        /// </summary>
+        /// <value>Connection and banner timing results.</value>
+        public MailLatencyAnalysis MailLatencyAnalysis { get; private set; } = new MailLatencyAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public MailLatencyAnalysis MAILLATENCYAnalysis => MailLatencyAnalysis;
+
+        /// <summary>
         /// Gets the SMTP AUTH analysis.
         /// </summary>
         /// <value>Advertised authentication mechanisms.</value>

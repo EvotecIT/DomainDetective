@@ -567,6 +567,17 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Measures mail server connection and banner latency.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">Port to connect to. Must be between 1 and 65535.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckMailLatency(string host, int port = 25, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await MailLatencyAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
         /// Tests connectivity to common service ports on a host.
         /// </summary>
         /// <param name="host">Target host name.</param>
