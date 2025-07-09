@@ -91,6 +91,8 @@ public enum HealthCheckType {
     WILDCARDDNS,
     /// <summary>Test EDNS support on name servers.</summary>
     EDNSSUPPORT,
+    /// <summary>Measure SMTP connection and banner latency.</summary>
+    MAILLATENCY,
     /// <summary>Detect CNAMEs pointing to flattening services.</summary>
     FLATTENINGSERVICE
 }
