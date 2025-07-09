@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -29,6 +30,21 @@ namespace DomainDetective {
         /// </summary>
         public bool SelfSignedCertificate { get; set; }
 
+        private record CacheEntry(string? Header, DateTimeOffset Expires);
+        private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Maximum time a cached header is considered valid. Tests may override
+        /// this to speed up expiration.
+        /// </summary>
+        public TimeSpan CacheDuration { get; set; } = TimeSpan.FromHours(1);
+
+        /// <summary>
+        /// Removes all cached results. Primarily used in unit tests to ensure
+        /// isolation between runs.
+        /// </summary>
+        public static void ClearCache() => _cache.Clear();
+
         /// <summary>
         /// Performs an HTTP request to retrieve the Public-Key-Pins header and
         /// verifies that any advertised pins are valid base64-encoded SHA-256
@@ -44,6 +60,37 @@ namespace DomainDetective {
             _client = new HttpClient(handler, disposeHandler: false);
         }
 
+        private void ParseHeader(InternalLogger logger)
+        {
+            logger?.WriteWarning("HPKP header found but HPKP is obsolete (RFC 7469).");
+
+            var parts = (Header ?? string.Empty).Split(';');
+            var valid = true;
+            foreach (var part in parts) {
+                var trimmed = part.Trim();
+                if (trimmed.StartsWith("pin-sha256=\"", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith("\"")) {
+                    var b64 = trimmed.Substring(12, trimmed.Length - 13);
+                    Pins.Add(b64);
+                    try {
+                        var bytes = Convert.FromBase64String(b64);
+                        if (bytes.Length != 32) {
+                            valid = false;
+                        }
+                    } catch (FormatException) {
+                        valid = false;
+                    }
+                } else if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
+                    var value = trimmed.Substring(8);
+                    if (int.TryParse(value, out var ma)) {
+                        MaxAge = ma;
+                    }
+                } else if (string.Equals(trimmed, "includeSubDomains", StringComparison.OrdinalIgnoreCase)) {
+                    IncludesSubDomains = true;
+                }
+            }
+            PinsValid = valid && (SelfSignedCertificate ? Pins.Count >= 1 : Pins.Count >= 2);
+        }
+
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
             HeaderPresent = false;
             PinsValid = false;
@@ -53,45 +100,30 @@ namespace DomainDetective {
             IncludesSubDomains = false;
 
             try {
+                if (_cache.TryGetValue(url, out var cached) && cached.Expires > DateTimeOffset.UtcNow) {
+                    Header = cached.Header;
+                    HeaderPresent = !string.IsNullOrEmpty(Header);
+                    if (HeaderPresent) {
+                        ParseHeader(logger);
+                    }
+                    return;
+                }
+
                 using var response = await _client.GetAsync(url);
                 if (response.Headers.TryGetValues("Public-Key-Pins", out var values)) {
                     Header = string.Join(";", values);
                 }
                 HeaderPresent = !string.IsNullOrEmpty(Header);
                 if (!HeaderPresent) {
+                    _cache[url] = new CacheEntry(null, DateTimeOffset.UtcNow.Add(CacheDuration));
                     return;
                 }
 
-                logger?.WriteWarning("HPKP header found but HPKP is obsolete (RFC 7469).");
+                ParseHeader(logger);
 
-                var parts = (Header ?? string.Empty).Split(';');
-                var valid = true;
-                foreach (var part in parts) {
-                    var trimmed = part.Trim();
-                    if (trimmed.StartsWith("pin-sha256=\"", StringComparison.OrdinalIgnoreCase) && trimmed.EndsWith("\"")) {
-                        var b64 = trimmed.Substring(12, trimmed.Length - 13);
-                        Pins.Add(b64);
-                        try {
-                            var bytes = Convert.FromBase64String(b64);
-                            if (bytes.Length != 32) {
-                                valid = false;
-                            }
-                        } catch (FormatException) {
-                            valid = false;
-                        }
-                    } else if (trimmed.StartsWith("max-age=", StringComparison.OrdinalIgnoreCase)) {
-                        var value = trimmed.Substring(8);
-                        if (int.TryParse(value, out var ma)) {
-                            MaxAge = ma;
-                        }
-                    } else if (string.Equals(trimmed, "includeSubDomains", StringComparison.OrdinalIgnoreCase)) {
-                        IncludesSubDomains = true;
-                    }
-                }
-                PinsValid = valid && (SelfSignedCertificate ? Pins.Count >= 1 : Pins.Count >= 2);
+                _cache[url] = new CacheEntry(Header, DateTimeOffset.UtcNow.Add(CacheDuration));
             } catch (Exception ex) {
                 logger?.WriteError("HPKP check failed for {0}: {1}", url, ex.Message);
             }
         }
-    }
-}
+    }}
