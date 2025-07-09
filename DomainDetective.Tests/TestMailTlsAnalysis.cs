@@ -87,6 +87,16 @@ public class TestMailTlsAnalysis
         }
     }
 
+    [Fact]
+    public async Task ConnectionTimeoutReturnsDefault()
+    {
+        var analysis = new IMAPTLSAnalysis { Timeout = TimeSpan.FromMilliseconds(300) };
+        await analysis.AnalyzeServer("203.0.113.1", 143, new InternalLogger());
+        var result = analysis.ServerResults["203.0.113.1:143"];
+        Assert.False(result.StartTlsAdvertised);
+        Assert.Null(result.Certificate);
+    }
+
     private static async Task RunImapServer(TcpListener listener, X509Certificate2 cert, SslProtocols protocol, CancellationToken token)
     {
         try
