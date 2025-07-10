@@ -144,7 +144,7 @@ namespace DomainDetective.Tests {
 
             Assert.Contains(warnings, w => w.FullMessage.Contains("reports@external.com") && w.FullMessage.Contains("example.com"));
         }
-        
+
         [Fact]
         public async Task InvalidAlignmentFlags() {
             var dmarcRecord = "v=DMARC1; p=none; adkim=x; aspf=y";
@@ -361,6 +361,21 @@ namespace DomainDetective.Tests {
             await healthCheck.CheckDMARC(record);
 
             Assert.True(healthCheck.DmarcAnalysis.ExceedsCharacterLimit);
+        }
+
+        [Fact]
+        public async Task InvalidReportingIntervalDefaultsToOneDay() {
+            var record = "v=DMARC1; p=none; ri=bad";
+            var logger = new InternalLogger();
+            var warnings = new List<LogEventArgs>();
+            logger.OnWarningMessage += (_, e) => warnings.Add(e);
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+
+            await healthCheck.CheckDMARC(record);
+
+            Assert.Equal("86400", healthCheck.DmarcAnalysis.ReportingIntervalShort);
+            Assert.Contains(warnings, w => w.FullMessage.Contains("Invalid reporting interval"));
+            Assert.Equal("1 days", healthCheck.DmarcAnalysis.ReportingInterval);
         }
     }
 }
