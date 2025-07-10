@@ -139,4 +139,54 @@ if ($FoundErrors.Count -gt 0) {
     break
 }
 
+# Alias map for binary cmdlets
+$AliasMap = @{
+    'Add-DnsblProvider'           = 'Add-DDDnsblProvider'
+    'Clear-DnsblProvider'         = 'Clear-DDDnsblProviderList'
+    'Get-DomainSummary'           = 'Get-DDDomainHealthReport'
+    'Get-DomainWhois'             = 'Get-DDDomainWhois'
+    'Get-DomainFlattenedSpfIp'    = 'Get-DDFlattenedSpfIp'
+    'Import-DnsblConfig'          = 'Import-DDDnsblConfig'
+    'Import-DmarcReport'          = 'Import-DDDmarcReport'
+    'Remove-DnsblProvider'        = 'Remove-DDDnsblProvider'
+    'Test-EmailArc'               = 'Test-DDEmailArcRecord'
+    'Test-EmailBimi'              = 'Test-DDEmailBimiRecord'
+    'Test-EmailDkim'              = 'Test-DDEmailDkimRecord'
+    'Test-EmailDmarc'             = 'Test-DDEmailDmarcRecord'
+    'Test-EmailSpf'               = 'Test-DDEmailSpfRecord'
+    'Test-EmailTlsRpt'            = 'Test-DDEmailTlsRptRecord'
+    'Test-EmailStartTls'          = 'Test-DDEmailStartTls'
+    'Test-EmailSmtpTls'           = 'Test-DDEmailSmtpTls'
+    'Test-EmailOpenRelay'         = 'Test-DDEmailOpenRelay'
+    'Get-EmailHeaderInfo'         = 'Get-DDEmailMessageHeaderInfo'
+    'Test-EmailLatency'           = 'Test-DDMailLatency'
+    'Test-DnsCaa'                 = 'Test-DDDnsCaaRecord'
+    'Test-DnsNs'                  = 'Test-DDDnsNsRecord'
+    'Test-DnsSoa'                 = 'Test-DDDnsSoaRecord'
+    'Test-DnsSec'                 = 'Test-DDDnsSecStatus'
+    'Test-DnsBlacklist'           = 'Test-DDDnsBlacklistRecord'
+    'Test-DnsDomainBlacklist'     = 'Test-DDDnsDomainBlacklist'
+    'Test-DnsDanglingCname'       = 'Test-DDDnsDanglingCname'
+    'Test-DnsPropagation'         = 'Test-DDDnsPropagation'
+    'Test-DnsTtl'                 = 'Test-DDDnsTtl'
+    'Test-DnsTunneling'           = 'Test-DDDnsTunneling'
+    'Test-DnsWildcard'            = 'Test-DDDnsWildcard'
+    'Test-DnsEdnsSupport'         = 'Test-DDEdnsSupport'
+    'Test-DnsSmimea'              = 'Test-DDSmimeaRecord'
+    'Test-DnsFcrDns'              = 'Test-DDDnsForwardReverse'
+    'Test-MxRecord'               = 'Test-DDDnsMxRecord'
+    'Test-DomainContact'          = 'Test-DDDomainContactRecord'
+    'Test-DomainSecurityTxt'      = 'Test-DDDomainSecurityTxt'
+    'Test-DomainCertificate'      = 'Test-DDDomainCertificate'
+    'Test-DomainHealth'           = 'Test-DDDomainOverallHealth'
+    'Test-DomainThreatIntel'      = 'Test-DDThreatIntel'
+    'Test-TlsDane'                = 'Test-DDTlsDaneRecord'
+    'Test-NetworkIpNeighbor'      = 'Test-DDIpNeighbor'
+    'Test-NetworkPortAvailability'= 'Test-DDPortAvailability'
+}
+
+foreach ($aliasName in $AliasMap.Keys) {
+    Set-Alias -Name $aliasName -Value $AliasMap[$aliasName] -Scope Local
+}
+
 Export-ModuleMember -Function '*' -Alias '*' -Cmdlet '*'
