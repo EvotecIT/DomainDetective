@@ -388,7 +388,11 @@ namespace DomainDetective {
             }
 
             if (seconds <= 0) {
+                logger?.WriteWarning(
+                    "Reporting interval is zero or negative. Resetting to default value of {0} seconds.",
+                    DefaultReportingInterval);
                 seconds = DefaultReportingInterval;
+                ReportingIntervalShort = DefaultReportingInterval.ToString();
             }
 
             return $"{seconds / 86400} days";
