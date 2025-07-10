@@ -159,7 +159,8 @@ namespace DomainDetective {
                             break;
                         case "ri":
                             // RFC 7489 section 6.3 defines 'ri' as the reporting
-                            // interval in seconds. It must be a numeric value.
+                            // interval in seconds. Invalid or zero values default
+                            // to 86400 seconds.
                             ReportingIntervalShort = value;
                             _ = TranslateReportingInterval(ReportingIntervalShort, logger);
                             break;
