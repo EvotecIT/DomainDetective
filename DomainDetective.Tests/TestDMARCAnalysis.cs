@@ -144,7 +144,7 @@ namespace DomainDetective.Tests {
 
             Assert.Contains(warnings, w => w.FullMessage.Contains("reports@external.com") && w.FullMessage.Contains("example.com"));
         }
-        
+
         [Fact]
         public async Task InvalidAlignmentFlags() {
             var dmarcRecord = "v=DMARC1; p=none; adkim=x; aspf=y";
@@ -376,4 +376,6 @@ namespace DomainDetective.Tests {
             Assert.Equal("86400", healthCheck.DmarcAnalysis.ReportingIntervalShort);
             Assert.Contains(warnings, w => w.FullMessage.Contains("Invalid reporting interval"));
             Assert.Equal("1 days", healthCheck.DmarcAnalysis.ReportingInterval);
-        }}
+        }
+    }
+}
