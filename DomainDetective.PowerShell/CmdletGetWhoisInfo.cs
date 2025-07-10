@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Get WHOIS details.</summary>
     ///   <code>Get-WhoisInfo -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsCommon.Get, "WhoisInfo", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsCommon.Get, "DDDomainWhois", DefaultParameterSetName = "ServerName")]
+[Alias("Get-DomainWhois")]
     public sealed class CmdletGetWhoisInfo : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to retrieve WHOIS information for.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

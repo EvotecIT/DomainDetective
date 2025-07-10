@@ -7,7 +7,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Clear the provider list.</summary>
     ///   <code>Clear-DnsblProvider</code>
     /// </example>
-    [Cmdlet(VerbsCommon.Clear, "DnsblProvider")]
+[Cmdlet(VerbsCommon.Clear, "DDDnsblProviderList")]
+[Alias("Clear-DnsblProvider")]
     public sealed class CmdletClearDnsblProvider : PSCmdlet {
         /// <param name="InputObject">Analysis object to modify.</param>
         [Parameter(ValueFromPipeline = true)]

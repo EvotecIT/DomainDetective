@@ -8,7 +8,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Test mail server TLS.</summary>
     ///   <code>Test-SmtpTls -HostName mail.example.com -Port 587</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SmtpTls", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpTls", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailSmtpTls")]
     public sealed class CmdletTestSmtpTls : AsyncPSCmdlet {
         /// <param name="HostName">SMTP host to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

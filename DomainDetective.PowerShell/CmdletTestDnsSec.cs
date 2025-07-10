@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check DNSSEC records.</summary>
     ///   <code>Test-DnsSec -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DnsSec", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsSecStatus", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsSec")]
     public sealed class CmdletTestDnsSec : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

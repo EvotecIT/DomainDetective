@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>List DNSBL records.</summary>
     ///   <code>Test-DNSBLRecord -NameOrIpAddress example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DNSBLRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsBlacklistRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsBlacklist")]
     public sealed class CmdletTestDNSBLRecord : AsyncPSCmdlet {
         /// <param name="NameOrIpAddress">Domain or IP to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

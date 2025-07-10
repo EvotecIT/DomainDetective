@@ -8,7 +8,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check ports on a server.</summary>
     ///   <code>Test-PortAvailability -HostName mail.example.com -Ports 25,443</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "PortAvailability", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDPortAvailability", DefaultParameterSetName = "ServerName")]
+[Alias("Test-NetworkPortAvailability")]
     public sealed class CmdletTestPortAvailability : AsyncPSCmdlet {
         /// <param name="HostName">Host to test.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

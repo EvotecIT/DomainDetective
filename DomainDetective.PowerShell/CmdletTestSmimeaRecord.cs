@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check SMIMEA record.</summary>
     ///   <code>Test-SmimeaRecord -EmailAddress user@example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SmimeaRecord", DefaultParameterSetName = "Email")]
+[Cmdlet(VerbsDiagnostic.Test, "DDSmimeaRecord", DefaultParameterSetName = "Email")]
+[Alias("Test-DnsSmimea")]
     public sealed class CmdletTestSmimeaRecord : AsyncPSCmdlet {
         /// <param name="EmailAddress">Email address to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Email")]

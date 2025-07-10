@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Detect unclaimed CNAMEs.</summary>
     ///   <code>Test-DanglingCname -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DanglingCname", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsDanglingCname", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsDanglingCname")]
     public sealed class CmdletTestDanglingCname : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

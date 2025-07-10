@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check a single host.</summary>
     ///   <code>Test-DomainBlacklist -NameOrIpAddress example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DomainBlacklist", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsDomainBlacklist", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsDomainBlacklist")]
     public sealed class CmdletTestBlackList : AsyncPSCmdlet {
         /// <param name="NameOrIpAddress">Domain names or IP addresses to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

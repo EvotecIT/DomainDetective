@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Query name servers.</summary>
     ///   <code>Test-NsRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "NsRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsNsRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsNs")]
     public sealed class CmdletTestNsRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

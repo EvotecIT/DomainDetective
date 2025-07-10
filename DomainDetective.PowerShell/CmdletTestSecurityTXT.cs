@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Get security contacts.</summary>
     ///   <code>Test-SecurityTXT -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SecurityTXT", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDomainSecurityTxt", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DomainSecurityTxt")]
     public sealed class CmdletTestSecurityTXT : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

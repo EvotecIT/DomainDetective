@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Analyze headers from a file.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-MessageHeader</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "MessageHeader")]
+[Cmdlet(VerbsCommon.Get, "DDEmailMessageHeaderInfo")]
+[Alias("Get-EmailHeaderInfo")]
     public sealed class CmdletTestMessageHeader : AsyncPSCmdlet {
         /// <param name="HeaderText">Raw header text.</param>
         [Parameter(Mandatory = true, Position = 0)]

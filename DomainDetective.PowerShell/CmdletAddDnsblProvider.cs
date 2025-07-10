@@ -7,7 +7,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Add a provider and return the updated analysis.</summary>
     ///   <code>Add-DnsblProvider -Domain "dnsbl.example.com"</code>
     /// </example>
-    [Cmdlet(VerbsCommon.Add, "DnsblProvider")]
+[Cmdlet(VerbsCommon.Add, "DDDnsblProvider")]
+[Alias("Add-DnsblProvider")]
     public sealed class CmdletAddDnsblProvider : PSCmdlet {
         /// <param name="Domain">Domain name of the DNSBL provider.</param>
         [Parameter(Mandatory = true, Position = 0)]

@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Analyze logs.</summary>
     ///   <code>Test-DnsTunneling -DomainName example.com -Path ./dns.log</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DnsTunneling", DefaultParameterSetName = "File")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsTunneling", DefaultParameterSetName = "File")]
+[Alias("Test-DnsTunneling")]
     public sealed class CmdletTestDnsTunneling : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to inspect.</param>
         [Parameter(Mandatory = true, Position = 0)]

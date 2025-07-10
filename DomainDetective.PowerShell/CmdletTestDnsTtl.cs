@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check TTL values.</summary>
     ///   <code>Test-DnsTtl -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DnsTtl", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsTtl", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsTtl")]
     public sealed class CmdletTestDnsTtl : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Get basic domain overview.</summary>
     ///   <code>Get-DomainSummary -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsCommon.Get, "DomainSummary", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsCommon.Get, "DDDomainHealthReport", DefaultParameterSetName = "ServerName")]
+[Alias("Get-DomainSummary")]
     [OutputType(typeof(DomainSummary))]
     public sealed class CmdletGetDomainSummary : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to analyze.</param>
