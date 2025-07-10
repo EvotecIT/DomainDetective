@@ -8,7 +8,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Import feedback from a zip file.</summary>
     ///   <code>Import-DmarcReport -Path ./report.zip</code>
     /// </example>
-    [Cmdlet(VerbsData.Import, "DmarcReport")]
+[Cmdlet(VerbsData.Import, "DDDmarcReport")]
+[Alias("Import-DmarcReport")]
     public sealed class CmdletImportDmarcReport : PSCmdlet {
         /// <param name="Path">Path to the zipped XML file.</param>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]

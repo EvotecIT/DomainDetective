@@ -2,5 +2,5 @@
 
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
-$ips = Get-FlattenedSpfIp -DomainName 'github.com' -Verbose
+$ips = Get-DomainFlattenedSpfIp -DomainName 'github.com' -Verbose
 $ips

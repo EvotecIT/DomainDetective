@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check CAA entries.</summary>
     ///   <code>Test-CaaRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "CaaRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsCaaRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsCaa")]
     public sealed class CmdletTestCaaRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

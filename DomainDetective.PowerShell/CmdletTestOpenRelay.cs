@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     ///   <code>Test-OpenRelay -HostName mail.example.com -Port 25</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "OpenRelay", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailOpenRelay", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailOpenRelay")]
     public sealed class CmdletTestOpenRelay : AsyncPSCmdlet {
         /// <param name="HostName">SMTP host name to check.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check SPF configuration.</summary>
     ///   <code>Test-SpfRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SpfRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailSpfRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailSpf")]
     public sealed class CmdletTestSpfRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

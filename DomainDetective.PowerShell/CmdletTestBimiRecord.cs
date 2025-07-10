@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check BIMI configuration.</summary>
     ///   <code>Test-BimiRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "BimiRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailBimiRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailBimi")]
     public sealed class CmdletTestBimiRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

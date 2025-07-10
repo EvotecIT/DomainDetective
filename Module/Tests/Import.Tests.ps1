@@ -3,9 +3,9 @@ Describe 'DomainDetective module' {
         { Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force } | Should -Not -Throw
     }
 
-    It 'exposes Test-SpfRecord cmdlet' {
+    It 'exposes Test-EmailSpf cmdlet' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
-        Get-Command Test-SpfRecord -ErrorAction Stop | Should -Not -BeNullOrEmpty
+        Get-Command Test-EmailSpf -ErrorAction Stop | Should -Not -BeNullOrEmpty
     }
 
     It 'exposes Add-DnsblProvider cmdlet' {

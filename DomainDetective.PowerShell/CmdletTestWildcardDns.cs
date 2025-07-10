@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Check for wildcard DNS.</summary>
 ///   <code>Test-WildcardDns -DomainName example.com</code>
 /// </example>
-[Cmdlet(VerbsDiagnostic.Test, "WildcardDns", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsWildcard", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsWildcard")]
 public sealed class CmdletTestWildcardDns : AsyncPSCmdlet
 {
     /// <param name="DomainName">Domain to query.</param>

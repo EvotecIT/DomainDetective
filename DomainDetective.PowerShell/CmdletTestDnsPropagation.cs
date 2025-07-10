@@ -22,8 +22,9 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(
         VerbsDiagnostic.Test,
-        "DnsPropagation",
+        "DDDnsPropagation",
         DefaultParameterSetName = "Builtin")]
+[Alias("Test-DnsPropagation")]
     public sealed class CmdletTestDnsPropagation : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Builtin")]

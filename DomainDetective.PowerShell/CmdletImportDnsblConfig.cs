@@ -7,7 +7,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Load providers from JSON.</summary>
     ///   <code>Import-DnsblConfig -Path ./DnsblProviders.json -OverwriteExisting</code>
     /// </example>
-    [Cmdlet(VerbsData.Import, "DnsblConfig")]
+[Cmdlet(VerbsData.Import, "DDDnsblConfig")]
+[Alias("Import-DnsblConfig")]
     public sealed class CmdletImportDnsblConfig : PSCmdlet {
         /// <param name="Path">Path to the configuration file.</param>
         [Parameter(Mandatory = true, Position = 0)]

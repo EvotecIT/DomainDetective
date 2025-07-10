@@ -7,7 +7,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Remove a provider by domain.</summary>
     ///   <code>Remove-DnsblProvider -Domain dnsbl.example.com</code>
     /// </example>
-    [Cmdlet(VerbsCommon.Remove, "DnsblProvider")]
+[Cmdlet(VerbsCommon.Remove, "DDDnsblProvider")]
+[Alias("Remove-DnsblProvider")]
     public sealed class CmdletRemoveDnsblProvider : PSCmdlet {
         /// <param name="Domain">Domain name of the provider to remove.</param>
         [Parameter(Mandatory = true, Position = 0)]

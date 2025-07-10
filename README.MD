@@ -231,6 +231,78 @@ Analyze ARC headers from PowerShell:
 Get-Content './headers.txt' -Raw | Test-Arc
 ```
 
+### 🧪 DomainDetective Alias Naming – Standardized `Verb-AreaSubject` Format
+
+| Prefixed Name                   | Alias Name               | C# Method                       |
+|--------------------------------|--------------------------|---------------------------------|
+| `Test-DDEmailArcRecord`        | `Test-EmailArc`          | `VerifyARC`                     |
+| `Test-DDEmailBimiRecord`       | `Test-EmailBimi`         | `VerifyBIMI`                    |
+| `Test-DDEmailDkimRecord`       | `Test-EmailDkim`         | `VerifyDKIM`                    |
+| `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`        | `Verify`                        |
+| `Test-DDEmailSpfRecord`        | `Test-EmailSpf`          | `VerifySPF`                     |
+| `Test-DDEmailTlsRptRecord`     | `Test-EmailTlsRpt`       | `VerifyTLSRPT`                  |
+| `Test-DDEmailStartTls`         | `Test-EmailStartTls`     | `VerifySTARTTLS`                |
+| `Test-DDEmailSmtpTls`          | `Test-EmailSmtpTls`      | `CheckSmtpTlsHost`              |
+| `Test-DDEmailOpenRelay`        | `Test-EmailOpenRelay`    | `CheckOpenRelayHost`            |
+| `Get-DDEmailMessageHeaderInfo` | `Get-EmailHeaderInfo`    | `CheckMessageHeaders`           |
+| `Test-DDMailLatency`           | `Test-EmailLatency`      | `CheckMailLatency`              |
+
+## 🌐 DNS-Related Cmdlets
+
+| Prefixed Name                   | Alias Name               | C# Method                         |
+|--------------------------------|--------------------------|-----------------------------------|
+| `Test-DDDnsCaaRecord`          | `Test-DnsCaa`            | `CAAAnalysis.AnalyzeCAARecords`   |
+| `Test-DDDnsNsRecord`           | `Test-DnsNs`             | `NSAnalysis.AnalyzeNsRecords`     |
+| `Test-DDDnsSoaRecord`          | `Test-DnsSoa`            | `SOAAnalysis.AnalyzeSoaRecords`   |
+| `Test-DDDnsSecStatus`          | `Test-DnsSec`            | `DnsSecAnalysis.Analyze`          |
+| `Test-DDDnsBlacklistRecord`    | `Test-DnsBlacklist`      | `DNSBLAnalysis.AnalyzeDNSBLRecords` |
+| `Test-DDDnsDomainBlacklist`    | `Test-DnsDomainBlacklist`| `CheckDNSBL`                     |
+| `Test-DDDnsDanglingCname`      | `Test-DnsDanglingCname`  | `DanglingCnameAnalysis.Analyze`   |
+| `Test-DDDnsPropagation`        | `Test-DnsPropagation`    | `DnsPropagationAnalysis.QueryAsync` |
+| `Test-DDDnsTtl`                | `Test-DnsTtl`            | `DnsTtlAnalysis.Analyze`          |
+| `Test-DDDnsTunneling`          | `Test-DnsTunneling`      | `CheckDnsTunneling`               |
+| `Test-DDDnsWildcard`           | `Test-DnsWildcard`       | `WildcardDnsAnalysis.Analyze`     |
+| `Test-DDEdnsSupport`           | `Test-DnsEdnsSupport`    | `EdnsSupportAnalysis.Analyze`     |
+| `Test-DDSmimeaRecord`          | `Test-DnsSmimea`         | `VerifySMIMEA`                    |
+| `Test-DDDnsForwardReverse`     | `Test-DnsFcrDns`         | `FcrDnsAnalysis.Analyze`          |
+| `Test-DDDnsMxRecord`           | `Test-MxRecord`          | `MXAnalysis.AnalyzeMxRecords`     |
+
+## 🏷 Domain-Level Cmdlets
+
+| Prefixed Name                   | Alias Name               | C# Method                                   |
+|--------------------------------|--------------------------|---------------------------------------------|
+| `Test-DDDomainContactRecord`   | `Test-DomainContact`     | `ContactInfoAnalysis.AnalyzeContactRecords` |
+| `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | `SecurityTXTAnalysis.AnalyzeSecurityTxtRecord` |
+| `Test-DDDomainCertificate`     | `Test-DomainCertificate` | `VerifyWebsiteCertificate`                 |
+| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | `Verify`                                    |
+| `Get-DDDomainHealthReport`     | `Get-DomainSummary`      | `BuildSummary`                              |
+| `Get-DDDomainWhois`            | `Get-DomainWhois`        | `CheckWHOIS`                               |
+| `Get-DDFlattenedSpfIp`         | `Get-DomainFlattenedSpfIp` | `GetFlattenedIpAddresses`               |
+| `Test-DDThreatIntel`           | `Test-DomainThreatIntel` | `VerifyThreatIntel`                        |
+
+## 🔐 TLS Cmdlets
+
+| Prefixed Name                   | Alias Name | C# Method  |
+|--------------------------------|------------|------------|
+| `Test-DDTlsDaneRecord`         | `Test-TlsDane` | `VerifyDANE` |
+
+## 🌐 Networking Cmdlets
+
+| Prefixed Name              | Alias Name                  | C# Method             |
+|----------------------------|-----------------------------|-----------------------|
+| `Test-DDIpNeighbor`        | `Test-NetworkIpNeighbor`    | `CheckIPNeighbors`    |
+| `Test-DDPortAvailability`  | `Test-NetworkPortAvailability` | `CheckPortAvailability` |
+
+## 🛠 Configuration and Data Management
+
+| Prefixed Name                | Alias Name           | C# Method                  |
+|------------------------------|----------------------|----------------------------|
+| `Add-DDDnsblProvider`        | `Add-DnsblProvider`  | `AddDNSBL`                 |
+| `Remove-DDDnsblProvider`     | `Remove-DnsblProvider` | `RemoveDNSBL`            |
+| `Clear-DDDnsblProviderList`  | `Clear-DnsblProvider` | `ClearDNSBL`              |
+| `Import-DDDnsblConfig`       | `Import-DnsblConfig` | `LoadDnsblConfig`          |
+| `Import-DDDmarcReport`       | `Import-DmarcReport` | `DmarcReportParser.ParseZip` |
+
 ### MTA-STS
 
 `VerifyMTASTS` now validates the `_mta-sts.<domain>` TXT record before downloading

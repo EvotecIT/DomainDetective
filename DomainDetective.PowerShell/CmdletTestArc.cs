@@ -14,7 +14,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Analyze ARC headers from pipeline input.</summary>
     ///   <code>Get-Content './headers.txt' -Raw | Test-Arc</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "Arc", DefaultParameterSetName = "Text")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailArcRecord", DefaultParameterSetName = "Text")]
+[Alias("Test-EmailArc")]
     public sealed class CmdletTestArc : AsyncPSCmdlet {
         /// <param name="HeaderText">Raw header text.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Text", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
