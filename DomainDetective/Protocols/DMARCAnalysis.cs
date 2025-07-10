@@ -159,8 +159,9 @@ namespace DomainDetective {
                             break;
                         case "ri":
                             // RFC 7489 section 6.3 defines 'ri' as the reporting
-                            // interval in seconds. Invalid or zero values default
-                            // to 86400 seconds.
+                            // interval in seconds. The raw value is stored here.
+                            // TranslateReportingInterval will warn and default to
+                            // 86400 seconds if parsing fails or the value is zero.
                             ReportingIntervalShort = value;
                             _ = TranslateReportingInterval(ReportingIntervalShort, logger);
                             break;
@@ -376,8 +377,12 @@ namespace DomainDetective {
         }
 
         private string TranslateReportingInterval(string interval, InternalLogger? logger = null) {
+            // convert the raw 'ri' tag value to days
             if (!int.TryParse(interval, out var seconds)) {
-                logger?.WriteWarning("Invalid reporting interval '{0}'. Defaulting to {1} seconds.", interval, DefaultReportingInterval);
+                logger?.WriteWarning(
+                    "Invalid reporting interval '{0}'. Defaulting to {1} seconds.",
+                    interval,
+                    DefaultReportingInterval);
                 seconds = DefaultReportingInterval;
                 ReportingIntervalShort = DefaultReportingInterval.ToString();
             }
