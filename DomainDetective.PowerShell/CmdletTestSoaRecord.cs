@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Query SOA information.</summary>
     ///   <code>Test-SoaRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SoaRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsSoaRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsSoa")]
     public sealed class CmdletTestSoaRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

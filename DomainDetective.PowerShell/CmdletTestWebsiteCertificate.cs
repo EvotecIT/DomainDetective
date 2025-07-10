@@ -8,7 +8,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check HTTPS certificate.</summary>
     ///   <code>Test-WebsiteCertificate -Url https://example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "WebsiteCertificate", DefaultParameterSetName = "Url")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDomainCertificate", DefaultParameterSetName = "Url")]
+[Alias("Test-DomainCertificate")]
     public sealed class CmdletTestWebsiteCertificate : AsyncPSCmdlet {
         /// <param name="Url">Website URL.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]

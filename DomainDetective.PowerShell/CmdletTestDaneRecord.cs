@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check DANE records.</summary>
     ///   <code>Test-DaneRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DaneRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDTlsDaneRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-TlsDane")]
     public sealed class CmdletTestDaneRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

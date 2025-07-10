@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Verify DKIM selectors.</summary>
     ///   <code>Test-DkimRecord -DomainName example.com -Selectors selector1</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DkimRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailDkimRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailDkim")]
     public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

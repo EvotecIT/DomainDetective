@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Perform a full health test.</summary>
     ///   <code>Test-DomainHealth -DomainName example.com -Verbose</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DomainHealth", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDomainOverallHealth", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DomainHealth")]
     [OutputType(typeof(DomainHealthCheck))]
     public sealed class CmdletTestDomainHealth : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to analyze.</param>

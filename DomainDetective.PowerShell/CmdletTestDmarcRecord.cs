@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check DMARC settings.</summary>
     ///   <code>Test-DmarcRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DmarcRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailDmarcRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailDmarc")]
     public sealed class CmdletTestDmarcRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

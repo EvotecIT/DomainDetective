@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Check TLS report policy.</summary>
     ///   <code>Test-TlsRptRecord -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "TlsRptRecord", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailTlsRptRecord", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailTlsRpt")]
     public sealed class CmdletTestTlsRptRecord : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to query.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Check FCrDNS configuration.</summary>
 ///   <code>Test-FCrDns -DomainName example.com</code>
 /// </example>
-[Cmdlet(VerbsDiagnostic.Test, "FCrDns", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDDnsForwardReverse", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsFcrDns")]
 public sealed class CmdletTestFCrDns : AsyncPSCmdlet
 {
     /// <param name="DomainName">Domain to analyze.</param>

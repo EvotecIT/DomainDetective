@@ -9,7 +9,8 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Verify STARTTLS.</summary>
     ///   <code>Test-StartTls -DomainName example.com -Port 587</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "StartTls", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailStartTls", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailStartTls")]
     public sealed class CmdletTestStartTls : AsyncPSCmdlet {
         /// <param name="DomainName">Domain to test.</param>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

@@ -10,7 +10,8 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Check EDNS support.</summary>
 ///   <code>Test-EdnsSupport -DomainName example.com</code>
 /// </example>
-[Cmdlet(VerbsDiagnostic.Test, "EdnsSupport", DefaultParameterSetName = "ServerName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEdnsSupport", DefaultParameterSetName = "ServerName")]
+[Alias("Test-DnsEdnsSupport")]
 public sealed class CmdletTestEdnsSupport : AsyncPSCmdlet
 {
     /// <param name="DomainName">Domain to query.</param>
