@@ -18,6 +18,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
             await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
         }
@@ -33,6 +36,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
             await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain);
             DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
@@ -49,6 +55,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             DnsSecAnalysis = new DnsSecAnalysis();
             await DnsSecAnalysis.Analyze(domainName, _logger, DnsConfiguration);
         }
@@ -64,6 +73,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
             await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
         }
@@ -79,6 +91,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             await MXAnalysis.AnalyzeMxRecords(mx, _logger);
         }
@@ -94,6 +109,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             await NSAnalysis.AnalyzeNsRecords(ns, _logger);
         }
@@ -109,6 +127,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA, cancellationToken: cancellationToken);
             await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
         }
@@ -124,6 +145,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger);
         }
 
@@ -139,6 +163,9 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
+            }
             ValidatePort(port);
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             IEnumerable<string> hosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
