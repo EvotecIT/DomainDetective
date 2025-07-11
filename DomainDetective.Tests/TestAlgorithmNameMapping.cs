@@ -28,6 +28,10 @@ namespace DomainDetective.Tests {
             var parseSig = analysisType.GetMethod("ParseRrsig", BindingFlags.NonPublic | BindingFlags.Static)!;
             var sig = (RrsigInfo)parseSig.Invoke(null, new object[] { "DNSKEY 8 2 3600 1755665684 1750395284 2371 example.com. AAAA" })!;
             Assert.Equal("RSASHA256", sig.Algorithm);
+
+            var mapAlg = converter.GetMethod("MapAlgorithmNumber", BindingFlags.NonPublic | BindingFlags.Static)!;
+            var mapped = (string)mapAlg.Invoke(null, new object[] { 8 })!;
+            Assert.Equal("RSASHA256", mapped);
         }
     }
 }

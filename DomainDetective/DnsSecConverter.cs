@@ -8,6 +8,15 @@ namespace DomainDetective {
     ///     strongly typed objects.
     /// </summary>
     public static class DnsSecConverter {
+        private static string MapAlgorithmNumber(int number) {
+            if (number == 8) {
+                return "RSASHA256";
+            }
+
+            string name = DNSKeyAnalysis.AlgorithmName(number);
+            return string.IsNullOrEmpty(name) ? string.Empty : name;
+        }
+
         /// <summary>
         ///     Builds a <see cref="DnsSecInfo"/> object from analysis data.
         /// </summary>
@@ -62,7 +71,7 @@ namespace DomainDetective {
             _ = int.TryParse(parts[2], out int digestType);
             string algorithm = parts[1];
             if (int.TryParse(parts[1], out int algNum)) {
-                string name = DNSKeyAnalysis.AlgorithmName(algNum);
+                string name = MapAlgorithmNumber(algNum);
                 if (!string.IsNullOrEmpty(name)) {
                     algorithm = name;
                 }
@@ -89,7 +98,7 @@ namespace DomainDetective {
             _ = byte.TryParse(parts[1], out byte protocol);
             string algorithm = parts[2];
             if (int.TryParse(parts[2], out int algNum)) {
-                string name = DNSKeyAnalysis.AlgorithmName(algNum);
+                string name = MapAlgorithmNumber(algNum);
                 if (!string.IsNullOrEmpty(name)) {
                     algorithm = name;
                 }
