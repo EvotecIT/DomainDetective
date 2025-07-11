@@ -266,6 +266,7 @@ public class MTASTSAnalysis {
 
             var parts = record.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
             bool hasVersion = false;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var part in parts) {
                 var kv = part.Split(new[] { '=' }, 2);
                 if (kv.Length != 2) {
@@ -274,6 +275,11 @@ public class MTASTSAnalysis {
 
                 var key = kv[0].Trim();
                 var value = kv[1].Trim();
+
+                if (!seen.Add(key)) {
+                    HasDuplicateFields = true;
+                }
+
                 switch (key) {
                     case "v":
                         hasVersion = value == "STSv1";
@@ -295,7 +301,6 @@ public class MTASTSAnalysis {
             PolicyValid = true;
             ValidVersion = false;
             VersionPresent = false;
-            HasDuplicateFields = false;
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
