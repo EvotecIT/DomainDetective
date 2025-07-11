@@ -23,17 +23,16 @@ namespace DomainDetective.PowerShell {
 
         private DomainHealthCheck _hc = new();
 
-        protected override Task ProcessRecordAsync() {
+        protected override async Task ProcessRecordAsync() {
             if (!File.Exists(Path)) {
                 WriteError(new ErrorRecord(new FileNotFoundException("File not found", Path), "NotFound", ErrorCategory.InvalidArgument, Path));
-                return Task.CompletedTask;
+                return;
             }
 
             var lines = File.ReadAllLines(Path);
             _hc.DnsTunnelingLogs = lines;
-            _hc.CheckDnsTunneling(DomainName);
+            await _hc.CheckDnsTunnelingAsync(DomainName, CancelToken);
             WriteObject(_hc.DnsTunnelingAnalysis);
-            return Task.CompletedTask;
         }
     }
 }

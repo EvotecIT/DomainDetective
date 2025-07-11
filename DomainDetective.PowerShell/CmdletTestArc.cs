@@ -45,13 +45,12 @@ namespace DomainDetective.PowerShell {
             return Task.CompletedTask;
         }
 
-        protected override Task ProcessRecordAsync() {
+        protected override async Task ProcessRecordAsync() {
             var text = ParameterSetName == "File"
                 ? System.IO.File.ReadAllText(File)
                 : HeaderText;
-            var result = _healthCheck.VerifyARC(text, CancelToken);
+            var result = await _healthCheck.VerifyARCAsync(text, CancelToken);
             WriteObject(result);
-            return Task.CompletedTask;
         }
     }
 }
