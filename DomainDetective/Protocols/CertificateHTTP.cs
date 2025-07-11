@@ -95,6 +95,8 @@ namespace DomainDetective {
         public int DhKeyBits { get; private set; }
         /// <summary>Enable gathering TLS protocol and cipher information.</summary>
         public bool CaptureTlsDetails { get; set; }
+        /// <summary>Skip certificate revocation checks.</summary>
+        public bool SkipRevocation { get; set; }
         /// <summary>Gets a value indicating whether the certificate is present in public CT logs.</summary>
         public bool PresentInCtLogs { get; private set; }
 
@@ -138,7 +140,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
-            using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 }) {
+            using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
 #if NET8_0_OR_GREATER
                 handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
 #endif
@@ -196,9 +198,10 @@ namespace DomainDetective {
                                 });
 #if NET5_0_OR_GREATER
                                 var authOptions = new SslClientAuthenticationOptions { TargetHost = uri.Host };
+                                authOptions.CertificateRevocationCheckMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
                                 await ssl.AuthenticateAsClientAsync(authOptions, timeoutCts.Token);
 #else
-                                await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
+                                await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
 #endif
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
@@ -390,6 +393,7 @@ namespace DomainDetective {
             Certificate = new X509Certificate2(certificate.RawData);
             IsSelfSigned = false;
             var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             IsValid = chain.Build(certificate);
             Chain.Clear();
             foreach (var element in chain.ChainElements) {
@@ -494,10 +498,10 @@ namespace DomainDetective {
 #endif
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, !SkipRevocation)
                 .WaitWithCancellation(timeoutCts.Token);
 #else
-            await ssl.AuthenticateAsClientAsync(uri.Host).WaitWithCancellation(timeoutCts.Token);
+            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
 #endif
             TlsProtocol = ssl.SslProtocol;
 #if NET8_0_OR_GREATER

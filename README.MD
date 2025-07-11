@@ -106,6 +106,7 @@ The `CertificateAnalysis` result now includes:
 - With `CaptureTlsDetails` enabled, `TlsProtocol`, `CipherAlgorithm` and `CipherStrength` describe the negotiated cipher-suite.
 - `PresentInCtLogs` when the certificate appears in public CT logs.
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
+- `SkipRevocation` disables CRL and OCSP checks. Use with care as revoked certificates may appear valid.
 
 ### DKIM Analysis
 `DkimRecordAnalysis` exposes several indicators:

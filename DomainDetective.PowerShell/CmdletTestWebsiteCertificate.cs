@@ -24,6 +24,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowChain;
 
+        /// <param name="SkipRevocation">Do not check certificate revocation status.</param>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter SkipRevocation;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -37,6 +41,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Verifying website certificate for {0}", Url);
+            _healthCheck.CertificateAnalysis.SkipRevocation = SkipRevocation;
             await _healthCheck.VerifyWebsiteCertificate(Url, Port);
             WriteObject(_healthCheck.CertificateAnalysis);
             if (ShowChain && _healthCheck.CertificateAnalysis.Chain.Count > 0) {

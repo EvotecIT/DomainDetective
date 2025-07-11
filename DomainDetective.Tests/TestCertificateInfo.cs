@@ -31,5 +31,13 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.IsSelfSigned);
             Assert.Equal(1, analysis.Chain.Count);
         }
+
+        [Fact]
+        public async Task SkipRevocationDisablesChecks() {
+            var cert = new X509Certificate2("Data/wildcard.pem");
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]"), SkipRevocation = true };
+            await analysis.AnalyzeCertificate(cert);
+            Assert.True(analysis.SkipRevocation);
+        }
     }
 }
