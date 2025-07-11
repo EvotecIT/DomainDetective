@@ -60,9 +60,15 @@ namespace DomainDetective {
 #else
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
+#if NET8_0_OR_GREATER
+                await using NetworkStream network = client.GetStream();
+                await using var reader = new StreamReader(network);
+                await using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+#else
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+#endif
 
                 await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
