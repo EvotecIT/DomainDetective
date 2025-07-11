@@ -34,7 +34,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying CAA record for domain: {0}", DomainName);
-            await healthCheck.Verify(DomainName, new[] { HealthCheckType.CAA });
+            await healthCheck.VerifyCAA(DomainName);
             WriteObject(healthCheck.CAAAnalysis);
         }
     }

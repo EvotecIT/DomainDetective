@@ -34,7 +34,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying MX record for domain: {0}", DomainName);
-            await healthCheck.Verify(DomainName, new[] { HealthCheckType.MX });
+            await healthCheck.VerifyMX(DomainName);
             WriteObject(healthCheck.MXAnalysis);
         }
     }
