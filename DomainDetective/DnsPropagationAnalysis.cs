@@ -488,5 +488,68 @@ namespace DomainDetective {
             }
             return details;
         }
+
+        /// <summary>Directory used to store snapshot files.</summary>
+        public string? SnapshotDirectory { get; set; }
+
+        /// <summary>
+        /// Saves the provided results to a timestamped snapshot file.
+        /// </summary>
+        /// <param name="domain">Queried domain name.</param>
+        /// <param name="recordType">DNS record type.</param>
+        /// <param name="results">Results to persist.</param>
+        public void SaveSnapshot(string domain, DnsRecordType recordType, IEnumerable<DnsPropagationResult> results) {
+            if (string.IsNullOrEmpty(SnapshotDirectory) || string.IsNullOrEmpty(domain) || results == null) {
+                return;
+            }
+
+            Directory.CreateDirectory(SnapshotDirectory);
+            var safe = domain.Replace(Path.DirectorySeparatorChar, '-').Replace(Path.AltDirectorySeparatorChar, '-');
+            var file = Path.Combine(SnapshotDirectory, $"{safe}_{recordType}_{DateTime.UtcNow:yyyyMMddHHmmss}.json");
+            var json = JsonSerializer.Serialize(results, DomainHealthCheck.JsonOptions);
+            File.WriteAllText(file, json);
+        }
+
+        /// <summary>
+        /// Returns line level differences between <paramref name="results"/> and the latest snapshot.
+        /// </summary>
+        /// <param name="domain">Queried domain name.</param>
+        /// <param name="recordType">DNS record type.</param>
+        /// <param name="results">Current query results.</param>
+        /// <returns>List of diff lines.</returns>
+        public IEnumerable<string> GetSnapshotChanges(string domain, DnsRecordType recordType, IEnumerable<DnsPropagationResult> results) {
+            if (string.IsNullOrEmpty(SnapshotDirectory) || string.IsNullOrEmpty(domain)) {
+                return Array.Empty<string>();
+            }
+
+            var safe = domain.Replace(Path.DirectorySeparatorChar, '-').Replace(Path.AltDirectorySeparatorChar, '-');
+            var files = Directory.GetFiles(SnapshotDirectory, $"{safe}_{recordType}_*.json");
+            if (files.Length == 0) {
+                return Array.Empty<string>();
+            }
+
+            var previousFile = files.OrderByDescending(f => f).First();
+            var previousJson = File.ReadAllText(previousFile);
+            var previousResults = JsonSerializer.Deserialize<List<DnsPropagationResult>>(previousJson, DomainHealthCheck.JsonOptions) ?? new List<DnsPropagationResult>();
+
+            static string[] ToLines(IEnumerable<DnsPropagationResult> res) => res
+                .OrderBy(r => r.Server.IPAddress.ToString())
+                .Select(r => $"{r.Server.IPAddress}:{string.Join(",", r.Records ?? Array.Empty<string>())}")
+                .ToArray();
+
+            var prevLines = ToLines(previousResults);
+            var currLines = ToLines(results);
+            var max = Math.Max(prevLines.Length, currLines.Length);
+            var changes = new List<string>();
+            for (var i = 0; i < max; i++) {
+                var prev = i < prevLines.Length ? prevLines[i] : string.Empty;
+                var curr = i < currLines.Length ? currLines[i] : string.Empty;
+                if (!string.Equals(prev, curr, StringComparison.Ordinal)) {
+                    changes.Add("- " + prev);
+                    changes.Add("+ " + curr);
+                }
+            }
+            return changes;
+        }
     }
 }

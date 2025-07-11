@@ -33,6 +33,14 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     [CommandOption("--compare-results")]
     public bool Compare { get; set; }
 
+    /// <summary>Directory for storing snapshots.</summary>
+    [CommandOption("--snapshot-path")]
+    public DirectoryInfo? SnapshotPath { get; set; }
+
+    /// <summary>Show differences to previous snapshot.</summary>
+    [CommandOption("--diff")]
+    public bool Diff { get; set; }
+
     /// <summary>Maximum number of concurrent queries.</summary>
     [CommandOption("--max-parallelism")]
     public int MaxParallelism { get; set; }
@@ -52,7 +60,7 @@ internal sealed class DnsPropagationSettings : CommandSettings {
 internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSettings> {
     /// <inheritdoc/>
     public override async Task<int> ExecuteAsync(CommandContext context, DnsPropagationSettings settings) {
-        var analysis = new DnsPropagationAnalysis();
+        var analysis = new DnsPropagationAnalysis { SnapshotDirectory = settings.SnapshotPath?.FullName };
         if (settings.ServersFile != null) {
             var inputPath = settings.ServersFile.ToString();
             var filePath = Path.IsPathRooted(inputPath)
@@ -75,6 +83,15 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
                 results = await analysis.QueryAsync(domain, settings.RecordType, servers, Program.CancellationToken, progress, settings.MaxParallelism, settings.Geo);
             });
         }
+        IEnumerable<string>? changes = null;
+        if (settings.Diff && settings.SnapshotPath != null) {
+            changes = analysis.GetSnapshotChanges(domain, settings.RecordType, results);
+        }
+
+        if (settings.SnapshotPath != null) {
+            analysis.SaveSnapshot(domain, settings.RecordType, results);
+        }
+
         if (settings.Compare) {
             var details = DnsPropagationAnalysis.GetComparisonDetails(results);
             if (settings.Json) {
@@ -97,6 +114,12 @@ internal sealed class DnsPropagationCommand : AsyncCommand<DnsPropagationSetting
                     });
                     Console.WriteLine($"{r.Server.IPAddress} {r.Success} {string.Join(',', records)}");
                 }
+            }
+        }
+        if (changes != null && changes.Any()) {
+            AnsiConsole.MarkupLine("[yellow]Changes since last snapshot:[/]");
+            foreach (var line in changes) {
+                Console.WriteLine(line);
             }
         }
         return 0;
