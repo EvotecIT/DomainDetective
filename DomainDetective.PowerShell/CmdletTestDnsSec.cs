@@ -39,7 +39,7 @@ namespace DomainDetective.PowerShell {
 
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DNSSEC for domain: {0}", DomainName);
-            await healthCheck.Verify(DomainName, new[] { HealthCheckType.DNSSEC });
+            await healthCheck.VerifyDNSSEC(DomainName);
             if (Raw) {
                 WriteObject(healthCheck.DnsSecAnalysis);
             } else {

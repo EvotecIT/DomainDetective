@@ -238,7 +238,7 @@ Get-Content './headers.txt' -Raw | Test-Arc
 | `Test-DDEmailArcRecord`        | `Test-EmailArc`          | `VerifyARC`                     |
 | `Test-DDEmailBimiRecord`       | `Test-EmailBimi`         | `VerifyBIMI`                    |
 | `Test-DDEmailDkimRecord`       | `Test-EmailDkim`         | `VerifyDKIM`                    |
-| `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`        | `Verify`                        |
+| `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`        | `VerifyDMARC`                 |
 | `Test-DDEmailSpfRecord`        | `Test-EmailSpf`          | `VerifySPF`                     |
 | `Test-DDEmailTlsRptRecord`     | `Test-EmailTlsRpt`       | `VerifyTLSRPT`                  |
 | `Test-DDEmailStartTls`         | `Test-EmailStartTls`     | `VerifySTARTTLS`                |
@@ -251,27 +251,27 @@ Get-Content './headers.txt' -Raw | Test-Arc
 
 | Prefixed Name                   | Alias Name               | C# Method                         |
 |--------------------------------|--------------------------|-----------------------------------|
-| `Test-DDDnsCaaRecord`          | `Test-DnsCaa`            | `CAAAnalysis.AnalyzeCAARecords`   |
-| `Test-DDDnsNsRecord`           | `Test-DnsNs`             | `NSAnalysis.AnalyzeNsRecords`     |
-| `Test-DDDnsSoaRecord`          | `Test-DnsSoa`            | `SOAAnalysis.AnalyzeSoaRecords`   |
-| `Test-DDDnsSecStatus`          | `Test-DnsSec`            | `DnsSecAnalysis.Analyze`          |
-| `Test-DDDnsBlacklistRecord`    | `Test-DnsBlacklist`      | `DNSBLAnalysis.AnalyzeDNSBLRecords` |
+| `Test-DDDnsCaaRecord`          | `Test-DnsCaa`            | `VerifyCAA`   |
+| `Test-DDDnsNsRecord`           | `Test-DnsNs`             | `VerifyNS`     |
+| `Test-DDDnsSoaRecord`          | `Test-DnsSoa`            | `VerifySOA`   |
+| `Test-DDDnsSecStatus`          | `Test-DnsSec`            | `VerifyDNSSEC`          |
+| `Test-DDDnsBlacklistRecord`    | `Test-DnsBlacklist`      | `VerifyDNSBL` |
 | `Test-DDDnsDomainBlacklist`    | `Test-DnsDomainBlacklist`| `CheckDNSBL`                     |
-| `Test-DDDnsDanglingCname`      | `Test-DnsDanglingCname`  | `DanglingCnameAnalysis.Analyze`   |
+| `Test-DDDnsDanglingCname`      | `Test-DnsDanglingCname`  | `VerifyDanglingCname`   |
 | `Test-DDDnsPropagation`        | `Test-DnsPropagation`    | `DnsPropagationAnalysis.QueryAsync` |
 | `Test-DDDnsTtl`                | `Test-DnsTtl`            | `DnsTtlAnalysis.Analyze`          |
 | `Test-DDDnsTunneling`          | `Test-DnsTunneling`      | `CheckDnsTunneling`               |
-| `Test-DDDnsWildcard`           | `Test-DnsWildcard`       | `WildcardDnsAnalysis.Analyze`     |
-| `Test-DDEdnsSupport`           | `Test-DnsEdnsSupport`    | `EdnsSupportAnalysis.Analyze`     |
+| `Test-DDDnsWildcard`           | `Test-DnsWildcard`       | `VerifyWildcardDns`     |
+| `Test-DDEdnsSupport`           | `Test-DnsEdnsSupport`    | `VerifyEdnsSupport`     |
 | `Test-DDSmimeaRecord`          | `Test-DnsSmimea`         | `VerifySMIMEA`                    |
 | `Test-DDDnsForwardReverse`     | `Test-DnsFcrDns`         | `FcrDnsAnalysis.Analyze`          |
-| `Test-DDDnsMxRecord`           | `Test-MxRecord`          | `MXAnalysis.AnalyzeMxRecords`     |
+| `Test-DDDnsMxRecord`           | `Test-MxRecord`          | `VerifyMX`     |
 
 ## 🏷 Domain-Level Cmdlets
 
 | Prefixed Name                   | Alias Name               | C# Method                                   |
 |--------------------------------|--------------------------|---------------------------------------------|
-| `Test-DDDomainContactRecord`   | `Test-DomainContact`     | `ContactInfoAnalysis.AnalyzeContactRecords` |
+| `Test-DDDomainContactRecord`   | `Test-DomainContact`     | `VerifyContactInfo` |
 | `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | `SecurityTXTAnalysis.AnalyzeSecurityTxtRecord` |
 | `Test-DDDomainCertificate`     | `Test-DomainCertificate` | `VerifyWebsiteCertificate`                 |
 | `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | `Verify`                                    |

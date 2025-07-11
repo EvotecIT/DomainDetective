@@ -751,21 +751,6 @@ namespace DomainDetective {
 
 
         /// <summary>
-        /// Queries DNS and analyzes SPF records for a domain.
-        /// </summary>
-        /// <param name="domainName">Domain to verify.</param>
-        /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifySPF(string domainName, CancellationToken cancellationToken = default) {
-            if (string.IsNullOrWhiteSpace(domainName)) {
-                throw new ArgumentNullException(nameof(domainName));
-            }
-            domainName = NormalizeDomain(domainName);
-            UpdateIsPublicSuffix(domainName);
-            var spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
-            await SpfAnalysis.AnalyzeSpfRecords(spf, _logger);
-        }
-
-        /// <summary>
         /// Verifies MTA-STS policy for a domain.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
