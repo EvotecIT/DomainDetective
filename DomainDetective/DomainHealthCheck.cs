@@ -281,6 +281,12 @@ namespace DomainDetective {
         /// <value>Domains sharing the same IP address.</value>
         public IPNeighborAnalysis IPNeighborAnalysis { get; private set; } = new IPNeighborAnalysis();
 
+        /// <summary>Gets the RPKI analysis.</summary>
+        /// <value>Origin validation results.</value>
+        public RPKIAnalysis RpkiAnalysis { get; private set; } = new RPKIAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public RPKIAnalysis RPKIAnalysis => RpkiAnalysis;
+
         /// <summary>Gets the DNS tunneling analysis.</summary>
         /// <value>Possible tunneling activities.</value>
         public DnsTunnelingAnalysis DnsTunnelingAnalysis { get; private set; } = new DnsTunnelingAnalysis();
@@ -385,6 +391,7 @@ namespace DomainDetective {
             PortScanAnalysis = new PortScanAnalysis();
 
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
+            RpkiAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTunnelingAnalysis = new DnsTunnelingAnalysis();
             TyposquattingAnalysis.DnsConfiguration = DnsConfiguration;
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;

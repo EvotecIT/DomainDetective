@@ -196,6 +196,10 @@ public static class CheckDescriptions {
                 "List IP neighbors via reverse or passive DNS.",
                 null,
                 "Investigate shared hosting risks."),
+            [HealthCheckType.RPKI] = new(
+                "Validate RPKI origins for domain IPs.",
+                "https://rpki.readthedocs.io/",
+                "Ensure announced prefixes match valid ROAs."),
             // Detect DNS tunneling from logs
             [HealthCheckType.DNSTUNNELING] = new(
                 "Detect DNS tunneling from logs.",

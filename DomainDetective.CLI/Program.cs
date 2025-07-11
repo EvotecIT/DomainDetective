@@ -38,6 +38,8 @@ internal static class Program {
                 .WithDescription("Download the latest public suffix list");
             config.AddCommand<TestSmimeaCommand>("TestSMIMEA")
                 .WithDescription("Query SMIMEA record for an email address");
+            config.AddCommand<TestRpkiCommand>("TestRPKI")
+                .WithDescription("Validate RPKI origins for domain IPs");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);
