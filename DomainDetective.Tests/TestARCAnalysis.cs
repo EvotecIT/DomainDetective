@@ -7,7 +7,7 @@ namespace DomainDetective.Tests {
         public async Task ValidArcChain() {
             var raw = File.ReadAllText("Data/arc-valid.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.True(result.ValidChain);
         }
@@ -16,7 +16,7 @@ namespace DomainDetective.Tests {
         public async Task InvalidArcChain() {
             var raw = File.ReadAllText("Data/arc-invalid.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
         public async Task MissingSignatureInvalidatesChain() {
             var raw = File.ReadAllText("Data/arc-missing-sig.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
@@ -34,7 +34,7 @@ namespace DomainDetective.Tests {
         public async Task EmptySignatureInvalidatesChain() {
             var raw = File.ReadAllText("Data/arc-empty-sig.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
@@ -43,7 +43,7 @@ namespace DomainDetective.Tests {
         public async Task OutOfOrderChainIsInvalid() {
             var raw = File.ReadAllText("Data/arc-out-of-order.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.False(result.ValidChain);
         }
@@ -52,7 +52,7 @@ namespace DomainDetective.Tests {
         public async Task RfcExampleIsValid() {
             var raw = File.ReadAllText("Data/arc-rfc-example.txt");
             var hc = new DomainHealthCheck();
-            var result = await hc.VerifyARCAsync(raw);
+            var result = await hc.VerifyARC(raw);
             Assert.True(result.ArcHeadersFound);
             Assert.True(result.ValidChain);
         }

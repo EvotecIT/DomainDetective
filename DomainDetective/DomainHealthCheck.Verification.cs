@@ -308,7 +308,7 @@ namespace DomainDetective {
                         await CheckIPNeighbors(domainName, cancellationToken);
                         break;
                     case HealthCheckType.DNSTUNNELING:
-                        await CheckDnsTunnelingAsync(domainName, cancellationToken);
+                        await CheckDnsTunneling(domainName, cancellationToken);
                         break;
                     case HealthCheckType.TYPOSQUATTING:
                         await VerifyTyposquatting(domainName, cancellationToken);
@@ -616,15 +616,10 @@ namespace DomainDetective {
         }
 
         /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
-        public async Task CheckDnsTunnelingAsync(string domainName, CancellationToken ct = default) {
+        public async Task CheckDnsTunneling(string domainName, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             var lines = DnsTunnelingLogs ?? Array.Empty<string>();
             await Task.Run(() => DnsTunnelingAnalysis.Analyze(domainName, lines), ct);
-        }
-
-        /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
-        public void CheckDnsTunneling(string domainName) {
-            CheckDnsTunnelingAsync(domainName).GetAwaiter().GetResult();
         }
 
         /// <summary>
@@ -748,17 +743,13 @@ namespace DomainDetective {
         /// <param name="rawHeaders">Raw message headers.</param>
         /// <param name="ct">Token to cancel the operation.</param>
         /// <returns>Populated <see cref="ARCAnalysis"/> instance.</returns>
-        public async Task<ARCAnalysis> VerifyARCAsync(string rawHeaders, CancellationToken ct = default) {
+        public async Task<ARCAnalysis> VerifyARC(string rawHeaders, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             return await Task.Run(() => {
                 ArcAnalysis = new ARCAnalysis();
                 ArcAnalysis.Analyze(rawHeaders, _logger);
                 return ArcAnalysis;
             }, ct);
-        }
-
-        public ARCAnalysis VerifyARC(string rawHeaders, CancellationToken ct = default) {
-            return VerifyARCAsync(rawHeaders, ct).GetAwaiter().GetResult();
         }
 
 
