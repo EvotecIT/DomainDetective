@@ -149,9 +149,9 @@ public static class CheckDescriptions {
                 "Enable secure authentication methods and disable weak ones."),
             // Verify Website Connectivity
             [HealthCheckType.HTTP] = new(
-                "Verify website connectivity.",
+                "Verify website connectivity and X-Permitted-Cross-Domain-Policies header.",
                 null,
-                "Serve websites over HTTPS and respond correctly."),
+                "Serve websites over HTTPS, respond correctly and configure X-Permitted-Cross-Domain-Policies."),
             // Verify HPKP
             [HealthCheckType.HPKP] = new(
                 "Verify HPKP configuration.",
