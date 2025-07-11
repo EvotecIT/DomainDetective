@@ -57,6 +57,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal("geolocation=()", analysis.SecurityHeaders["Permissions-Policy"].Value);
                 Assert.Equal("max-age=31536000", analysis.SecurityHeaders["Strict-Transport-Security"].Value);
                 Assert.Equal("none", analysis.SecurityHeaders["X-Permitted-Cross-Domain-Policies"].Value);
+                Assert.Equal("none", analysis.XPermittedCrossDomainPolicies);
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Opener-Policy"].Value);
                 Assert.Equal("require-corp", analysis.SecurityHeaders["Cross-Origin-Embedder-Policy"].Value);
                 Assert.Equal("same-origin", analysis.SecurityHeaders["Cross-Origin-Resource-Policy"].Value);
@@ -142,6 +143,7 @@ namespace DomainDetective.Tests {
                 Assert.Empty(analysis.PermissionsPolicy);
                 Assert.Null(analysis.ReferrerPolicy);
                 Assert.Null(analysis.XFrameOptions);
+                Assert.Null(analysis.XPermittedCrossDomainPolicies);
             } finally {
                 listener.Stop();
                 await serverTask;
@@ -330,6 +332,8 @@ namespace DomainDetective.Tests {
                 Assert.True(analysis.HstsTooShort);
                 Assert.Contains("Content-Security-Policy", analysis.MissingSecurityHeaders);
                 Assert.Contains("Origin-Agent-Cluster", analysis.MissingSecurityHeaders);
+                Assert.Contains("X-Permitted-Cross-Domain-Policies", analysis.MissingSecurityHeaders);
+                Assert.Null(analysis.XPermittedCrossDomainPolicies);
             } finally {
                 listener.Stop();
                 await serverTask;

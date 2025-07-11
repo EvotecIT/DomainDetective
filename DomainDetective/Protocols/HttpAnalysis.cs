@@ -82,6 +82,8 @@ namespace DomainDetective {
         public string? CrossOriginEmbedderPolicy { get; private set; }
         /// <summary>Gets the value of the Cross-Origin-Resource-Policy header if present.</summary>
         public string? CrossOriginResourcePolicy { get; private set; }
+        /// <summary>Gets the value of the X-Permitted-Cross-Domain-Policies header if present.</summary>
+        public string? XPermittedCrossDomainPolicies { get; private set; }
         /// <summary>Gets a value indicating whether the Origin-Agent-Cluster header was present.</summary>
         public bool OriginAgentClusterPresent { get; private set; }
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
@@ -191,6 +193,7 @@ namespace DomainDetective {
             CrossOriginOpenerPolicy = null;
             CrossOriginEmbedderPolicy = null;
             CrossOriginResourcePolicy = null;
+            XPermittedCrossDomainPolicies = null;
             OriginAgentClusterPresent = false;
             OriginAgentClusterEnabled = false;
             SecurityHeaders.Clear();
@@ -316,6 +319,9 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Resource-Policy", out var corp)) {
                         CrossOriginResourcePolicy = corp.Value;
+                    }
+                    if (SecurityHeaders.TryGetValue("X-Permitted-Cross-Domain-Policies", out var xpcdp)) {
+                        XPermittedCrossDomainPolicies = xpcdp.Value;
                     }
                     if (SecurityHeaders.TryGetValue("Origin-Agent-Cluster", out var oac)) {
                         ParseOriginAgentCluster(oac.Value);
