@@ -81,6 +81,8 @@ public enum HealthCheckType {
     PORTSCAN,
     /// <summary>List domains hosted on the same IP address.</summary>
     IPNEIGHBOR,
+    /// <summary>Validate RPKI origins for domain IP addresses.</summary>
+    RPKI,
     /// <summary>Analyze DNS logs for tunneling patterns.</summary>
     DNSTUNNELING,
     /// <summary>Check for typosquatting domains.</summary>

@@ -307,6 +307,9 @@ namespace DomainDetective {
                     case HealthCheckType.IPNEIGHBOR:
                         await CheckIPNeighbors(domainName, cancellationToken);
                         break;
+                    case HealthCheckType.RPKI:
+                        await VerifyRPKI(domainName, cancellationToken);
+                        break;
                     case HealthCheckType.DNSTUNNELING:
                         CheckDnsTunneling(domainName);
                         break;
@@ -663,6 +666,22 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             await EdnsSupportAnalysis.Analyze(domainName, _logger);
+        }
+
+        /// <summary>
+        /// Validates RPKI origins for domain IPs.
+        /// </summary>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyRPKI(string domainName, CancellationToken cancellationToken = default) {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            domainName = NormalizeDomain(domainName);
+            UpdateIsPublicSuffix(domainName);
+            RpkiAnalysis.DnsConfiguration = DnsConfiguration;
+            await RpkiAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
 
         /// <summary>

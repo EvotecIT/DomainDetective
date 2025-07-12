@@ -35,6 +35,7 @@ internal static class CommandUtilities {
         ["ports"] = HealthCheckType.PORTAVAILABILITY,
         ["portscan"] = HealthCheckType.PORTSCAN,
         ["ipneighbor"] = HealthCheckType.IPNEIGHBOR,
+        ["rpki"] = HealthCheckType.RPKI,
         ["dnstunneling"] = HealthCheckType.DNSTUNNELING,
         ["wildcarddns"] = HealthCheckType.WILDCARDDNS,
         ["edns"] = HealthCheckType.EDNSSUPPORT

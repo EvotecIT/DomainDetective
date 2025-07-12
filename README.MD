@@ -32,6 +32,7 @@ Current capabilities include:
 - [x] Verify POP3 TLS
 - [x] Verify SMTP Banner
 - [x] Verify TLS-RPT
+- [x] Validate RPKI origins for domain IPs
 - [x] Verify BIMI
 - [x] Check for dangling CNAME records
 - [x] Detect CNAME flattening services (e.g., Cloudflare)
@@ -139,6 +140,15 @@ PowerShell specific tests can be run with:
 pwsh ./Module/DomainDetective.Tests.ps1
 ```
 
+RPKI validation in C#:
+
+```csharp
+var hc = new DomainHealthCheck();
+await hc.VerifyRPKI("example.com");
+foreach (var r in hc.RpkiAnalysis.Results)
+    Console.WriteLine($"{r.IpAddress} {r.Asn} {r.Valid}");
+```
+
 ### Command Line Example
 
 Run the `DomainDetective.Example` project to check a domain. Use `--json` to output
@@ -229,6 +239,12 @@ Analyze ARC headers from PowerShell:
 
 ```powershell
 Get-Content './headers.txt' -Raw | Test-Arc
+```
+
+Validate RPKI origins:
+
+```powershell
+Test-Rpki -DomainName "example.com"
 ```
 
 ### 🧪 DomainDetective Alias Naming – Standardized `Verb-AreaSubject` Format
