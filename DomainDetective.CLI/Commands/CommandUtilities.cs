@@ -139,14 +139,15 @@ internal static class CommandUtilities {
         var checkHttp = AnsiConsole.Confirm("Perform plain HTTP check?");
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
-        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null, true, cancellationToken);
+        await RunChecks(domains, checks, checkHttp, outputJson, summaryOnly, subPolicy, false, null, true, false, cancellationToken);
         return 0;
     }
 
-    internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, CancellationToken cancellationToken) {
+internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, CancellationToken cancellationToken) {
         foreach (var domain in domains) {
             var logger = new InternalLogger { IsProgress = showProgress };
             var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
+            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 
             if (showProgress) {
                 await AnsiConsole.Progress().StartAsync(async ctx => {

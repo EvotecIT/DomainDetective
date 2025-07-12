@@ -20,10 +20,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowChain;
 
+        /// <param name="SkipRevocation">Do not check certificate revocation status.</param>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter SkipRevocation;
+
         private CertificateAnalysis _analysis;
 
         protected override async Task ProcessRecordAsync() {
-            _analysis = new CertificateAnalysis();
+            _analysis = new CertificateAnalysis { SkipRevocation = SkipRevocation };
             await _analysis.AnalyzeCertificate(new X509Certificate2(Path));
             WriteObject(_analysis);
             if (ShowChain && _analysis.Chain.Count > 0) {

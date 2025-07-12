@@ -55,6 +55,10 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Suppress progress output.</summary>
     [CommandOption("--no-progress")]
     public bool NoProgress { get; set; }
+
+    /// <summary>Skip certificate revocation checks.</summary>
+    [CommandOption("--skip-revocation")]
+    public bool SkipRevocation { get; set; }
 }
 
 /// <summary>
@@ -77,7 +81,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             if (!settings.Cert.Exists) {
                 throw new FileNotFoundException("Certificate file not found", settings.Cert.FullName);
             }
-            var certAnalysis = new CertificateAnalysis();
+            var certAnalysis = new CertificateAnalysis { SkipRevocation = settings.SkipRevocation };
             await certAnalysis.AnalyzeCertificate(new X509Certificate2(settings.Cert.FullName));
             CliHelpers.ShowPropertiesTable($"Certificate {settings.Cert.FullName}", certAnalysis, settings.Unicode);
             return 0;
@@ -117,6 +121,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             settings.Unicode,
             danePorts,
             !settings.NoProgress,
+            settings.SkipRevocation,
             Program.CancellationToken);
 
         return 0;
