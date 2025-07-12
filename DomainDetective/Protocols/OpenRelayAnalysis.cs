@@ -22,6 +22,7 @@ namespace DomainDetective {
 
         public Dictionary<string, OpenRelayResult> ServerResults { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        internal static Func<TcpClient> CreateClient { get; set; } = () => new TcpClient();
 
         /// <summary>
         /// Tests a single server for open relay capabilities.
@@ -51,7 +52,7 @@ namespace DomainDetective {
         /// Attempts to send a relay through the specified server.
         /// </summary>
         private async Task<OpenRelayResult> TryRelay(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
-            using var client = new TcpClient();
+            using var client = CreateClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
@@ -60,15 +61,9 @@ namespace DomainDetective {
 #else
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
 #endif
-#if NET8_0_OR_GREATER
-                await using NetworkStream network = client.GetStream();
-                await using var reader = new StreamReader(network);
-                await using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-#else
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-#endif
 
                 await ReadResponseAsync(reader, timeoutCts.Token);
                 timeoutCts.Token.ThrowIfCancellationRequested();
