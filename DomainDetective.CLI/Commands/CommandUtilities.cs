@@ -89,7 +89,7 @@ internal static class CommandUtilities {
         }
 
         var hc = new DomainHealthCheck();
-        var result = hc.VerifyARC(headerText);
+        var result = hc.VerifyARCAsync(headerText).GetAwaiter().GetResult();
 
         if (json) {
             var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);
@@ -107,7 +107,7 @@ internal static class CommandUtilities {
         }
         var lines = File.ReadAllLines(filePath);
         var hc = new DomainHealthCheck { DnsTunnelingLogs = lines };
-        hc.CheckDnsTunneling(domain);
+        hc.CheckDnsTunnelingAsync(domain).GetAwaiter().GetResult();
         var result = hc.DnsTunnelingAnalysis;
         if (json) {
             var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);
