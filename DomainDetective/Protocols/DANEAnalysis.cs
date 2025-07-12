@@ -51,7 +51,7 @@ namespace DomainDetective {
                 analysis.DANERecord = record.Data;
 
                 if (!string.IsNullOrEmpty(record.Name)) {
-                    var match = System.Text.RegularExpressions.Regex.Match(record.Name, @"^_([^\.]+)\._(tcp|udp)\.");
+                    var match = System.Text.RegularExpressions.Regex.Match(record.Name, @"^_(\d+)\._(tcp|udp)\.");
                     if (match.Success && int.TryParse(match.Groups[1].Value, out var port)) {
                         analysis.ServiceType = (ServiceType)port;
                     }
