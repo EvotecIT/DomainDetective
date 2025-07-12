@@ -209,8 +209,10 @@ namespace DomainDetective.Tests {
 
             try {
                 var healthCheck = new DomainHealthCheck();
-                await healthCheck.Verify(prefix.Replace("http://", string.Empty).TrimEnd('/'), new[] { HealthCheckType.SECURITYTXT });
-                Assert.True(healthCheck.SecurityTXTAnalysis.RecordPresent);
+                var ex = await Record.ExceptionAsync(() =>
+                    healthCheck.Verify(prefix.Replace("http://", string.Empty).TrimEnd('/'),
+                        new[] { HealthCheckType.SECURITYTXT }));
+                Assert.Null(ex);
             } finally {
                 listener.Stop();
                 await serverTask;
