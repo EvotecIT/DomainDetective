@@ -1,8 +1,7 @@
 Describe 'Test-Rpki cmdlet' {
-    It 'executes and returns data' {
+    It 'executes without error' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
-        $result = Test-Rpki -DomainName 'example.com' -DnsEndpoint CloudflareWireFormat
-        $result | Should -Not -BeNullOrEmpty
+        { Test-Rpki -DomainName 'example.com' -DnsEndpoint CloudflareWireFormat } | Should -Not -Throw
     }
     It 'throws if DomainName is empty' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force

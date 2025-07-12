@@ -80,10 +80,13 @@ public class RPKIAnalysis
         var a = await QueryDns(domainName, DnsRecordType.A);
         var aaaa = await QueryDns(domainName, DnsRecordType.AAAA);
 
-        var tasks = a.Concat(aaaa).Select(async record =>
+        var addresses = a.Concat(aaaa)
+            .Select(r => r.Data)
+            .Distinct(StringComparer.Ordinal);
+
+        var tasks = addresses.Select(async ip =>
         {
             ct.ThrowIfCancellationRequested();
-            string ip = record.Data;
             var (prefix, asn, valid) = await QueryRpki(ip, logger);
             lock (Results)
             {

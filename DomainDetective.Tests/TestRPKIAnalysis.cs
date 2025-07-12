@@ -7,8 +7,10 @@ namespace DomainDetective.Tests {
         public async Task ValidatesRpki() {
             var analysis = new RPKIAnalysis {
                 DnsConfiguration = new DnsConfiguration(),
-                QueryDnsOverride = (n, t) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } }),
-                QueryRpkiOverride = ip => Task.FromResult(("1.1.1.0/24", 64512, true))
+                QueryDnsOverride = (n, t) => t == DnsRecordType.A
+                    ? Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } })
+                    : Task.FromResult(Array.Empty<DnsAnswer>()),
+                QueryRpkiOverride = _ => Task.FromResult(("1.1.1.0/24", 64512, true))
             };
             await analysis.Analyze("example.com", new InternalLogger());
             var result = Assert.Single(analysis.Results);
