@@ -116,7 +116,7 @@ public class SecurityTXTAnalysis {
         private async Task<string> GetSecurityTxt(string url) {
             try {
                 var response = await _client.GetAsync(url);
-                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType.MediaType == "text/plain") {
+                if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/plain") {
                     return await response.Content.ReadAsStringAsync();
                 } else {
                     return null;
