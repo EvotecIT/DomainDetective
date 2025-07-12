@@ -61,6 +61,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter CompareResults;
 
+        /// <param name="SnapshotPath">Directory used to store DNS snapshots.</param>
+        [Parameter(Mandatory = false)]
+        public string SnapshotPath;
+
+        /// <param name="Diff">Return changes since last snapshot.</param>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter Diff;
+
         private InternalLogger _logger;
         private DnsPropagationAnalysis _analysis;
 
@@ -78,6 +86,9 @@ namespace DomainDetective.PowerShell {
                 _analysis.LoadServers(path, clearExisting: true);
             } else {
                 _analysis.LoadBuiltinServers();
+            }
+            if (!string.IsNullOrEmpty(SnapshotPath)) {
+                _analysis.SnapshotDirectory = SnapshotPath;
             }
             return Task.CompletedTask;
         }
@@ -109,11 +120,21 @@ namespace DomainDetective.PowerShell {
                 WriteProgress(record);
             });
             var results = await _analysis.QueryAsync(DomainName, RecordType, serverList, CancelToken, progress);
+            IEnumerable<string>? changes = null;
+            if (Diff.IsPresent) {
+                changes = _analysis.GetSnapshotChanges(DomainName, RecordType, results);
+            }
             if (CompareResults) {
                 var details = DnsPropagationAnalysis.GetComparisonDetails(results);
                 WriteObject(details, true);
             } else {
                 WriteObject(results, true);
+            }
+            if (!string.IsNullOrEmpty(SnapshotPath)) {
+                _analysis.SaveSnapshot(DomainName, RecordType, results);
+            }
+            if (changes != null && changes.Any()) {
+                WriteObject(changes, true);
             }
         }
     }
