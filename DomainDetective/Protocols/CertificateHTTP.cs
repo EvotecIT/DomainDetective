@@ -225,7 +225,9 @@ namespace DomainDetective {
                             DaysToExpire = (int)(Certificate.NotAfter - DateTime.Now).TotalDays;
                             DaysValid = (int)(Certificate.NotAfter - Certificate.NotBefore).TotalDays;
                             IsExpired = Certificate.NotAfter < DateTime.Now;
-                            await QueryRevocationEndpoints(cancellationToken);
+                            if (!SkipRevocation) {
+                                await QueryRevocationEndpoints(cancellationToken);
+                            }
                             PopulateSubjectAlternativeNames();
                             await QueryCtLogs(cancellationToken);
                         }
@@ -238,6 +240,9 @@ namespace DomainDetective {
         }
 
         private async Task QueryRevocationEndpoints(CancellationToken cancellationToken) {
+            if (SkipRevocation) {
+                return;
+            }
             OcspUrls.Clear();
             CrlUrls.Clear();
             OcspRevoked = null;
@@ -404,7 +409,9 @@ namespace DomainDetective {
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
             IsExpired = certificate.NotAfter < DateTime.Now;
-            await QueryRevocationEndpoints(cancellationToken);
+            if (!SkipRevocation) {
+                await QueryRevocationEndpoints(cancellationToken);
+            }
             PopulateSubjectAlternativeNames();
             await QueryCtLogs(cancellationToken);
         }
