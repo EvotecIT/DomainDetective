@@ -365,6 +365,24 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task NonNumericPortDefaultsToHttps() {
+            var answers = new[] {
+                new DnsAnswer {
+                    Name = "_smtp._tcp.example.com",
+                    DataRaw = $"3 1 1 {new string('A', 64)}",
+                    Type = DnsRecordType.TLSA
+                }
+            };
+
+            var analysis = new DANEAnalysis();
+            await analysis.AnalyzeDANERecords(answers, new InternalLogger());
+
+            var result = analysis.AnalysisResults[0];
+            Assert.True(result.ValidDANERecord);
+            Assert.Equal(ServiceType.HTTPS, result.ServiceType);
+        }
+
+        [Fact]
         public async Task MultipleRecordsAreValidated() {
             var records = new[] {
                 $"3 1 1 {new string('A', 64)}",
