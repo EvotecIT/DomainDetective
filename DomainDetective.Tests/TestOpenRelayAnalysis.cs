@@ -311,5 +311,46 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        private class CountingTcpClient : System.Net.Sockets.TcpClient {
+            public static int DisposeCount { get; set; }
+            protected override void Dispose(bool disposing) {
+                if (disposing) {
+                    DisposeCount++;
+                }
+                base.Dispose(disposing);
+            }
+        }
+
+        [Fact]
+        public async Task TcpClientIsDisposedAfterAnalysis() {
+            CountingTcpClient.DisposeCount = 0;
+            var original = OpenRelayAnalysis.CreateClient;
+            OpenRelayAnalysis.CreateClient = () => new CountingTcpClient();
+
+            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = System.Threading.Tasks.Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 ready");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            try {
+                var analysis = new OpenRelayAnalysis();
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+            } finally {
+                OpenRelayAnalysis.CreateClient = original;
+                listener.Stop();
+                await serverTask;
+            }
+
+            Assert.Equal(1, CountingTcpClient.DisposeCount);
+        }
     }
 }
