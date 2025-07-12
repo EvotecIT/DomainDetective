@@ -31,7 +31,7 @@ namespace DomainDetective.PowerShell {
 
             var lines = File.ReadAllLines(Path);
             _hc.DnsTunnelingLogs = lines;
-            await _hc.CheckDnsTunneling(DomainName, CancelToken);
+            await _hc.CheckDnsTunnelingAsync(DomainName, CancelToken);
             WriteObject(_hc.DnsTunnelingAnalysis);
         }
     }

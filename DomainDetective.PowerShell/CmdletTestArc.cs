@@ -49,7 +49,7 @@ namespace DomainDetective.PowerShell {
             var text = ParameterSetName == "File"
                 ? System.IO.File.ReadAllText(File)
                 : HeaderText;
-            var result = await _healthCheck.VerifyARC(text, CancelToken);
+            var result = await _healthCheck.VerifyARCAsync(text, CancelToken);
             WriteObject(result);
         }
     }
