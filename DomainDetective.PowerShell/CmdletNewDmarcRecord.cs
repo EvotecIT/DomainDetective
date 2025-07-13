@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Management.Automation;
 using System.Net.Http;
+using System.Threading.Tasks;
 using DomainDetective;
 using Spectre.Console;
 
@@ -109,11 +110,11 @@ namespace DomainDetective.PowerShell {
             WriteObject(record);
             AnsiConsole.MarkupLine($"[green]{Markup.Escape(record)}[/]");
             if (Publish) {
-                PublishRecord(record);
+                PublishRecord(record).GetAwaiter().GetResult();
             }
         }
 
-        private void PublishRecord(string record) {
+        private async Task PublishRecord(string record) {
             if (DnsApiUrl == null || string.IsNullOrWhiteSpace(DomainName)) {
                 WriteWarning("DnsApiUrl and DomainName are required for publishing.");
                 return;
@@ -124,7 +125,8 @@ namespace DomainDetective.PowerShell {
                     ["domain"] = DomainName,
                     ["record"] = record
                 };
-                var response = client.PostAsync(DnsApiUrl, new FormUrlEncodedContent(data)).GetAwaiter().GetResult();
+                using var content = new FormUrlEncodedContent(data);
+                var response = await client.PostAsync(DnsApiUrl, content);
                 if (!response.IsSuccessStatusCode) {
                     WriteWarning($"Publish failed: {response.StatusCode}");
                 }
