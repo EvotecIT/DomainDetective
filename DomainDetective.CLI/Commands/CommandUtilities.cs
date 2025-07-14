@@ -107,7 +107,7 @@ internal static class CommandUtilities {
         }
         var lines = File.ReadAllLines(filePath);
         var hc = new DomainHealthCheck { DnsTunnelingLogs = lines };
-        hc.CheckDnsTunnelingAsync(domain).GetAwaiter().GetResult();
+        hc.CheckDnsTunnelingLogsAsync(domain).GetAwaiter().GetResult();
         var result = hc.DnsTunnelingAnalysis;
         if (json) {
             var jsonText = JsonSerializer.Serialize(result, DomainHealthCheck.JsonOptions);

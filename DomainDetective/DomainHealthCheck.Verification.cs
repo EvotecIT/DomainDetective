@@ -311,7 +311,7 @@ namespace DomainDetective {
                         await VerifyRPKI(domainName, cancellationToken);
                         break;
                     case HealthCheckType.DNSTUNNELING:
-                        await CheckDnsTunnelingAsync(domainName, cancellationToken);
+                        await CheckDnsTunnelingLogsAsync(domainName, cancellationToken);
                         break;
                     case HealthCheckType.TYPOSQUATTING:
                         await VerifyTyposquatting(domainName, cancellationToken);
@@ -619,14 +619,24 @@ namespace DomainDetective {
         }
 
         /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
-        public void CheckDnsTunneling(string domainName, CancellationToken ct = default) {
-            CheckDnsTunnelingAsync(domainName, ct).GetAwaiter().GetResult();
+        public void CheckDnsTunnelingLogs(string domainName, CancellationToken ct = default) {
+            CheckDnsTunnelingLogsAsync(domainName, ct).GetAwaiter().GetResult();
         }
 
-        public async Task CheckDnsTunnelingAsync(string domainName, CancellationToken ct = default) {
+        public async Task CheckDnsTunnelingLogsAsync(string domainName, CancellationToken ct = default) {
             ct.ThrowIfCancellationRequested();
             var lines = DnsTunnelingLogs ?? Array.Empty<string>();
             await Task.Run(() => DnsTunnelingAnalysis.Analyze(domainName, lines), ct);
+        }
+
+        [Obsolete("Use CheckDnsTunnelingLogs instead.")]
+        public void CheckDnsTunneling(string domainName, CancellationToken ct = default) {
+            CheckDnsTunnelingLogs(domainName, ct);
+        }
+
+        [Obsolete("Use CheckDnsTunnelingLogsAsync instead.")]
+        public Task CheckDnsTunnelingAsync(string domainName, CancellationToken ct = default) {
+            return CheckDnsTunnelingLogsAsync(domainName, ct);
         }
 
         /// <summary>
