@@ -2,8 +2,10 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using Xunit.Sdk;
 
 namespace DomainDetective.Tests {
     public class TestDANEnalysis {
@@ -94,6 +96,9 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task HttpsQueriesAandAaaaRecordsUsingSystemResolver() {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) {
+                throw SkipException.ForSkip("System resolver unreliable on Linux");
+            }
             var logger = new InternalLogger();
             var warnings = new List<LogEventArgs>();
             logger.OnWarningMessage += (_, e) => warnings.Add(e);
