@@ -43,6 +43,9 @@ internal static class Program {
             config.AddCommand<BuildDmarcCommand>("BuildDmarcRecord")
                 .WithDescription("Interactively build a DMARC record")
                 .WithExample(new[] { "BuildDmarcRecord" });
+            config.AddCommand<ImportDmarcForensicCommand>("ImportDmarcForensic")
+                .WithDescription("Import DMARC forensic reports")
+                .WithExample(new[] { "ImportDmarcForensic", "forensic.zip" });
             config.AddCommand<RefreshSuffixListCommand>("RefreshSuffixList")
                 .WithDescription("Download the latest public suffix list")
                 .WithExample(new[] { "RefreshSuffixList", "--force" });

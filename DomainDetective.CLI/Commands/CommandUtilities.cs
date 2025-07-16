@@ -1,7 +1,9 @@
 using DomainDetective;
+using DomainDetective.Reports;
 using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading;
@@ -118,6 +120,20 @@ internal static class CommandUtilities {
         }
     }
 
+    [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<T>(T, JsonSerializerOptions)")]
+    [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<T>(T, JsonSerializerOptions)")]
+    internal static void ImportDmarcForensic(string path, bool json) {
+        var reports = DmarcForensicParser.ParseZip(path).ToList();
+        if (json) {
+            var jsonText = JsonSerializer.Serialize(reports, DomainHealthCheck.JsonOptions);
+            Console.WriteLine(jsonText);
+        } else {
+            foreach (var report in reports) {
+                CliHelpers.ShowPropertiesTable("DMARC Forensic Report", report, false);
+            }
+        }
+    }
+
     internal static async Task<int> RunWizard(CancellationToken cancellationToken) {
         AnsiConsole.MarkupLine("[green]DomainDetective CLI Wizard[/]");
         var domainInput = AnsiConsole.Prompt(new TextPrompt<string>("Enter domain(s) [comma separated]:")
@@ -141,11 +157,11 @@ internal static class CommandUtilities {
         var subPolicy = AnsiConsole.Confirm("Evaluate subdomain policy?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, checkTakeover, outputJson, summaryOnly, subPolicy, false, null, true, false, cancellationToken);
+        await RunChecks(domains, checks, checkHttp, checkTakeover, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken);
         return 0;
     }
 
-internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkTakeover, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, CancellationToken cancellationToken) {
+internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkTakeover, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken) {
         foreach (var domain in domains) {
             var logger = new InternalLogger { IsProgress = showProgress };
             var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
@@ -167,7 +183,7 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
 
                     logger.OnProgressMessage += Handler;
                     try {
-                        await hc.Verify(domain, checks, null, null, danePorts, cancellationToken);
+                        await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
                         if (checkHttp) {
                             await hc.VerifyPlainHttp(domain, cancellationToken);
                         }
@@ -179,7 +195,7 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                     }
                 });
             } else {
-                await hc.Verify(domain, checks, null, null, danePorts, cancellationToken);
+                await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
                 if (checkHttp) {
                     await hc.VerifyPlainHttp(domain, cancellationToken);
                 }

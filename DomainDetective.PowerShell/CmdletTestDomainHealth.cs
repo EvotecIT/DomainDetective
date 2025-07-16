@@ -1,6 +1,7 @@
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
+using DomainDetective;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Runs multiple domain health checks and returns the results.</summary>
@@ -37,6 +38,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int[]? DanePorts;
 
+        /// <param name="PortScanProfile">Port scan profiles to use.</param>
+        [Parameter(Mandatory = false)]
+        public PortScanProfile[]? PortScanProfile;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -61,7 +66,7 @@ namespace DomainDetective.PowerShell {
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying domain health for domain: {0}", DomainName);
-            await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType, DanePorts);
+            await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType, DanePorts, PortScanProfile);
             var result = _healthCheck.FilterAnalyses(HealthCheckType);
             WriteObject(result);
         }

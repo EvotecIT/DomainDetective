@@ -148,6 +148,7 @@ $AliasMap = @{
     'Get-DomainFlattenedSpfIp'    = 'Get-DDFlattenedSpfIp'
     'Import-DnsblConfig'          = 'Import-DDDnsblConfig'
     'Import-DmarcReport'          = 'Import-DDDmarcReport'
+    'Import-DmarcForensic'        = 'Import-DDDmarcForensic'
     'Remove-DnsblProvider'        = 'Remove-DDDnsblProvider'
     'Test-EmailArc'               = 'Test-DDEmailArcRecord'
     'Test-EmailBimi'              = 'Test-DDEmailBimiRecord'
@@ -183,6 +184,7 @@ $AliasMap = @{
     'Test-TlsDane'                = 'Test-DDTlsDaneRecord'
     'Test-NetworkIpNeighbor'      = 'Test-DDIpNeighbor'
     'Test-NetworkPortAvailability'= 'Test-DDPortAvailability'
+    'Get-RdapObject'            = 'Get-DDRdapObject'
 }
 
 foreach ($aliasName in $AliasMap.Keys) {

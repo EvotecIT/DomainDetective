@@ -48,6 +48,10 @@ internal sealed class CheckDomainSettings : CommandSettings {
     [CommandOption("--dane-ports")]
     public string? DanePorts { get; set; }
 
+    /// <summary>Comma separated list of port scan profiles.</summary>
+    [CommandOption("--port-profiles")]
+    public string? PortProfiles { get; set; }
+
     /// <summary>Path to S/MIME certificate.</summary>
     [CommandOption("--smime")]
     public FileInfo? Smime { get; set; }
@@ -115,6 +119,15 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
                 .ToArray();
         }
 
+        PortScanProfile[]? scanProfiles = null;
+        if (!string.IsNullOrWhiteSpace(settings.PortProfiles)) {
+            scanProfiles = settings.PortProfiles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(p => Enum.TryParse<PortScanProfile>(p, true, out var val) ? val : (PortScanProfile?)null)
+                .Where(p => p.HasValue)
+                .Select(p => p!.Value)
+                .ToArray();
+        }
+
         await CommandUtilities.RunChecks(
             settings.Domains,
             selected.Count > 0 ? selected.ToArray() : null,
@@ -127,6 +140,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             danePorts,
             !settings.NoProgress,
             settings.SkipRevocation,
+            scanProfiles,
             Program.CancellationToken);
 
         return 0;

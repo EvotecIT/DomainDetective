@@ -117,6 +117,44 @@ namespace DomainDetective.Tests {
             Assert.False(string.IsNullOrEmpty(analysis.Results[80].Error));
         }
 
+        [Fact]
+        public async Task ScansUsingSmbProfile() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var accept = listener.AcceptTcpClientAsync();
+            try {
+                PortScanAnalysis.OverrideProfilePorts(PortScanProfile.SMB, new[] { port });
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", PortScanProfile.SMB, new InternalLogger());
+                using var _ = await accept;
+                Assert.True(analysis.Results[port].TcpOpen);
+            } finally {
+                listener.Stop();
+                PortScanAnalysis.OverrideProfilePorts(PortScanProfile.SMB, new[] { 445, 139 });
+            }
+        }
+
+        [Fact]
+        public async Task ScansUsingNtpProfile() {
+            var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+            var port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
+            var task = Task.Run(async () => {
+                var r = await server.ReceiveAsync();
+                await server.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
+            });
+            try {
+                PortScanAnalysis.OverrideProfilePorts(PortScanProfile.NTP, new[] { port });
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", PortScanProfile.NTP, new InternalLogger());
+                Assert.True(analysis.Results[port].UdpOpen);
+            } finally {
+                server.Close();
+                await task;
+                PortScanAnalysis.OverrideProfilePorts(PortScanProfile.NTP, new[] { 123 });
+            }
+        }
+
         private static int GetFreePort() {
             return PortHelper.GetFreePort();
         }

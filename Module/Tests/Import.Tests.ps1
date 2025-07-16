@@ -12,4 +12,9 @@ Describe 'DomainDetective module' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         Get-Command Add-DnsblProvider -ErrorAction Stop | Should -Not -BeNullOrEmpty
     }
+
+    It 'exposes Import-DmarcForensic cmdlet' {
+        Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
+        Get-Command Import-DmarcForensic -ErrorAction Stop | Should -Not -BeNullOrEmpty
+    }
 }

@@ -40,6 +40,9 @@ public class TyposquattingAnalysis
     /// <summary>Variants that resolve in DNS.</summary>
     public List<string> ActiveDomains { get; private set; } = new();
 
+    /// <summary>Protected brand keywords for impersonation detection.</summary>
+    public List<string> BrandKeywords { get; } = new();
+
     /// <summary>Maximum allowed Levenshtein distance when generating variants.</summary>
     public int LevenshteinThreshold { get; set; } = 1;
 
@@ -101,7 +104,7 @@ public class TyposquattingAnalysis
         return (pre, lbl, sfx);
     }
 
-    private static IEnumerable<string> BuildVariants(string domainName, PublicSuffixList list, int threshold)
+    private static IEnumerable<string> BuildVariants(string domainName, PublicSuffixList list, int threshold, IReadOnlyCollection<string> brands)
     {
         var (prefix, label, suffix) = SplitDomain(domainName, list);
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -148,6 +151,19 @@ public class TyposquattingAnalysis
             }
         }
 
+        foreach (var brand in brands)
+        {
+            if (string.IsNullOrWhiteSpace(brand))
+            {
+                continue;
+            }
+
+            set.Add(prefix + brand + label + suffix);
+            set.Add(prefix + label + brand + suffix);
+            set.Add(prefix + brand + "-" + label + suffix);
+            set.Add(prefix + label + "-" + brand + suffix);
+        }
+
         return set;
     }
 
@@ -163,7 +179,7 @@ public class TyposquattingAnalysis
             logger?.WriteWarning("Domain contains homoglyph characters: {0}", domainName);
         }
 
-        Variants = BuildVariants(domainName, list, LevenshteinThreshold).ToList();
+        Variants = BuildVariants(domainName, list, LevenshteinThreshold, BrandKeywords).ToList();
         ActiveDomains = new List<string>();
 
         foreach (var variant in Variants)

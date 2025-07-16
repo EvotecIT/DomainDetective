@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -27,6 +28,8 @@ public class RdapAnalysis
     public List<string> NameServers { get; private set; } = new();
     /// <summary>Status values reported by RDAP.</summary>
     public List<string> Status { get; private set; } = new();
+    /// <summary>Deserialized RDAP domain data.</summary>
+    public RdapDomain? DomainData { get; private set; }
 
     internal Func<string, Task<string>>? QueryOverride { get; set; }
 
@@ -67,79 +70,68 @@ public class RdapAnalysis
 #endif
         }
 
-        using var doc = JsonDocument.Parse(json);
-        if (doc.RootElement.TryGetProperty("ldhName", out var ldh))
+        DomainData = JsonSerializer.Deserialize<RdapDomain>(json, RdapJson.Options);
+        if (DomainData == null)
         {
-            DomainName = ldh.GetString() ?? DomainName;
+            return;
         }
-        if (doc.RootElement.TryGetProperty("status", out var status))
+
+        DomainName = DomainData.LdhName ?? DomainName;
+
+        if (DomainData.Status != null)
         {
-            foreach (var st in status.EnumerateArray())
-            {
-                var s = st.GetString();
-                if (!string.IsNullOrEmpty(s))
+            Status = DomainData.Status
+                .Where(s => s != RdapStatus.Unknown)
+                .Select(s =>
                 {
-                    Status.Add(s);
-                }
-            }
+                    var text = s.ToString();
+                    return char.ToLowerInvariant(text[0]) + text.Substring(1);
+                })
+                .ToList();
         }
-        if (doc.RootElement.TryGetProperty("nameservers", out var ns))
+
+        if (DomainData.Nameservers != null)
         {
-            foreach (var n in ns.EnumerateArray())
+            NameServers = DomainData.Nameservers
+                .Select(n => n.LdhName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .Select(n => n!)
+                .ToList();
+        }
+
+        if (DomainData.Entities != null)
+        {
+            foreach (var ent in DomainData.Entities)
             {
-                if (n.TryGetProperty("ldhName", out var name))
+                if (ent.Roles.Any(r => string.Equals(r, "registrar", StringComparison.OrdinalIgnoreCase)))
                 {
-                    var v = name.GetString();
-                    if (!string.IsNullOrEmpty(v))
+                    RegistrarId ??= ent.Handle;
+                    if (ent.VcardArray.HasValue && ent.VcardArray.Value.ValueKind == JsonValueKind.Array && ent.VcardArray.Value.GetArrayLength() > 1)
                     {
-                        NameServers.Add(v);
-                    }
-                }
-            }
-        }
-        if (doc.RootElement.TryGetProperty("entities", out var entities))
-        {
-            foreach (var ent in entities.EnumerateArray())
-            {
-                if (ent.TryGetProperty("roles", out var roles))
-                {
-                    foreach (var role in roles.EnumerateArray())
-                    {
-                        if (string.Equals(role.GetString(), "registrar", StringComparison.OrdinalIgnoreCase))
+                        foreach (var card in ent.VcardArray.Value[1].EnumerateArray())
                         {
-                            if (ent.TryGetProperty("handle", out var handle))
+                            if (card.GetArrayLength() > 3 && card[0].GetString() == "fn")
                             {
-                                RegistrarId = handle.GetString();
-                            }
-                            if (ent.TryGetProperty("vcardArray", out var vcard) && vcard.ValueKind == JsonValueKind.Array && vcard.GetArrayLength() > 1)
-                            {
-                                foreach (var card in vcard[1].EnumerateArray())
-                                {
-                                    if (card.GetArrayLength() > 3 && card[0].GetString() == "fn")
-                                    {
-                                        Registrar = card[3].GetString();
-                                        break;
-                                    }
-                                }
+                                Registrar = card[3].GetString();
+                                break;
                             }
                         }
                     }
                 }
             }
         }
-        if (doc.RootElement.TryGetProperty("events", out var events))
+
+        if (DomainData.Events != null)
         {
-            foreach (var ev in events.EnumerateArray())
+            foreach (var ev in DomainData.Events)
             {
-                var action = ev.GetProperty("eventAction").GetString();
-                var date = ev.GetProperty("eventDate").GetString();
-                if (string.Equals(action, "registration", StringComparison.OrdinalIgnoreCase))
+                if (ev.Action == RdapEventAction.Registration)
                 {
-                    CreationDate = date;
+                    CreationDate = ev.Date;
                 }
-                else if (string.Equals(action, "expiration", StringComparison.OrdinalIgnoreCase))
+                else if (ev.Action == RdapEventAction.Expiration)
                 {
-                    ExpiryDate = date;
+                    ExpiryDate = ev.Date;
                 }
             }
         }

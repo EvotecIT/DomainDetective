@@ -62,5 +62,25 @@ namespace DomainDetective.Tests {
 
             Assert.True(analysis.ContainsHomoglyphs);
         }
+
+        [Fact]
+        public async Task DetectsBrandImpersonation() {
+            var analysis = new TyposquattingAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (name == "paypal-example.com" && type == DnsRecordType.A) {
+                        return Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.2.3.4" } });
+                    }
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+            };
+
+            analysis.BrandKeywords.Add("paypal");
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            Assert.Contains("paypal-example.com", analysis.Variants);
+            Assert.Contains("paypal-example.com", analysis.ActiveDomains);
+        }
     }
 }

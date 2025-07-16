@@ -101,7 +101,7 @@ namespace DomainDetective {
         /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
         /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, int[] danePorts = null, CancellationToken cancellationToken = default) {
+        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, int[] danePorts = null, PortScanProfile[] portScanProfiles = null, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -302,7 +302,7 @@ namespace DomainDetective {
                         await CheckPortAvailability(domainName, null, cancellationToken);
                         break;
                     case HealthCheckType.PORTSCAN:
-                        await ScanPorts(domainName, null, cancellationToken);
+                        await ScanPorts(domainName, null, portScanProfiles, cancellationToken);
                         break;
                     case HealthCheckType.IPNEIGHBOR:
                         await CheckIPNeighbors(domainName, cancellationToken);
@@ -605,8 +605,16 @@ namespace DomainDetective {
         /// <param name="host">Target host name.</param>
         /// <param name="ports">Ports to scan. Defaults to the top 1000 ports.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, CancellationToken cancellationToken = default, bool showProgress = true) {
-            var list = ports?.ToArray() ?? PortScanAnalysis.DefaultPorts;
+        public async Task ScanPorts(string host, IEnumerable<int>? ports = null, PortScanProfile[]? profiles = null, CancellationToken cancellationToken = default, bool showProgress = true) {
+            IEnumerable<int> selected;
+            if (ports != null && ports.Any()) {
+                selected = ports;
+            } else if (profiles != null && profiles.Length > 0) {
+                selected = profiles.SelectMany(PortScanAnalysis.GetPorts).Distinct();
+            } else {
+                selected = PortScanAnalysis.DefaultPorts;
+            }
+            var list = selected.ToArray();
             foreach (var p in list) {
                 ValidatePort(p);
             }

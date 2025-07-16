@@ -252,6 +252,7 @@ namespace DomainDetective.Tests {
             try {
                 var analysis = new STARTTLSAnalysis();
                 await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                await serverTask;
                 var ipProps = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties();
                 bool anyEstablished = ipProps.GetActiveTcpConnections().Any(c =>
                     (c.LocalEndPoint.Port == port || c.RemoteEndPoint.Port == port) &&

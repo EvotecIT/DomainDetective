@@ -22,5 +22,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+    <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
   </ItemGroup>
 </Project>
