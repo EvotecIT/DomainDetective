@@ -13,10 +13,16 @@ namespace DomainDetective {
         /// <summary>
         /// Gets the list of enabled domain based DNS block lists.
         /// </summary>
-        internal List<string> DomainDNSBLLists => _domainBlockLists
-            .Where(e => e.Enabled)
-            .Select(e => e.Domain)
-            .ToList();
+        internal List<string> DomainDNSBLLists {
+            get {
+                lock (_syncRoot) {
+                    return _domainBlockLists
+                        .Where(e => e.Enabled)
+                        .Select(e => e.Domain)
+                        .ToList();
+                }
+            }
+        }
 
         /// <summary>
         /// Queries all configured domain block lists for the specified domain.

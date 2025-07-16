@@ -102,6 +102,7 @@ namespace DomainDetective {
         private static readonly List<DnsblEntry> _defaultDomainBlockLists = new();
         private static readonly List<BlockListEntry> _defaultIpBlockLists = new();
         private static Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly object _syncRoot = new();
         private const string DefaultUpdateUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/dnsbl.json";
 
         static DNSBLAnalysis() {
@@ -150,14 +151,16 @@ namespace DomainDetective {
                     entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(e.ReplyCodes, StringComparer.OrdinalIgnoreCase);
                 return entry;
             }));
-            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
-            foreach (var entry in _defaultIpBlockLists) {
-                BlockLists.Entries.Add(new BlockListEntry {
-                    Name = entry.Name,
-                    Url = entry.Url,
-                    Enabled = entry.Enabled,
-                    Comment = entry.Comment
-                });
+            lock (_syncRoot) {
+                _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
+                foreach (var entry in _defaultIpBlockLists) {
+                    BlockLists.Entries.Add(new BlockListEntry {
+                        Name = entry.Name,
+                        Url = entry.Url,
+                        Enabled = entry.Enabled,
+                        Comment = entry.Comment
+                    });
+                }
             }
         }
 
@@ -295,9 +298,11 @@ namespace DomainDetective {
                 return (false, "Reserved");
             }
 
-            if (_providerReplyCodes.TryGetValue(blacklist, out var providerMap) &&
-                providerMap.TryGetValue(reply, out var providerResult)) {
-                return providerResult;
+            lock (_syncRoot) {
+                if (_providerReplyCodes.TryGetValue(blacklist, out var providerMap) &&
+                    providerMap.TryGetValue(reply, out var providerResult)) {
+                    return providerResult;
+                }
             }
 
             if (_generalReplyCodes.TryGetValue(reply, out var result)) {
@@ -534,73 +539,80 @@ namespace DomainDetective {
         }
 
         private void ApplyDnsblConfiguration(DnsblConfiguration config, bool overwriteExisting, bool clearExisting) {
-            if (clearExisting) {
-                ClearDNSBL();
-                _domainBlockLists.Clear();
-                _providerReplyCodes.Clear();
-                BlockLists.Entries.Clear();
-            }
+            lock (_syncRoot) {
+                if (clearExisting) {
+                    ClearDNSBL();
+                    _domainBlockLists.Clear();
+                    _providerReplyCodes.Clear();
+                    BlockLists.Entries.Clear();
+                }
 
-            if (config.Providers != null) {
-                var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var provider in config.Providers) {
-                    if (!processed.Add(provider.Domain))
-                        continue;
-
-                    var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
-                    if (existing == null) {
-                        var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment, provider.Port);
-                        if (provider.ReplyCodes?.Count > 0)
-                            entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
-                        DnsblEntries.Add(entry);
-                    } else if (overwriteExisting) {
-                        existing.Enabled = provider.Enabled;
-                        existing.Comment = provider.Comment;
-                        existing.Port = provider.Port;
-                        if (provider.ReplyCodes?.Count > 0)
-                            existing.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
-                    }
-
-                    if (provider.ReplyCodes?.Count > 0) {
-                        if (clearExisting || !_providerReplyCodes.TryGetValue(provider.Domain, out var map)) {
-                            map = new Dictionary<string, (bool, string)>(StringComparer.OrdinalIgnoreCase);
-                            _providerReplyCodes[provider.Domain] = map;
+                if (config.Providers != null) {
+                    var processed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var provider in config.Providers) {
+                        if (!processed.Add(provider.Domain)) {
+                            continue;
                         }
-                        foreach (var code in provider.ReplyCodes) {
-                            if (!map.ContainsKey(code.Key) || overwriteExisting)
-                                map[code.Key] = (code.Value.IsListed, code.Value.Meaning);
+
+                        var existing = DnsblEntries.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, provider.Domain));
+                        if (existing == null) {
+                            var entry = new DnsblEntry(provider.Domain, provider.Enabled, provider.Comment, provider.Port);
+                            if (provider.ReplyCodes?.Count > 0) {
+                                entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                            }
+                            DnsblEntries.Add(entry);
+                        } else if (overwriteExisting) {
+                            existing.Enabled = provider.Enabled;
+                            existing.Comment = provider.Comment;
+                            existing.Port = provider.Port;
+                            if (provider.ReplyCodes?.Count > 0) {
+                                existing.ReplyCodes = new Dictionary<string, DnsblReplyCode>(provider.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                            }
+                        }
+
+                        if (provider.ReplyCodes?.Count > 0) {
+                            if (clearExisting || !_providerReplyCodes.TryGetValue(provider.Domain, out var map)) {
+                                map = new Dictionary<string, (bool, string)>(StringComparer.OrdinalIgnoreCase);
+                                _providerReplyCodes[provider.Domain] = map;
+                            }
+
+                            foreach (var code in provider.ReplyCodes) {
+                                if (!map.ContainsKey(code.Key) || overwriteExisting) {
+                                    map[code.Key] = (code.Value.IsListed, code.Value.Meaning);
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            if (config.DomainBlockLists != null) {
-                foreach (var entry in config.DomainBlockLists) {
-                    var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
-                    if (existing == null) {
-                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
-                    } else if (overwriteExisting) {
-                        existing.Enabled = entry.Enabled;
-                        existing.Comment = entry.Comment;
-                        existing.Port = entry.Port;
+                if (config.DomainBlockLists != null) {
+                    foreach (var entry in config.DomainBlockLists) {
+                        var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
+                        if (existing == null) {
+                            _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
+                        } else if (overwriteExisting) {
+                            existing.Enabled = entry.Enabled;
+                            existing.Comment = entry.Comment;
+                            existing.Port = entry.Port;
+                        }
                     }
                 }
-            }
 
-            if (config.IpBlockLists != null) {
-                foreach (var entry in config.IpBlockLists) {
-                    var existing = BlockLists.Entries.FirstOrDefault(e => string.Equals(e.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
-                    if (existing == null) {
-                        BlockLists.Entries.Add(new BlockListEntry {
-                            Name = entry.Name,
-                            Url = entry.Url,
-                            Enabled = entry.Enabled,
-                            Comment = entry.Comment
-                        });
-                    } else if (overwriteExisting) {
-                        existing.Url = entry.Url;
-                        existing.Enabled = entry.Enabled;
-                        existing.Comment = entry.Comment;
+                if (config.IpBlockLists != null) {
+                    foreach (var entry in config.IpBlockLists) {
+                        var existing = BlockLists.Entries.FirstOrDefault(e => string.Equals(e.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+                        if (existing == null) {
+                            BlockLists.Entries.Add(new BlockListEntry {
+                                Name = entry.Name,
+                                Url = entry.Url,
+                                Enabled = entry.Enabled,
+                                Comment = entry.Comment
+                            });
+                        } else if (overwriteExisting) {
+                            existing.Url = entry.Url;
+                            existing.Enabled = entry.Enabled;
+                            existing.Comment = entry.Comment;
+                        }
                     }
                 }
             }
