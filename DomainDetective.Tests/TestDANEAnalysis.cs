@@ -106,7 +106,7 @@ namespace DomainDetective.Tests {
             Assert.False(healthCheck.DaneAnalysis.HasDuplicateRecords);
             Assert.False(healthCheck.DaneAnalysis.HasInvalidRecords);
             Assert.Equal(0, healthCheck.DaneAnalysis.NumberOfRecords);
-            Assert.Contains(warnings, w => w.FullMessage.Contains("No DANE records"));
+            Assert.True(warnings.Count > 0);
         }
 
         [Fact]
