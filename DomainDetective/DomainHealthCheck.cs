@@ -293,6 +293,12 @@ namespace DomainDetective {
         /// <value>Open port results.</value>
         public PortScanAnalysis PortScanAnalysis { get; private set; } = new PortScanAnalysis();
 
+        /// <summary>Gets the SNMP analysis.</summary>
+        /// <value>Results from SNMP service checks.</value>
+        public SnmpAnalysis SnmpAnalysis { get; private set; } = new SnmpAnalysis();
+        /// <summary>Alias used by <see cref="GetAnalysisMap"/>.</summary>
+        public SnmpAnalysis SNMPAnalysis => SnmpAnalysis;
+
         /// <summary>Gets the IP neighbor analysis.</summary>
         /// <value>Domains sharing the same IP address.</value>
         public IPNeighborAnalysis IPNeighborAnalysis { get; private set; } = new IPNeighborAnalysis();
@@ -423,6 +429,7 @@ namespace DomainDetective {
 
             PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
             PortScanAnalysis = new PortScanAnalysis();
+            SnmpAnalysis = new SnmpAnalysis();
 
             IPNeighborAnalysis.DnsConfiguration = DnsConfiguration;
             RpkiAnalysis.DnsConfiguration = DnsConfiguration;

@@ -173,21 +173,14 @@ public class PortScanAnalysis
         }
         sw.Stop();
 
-        UdpClient? udp = null;
-        try
+        if (await SnmpAnalysis.ProbeAsync(address.ToString(), port, Timeout, logger, token).ConfigureAwait(false))
         {
-            udp = UdpClientFactory(address.AddressFamily);
+            udpOpen = true;
+            banner = "SNMP";
         }
-        catch (SocketException ex)
+        else
         {
-            logger?.WriteVerbose("UDP {0}:{1} closed - {2}", address, port, ex.Message);
-            error = ex.Message;
-            return new ScanResult { TcpOpen = tcpOpen, UdpOpen = udpOpen, TcpLatency = sw.Elapsed, Error = error, Banner = banner };
-        }
-
-        using (udp)
-        {
-            try
+            using (var udp = new UdpClient(address.AddressFamily))
             {
                 udp.Client.SendTimeout = (int)Timeout.TotalMilliseconds;
                 udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
@@ -195,6 +188,10 @@ public class PortScanAnalysis
                 await udp.SendAsync(Array.Empty<byte>(), 0).ConfigureAwait(false);
                 using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
+                    udp.Client.SendTimeout = (int)Timeout.TotalMilliseconds;
+                    udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
+                    udp.Connect(address, port);
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     cts.CancelAfter(Timeout);
 #if NET8_0_OR_GREATER
                     var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);

@@ -16,6 +16,7 @@ namespace DomainDetective {
         internal List<string> DomainDNSBLLists => _domainBlockLists
             .Where(e => e.Enabled)
             .Select(e => e.Domain)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         /// <summary>

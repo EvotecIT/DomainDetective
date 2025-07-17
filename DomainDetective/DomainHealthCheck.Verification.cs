@@ -307,6 +307,9 @@ namespace DomainDetective {
                     case HealthCheckType.PORTSCAN:
                         await ScanPorts(domainName, null, portScanProfiles, cancellationToken);
                         break;
+                    case HealthCheckType.SNMP:
+                        await CheckSnmpHost(domainName, 161, cancellationToken);
+                        break;
                     case HealthCheckType.IPNEIGHBOR:
                         await CheckIPNeighbors(domainName, cancellationToken);
                         break;
@@ -617,6 +620,17 @@ namespace DomainDetective {
                 ValidatePort(p);
             }
             await PortAvailabilityAnalysis.AnalyzeServers(new[] { host }, list, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Checks a host for SNMP responses.
+        /// </summary>
+        /// <param name="host">Target host name.</param>
+        /// <param name="port">SNMP port to query.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckSnmpHost(string host, int port = 161, CancellationToken cancellationToken = default) {
+            ValidatePort(port);
+            await SnmpAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 
         /// <summary>
@@ -1535,6 +1549,7 @@ namespace DomainDetective {
             filtered.DnsTtlAnalysis = active.Contains(HealthCheckType.TTL) ? CloneAnalysis(DnsTtlAnalysis) : null;
             filtered.PortAvailabilityAnalysis = active.Contains(HealthCheckType.PORTAVAILABILITY) ? CloneAnalysis(PortAvailabilityAnalysis) : null;
             filtered.PortScanAnalysis = active.Contains(HealthCheckType.PORTSCAN) ? CloneAnalysis(PortScanAnalysis) : null;
+            filtered.SnmpAnalysis = active.Contains(HealthCheckType.SNMP) ? CloneAnalysis(SnmpAnalysis) : null;
             filtered.IPNeighborAnalysis = active.Contains(HealthCheckType.IPNEIGHBOR) ? CloneAnalysis(IPNeighborAnalysis) : null;
             filtered.DnsTunnelingAnalysis = active.Contains(HealthCheckType.DNSTUNNELING) ? CloneAnalysis(DnsTunnelingAnalysis) : null;
             filtered.TyposquattingAnalysis = active.Contains(HealthCheckType.TYPOSQUATTING) ? CloneAnalysis(TyposquattingAnalysis) : null;

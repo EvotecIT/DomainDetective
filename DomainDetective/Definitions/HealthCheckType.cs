@@ -81,6 +81,8 @@ public enum HealthCheckType {
     PORTAVAILABILITY,
     /// <summary>Scan a host for open TCP and UDP ports.</summary>
     PORTSCAN,
+    /// <summary>Detect SNMP service on UDP port 161.</summary>
+    SNMP,
     /// <summary>List domains hosted on the same IP address.</summary>
     IPNEIGHBOR,
     /// <summary>Validate RPKI origins for domain IP addresses.</summary>

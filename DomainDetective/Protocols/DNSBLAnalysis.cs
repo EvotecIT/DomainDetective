@@ -164,6 +164,7 @@ namespace DomainDetective {
         internal List<string> DNSBLLists => DnsblEntries
             .Where(e => e.Enabled)
             .Select(e => e.Domain)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         /// <summary>Gets a value indicating whether any query returned a listing.</summary>

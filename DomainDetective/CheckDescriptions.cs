@@ -196,6 +196,10 @@ public static class CheckDescriptions {
                 "Scan a host for open TCP and UDP ports.",
                 null,
                 "Harden or disable unnecessary services."),
+            [HealthCheckType.SNMP] = new(
+                "Detect SNMP service on UDP port 161.",
+                null,
+                "Disable or secure SNMP if not required."),
             // List IP neighbors via reverse/passive DNS
             [HealthCheckType.IPNEIGHBOR] = new(
                 "List IP neighbors via reverse or passive DNS.",
