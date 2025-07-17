@@ -71,5 +71,45 @@ namespace DomainDetective.Tests {
             Assert.Contains("Publish a valid DMARC record.", summary.Hints);
             Assert.Contains("Ensure DKIM selectors have valid keys.", summary.Hints);
         }
+
+        [Fact]
+        public void ScoreIsZeroWhenNoChecksPass() {
+            var summary = new DomainSummary();
+
+            Assert.Equal(0, summary.Score);
+        }
+
+        [Fact]
+        public void ScoreReachesMaximumForValidChecks() {
+            var summary = new DomainSummary {
+                HasSpfRecord = true,
+                SpfValid = true,
+                HasDmarcRecord = true,
+                DmarcValid = true,
+                HasDkimRecord = true,
+                DkimValid = true,
+                HasMxRecord = true,
+                DnsSecValid = true,
+                ExpiresSoon = false,
+                IsExpired = false,
+                ExpiryDate = "2026-01-01"
+            };
+
+            Assert.Equal(100, summary.Score);
+        }
+
+        [Fact]
+        public void ScoreIncludesPresenceWeights() {
+            var summary = new DomainSummary {
+                HasSpfRecord = true,
+                HasDmarcRecord = true,
+                HasDkimRecord = true,
+                HasMxRecord = true,
+                IsExpired = true,
+                ExpiresSoon = false
+            };
+
+            Assert.Equal(30, summary.Score);
+        }
     }
 }

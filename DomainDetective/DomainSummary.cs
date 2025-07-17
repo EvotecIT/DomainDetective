@@ -71,5 +71,59 @@ namespace DomainDetective {
 
         /// <summary>Collection of recommended remediation hints.</summary>
         public IReadOnlyList<string> Hints { get; init; } = Array.Empty<string>();
+
+        private const int SpfPresenceWeight = 5;
+        private const int SpfValidityWeight = 10;
+        private const int DmarcPresenceWeight = 10;
+        private const int DmarcValidityWeight = 15;
+        private const int DkimPresenceWeight = 5;
+        private const int DkimValidityWeight = 10;
+        private const int MxPresenceWeight = 10;
+        private const int DnsSecValidityWeight = 20;
+        private const int WhoisWeight = 15;
+
+        /// <summary>
+        ///     Overall score calculated from the individual check results.
+        /// </summary>
+        public int Score {
+            get {
+                var score = 0;
+
+                if (HasSpfRecord) {
+                    score += SpfPresenceWeight;
+                }
+                if (SpfValid) {
+                    score += SpfValidityWeight;
+                }
+
+                if (HasDmarcRecord) {
+                    score += DmarcPresenceWeight;
+                }
+                if (DmarcValid) {
+                    score += DmarcValidityWeight;
+                }
+
+                if (HasDkimRecord) {
+                    score += DkimPresenceWeight;
+                }
+                if (DkimValid) {
+                    score += DkimValidityWeight;
+                }
+
+                if (HasMxRecord) {
+                    score += MxPresenceWeight;
+                }
+
+                if (DnsSecValid) {
+                    score += DnsSecValidityWeight;
+                }
+
+                if (!string.IsNullOrWhiteSpace(ExpiryDate) && !IsExpired && !ExpiresSoon) {
+                    score += WhoisWeight;
+                }
+
+                return score;
+            }
+        }
     }
 }

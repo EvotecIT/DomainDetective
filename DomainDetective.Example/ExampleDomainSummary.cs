@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 
 namespace DomainDetective.Example;
@@ -12,5 +13,6 @@ public static partial class Program {
         await healthCheck.Verify("github.com");
         var summary = healthCheck.BuildSummary();
         Helpers.ShowPropertiesTable("Summary for github.com", summary);
+        Console.WriteLine($"Score: {summary.Score}");
     }
 }
