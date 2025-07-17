@@ -193,24 +193,33 @@ public class PortScanAnalysis
                 udp.Client.ReceiveTimeout = (int)Timeout.TotalMilliseconds;
                 udp.Connect(address, port);
                 await udp.SendAsync(Array.Empty<byte>(), 0).ConfigureAwait(false);
+                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    cts.CancelAfter(Timeout);
 #if NET8_0_OR_GREATER
-                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
-                {
-                    cts.CancelAfter(Timeout);
                     var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
-                    udpOpen = result.Buffer.Length > 0;
-                }
 #else
-                using (var cts = CancellationTokenSource.CreateLinkedTokenSource(token))
-                {
-                    cts.CancelAfter(Timeout);
                     var receiveTask = udp.ReceiveAsync();
-                    await receiveTask.WaitWithCancellation(cts.Token).ConfigureAwait(false);
-                    udpOpen = true;
-                }
+                    var result = await receiveTask.WaitWithCancellation(cts.Token).ConfigureAwait(false);
 #endif
+                    udpOpen = result.Buffer.Length > 0;
+                    if (!udpOpen)
+                    {
+                        error = "No response";
+                    }
+                }
             }
-            catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionReset || ex.SocketErrorCode == SocketError.ConnectionRefused)
+            {
+                logger?.WriteVerbose("UDP {0}:{1} unreachable - {2}", address, port, ex.Message);
+                error = "ICMP unreachable";
+            }
+            catch (OperationCanceledException)
+            {
+                logger?.WriteVerbose("UDP {0}:{1} timed out", address, port);
+                error = "No response";
+            }
+            catch (SocketException ex)
             {
                 logger?.WriteVerbose("UDP {0}:{1} closed - {2}", address, port, ex.Message);
                 error = ex.Message;

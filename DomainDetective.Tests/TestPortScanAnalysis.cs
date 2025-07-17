@@ -90,10 +90,20 @@ namespace DomainDetective.Tests {
                 await analysis.Scan("127.0.0.1", new[] { udpPort }, new InternalLogger());
 
                 Assert.False(analysis.Results[udpPort].UdpOpen);
-                Assert.False(string.IsNullOrEmpty(analysis.Results[udpPort].Error));
+                Assert.Equal("No response", analysis.Results[udpPort].Error);
             } finally {
                 await udpTask;
             }
+        }
+
+        [Fact]
+        public async Task UdpPortClosedWithIcmpUnreachable() {
+            var port = GetFreePort();
+            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
+
+            Assert.False(analysis.Results[port].UdpOpen);
+            Assert.Equal("ICMP unreachable", analysis.Results[port].Error);
         }
 
         [Fact]
