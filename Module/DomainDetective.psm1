@@ -9,7 +9,7 @@ $AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\bin\Debug\net472 -File -Err
 
 # to speed up development adding direct path to binaries, instead of the the Lib folder
 $Development = $true
-$DevelopmentPath = "$PSScriptRoot\..\DomainDetective.PowerShell\bin\Debug"
+$DevelopmentPath = "$PSScriptRoot\..\DomainDetective.PowerShell\bin"
 $DevelopmentFolderCore = "net8.0"
 $DevelopmentFolderDefault = "net472"
 $BinaryModules = @(
@@ -56,12 +56,18 @@ if ($Standard -and $Core -and $Default) {
 $BinaryDev = @(
     foreach ($BinaryModule in $BinaryModules) {
         if ($PSEdition -eq 'Core') {
-            $Variable = Resolve-Path "$DevelopmentPath\$DevelopmentFolderCore\$BinaryModule"
+            $variable = Join-Path $DevelopmentPath "Debug\$DevelopmentFolderCore\$BinaryModule"
+            if (-not (Test-Path $variable)) {
+                $variable = Join-Path $DevelopmentPath "Release\$DevelopmentFolderCore\$BinaryModule"
+            }
         } else {
-            $Variable = Resolve-Path "$DevelopmentPath\$DevelopmentFolderDefault\$BinaryModule"
+            $variable = Join-Path $DevelopmentPath "Debug\$DevelopmentFolderDefault\$BinaryModule"
+            if (-not (Test-Path $variable)) {
+                $variable = Join-Path $DevelopmentPath "Release\$DevelopmentFolderDefault\$BinaryModule"
+            }
         }
-        $Variable
-        Write-Warning "Development mode: Using binaries from $Variable"
+        Resolve-Path $variable
+        Write-Warning "Development mode: Using binaries from $variable"
     }
 )
 
