@@ -64,13 +64,13 @@ public class PortScanAnalysis
 
     private static readonly Func<NetworkStream, CancellationToken, Task<string?>>[] DefaultDetectors =
     {
-        DetectLdapAsync,
-        DetectLdapsAsync,
         DetectBannerAsync,
         DetectSshAsync,
         DetectHttpAsync,
         DetectDnsTcpAsync,
-        DetectRdpAsync
+        DetectRdpAsync,
+        DetectLdapAsync,
+        DetectLdapsAsync
     };
 
     private static readonly Dictionary<int, Func<NetworkStream, CancellationToken, Task<string?>>[]> DetectionStrategies = new()
