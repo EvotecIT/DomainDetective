@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Net.Quic;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -656,9 +657,18 @@ namespace DomainDetective.Tests {
 #if NET8_0_OR_GREATER
         [Fact]
         public async Task SupportsHttp3WhenServerOffersIt() {
+#pragma warning disable CA1416 // Validate platform compatibility
+#pragma warning disable CA2252 // Preview feature
+            if (!QuicListener.IsSupported) {
+                return;
+            }
+#pragma warning restore CA2252
+#pragma warning restore CA1416
+
             using var cert = CreateSelfSigned();
             var port = GetFreePort();
             var builder = WebApplication.CreateBuilder();
+            builder.WebHost.UseQuic();
             builder.WebHost.ConfigureKestrel(o =>
                 o.ListenLocalhost(port, lo => {
                     lo.UseHttps(cert);
