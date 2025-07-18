@@ -140,8 +140,12 @@ namespace DomainDetective.Tests {
             using var server = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
             var port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
             var task = Task.Run(async () => {
-                var r = await server.ReceiveAsync();
-                await server.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
+                var r1 = await server.ReceiveAsync();
+                await server.SendAsync(Array.Empty<byte>(), 0, r1.RemoteEndPoint);
+                var r2 = await server.ReceiveAsync();
+                await server.SendAsync(Array.Empty<byte>(), 0, r2.RemoteEndPoint);
+                var r3 = await server.ReceiveAsync();
+                await server.SendAsync(new byte[] { 1 }, 1, r3.RemoteEndPoint);
             });
             try {
                 PortScanAnalysis.OverrideProfilePorts(PortScanProfile.NTP, new[] { port });
