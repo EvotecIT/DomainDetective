@@ -1274,7 +1274,7 @@ namespace DomainDetective {
                 !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
                 url = $"https://{url}";
             }
-            await CertificateAnalysis.AnalyzeUrl(url, port, _logger, cancellationToken);
+            CertificateAnalysis = await DomainDetective.CertificateAnalysis.CheckWebsiteCertificate(url, port, cancellationToken);
         }
 
         /// <summary>
