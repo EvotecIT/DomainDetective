@@ -14,8 +14,8 @@ internal static class LdapProbe
     internal static async Task<bool> ProbeAsync(System.IO.Stream stream, CancellationToken token)
     {
         await stream.WriteAsync(BindRequest, 0, BindRequest.Length, token).ConfigureAwait(false);
-        var buffer = new byte[5];
+        var buffer = new byte[2];
         var read = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false);
-        return read >= 2 && buffer[0] == 0x30;
+        return read >= 1 && buffer[0] == 0x30;
     }
 }

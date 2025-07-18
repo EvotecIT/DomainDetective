@@ -10,9 +10,5 @@ public enum PortScanProfile
     /// <summary>Ports commonly used by SMB.</summary>
     SMB,
     /// <summary>Ports commonly used by NTP.</summary>
-    NTP,
-    /// <summary>Ports commonly used by DNS servers.</summary>
-    DNS,
-    /// <summary>Ports commonly used by LDAP and LDAPS.</summary>
-    LDAP
+    NTP
 }

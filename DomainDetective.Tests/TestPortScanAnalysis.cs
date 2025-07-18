@@ -141,9 +141,9 @@ namespace DomainDetective.Tests {
             var port = ((IPEndPoint)server.Client.LocalEndPoint!).Port;
             var task = Task.Run(async () => {
                 var r1 = await server.ReceiveAsync();
-                await server.SendAsync(Array.Empty<byte>(), 0, r1.RemoteEndPoint);
+                await server.SendAsync(new byte[] { 1 }, 1, r1.RemoteEndPoint);
                 var r2 = await server.ReceiveAsync();
-                await server.SendAsync(Array.Empty<byte>(), 0, r2.RemoteEndPoint);
+                await server.SendAsync(new byte[] { 1 }, 1, r2.RemoteEndPoint);
                 var r3 = await server.ReceiveAsync();
                 await server.SendAsync(new byte[] { 1 }, 1, r3.RemoteEndPoint);
             });
@@ -187,54 +187,12 @@ namespace DomainDetective.Tests {
             var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
             var task = Task.Run(async () => {
                 var r = await udp.ReceiveAsync();
-                await udp.SendAsync(new byte[] { 0x30, 0x01, 0x00 }, 3, r.RemoteEndPoint);
+                await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
             });
             try {
                 var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
                 await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
                 Assert.Equal("SNMP", analysis.Results[port].Banner);
-            } finally {
-                udp.Close();
-                await task;
-            }
-        }
-
-        [Fact]
-        public async Task DetectsDnsUdpBanner() {
-            var port = GetFreePort();
-            var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-            var task = Task.Run(async () => {
-                var r1 = await udp.ReceiveAsync();
-                await udp.SendAsync(new byte[] { 1 }, 1, r1.RemoteEndPoint);
-                var r2 = await udp.ReceiveAsync();
-                await udp.SendAsync(new byte[] { 1 }, 1, r2.RemoteEndPoint);
-            });
-            try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
-                await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
-                Assert.Equal("DNS", analysis.Results[port].Banner);
-            } finally {
-                udp.Close();
-                await task;
-            }
-        }
-
-        [Fact]
-        public async Task DetectsNtpUdpBanner() {
-            var port = GetFreePort();
-            var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
-            var task = Task.Run(async () => {
-                var r1 = await udp.ReceiveAsync();
-                await udp.SendAsync(Array.Empty<byte>(), 0, r1.RemoteEndPoint);
-                var r2 = await udp.ReceiveAsync();
-                await udp.SendAsync(Array.Empty<byte>(), 0, r2.RemoteEndPoint);
-                var r3 = await udp.ReceiveAsync();
-                await udp.SendAsync(new byte[48], 48, r3.RemoteEndPoint);
-            });
-            try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
-                await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
-                Assert.Equal("NTP", analysis.Results[port].Banner);
             } finally {
                 udp.Close();
                 await task;

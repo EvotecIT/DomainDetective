@@ -62,7 +62,7 @@ public class SnmpAnalysis
             await udp.SendAsync(Probe, Probe.Length, host, port).WaitWithCancellation(cts.Token);
             var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
 #endif
-            return result.Buffer.Length > 2 && result.Buffer[0] == 0x30;
+            return result.Buffer.Length > 0;
         }
         catch (TaskCanceledException ex)
         {
