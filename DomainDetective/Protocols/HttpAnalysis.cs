@@ -62,6 +62,8 @@ namespace DomainDetective {
         public bool Http2Supported { get; private set; }
         /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
         public bool Http3Supported { get; private set; }
+        /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
+        public bool SupportsHttp3 { get; private set; }
         /// <summary>Gets the QUIC version advertised in the Alt-Svc header.</summary>
         public string? QuicVersion { get; private set; }
         /// <summary>Gets the value of the Server header if present.</summary>
@@ -199,6 +201,7 @@ namespace DomainDetective {
             XPermittedCrossDomainPolicies = null;
             OriginAgentClusterPresent = false;
             OriginAgentClusterEnabled = false;
+            SupportsHttp3 = false;
             SecurityHeaders.Clear();
             MissingSecurityHeaders.Clear();
             try {
@@ -251,6 +254,7 @@ namespace DomainDetective {
                     ProtocolVersion = response.Version;
 #if NET6_0_OR_GREATER
                     Http3Supported = response.Version >= HttpVersion.Version30;
+                    SupportsHttp3 = Http3Supported;
                     Http2Supported = response.Version >= HttpVersion.Version20;
                     if (RequestVersion >= HttpVersion.Version30 && response.Version < HttpVersion.Version30) {
                         logger?.WriteWarning("Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
@@ -258,6 +262,7 @@ namespace DomainDetective {
 #else
                     Http2Supported = response.Version.Major >= 2;
                     Http3Supported = false;
+                    SupportsHttp3 = false;
 #endif
                 }
                 string? altSvcHeader = null;

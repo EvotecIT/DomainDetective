@@ -5,6 +5,12 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Hosting;
 using DomainDetective;
 
 namespace DomainDetective.Tests {
@@ -646,6 +652,41 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+#if NET8_0_OR_GREATER
+        [Fact]
+        public async Task SupportsHttp3WhenServerOffersIt() {
+            using var cert = CreateSelfSigned();
+            var port = GetFreePort();
+            var builder = WebApplication.CreateBuilder();
+            builder.WebHost.ConfigureKestrel(o =>
+                o.ListenLocalhost(port, lo => {
+                    lo.UseHttps(cert);
+                    lo.Protocols = HttpProtocols.Http3;
+                }));
+            var app = builder.Build();
+            app.MapGet("/", () => "ok");
+            await app.StartAsync();
+
+            try {
+                var analysis = new HttpAnalysis();
+                await analysis.AnalyzeUrl($"https://localhost:{port}/", false, new InternalLogger());
+                if (analysis.ProtocolVersion != HttpVersion.Version30) {
+                    return;
+                }
+                Assert.True(analysis.SupportsHttp3);
+            } finally {
+                await app.StopAsync();
+            }
+        }
+
+        private static X509Certificate2 CreateSelfSigned() {
+            using var rsa = RSA.Create(2048);
+            var req = new CertificateRequest("CN=localhost", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
+            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
+        }
+#endif
 
         private static int GetFreePort() {
             return PortHelper.GetFreePort();
