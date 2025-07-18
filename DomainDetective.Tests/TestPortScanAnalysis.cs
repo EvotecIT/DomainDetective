@@ -2,6 +2,10 @@ using DomainDetective;
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Net.Security;
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Xunit;
 namespace DomainDetective.Tests {
@@ -189,6 +193,115 @@ namespace DomainDetective.Tests {
                 udp.Close();
                 await task;
             }
+        }
+
+        [Fact]
+        public async Task DetectsDnsUdpBanner() {
+            var port = GetFreePort();
+            var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+            var task = Task.Run(async () => {
+                var r = await udp.ReceiveAsync();
+                await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
+            });
+            try {
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
+                Assert.Equal("DNS", analysis.Results[port].Banner);
+            } finally {
+                udp.Close();
+                await task;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsNtpUdpBanner() {
+            var port = GetFreePort();
+            var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+            var task = Task.Run(async () => {
+                var r = await udp.ReceiveAsync();
+                await udp.SendAsync(new byte[48], 48, r.RemoteEndPoint);
+            });
+            try {
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
+                Assert.Equal("NTP", analysis.Results[port].Banner);
+            } finally {
+                udp.Close();
+                await task;
+            }
+        }
+
+        [Fact]
+        public async Task DetectsLdapBanner() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                var buf = new byte[14];
+                await stream.ReadAsync(buf, 0, buf.Length);
+                await stream.WriteAsync(new byte[] { 0x30, 0x84, 0x00, 0x00 }, 0, 4);
+            });
+            try {
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
+                Assert.Equal("LDAP", analysis.Results[port].Banner);
+            } finally {
+                await serverTask;
+                listener.Stop();
+            }
+        }
+
+        [Fact]
+        public async Task DetectsGcLdapBanner() {
+            var listener = new TcpListener(IPAddress.Loopback, 3268);
+            listener.Start();
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                var buf = new byte[14];
+                await stream.ReadAsync(buf, 0, buf.Length);
+                await stream.WriteAsync(new byte[] { 0x30, 0x84, 0x00, 0x00 }, 0, 4);
+            });
+            try {
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", new[] { 3268 }, new InternalLogger());
+                Assert.Equal("LDAP", analysis.Results[3268].Banner);
+            } finally {
+                await serverTask;
+                listener.Stop();
+            }
+        }
+
+        [Fact]
+        public async Task DetectsGcLdapsBanner() {
+            var listener = new TcpListener(IPAddress.Loopback, 3269);
+            listener.Start();
+            using var cert = CreateSelfSigned();
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var ssl = new SslStream(client.GetStream());
+                await ssl.AuthenticateAsServerAsync(cert, false, SslProtocols.Tls12, false);
+                var buf = new byte[14];
+                await ssl.ReadAsync(buf, 0, buf.Length);
+                await ssl.WriteAsync(new byte[] { 0x30, 0x84, 0x00, 0x00 }, 0, 4);
+            });
+            try {
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                await analysis.Scan("127.0.0.1", new[] { 3269 }, new InternalLogger());
+                Assert.Equal("LDAP", analysis.Results[3269].Banner);
+            } finally {
+                await serverTask;
+                listener.Stop();
+            }
+        }
+
+        private static X509Certificate2 CreateSelfSigned(string cn = "localhost") {
+            using var rsa = RSA.Create(2048);
+            var req = new CertificateRequest($"CN={cn}", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            var cert = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddDays(30));
+            return new X509Certificate2(cert.Export(X509ContentType.Pfx));
         }
 
         private static int GetFreePort() {
