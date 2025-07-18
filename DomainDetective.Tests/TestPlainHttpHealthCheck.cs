@@ -52,6 +52,16 @@ namespace DomainDetective.Tests {
                 await healthCheck.VerifyPlainHttp(domain));
         }
 
+        [Fact]
+        public async Task VerifyPlainHttpSetsFailureReasonOnConnectionFailure() {
+            var port = GetFreePort();
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.VerifyPlainHttp($"localhost:{port}");
+
+            Assert.False(healthCheck.HttpAnalysis.IsReachable);
+            Assert.False(string.IsNullOrEmpty(healthCheck.HttpAnalysis.FailureReason));
+        }
+
         private static int GetFreePort() {
             return PortHelper.GetFreePort();
         }
