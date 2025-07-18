@@ -467,7 +467,7 @@ namespace DomainDetective {
                 return;
             }
 
-            using var client = HttpClientFactory.CreateClient();
+            var client = HttpClientFactory.CreateClient();
             using var responseStream = await client.GetStreamAsync(url);
             using var memory = new MemoryStream();
             await responseStream.CopyToAsync(memory);
