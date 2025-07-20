@@ -10,7 +10,7 @@ namespace DomainDetective.Tests {
             var method = typeof(DnsSecAnalysis).GetMethod("ParseRrsig", BindingFlags.NonPublic | BindingFlags.Static)!;
             var info = (RrsigInfo)method.Invoke(null, new object[] { record })!;
             Assert.Equal(2371, info.KeyTag);
-            Assert.Equal("ECDSAP256SHA256", info.Algorithm);
+            Assert.Equal(DnsAlgorithm.ECDSAP256SHA256, info.Algorithm);
             Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1750395284), info.Inception);
             Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1755665684), info.Expiration);
         }

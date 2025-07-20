@@ -518,12 +518,36 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[6], out int keyTag);
 
-            string algorithm = parts[1];
+            DnsAlgorithm algorithm = DnsAlgorithm.Unknown;
             if (int.TryParse(parts[1], out int algNum)) {
-                string name = DNSKeyAnalysis.AlgorithmName(algNum);
-                if (!string.IsNullOrEmpty(name)) {
-                    algorithm = name;
-                }
+                algorithm = algNum switch {
+                    0 => DnsAlgorithm.DELETE,
+                    1 => DnsAlgorithm.RSAMD5,
+                    2 => DnsAlgorithm.DH,
+                    3 => DnsAlgorithm.DSA,
+                    4 => DnsAlgorithm.ECC,
+                    5 => DnsAlgorithm.RSASHA1,
+                    6 => DnsAlgorithm.DSANSEC3SHA1,
+                    7 => DnsAlgorithm.RSASHA1NSEC3SHA1,
+                    8 => DnsAlgorithm.RSASHA256,
+                    9 => DnsAlgorithm.RESERVED9,
+                    10 => DnsAlgorithm.RSASHA512,
+                    11 => DnsAlgorithm.RESERVED11,
+                    12 => DnsAlgorithm.ECCGOST,
+                    13 => DnsAlgorithm.ECDSAP256SHA256,
+                    14 => DnsAlgorithm.ECDSAP384SHA384,
+                    15 => DnsAlgorithm.ED25519,
+                    16 => DnsAlgorithm.ED448,
+                    17 => DnsAlgorithm.SM2SM3,
+                    23 => DnsAlgorithm.ECC_GOST12,
+                    252 => DnsAlgorithm.INDIRECT,
+                    253 => DnsAlgorithm.PRIVATEDNS,
+                    254 => DnsAlgorithm.PRIVATEOID,
+                    255 => DnsAlgorithm.RESERVED255,
+                    _ => DnsAlgorithm.Unknown,
+                };
+            } else if (Enum.TryParse(parts[1].Replace("-", "_"), true, out DnsAlgorithm parsed)) {
+                algorithm = parsed;
             }
 
             return new RrsigInfo {

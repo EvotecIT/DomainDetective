@@ -8,12 +8,32 @@ namespace DomainDetective {
     ///     strongly typed objects.
     /// </summary>
     public static class DnsSecConverter {
-        private static string MapAlgorithmNumber(int number) {
+        private static DnsAlgorithm MapAlgorithmNumber(int number) {
             return number switch {
-                8 => "RSASHA256",
-                13 => "ECDSAP256SHA256",
-                14 => "ECDSAP384SHA384",
-                _ => DNSKeyAnalysis.AlgorithmName(number) ?? string.Empty,
+                0 => DnsAlgorithm.DELETE,
+                1 => DnsAlgorithm.RSAMD5,
+                2 => DnsAlgorithm.DH,
+                3 => DnsAlgorithm.DSA,
+                4 => DnsAlgorithm.ECC,
+                5 => DnsAlgorithm.RSASHA1,
+                6 => DnsAlgorithm.DSANSEC3SHA1,
+                7 => DnsAlgorithm.RSASHA1NSEC3SHA1,
+                8 => DnsAlgorithm.RSASHA256,
+                9 => DnsAlgorithm.RESERVED9,
+                10 => DnsAlgorithm.RSASHA512,
+                11 => DnsAlgorithm.RESERVED11,
+                12 => DnsAlgorithm.ECCGOST,
+                13 => DnsAlgorithm.ECDSAP256SHA256,
+                14 => DnsAlgorithm.ECDSAP384SHA384,
+                15 => DnsAlgorithm.ED25519,
+                16 => DnsAlgorithm.ED448,
+                17 => DnsAlgorithm.SM2SM3,
+                23 => DnsAlgorithm.ECC_GOST12,
+                252 => DnsAlgorithm.INDIRECT,
+                253 => DnsAlgorithm.PRIVATEDNS,
+                254 => DnsAlgorithm.PRIVATEOID,
+                255 => DnsAlgorithm.RESERVED255,
+                _ => DnsAlgorithm.Unknown,
             };
         }
 
@@ -69,12 +89,11 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[0], out int keyTag);
             _ = int.TryParse(parts[2], out int digestType);
-            string algorithm = parts[1];
+            DnsAlgorithm algorithm = DnsAlgorithm.Unknown;
             if (int.TryParse(parts[1], out int algNum)) {
-                string name = MapAlgorithmNumber(algNum);
-                if (!string.IsNullOrEmpty(name)) {
-                    algorithm = name;
-                }
+                algorithm = MapAlgorithmNumber(algNum);
+            } else if (Enum.TryParse(parts[1].Replace("-", "_"), true, out DnsAlgorithm parsed)) {
+                algorithm = parsed;
             }
             return new DsRecordInfo {
                 KeyTag = keyTag,
@@ -96,12 +115,11 @@ namespace DomainDetective {
 
             _ = int.TryParse(parts[0], out int flags);
             _ = byte.TryParse(parts[1], out byte protocol);
-            string algorithm = parts[2];
+            DnsAlgorithm algorithm = DnsAlgorithm.Unknown;
             if (int.TryParse(parts[2], out int algNum)) {
-                string name = MapAlgorithmNumber(algNum);
-                if (!string.IsNullOrEmpty(name)) {
-                    algorithm = name;
-                }
+                algorithm = MapAlgorithmNumber(algNum);
+            } else if (Enum.TryParse(parts[2].Replace("-", "_"), true, out DnsAlgorithm parsed)) {
+                algorithm = parsed;
             }
             return new DnsKeyInfo {
                 Flags = flags,
@@ -164,8 +182,8 @@ namespace DomainDetective {
         /// <summary>Key tag value.</summary>
         public int KeyTag { get; set; }
 
-        /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        /// <summary>Algorithm used to generate the signature.</summary>
+        public DnsAlgorithm Algorithm { get; set; }
 
         /// <summary>Digest type identifier.</summary>
         public int DigestType { get; set; }
@@ -188,8 +206,8 @@ namespace DomainDetective {
         /// <summary>Protocol value.</summary>
         public byte Protocol { get; set; }
 
-        /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        /// <summary>Algorithm used to generate the key.</summary>
+        public DnsAlgorithm Algorithm { get; set; }
 
         /// <summary>Base64 encoded public key.</summary>
         public string PublicKey { get; set; }
@@ -206,8 +224,8 @@ namespace DomainDetective {
         /// <summary>Key tag value.</summary>
         public int KeyTag { get; set; }
 
-        /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        /// <summary>Algorithm used to sign the record.</summary>
+        public DnsAlgorithm Algorithm { get; set; }
 
         /// <summary>Signature inception time.</summary>
         public DateTimeOffset Inception { get; set; }
