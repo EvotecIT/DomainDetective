@@ -11,12 +11,12 @@ using System.Collections.Generic;
     /// </remarks>
     public class DnsblConfiguration {
         /// <summary>Gets or sets the list of DNSBL providers.</summary>
-        public List<DnsblEntry> Providers { get; set; } = new();
+        public DnsblEntryCollection Providers { get; set; } = new();
 
         /// <summary>Gets or sets domain based block lists.</summary>
-        public List<DnsblEntry> DomainBlockLists { get; set; } = new();
+        public DnsblEntryCollection DomainBlockLists { get; set; } = new();
 
         /// <summary>Gets or sets IP based block lists.</summary>
-        public List<BlockListEntry> IpBlockLists { get; set; } = new();
+        public BlockListEntryCollection IpBlockLists { get; set; } = new();
     }
 }
