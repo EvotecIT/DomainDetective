@@ -18,7 +18,7 @@ namespace DomainDetective.Tests {
 
             analysis.AddServer(new PublicDnsEntry {
                 IPAddress = IPAddress.Parse("1.2.3.4"),
-                Country = "Test",
+                Country = CountryId.UnitedStates,
                 ASN = "65000"
             });
 
@@ -39,7 +39,7 @@ namespace DomainDetective.Tests {
 
             analysis.AddServer(new PublicDnsEntry {
                 IPAddress = IPAddress.Parse("1.2.3.4"),
-                Country = "Test",
+                Country = CountryId.UnitedStates,
                 ASN = "65000"
             });
 

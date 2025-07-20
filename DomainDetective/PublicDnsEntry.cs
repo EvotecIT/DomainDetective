@@ -5,13 +5,13 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class PublicDnsEntry {
         /// <summary>Gets the country of the DNS server.</summary>
-        public string Country { get; init; }
+        public CountryId? Country { get; init; }
         /// <summary>Gets the IP address of the DNS server.</summary>
         public System.Net.IPAddress IPAddress { get; init; }
         /// <summary>Gets the host name of the DNS server.</summary>
         public string HostName { get; init; }
         /// <summary>Gets the location description.</summary>
-        public string Location { get; init; }
+        public LocationId? Location { get; init; }
         /// <summary>Gets the ASN of the DNS server.</summary>
         public string ASN { get; init; }
         /// <summary>Gets the ASN name of the DNS server.</summary>

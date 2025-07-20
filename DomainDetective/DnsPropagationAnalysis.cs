@@ -23,6 +23,16 @@ namespace DomainDetective {
     /// </remarks>
     public class DnsPropagationAnalysis {
         private readonly List<PublicDnsEntry> _servers = new();
+
+        private sealed class PublicDnsEntryRaw {
+            public string? Country { get; set; }
+            public IPAddress IPAddress { get; set; } = IPAddress.Any;
+            public string? HostName { get; set; }
+            public string? Location { get; set; }
+            public string? ASN { get; set; }
+            public string? ASNName { get; set; }
+            public bool Enabled { get; set; } = true;
+        }
         /// <summary>
         /// Thread-safe random number generator used for selecting a subset of servers.
         /// </summary>
@@ -74,7 +84,7 @@ namespace DomainDetective {
             using var stream = File.OpenRead(filePath);
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             options.Converters.Add(new IPAddressJsonConverter());
-            var servers = JsonSerializer.DeserializeAsync<List<PublicDnsEntry>>(stream, options)
+            var servers = JsonSerializer.DeserializeAsync<List<PublicDnsEntryRaw>>(stream, options)
                 .GetAwaiter().GetResult();
             if (servers == null) {
                 throw new InvalidDataException("DNS server list is empty or invalid.");
@@ -87,11 +97,21 @@ namespace DomainDetective {
                     throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
                 }
 
+                CountryId? country = null;
+                if (CountryIdExtensions.TryParse(entry.Country?.Trim(), out var c)) {
+                    country = c;
+                }
+
+                LocationId? location = null;
+                if (LocationIdExtensions.TryParse(entry.Location?.Trim(), out var l)) {
+                    location = l;
+                }
+
                 var trimmed = new PublicDnsEntry {
-                    Country = entry.Country?.Trim(),
+                    Country = country,
                     IPAddress = ip,
                     HostName = entry.HostName?.Trim(),
-                    Location = entry.Location?.Trim(),
+                    Location = location,
                     ASN = entry.ASN,
                     ASNName = entry.ASNName?.Trim(),
                     Enabled = entry.Enabled
@@ -121,7 +141,7 @@ namespace DomainDetective {
             var json = reader.ReadToEnd();
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             options.Converters.Add(new IPAddressJsonConverter());
-            var servers = JsonSerializer.Deserialize<List<PublicDnsEntry>>(json, options);
+            var servers = JsonSerializer.Deserialize<List<PublicDnsEntryRaw>>(json, options);
             if (servers == null) {
                 return;
             }
@@ -133,11 +153,21 @@ namespace DomainDetective {
                     throw new FormatException($"Invalid IP address '{entry.IPAddress}'");
                 }
 
+                CountryId? country = null;
+                if (CountryIdExtensions.TryParse(entry.Country?.Trim(), out var c)) {
+                    country = c;
+                }
+
+                LocationId? location = null;
+                if (LocationIdExtensions.TryParse(entry.Location?.Trim(), out var l)) {
+                    location = l;
+                }
+
                 var trimmed = new PublicDnsEntry {
-                    Country = entry.Country?.Trim(),
+                    Country = country,
                     IPAddress = ip,
                     HostName = entry.HostName?.Trim(),
-                    Location = entry.Location?.Trim(),
+                    Location = location,
                     ASN = entry.ASN,
                     ASNName = entry.ASNName?.Trim(),
                     Enabled = entry.Enabled
@@ -249,12 +279,10 @@ namespace DomainDetective {
         public IEnumerable<PublicDnsEntry> FilterServers(CountryId? country = null, LocationId? location = null, int? take = null) {
             IEnumerable<PublicDnsEntry> query = _servers.Where(s => s.Enabled);
             if (country.HasValue) {
-                var name = country.Value.ToName();
-                query = query.Where(s => string.Equals(s.Country, name, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(s => s.Country == country);
             }
             if (location.HasValue) {
-                var name = location.Value.ToName();
-                query = query.Where(s => s.Location != null && s.Location.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+                query = query.Where(s => s.Location == location);
             }
             if (take.HasValue) {
                 query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);
@@ -298,14 +326,10 @@ namespace DomainDetective {
                     continue;
                 }
 
-                string name;
-                if (CountryIdExtensions.TryParse(kvp.Key, out var id)) {
-                    name = id.ToName();
-                } else {
+                if (!CountryIdExtensions.TryParse(kvp.Key, out var id)) {
                     try {
                         var region = new System.Globalization.RegionInfo(kvp.Key);
-                        name = region.EnglishName;
-                        if (!CountryIdExtensions.TryParse(name, out id)) {
+                        if (!CountryIdExtensions.TryParse(region.EnglishName, out id)) {
                             continue;
                         }
                     } catch (ArgumentException) {
@@ -524,8 +548,8 @@ namespace DomainDetective {
                 }
                 list.Add(new DnsComparisonEntry {
                     IPAddress = res.Server.IPAddress.ToString(),
-                    Country = res.Server.Country,
-                    Location = res.Server.Location
+                    Country = res.Server.Country?.ToName(),
+                    Location = res.Server.Location?.ToName()
                 });
             }
             return comparison;

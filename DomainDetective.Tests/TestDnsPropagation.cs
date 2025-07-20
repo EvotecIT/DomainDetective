@@ -15,7 +15,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public void AddAndRemoveServerWorks() {
             var analysis = new DnsPropagationAnalysis();
-            var entry = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1"), Country = "Test" };
+            var entry = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1"), Country = CountryId.UnitedStates };
             analysis.AddServer(entry);
             Assert.Contains(analysis.Servers, s => s.IPAddress.Equals(IPAddress.Parse("1.1.1.1")));
             analysis.RemoveServer("1.1.1.1");
@@ -25,7 +25,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public void RemoveServerHandlesIpv4Mapped() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = CountryId.UnitedStates });
             analysis.RemoveServer("::ffff:192.0.2.1");
             Assert.Empty(analysis.Servers);
         }
@@ -33,7 +33,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task QueryHandlesDownServer() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = CountryId.UnitedStates });
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, analysis.Servers, maxParallelism: 1);
             Assert.Single(results);
             Assert.False(results[0].Success);
@@ -42,7 +42,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task QueryHonorsCancellation() {
             var analysis = new DnsPropagationAnalysis();
-            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = "Test" });
+            analysis.AddServer(new PublicDnsEntry { IPAddress = IPAddress.Parse("192.0.2.1"), Country = CountryId.UnitedStates });
             using var cts = new CancellationTokenSource();
             cts.Cancel();
 
@@ -194,7 +194,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public void LoadServersTrimsWhitespace() {
-            var json = "[{\"Country\":\" Test \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
+            var json = "[{\"Country\":\" United States \",\"IPAddress\":\"1.2.3.4\",\"HostName\":\" example.com \",\"Location\":\" Somewhere \",\"ASN\":\"123\",\"ASNName\":\" Example ASN \"}]";
 
             var file = Path.GetTempFileName();
             try {
@@ -206,9 +206,9 @@ namespace DomainDetective.Tests {
                 using (File.Open(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
 
                 var server = Assert.Single(analysis.Servers);
-                Assert.Equal("Test", server.Country);
+                Assert.Equal(CountryId.UnitedStates, server.Country);
                 Assert.Equal("example.com", server.HostName);
-                Assert.Equal("Somewhere", server.Location);
+                Assert.Null(server.Location);
                 Assert.Equal("Example ASN", server.ASNName);
             }
             finally {

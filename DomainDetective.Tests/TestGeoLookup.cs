@@ -22,7 +22,7 @@ namespace DomainDetective.Tests {
                 DnsQueryOverride = (_, _, _, _) => Task.FromResult<IEnumerable<string>>(new[] { "1.2.3.4" }),
                 GeoLookupOverride = (ip, _) => Task.FromResult<GeoLocationInfo?>(new GeoLocationInfo { Country = "US", Region = "Test" })
             };
-            var server = new PublicDnsEntry { IPAddress = IPAddress.Loopback, Country = "Test", Enabled = true };
+            var server = new PublicDnsEntry { IPAddress = IPAddress.Loopback, Country = CountryId.UnitedStates, Enabled = true };
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, new[] { server }, includeGeo: true);
             var result = Assert.Single(results);
             Assert.NotNull(result.Geo);
@@ -35,7 +35,7 @@ namespace DomainDetective.Tests {
                 DnsQueryOverride = (_, _, _, _) => Task.FromResult<IEnumerable<string>>(new[] { "1.2.3.4" }),
                 GeoLookupOverride = (_, _) => Task.FromResult<GeoLocationInfo?>(new GeoLocationInfo { Country = "US", Region = "Nope" })
             };
-            var server = new PublicDnsEntry { IPAddress = IPAddress.Loopback, Country = "Test", Enabled = true };
+            var server = new PublicDnsEntry { IPAddress = IPAddress.Loopback, Country = CountryId.UnitedStates, Enabled = true };
             var results = await analysis.QueryAsync("example.com", DnsRecordType.A, new[] { server }, includeGeo: false);
             var result = Assert.Single(results);
             Assert.Null(result.Geo);

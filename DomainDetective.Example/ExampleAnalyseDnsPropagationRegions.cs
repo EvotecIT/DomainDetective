@@ -25,7 +25,7 @@ namespace DomainDetective.Example {
 
             var grouped = results.GroupBy(r => r.Server.Country);
             foreach (var group in grouped) {
-                Console.WriteLine($"--- {group.Key} ---");
+                Console.WriteLine($"--- {group.Key?.ToName()} ---");
                 foreach (var result in group) {
                     var records = string.Join(',', result.Records);
                     Console.WriteLine($"{result.Server.IPAddress} - Success:{result.Success} Records:{records} Time:{result.Duration.TotalMilliseconds}ms");
