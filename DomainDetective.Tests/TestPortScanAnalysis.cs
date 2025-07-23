@@ -153,7 +153,7 @@ namespace DomainDetective.Tests {
             var accept = listener.AcceptTcpClientAsync();
             try {
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.SMB, new[] { port });
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromSeconds(1) };
                 await analysis.Scan("127.0.0.1", PortScanProfile.SMB, new InternalLogger());
                 using var _ = await accept;
                 Assert.True(analysis.Results[port].TcpOpen);

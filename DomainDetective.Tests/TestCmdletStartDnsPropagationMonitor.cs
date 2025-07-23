@@ -51,4 +51,22 @@ public class TestCmdletStartDnsPropagationMonitor {
         Assert.Single(analysis!.Servers);
         Assert.Equal("192.0.2.1", analysis.Servers[0].IPAddress.ToString());
     }
+
+    [Fact]
+    public void AssignsWebhookNotifierWhenUrlProvided() {
+        using var ps = Pwsh.Create();
+        ps.AddCommand("Import-Module").AddArgument(typeof(CmdletStartDnsPropagationMonitor).Assembly.Location).Invoke();
+        ps.Commands.Clear();
+        ps.AddCommand("Start-DnsPropagationMonitor")
+            .AddParameter("DomainName", "example.com")
+            .AddParameter("RecordType", DnsRecordType.A)
+            .AddParameter("IntervalSeconds", 1)
+            .AddParameter("WebhookUrl", "https://example.com/hook");
+        var results = ps.Invoke();
+        Assert.Empty(ps.Streams.Error);
+        Assert.Single(results);
+        var monitor = Assert.IsType<DnsPropagationMonitor>(results[0].BaseObject);
+        monitor.Stop();
+        Assert.IsType<WebhookNotificationSender>(monitor.Notifier);
+    }
 }

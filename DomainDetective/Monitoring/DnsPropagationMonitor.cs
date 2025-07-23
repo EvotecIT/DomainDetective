@@ -26,6 +26,24 @@ namespace DomainDetective.Monitoring {
         /// <summary>Notification sender.</summary>
         public INotificationSender? Notifier { get; set; }
 
+        /// <summary>Configure a webhook notification.</summary>
+        public void UseWebhook(string url)
+        {
+            Notifier = NotificationSenderFactory.CreateWebhook(url);
+        }
+
+        /// <summary>Configure an email notification.</summary>
+        public void UseEmail(string smtpHost, int port, bool useSsl, string from, string to, string? username = null, string? password = null)
+        {
+            Notifier = NotificationSenderFactory.CreateEmail(smtpHost, port, useSsl, from, to, username, password);
+        }
+
+        /// <summary>Configure a custom notification handler.</summary>
+        public void UseCustom(Func<string, CancellationToken, Task> handler)
+        {
+            Notifier = NotificationSenderFactory.CreateCustom(handler);
+        }
+
         /// <summary>Override query for testing.</summary>
         public Func<IEnumerable<PublicDnsEntry>, CancellationToken, Task<List<DnsPropagationResult>>>? QueryOverride { private get; set; }
 

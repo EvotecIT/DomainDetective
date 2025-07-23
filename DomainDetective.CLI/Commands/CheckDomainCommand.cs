@@ -46,7 +46,7 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
 
         var selected = new List<HealthCheckType>();
         foreach (var check in settings.Checks.SelectMany(c => c.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))) {
-            if (CommandUtilities.Options.TryGetValue(check.ToLowerInvariant(), out var type)) {
+            if (Enum.TryParse<HealthCheckType>(check, true, out var type)) {
                 selected.Add(type);
             }
         }

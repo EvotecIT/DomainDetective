@@ -132,21 +132,19 @@ public partial class BimiAnalysis {
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
         }
 
-        private HttpClient GetClient(out bool dispose)
+        private (HttpClient client, bool dispose) GetOrCreateClient()
         {
             if (HttpHandlerFactory != null)
             {
-                dispose = true;
-                return new HttpClient(HttpHandlerFactory(), disposeHandler: true);
+                return (new HttpClient(HttpHandlerFactory(), disposeHandler: true), true);
             }
 
-            dispose = false;
-            return _client;
+            return (_client, false);
         }
 
         private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                var client = GetClient(out var dispose);
+                var (client, dispose) = GetOrCreateClient();
                 try {
                     using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {
@@ -187,7 +185,7 @@ public partial class BimiAnalysis {
 
         private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
             try {
-                var client = GetClient(out var dispose);
+                var (client, dispose) = GetOrCreateClient();
                 try {
                     using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode) {

@@ -16,35 +16,7 @@ namespace DomainDetective.CLI;
 /// Helper methods used by CLI commands.
 /// </summary>
 internal static class CommandUtilities {
-    internal static readonly Dictionary<string, HealthCheckType> Options = new() {
-        ["dmarc"] = HealthCheckType.DMARC,
-        ["spf"] = HealthCheckType.SPF,
-        ["dkim"] = HealthCheckType.DKIM,
-        ["mx"] = HealthCheckType.MX,
-        ["caa"] = HealthCheckType.CAA,
-        ["ns"] = HealthCheckType.NS,
-        ["delegation"] = HealthCheckType.DELEGATION,
-        ["zonetransfer"] = HealthCheckType.ZONETRANSFER,
-        ["dane"] = HealthCheckType.DANE,
-        ["smimea"] = HealthCheckType.SMIMEA,
-        ["dnssec"] = HealthCheckType.DNSSEC,
-        ["dnsbl"] = HealthCheckType.DNSBL,
-        ["contact"] = HealthCheckType.CONTACT,
-        ["arc"] = HealthCheckType.ARC,
-        ["danglingcname"] = HealthCheckType.DANGLINGCNAME,
-        ["banner"] = HealthCheckType.SMTPBANNER,
-        ["rdns"] = HealthCheckType.REVERSEDNS,
-        ["fcrdns"] = HealthCheckType.FCRDNS,
-        ["autodiscover"] = HealthCheckType.AUTODISCOVER,
-        ["ports"] = HealthCheckType.PORTAVAILABILITY,
-        ["portscan"] = HealthCheckType.PORTSCAN,
-        ["ipneighbor"] = HealthCheckType.IPNEIGHBOR,
-        ["rpki"] = HealthCheckType.RPKI,
-        ["rdap"] = HealthCheckType.RDAP,
-        ["dnstunneling"] = HealthCheckType.DNSTUNNELING,
-        ["wildcarddns"] = HealthCheckType.WILDCARDDNS,
-        ["edns"] = HealthCheckType.EDNSSUPPORT
-    };
+    internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
 
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
@@ -148,10 +120,15 @@ internal static class CommandUtilities {
             .Title("Select checks to run")
             .NotRequired()
             .InstructionsText("[grey](Press <space> to toggle, <enter> to accept)[/]")
-            .AddChoices(Options.Keys);
+            .AddChoices(CheckNames);
 
         var selected = AnsiConsole.Prompt(checkPrompt);
-        var checks = selected.Count > 0 ? selected.Select(c => Options[c]).ToArray() : null;
+        var checks = selected.Count > 0
+            ? selected.Select(c => Enum.TryParse<HealthCheckType>(c, true, out var val) ? val : (HealthCheckType?)null)
+                .Where(v => v.HasValue)
+                .Select(v => v!.Value)
+                .ToArray()
+            : null;
 
         var outputJson = AnsiConsole.Confirm("Output JSON?");
         var summaryOnly = !outputJson && AnsiConsole.Confirm("Show condensed summary?");
@@ -217,7 +194,7 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                 continue;
             }
 
-            var activeChecks = checks ?? Options.Values.ToArray();
+            var activeChecks = checks ?? Enum.GetValues<HealthCheckType>();
             foreach (var check in activeChecks) {
                 object? data = check switch {
                     HealthCheckType.DMARC => hc.DmarcAnalysis,
