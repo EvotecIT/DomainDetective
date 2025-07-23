@@ -207,8 +207,8 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsSnmpUdpBanner() {
-            var port = GetFreePort();
-            var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+            using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+            var port = ((IPEndPoint)udp.Client.LocalEndPoint!).Port;
             var task = Task.Run(async () => {
                 var r = await udp.ReceiveAsync();
                 await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
@@ -218,7 +218,6 @@ namespace DomainDetective.Tests {
                 await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
                 Assert.Equal("SNMP", analysis.Results[port].Banner);
             } finally {
-                udp.Close();
                 await task;
             }
         }
