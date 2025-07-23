@@ -209,6 +209,7 @@ namespace DomainDetective.Tests {
         public async Task DetectsSnmpUdpBanner() {
             using var udp = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
             var port = ((IPEndPoint)udp.Client.LocalEndPoint!).Port;
+            PortHelper.ReservePort(port);
             var task = Task.Run(async () => {
                 var r = await udp.ReceiveAsync();
                 await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);

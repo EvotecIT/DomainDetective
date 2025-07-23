@@ -20,4 +20,10 @@ internal static class PortHelper {
             return port;
         }
     }
+
+    public static void ReservePort(int port) {
+        lock (PortLock) {
+            UsedPorts.Add(port);
+        }
+    }
 }
