@@ -17,9 +17,14 @@ namespace DomainDetective.Tests {
             var hc = new DomainHealthCheck();
             var method = typeof(DomainHealthCheck).GetMethod(methodName)!;
             var parameters = method.GetParameters();
-            object[] args = parameters.Length == 2
-                ? new object[] { "com", default(System.Threading.CancellationToken) }
-                : new object[] { "com", 25, default(System.Threading.CancellationToken) };
+            object[] args;
+            if (parameters.Length == 2) {
+                args = new object[] { "com", default(System.Threading.CancellationToken) };
+            } else {
+                var port = PortHelper.GetFreePort();
+                args = new object[] { "com", port, default(System.Threading.CancellationToken) };
+                PortHelper.ReleasePort(port);
+            }
             var task = (Task)method.Invoke(hc, args)!;
             await task;
             Assert.True(hc.IsPublicSuffix);

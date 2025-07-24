@@ -91,8 +91,10 @@ public class TestMailTlsAnalysis
     public async Task ConnectionTimeoutReturnsDefault()
     {
         var analysis = new IMAPTLSAnalysis { Timeout = TimeSpan.FromMilliseconds(300) };
-        await analysis.AnalyzeServer("203.0.113.1", 143, new InternalLogger());
-        var result = analysis.ServerResults["203.0.113.1:143"];
+        var port = PortHelper.GetFreePort();
+        await analysis.AnalyzeServer("203.0.113.1", port, new InternalLogger());
+        var result = analysis.ServerResults[$"203.0.113.1:{port}"];
+        PortHelper.ReleasePort(port);
         Assert.False(result.StartTlsAdvertised);
         Assert.Null(result.Certificate);
     }

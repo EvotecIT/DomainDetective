@@ -11,8 +11,10 @@ public class TestDnsPropagationMonitorFactory {
         monitor.UseWebhook("https://example.com");
         Assert.IsType<WebhookNotificationSender>(monitor.Notifier);
 
-        monitor.UseEmail("smtp", 25, false, "from@e.com", "to@e.com");
+        var port = PortHelper.GetFreePort();
+        monitor.UseEmail("smtp", port, false, "from@e.com", "to@e.com");
         Assert.IsType<EmailNotificationSender>(monitor.Notifier);
+        PortHelper.ReleasePort(port);
 
         monitor.UseCustom((_, _) => Task.CompletedTask);
         Assert.IsType<DelegateNotificationSender>(monitor.Notifier);

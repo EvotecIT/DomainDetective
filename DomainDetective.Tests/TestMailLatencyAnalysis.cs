@@ -41,8 +41,10 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task RecordsConnectTimeout() {
             var analysis = new MailLatencyAnalysis { Timeout = TimeSpan.FromMilliseconds(300) };
-            await analysis.AnalyzeServer("203.0.113.1", 25, new InternalLogger());
-            var result = analysis.ServerResults["203.0.113.1:25"];
+            var port = PortHelper.GetFreePort();
+            await analysis.AnalyzeServer("203.0.113.1", port, new InternalLogger());
+            var result = analysis.ServerResults[$"203.0.113.1:{port}"];
+            PortHelper.ReleasePort(port);
             Assert.False(result.ConnectSuccess);
         }
     }

@@ -20,8 +20,10 @@ public class TestIdnValidation
     {
         var method = typeof(DomainHealthCheck)
             .GetMethod("ValidateHostName", BindingFlags.NonPublic | BindingFlags.Static)!;
-        var result = (string)method.Invoke(null, new object[] { "bücher.de:25" })!;
-        Assert.Equal("xn--bcher-kva.de:25", result);
+        var port = PortHelper.GetFreePort();
+        var result = (string)method.Invoke(null, new object[] { $"bücher.de:{port}" })!;
+        Assert.Equal($"xn--bcher-kva.de:{port}", result);
+        PortHelper.ReleasePort(port);
     }
 
     [Fact]
