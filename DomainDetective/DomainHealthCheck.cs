@@ -16,6 +16,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public partial class DomainHealthCheck : Settings {
         private PublicSuffixList _publicSuffixList;
+        private readonly List<LogEventArgs> _progressEvents = new();
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
         /// <summary>
@@ -388,6 +389,7 @@ namespace DomainDetective {
                 _logger = internalLogger;
             }
             _logger.ClearLoggedMessages();
+            _logger.OnProgressMessage += (_, e) => _progressEvents.Add(e);
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
@@ -491,4 +493,8 @@ namespace DomainDetective {
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
         }
 
-    }}
+        /// <summary>Returns progress events captured during execution.</summary>
+        public IReadOnlyList<LogEventArgs> GetProgressEvents() => _progressEvents.AsReadOnly();
+
+    }
+}
