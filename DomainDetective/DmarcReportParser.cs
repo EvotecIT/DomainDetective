@@ -9,7 +9,10 @@ using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
-/// <summary>Parser for zipped DMARC feedback reports.</summary>
+/// <summary>
+/// Parser for zipped DMARC feedback reports.
+/// Handles internationalized domains and computes pass/fail counts.
+/// </summary>
 public static class DmarcReportParser {
     /// <summary>Parses the specified zip file and returns per-domain statistics.</summary>
     /// <param name="path">Path to the zipped XML feedback report.</param>
@@ -24,8 +27,15 @@ public static class DmarcReportParser {
         XDocument doc = XDocument.Load(stream);
         var table = new Dictionary<string, DmarcFeedbackSummary>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in doc.Descendants("record")) {
-            string domain = record.Element("identifiers")?.Element("header_from")?.Value ?? string.Empty;
-            if (string.IsNullOrEmpty(domain)) {
+            string header = record.Element("identifiers")?.Element("header_from")?.Value ?? string.Empty;
+            if (string.IsNullOrEmpty(header)) {
+                continue;
+            }
+
+            string domain;
+            try {
+                domain = DomainHelper.ValidateIdn(header);
+            } catch (ArgumentException) {
                 continue;
             }
 
@@ -36,12 +46,18 @@ public static class DmarcReportParser {
 
             // Extract disposition and message count
             string disposition = record.Element("row")?.Element("policy_evaluated")?.Element("disposition")?.Value ?? string.Empty;
+            string dkim = record.Element("row")?.Element("policy_evaluated")?.Element("dkim")?.Value ?? string.Empty;
+            string spf = record.Element("row")?.Element("policy_evaluated")?.Element("spf")?.Value ?? string.Empty;
             string countStr = record.Element("row")?.Element("count")?.Value ?? "1";
             if (!int.TryParse(countStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out int count)) {
                 count = 1;
             }
 
-            if (disposition.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+            bool isPass = disposition.Equals("none", StringComparison.OrdinalIgnoreCase)
+                || (dkim.Equals("pass", StringComparison.OrdinalIgnoreCase)
+                    && (string.IsNullOrEmpty(spf) || spf.Equals("pass", StringComparison.OrdinalIgnoreCase)));
+
+            if (isPass) {
                 summary.PassCount += count;
             } else {
                 summary.FailCount += count;
