@@ -116,6 +116,9 @@
         <None Include="Data/dmarc_forensic.b64">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Include="Data/dmarc_forensic_rfc822.b64">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="Data/rdap/domain/example.com.json">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
