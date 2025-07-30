@@ -32,10 +32,12 @@ public static class DmarcForensicParser {
     /// <param name="message">MIME message to parse.</param>
     /// <returns>Parsed report, or null if parsing failed.</returns>
     public static DmarcForensicReport? ParseMessage(MimeMessage message) {
-        // Extract report body from rfc822-headers part
+        // Extract report body from the feedback report part
         var reportPart = message.BodyParts
             .OfType<MimePart>()
-            .FirstOrDefault(p => p.ContentType.MimeType == "text/rfc822-headers");
+            .FirstOrDefault(
+                p => string.Equals(p.ContentType.MimeType, "text/rfc822-headers", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(p.ContentType.MimeType, "message/feedback-report", StringComparison.OrdinalIgnoreCase));
         if (reportPart == null) {
             return null;
         }
@@ -57,10 +59,14 @@ public static class DmarcForensicParser {
                     var end = line.IndexOf(';', start);
                     report.SourceIp = end >= 0 ? line.Substring(start, end - start).Trim() : line.Substring(start).Trim();
                 }
+            } else if (line.StartsWith("Source-IP:", StringComparison.OrdinalIgnoreCase)) {
+                report.SourceIp = line.Substring(10).Trim();
             } else if (line.StartsWith("From:", StringComparison.OrdinalIgnoreCase)) {
                 // Extract from domain
                 var match = System.Text.RegularExpressions.Regex.Match(line, @"<([^>]+)>");
                 report.HeaderFrom = match.Success ? match.Groups[1].Value : line.Substring(5).Trim();
+            } else if (line.StartsWith("Reported-Domain:", StringComparison.OrdinalIgnoreCase)) {
+                report.HeaderFrom = line.Substring(15).Trim();
             } else if (line.StartsWith("Original-Mail-From:", StringComparison.OrdinalIgnoreCase)) {
                 report.OriginalMailFrom = line.Substring(19).Trim().Trim('<', '>');
             } else if (line.StartsWith("Original-Rcpt-To:", StringComparison.OrdinalIgnoreCase)) {
