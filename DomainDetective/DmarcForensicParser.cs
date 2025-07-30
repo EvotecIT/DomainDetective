@@ -34,7 +34,6 @@ public static class DmarcForensicParser {
     public static DmarcForensicReport? ParseMessage(MimeMessage message) {
         // Extract report body from the feedback report part
         var reportPart = message.BodyParts
-            .OfType<MimePart>()
             .FirstOrDefault(
                 p => string.Equals(p.ContentType.MimeType, "text/rfc822-headers", StringComparison.OrdinalIgnoreCase)
                      || string.Equals(p.ContentType.MimeType, "message/feedback-report", StringComparison.OrdinalIgnoreCase));
@@ -43,7 +42,15 @@ public static class DmarcForensicParser {
         }
 
         using var memory = new MemoryStream();
-        reportPart.Content.DecodeTo(memory);
+        if (reportPart is MimePart mimePart) {
+            mimePart.Content.DecodeTo(memory);
+        } else if (reportPart is TextPart textPart) {
+            using var writer = new StreamWriter(memory, System.Text.Encoding.UTF8, 1024, leaveOpen: true);
+            writer.Write(textPart.Text);
+            writer.Flush();
+        } else {
+            reportPart.WriteTo(memory);
+        }
         memory.Position = 0;
 
         var report = new DmarcForensicReport();
@@ -66,13 +73,18 @@ public static class DmarcForensicParser {
                 var match = System.Text.RegularExpressions.Regex.Match(line, @"<([^>]+)>");
                 report.HeaderFrom = match.Success ? match.Groups[1].Value : line.Substring(5).Trim();
             } else if (line.StartsWith("Reported-Domain:", StringComparison.OrdinalIgnoreCase)) {
-                report.HeaderFrom = line.Substring(15).Trim();
+                report.HeaderFrom = line.Substring(16).Trim();
             } else if (line.StartsWith("Original-Mail-From:", StringComparison.OrdinalIgnoreCase)) {
                 report.OriginalMailFrom = line.Substring(19).Trim().Trim('<', '>');
             } else if (line.StartsWith("Original-Rcpt-To:", StringComparison.OrdinalIgnoreCase)) {
                 report.OriginalRcptTo = line.Substring(17).Trim().Trim('<', '>');
             } else if (line.StartsWith("Arrival-Date:", StringComparison.OrdinalIgnoreCase)) {
-                if (DateTimeOffset.TryParse(line.Substring(13).Trim(), out var date)) {
+                var value = line.Substring(13).Trim();
+                var comma = value.IndexOf(',');
+                if (comma >= 0) {
+                    value = value.Substring(comma + 1).Trim();
+                }
+                if (DateTimeOffset.TryParse(value, out var date)) {
                     report.ArrivalDate = date;
                 }
             }
