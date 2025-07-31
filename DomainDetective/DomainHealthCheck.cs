@@ -500,7 +500,9 @@ namespace DomainDetective {
         }
 
         /// <summary>Returns progress events captured during execution.</summary>
-        public IReadOnlyList<LogEventArgs> GetProgressEvents() => _progressEvents.AsReadOnly();
+        public IReadOnlyList<LogEventArgs> GetProgressEvents() {
+            return _progressEvents.AsReadOnly();
+        }
 
     }
 }
