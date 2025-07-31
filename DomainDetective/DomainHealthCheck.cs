@@ -17,6 +17,11 @@ namespace DomainDetective {
     public partial class DomainHealthCheck : Settings {
         private PublicSuffixList _publicSuffixList;
         private readonly List<LogEventArgs> _progressEvents = new();
+        private void HandleProgress(object? sender, LogEventArgs e) {
+            lock (_progressEvents) {
+                _progressEvents.Add(e);
+            }
+        }
         private const string DefaultPublicSuffixListUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/public_suffix_list.dat";
 
         /// <summary>
@@ -389,7 +394,8 @@ namespace DomainDetective {
                 _logger = internalLogger;
             }
             _logger.ClearLoggedMessages();
-            _logger.OnProgressMessage += (_, e) => _progressEvents.Add(e);
+            _progressEvents.Clear();
+            _logger.OnProgressMessage += HandleProgress;
             DnsEndpoint = dnsEndpoint;
             DnsSelectionStrategy = DnsSelectionStrategy.First;
 
