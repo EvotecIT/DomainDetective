@@ -90,10 +90,10 @@ analysis.LoadDnsblConfig("DnsblProviders.json", overwriteExisting: true);
 Same actions are available from PowerShell using dedicated cmdlets:
 
 ```powershell
-Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
-Remove-DnsblProvider -Domain 'dnsbl.example.com'
-Clear-DnsblProvider
-Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
+Add-DDDnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
+Remove-DDDnsblProvider -Domain 'dnsbl.example.com'
+Clear-DDDnsblProviderList
+Import-DDDnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
 ```
 
 ### Verifying Website Certificates
@@ -210,9 +210,9 @@ Import the module and call any of the testing cmdlets:
 
 ```powershell
 Import-Module ./Module/DomainDetective.psd1 -Force
-Test-SpfRecord -DomainName "example.com"
+Test-DDEmailSpfRecord -DomainName "example.com"
 Test-Autodiscover -DomainName "example.com"
-Test-FCrDns -DomainName "example.com"
+Test-DDDnsForwardReverse -DomainName "example.com"
 ```
 
 By default, all DNS-related cmdlets use the system DNS resolver. You can specify
@@ -221,35 +221,35 @@ a different endpoint with the **-DnsEndpoint** parameter when needed.
 Analyze TTL values:
 
 ```powershell
-Test-DnsTtl -DomainName "example.com"
+Test-DDDnsTtl -DomainName "example.com"
 ```
 
 Check wildcard DNS:
 
 ```powershell
-Test-WildcardDns -DomainName "example.com"
+Test-DDDnsWildcard -DomainName "example.com"
 ```
 
 Check EDNS support:
 
 ```powershell
-Test-EdnsSupport -DomainName "example.com"
+Test-DDEdnsSupport -DomainName "example.com"
 ```
 Query an S/MIMEA record:
 ```powershell
-Test-SmimeaRecord -EmailAddress "user@example.com"
+Test-DDSmimeaRecord -EmailAddress "user@example.com"
 ```
 
 Analyze ARC headers from PowerShell:
 
 ```powershell
-Get-Content './headers.txt' -Raw | Test-Arc
+Get-Content './headers.txt' -Raw | Test-DDEmailArcRecord
 ```
 
 Validate RPKI origins:
 
 ```powershell
-Test-Rpki -DomainName "example.com"
+Test-DDRpki -DomainName "example.com"
 ```
 
 ### 🧪 DomainDetective Alias Naming – Standardized `Verb-AreaSubject` Format
