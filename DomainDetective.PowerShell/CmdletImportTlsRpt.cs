@@ -5,9 +5,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Import TLS report file.</summary>
-    ///   <code>Import-TlsRpt -Path ./report.json</code>
+    ///   <code>Import-DDTlsRpt -Path ./report.json</code>
     /// </example>
-    [Cmdlet(VerbsData.Import, "TlsRpt")]
+    [Cmdlet(VerbsData.Import, "DDTlsRpt")]
+    [Alias("Import-TlsRpt")]
     [OutputType(typeof(TlsRptSummary))]
     public sealed class CmdletImportTlsRpt : PSCmdlet {
         /// <summary>Path to the JSON report.</summary>

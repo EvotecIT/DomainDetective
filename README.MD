@@ -298,6 +298,9 @@ Test-Rpki -DomainName "example.com"
 | `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | `SecurityTXTAnalysis.AnalyzeSecurityTxtRecord` |
 | `Test-DDDomainCertificate`     | `Test-DomainCertificate` | `VerifyWebsiteCertificate`                 |
 | `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | `Verify`                                    |
+| `Test-DDDelegation`            | `Test-Delegation`        | `VerifyDelegation`                         |
+| `Test-DDReverseDns`            | `Test-ReverseDns`        | `Verify`                                    |
+| `Test-DDZoneTransfer`          | `Test-ZoneTransfer`      | `VerifyZoneTransfer`                        |
 | `Get-DDDomainHealthReport`     | `Get-DomainSummary`      | `BuildSummary`                              |
 | `Get-DDDomainWhois`            | `Get-DomainWhois`        | `CheckWHOIS`                               |
 | `Get-DDFlattenedSpfIp`         | `Get-DomainFlattenedSpfIp` | `GetFlattenedIpAddresses`               |
@@ -310,9 +313,14 @@ Test-Rpki -DomainName "example.com"
 
 ## 🔐 TLS Cmdlets
 
-| Prefixed Name                   | Alias Name | C# Method  |
-|--------------------------------|------------|------------|
-| `Test-DDTlsDaneRecord`         | `Test-TlsDane` | `VerifyDANE` |
+| Prefixed Name                   | Alias Name              | C# Method                                 |
+|--------------------------------|--------------------------|-------------------------------------------|
+| `Get-DDCertificateInfo`        | `Get-CertificateInfo`    | `CertificateAnalysis.AnalyzeCertificate` |
+| `Import-DDTlsRpt`              | `Import-TlsRpt`          | `TlsRptJsonParser.ParseReport`           |
+| `Test-DDImapTls`               | `Test-ImapTls`           | `CheckImapTlsHost`                       |
+| `Test-DDPop3Tls`               | `Test-Pop3Tls`           | `CheckPop3TlsHost`                       |
+| `Test-DDSmtpBanner`            | `Test-SmtpBanner`        | `CheckSmtpBannerHost`                    |
+| `Test-DDTlsDaneRecord`         | `Test-TlsDane`           | `VerifyDANE`                             |
 
 ## 🌐 Networking Cmdlets
 
@@ -320,6 +328,14 @@ Test-Rpki -DomainName "example.com"
 |----------------------------|-----------------------------|-----------------------|
 | `Test-DDIpNeighbor`        | `Test-NetworkIpNeighbor`    | `CheckIPNeighbors`    |
 | `Test-DDPortAvailability`  | `Test-NetworkPortAvailability` | `CheckPortAvailability` |
+| `Start-DDDnsPropagationMonitor` | `Start-DnsPropagationMonitor` | `DnsPropagationMonitor.Start` |
+| `Stop-DDDnsPropagationMonitor`  | `Stop-DnsPropagationMonitor`  | `DnsPropagationMonitor.Stop`  |
+
+## 🧰 Utility Cmdlets
+
+| Prefixed Name            | Alias Name           | C# Method                |
+|--------------------------|----------------------|--------------------------|
+| `Invoke-DDDomainWizard`  | `Invoke-DomainWizard` | `DomainHealthCheck.Verify` |
 
 ## 🛠 Configuration and Data Management
 
@@ -331,6 +347,8 @@ Test-Rpki -DomainName "example.com"
 | `Import-DDDnsblConfig`       | `Import-DnsblConfig` | `LoadDnsblConfig`          |
 | `Import-DDDmarcReport`       | `Import-DmarcReport` | `DmarcReportParser.ParseZip` |
 | `Import-DDDmarcForensic`     | `Import-DmarcForensic` | `DmarcForensicParser.ParseZip` |
+| `New-DDDmarcRecord`          | `New-DmarcRecord`    | `PublishRecordAsync`       |
+| `Test-DDDmarcAggregate`      | `Test-DmarcAggregate` | `ParseReport`              |
 
 ### MTA-STS
 

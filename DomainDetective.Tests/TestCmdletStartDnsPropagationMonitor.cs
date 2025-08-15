@@ -12,7 +12,7 @@ public class TestCmdletStartDnsPropagationMonitor {
         using var ps = Pwsh.Create();
         ps.AddCommand("Import-Module").AddArgument(typeof(CmdletStartDnsPropagationMonitor).Assembly.Location).Invoke();
         ps.Commands.Clear();
-        ps.AddCommand("Start-DnsPropagationMonitor")
+        ps.AddCommand("Start-DDDnsPropagationMonitor")
             .AddParameter("DomainName", "example.com")
             .AddParameter("RecordType", DnsRecordType.A)
             .AddParameter("IntervalSeconds", 1);
@@ -34,7 +34,7 @@ public class TestCmdletStartDnsPropagationMonitor {
         using var ps = Pwsh.Create();
         ps.AddCommand("Import-Module").AddArgument(typeof(CmdletStartDnsPropagationMonitor).Assembly.Location).Invoke();
         ps.Commands.Clear();
-        ps.AddCommand("Start-DnsPropagationMonitor")
+        ps.AddCommand("Start-DDDnsPropagationMonitor")
             .AddParameter("DomainName", "example.com")
             .AddParameter("RecordType", DnsRecordType.A)
             .AddParameter("ServersFile", file)
@@ -57,7 +57,7 @@ public class TestCmdletStartDnsPropagationMonitor {
         using var ps = Pwsh.Create();
         ps.AddCommand("Import-Module").AddArgument(typeof(CmdletStartDnsPropagationMonitor).Assembly.Location).Invoke();
         ps.Commands.Clear();
-        ps.AddCommand("Start-DnsPropagationMonitor")
+        ps.AddCommand("Start-DDDnsPropagationMonitor")
             .AddParameter("DomainName", "example.com")
             .AddParameter("RecordType", DnsRecordType.A)
             .AddParameter("IntervalSeconds", 1)

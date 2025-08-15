@@ -12,13 +12,14 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Start monitoring an A record.</summary>
-    ///   <code>Start-DnsPropagationMonitor -DomainName example.com -RecordType A -WebhookUrl https://example.com/webhook</code>
+    ///   <code>Start-DDDnsPropagationMonitor -DomainName example.com -RecordType A -WebhookUrl https://example.com/webhook</code>
     /// </example>
     [Cmdlet(
         VerbsLifecycle.Start,
-        "DnsPropagationMonitor",
+        "DDDnsPropagationMonitor",
         SupportsShouldProcess = false,
         DefaultParameterSetName = "File")]
+    [Alias("Start-DnsPropagationMonitor")]
     public sealed class CmdletStartDnsPropagationMonitor : AsyncPSCmdlet {
         /// <summary>Domain to monitor.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "File")]

@@ -12,9 +12,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Launch the wizard.</summary>
-    ///   <code>Invoke-DomainWizard</code>
+    ///   <code>Invoke-DDDomainWizard</code>
     /// </example>
-    [Cmdlet(VerbsLifecycle.Invoke, "DomainWizard")]
+    [Cmdlet(VerbsLifecycle.Invoke, "DDDomainWizard")]
+    [Alias("Invoke-DomainWizard")]
     [OutputType(typeof(DomainSummary), typeof(string))]
     public sealed class CmdletInvokeDomainWizard : AsyncPSCmdlet {
         /// <summary>

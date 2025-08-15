@@ -2,5 +2,5 @@
 
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
-$Report = Import-TlsRpt -Path './tlsrpt.json'
+$Report = Import-DDTlsRpt -Path './tlsrpt.json'
 $Report | Format-Table

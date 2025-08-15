@@ -7,9 +7,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check for open zone transfers.</summary>
-    ///   <code>Test-ZoneTransfer -DomainName example.com</code>
+    ///   <code>Test-DDZoneTransfer -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "ZoneTransfer", DefaultParameterSetName = "ServerName")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDZoneTransfer", DefaultParameterSetName = "ServerName")]
+    [Alias("Test-ZoneTransfer")]
     public sealed class CmdletTestZoneTransfer : AsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

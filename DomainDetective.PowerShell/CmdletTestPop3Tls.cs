@@ -6,9 +6,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Test POP3 TLS.</summary>
-    ///   <code>Test-Pop3Tls -HostName mail.example.com -Port 995</code>
+    ///   <code>Test-DDPop3Tls -HostName mail.example.com -Port 995</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "Pop3Tls", DefaultParameterSetName = "ServerName")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDPop3Tls", DefaultParameterSetName = "ServerName")]
+    [Alias("Test-Pop3Tls")]
     public sealed class CmdletTestPop3Tls : AsyncPSCmdlet {
         /// <summary>POP3 host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

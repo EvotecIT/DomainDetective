@@ -14,9 +14,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Summarize aggregate reports.</summary>
-    ///   <code>Get-ChildItem ./reports/*.xml | Test-DmarcAggregate</code>
+    ///   <code>Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "DmarcAggregate")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDDmarcAggregate")]
+    [Alias("Test-DmarcAggregate")]
     public sealed class CmdletTestDmarcAggregate : AsyncPSCmdlet {
         /// <para>Path to the aggregate report.</para>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]

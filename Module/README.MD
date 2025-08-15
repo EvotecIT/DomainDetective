@@ -54,9 +54,9 @@ Test-DnsNs -DomainName "example.com" -Verbose
   ```powershell
   Get-Content './headers.txt' -Raw | Get-EmailHeaderInfo
   ```
-- `Invoke-DomainWizard` – interactive helper that guides through domain checks.
+- `Invoke-DDDomainWizard` – interactive helper that guides through domain checks.
   ```powershell
-  Invoke-DomainWizard
+  Invoke-DDDomainWizard
   ```
 - `Add-DnsblProvider`, `Remove-DnsblProvider`, `Clear-DnsblProvider` and `Import-DnsblConfig` manage the list of DNSBL providers.
   ```powershell
@@ -65,6 +65,24 @@ Test-DnsNs -DomainName "example.com" -Verbose
   Clear-DnsblProvider
   Import-DnsblConfig -Path './DnsblProviders.json' -OverwriteExisting
   ```
+
+### Prefixed cmdlets
+
+| Cmdlet                          | Legacy Alias               |
+|---------------------------------|----------------------------|
+| `Get-DDCertificateInfo`         | `Get-CertificateInfo`      |
+| `Import-DDTlsRpt`               | `Import-TlsRpt`            |
+| `Invoke-DDDomainWizard`         | `Invoke-DomainWizard`      |
+| `New-DDDmarcRecord`             | `New-DmarcRecord`          |
+| `Start-DDDnsPropagationMonitor` | `Start-DnsPropagationMonitor` |
+| `Stop-DDDnsPropagationMonitor`  | `Stop-DnsPropagationMonitor`  |
+| `Test-DDDelegation`             | `Test-Delegation`          |
+| `Test-DDDmarcAggregate`         | `Test-DmarcAggregate`      |
+| `Test-DDImapTls`                | `Test-ImapTls`             |
+| `Test-DDPop3Tls`                | `Test-Pop3Tls`             |
+| `Test-DDReverseDns`             | `Test-ReverseDns`          |
+| `Test-DDSmtpBanner`             | `Test-SmtpBanner`          |
+| `Test-DDZoneTransfer`           | `Test-ZoneTransfer`        |
 
 To execute the PowerShell test suite run:
 

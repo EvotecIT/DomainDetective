@@ -6,9 +6,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Check SMTP banner.</summary>
-    ///   <code>Test-SmtpBanner -HostName mail.example.com -Port 25</code>
+    ///   <code>Test-DDSmtpBanner -HostName mail.example.com -Port 25</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "SmtpBanner", DefaultParameterSetName = "ServerName")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDSmtpBanner", DefaultParameterSetName = "ServerName")]
+    [Alias("Test-SmtpBanner")]
     public sealed class CmdletTestSmtpBanner : AsyncPSCmdlet {
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

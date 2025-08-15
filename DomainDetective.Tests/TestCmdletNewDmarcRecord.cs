@@ -32,7 +32,7 @@ public class TestCmdletNewDmarcRecord {
             using var ps = Pwsh.Create();
             ps.AddCommand("Import-Module").AddArgument(typeof(CmdletNewDmarcRecord).Assembly.Location).Invoke();
             ps.Commands.Clear();
-            ps.AddCommand("New-DmarcRecord")
+            ps.AddCommand("New-DDDmarcRecord")
                 .AddParameter("Policy", "reject")
                 .AddParameter("DomainName", "example.com")
                 .AddParameter("DnsApiUrl", prefix)
@@ -69,7 +69,7 @@ public class TestCmdletNewDmarcRecord {
             using var ps = Pwsh.Create();
             ps.AddCommand("Import-Module").AddArgument(typeof(CmdletNewDmarcRecord).Assembly.Location).Invoke();
             ps.Commands.Clear();
-            ps.AddCommand("New-DmarcRecord")
+            ps.AddCommand("New-DDDmarcRecord")
                 .AddParameter("Policy", "reject")
                 .AddParameter("DomainName", "example.com")
                 .AddParameter("DnsApiUrl", prefix)

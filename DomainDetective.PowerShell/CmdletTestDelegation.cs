@@ -6,9 +6,10 @@ namespace DomainDetective.PowerShell {
     /// <summary>Validates delegation records for a domain.</summary>
     /// <example>
     ///   <summary>Check delegation.</summary>
-    ///   <code>Test-Delegation -DomainName example.com</code>
+    ///   <code>Test-DDDelegation -DomainName example.com</code>
     /// </example>
-    [Cmdlet(VerbsDiagnostic.Test, "Delegation", DefaultParameterSetName = "ServerName")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDDelegation", DefaultParameterSetName = "ServerName")]
+    [Alias("Test-Delegation")]
     public sealed class CmdletTestDelegation : AsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]

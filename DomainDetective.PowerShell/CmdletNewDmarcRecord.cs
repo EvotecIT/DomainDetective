@@ -11,9 +11,10 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     /// <example>
     ///   <summary>Create a DMARC record.</summary>
-    ///   <code>New-DmarcRecord -Policy reject -AggregateUri mailto:reports@example.com</code>
+    ///   <code>New-DDDmarcRecord -Policy reject -AggregateUri mailto:reports@example.com</code>
     /// </example>
-    [Cmdlet(VerbsCommon.New, "DmarcRecord")]
+    [Cmdlet(VerbsCommon.New, "DDDmarcRecord")]
+    [Alias("New-DmarcRecord")]
     [OutputType(typeof(string))]
     public sealed class CmdletNewDmarcRecord : AsyncPSCmdlet {
         /// <summary>Main DMARC policy.</summary>
