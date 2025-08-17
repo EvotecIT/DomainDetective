@@ -47,12 +47,10 @@ namespace DomainDetective {
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield(); // To avoid warning about lack of 'await'
 
-            if (dnsResults == null) {
+            var dkimRecordList = dnsResults?.ToList() ?? new List<DnsAnswer>();
+            if (dkimRecordList.Count == 0) {
                 logger?.WriteVerbose("DNS query returned no results.");
-                return;
             }
-
-            var dkimRecordList = dnsResults.ToList();
             var analysis = new DkimRecordAnalysis {
                 DkimRecordExists = dkimRecordList.Any(),
                 ValidKeyType = true,
@@ -74,6 +72,7 @@ namespace DomainDetective {
             logger.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
 
             if (analysis.DkimRecord == null) {
+                AnalysisResults[selector] = analysis;
                 return;
             }
 
