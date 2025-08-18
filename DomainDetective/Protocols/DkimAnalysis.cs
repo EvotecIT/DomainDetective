@@ -69,7 +69,7 @@ namespace DomainDetective {
                 }
             }
 
-            logger.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
+            logger?.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
 
             if (analysis.DkimRecord == null) {
                 AnalysisResults[selector] = analysis;
