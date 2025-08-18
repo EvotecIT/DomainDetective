@@ -22,6 +22,8 @@ namespace DomainDetective {
     /// <remarks>
     /// DMARC TXT records are parsed and validated according to RFC 7489 with
     /// additional checks for common mistakes such as missing rua addresses.
+    /// DMARCbis handling follows draft-ietf-dmarcbis-base:
+    /// https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base
     /// </remarks>
     public class DmarcAnalysis {
         private const string TagVersion = "v";
@@ -29,11 +31,17 @@ namespace DomainDetective {
         private const string TagSubPolicy = "sp";
         private const string TagReportingInterval = "ri";
         private const string TagFailureOptions = "fo";
-        private const string TagPercent = "pct";
+        private const string TagPercent = "pct"; // deprecated in DMARCbis draft (draft-ietf-dmarcbis-base)
         private const string TagDkimAlignment = "adkim";
         private const string TagSpfAlignment = "aspf";
         private const string TagRua = "rua";
         private const string TagRuf = "ruf";
+        // DMARCbis tags defined in draft-ietf-dmarcbis-base
+        // https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base
+        private const string TagNonexistentPolicy = "np";
+        private const string TagPublicSuffixPolicy = "psd";
+        private const string TagReportFeedback = "rfb";
+        private const string TagReportFormat = "rf"; // deprecated in DMARCbis draft (draft-ietf-dmarcbis-base)
         public DnsConfiguration DnsConfiguration { get; set; }
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
         public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
@@ -52,6 +60,9 @@ namespace DomainDetective {
         public string SpfAlignment => TranslateAlignment(SpfAShort);
         public string DkimAlignment => TranslateAlignment(DkimAShort);
         public string FailureReportingOptions => TranslateFailureReportingOptions(FoShort);
+        public string NonexistentPolicy => TranslatePolicy(NonexistentPolicyShort);
+        public string PublicSuffixPolicy => TranslatePolicy(PublicSuffixPolicyShort);
+        public string ReportFeedback => RfbShort;
 
         public bool ValidDkimAlignment { get; private set; }
         public bool ValidSpfAlignment { get; private set; }
@@ -77,6 +88,7 @@ namespace DomainDetective {
         public List<string> HttpRuf { get; private set; } = new List<string>();
         public List<long?> RufSizeLimits { get; private set; } = new List<long?>();
         public List<string> UnknownTags { get; private set; } = new List<string>();
+        public List<string> DeprecatedTags { get; private set; } = new List<string>();
 
         // short versions of the tags
         public string SubPolicyShort { get; private set; }
@@ -84,6 +96,9 @@ namespace DomainDetective {
         public string FoShort { get; private set; }
         public string DkimAShort { get; private set; }
         public string SpfAShort { get; private set; }
+        public string NonexistentPolicyShort { get; private set; }
+        public string PublicSuffixPolicyShort { get; private set; }
+        public string RfbShort { get; private set; }
         public int? Pct { get; private set; }
         public int? OriginalPct { get; private set; }
         public bool IsPctValid { get; private set; }
@@ -114,11 +129,15 @@ namespace DomainDetective {
             HttpRuf = new List<string>();
             RufSizeLimits = new List<long?>();
             UnknownTags = new List<string>();
+            DeprecatedTags = new List<string>();
             SubPolicyShort = null;
             PolicyShort = null;
             FoShort = null;
             DkimAShort = null;
             SpfAShort = null;
+            NonexistentPolicyShort = null;
+            PublicSuffixPolicyShort = null;
+            RfbShort = null;
             ValidDkimAlignment = true;
             ValidSpfAlignment = true;
             InvalidReportUri = false;
@@ -199,6 +218,11 @@ namespace DomainDetective {
                             } else {
                                 IsPctValid = false;
                             }
+                            var pctPair = $"{key}={value}";
+                            if (!DeprecatedTags.Contains(pctPair)) {
+                                DeprecatedTags.Add(pctPair);
+                                logger?.WriteWarning("Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
+                            }
                             break;
                         case TagDkimAlignment:
                             DkimAShort = value;
@@ -221,6 +245,22 @@ namespace DomainDetective {
                         case TagRuf:
                             Ruf = value;
                             AddUriToList(value, MailtoRuf, HttpRuf, logger, true);
+                            break;
+                        case TagNonexistentPolicy:
+                            NonexistentPolicyShort = value;
+                            break;
+                        case TagPublicSuffixPolicy:
+                            PublicSuffixPolicyShort = value;
+                            break;
+                        case TagReportFeedback:
+                            RfbShort = value;
+                            break;
+                        case TagReportFormat:
+                            var rfPair = $"{key}={value}";
+                            if (!DeprecatedTags.Contains(rfPair)) {
+                                DeprecatedTags.Add(rfPair);
+                                logger?.WriteWarning("Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
+                            }
                             break;
                         default:
                             var tagPair = $"{key}={value}";
@@ -485,4 +525,5 @@ namespace DomainDetective {
 
 
 
-    }}
+    }
+}

@@ -374,6 +374,26 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task RecognizesDmarcBisTags() {
+            var record = "v=DMARC1; p=reject; np=none; psd=quarantine; rfb=1";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(record);
+            Assert.Equal("none", healthCheck.DmarcAnalysis.NonexistentPolicyShort);
+            Assert.Equal("quarantine", healthCheck.DmarcAnalysis.PublicSuffixPolicyShort);
+            Assert.Equal("1", healthCheck.DmarcAnalysis.RfbShort);
+            Assert.DoesNotContain("np=none", healthCheck.DmarcAnalysis.UnknownTags);
+        }
+
+        [Fact]
+        public async Task FlagsDeprecatedTags() {
+            var record = "v=DMARC1; p=none; pct=50; rf=afrf";
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckDMARC(record);
+            Assert.Contains("pct=50", healthCheck.DmarcAnalysis.DeprecatedTags);
+            Assert.Contains("rf=afrf", healthCheck.DmarcAnalysis.DeprecatedTags);
+        }
+
+        [Fact]
         public async Task InvalidReportingIntervalDefaultsToOneDay() {
             var record = "v=DMARC1; p=none; ri=bad";
             var logger = new InternalLogger();

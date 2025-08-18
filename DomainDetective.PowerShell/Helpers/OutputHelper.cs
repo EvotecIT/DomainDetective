@@ -59,6 +59,9 @@ namespace DomainDetective.PowerShell {
                 IsPolicyValid = analysis.IsPolicyValid,
                 Policy = analysis.Policy,
                 SubPolicy = analysis.SubPolicy,
+                NonexistentPolicy = analysis.NonexistentPolicy,
+                PublicSuffixPolicy = analysis.PublicSuffixPolicy,
+                ReportFeedback = analysis.ReportFeedback,
                 Percent = analysis.Percent,
                 DkimAlignment = analysis.DkimAlignment,
                 SpfAlignment = analysis.SpfAlignment,
@@ -69,7 +72,8 @@ namespace DomainDetective.PowerShell {
                 MailtoRuf = analysis.MailtoRuf,
                 HttpRuf = analysis.HttpRuf,
                 ExternalReportAuthorization = analysis.ExternalReportAuthorization,
-                InvalidReportUri = analysis.InvalidReportUri
+                InvalidReportUri = analysis.InvalidReportUri,
+                DeprecatedTags = analysis.DeprecatedTags
             };
         }
     }
@@ -173,6 +177,15 @@ namespace DomainDetective.PowerShell {
         /// <summary>Specifies the sub-domain policy for the "sp" tag.</summary>
         public string SubPolicy { get; set; }
 
+        /// <summary>Policy for nonexistent domains.</summary>
+        public string NonexistentPolicy { get; set; }
+
+        /// <summary>Policy for public suffix domains.</summary>
+        public string PublicSuffixPolicy { get; set; }
+
+        /// <summary>Requested report feedback value.</summary>
+        public string ReportFeedback { get; set; }
+
         /// <summary>Percentage applied to the policy.</summary>
         public string Percent { get; set; }
 
@@ -205,5 +218,8 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Indicates at least one report URI failed validation.</summary>
         public bool InvalidReportUri { get; set; }
+
+        /// <summary>Deprecated DMARC tags detected.</summary>
+        public IReadOnlyList<string> DeprecatedTags { get; set; }
     }
 }

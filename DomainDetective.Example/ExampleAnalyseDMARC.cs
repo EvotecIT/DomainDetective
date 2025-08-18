@@ -24,4 +24,14 @@ public static partial class Program {
         //ShowProperties("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
         Helpers.ShowPropertiesTable("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
     }
+
+    /// <summary>
+    /// Example demonstrating DMARCbis tags.
+    /// </summary>
+    public static async Task ExampleAnalyseDmarcBis() {
+        var record = "v=DMARC1; p=reject; np=reject; psd=none; rfb=1";
+        var healthCheck = new DomainHealthCheck();
+        await healthCheck.CheckDMARC(record);
+        Helpers.ShowPropertiesTable("DMARCbis example", healthCheck.DmarcAnalysis);
+    }
 }
