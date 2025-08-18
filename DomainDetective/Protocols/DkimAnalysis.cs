@@ -49,8 +49,8 @@ namespace DomainDetective {
 
             var dkimRecordList = dnsResults?.ToList() ?? new List<DnsAnswer>();
             var recordExists = dkimRecordList.Any(r =>
-                (r.DataStringsEscaped != null && r.DataStringsEscaped.Length > 0) ||
-                !string.IsNullOrEmpty(r.Data));
+                (r.DataStringsEscaped?.Any(s => !string.IsNullOrWhiteSpace(s)) ?? false) ||
+                !string.IsNullOrWhiteSpace(r.Data));
             if (!recordExists) {
                 logger?.WriteVerbose("DNS query returned no results.");
             }
