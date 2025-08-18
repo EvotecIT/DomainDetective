@@ -33,8 +33,10 @@ namespace DomainDetective.Tests {
                 Verbose = true
             };
             await healthCheck.Verify("evotec.pl", new[] { HealthCheckType.DKIM }, new[] { "selector1", "selector2" });
-            if (!healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("selector1") ||
-                !healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("selector2")) {
+            if (!healthCheck.DKIMAnalysis.AnalysisResults.TryGetValue("selector1", out var selector1) ||
+                !selector1.DkimRecordExists ||
+                !healthCheck.DKIMAnalysis.AnalysisResults.TryGetValue("selector2", out var selector2) ||
+                !selector2.DkimRecordExists) {
                 return;
             }
 

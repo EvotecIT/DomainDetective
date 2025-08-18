@@ -48,11 +48,14 @@ namespace DomainDetective {
             await Task.Yield(); // To avoid warning about lack of 'await'
 
             var dkimRecordList = dnsResults?.ToList() ?? new List<DnsAnswer>();
-            if (dkimRecordList.Count == 0) {
+            var recordExists = dkimRecordList.Any(r =>
+                (r.DataStringsEscaped != null && r.DataStringsEscaped.Length > 0) ||
+                !string.IsNullOrEmpty(r.Data));
+            if (!recordExists) {
                 logger?.WriteVerbose("DNS query returned no results.");
             }
             var analysis = new DkimRecordAnalysis {
-                DkimRecordExists = dkimRecordList.Any(),
+                DkimRecordExists = recordExists,
                 ValidKeyType = true,
                 ValidFlags = true
             };
@@ -64,14 +67,14 @@ namespace DomainDetective {
                 }
                 if (record.DataStringsEscaped != null && record.DataStringsEscaped.Length > 0) {
                     analysis.DkimRecord += string.Join(string.Empty, record.DataStringsEscaped);
-                } else {
+                } else if (!string.IsNullOrEmpty(record.Data)) {
                     analysis.DkimRecord += record.Data;
                 }
             }
 
             logger?.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
 
-            if (analysis.DkimRecord == null) {
+            if (string.IsNullOrEmpty(analysis.DkimRecord)) {
                 AnalysisResults[selector] = analysis;
                 return;
             }
