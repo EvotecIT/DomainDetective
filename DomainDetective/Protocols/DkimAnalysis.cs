@@ -47,7 +47,9 @@ namespace DomainDetective {
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             await Task.Yield(); // To avoid warning about lack of 'await'
 
-            var dkimRecordList = dnsResults?.ToList() ?? new List<DnsAnswer>();
+            var dkimRecordList = dnsResults?
+                .Where(r => r.Type == DnsRecordType.TXT)
+                .ToList() ?? new List<DnsAnswer>();
             var recordExists = dkimRecordList.Any(r =>
                 (r.DataStringsEscaped?.Any(s => !string.IsNullOrWhiteSpace(s)) ?? false) ||
                 !string.IsNullOrWhiteSpace(r.Data));
@@ -224,7 +226,9 @@ namespace DomainDetective {
                 return;
             }
 
-            var records = dnsResults.ToList();
+            var records = dnsResults
+                .Where(r => r.Type == DnsRecordType.TXT)
+                .ToList();
             AdspRecordExists = records.Any();
             if (!AdspRecordExists) {
                 return;
