@@ -46,4 +46,9 @@
         <ProjectReference Include="..\DomainDetective.Generators\DomainDetective.Generators.csproj"
             OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v1.xsd" />
+        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v2.xsd" />
+    </ItemGroup>
+
 </Project>
