@@ -409,17 +409,18 @@ public class WhoisAnalysis {
     private async Task<string?> GetWhoisServer(string domain, CancellationToken ct) {
         var domainParts = domain.Split('.');
         var tldWithSub = string.Join(".", domainParts.Skip(1));
-        TLD = tldWithSub;
+        var tld = domainParts.Last();
 
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(tldWithSub, out var server)) {
+                TLD = tldWithSub;
                 return server;
             }
         }
 
-        var tld = domainParts.Last();
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(tld, out var server)) {
+                TLD = tld;
                 return server;
             }
         }
@@ -430,8 +431,9 @@ public class WhoisAnalysis {
             lock (_whoisServersLock) {
                 WhoisServers[tld] = dnsServer;
             }
+            TLD = tld;
             return dnsServer;
-        } catch (Exception ex) when (ex is SocketException || ex is PingException) {
+        } catch (Exception ex) when (ex is SocketException || ex is PingException || ex is HttpRequestException || ex is IOException) {
             _logger.WriteDebug(ex.Message);
         }
 
@@ -450,12 +452,14 @@ public class WhoisAnalysis {
                 lock (_whoisServersLock) {
                     WhoisServers[tld] = server;
                 }
+                TLD = tld;
                 return server;
             }
         } catch (Exception ex) when (ex is HttpRequestException || ex is IOException) {
             _logger.WriteDebug(ex.Message);
         }
 
+        TLD = tldWithSub;
         return null;
     }
 
