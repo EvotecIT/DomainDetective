@@ -411,18 +411,22 @@ public class WhoisAnalysis {
         var tldWithSub = string.Join(".", domainParts.Skip(1));
         var tld = domainParts.Last();
 
+        string? resolvedTld = null;
+        string? resolvedServer = null;
+
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(tldWithSub, out var server)) {
-                TLD = tldWithSub;
-                return server;
+                resolvedTld = tldWithSub;
+                resolvedServer = server;
+            } else if (WhoisServers.TryGetValue(tld, out server)) {
+                resolvedTld = tld;
+                resolvedServer = server;
             }
         }
 
-        lock (_whoisServersLock) {
-            if (WhoisServers.TryGetValue(tld, out var server)) {
-                TLD = tld;
-                return server;
-            }
+        if (resolvedServer != null) {
+            TLD = resolvedTld!;
+            return resolvedServer;
         }
 
         var dnsServer = $"{tld}.whois-servers.net";
@@ -433,7 +437,13 @@ public class WhoisAnalysis {
             }
             TLD = tld;
             return dnsServer;
-        } catch (Exception ex) when (ex is SocketException || ex is PingException || ex is HttpRequestException || ex is IOException) {
+        } catch (Exception ex) when (
+            ex is SocketException ||
+            ex is PingException ||
+            ex is HttpRequestException ||
+            ex is IOException ||
+            ex is TimeoutException ||
+            ex is TaskCanceledException) {
             _logger.WriteDebug(ex.Message);
         }
 
@@ -455,7 +465,11 @@ public class WhoisAnalysis {
                 TLD = tld;
                 return server;
             }
-        } catch (Exception ex) when (ex is HttpRequestException || ex is IOException) {
+        } catch (Exception ex) when (
+            ex is HttpRequestException ||
+            ex is IOException ||
+            ex is TimeoutException ||
+            ex is TaskCanceledException) {
             _logger.WriteDebug(ex.Message);
         }
 
