@@ -405,7 +405,7 @@ public class WhoisAnalysis {
 
     public WhoisAnalysis() { }
 
-    private string GetWhoisServer(string domain) {
+    private async Task<string?> GetWhoisServer(string domain, CancellationToken ct) {
         var domainParts = domain.Split('.');
         var tld = string.Join(".", domainParts.Skip(1));
         TLD = tld;
@@ -419,8 +419,43 @@ public class WhoisAnalysis {
         tld = domainParts.Last();
         TLD = tld;
         lock (_whoisServersLock) {
-            return WhoisServers.TryGetValue(tld, out var server) ? server : null;
+            if (WhoisServers.TryGetValue(tld, out var server)) {
+                return server;
+            }
         }
+
+        var dnsServer = $"{tld}.whois-servers.net";
+        try {
+            await Dns.GetHostEntryAsync(dnsServer).ConfigureAwait(false);
+            lock (_whoisServersLock) {
+                WhoisServers[tld] = dnsServer;
+            }
+            return dnsServer;
+        } catch (SocketException) {
+        }
+
+        try {
+            string response;
+            if (IanaQueryOverride != null) {
+                response = await IanaQueryOverride(tld).ConfigureAwait(false);
+            } else {
+                response = await SharedHttpClient.GetStringWithRetryAsync(
+                    $"https://www.iana.org/whois?q={tld}",
+                    ct).ConfigureAwait(false);
+            }
+            var match = Regex.Match(response, @"whois:\s*(\S+)", RegexOptions.IgnoreCase);
+            if (match.Success) {
+                var server = match.Groups[1].Value.Trim();
+                lock (_whoisServersLock) {
+                    WhoisServers[tld] = server;
+                }
+                return server;
+            }
+        } catch (Exception ex) when (ex is HttpRequestException || ex is IOException) {
+            _logger.WriteDebug(ex.Message);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -431,7 +466,7 @@ public class WhoisAnalysis {
         if (string.IsNullOrWhiteSpace(domain) || !domain.Contains('.')) {
             throw new UnsupportedTldException(domain, domain);
         }
-        var whoisServer = GetWhoisServer(domain);
+        var whoisServer = await GetWhoisServer(domain, cancellationToken);
         if (whoisServer == null) {
             throw new UnsupportedTldException(domain, TLD);
         }
