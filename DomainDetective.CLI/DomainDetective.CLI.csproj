@@ -21,6 +21,7 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="8.0.19" />
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports.Html\DomainDetective.Reports.Html.csproj" />
