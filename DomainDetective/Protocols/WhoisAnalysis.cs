@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -407,17 +408,16 @@ public class WhoisAnalysis {
 
     private async Task<string?> GetWhoisServer(string domain, CancellationToken ct) {
         var domainParts = domain.Split('.');
-        var tld = string.Join(".", domainParts.Skip(1));
-        TLD = tld;
+        var tldWithSub = string.Join(".", domainParts.Skip(1));
+        TLD = tldWithSub;
 
         lock (_whoisServersLock) {
-            if (WhoisServers.TryGetValue(tld, out var server)) {
+            if (WhoisServers.TryGetValue(tldWithSub, out var server)) {
                 return server;
             }
         }
 
-        tld = domainParts.Last();
-        TLD = tld;
+        var tld = domainParts.Last();
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(tld, out var server)) {
                 return server;
@@ -431,7 +431,8 @@ public class WhoisAnalysis {
                 WhoisServers[tld] = dnsServer;
             }
             return dnsServer;
-        } catch (SocketException) {
+        } catch (Exception ex) when (ex is SocketException || ex is PingException) {
+            _logger.WriteDebug(ex.Message);
         }
 
         try {

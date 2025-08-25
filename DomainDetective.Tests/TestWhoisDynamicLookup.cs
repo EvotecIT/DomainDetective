@@ -1,8 +1,24 @@
-namespace DomainDetective.Tests {
-    using System.Collections.Generic;
-    using System.Reflection;
-    using System.Threading;
-    using System.Threading.Tasks;
+        [Fact]
+        public async Task UnmappedTldFallsBackToIanaLookup() {
+            var whois = new WhoisAnalysis {
+                IanaQueryOverride = _ => Task.FromResult("% IANA WHOIS server\r\nwhois: whois.test.net\r\n")
+            };
+            }
+        }
+
+        [Fact]
+        public async Task MultiPartTldIsPreserved() {
+            var whois = new WhoisAnalysis();
+            var method = typeof(WhoisAnalysis).GetMethod("GetWhoisServer", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assert.NotNull(method);
+            var task = (Task<string?>)method!.Invoke(whois, new object[] { "example.co.uk", CancellationToken.None })!;
+            var server = await task;
+            Assert.Equal("whois.nic.uk", server);
+            Assert.Equal("co.uk", whois.Tld);
+        }
+    }
+}
+
 
     public class TestWhoisDynamicLookup {
         [Fact]
