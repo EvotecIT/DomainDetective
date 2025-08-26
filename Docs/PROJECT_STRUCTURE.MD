@@ -55,11 +55,11 @@ var report = await reportFactory.CreateReport(healthCheck, format: ReportFormat.
 #### PowerShell Integration
 ```powershell
 # In DomainDetective.PowerShell
-# References: All report projects
+# Per-cmdlet export switches (-ExportFormat, -ExportPath, -OpenInBrowser)
 
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -Template Executive
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Word -IncludeRawData
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Excel
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
+# Word/Excel/PDF export switches are available but not yet implemented; they will emit TODO
 ```
 
 ## Benefits of This Structure

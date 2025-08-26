@@ -35,8 +35,8 @@ ddcli report example.com,test.com,demo.com --format html
 # Basic HTML report
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 
-# Executive report with custom path
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -Template Executive -Path "C:\Reports\exec_report.html"
+# HTML report with custom path
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "C:\Reports\exec_report.html"
 
 # Generate report from existing health check
 $health = Test-DDDomainOverallHealth -Domain "example.com" -Raw
@@ -47,18 +47,21 @@ $null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html 
 
 # Batch reporting
 @("example.com", "test.com") | ForEach-Object {
-    Test-DDDomainOverallHealth -DomainName $_ -ExportFormat Html -ExportPath "reports\$_.html" -NoOpen
+    Test-DDDomainOverallHealth -DomainName $_ -ExportFormat Html -ExportPath "reports\$_.html" -OpenInBrowser:$false
 }
 
 # Export to different formats
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Json -Path "data.json"
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Word -IncludeRawData
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Excel
+# JSON (implemented)
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
+# Word/Excel/PDF (not yet implemented, will emit TODO)
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Word
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Excel
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Pdf
 
-# Protocol-specific reports
-Test-DDEmailSpfRecord -Domain "example.com" | Show-DDEmailSpfReport -ShowInBrowser
-Test-DDEmailDmarcRecord -Domain "example.com" | Show-DDEmailDmarcReport -ExportFormat PDF
-Get-DDFlattenedSpfIp -Domain "example.com" | Show-DDEmailSpfReport -IncludeFlattened
+# Protocol-specific exports (TODO)
+# You can request export on specific tests; dedicated reports will be added.
+Test-DDEmailSpfRecord -DomainName "example.com" -ExportFormat Html   # TODO: report not yet implemented
+Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: report not yet implemented
 ```
 
 ## Report Types

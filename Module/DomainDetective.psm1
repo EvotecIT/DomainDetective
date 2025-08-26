@@ -140,14 +140,3 @@ if ($FoundErrors.Count -gt 0) {
 }
 
 Export-ModuleMember -Function '*' -Alias '*' -Cmdlet '*'
-
-# Define concise default display for key types to avoid overwhelming output and
-# potential casing conflicts in property enumeration.
-try {
-    Update-TypeData -TypeName 'DomainDetective.DomainHealthCheck' -DefaultDisplayPropertySet @(
-        'DmarcAnalysis','SpfAnalysis','DKIMAnalysis','MXAnalysis','ReverseDnsAnalysis','FcrDnsAnalysis',
-        'DNSBLAnalysis','DnsSecAnalysis','DaneAnalysis','MTASTSAnalysis','TLSRPTAnalysis'
-    ) -ErrorAction SilentlyContinue
-} catch {
-    # Non-fatal if type data cannot be applied
-}
