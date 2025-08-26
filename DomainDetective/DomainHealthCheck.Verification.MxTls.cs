@@ -18,6 +18,7 @@ namespace DomainDetective {
             ValidatePort(port);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
         }
 
@@ -33,6 +34,7 @@ namespace DomainDetective {
             ValidatePort(port);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
         }
 
@@ -53,6 +55,7 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 143, string.Join(", ", tlsHosts));
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
         }
 
@@ -67,6 +70,7 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 110, string.Join(", ", tlsHosts));
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }
 
@@ -82,6 +86,7 @@ namespace DomainDetective {
             ValidatePort(port);
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var hosts = CertificateAnalysis.ExtractMxHosts(mx);
+            _logger?.WriteVerbose("MX targets for banner check on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
             await SmtpBannerAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
 
@@ -97,6 +102,7 @@ namespace DomainDetective {
             ValidatePort(port);
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var hosts = CertificateAnalysis.ExtractMxHosts(mx);
+            _logger?.WriteVerbose("MX targets for SMTP AUTH on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
             await SmtpAuthAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
     }

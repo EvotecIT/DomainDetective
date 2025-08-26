@@ -63,6 +63,7 @@ public sealed class CmdletGetRdapObject : AsyncPSCmdlet
     /// <summary>Initializes the RDAP client.</summary>
     protected override Task BeginProcessingAsync()
     {
+        WriteVerbose($"Using RDAP endpoint: {ServiceEndpoint}");
         _client = new RdapClient(ServiceEndpoint);
         return Task.CompletedTask;
     }
@@ -71,6 +72,7 @@ public sealed class CmdletGetRdapObject : AsyncPSCmdlet
     protected override async Task ProcessRecordAsync()
     {
         object? result = null;
+        WriteVerbose($"Querying RDAP ({ParameterSetName})");
         switch (ParameterSetName)
         {
             case "Domain":

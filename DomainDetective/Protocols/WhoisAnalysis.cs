@@ -417,6 +417,7 @@ public class WhoisAnalysis {
             lock (_whoisServersLock) {
                 if (WhoisServers.TryGetValue(compoundTld, out string server)) {
                     TLD = compoundTld;
+                    _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
                     return server;
                 }
             }
@@ -426,6 +427,7 @@ public class WhoisAnalysis {
         TLD = singleTld;
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(singleTld, out string server)) {
+                _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
                 return server;
             }
         }
@@ -444,6 +446,7 @@ public class WhoisAnalysis {
         var host = $"{tld}.whois-servers.net";
         try {
             _ = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            _logger?.WriteVerbose("WHOIS server autodetected via DNS: {0}", host);
             return host;
         } catch (SocketException) {
             // Fallback to IANA lookup below.
@@ -466,7 +469,12 @@ public class WhoisAnalysis {
         }
 
         Match match = _whoisServerRegex.Match(response);
-        return match.Success ? match.Groups[1].Value : null;
+        if (match.Success) {
+            _logger?.WriteVerbose("WHOIS server discovered via IANA: {0}", match.Groups[1].Value);
+            return match.Groups[1].Value;
+        }
+        _logger?.WriteVerbose("WHOIS server not found via IANA for TLD '{0}'", tld);
+        return null;
     }
 
     /// <summary>
@@ -495,6 +503,7 @@ public class WhoisAnalysis {
             }
 
             await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+            _logger?.WriteVerbose("Connected to WHOIS server {0}:{1}", host, port);
 
             using NetworkStream networkStream = tcpClient.GetStream();
             using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
@@ -520,6 +529,7 @@ public class WhoisAnalysis {
             WhoisData = response;
             ParseWhoisData();
             NormalizeExpiryDateInData();
+            _logger?.WriteVerbose("WHOIS received {0} bytes; Registrar='{1}', Expiry='{2}'", responseBytes.Length, Registrar, ExpiryDate);
         } catch (Exception ex) {
             _logger.WriteError(
                 "Error querying WHOIS server {0} for domain {1}: {2}",

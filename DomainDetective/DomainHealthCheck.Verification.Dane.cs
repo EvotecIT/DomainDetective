@@ -58,6 +58,7 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for {0} on ports: {1}", domainName, string.Join(", ", ports));
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var query = CreateServiceQuery(port, domainName);
@@ -72,6 +73,7 @@ namespace DomainDetective {
 
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
                 _logger.WriteWarning("No DANE records found.");
@@ -92,6 +94,7 @@ namespace DomainDetective {
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
 
             foreach (var service in services.Distinct()) {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -117,6 +120,7 @@ namespace DomainDetective {
 
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
                 _logger.WriteWarning("No DANE records found.");
@@ -148,6 +152,7 @@ namespace DomainDetective {
             }
 
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for {0} using services: {1}", domainName, string.Join(", ", serviceTypes));
             foreach (var serviceType in serviceTypes) {
                 cancellationToken.ThrowIfCancellationRequested();
                 int port;
@@ -198,6 +203,7 @@ namespace DomainDetective {
             }
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
                 _logger.WriteWarning("No DANE records found.");
