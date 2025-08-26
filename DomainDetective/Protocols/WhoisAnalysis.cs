@@ -1132,12 +1132,24 @@ public class WhoisAnalysis {
             json = await IanaQueryOverride(domain).ConfigureAwait(false);
         } else {
             var client = SharedHttpClient.Instance;
+            try {
 #if NETSTANDARD2_0 || NET472
-            using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
-            json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) {
+                    // Gracefully ignore 404/NotFound and other non-success responses
+                    return;
+                }
+                json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 #else
-            json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+                json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
 #endif
+            } catch (HttpRequestException ex) {
+                // Ignore IANA RDAP failures; WHOIS data may still be valid
+#if NET6_0_OR_GREATER
+                if (ex.StatusCode.HasValue) return;
+#endif
+                return;
+            }
         }
 
         using var doc = JsonDocument.Parse(json);

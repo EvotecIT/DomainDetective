@@ -62,6 +62,10 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 var query = CreateServiceQuery(port, domainName);
                 ValidateServiceQueryProtocol(query);
+                if (!DaneAnalysis.QueriedNames.Contains(query, StringComparer.OrdinalIgnoreCase))
+                    DaneAnalysis.QueriedNames.Add(query);
+                if (!DaneAnalysis.QueriedPorts.Contains(port))
+                    DaneAnalysis.QueriedPorts.Add(port);
                 var dane = await QueryDaneDns(query, cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
@@ -94,6 +98,17 @@ namespace DomainDetective {
                 var host = NormalizeDomain(service.Host).TrimEnd('.');
                 var daneName = CreateServiceQuery(service.Port, host);
                 ValidateServiceQueryProtocol(daneName);
+                if (!DaneAnalysis.QueriedNames.Contains(daneName, StringComparer.OrdinalIgnoreCase))
+                    DaneAnalysis.QueriedNames.Add(daneName);
+                if (!DaneAnalysis.QueriedPorts.Contains(service.Port))
+                    DaneAnalysis.QueriedPorts.Add(service.Port);
+                if (service.Port == (int)ServiceType.SMTP) {
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.SMTP))
+                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.SMTP);
+                } else if (service.Port == (int)ServiceType.HTTPS) {
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.HTTPS))
+                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.HTTPS);
+                }
                 var dane = await QueryDaneDns(daneName, cancellationToken);
                 if (dane.Any()) {
                     allDaneRecords.AddRange(dane);
@@ -168,6 +183,12 @@ namespace DomainDetective {
                     }
                     var daneRecord = CreateServiceQuery(port, domain);
                     ValidateServiceQueryProtocol(daneRecord);
+                    if (!DaneAnalysis.QueriedNames.Contains(daneRecord, StringComparer.OrdinalIgnoreCase))
+                        DaneAnalysis.QueriedNames.Add(daneRecord);
+                    if (!DaneAnalysis.QueriedPorts.Contains(port))
+                        DaneAnalysis.QueriedPorts.Add(port);
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(serviceType))
+                        DaneAnalysis.QueriedServiceTypes.Add(serviceType);
                     var dane = await QueryDaneDns(daneRecord, cancellationToken);
                     if (dane.Any()) {
                         allDaneRecords.AddRange(dane);

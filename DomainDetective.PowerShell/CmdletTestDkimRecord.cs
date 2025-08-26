@@ -18,9 +18,8 @@ namespace DomainDetective.PowerShell {
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
-        /// <para>Selectors to validate.</para>
-        [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServerName")]
-        [ValidateNotNullOrEmpty]
+        /// <para>Selectors to validate. When omitted, common selectors are auto-detected.</para>
+        [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public string[] Selectors;
 
         /// <para>DNS server used for queries.</para>
@@ -57,6 +56,7 @@ namespace DomainDetective.PowerShell {
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DKIM records for domain: {0}", DomainName);
+            // When selectors are not provided, VerifyDKIM will auto-detect well-known selectors
             await healthCheck.VerifyDKIM(DomainName, Selectors);
             if (Raw) {
                 WriteObject(healthCheck.DKIMAnalysis);

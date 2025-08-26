@@ -18,6 +18,10 @@ namespace DomainDetective {
         public class BannerResult {
             /// <summary>Initial banner line returned by the server.</summary>
             public string? Banner { get; init; }
+            /// <summary>Queried host.</summary>
+            public string Host { get; init; }
+            /// <summary>Queried port.</summary>
+            public int Port { get; init; }
             /// <summary>True when <see cref="SMTPBannerAnalysis.ExpectedHostname"/> is found in the banner.</summary>
             public bool HostnameMatch { get; init; }
             /// <summary>True when <see cref="SMTPBannerAnalysis.ExpectedSoftware"/> is found in the banner.</summary>
@@ -28,6 +32,14 @@ namespace DomainDetective {
             public bool ContainsDomain { get; init; }
             /// <summary>True when the banner conforms to RFC 5321 format.</summary>
             public bool ValidFormat { get; init; }
+            /// <summary>Parsed greeting code (e.g., 220), when available.</summary>
+            public int? GreetingCode { get; init; }
+            /// <summary>Domain or host extracted from the banner, if present.</summary>
+            public string? ServerDomain { get; init; }
+            /// <summary>True when the banner was truncated to the maximum allowed size.</summary>
+            public bool Truncated { get; init; }
+            /// <summary>Milliseconds between connect and first banner line.</summary>
+            public int? ResponseTimeMs { get; init; }
         }
 
         private static readonly Regex _labelRegex = new(
@@ -99,11 +111,13 @@ namespace DomainDetective {
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+                var sw = System.Diagnostics.Stopwatch.StartNew();
 #if NET8_0_OR_GREATER
                 var banner = await reader.ReadLineAsync(timeoutCts.Token);
 #else
                 var banner = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
 #endif
+                sw.Stop();
                 if (banner != null && banner.Length > MaxBannerTextLength) {
                     logger?.WriteWarning("Banner from {0}:{1} exceeded {2} bytes and was truncated.", host, port, MaxBannerLength);
                     banner = banner.Substring(0, MaxBannerTextLength);
@@ -136,7 +150,22 @@ namespace DomainDetective {
                 }
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;
-                return new BannerResult { Banner = banner, HostnameMatch = hostMatch, SoftwareMatch = softMatch, StartsWith220 = startsWith220, ContainsDomain = containsDomain, ValidFormat = validFormat };
+                int? code = null;
+                if (!string.IsNullOrEmpty(banner) && banner.Length >= 3 && int.TryParse(banner.Substring(0, 3), out var parsed)) code = parsed;
+                return new BannerResult {
+                    Banner = banner,
+                    Host = host,
+                    Port = port,
+                    HostnameMatch = hostMatch,
+                    SoftwareMatch = softMatch,
+                    StartsWith220 = startsWith220,
+                    ContainsDomain = containsDomain,
+                    ValidFormat = validFormat,
+                    GreetingCode = code,
+                    ServerDomain = domain,
+                    Truncated = banner != null && banner.Length >= MaxBannerTextLength,
+                    ResponseTimeMs = (int)sw.ElapsedMilliseconds
+                };
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
             } catch (OperationCanceledException) {

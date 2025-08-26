@@ -2,15 +2,15 @@
 
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
+# STARTTLS typed details per MX host (banner, EHLO lines, capabilities, TLS)
 $Gmail = Test-EmailStartTls -DomainName 'gmail.com' -Verbose
-$Gmail | Format-Table
+$Gmail | Select-Object Host,Port,StartTlsAdvertised,TlsNegotiated,TlsProtocol,
+    @{N='Capabilities';E={$_.Capabilities -join ' '}} | Format-Table -AutoSize
 
+# Show certificate summary and ALPN when available
 $Evotec = Test-EmailStartTls -DomainName 'evotec.pl' -Port 25
-$Evotec | Format-Table
+$Evotec | Select-Object Host,CertificateSubject,CertificateIssuer,CertificateNotAfter,AlpnProtocol | Format-Table -AutoSize
 
-$Example = Test-EmailStartTls -DomainName 'example.com' -DnsEndpoint System -Port 587
-$Example | Format-Table
-
-# Test a single host on a custom port
-$HostTls = Test-EmailStartTls -DomainName 'example.com' -Port 2525
-$HostTls | Format-Table
+# Get the full analysis container for scripting
+$Example = Test-EmailStartTls -DomainName 'example.com' -DnsEndpoint System -Port 587 -FullResponse
+$Example.ServerDetails.Values | Select-Object Host,Port,StartTlsAdvertised,TlsNegotiated | Format-Table

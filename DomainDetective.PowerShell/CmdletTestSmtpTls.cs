@@ -26,6 +26,10 @@ namespace DomainDetective.PowerShell {
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
+        /// <summary>Return the full analysis object (map of all servers) instead of a single server's details.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter FullResponse;
+
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override Task BeginProcessingAsync() {
@@ -43,7 +47,11 @@ namespace DomainDetective.PowerShell {
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
             var analysis = _healthCheck.SmtpTlsAnalysis;
             var result = analysis.ServerResults[$"{HostName}:{Port}"];
-            WriteObject(analysis);
+            if (FullResponse) {
+                WriteObject(analysis);
+            } else {
+                WriteObject(result);
+            }
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }

@@ -25,6 +25,15 @@ namespace DomainDetective {
         public bool HasDuplicateRecords { get; private set; }
         public bool HasInvalidRecords { get; set; }
 
+        /// <summary>Fully qualified TLSA owner names that were queried (e.g., _443._tcp.example.com).</summary>
+        public List<string> QueriedNames { get; private set; } = new List<string>();
+
+        /// <summary>Ports that were probed for TLSA lookups.</summary>
+        public List<int> QueriedPorts { get; private set; } = new List<int>();
+
+        /// <summary>Service types that were probed.</summary>
+        public List<ServiceType> QueriedServiceTypes { get; private set; } = new List<ServiceType>();
+
         /// <summary>Relevant standards for DANE analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "DANE TLSA", Reference = "RFC 6698", Url = "https://datatracker.ietf.org/doc/html/rfc6698" }
@@ -36,6 +45,9 @@ namespace DomainDetective {
             NumberOfRecords = 0;
             HasDuplicateRecords = false;
             HasInvalidRecords = false;
+            QueriedNames = new List<string>();
+            QueriedPorts = new List<int>();
+            QueriedServiceTypes = new List<ServiceType>();
         }
 
 

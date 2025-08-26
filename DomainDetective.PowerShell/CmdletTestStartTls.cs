@@ -25,6 +25,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int Port = 25;
 
+        /// <summary>Return the full analysis object instead of per-server details.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter FullResponse;
+
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
 
@@ -43,7 +47,13 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", DomainName, Port);
             await healthCheck.VerifySTARTTLS(DomainName, Port);
-            WriteObject(healthCheck.StartTlsAnalysis);
+            if (FullResponse) {
+                WriteObject(healthCheck.StartTlsAnalysis);
+            } else {
+                var details = healthCheck.StartTlsAnalysis?.ServerDetails;
+                if (details != null) WriteObject(details.Values, true);
+                else WriteObject(healthCheck.StartTlsAnalysis);
+            }
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

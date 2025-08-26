@@ -36,7 +36,7 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking open resolver for {0}:{1}", Server, Port);
             await _hc.CheckOpenResolverHost(Server, Port, CancelToken);
-            WriteObject(_hc.OpenResolverAnalysis.ServerResults[$"{Server}:{Port}"]);
+            WriteObject(_hc.OpenResolverAnalysis.ServerDetails[$"{Server}:{Port}"]);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

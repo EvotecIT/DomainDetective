@@ -277,20 +277,33 @@ namespace DomainDetective {
         /// <returns>The selector that returned a record, or <see langword="null"/>.</returns>
         public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
             Reset();
+            logger?.WriteVerbose("Auto-detecting DKIM selectors for {0}", domainName);
             var adsp = await dnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
             if (adsp.Any()) {
                 await AnalyzeAdspRecord(adsp, logger);
             }
 
+            string? firstFound = null;
+            var found = new List<string>();
             foreach (var selector in DKIMSelectors.GuessSelectors()) {
+                cancellationToken.ThrowIfCancellationRequested();
+                logger?.WriteVerbose("Trying DKIM selector '{0}'", selector);
                 var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                 if (dkim.Any()) {
+                    logger?.WriteVerbose("Found DKIM record with selector '{0}'", selector);
                     await AnalyzeDkimRecords(selector, dkim, logger);
-                    return selector;
+                    firstFound ??= selector;
+                    found.Add(selector);
                 }
             }
 
-            return null;
+            if (found.Count == 0) {
+                logger?.WriteVerbose("No DKIM records found in built-in selector list.");
+            } else {
+                logger?.WriteVerbose("Auto-detection discovered {0} selector(s): {1}", found.Count, string.Join(", ", found));
+            }
+
+            return firstFound;
         }
     }
 

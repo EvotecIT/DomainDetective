@@ -13,6 +13,14 @@ Measure-Command {
 }
 
 Measure-Command {
-    $Blacklists1 = Test-DnsBlacklist -NameOrIpAddress '8.8.8.8' -Verbose
-    $Blacklists1 | Sort-Object -Property IsBlackListed, Answer -Descending | Format-Table -AutoSize
+    $Blacklists2 = Test-DnsBlacklist -NameOrIpAddress '8.8.8.8' -Verbose
+    $Blacklists2 | Sort-Object -Property IsBlackListed, Answer -Descending | Format-Table -AutoSize
 }
+
+# Domain-driven checks with control over which IPs are resolved
+$Dbl = Test-DnsBlacklist -NameOrIpAddress 'evotec.pl' -DomainIpScan MxThenApexFallback -Verbose
+$Dbl | Select-Object BlackList,Query,IpAddress,IpSource,SourceHost,IsBlackListed,Answer | Format-Table -AutoSize
+
+# MX-only IP checks
+$DblMxOnly = Test-DnsBlacklist -NameOrIpAddress 'evotec.pl' -DomainIpScan MxOnly
+$DblMxOnly | Select-Object BlackList,Query,IpAddress,IpSource,SourceHost,IsBlackListed | Format-Table -AutoSize
