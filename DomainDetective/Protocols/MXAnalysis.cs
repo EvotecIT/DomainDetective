@@ -94,10 +94,12 @@ namespace DomainDetective {
                 var parts = record.Data.Split(new[] { ' ' }, 2, System.StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2 && int.TryParse(parts[0], out var pref)) {
                     var host = parts[1].Trim('.');
-                    parsed.Add((pref, host));
                     if (pref == 0 && string.IsNullOrEmpty(host)) {
                         HasNullMx = true;
+                        // Do not evaluate host lookups for null MX
+                        continue;
                     }
+                    parsed.Add((pref, host));
                     var lowerHost = host.ToLowerInvariant();
                     if (lowerHost == "localhost" || lowerHost == "localhost.localdomain" || lowerHost == "127.0.0.1") {
                         PointsToLocalhost = true;

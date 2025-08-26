@@ -17,14 +17,14 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class DNSBLRecord {
-        /// <summary>Gets or sets the queried IP address in reverse format.</summary>
-        public string IPAddress { get; set; }
-        /// <summary>Gets or sets the original IP address or hostname.</summary>
-        public string OriginalIPAddress { get; set; }
+        /// <summary>Plain IPv4/IPv6 for IP-based checks; null for domain-based checks.</summary>
+        public string IpAddress { get; set; }
+        /// <summary>Indicates where the IP address originated from (for IP-based checks).</summary>
+        public DnsblIpSource? IpSource { get; set; }
+        /// <summary>Optional host label that produced the IP (e.g., apex domain or MX host).</summary>
+        public string SourceHost { get; set; }
         /// <summary>Indicates whether this record came from a domain or IP-based query.</summary>
         public DnsblQueryKind QueryKind { get; set; }
-        /// <summary>Gets or sets the fully qualified domain name that was queried.</summary>
-        public string FQDN { get; set; }
         /// <summary>Gets or sets the blacklist domain.</summary>
         public string BlackList { get; set; }
         //public string BlackListReason { get; set; }
@@ -35,6 +35,11 @@ namespace DomainDetective {
         /// <summary>Gets or sets the interpreted meaning of <see cref="Answer"/>.</summary>
         public string ReplyMeaning { get; set; }
         //public string NameServer { get; set; }
+        /// <summary>Gets or sets the fully qualified domain name that was queried.</summary>
+        public string FQDN { get; set; }
+        /// <summary>DNSBL base query label (e.g., reversed IP or domain without provider).
+        /// For provider-specific full query, see <see cref="FQDN"/>.</summary>
+        public string Query { get; set; }
     }
 
     /// <summary>
@@ -209,7 +214,7 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryFullDNS(names, type);
         }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true) {
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true, DomainIpScanMode scanMode = DomainIpScanMode.MxThenApexFallback) {
             if (clearExisting) {
                 Reset();
             }
@@ -223,29 +228,96 @@ namespace DomainDetective {
             }
 
             Logger?.WriteVerbose($"Checking {domainName} against {DomainDNSBLLists.Count} domain blacklists");
-            var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName));
+            var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName, DnsblIpSource.Domain, sourceHost: domainName));
             ConvertToResults(domainName, resultsDomain);
 
-            Logger?.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
-            foreach (var mxRecord in mxRecords) {
-                // Extract the IP address from the MX record data
-                string domainRecord = mxRecord.Data.Split(' ')[1];
+            bool anyIpChecked = false;
 
-                var ipv4Answers = await DnsConfiguration.QueryDNS(domainRecord, DnsRecordType.A);
-                foreach (var a in ipv4Answers) {
-                    var ipAddress = a.Data;
-                    Logger?.WriteVerbose($"Checking {ipAddress} (MX A) against {DNSBLLists.Count} blacklists");
-                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
-                    ConvertToResults(ipAddress, results);
+            // Helper local function to query and convert results for a set of IPs
+            async Task QueryIpsAsync(IEnumerable<(string ip, string host)> items, DnsblIpSource source, string sourceLabel) {
+                foreach (var (ip, host) in items) {
+                    Logger?.WriteVerbose($"Checking {ip} ({sourceLabel}) against {DNSBLLists.Count} blacklists");
+                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ip, source, sourceHost: host));
+                    ConvertToResults(ip, results);
+                    anyIpChecked = true;
                 }
+            }
 
-                var ipv6Answers = await DnsConfiguration.QueryDNS(domainRecord, DnsRecordType.AAAA);
-                foreach (var aaaa in ipv6Answers) {
-                    var ipAddress = aaaa.Data;
-                    Logger?.WriteVerbose($"Checking {ipAddress} (MX AAAA) against {DNSBLLists.Count} blacklists");
-                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
-                    ConvertToResults(ipAddress, results);
+            // Parse MX hostnames and resolve as needed
+            List<string> ParseMxHosts() {
+                var hosts = new List<string>();
+                foreach (var mx in mxRecords) {
+                    var data = (mx.Data ?? string.Empty).Trim();
+                    if (string.IsNullOrEmpty(data)) continue;
+                    string host = null;
+                    var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
+                    if (parts.Length >= 2) host = parts[1];
+                    else host = parts[0];
+                    if (host.EndsWith(".", StringComparison.Ordinal)) host = host.Substring(0, host.Length - 1);
+                    if (!string.IsNullOrWhiteSpace(host)) hosts.Add(host);
                 }
+                return hosts.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            }
+
+            async Task<List<(string ip, string host)>> ResolveMxAsync(DnsRecordType type) {
+                var pairs = new List<(string ip, string host)>();
+                var hosts = ParseMxHosts();
+                if (hosts.Count == 0) return pairs;
+                Logger?.WriteVerbose($"Found {hosts.Count} MX host(s): {string.Join(", ", hosts)}");
+                foreach (var host in hosts) {
+                    var answers = await DnsConfiguration.QueryDNS(host, type);
+                    pairs.AddRange(answers.Select(a => (a.Data, host)));
+                }
+                return pairs;
+            }
+
+            // Resolve apex (A/AAAA) as needed
+            async Task<List<(string ip, string host)>> ResolveApexAsync(DnsRecordType type) {
+                var answers = await DnsConfiguration.QueryDNS(domainName, type);
+                return answers.Select(a => (a.Data, domainName)).ToList();
+            }
+
+            switch (scanMode) {
+                case DomainIpScanMode.MxOnly:
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.A), DnsblIpSource.MxA, "MX A");
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.AAAA), DnsblIpSource.MxAAAA, "MX AAAA");
+                    break;
+                case DomainIpScanMode.MxAOnly:
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.A), DnsblIpSource.MxA, "MX A");
+                    break;
+                case DomainIpScanMode.MxAAAAOnly:
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.AAAA), DnsblIpSource.MxAAAA, "MX AAAA");
+                    break;
+                case DomainIpScanMode.ApexOnly:
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
+                    break;
+                case DomainIpScanMode.ApexAOnly:
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
+                    break;
+                case DomainIpScanMode.ApexAAAAOnly:
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
+                    break;
+                case DomainIpScanMode.MxAndApex:
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.A), DnsblIpSource.MxA, "MX A");
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.AAAA), DnsblIpSource.MxAAAA, "MX AAAA");
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
+                    await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
+                    break;
+                case DomainIpScanMode.MxThenApexFallback:
+                default:
+                    Logger?.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.A), DnsblIpSource.MxA, "MX A");
+                    await QueryIpsAsync(await ResolveMxAsync(DnsRecordType.AAAA), DnsblIpSource.MxAAAA, "MX AAAA");
+                    if (!anyIpChecked) {
+                        Logger?.WriteVerbose($"No IPs resolved from MX hosts; falling back to apex A/AAAA.");
+                        try {
+                            await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.A), DnsblIpSource.ApexA, "A apex");
+                            await QueryIpsAsync(await ResolveApexAsync(DnsRecordType.AAAA), DnsblIpSource.ApexAAAA, "AAAA apex");
+                        } catch { /* ignore apex fallback errors */ }
+                    }
+                    break;
             }
         }
 
@@ -260,7 +332,10 @@ namespace DomainDetective {
             Logger = logger;
             Logger?.WriteVerbose($"Checking {ipAddressOrHostname} against {DNSBLLists.Count} blacklists");
             var collected = new List<DNSBLRecord>();
-            await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname)) {
+            var isIp = System.Net.IPAddress.TryParse(ipAddressOrHostname, out _);
+            DnsblIpSource? src = isIp ? DnsblIpSource.UserProvided : DnsblIpSource.Domain;
+            string srcHost = isIp ? "UserProvided" : ipAddressOrHostname;
+            await foreach (var record in QueryDNSBL(DNSBLLists, ipAddressOrHostname, src, sourceHost: srcHost)) {
                 collected.Add(record);
                 yield return record;
             }
@@ -289,7 +364,10 @@ namespace DomainDetective {
                 var name = item; // capture
                 tasks.Add(Task.Run(async () => {
                     var list = new List<DNSBLRecord>();
-                    await foreach (var record in QueryDNSBL(DNSBLLists, name)) {
+                    var isIpInner = System.Net.IPAddress.TryParse(name, out _);
+                    DnsblIpSource? srcInner = isIpInner ? DnsblIpSource.UserProvided : DnsblIpSource.Domain;
+                    string srcHostInner = isIpInner ? "UserProvided" : name;
+                    await foreach (var record in QueryDNSBL(DNSBLLists, name, srcInner, sourceHost: srcHostInner)) {
                         list.Add(record);
                     }
                     return (name, list);
@@ -322,8 +400,7 @@ namespace DomainDetective {
             return list;
         }
 
-        private static readonly Dictionary<string, (bool IsListed, string Meaning)> _generalReplyCodes = new()
-        {
+        private static readonly Dictionary<string, (bool IsListed, string Meaning)> _generalReplyCodes = new() {
             ["127.0.0.1"] = (false, "Whitelisted"),
             ["127.0.0.2"] = (true, "Blacklisted"),
             ["127.0.0.3"] = (true, "Blacklisted"),
@@ -356,7 +433,7 @@ namespace DomainDetective {
             return ipAddress.ToPtrFormat();
         }
 
-        private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname) {
+        private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname, DnsblIpSource? ipSource = null, string sourceHost = null) {
             // Gracefully handle missing/empty provider lists to avoid crashes when configuration isn't loaded
             if (dnsblList == null)
                 yield break;
@@ -369,7 +446,6 @@ namespace DomainDetective {
             if (isIp) {
                 name = FormatDnsblName(ipAddress);
             } else {
-                // Use the hostname and append the DNSBL list
                 name = ipAddressOrHostname;
             }
 
@@ -424,9 +500,11 @@ namespace DomainDetective {
                         ? pair.Key.Substring(name.Length + 1)
                         : string.Empty;
                     var dnsblRecord = new DNSBLRecord {
-                        IPAddress = name,
-                        OriginalIPAddress = ipAddressOrHostname,
-                        QueryKind = isIp ? DnsblQueryKind.IpAddress : DnsblQueryKind.Domain,
+                        Query = name,
+                        IpAddress = isIp ? ipAddressOrHostname : null,
+                        IpSource = ipSource,
+                        SourceHost = sourceHost,
+                        QueryKind = isIp ? (ipAddress.AddressFamily == AddressFamily.InterNetwork ? DnsblQueryKind.IpAddressV4 : DnsblQueryKind.IpAddressV6) : DnsblQueryKind.Domain,
                         FQDN = pair.Key,
                         BlackList = blacklist,
                         IsBlackListed = false,
@@ -440,9 +518,11 @@ namespace DomainDetective {
                             ? record.Name.Substring(name.Length + 1)
                             : string.Empty;
                         var dnsblRecord = new DNSBLRecord {
-                            IPAddress = name,
-                            OriginalIPAddress = ipAddressOrHostname,
-                            QueryKind = isIp ? DnsblQueryKind.IpAddress : DnsblQueryKind.Domain,
+                            Query = name,
+                            IpAddress = isIp ? ipAddressOrHostname : null,
+                            IpSource = ipSource,
+                            SourceHost = sourceHost,
+                            QueryKind = isIp ? (ipAddress.AddressFamily == AddressFamily.InterNetwork ? DnsblQueryKind.IpAddressV4 : DnsblQueryKind.IpAddressV6) : DnsblQueryKind.Domain,
                             FQDN = record.Name,
                             BlackList = blacklist,
                             IsBlackListed = true,
@@ -672,4 +752,5 @@ namespace DomainDetective {
                 ApplyDnsblConfiguration(config, overwriteExisting, overwriteExisting);
             }
         }
-    }}
+    }
+}

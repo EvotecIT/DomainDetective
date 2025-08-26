@@ -108,15 +108,17 @@ namespace DomainDetective {
             Reset();
             if (aAnswers != null) {
                 foreach (var a in aAnswers) {
-                    if (!string.IsNullOrWhiteSpace(a.Data)) {
-                        ARecords.Add(a.Data);
+                    var val = a.Data ?? a.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) {
+                        ARecords.Add(val);
                     }
                 }
             }
             if (aaaaAnswers != null) {
                 foreach (var a in aaaaAnswers) {
-                    if (!string.IsNullOrWhiteSpace(a.Data)) {
-                        AaaaRecords.Add(a.Data);
+                    var val = a.Data ?? a.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) {
+                        AaaaRecords.Add(val);
                     }
                 }
             }

@@ -13,15 +13,33 @@ Test-DnsNs -DomainName "example.com" -Verbose
 
 ### Additional cmdlets
 
-- `Test-DnsBlacklist` – queries DNSBL providers for a domain or IP; for domains it also resolves MX hosts and checks their IPs.
+- `Test-DnsBlacklist` – queries DNSBL providers for a domain or IP.
   ```powershell
+  # Default: domain + MX-IP checks (domain lists + A/AAAA IP blocklists)
   Test-DnsBlacklist -NameOrIpAddress "example.com" -Verbose
 
-Flags:
-- `-TreatAsDomain`: Force domain-mode (domain lists + MX IPs).
-- `-TreatAsIp`: Force IP-mode (only IP DNSBLs; requires IP inputs).
-- `-MaxConcurrency`: Resolver concurrency hint (used if supported by DNS client).
-- `-BlacklistedOnly`: Return only entries that are listed.
+  # Force domain-mode explicitly (same effect for domains)
+  Test-DnsBlacklist -NameOrIpAddress "example.com" -TreatAsDomain -Verbose
+
+  # Treat as IP-only checks: domains resolve apex A/AAAA, IPs used as-is
+  Test-DnsBlacklist -NameOrIpAddress "example.com" -TreatAsIp -Verbose
+
+  # Mixed inputs; only listed results
+  Test-DnsBlacklist -NameOrIpAddress "example.com","203.0.113.10" -BlacklistedOnly
+
+  # Full mapping (domain and each IP key)
+  $res = Test-DnsBlacklist -NameOrIpAddress "example.com" -FullResponse
+  $res["example.com"]
+
+  # Faster resolver: requires DnsClientX 1.0.1+
+  Test-DnsBlacklist -NameOrIpAddress "example.com" -MaxConcurrency 64 -Verbose
+
+  Behavior notes:
+  - Domains: domain blocklists + resolve MX A/AAAA → query those IPs on IP blocklists.
+  - IPs: IP blocklists directly.
+  - Mixed arrays: aggregates both without clearing.
+  - Fallback: if MX A/AAAA are missing/unresolvable, apex A/AAAA IPs are checked.
+  - Use -BlacklistedOnly to filter, -FullResponse to return per-key DNSQueryResult.
   ```
 - `Test-EmailDkim` – verifies DKIM selectors for the given domain.
   ```powershell

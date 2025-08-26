@@ -15,8 +15,8 @@ namespace DomainDetective.Tests {
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
             var expected = IPAddress.Parse(address).ToPtrFormat();
-            Assert.Equal(expected, record.IPAddress);
-            Assert.Equal(address, record.OriginalIPAddress);
+            Assert.Equal(expected, record.Query);
+            Assert.Equal(address, record.IpAddress);
         }
 
         [Fact]
@@ -42,7 +42,7 @@ namespace DomainDetective.Tests {
 
             var record = healthCheck.DNSBLAnalysis.Results[address].DNSBLRecords.First();
             var expected = IPAddress.IPv6Loopback.ToPtrFormat();
-            Assert.Equal(expected, record.IPAddress);
+            Assert.Equal(expected, record.Query);
         }
 
         [Fact]
@@ -56,8 +56,8 @@ namespace DomainDetective.Tests {
             var nibble = IPAddress.Parse(address).ToPtrFormat();
 
             var record = new DNSBLRecord {
-                IPAddress = nibble,
-                OriginalIPAddress = address,
+                Query = nibble,
+                IpAddress = address,
                 FQDN = $"{nibble}.example.test",
                 BlackList = "example.test",
                 IsBlackListed = true,
@@ -83,8 +83,8 @@ namespace DomainDetective.Tests {
             var nibble = IPAddress.Parse(address).ToPtrFormat();
 
             var record = new DNSBLRecord {
-                IPAddress = nibble,
-                OriginalIPAddress = address,
+                Query = nibble,
+                IpAddress = address,
                 FQDN = $"{nibble}.example.test",
                 BlackList = "example.test",
                 IsBlackListed = false,

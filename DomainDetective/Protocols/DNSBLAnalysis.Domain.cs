@@ -30,7 +30,7 @@ namespace DomainDetective {
             Logger = logger;
             Logger?.WriteVerbose($"Checking {domain} against {DomainDNSBLLists.Count} domain blocklists");
             var collected = new List<DNSBLRecord>();
-            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain)) {
+            await foreach (var record in QueryDNSBL(DomainDNSBLLists, domain, DnsblIpSource.Domain, sourceHost: domain)) {
                 collected.Add(record);
                 yield return record;
             }
@@ -59,7 +59,7 @@ namespace DomainDetective {
                 var d = domain; // capture
                 tasks.Add(Task.Run(async () => {
                     var list = new List<DNSBLRecord>();
-                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d)) {
+                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d, DnsblIpSource.Domain, sourceHost: d)) {
                         list.Add(record);
                     }
                     return (d, list);

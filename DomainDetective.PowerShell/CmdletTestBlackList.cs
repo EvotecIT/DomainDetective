@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective;
 using System.Linq;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -6,9 +7,57 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Queries DNSBL providers to see if domains or IPs are listed.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>
+    /// Default behavior:
+    /// - Domain inputs: queries domain blocklists and then resolves MX A/AAAA to query IP blocklists for each resulting IP.
+    /// - IP inputs: queries IP blocklists directly.
+    /// - Mixed arrays: aggregates both without clearing prior results.
+    ///
+    /// Overrides:
+    /// - <c>-TreatAsDomain</c>: forces the "domain + MX-IP" path for the input(s).
+    /// - <c>-TreatAsIp</c>: if an input is an IP it is checked as-is; if an input is a domain, its apex A/AAAA IPs are resolved and checked on IP blocklists.
+    ///
+    /// Fallback:
+    /// - When MX exists but has no resolvable A/AAAA (or no MX is present), the cmdlet falls back to apex A/AAAA for IP blocklist checks.
+    ///
+    /// Output:
+    /// - By default returns a flat list of DNSBLRecord across domain and any resolved IPs.
+    /// - With <c>-FullResponse</c> returns a dictionary mapping each key (domain or IP) to a DNSQueryResult.
+    /// - Use <c>-BlacklistedOnly</c> to filter output to listed results.
+    ///
+    /// Performance:
+    /// - Use <c>-MaxConcurrency</c> to hint the DNS resolver concurrency (requires DnsClientX 1.0.1+).
+    ///
+    /// Domain IP scan control:
+    /// - Use <c>-DomainIpScan</c> to control which IPs are resolved and checked when a domain is provided.
+    ///   Values: <c>MxOnly</c>, <c>MxAOnly</c>, <c>MxAAAAOnly</c>, <c>ApexOnly</c>, <c>ApexAOnly</c>, <c>ApexAAAAOnly</c>, <c>MxAndApex</c>, <c>MxThenApexFallback</c> (default).
+    ///
+    /// Notes:
+    /// - Export switches are available but dedicated reports are not yet implemented; using them will emit a TODO message.
+    /// </remarks>
     /// <example>
-    ///   <summary>Check a single host.</summary>
-    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress example.com</code>
+    ///   <summary>Default: domain + MX-IP checks.</summary>
+    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -Verbose</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Force domain path explicitly (same as default for domains).</summary>
+    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -TreatAsDomain -Verbose</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Treat a domain as IP-only checks (apex A/AAAA).</summary>
+    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -TreatAsIp -Verbose</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Mixed inputs: domain + IP, return only listed hits.</summary>
+    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress 'example.com','203.0.113.10' -BlacklistedOnly</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Return the full mapping (domain and each IP as separate keys).</summary>
+    ///   <code>$res = Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -FullResponse; $res['example.com']</code>
+    /// </example>
+    /// <example>
+    ///   <summary>Increase resolver concurrency (requires DnsClientX 1.0.1+).</summary>
+    ///   <code>Test-DDDnsBlacklist -NameOrIpAddress 'example.com' -MaxConcurrency 64 -Verbose</code>
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsBlacklist", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsBlacklist", "Test-DnsDomainBlacklist", "Test-DDDnsDomainBlacklist", "Test-DDDnsBlacklistRecord")]
@@ -43,6 +92,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public int? MaxConcurrency { get; set; }
 
+        /// <para>Controls which IPs are resolved and checked for domains.</para>
+        [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
+        public DomainIpScanMode? DomainIpScan { get; set; }
+
         /// <summary>
         /// Prepares the DNSBL health check and logging.
         /// </summary>
@@ -55,9 +108,6 @@ namespace DomainDetective.PowerShell {
             // initialize the health check object
             healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             if (MaxConcurrency.HasValue) {
-                if (!healthCheck.DnsConfiguration.SupportsResolverConcurrency) {
-                    throw new ParameterBindingException("DnsClientX does not expose a concurrency hint in this build. Please update DnsClientX and DomainDetective, or omit -MaxConcurrency.");
-                }
                 healthCheck.DnsConfiguration.ResolverMaxConcurrency = MaxConcurrency.Value;
             }
             return Task.CompletedTask;
@@ -72,23 +122,44 @@ namespace DomainDetective.PowerShell {
                 throw new ParameterBindingException("Specify only one of -TreatAsDomain or -TreatAsIp.");
             }
 
+            // Execution strategy
+            // -TreatAsIp: query IP blacklists; if domain(s) provided, resolve A/AAAA and query those IPs
+            // -TreatAsDomain: always domain + MX-IP path
+            // default: domains => domain+MX-IP, IPs => IP blacklists; mixed arrays aggregate results
+            healthCheck.DNSBLAnalysis.Reset();
+            bool first = true;
+            var scanMode = DomainIpScan ?? DomainIpScanMode.MxThenApexFallback;
+
             if (TreatAsIp) {
-                // All entries must be valid IPs
+                var ips = new System.Collections.Generic.List<string>();
                 foreach (var input in NameOrIpAddress) {
-                    if (!System.Net.IPAddress.TryParse(input, out _)) {
-                        throw new ParameterBindingException($"Input '{input}' is not a valid IP address but -TreatAsIp was specified.");
+                    if (System.Net.IPAddress.TryParse(input, out _)) {
+                        ips.Add(input);
+                    } else {
+                        // Resolve A/AAAA for domain and add those IPs
+                        var a = await healthCheck.DnsConfiguration.QueryDNS(input, DnsClientX.DnsRecordType.A);
+                        foreach (var ans in a) ips.Add(ans.Data);
+                        var aaaa = await healthCheck.DnsConfiguration.QueryDNS(input, DnsClientX.DnsRecordType.AAAA);
+                        foreach (var ans in aaaa) ips.Add(ans.Data);
                     }
                 }
-                healthCheck.DNSBLAnalysis.Reset();
-                await healthCheck.DNSBLAnalysis.AnalyzeDNSBLRecordsMany(NameOrIpAddress, _logger, clearExisting: true);
-            } else if (TreatAsDomain) {
-                // Domain path: domain lists + MX IPs
-                healthCheck.DNSBLAnalysis.Reset();
-                foreach (var input in NameOrIpAddress) {
-                    await healthCheck.VerifyDNSBL(input);
+                if (ips.Count > 0) {
+                    await healthCheck.DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true);
+                    first = false;
                 }
             } else {
-                await healthCheck.CheckDNSBL(NameOrIpAddress);
+                // Default/TreatAsDomain for domains
+                foreach (var input in NameOrIpAddress) {
+                    var isIp = System.Net.IPAddress.TryParse(input, out _);
+                    if (isIp && !TreatAsDomain) {
+                        await healthCheck.DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { input }, _logger, clearExisting: first);
+                        first = false;
+                    } else {
+                        var clear = first;
+                        first = false;
+                        await healthCheck.VerifyDNSBL(input, scanMode, clearExisting: clear);
+                    }
+                }
             }
 
             if (NameOrIpAddress.Length == 1) {
@@ -98,7 +169,10 @@ namespace DomainDetective.PowerShell {
                 if (FullResponse) {
                     // For domains, return full dictionary (domain + MX-IP) to give complete context
                     if (isIp) {
-                        var res = healthCheck.DNSBLAnalysis.Results[input];
+                        if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(input, out var res)) {
+                            WriteObject(System.Array.Empty<object>());
+                            goto AfterWrite;
+                        }
                         if (!BlacklistedOnly || res.IsBlacklisted) {
                             WriteObject(res);
                         }
@@ -114,7 +188,11 @@ namespace DomainDetective.PowerShell {
                 } else {
                     // Flatten domain + MX-IP DNSBL records when domain is provided
                     if (isIp) {
-                        var records = healthCheck.DNSBLAnalysis.Results[input].DNSBLRecords;
+                        if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(input, out var res)) {
+                            WriteObject(System.Array.Empty<object>());
+                            goto AfterWrite;
+                        }
+                        var records = res.DNSBLRecords;
                         if (BlacklistedOnly) records = records.Where(r => r.IsBlackListed);
                         WriteObject(records);
                     } else {
@@ -139,6 +217,7 @@ namespace DomainDetective.PowerShell {
                     WriteObject(dnsblRecords.ToList());
                 }
             }
+AfterWrite:
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

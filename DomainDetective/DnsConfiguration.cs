@@ -21,14 +21,13 @@ namespace DomainDetective {
         public string UserAgent { get; set; } = DefaultUserAgent;
         /// <summary>
         /// Optional maximum concurrency for DNS queries passed to the underlying resolver.
-        /// Not applied unless <see cref="SupportsResolverConcurrency"/> is true in this build.
+        /// Applied when supported by the DnsClientX version.
         /// </summary>
         public int? ResolverMaxConcurrency { get; set; }
         /// <summary>
         /// Indicates whether the underlying resolver supports a concurrency hint.
-        /// If false, callers should not set <see cref="ResolverMaxConcurrency"/>.
         /// </summary>
-        public bool SupportsResolverConcurrency => false;
+        public bool SupportsResolverConcurrency => true;
         /// <summary>Optional override for DNS queries.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
         /// <summary>
@@ -70,6 +69,9 @@ namespace DomainDetective {
             }
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
+            if (ResolverMaxConcurrency.HasValue) {
+                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+            }
                         if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);
                 return data.Answers;
@@ -98,6 +100,9 @@ namespace DomainDetective {
 
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
+            if (ResolverMaxConcurrency.HasValue) {
+                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+            }
                         DnsResponse[] data;
             if (filter != string.Empty) {
                 data = await client.ResolveFilter(names, recordType, filter);
@@ -122,6 +127,9 @@ namespace DomainDetective {
             }
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
+            if (ResolverMaxConcurrency.HasValue) {
+                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+            }
                         DnsResponse[] data = filter != string.Empty
                 ? await client.ResolveFilter(names, recordType, filter)
                 : await client.Resolve(names, recordType);
