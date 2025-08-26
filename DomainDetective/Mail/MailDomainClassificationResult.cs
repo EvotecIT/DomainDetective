@@ -17,5 +17,8 @@ public sealed class MailDomainClassificationResult {
     public double Score { get; init; }
     public IReadOnlyDictionary<string, double> ScoreBreakdown { get; init; } = new Dictionary<string, double>();
     public IReadOnlyList<StandardReference> RfcReferences { get; init; } = new List<StandardReference>();
-}
 
+    // BIMI eligibility hints (best-effort; actual display depends on receivers)
+    public bool? BimiEligible { get; init; }
+    public string? BimiEligibilityReason { get; init; }
+}

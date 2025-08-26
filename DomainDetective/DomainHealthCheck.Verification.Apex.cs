@@ -23,7 +23,8 @@ namespace DomainDetective {
             var a = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A, cancellationToken: cancellationToken);
             var aaaa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA, cancellationToken: cancellationToken);
             await ApexAddressAnalysis.AnalyzeApexAnswers(a, aaaa, _logger);
+            await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
+            await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
         }
     }
 }
-

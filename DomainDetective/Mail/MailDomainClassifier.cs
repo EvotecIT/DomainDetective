@@ -58,6 +58,32 @@ public sealed class MailDomainClassifier {
         var hasTlsRpt = _health.TLSRPTAnalysis?.TlsRptRecordExists == true;
         var hasDaneSmtp = _health.DaneAnalysis?.AnalysisResults?.Any(x => x.ServiceType == ServiceType.SMTP) == true;
         var hasBimi = _health.BimiAnalysis?.BimiRecordExists == true;
+        // BIMI eligibility heuristic: DMARC policy enforce-ish and VMC
+        bool? bimiEligible = null;
+        string? bimiReason = null;
+        try {
+            var dmarc = _health.DmarcAnalysis;
+            var bimi = _health.BimiAnalysis;
+            if (bimi != null && dmarc != null) {
+                var policy = dmarc.Policy?.Trim()?.ToLowerInvariant();
+                var policyEnforcing = policy == "reject" || policy == "quarantine";
+                if (bimi.BimiRecordExists && bimi.StartsCorrectly) {
+                    if (!policyEnforcing) {
+                        bimiEligible = false;
+                        bimiReason = "DMARC policy not enforcing (p=quarantine or p=reject recommended).";
+                    } else if (!(bimi.ValidVmc && bimi.VmcSignedByKnownRoot)) {
+                        bimiEligible = false;
+                        bimiReason = "VMC not valid or not signed by a trusted root.";
+                    } else {
+                        bimiEligible = true;
+                        bimiReason = "DMARC enforcing and VMC valid; actual display depends on receivers.";
+                    }
+                } else if (bimi.BimiRecordExists) {
+                    bimiEligible = false;
+                    bimiReason = "BIMI record present but header invalid or incomplete.";
+                }
+            }
+        } catch { /* eligibility best-effort */ }
 
         // Scoring
         var scoreBreakdown = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase) {
@@ -156,6 +182,8 @@ public sealed class MailDomainClassifier {
             Score = totalScore,
             ScoreBreakdown = scoreBreakdown,
             RfcReferences = references
+            ,BimiEligible = bimiEligible
+            ,BimiEligibilityReason = bimiReason
         };
     }
 
