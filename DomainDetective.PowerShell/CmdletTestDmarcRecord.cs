@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailDmarcRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailDmarc")]
-    public sealed class CmdletTestDmarcRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestDmarcRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -48,6 +48,10 @@ namespace DomainDetective.PowerShell {
             } else {
                 var output = OutputHelper.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
+            }
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDEmailDmarcRecord"); // TODO: Dedicated DMARC report
+                return;
             }
         }
     }

@@ -25,7 +25,7 @@ namespace DomainDetective.PowerShell {
         "DDDnsPropagation",
         DefaultParameterSetName = "Builtin")]
 [Alias("Test-DnsPropagation")]
-    public sealed class CmdletTestDnsPropagation : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsPropagation : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Builtin")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServersFile")]
@@ -141,6 +141,7 @@ namespace DomainDetective.PowerShell {
             if (changes != null && changes.Any()) {
                 WriteObject(changes, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -26,7 +26,7 @@ This includes:
 ## Quick Reference
 
 ### PowerShell Cmdlets (New Pattern)
-- `Show-DDDomainReport` - Main report generation/display
+- `Test-DDDomainOverallHealth` - Health + report export (-Export*)
 - `Show-DDEmailSpfReport` - SPF-specific reports
 - `Show-DDEmailDmarcReport` - DMARC-specific reports
 - `Show-DDEmailDkimReport` - DKIM-specific reports

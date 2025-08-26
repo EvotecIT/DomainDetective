@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDNetworkPortAvailability", DefaultParameterSetName = "ServerName")]
 [Alias("Test-NetworkPortAvailability")]
-    public sealed class CmdletTestPortAvailability : AsyncPSCmdlet {
+    public sealed class CmdletTestPortAvailability : ExportableAsyncPSCmdlet {
         /// <summary>Host to test.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -38,6 +38,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking ports on {0}", HostName);
             await _healthCheck.CheckPortAvailability(HostName, Ports);
             WriteObject(_healthCheck.PortAvailabilityAnalysis.ServerResults, true);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

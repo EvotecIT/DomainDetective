@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailBimiRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailBimi")]
-    public sealed class CmdletTestBimiRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestBimiRecord : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,6 +44,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying BIMI record for domain: {0}", DomainName);
             await healthCheck.VerifyBIMI(DomainName);
             WriteObject(healthCheck.BimiAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

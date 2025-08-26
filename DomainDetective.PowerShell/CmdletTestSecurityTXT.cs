@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainSecurityTxt", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DomainSecurityTxt")]
-    public sealed class CmdletTestSecurityTXT : AsyncPSCmdlet {
+    public sealed class CmdletTestSecurityTXT : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying security.txt for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.SECURITYTXT });
             WriteObject(healthCheck.SecurityTXTAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

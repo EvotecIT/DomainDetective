@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainContactRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DomainContact")]
-    public sealed class CmdletTestContactRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestContactRecord : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,6 +44,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying contact record for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.CONTACT });
             WriteObject(healthCheck.ContactInfoAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

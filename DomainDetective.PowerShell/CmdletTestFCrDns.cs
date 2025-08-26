@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell;
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsForwardReverse", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsFcrDns")]
-public sealed class CmdletTestFCrDns : AsyncPSCmdlet
+public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet
 {
     /// <summary>Domain to analyze.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -50,5 +50,6 @@ public sealed class CmdletTestFCrDns : AsyncPSCmdlet
         _logger.WriteVerbose("Querying FCrDNS for domain: {0}", DomainName);
         await _healthCheck.Verify(DomainName, new[] { HealthCheckType.FCRDNS });
         WriteObject(_healthCheck.FcrDnsAnalysis);
+        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

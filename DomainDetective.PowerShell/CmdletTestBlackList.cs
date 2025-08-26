@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsBlacklist", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsBlacklist", "Test-DnsDomainBlacklist", "Test-DDDnsDomainBlacklist", "Test-DDDnsBlacklistRecord")]
-    public sealed class CmdletTestDnsBlacklist : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsBlacklist : ExportableAsyncPSCmdlet {
         /// <para>Domain names or IP addresses to check.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -139,6 +139,7 @@ namespace DomainDetective.PowerShell {
                     WriteObject(dnsblRecords.ToList());
                 }
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

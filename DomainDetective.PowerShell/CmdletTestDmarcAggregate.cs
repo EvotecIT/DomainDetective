@@ -18,7 +18,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDmarcAggregate")]
     [Alias("Test-EmailDmarcAggregate", "Test-DmarcAggregate")]
-    public sealed class CmdletTestDmarcAggregate : AsyncPSCmdlet {
+    public sealed class CmdletTestDmarcAggregate : ExportableAsyncPSCmdlet {
         /// <para>Path to the aggregate report.</para>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
@@ -31,6 +31,7 @@ namespace DomainDetective.PowerShell {
         protected override Task ProcessRecordAsync() {
             var summaries = ParseReport(Path);
             WriteObject(summaries, true);
+            if (IsExportRequested()) { return ExportNotImplementedAsync(); }
             return Task.CompletedTask;
         }
 

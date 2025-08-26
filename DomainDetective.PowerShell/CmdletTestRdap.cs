@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsCommon.Get, "DDRdap", DefaultParameterSetName = "ServerName")]
     [Alias("Get-Rdap", "Test-Rdap")]
-    public sealed class CmdletTestRdap : AsyncPSCmdlet {
+    public sealed class CmdletTestRdap : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,6 +44,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying RDAP for domain: {0}", DomainName);
             await _healthCheck.QueryRDAP(DomainName);
             WriteObject(_healthCheck.RdapAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

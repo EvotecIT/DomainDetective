@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell;
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsEdnsSupport", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsEdnsSupport")]
-public sealed class CmdletTestEdnsSupport : AsyncPSCmdlet
+public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet
 {
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -44,5 +44,6 @@ public sealed class CmdletTestEdnsSupport : AsyncPSCmdlet
         _logger.WriteVerbose("Querying EDNS support for domain: {0}", DomainName);
         await healthCheck.Verify(DomainName, new[] { HealthCheckType.EDNSSUPPORT });
         WriteObject(healthCheck.EdnsSupportAnalysis);
+        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsOpenResolver")]
     [Alias("Test-DnsOpenResolver", "Test-OpenResolver")]
-    public sealed class CmdletTestOpenResolver : AsyncPSCmdlet {
+    public sealed class CmdletTestOpenResolver : ExportableAsyncPSCmdlet {
         /// <summary>DNS server to check.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
@@ -37,6 +37,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking open resolver for {0}:{1}", Server, Port);
             await _hc.CheckOpenResolverHost(Server, Port, CancelToken);
             WriteObject(_hc.OpenResolverAnalysis.ServerResults[$"{Server}:{Port}"]);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsCommon.Get, "DDEmailMessageHeaderInfo")]
 [Alias("Get-EmailHeaderInfo")]
-    public sealed class CmdletTestMessageHeader : AsyncPSCmdlet {
+    public sealed class CmdletTestMessageHeader : ExportableAsyncPSCmdlet {
         /// <summary>Raw header text.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
@@ -42,6 +42,7 @@ namespace DomainDetective.PowerShell {
         protected override Task ProcessRecordAsync() {
             var result = _healthCheck.CheckMessageHeaders(HeaderText, CancelToken);
             WriteObject(result);
+            if (IsExportRequested()) { return ExportNotImplementedAsync(); }
             return Task.CompletedTask;
         }
     }

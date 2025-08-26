@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsSmimeaRecord", DefaultParameterSetName = "Email")]
 [Alias("Test-DnsSmimea")]
-    public sealed class CmdletTestSmimeaRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestSmimeaRecord : ExportableAsyncPSCmdlet {
         /// <summary>Email address to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Email")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying SMIMEA record for {0}", EmailAddress);
             await _healthCheck.VerifySMIMEA(EmailAddress);
             WriteObject(_healthCheck.SmimeaAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

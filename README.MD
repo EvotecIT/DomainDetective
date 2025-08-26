@@ -76,15 +76,13 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 | `Test-DDDomainContactRecord`   | `Test-DomainContact`     | WHOIS contact sanity            |
 | `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | security.txt checks             |
 | `Test-DDDomainCertificate`     | `Test-DomainCertificate` | Website certificate checks      |
-| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | Composite domain health         |
-| `Get-DDDomainHealthReport`     | `Get-DomainSummary`      | Summary object                  |
+| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | Composite health; -Summary returns DomainSummary; -Export* for reports |
 | `Get-DDDomainWhois`            | `Get-DomainWhois`        | WHOIS                           |
 | `Get-DDDomainFlattenedSpfIp`   | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs            |
 | `Test-DDDomainThreatIntel`     | `Test-DomainThreatIntel` | Threat intel lookups            |
 | `Get-DDRdap`                   | `Get-Rdap`               | RDAP                            |
 | `Get-DDRdapObject`             | `Get-RdapObject`         | RDAP raw object                 |
 | `Get-DDSearchEngineInfo`       | `Get-SearchEngineInfo`   | Search engine queries           |
-| `Show-DDDomainReport`          | `Export-DomainReport`    | Report generation               |
 
 ### TLS & Networking
 

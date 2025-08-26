@@ -255,6 +255,11 @@ namespace DomainDetective {
             };
         }
 
+        /// <summary>
+        /// Quick access to a condensed summary of this health check.
+        /// </summary>
+        public DomainSummary Summary => BuildSummary();
+
         /// <summary>Serializes this instance to a JSON string.</summary>
         /// <param name="options">
         /// <para>Optional serializer options. If not provided,</para>

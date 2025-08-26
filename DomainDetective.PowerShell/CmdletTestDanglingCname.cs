@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsDanglingCname", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsDanglingCname")]
-    public sealed class CmdletTestDanglingCname : AsyncPSCmdlet {
+    public sealed class CmdletTestDanglingCname : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,6 +44,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking dangling CNAME for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.DANGLINGCNAME });
             WriteObject(_healthCheck.DanglingCnameAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailDkimRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailDkim")]
-    public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestDkimRecord : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -63,6 +63,10 @@ namespace DomainDetective.PowerShell {
             } else {
                 var output = OutputHelper.Convert(healthCheck.DKIMAnalysis);
                 WriteObject(output, true);
+            }
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDEmailDkimRecord"); // TODO: Dedicated DKIM report
+                return;
             }
         }
     }

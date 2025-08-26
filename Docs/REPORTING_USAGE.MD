@@ -33,24 +33,27 @@ ddcli report example.com,test.com,demo.com --format html
 
 ```powershell
 # Basic HTML report
-Show-DDDomainReport -Domain "example.com"
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 
 # Executive report with custom path
-Show-DDDomainReport -Domain "example.com" -Template Executive -Path "C:\Reports\exec_report.html"
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -Template Executive -Path "C:\Reports\exec_report.html"
 
 # Generate report from existing health check
-$health = Test-DDDomainOverallHealth -Domain "example.com"
-$health | Show-DDDomainReport -ExportFormat Html -ShowInBrowser
+$health = Test-DDDomainOverallHealth -Domain "example.com" -Raw
+# Access summary directly via property
+$summary = $health.Summary
+$health = Test-DDDomainOverallHealth -DomainName "example.com" -Raw
+$null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "report.html" -OpenInBrowser
 
 # Batch reporting
 @("example.com", "test.com") | ForEach-Object {
-    Show-DDDomainReport -Domain $_ -ExportFormat Html -Path "reports\$_.html" -NoOpen
+    Test-DDDomainOverallHealth -DomainName $_ -ExportFormat Html -ExportPath "reports\$_.html" -NoOpen
 }
 
 # Export to different formats
-Show-DDDomainReport -Domain "example.com" -ExportFormat Json -Path "data.json"
-Show-DDDomainReport -Domain "example.com" -ExportFormat Word -IncludeRawData
-Show-DDDomainReport -Domain "example.com" -ExportFormat Excel
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Json -Path "data.json"
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Word -IncludeRawData
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportFormat Excel
 
 # Protocol-specific reports
 Test-DDEmailSpfRecord -Domain "example.com" | Show-DDEmailSpfReport -ShowInBrowser

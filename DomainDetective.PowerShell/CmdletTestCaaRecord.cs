@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsCaaRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsCaa")]
-    public sealed class CmdletTestCaaRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestCaaRecord : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,6 +44,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying CAA record for domain: {0}", DomainName);
             await healthCheck.VerifyCAA(DomainName);
             WriteObject(healthCheck.CAAAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

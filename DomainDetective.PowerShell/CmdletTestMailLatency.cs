@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailLatency", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailLatency")]
-    public sealed class CmdletTestMailLatency : AsyncPSCmdlet {
+    public sealed class CmdletTestMailLatency : ExportableAsyncPSCmdlet {
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -38,6 +38,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Measuring mail latency for {0}:{1}", HostName, Port);
             await _healthCheck.CheckMailLatency(HostName, Port);
             WriteObject(_healthCheck.MailLatencyAnalysis.ServerResults[$"{HostName}:{Port}"]);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

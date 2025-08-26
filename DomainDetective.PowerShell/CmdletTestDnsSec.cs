@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsSecStatus", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsSec")]
-    public sealed class CmdletTestDnsSec : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsSec : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -49,6 +49,10 @@ namespace DomainDetective.PowerShell {
             } else {
                 DnsSecInfo info = DnsSecConverter.Convert(healthCheck.DnsSecAnalysis);
                 WriteObject(info);
+            }
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDDnsSecStatus"); // TODO: Dedicated DNSSEC report
+                return;
             }
         }
     }

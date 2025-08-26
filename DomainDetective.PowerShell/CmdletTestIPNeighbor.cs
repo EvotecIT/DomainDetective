@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDNetworkIpNeighbor", DefaultParameterSetName = "ServerName")]
 [Alias("Test-NetworkIpNeighbor")]
-    public sealed class CmdletTestIPNeighbor : AsyncPSCmdlet {
+    public sealed class CmdletTestIPNeighbor : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -47,6 +47,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying IP neighbors for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.IPNEIGHBOR });
             WriteObject(_healthCheck.IPNeighborAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpTls", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSmtpTls")]
-    public sealed class CmdletTestSmtpTls : AsyncPSCmdlet {
+    public sealed class CmdletTestSmtpTls : ExportableAsyncPSCmdlet {
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -47,6 +47,7 @@ namespace DomainDetective.PowerShell {
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell;
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainThreatIntel")]
 [Alias("Test-DomainThreatIntel")]
-public sealed class CmdletTestThreatIntel : AsyncPSCmdlet {
+public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
     /// <summary>Domain or IP address to query.</summary>
     [Parameter(Mandatory = true, Position = 0)]
     [ValidateNotNullOrEmpty]
@@ -59,5 +59,6 @@ public sealed class CmdletTestThreatIntel : AsyncPSCmdlet {
         _logger.WriteVerbose("Querying threat intel for {0}", NameOrIpAddress);
         await _healthCheck.VerifyThreatIntel(NameOrIpAddress);
         WriteObject(_healthCheck.ThreatIntelAnalysis);
+        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

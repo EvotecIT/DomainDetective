@@ -57,9 +57,9 @@ var report = await reportFactory.CreateReport(healthCheck, format: ReportFormat.
 # In DomainDetective.PowerShell
 # References: All report projects
 
-Export-DomainReport -Domain "example.com" -Format Html -Template Executive
-Export-DomainReport -Domain "example.com" -Format Word -IncludeRawData
-Export-DomainReport -Domain "example.com" -Format Excel -ComparisonMode
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -Template Executive
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Word -IncludeRawData
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Excel
 ```
 
 ## Benefits of This Structure

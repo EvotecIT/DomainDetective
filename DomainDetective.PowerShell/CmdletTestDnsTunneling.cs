@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsTunneling", DefaultParameterSetName = "File")]
 [Alias("Test-DnsTunneling")]
-    public sealed class CmdletTestDnsTunneling : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsTunneling : ExportableAsyncPSCmdlet {
         /// <summary>Domain to inspect.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
@@ -35,6 +35,7 @@ namespace DomainDetective.PowerShell {
             _hc.DnsTunnelingLogs = lines;
             await _hc.CheckDnsTunnelingAsync(DomainName, CancelToken);
             WriteObject(_hc.DnsTunnelingAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

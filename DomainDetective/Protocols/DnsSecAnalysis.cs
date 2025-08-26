@@ -218,16 +218,25 @@ namespace DomainDetective {
                 }
             }
 
-            if (RootAnchorExpiration.HasValue &&
-                RootAnchorExpiration.Value - DateTimeOffset.UtcNow <= KeyExpirationWarningThreshold) {
+            if (RootAnchorExpiration.HasValue) {
                 double days = (RootAnchorExpiration.Value - DateTimeOffset.UtcNow).TotalDays;
-                string message = string.Format(
-                    CultureInfo.InvariantCulture,
-                    "Root trust anchor expires in {0:F0} days",
-                    Math.Ceiling(days));
-                logger?.WriteWarning(message);
-                _warnings.Add(message);
-                KeyExpiresSoon = true;
+                if (days <= 0) {
+                    string message = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Root trust anchor expired {0:F0} days ago",
+                        Math.Ceiling(Math.Abs(days)));
+                    logger?.WriteWarning(message);
+                    _warnings.Add(message);
+                    KeyExpiresSoon = true;
+                } else if (days <= KeyExpirationWarningThreshold.TotalDays) {
+                    string message = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Root trust anchor expires in {0:F0} days",
+                        Math.Ceiling(days));
+                    logger?.WriteWarning(message);
+                    _warnings.Add(message);
+                    KeyExpiresSoon = true;
+                }
             }
 
             ChainValid = chainValid;

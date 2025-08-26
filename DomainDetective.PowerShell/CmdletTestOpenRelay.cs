@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailOpenRelay", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailOpenRelay")]
-    public sealed class CmdletTestOpenRelay : AsyncPSCmdlet {
+    public sealed class CmdletTestOpenRelay : ExportableAsyncPSCmdlet {
         /// <summary>SMTP host name to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking open relay for {0}:{1}", HostName, Port);
             await _healthCheck.CheckOpenRelayHost(HostName, Port);
             WriteObject(_healthCheck.OpenRelayAnalysis.ServerResults[$"{HostName}:{Port}"]); 
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

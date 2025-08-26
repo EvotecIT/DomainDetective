@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsZoneTransfer", DefaultParameterSetName = "ServerName")]
     [Alias("Test-DnsZoneTransfer", "Test-ZoneTransfer")]
-    public sealed class CmdletTestZoneTransfer : AsyncPSCmdlet {
+    public sealed class CmdletTestZoneTransfer : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -47,6 +47,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking zone transfer for domain: {0}", DomainName);
             await _healthCheck.VerifyZoneTransfer(DomainName);
             WriteObject(_healthCheck.ZoneTransferAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailTlsRptRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailTlsRpt")]
-    public sealed class CmdletTestTlsRptRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestTlsRptRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying TLSRPT record for domain: {0}", DomainName);
             await healthCheck.VerifyTLSRPT(DomainName);
             WriteObject(healthCheck.TLSRPTAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

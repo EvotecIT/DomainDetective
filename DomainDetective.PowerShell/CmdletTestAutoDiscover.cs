@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailAutoDiscover", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailAutoDiscover")]
-    public sealed class CmdletTestAutoDiscover : AsyncPSCmdlet {
+    public sealed class CmdletTestAutoDiscover : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -52,6 +52,7 @@ namespace DomainDetective.PowerShell {
             if (IncludeEndpoints) {
                 WriteObject(_healthCheck.AutodiscoverHttpAnalysis.Endpoints, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

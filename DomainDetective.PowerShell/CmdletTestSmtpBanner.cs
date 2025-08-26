@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpBanner", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailSmtpBanner", "Test-SmtpBanner")]
-    public sealed class CmdletTestSmtpBanner : AsyncPSCmdlet {
+    public sealed class CmdletTestSmtpBanner : ExportableAsyncPSCmdlet {
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -48,6 +48,7 @@ namespace DomainDetective.PowerShell {
             _healthCheck.SmtpBannerAnalysis.ExpectedSoftware = ExpectedSoftware;
             await _healthCheck.CheckSmtpBannerHost(HostName, Port);
             WriteObject(_healthCheck.SmtpBannerAnalysis.ServerResults[$"{HostName}:{Port}"]);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsSoaRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsSoa")]
-    public sealed class CmdletTestSoaRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestSoaRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying SOA record for domain: {0}", DomainName);
             await healthCheck.VerifySOA(DomainName);
             WriteObject(healthCheck.SOAAnalysis);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

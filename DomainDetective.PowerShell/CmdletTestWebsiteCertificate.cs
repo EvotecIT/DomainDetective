@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainCertificate", DefaultParameterSetName = "Url")]
 [Alias("Test-DomainCertificate")]
-    public sealed class CmdletTestWebsiteCertificate : AsyncPSCmdlet {
+    public sealed class CmdletTestWebsiteCertificate : ExportableAsyncPSCmdlet {
         /// <summary>Website URL.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
         [ValidateNotNullOrEmpty]
@@ -51,6 +51,7 @@ namespace DomainDetective.PowerShell {
             if (ShowChain && _healthCheck.CertificateAnalysis.Chain.Count > 0) {
                 WriteObject(_healthCheck.CertificateAnalysis.Chain, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

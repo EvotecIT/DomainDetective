@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDRpki", DefaultParameterSetName = "ServerName")]
     [Alias("Test-Rpki")]
-    public sealed class CmdletTestRpki : AsyncPSCmdlet {
+    public sealed class CmdletTestRpki : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -40,6 +40,7 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying RPKI for domain: {0}", DomainName);
             await _healthCheck.VerifyRPKI(DomainName);
             WriteObject(_healthCheck.RpkiAnalysis.Results);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }
