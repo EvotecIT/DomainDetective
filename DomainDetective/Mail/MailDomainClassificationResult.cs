@@ -21,4 +21,5 @@ public sealed class MailDomainClassificationResult {
     // BIMI eligibility hints (best-effort; actual display depends on receivers)
     public bool? BimiEligible { get; init; }
     public string? BimiEligibilityReason { get; init; }
+    public IReadOnlyList<string> BimiNotes { get; init; } = new List<string>();
 }

@@ -58,29 +58,41 @@ public sealed class MailDomainClassifier {
         var hasTlsRpt = _health.TLSRPTAnalysis?.TlsRptRecordExists == true;
         var hasDaneSmtp = _health.DaneAnalysis?.AnalysisResults?.Any(x => x.ServiceType == ServiceType.SMTP) == true;
         var hasBimi = _health.BimiAnalysis?.BimiRecordExists == true;
+        var hasVmc = _health.BimiAnalysis?.ValidVmc == true && _health.BimiAnalysis?.VmcSignedByKnownRoot == true;
+        var asnDistinct = _health.ApexAddressAnalysis?.AsnDistinctCount ?? 0;
         // BIMI eligibility heuristic: DMARC policy enforce-ish and VMC
         bool? bimiEligible = null;
         string? bimiReason = null;
+        var bimiNotes = new List<string>();
         try {
             var dmarc = _health.DmarcAnalysis;
             var bimi = _health.BimiAnalysis;
             if (bimi != null && dmarc != null) {
                 var policy = dmarc.Policy?.Trim()?.ToLowerInvariant();
                 var policyEnforcing = policy == "reject" || policy == "quarantine";
+                var pctFull = !dmarc.Pct.HasValue || dmarc.Pct.Value >= 100;
                 if (bimi.BimiRecordExists && bimi.StartsCorrectly) {
                     if (!policyEnforcing) {
                         bimiEligible = false;
                         bimiReason = "DMARC policy not enforcing (p=quarantine or p=reject recommended).";
+                        bimiNotes.Add("BIMI requires DMARC enforcement.");
+                    } else if (!pctFull) {
+                        bimiEligible = false;
+                        bimiReason = "DMARC pct not 100; receivers may not consider eligible.";
+                        bimiNotes.Add("BIMI works best with pct=100.");
                     } else if (!(bimi.ValidVmc && bimi.VmcSignedByKnownRoot)) {
                         bimiEligible = false;
                         bimiReason = "VMC not valid or not signed by a trusted root.";
+                        bimiNotes.Add("Obtain a valid VMC from a trusted CA.");
                     } else {
                         bimiEligible = true;
                         bimiReason = "DMARC enforcing and VMC valid; actual display depends on receivers.";
+                        bimiNotes.Add("BIMI DNS and VMC are in good shape; delivery side still depends on receivers.");
                     }
                 } else if (bimi.BimiRecordExists) {
                     bimiEligible = false;
                     bimiReason = "BIMI record present but header invalid or incomplete.";
+                    bimiNotes.Add("Ensure BIMI record starts with v=BIMI1 and has valid l= and a= tags.");
                 }
             }
         } catch { /* eligibility best-effort */ }
@@ -95,13 +107,16 @@ public sealed class MailDomainClassifier {
             ["HasMTASTS"] = hasMtaSts ? 1.0 : 0.0,
             ["HasTLSRPT"] = hasTlsRpt ? 0.5 : 0.0,
             ["HasDANE"] = hasDaneSmtp ? 0.5 : 0.0,
-            ["HasBIMI"] = hasBimi ? 1.0 : 0.0
+            ["HasBIMI"] = hasBimi ? 1.0 : 0.0,
+            ["HasBIMI_VMC"] = hasVmc ? 0.5 : 0.0,
+            ["AsnDiversity"] = asnDistinct >= 3 ? 1.0 : (asnDistinct >= 2 ? 0.5 : 0.0)
         };
 
         double sendingScore = 0.0;
         sendingScore += scoreBreakdown["EffectiveSPFSends"];
         sendingScore += scoreBreakdown["HasDKIM"];
         sendingScore += scoreBreakdown["HasBIMI"];
+        sendingScore += scoreBreakdown["HasBIMI_VMC"];
 
         double receivingScore = 0.0;
         receivingScore += scoreBreakdown["HasMX"];
@@ -109,6 +124,7 @@ public sealed class MailDomainClassifier {
         receivingScore += scoreBreakdown["HasTLSRPT"];
         receivingScore += scoreBreakdown["HasDANE"];
         receivingScore += scoreBreakdown["HasAorAAAA"];
+        receivingScore += scoreBreakdown["AsnDiversity"];
 
         var totalScore = scoreBreakdown.Values.Sum();
 
@@ -184,6 +200,7 @@ public sealed class MailDomainClassifier {
             RfcReferences = references
             ,BimiEligible = bimiEligible
             ,BimiEligibilityReason = bimiReason
+            ,BimiNotes = bimiNotes
         };
     }
 
