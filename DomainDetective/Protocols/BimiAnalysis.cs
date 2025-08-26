@@ -66,6 +66,11 @@ public partial class BimiAnalysis {
         /// <summary>If an HTTP request fails, explains why.</summary>
         public string? FailureReason { get; private set; }
 
+        /// <summary>Relevant standards for BIMI analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "BIMI (draft)", Reference = "draft-blank-ietf-bimi", Url = "https://datatracker.ietf.org/doc/html/draft-blank-ietf-bimi" }
+        };
+
         /// <summary>Factory for creating custom HTTP handlers.</summary>
         internal Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 

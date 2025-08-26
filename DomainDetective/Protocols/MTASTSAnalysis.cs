@@ -133,6 +133,11 @@ public class MTASTSAnalysis {
         /// <summary>Summary message describing MTA-STS status.</summary>
         public string Advisory { get; private set; }
 
+        /// <summary>Relevant standards for MTA-STS analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "SMTP MTA Strict Transport Security", Reference = "RFC 8461", Url = "https://datatracker.ietf.org/doc/html/rfc8461" }
+        };
+
         /// <summary>
         /// Resets analysis state so the instance can be reused.
         /// </summary>

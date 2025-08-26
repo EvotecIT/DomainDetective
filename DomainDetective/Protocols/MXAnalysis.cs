@@ -47,6 +47,18 @@ namespace DomainDetective {
         /// <summary>Indicates whether backup MX servers are present.</summary>
         public bool HasBackupServers { get; private set; }
 
+        /// <summary>True when an RFC 7505 "Null MX" is present (0 .).</summary>
+        public bool HasNullMx { get; private set; }
+
+        /// <summary>True when an MX host points to localhost.</summary>
+        public bool PointsToLocalhost { get; private set; }
+
+        /// <summary>Relevant standards for MX analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "Simple Mail Transfer Protocol", Reference = "RFC 5321", Url = "https://datatracker.ietf.org/doc/html/rfc5321" },
+            new StandardReference { Title = "Null MX for No Service", Reference = "RFC 7505", Url = "https://datatracker.ietf.org/doc/html/rfc7505" }
+        };
+
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
@@ -65,6 +77,8 @@ namespace DomainDetective {
             PointsToDomainWithoutAOrAaaaRecord = false;
             PrioritiesInOrder = true;
             HasBackupServers = false;
+            HasNullMx = false;
+            PointsToLocalhost = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -79,7 +93,15 @@ namespace DomainDetective {
                 MxRecords.Add(record.Data);
                 var parts = record.Data.Split(new[] { ' ' }, 2, System.StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2 && int.TryParse(parts[0], out var pref)) {
-                    parsed.Add((pref, parts[1].Trim('.')));
+                    var host = parts[1].Trim('.');
+                    parsed.Add((pref, host));
+                    if (pref == 0 && string.IsNullOrEmpty(host)) {
+                        HasNullMx = true;
+                    }
+                    var lowerHost = host.ToLowerInvariant();
+                    if (lowerHost == "localhost" || lowerHost == "localhost.localdomain" || lowerHost == "127.0.0.1") {
+                        PointsToLocalhost = true;
+                    }
                 }
             }
 

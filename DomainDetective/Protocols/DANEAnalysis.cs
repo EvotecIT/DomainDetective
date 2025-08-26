@@ -25,6 +25,11 @@ namespace DomainDetective {
         public bool HasDuplicateRecords { get; private set; }
         public bool HasInvalidRecords { get; set; }
 
+        /// <summary>Relevant standards for DANE analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "DANE TLSA", Reference = "RFC 6698", Url = "https://datatracker.ietf.org/doc/html/rfc6698" }
+        };
+
 
         public void Reset() {
             AnalysisResults = new List<DANERecordAnalysis>();

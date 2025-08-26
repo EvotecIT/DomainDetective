@@ -33,6 +33,11 @@ namespace DomainDetective {
 
         public bool PolicyValid => TlsRptRecordExists && StartsCorrectly && RuaDefined;
 
+        /// <summary>Relevant standards for TLSRPT analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "SMTP TLS Reporting", Reference = "RFC 8460", Url = "https://datatracker.ietf.org/doc/html/rfc8460" }
+        };
+
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
 

@@ -34,6 +34,11 @@ namespace DomainDetective {
         /// <summary>Summary message describing DKIM validation outcome.</summary>
         public string Advisory { get; private set; }
 
+        /// <summary>Relevant standards for DKIM analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "DomainKeys Identified Mail", Reference = "RFC 6376", Url = "https://datatracker.ietf.org/doc/html/rfc6376" }
+        };
+
         /// <summary>Clears <see cref="AnalysisResults"/>.</summary>
         public void Reset() {
             AnalysisResults = new Dictionary<string, DkimRecordAnalysis>();

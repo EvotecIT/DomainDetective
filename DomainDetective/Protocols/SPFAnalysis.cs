@@ -83,6 +83,17 @@ namespace DomainDetective {
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
 
+        /// <summary>
+        /// True when SPF configuration effectively authorizes outbound senders
+        /// after resolving include/redirect chains as per RFC 7208.
+        /// </summary>
+        public bool EffectiveSpfSends { get; private set; }
+
+        /// <summary>Relevant standards for SPF analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "Sender Policy Framework", Reference = "RFC 7208", Url = "https://datatracker.ietf.org/doc/html/rfc7208" }
+        };
+
         private static readonly Regex MacroRegex = new(
             @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{1,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -135,6 +146,7 @@ namespace DomainDetective {
             ExpDnsLookupsCount = 0;
             ExpExceedsDnsLookups = false;
             Advisory = string.Empty;
+            EffectiveSpfSends = false;
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
@@ -733,6 +745,43 @@ namespace DomainDetective {
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// Computes whether SPF effectively authorizes outbound sending after
+        /// resolving include/redirect chains and updates <see cref="EffectiveSpfSends"/>.
+        /// </summary>
+        public async Task ComputeEffectiveSpfSendsAsync(InternalLogger? logger = null) {
+            EffectiveSpfSends = false;
+            if (!SpfRecordExists || string.IsNullOrWhiteSpace(SpfRecord) || !StartsCorrectly) {
+                return;
+            }
+            if (PermError || ExceedsDnsLookups || MultipleSpfRecords) {
+                return;
+            }
+
+            var flattened = await GetFlattenedSpf(logger);
+            if (string.IsNullOrWhiteSpace(flattened)) {
+                return;
+            }
+
+            var tokens = flattened
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim('"'))
+                .Where(t => !t.Equals("v=spf1", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            bool hasAuth = tokens.Any(t =>
+                t.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("a", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("a:", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("mx", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
+            );
+
+            EffectiveSpfSends = hasAuth;
         }
 
         private async Task<List<string>> FlattenTokens(IEnumerable<string> tokens, HashSet<string> visited, InternalLogger? logger) {
