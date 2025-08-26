@@ -10,7 +10,7 @@ namespace DomainDetective {
     /// Captures SMTP greeting banners and validates expected hostname and software strings.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SMTPBannerAnalysis {
+    public class SMTPBannerAnalysis : IHasAssessments {
         private const int MaxBannerLength = 512;
         private const int MaxBannerTextLength = MaxBannerLength - 2; // exclude CRLF
         /// <summary>Result of a banner check.</summary>
@@ -82,6 +82,9 @@ namespace DomainDetective {
         /// <summary>Expected software string that should appear in the banner.</summary>
         public string? ExpectedSoftware { get; set; }
 
+        /// <summary>Structured assessments captured during banner checks.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
         /// <summary>Checks a single SMTP server banner.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
@@ -99,6 +102,7 @@ namespace DomainDetective {
         }
 
         private async Task<BannerResult> GetBanner(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMTPBANNER", target: $"{host}:{port}");
             using var client = new TcpClient();
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
@@ -119,7 +123,7 @@ namespace DomainDetective {
 #endif
                 sw.Stop();
                 if (banner != null && banner.Length > MaxBannerTextLength) {
-                    logger?.WriteWarning("Banner from {0}:{1} exceeded {2} bytes and was truncated.", host, port, MaxBannerLength);
+                    logger?.WriteWarningCode(SmtpBannerCodes.Truncated, "Banner from {0}:{1} exceeded {2} bytes and was truncated.", host, port, MaxBannerLength);
                     banner = banner.Substring(0, MaxBannerTextLength);
                 }
                 timeoutCts.Token.ThrowIfCancellationRequested();
@@ -146,7 +150,7 @@ namespace DomainDetective {
                 bool containsDomain = !string.IsNullOrWhiteSpace(domain);
                 bool validFormat = IsValidBannerFormat(banner);
                 if (!validFormat && banner != null) {
-                    logger?.WriteWarning($"Banner from {host}:{port} is not RFC 5321 compliant: {banner}");
+                    logger?.WriteWarningCode(SmtpBannerCodes.FormatInvalid, $"Banner from {host}:{port} is not RFC 5321 compliant: {banner}");
                 }
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;

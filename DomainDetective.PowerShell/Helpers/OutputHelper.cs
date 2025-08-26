@@ -73,7 +73,8 @@ namespace DomainDetective.PowerShell {
                 HttpRuf = analysis.HttpRuf,
                 ExternalReportAuthorization = analysis.ExternalReportAuthorization,
                 InvalidReportUri = analysis.InvalidReportUri,
-                DeprecatedTags = analysis.DeprecatedTags
+                DeprecatedTags = analysis.DeprecatedTags,
+                Assessments = analysis.Assessments
             };
         }
     }
@@ -221,5 +222,8 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Deprecated DMARC tags detected.</summary>
         public IReadOnlyList<string> DeprecatedTags { get; set; }
+
+        /// <summary>Structured assessments gathered during DMARC analysis.</summary>
+        public IReadOnlyList<Assessment> Assessments { get; set; }
     }
 }

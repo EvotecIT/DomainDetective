@@ -62,7 +62,7 @@ namespace DomainDetective {
 
         private void ParseHeader(InternalLogger logger)
         {
-            logger?.WriteWarning("HPKP header found but HPKP is obsolete (RFC 7469).");
+            logger?.WriteWarningCode(HttpCodes.HpkpDeprecated, "HPKP header found but HPKP is obsolete (RFC 7469).");
 
             var parts = (Header ?? string.Empty).Split(';');
             var valid = true;

@@ -140,11 +140,11 @@ public class SecurityTXTAnalysis {
                         var pgp = new PGP(keys);
                         VerificationResult result = pgp.VerifyAndReadClearArmoredString(txt);
                         if (!result.IsVerified) {
-                            Logger.WriteWarning("PGP signature verification failed");
+                            Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, "PGP signature verification failed");
                         }
                         txt = result.ClearText;
                     } catch (Exception ex) {
-                        Logger.WriteWarning($"PGP signature verification failed: {ex.Message}");
+                        Logger.WriteWarningCode(SecurityTxtCodes.SignatureVerifyFailed, $"PGP signature verification failed: {ex.Message}");
                         txt = ExtractClearText(txt);
                     }
                 } else {
@@ -186,7 +186,7 @@ public class SecurityTXTAnalysis {
                                     var address = new MailAddress(emailPart);
                                     ContactEmail.Add(address.Address);
                                 } catch (FormatException) {
-                                    Logger.WriteWarning("Invalid email format in Contact field");
+                                    Logger.WriteWarningCode(SecurityTxtCodes.InvalidEmail, "Invalid email format in Contact field");
                                     RecordValid = false;
                                 }
                             } else if (Uri.TryCreate(value, UriKind.Absolute, out var contactUri)) {
@@ -195,7 +195,7 @@ public class SecurityTXTAnalysis {
                                     string.Equals(contactUri.Scheme, "tel", StringComparison.OrdinalIgnoreCase)) {
                                     ContactWebsite.Add(contactUri.ToString());
                                 } else {
-                                    Logger.WriteWarning("Unrecognized URI scheme in Contact field");
+                                    Logger.WriteWarningCode(SecurityTxtCodes.InvalidUriScheme, "Unrecognized URI scheme in Contact field");
                                     RecordValid = false;
                                 }
                             } else if (value.Contains("@")) {
@@ -203,11 +203,11 @@ public class SecurityTXTAnalysis {
                                     var address = new MailAddress(value);
                                     ContactEmail.Add(address.Address);
                                 } catch (FormatException) {
-                                    Logger.WriteWarning("Invalid email format in Contact field");
+                                    Logger.WriteWarningCode(SecurityTxtCodes.InvalidEmail, "Invalid email format in Contact field");
                                     RecordValid = false;
                                 }
                             } else {
-                                Logger.WriteWarning("Invalid Contact field format");
+                                Logger.WriteWarningCode(SecurityTxtCodes.InvalidContactFormat, "Invalid Contact field format");
                                 RecordValid = false;
                             }
                             break;
@@ -231,7 +231,7 @@ public class SecurityTXTAnalysis {
                             break;
                         case "expires":
                             if (hasSeenExpires) {
-                                Logger.WriteWarning("Multiple Expires fields found");
+                                Logger.WriteWarningCode(SecurityTxtCodes.MultipleExpires, "Multiple Expires fields found");
                                 RecordValid = false;
                             }
                             Expires = value;
@@ -239,7 +239,7 @@ public class SecurityTXTAnalysis {
                             break;
                         case "signature-encryption":
                             if (hasSeenSignatureEncryption) {
-                                Logger.WriteWarning("Multiple Signature-Encryption fields found");
+                                Logger.WriteWarningCode(SecurityTxtCodes.MultipleSignatureEncryption, "Multiple Signature-Encryption fields found");
                                 RecordValid = false;
                             }
                             SignatureEncryption = value;
@@ -251,24 +251,24 @@ public class SecurityTXTAnalysis {
             }
 
             if (ContactEmail.Count == 0 && ContactWebsite.Count == 0) {
-                Logger.WriteWarning("Missing required Contact field");
+                Logger.WriteWarningCode(SecurityTxtCodes.MissingContact, "Missing required Contact field");
                 RecordValid = false;
             }
 
             if (!hasSeenExpires) {
-                Logger.WriteWarning("Missing required Expires field");
+                Logger.WriteWarningCode(SecurityTxtCodes.MissingExpires, "Missing required Expires field");
                 RecordValid = false;
             } else {
                 if (!DateTime.TryParse(Expires, out DateTime expiresDate)) {
-                    Logger.WriteWarning("Invalid Expires date format");
+                    Logger.WriteWarningCode(SecurityTxtCodes.InvalidExpiresFormat, "Invalid Expires date format");
                     RecordValid = false;
                 } else {
                     if (expiresDate < DateTime.UtcNow) {
-                        Logger.WriteWarning("Expires date is in the past");
+                        Logger.WriteWarningCode(SecurityTxtCodes.ExpiresPast, "Expires date is in the past");
                         RecordValid = false;
                     }
                     if (expiresDate > DateTime.UtcNow.AddYears(1)) {
-                        Logger.WriteWarning("Expires date more than one year in the future");
+                        Logger.WriteWarningCode(SecurityTxtCodes.ExpiresTooFarFuture, "Expires date more than one year in the future");
                         RecordValid = false;
                     }
                 }
@@ -277,19 +277,19 @@ public class SecurityTXTAnalysis {
             if (Canonical.Count > 0) {
                 foreach (var canonicalUrl in Canonical) {
                     if (!canonicalUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
-                        Logger.WriteWarning("Canonical URL must start with https://");
+                        Logger.WriteWarningCode(SecurityTxtCodes.CanonicalNotHttps, "Canonical URL must start with https://");
                         RecordValid = false;
                     }
                 }
 
                 if (!Canonical.Exists(c => string.Equals(c.TrimEnd('/'), currentUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))) {
-                    Logger.WriteWarning("Canonical URL does not match retrieved file location");
+                    Logger.WriteWarningCode(SecurityTxtCodes.CanonicalMismatch, "Canonical URL does not match retrieved file location");
                     RecordValid = false;
                 }
             }
 
             if (!RecordValid) {
-                Logger.WriteWarning("Invalid security.txt file");
+                Logger.WriteWarningCode(SecurityTxtCodes.InvalidFile, "Invalid security.txt file");
             }
         }
 

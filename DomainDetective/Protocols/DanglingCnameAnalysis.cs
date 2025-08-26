@@ -89,7 +89,7 @@ public class DanglingCnameAnalysis {
         TargetResolves = (a != null && a.Any()) || (aaaa != null && aaaa.Any());
 
         if (!TargetResolves) {
-            logger?.WriteWarning("CNAME target {0} does not resolve", Target);
+            logger?.WriteWarningCode(DanglingCnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
         }
     }
 }

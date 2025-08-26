@@ -49,7 +49,7 @@ namespace DomainDetective {
                         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     analysis.ValidServiceAndProtocol = match.Success;
                     if (!match.Success) {
-                        logger?.WriteWarning($"SMIMEA host name '{record.Name}' is invalid");
+                        logger?.WriteWarningCode(SmimeaCodes.HostInvalid, $"SMIMEA host name '{record.Name}' is invalid");
                     }
                 }
                 logger?.WriteVerbose($"Analyzing SMIMEA record {record.Data}");
@@ -71,17 +71,17 @@ namespace DomainDetective {
                 analysis.ValidSelector = selectorParsed && ValidateSelector(selectorVal);
                 analysis.ValidCertificateAssociationData = IsHexadecimal(assocData);
                 if (!usageParsed) {
-                    logger?.WriteWarning($"SMIMEA usage field '{usagePart}' is not numeric");
+                    logger?.WriteWarningCode(SmimeaCodes.UsageNotNumeric, $"SMIMEA usage field '{usagePart}' is not numeric");
                 } else if (!ValidateUsage(usageVal)) {
-                    logger?.WriteWarning($"SMIMEA usage '{usageVal}' is invalid, expected 0-3");
+                    logger?.WriteWarningCode(SmimeaCodes.UsageInvalid, $"SMIMEA usage '{usageVal}' is invalid, expected 0-3");
                 }
                 if (!selectorParsed) {
-                    logger?.WriteWarning($"SMIMEA selector field '{selectorPart}' is not numeric");
+                    logger?.WriteWarningCode(SmimeaCodes.SelectorNotNumeric, $"SMIMEA selector field '{selectorPart}' is not numeric");
                 } else if (!ValidateSelector(selectorVal)) {
-                    logger?.WriteWarning($"SMIMEA selector value '{selectorVal}' is invalid, expected 0 or 1");
+                    logger?.WriteWarningCode(SmimeaCodes.SelectorInvalid, $"SMIMEA selector value '{selectorVal}' is invalid, expected 0 or 1");
                 }
                 if (!matchingParsed) {
-                    logger?.WriteWarning($"SMIMEA matching type field '{matchingPart}' is not numeric");
+                    logger?.WriteWarningCode(SmimeaCodes.MatchingTypeNotNumeric, $"SMIMEA matching type field '{matchingPart}' is not numeric");
                 }
                 if (!usageParsed || !selectorParsed || !matchingParsed) {
                     analysis.ValidMatchingType = false;
@@ -97,7 +97,7 @@ namespace DomainDetective {
                 analysis.LengthOfCertificateAssociationData = assocData.Length;
                 analysis.ValidMatchingType = matchingVal >= 0 && matchingVal <= 2;
                 if (!analysis.ValidMatchingType) {
-                    logger?.WriteWarning($"SMIMEA matching type '{matchingVal}' is invalid, expected 0, 1 or 2");
+                    logger?.WriteWarningCode(SmimeaCodes.MatchingTypeInvalid, $"SMIMEA matching type '{matchingVal}' is invalid, expected 0, 1 or 2");
                 }
                 analysis.CertificateUsage = TranslateUsage(usageVal);
                 analysis.SelectorField = TranslateSelector(selectorVal);

@@ -134,7 +134,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.InvalidFlag = true;
                     } else if ((flag & 0x7F) != 0 && flag != 128) {
                         analysis.InvalidFlag = true;
-                        logger?.WriteWarning($"CAA record uses reserved flag bits: {flag}");
+                        logger?.WriteWarningCode(CaaCodes.ReservedFlagBits, $"CAA record uses reserved flag bits: {flag}");
                     }
                     analysis.Critical = (flag & 0x80) == 0x80;
 
@@ -151,7 +151,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.Tag = CAATagType.Unknown;
                         if (analysis.Critical) {
                             analysis.InvalidTag = true;
-                            logger?.WriteWarning($"Unknown CAA property tag '{tag}' flagged as critical");
+                            logger?.WriteWarningCode(CaaCodes.UnknownCriticalTag, $"Unknown CAA property tag '{tag}' flagged as critical");
                         }
                     }
 
@@ -299,7 +299,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 mailIssuers.Count != mailIssuers.Distinct(StringComparer.OrdinalIgnoreCase).Count();
 
             if (HasDuplicateIssuers) {
-                logger.WriteWarning($"Duplicate CAA issuers detected for {DomainName}");
+                logger.WriteWarningCode(CaaCodes.DuplicateIssuers, $"Duplicate CAA issuers detected for {DomainName}");
             }
 
             CanIssueCertificatesForDomain = certificateIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

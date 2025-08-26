@@ -64,7 +64,7 @@ public class FlatteningServiceAnalysis
         IsFlatteningService = _flatteningDomains.Any(d => Target.EndsWith(d, StringComparison.OrdinalIgnoreCase));
         if (IsFlatteningService)
         {
-            logger?.WriteWarning("CNAME uses a known flattening service");
+            logger?.WriteWarningCode(FlatteningServiceCodes.UsesFlatteningService, "CNAME uses a known flattening service");
         }
     }
 }

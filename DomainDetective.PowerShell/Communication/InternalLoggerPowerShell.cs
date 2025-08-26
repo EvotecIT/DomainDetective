@@ -1,5 +1,6 @@
 using System;
 using System.Management.Automation;
+using DomainDetective;
 
 namespace DomainDetective.PowerShell {
     /// <summary>
@@ -71,12 +72,22 @@ namespace DomainDetective.PowerShell {
             } else {
                 WriteVerbose(e.Message);
             }
+            var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+            if (enabled && live && narrVerbose) {
+                var line = FormatNarration(e.Message, persona, AssessmentSeverity.Info);
+                _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
+            }
         }
         private void Logger_OnDebugMessage(object sender, LogEventArgs e) {
             WriteDebug(e.Message);
         }
         private void Logger_OnWarningMessage(object sender, LogEventArgs e) {
             WriteWarning(e.Message);
+            var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+            if (enabled && live) {
+                var line = FormatNarration(e.Message, persona, AssessmentSeverity.Warning);
+                _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
+            }
         }
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
             var errorId = GetNextErrorId();
@@ -162,6 +173,15 @@ namespace DomainDetective.PowerShell {
             InformationRecord informationRecord = new InformationRecord(message, "DnsClientX");
             // Write to PowerShell information stream
             _writeInformationAction?.Invoke(informationRecord);
+        }
+
+        private static string FormatNarration(string message, PersonaKind persona, AssessmentSeverity severity) {
+            var a = new Assessment {
+                Severity = severity,
+                Category = severity == AssessmentSeverity.Warning ? "Warn" : "Info",
+                Message = message
+            };
+            return AssessmentNarrator.Narrate(a, persona);
         }
 
         private void WriteWarning(string message) {

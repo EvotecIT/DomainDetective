@@ -270,7 +270,7 @@ public class MTASTSAnalysis {
                     return await response.Content.ReadAsStringAsync();
                 }
             } catch (Exception ex) {
-                Logger?.WriteWarning($"Failed to fetch {url}: {ex.Message}");
+                Logger?.WriteWarningCode(MtaStsCodes.FetchFailed, $"Failed to fetch {url}: {ex.Message}");
             }
 
             return null;

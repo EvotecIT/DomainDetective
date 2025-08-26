@@ -112,7 +112,7 @@ namespace DomainDetective {
                                 ptrAnswers = await tcpConfig.QueryDNS(ptrName, DnsRecordType.PTR);
                             }
                             if (ptrAnswers.Length == 0) {
-                                logger?.WriteWarning($"PTR query for {ip} was truncated and returned no records after TCP retry");
+                                logger?.WriteWarningCode(ReverseDnsCodes.TruncatedNoRecords, $"PTR query for {ip} was truncated and returned no records after TCP retry");
                             }
                         }
                     } else {
@@ -125,7 +125,7 @@ namespace DomainDetective {
                         if (IsValidPtrName(rawPtr)) {
                             ptrs.Add(rawPtr.TrimEnd('.'));
                         } else {
-                            logger?.WriteWarning($"Malformed PTR record: {rawPtr}");
+                            logger?.WriteWarningCode(ReverseDnsCodes.MalformedPtr, $"Malformed PTR record: {rawPtr}");
                         }
                     }
 

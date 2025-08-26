@@ -19,7 +19,7 @@ namespace DomainDetective {
     /// DKIM selectors are queried for public keys and the syntax and key size
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
-    public class DkimAnalysis {
+    public class DkimAnalysis : IHasAssessments {
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
         /// <summary>Gets the analysis results keyed by selector.</summary>
@@ -39,6 +39,9 @@ namespace DomainDetective {
             new StandardReference { Title = "DomainKeys Identified Mail", Reference = "RFC 6376", Url = "https://datatracker.ietf.org/doc/html/rfc6376" }
         };
 
+        /// <summary>Structured assessments captured during DKIM analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
         /// <summary>Clears <see cref="AnalysisResults"/>.</summary>
         public void Reset() {
             AnalysisResults = new Dictionary<string, DkimRecordAnalysis>();
@@ -54,6 +57,7 @@ namespace DomainDetective {
         /// <param name="dnsResults">TXT records from the DNS query.</param>
         /// <param name="logger">Logger used for verbose output.</param>
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DKIM", target: selector);
             await Task.Yield(); // To avoid warning about lack of 'await'
 
             if (dnsResults == null) {
@@ -116,7 +120,7 @@ namespace DomainDetective {
                                     analysis.ValidPublicKey = true;
                                     if (analysis.WeakKey)
                                     {
-                                        logger?.WriteWarning("DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
+                                        logger?.WriteWarningCode(DkimCodes.KeyWeak, "DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
                                     }
                                 }
                                 } catch (Exception) {
@@ -167,16 +171,16 @@ namespace DomainDetective {
                             if (value.IndexOf("sha1", StringComparison.OrdinalIgnoreCase) >= 0)
                             {
                                 analysis.DeprecatedTags.Add($"h={value}");
-                                logger?.WriteWarning("Deprecated hash algorithm detected: {0}", value);
+                                logger?.WriteWarningCode(DkimCodes.HashDeprecated, "Deprecated hash algorithm detected: {0}", value);
                             }
                             break;
                         case "g":
                             analysis.DeprecatedTags.Add("g");
-                            logger?.WriteWarning("DKIM tag 'g' is deprecated and ignored");
+                            logger?.WriteWarningCode(DkimCodes.TagGDeprecated, "DKIM tag 'g' is deprecated and ignored");
                             break;
                         case "q":
                             analysis.DeprecatedTags.Add("q");
-                            logger?.WriteWarning("DKIM tag 'q' is deprecated and ignored");
+                            logger?.WriteWarningCode(DkimCodes.TagQDeprecated, "DKIM tag 'q' is deprecated and ignored");
                             break;
                     }
                 }
@@ -199,7 +203,8 @@ namespace DomainDetective {
                 analysis.KeyAgeDays = (int)(DateTime.UtcNow - parsed).TotalDays;
                 if (DateTime.UtcNow - parsed >= KeyAgeWarningThreshold) {
                     analysis.OldKey = true;
-                    logger?.WriteWarning(
+                    logger?.WriteWarningCode(
+                        DkimCodes.KeyOld,
                         "DKIM key for selector {0} appears older than {1} days ({2:yyyy-MM-dd}).",
                         selector,
                         (int)KeyAgeWarningThreshold.TotalDays,
@@ -238,6 +243,7 @@ namespace DomainDetective {
         /// <param name="dnsResults">TXT answers from the DNS query.</param>
         /// <param name="logger">Logger used for warnings.</param>
         public async Task AnalyzeAdspRecord(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DKIM");
             await Task.Yield();
 
             AdspRecord = null;
@@ -264,7 +270,7 @@ namespace DomainDetective {
             }
 
             AdspRecord = string.Join(" ", chunks);
-            logger?.WriteWarning("ADSP record found but ADSP is obsolete.");
+            logger?.WriteWarningCode(DkimCodes.AdspObsolete, "ADSP record found but ADSP is obsolete.");
         }
 
         /// <summary>

@@ -22,6 +22,7 @@ public sealed class WizardOptions
     public bool ActiveMailProbes { get; init; } = false;
     public string Details { get; init; } = "standard"; // summary|standard|advanced
     public HealthCheckType[]? Checks { get; init; }
+    public string Persona { get; init; } = "business"; // business|funny|geek|noir|pirate
 }
 
 public sealed class DomainWizard
@@ -182,6 +183,27 @@ public sealed class DomainWizard
                 Ui.RenderMailTree(hc, advanced);
                 if (Options.Mode != ScanMode.Quick) Ui.RenderWebTree(hc, advanced);
                 if (Options.Mode == ScanMode.Full) Ui.RenderReputationTree(hc, advanced);
+            }
+
+            // Persona-driven recommendations summary from assessments
+            var assessments = hc.GetAllAssessments()?.ToArray() ?? Array.Empty<Assessment>();
+            if (assessments.Length > 0)
+            {
+                var persona = Options.Persona?.ToLowerInvariant() switch {
+                    "funny" => PersonaKind.Funny,
+                    "geek"  => PersonaKind.Geek,
+                    "noir"  => PersonaKind.Noir,
+                    "pirate"=> PersonaKind.Pirate,
+                    _ => PersonaKind.Business
+                };
+                var lines = PersonaFormatter.FormatSummary(assessments, persona, max: 12).ToArray();
+                var panel = new Panel(new Markup(string.Join("\n", lines)))
+                {
+                    Header = new PanelHeader("[bold]🧭 Recommendations[/]"),
+                    Border = BoxBorder.Rounded
+                };
+                AnsiConsole.Write(panel);
+                AnsiConsole.WriteLine();
             }
         }
 

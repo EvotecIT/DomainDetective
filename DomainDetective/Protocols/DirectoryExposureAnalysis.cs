@@ -84,7 +84,7 @@ public class DirectoryExposureAnalysis
                 if (response.IsSuccessStatusCode)
                 {
                     ExposedPaths.Add(path);
-                    logger?.WriteWarning("Exposed directory {0}", url);
+                    logger?.WriteWarningCode(DirectoryExposureCodes.ExposedDirectory, "Exposed directory {0}", url);
                 }
             }
             catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)

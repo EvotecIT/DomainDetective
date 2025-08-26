@@ -11,11 +11,14 @@ namespace DomainDetective {
     /// Checks whether SMTP servers advertise the STARTTLS capability.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class STARTTLSAnalysis {
+    public class STARTTLSAnalysis : IHasAssessments {
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
         public Dictionary<string, bool> DowngradeDetected { get; private set; } = new();
         public Dictionary<string, STARTTLSResult> ServerDetails { get; private set; } = new();
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+        /// <summary>Structured assessments during STARTTLS probe.</summary>
+        public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
         /// Tests a single server for STARTTLS support.
@@ -65,6 +68,7 @@ namespace DomainDetective {
         /// Performs the low-level STARTTLS negotiation.
         /// </summary>
         private async Task<STARTTLSResult> CheckStartTls(string host, int port, InternalLogger logger, CancellationToken cancellationToken) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "STARTTLS", target: $"{host}:{port}");
             var endPoint = GetEndPoint(host, port);
             var client = endPoint.AddressFamily == AddressFamily.Unspecified
                 ? new TcpClient()
@@ -100,7 +104,7 @@ namespace DomainDetective {
                     if (banner != null && banner.IndexOf("TLS", System.StringComparison.OrdinalIgnoreCase) >= 0) {
                         bannerDowngrade = true;
                     }
-                    logger?.WriteWarning($"Unexpected banner sequence: {banner}");
+                    logger?.WriteWarningCode(StartTlsCodes.BannerUnexpected, $"Unexpected banner sequence: {banner}");
                 }
                 await writer.WriteLineAsync($"EHLO example.com");
 
@@ -122,13 +126,13 @@ namespace DomainDetective {
                             break;
                         }
                     } else if (line.StartsWith("5") || line.StartsWith("4")) {
-                        logger?.WriteWarning($"Unexpected EHLO response: {line}");
+                        logger?.WriteWarningCode(StartTlsCodes.EhloUnexpected, $"Unexpected EHLO response: {line}");
                         break;
                     }
                 }
 
                 if (lastEhlo != null && lastEhlo.StartsWith("250-")) {
-                    logger?.WriteWarning("EHLO response ended without final 250 line");
+                    logger?.WriteWarningCode(StartTlsCodes.EhloMissingFinal250, "EHLO response ended without final 250 line");
                 }
 
                 bool advertised = capabilities.Contains("STARTTLS");
@@ -232,7 +236,7 @@ namespace DomainDetective {
                     CertificateThumbprint = resultCertThumbprint,
                 };
             } catch (System.Exception ex) {
-                logger?.WriteError("STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(StartTlsCodes.CheckFailed, "STARTTLS check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return new STARTTLSResult {
                     Host = host,
                     Port = port,

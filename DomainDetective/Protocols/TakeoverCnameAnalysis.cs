@@ -98,7 +98,7 @@ public class TakeoverCnameAnalysis
         IsTakeoverRisk = _providerDomains.Any(d => Target.EndsWith(d, StringComparison.OrdinalIgnoreCase));
         if (IsTakeoverRisk)
         {
-            logger?.WriteWarning("CNAME target {0} is hosted on a takeover prone provider", Target);
+            logger?.WriteWarningCode(TakeoverCnameCodes.RiskyProvider, "CNAME target {0} is hosted on a takeover prone provider", Target);
         }
     }
 }

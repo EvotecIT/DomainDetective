@@ -63,7 +63,8 @@ namespace DomainDetective {
                 ChainValid = analysis.ChainValid,
                 DsTtls = analysis.DsTtls,
                 RootKeyTag = analysis.RootKeyTag,
-                MismatchSummary = analysis.MismatchSummary
+                MismatchSummary = analysis.MismatchSummary,
+                Assessments = analysis.Assessments
             };
         }
 
@@ -163,6 +164,9 @@ namespace DomainDetective {
 
         /// <summary>Descriptions of any mismatches encountered.</summary>
         public IReadOnlyList<string> MismatchSummary { get; set; }
+
+        /// <summary>Structured assessments gathered during DNSSEC validation.</summary>
+        public IReadOnlyList<Assessment> Assessments { get; set; }
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ namespace DomainDetective {
                             && (value.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)
                                 || value.EndsWith(".svgz", StringComparison.OrdinalIgnoreCase)));
                         if (InvalidLocation) {
-                            logger?.WriteWarning("Invalid BIMI indicator location {0}", value);
+                            logger?.WriteWarningCode(BimiCodes.InvalidLocation, "Invalid BIMI indicator location {0}", value);
                         }
                         break;
                     case "a":

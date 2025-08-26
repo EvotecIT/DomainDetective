@@ -184,7 +184,7 @@ public class ThreatIntelAnalysis
                 RiskScore = result?.Attributes?.Reputation;
                 if (RiskScore.HasValue && RiskScore.Value >= 70)
                 {
-                    logger?.WriteWarning("VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
+                    logger?.WriteWarningCode(ThreatIntelCodes.VirusTotalRiskHigh, "VirusTotal risk score {0} for {1} is high.", RiskScore.Value, domainName);
                 }
             }
             catch (Exception ex)

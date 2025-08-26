@@ -176,7 +176,7 @@ public class TyposquattingAnalysis
         ContainsHomoglyphs = DetectHomoglyphs && StringAlgorithms.ContainsHomoglyphs(domainName);
         if (ContainsHomoglyphs)
         {
-            logger?.WriteWarning("Domain contains homoglyph characters: {0}", domainName);
+            logger?.WriteWarningCode(TyposquattingCodes.ContainsHomoglyphs, "Domain contains homoglyph characters: {0}", domainName);
         }
 
         Variants = BuildVariants(domainName, list, LevenshteinThreshold, BrandKeywords).ToList();
@@ -190,7 +190,7 @@ public class TyposquattingAnalysis
             if ((a?.Length > 0) || (aaaa?.Length > 0))
             {
                 ActiveDomains.Add(variant);
-                logger?.WriteWarning("Potential typosquat detected: {0}", variant);
+                logger?.WriteWarningCode(TyposquattingCodes.VariantActive, "Potential typosquat detected: {0}", variant);
             }
         }
     }

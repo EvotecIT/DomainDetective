@@ -107,7 +107,7 @@ public partial class BimiAnalysis {
 
             if (!string.IsNullOrEmpty(Location) && !InvalidLocation) {
                 if (!LocationUsesHttps) {
-                    logger?.WriteWarning("BIMI indicator location does not use HTTPS: {0}", Location);
+                    logger?.WriteWarningCode(BimiCodes.LocationNotHttps, "BIMI indicator location does not use HTTPS: {0}", Location);
                 }
 
                 if (!SkipIndicatorDownload) {
@@ -117,7 +117,7 @@ public partial class BimiAnalysis {
                         SvgValid = ValidateSvg(svg, size, logger);
                         logger?.WriteVerbose("Successfully downloaded BIMI indicator from {0}", Location);
                     } else {
-                        logger?.WriteWarning("Failed to download BIMI indicator from {0}", Location);
+                        logger?.WriteWarningCode(BimiCodes.DownloadFailed, "Failed to download BIMI indicator from {0}", Location);
                     }
                 } else {
                     logger?.WriteVerbose("Skipping BIMI indicator download");
@@ -126,7 +126,7 @@ public partial class BimiAnalysis {
 
             if (!string.IsNullOrEmpty(Authority)) {
                 if (!AuthorityUsesHttps) {
-                    logger?.WriteWarning("BIMI authority URL does not use HTTPS: {0}", Authority);
+                    logger?.WriteWarningCode(BimiCodes.AuthorityNotHttps, "BIMI authority URL does not use HTTPS: {0}", Authority);
                 }
 
                 (ValidVmc, VmcSignedByKnownRoot, VmcContainsLogo) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
@@ -168,7 +168,7 @@ public partial class BimiAnalysis {
                 var mediaType = response.Content.Headers.ContentType?.MediaType;
                 if (!"image/svg+xml".Equals(mediaType, StringComparison.OrdinalIgnoreCase)) {
                     FailureReason = $"Invalid Content-Type: {mediaType}";
-                    logger?.WriteWarning("Invalid BIMI indicator MIME type {0}", mediaType);
+                    logger?.WriteWarningCode(BimiCodes.InvalidMimeType, "Invalid BIMI indicator MIME type {0}", mediaType);
                     return (null, 0);
                 }
 
@@ -252,7 +252,7 @@ public partial class BimiAnalysis {
             SvgSizeValid = byteSize <= maxSize;
             if (!SvgSizeValid) {
                 SvgInvalidReason = $"Indicator exceeds 32 KB ({byteSize} bytes)";
-                logger?.WriteWarning("BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
+                logger?.WriteWarningCode(BimiCodes.SvgTooLarge, "BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
             }
 
             try {
@@ -274,20 +274,20 @@ public partial class BimiAnalysis {
                 var viewBoxAttr = root.Attribute("viewBox");
                 SvgAttributesPresent = widthAttr != null && heightAttr != null && viewBoxAttr != null;
                 if (!SvgAttributesPresent) {
-                    logger?.WriteWarning("BIMI SVG missing width, height or viewBox");
+                    logger?.WriteWarningCode(BimiCodes.SvgMissingAttributes, "BIMI SVG missing width, height or viewBox");
                 }
 
                 var widthStr = widthAttr?.Value;
                 var heightStr = heightAttr?.Value;
                 DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == 64 && h == 64;
                 if (!DimensionsValid) {
-                    logger?.WriteWarning("BIMI SVG width and height must be 64x64");
+                    logger?.WriteWarningCode(BimiCodes.SvgWrongDimensions, "BIMI SVG width and height must be 64x64");
                 }
 
                 var viewBox = viewBoxAttr?.Value;
                 ViewBoxValid = viewBox == "0 0 64 64";
                 if (!ViewBoxValid) {
-                    logger?.WriteWarning("BIMI SVG viewBox must be '0 0 64 64'");
+                    logger?.WriteWarningCode(BimiCodes.SvgWrongViewBox, "BIMI SVG viewBox must be '0 0 64 64'");
                 }
 
                 return isSvg && SvgSizeValid;

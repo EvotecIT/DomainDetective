@@ -116,7 +116,7 @@ namespace DomainDetective {
                 }
 
                 if (hasAuth && !has8BitMime) {
-                    logger?.WriteWarning("SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
+                    logger?.WriteWarningCode(SmtpAuthCodes.AuthWithout8BitMime, "SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
                 }
 
                 return (
@@ -124,7 +124,7 @@ namespace DomainDetective {
                     capabilities.Count == 0 ? Array.Empty<string>() : new List<string>(capabilities).ToArray()
                 );
             } catch (Exception ex) {
-                logger?.WriteError("SMTP AUTH check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(SmtpAuthCodes.CheckFailed, "SMTP AUTH check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return (Array.Empty<string>(), Array.Empty<string>());
             }
         }

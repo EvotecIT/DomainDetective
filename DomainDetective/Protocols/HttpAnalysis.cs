@@ -253,7 +253,7 @@ namespace DomainDetective {
                     Http3Supported = response.Version >= HttpVersion.Version30;
                     Http2Supported = response.Version >= HttpVersion.Version20;
                     if (RequestVersion >= HttpVersion.Version30 && response.Version < HttpVersion.Version30) {
-                        logger?.WriteWarning("Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
+                        logger?.WriteWarningCode(HttpCodes.Http3Downgrade, "Requested HTTP/3 but server responded with HTTP/{0}", response.Version);
                     }
 #else
                     Http2Supported = response.Version.Major >= 2;
@@ -281,7 +281,7 @@ namespace DomainDetective {
                 if (IsReachable && ProtocolVersion >= HttpVersion.Version30) {
                     QuicVersion = ParseQuicVersion(altSvcHeader);
                     if (!string.IsNullOrEmpty(QuicVersion) && !QuicVersion.Equals("h3", StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarning("HTTP/3 negotiated but Alt-Svc advertises {0}", QuicVersion);
+                        logger?.WriteWarningCode(HttpCodes.H3AltSvcMismatch, "HTTP/3 negotiated but Alt-Svc advertises {0}", QuicVersion);
                     }
                 }
 #endif
@@ -305,7 +305,7 @@ namespace DomainDetective {
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
                     PublicKeyPinsPresent = SecurityHeaders.ContainsKey("Public-Key-Pins");
                     if (PublicKeyPinsPresent) {
-                        logger?.WriteWarning("Public-Key-Pins header is deprecated and should not be used.");
+                        logger?.WriteWarningCode(HttpCodes.HpkpDeprecated, "Public-Key-Pins header is deprecated and should not be used.");
                     }
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);

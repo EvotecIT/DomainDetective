@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Analyzes SMTP TLS Reporting (TLSRPT) policies according to RFC 8460.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class TLSRPTAnalysis {
+    public class TLSRPTAnalysis : IHasAssessments {
         /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
 
@@ -38,7 +38,11 @@ namespace DomainDetective {
             new StandardReference { Title = "SMTP TLS Reporting", Reference = "RFC 8460", Url = "https://datatracker.ietf.org/doc/html/rfc8460" }
         };
 
+        /// <summary>Structured assessments captured during TLSRPT analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLSRPT");
             cancellationToken.ThrowIfCancellationRequested();
 
             TlsRptRecord = null;
@@ -99,7 +103,7 @@ namespace DomainDetective {
             }
 
             if (!RuaDefined) {
-                logger?.WriteWarning("TLSRPT record missing rua tag.");
+                logger?.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
             }
         }
 

@@ -23,7 +23,7 @@ namespace DomainDetective {
     /// Using dnsclientx the full DNSSEC chain is retrieved and validated
     /// against DS records from the parent zone.
     /// </remarks>
-    public class DnsSecAnalysis {
+    public class DnsSecAnalysis : IHasAssessments {
         private readonly List<string> _mismatchSummary = new();
         private readonly List<string> _warnings = new();
 
@@ -73,6 +73,9 @@ namespace DomainDetective {
         /// <summary>Expiration date for the root trust anchor.</summary>
         public DateTimeOffset? RootAnchorExpiration { get; private set; }
 
+        /// <summary>Structured assessments captured during DNSSEC validation.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
         /// <summary>
         /// Performs DNSSEC validation for the specified domain.
         /// </summary>
@@ -89,6 +92,7 @@ namespace DomainDetective {
         }
 
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null, CancellationToken ct = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName);
             var client = _client;
 
             _mismatchSummary.Clear();
@@ -133,7 +137,7 @@ namespace DomainDetective {
                                     "RRSIG for {0} expires in {1:F0} days",
                                     current,
                                     Math.Ceiling(days));
-                                logger?.WriteWarning(message);
+                                logger?.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
                                 _warnings.Add(message);
                                 KeyExpiresSoon = true;
                             }
@@ -154,15 +158,15 @@ namespace DomainDetective {
 
                 foreach (string rec in currentDsRecords) {
                     if (!IsDsDigestLengthValid(rec)) {
-                        logger?.WriteWarning("DS record for {0} has unexpected digest length", current);
+                        logger?.WriteWarningCode(DnssecCodes.DsDigestLengthUnexpected, "DS record for {0} has unexpected digest length", current);
                     }
                     var parts = rec.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 2) {
                         int alg = AlgorithmNumber(parts[1]);
                         if (!DNSKeyAnalysis.IsValidAlgorithmNumber(alg)) {
-                            logger?.WriteWarning("DS record for {0} contains unknown algorithm {1}", current, parts[1]);
+                            logger?.WriteWarningCode(DnssecCodes.DsAlgorithmUnknown, "DS record for {0} contains unknown algorithm {1}", current, parts[1]);
                         } else if (DNSKeyAnalysis.IsDeprecatedAlgorithmNumber(alg)) {
-                            logger?.WriteWarning("DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
+                            logger?.WriteWarningCode(DnssecCodes.DsAlgorithmDeprecated, "DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
                         }
                     }
                 }
@@ -225,7 +229,7 @@ namespace DomainDetective {
                         CultureInfo.InvariantCulture,
                         "Root trust anchor expired {0:F0} days ago",
                         Math.Ceiling(Math.Abs(days)));
-                    logger?.WriteWarning(message);
+                    logger?.WriteWarningCode(DnssecCodes.RootAnchorExpired, message);
                     _warnings.Add(message);
                     KeyExpiresSoon = true;
                 } else if (days <= KeyExpirationWarningThreshold.TotalDays) {
@@ -233,7 +237,7 @@ namespace DomainDetective {
                         CultureInfo.InvariantCulture,
                         "Root trust anchor expires in {0:F0} days",
                         Math.Ceiling(days));
-                    logger?.WriteWarning(message);
+                    logger?.WriteWarningCode(DnssecCodes.RootAnchorExpiring, message);
                     _warnings.Add(message);
                     KeyExpiresSoon = true;
                 }
