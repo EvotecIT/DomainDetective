@@ -21,6 +21,8 @@ namespace DomainDetective {
         public string IPAddress { get; set; }
         /// <summary>Gets or sets the original IP address or hostname.</summary>
         public string OriginalIPAddress { get; set; }
+        /// <summary>Indicates whether this record came from a domain or IP-based query.</summary>
+        public DnsblQueryKind QueryKind { get; set; }
         /// <summary>Gets or sets the fully qualified domain name that was queried.</summary>
         public string FQDN { get; set; }
         /// <summary>Gets or sets the blacklist domain.</summary>
@@ -102,7 +104,7 @@ namespace DomainDetective {
         private static readonly List<DnsblEntry> _defaultDomainBlockLists = new();
         private static readonly List<BlockListEntry> _defaultIpBlockLists = new();
         private static Dictionary<string, Dictionary<string, (bool IsListed, string Meaning)>> _providerReplyCodes = new(StringComparer.OrdinalIgnoreCase);
-        private const string DefaultUpdateUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/refs/heads/master/Data/dnsbl.json";
+        private const string DefaultUpdateUrl = "https://raw.githubusercontent.com/EvotecIT/DomainDetective/master/Data/dnsbl.json";
 
         static DNSBLAnalysis() {
             try {
@@ -130,9 +132,10 @@ namespace DomainDetective {
                             _defaultIpBlockLists.AddRange(config.IpBlockLists);
                     }
                 }
-            } catch {
+            } catch (Exception ex) {
                 // If loading embedded resource fails, initialize with empty collections
                 // The lists can be populated later using LoadDNSBL or UpdateDNSBL methods
+                System.Diagnostics.Debug.WriteLine($"Failed to load embedded DNSBL config: {ex.Message}");
             }
         }
 
@@ -206,14 +209,21 @@ namespace DomainDetective {
             return await DnsConfiguration.QueryFullDNS(names, type);
         }
 
-        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger) {
-            Reset();
+        internal async Task AnalyzeDNSBLRecordsMX(string domainName, InternalLogger logger, bool clearExisting = true) {
+            if (clearExisting) {
+                Reset();
+            }
             Logger = logger;
 
-            var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+            DnsAnswer[] mxRecords;
+            try {
+                mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+            } catch {
+                mxRecords = System.Array.Empty<DnsClientX.DnsAnswer>();
+            }
 
-            Logger?.WriteVerbose($"Checking {domainName} against {DNSBLLists.Count} blacklists");
-            var resultsDomain = await ToListAsync(QueryDNSBL(DNSBLLists, domainName));
+            Logger?.WriteVerbose($"Checking {domainName} against {DomainDNSBLLists.Count} domain blacklists");
+            var resultsDomain = await ToListAsync(QueryDNSBL(DomainDNSBLLists, domainName));
             ConvertToResults(domainName, resultsDomain);
 
             Logger?.WriteVerbose($"Checking {domainName} MX records against {DNSBLLists.Count} blacklists");
@@ -221,25 +231,19 @@ namespace DomainDetective {
                 // Extract the IP address from the MX record data
                 string domainRecord = mxRecord.Data.Split(' ')[1];
 
-                var dnsResponse = await DnsConfiguration.QueryDNS(domainRecord, DnsRecordType.A);
-                foreach (var response in dnsResponse) {
-                    var ipAddress = response.Data;
-                    // Perform the DNSBL check for the IP address
-
-                    Logger?.WriteVerbose($"Checking {ipAddress} (MX record resolved) against {DNSBLLists.Count} blacklists");
+                var ipv4Answers = await DnsConfiguration.QueryDNS(domainRecord, DnsRecordType.A);
+                foreach (var a in ipv4Answers) {
+                    var ipAddress = a.Data;
+                    Logger?.WriteVerbose($"Checking {ipAddress} (MX A) against {DNSBLLists.Count} blacklists");
                     var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
+                    ConvertToResults(ipAddress, results);
+                }
 
-                    //// Add the MX record data to each DNSBLRecord
-                    //foreach (var result in results) {
-                    //    result.FQDN = mxRecord.Data;
-                    //}
-
-                    //DNSQueryResult queryResult = new DNSQueryResult {
-                    //    Host = domainRecord,
-                    //    DNSBLRecords = results,
-                    //};
-                    //Results[ipAddress] = queryResult;
-
+                var ipv6Answers = await DnsConfiguration.QueryDNS(domainRecord, DnsRecordType.AAAA);
+                foreach (var aaaa in ipv6Answers) {
+                    var ipAddress = aaaa.Data;
+                    Logger?.WriteVerbose($"Checking {ipAddress} (MX AAAA) against {DNSBLLists.Count} blacklists");
+                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ipAddress));
                     ConvertToResults(ipAddress, results);
                 }
             }
@@ -261,6 +265,41 @@ namespace DomainDetective {
                 yield return record;
             }
             ConvertToResults(ipAddressOrHostname, collected);
+        }
+
+        /// <summary>
+        /// Queries DNSBL providers for multiple hosts/IPs in parallel and aggregates results.
+        /// </summary>
+        /// <param name="ipAddressesOrHostnames">Addresses or hostnames to query.</param>
+        /// <param name="logger">Logger for verbose output.</param>
+        /// <param name="clearExisting">Whether to clear accumulated results before adding.</param>
+        public async Task AnalyzeDNSBLRecordsMany(IEnumerable<string> ipAddressesOrHostnames, InternalLogger logger, bool clearExisting = true) {
+            if (ipAddressesOrHostnames == null) return;
+            var items = ipAddressesOrHostnames.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (clearExisting) {
+                Reset();
+            }
+            Logger = logger;
+            if (items.Count == 0) return;
+
+            Logger?.WriteVerbose($"Checking {items.Count} input(s) against {DNSBLLists.Count} blacklists (parallel)…");
+
+            var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
+            foreach (var item in items) {
+                var name = item; // capture
+                tasks.Add(Task.Run(async () => {
+                    var list = new List<DNSBLRecord>();
+                    await foreach (var record in QueryDNSBL(DNSBLLists, name)) {
+                        list.Add(record);
+                    }
+                    return (name, list);
+                }));
+            }
+
+            var results = await Task.WhenAll(tasks);
+            foreach (var (key, records) in results) {
+                ConvertToResults(key, records);
+            }
         }
 
         private void ConvertToResults(string ipAddressOrHostname, IEnumerable<DNSBLRecord> results) {
@@ -326,7 +365,8 @@ namespace DomainDetective {
 
             // Check if the input is an IP address or a hostname
             string name;
-            if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress)) {
+            var isIp = IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress);
+            if (isIp) {
                 name = FormatDnsblName(ipAddress);
             } else {
                 // Use the hostname and append the DNSBL list
@@ -351,7 +391,7 @@ namespace DomainDetective {
                     var answers = i < resultA.Length ? resultA[i].Answers : Array.Empty<DnsAnswer>();
                     responses[queries[i]] = answers?.ToList() ?? new List<DnsAnswer>();
                 }
-            } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
+            } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException || ex is System.Net.Sockets.SocketException || ex is System.Threading.Tasks.TaskCanceledException || ex is System.OperationCanceledException || ex is System.TimeoutException) {
                 // fallback to empty responses when the system DNS configuration is invalid
                 foreach (var query in queries) {
                     responses[query] = new List<DnsAnswer>();
@@ -369,7 +409,7 @@ namespace DomainDetective {
                             responses[queries[i]].AddRange(answers ?? Array.Empty<DnsAnswer>());
                         }
                     }
-                } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException) {
+                } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException || ex is System.Net.Sockets.SocketException || ex is System.Threading.Tasks.TaskCanceledException || ex is System.OperationCanceledException || ex is System.TimeoutException) {
                     foreach (var query in queries) {
                         if (!responses.ContainsKey(query)) {
                             responses[query] = new List<DnsAnswer>();
@@ -386,6 +426,7 @@ namespace DomainDetective {
                     var dnsblRecord = new DNSBLRecord {
                         IPAddress = name,
                         OriginalIPAddress = ipAddressOrHostname,
+                        QueryKind = isIp ? DnsblQueryKind.IpAddress : DnsblQueryKind.Domain,
                         FQDN = pair.Key,
                         BlackList = blacklist,
                         IsBlackListed = false,
@@ -401,6 +442,7 @@ namespace DomainDetective {
                         var dnsblRecord = new DNSBLRecord {
                             IPAddress = name,
                             OriginalIPAddress = ipAddressOrHostname,
+                            QueryKind = isIp ? DnsblQueryKind.IpAddress : DnsblQueryKind.Domain,
                             FQDN = record.Name,
                             BlackList = blacklist,
                             IsBlackListed = true,

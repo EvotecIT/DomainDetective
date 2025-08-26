@@ -38,6 +38,41 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Queries domain block lists for multiple domains in parallel and aggregates results.
+        /// </summary>
+        /// <param name="domains">Domain names to test.</param>
+        /// <param name="logger">Instance used to log progress.</param>
+        /// <param name="clearExisting">Whether to clear previous results.</param>
+        public async Task AnalyzeDomainBlocklistsMany(IEnumerable<string> domains, InternalLogger logger, bool clearExisting = true) {
+            if (domains == null) return;
+            var items = domains.Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (clearExisting) {
+                Reset();
+            }
+            Logger = logger;
+            if (items.Count == 0) return;
+
+            Logger?.WriteVerbose($"Checking {items.Count} domain(s) against {DomainDNSBLLists.Count} domain blocklists (parallel)…");
+
+            var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
+            foreach (var domain in items) {
+                var d = domain; // capture
+                tasks.Add(Task.Run(async () => {
+                    var list = new List<DNSBLRecord>();
+                    await foreach (var record in QueryDNSBL(DomainDNSBLLists, d)) {
+                        list.Add(record);
+                    }
+                    return (d, list);
+                }));
+            }
+
+            var results = await Task.WhenAll(tasks);
+            foreach (var (key, records) in results) {
+                ConvertToResults(key, records);
+            }
+        }
+
+        /// <summary>
         /// Determines whether the domain appears on any configured domain block list.
         /// </summary>
         /// <param name="domain">Domain name to test.</param>

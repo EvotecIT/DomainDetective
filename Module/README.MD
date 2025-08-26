@@ -13,9 +13,15 @@ Test-DnsNs -DomainName "example.com" -Verbose
 
 ### Additional cmdlets
 
-- `Test-DnsDomainBlacklist` – queries DNSBL providers to determine if a domain or IP address is listed.
+- `Test-DnsBlacklist` – queries DNSBL providers for a domain or IP; for domains it also resolves MX hosts and checks their IPs.
   ```powershell
-  Test-DnsDomainBlacklist -NameOrIpAddress "example.com" -Verbose
+  Test-DnsBlacklist -NameOrIpAddress "example.com" -Verbose
+
+Flags:
+- `-TreatAsDomain`: Force domain-mode (domain lists + MX IPs).
+- `-TreatAsIp`: Force IP-mode (only IP DNSBLs; requires IP inputs).
+- `-MaxConcurrency`: Resolver concurrency hint (used if supported by DNS client).
+- `-BlacklistedOnly`: Return only entries that are listed.
   ```
 - `Test-EmailDkim` – verifies DKIM selectors for the given domain.
   ```powershell

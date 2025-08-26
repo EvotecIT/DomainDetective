@@ -19,6 +19,16 @@ namespace DomainDetective {
         /// Gets or sets the default User-Agent header for DNS queries.
         /// </summary>
         public string UserAgent { get; set; } = DefaultUserAgent;
+        /// <summary>
+        /// Optional maximum concurrency for DNS queries passed to the underlying resolver.
+        /// Not applied unless <see cref="SupportsResolverConcurrency"/> is true in this build.
+        /// </summary>
+        public int? ResolverMaxConcurrency { get; set; }
+        /// <summary>
+        /// Indicates whether the underlying resolver supports a concurrency hint.
+        /// If false, callers should not set <see cref="ResolverMaxConcurrency"/>.
+        /// </summary>
+        public bool SupportsResolverConcurrency => false;
         /// <summary>Optional override for DNS queries.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { get; set; }
         /// <summary>
@@ -60,7 +70,7 @@ namespace DomainDetective {
             }
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
-            if (filter != string.Empty) {
+                        if (filter != string.Empty) {
                 var data = await client.ResolveFilter(name, recordType, filter);
                 return data.Answers;
             }
@@ -88,7 +98,7 @@ namespace DomainDetective {
 
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
-            DnsResponse[] data;
+                        DnsResponse[] data;
             if (filter != string.Empty) {
                 data = await client.ResolveFilter(names, recordType, filter);
             } else {
@@ -112,11 +122,13 @@ namespace DomainDetective {
             }
             using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
             client.EndpointConfiguration.UserAgent = UserAgent;
-            DnsResponse[] data = filter != string.Empty
+                        DnsResponse[] data = filter != string.Empty
                 ? await client.ResolveFilter(names, recordType, filter)
                 : await client.Resolve(names, recordType);
 
             return data;
         }
+
+        // No concurrency hint is applied in this build.
     }
 }
