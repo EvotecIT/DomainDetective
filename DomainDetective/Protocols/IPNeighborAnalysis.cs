@@ -64,7 +64,7 @@ public class IPNeighborAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("Passive DNS query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(IpNeighborCodes.PassiveDnsQueryFailed, "Passive DNS query failed for {0}: {1}", ip, ex.Message);
             return new List<string>();
         }
     }
@@ -95,7 +95,7 @@ public class IPNeighborAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("RPKI query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
             return true;
         }
     }
@@ -152,7 +152,7 @@ public class IPNeighborAnalysis
                 {
                     Errors.Add(ex);
                 }
-                logger?.WriteError("Neighbor analysis failed for {0}: {1}", ipStr, ex.Message);
+                logger?.WriteErrorCode(IpNeighborCodes.AnalysisFailed, "Neighbor analysis failed for {0}: {1}", ipStr, ex.Message);
             }
         });
 

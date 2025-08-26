@@ -15,7 +15,7 @@ namespace DomainDetective {
     /// results during message forwarding. This analysis checks the chain for
     /// completeness and signature validity.
     /// </remarks>
-    public class ARCAnalysis {
+    public class ARCAnalysis : IHasAssessments {
         internal static Func<byte[], Stream> CreateStream = b => new MemoryStream(b);
         /// <summary>Collected ARC-Seal header values.</summary>
         public List<string> ArcSealHeaders { get; } = new();
@@ -43,6 +43,7 @@ namespace DomainDetective {
         /// <param name="rawHeaders">Raw message headers.</param>
         /// <param name="logger">Optional logger for diagnostics.</param>
         public void Analyze(string rawHeaders, InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "ARC") : null;
             Reset();
             if (string.IsNullOrWhiteSpace(rawHeaders)) {
                 logger?.WriteVerbose("No headers supplied for ARC analysis.");
@@ -72,7 +73,7 @@ namespace DomainDetective {
                     }
                 }
             } catch (Exception ex) {
-                logger?.WriteError("Failed to parse ARC headers: {0}", ex.Message);
+                logger?.WriteErrorCode(ArcCodes.ParseFailed, "Failed to parse ARC headers: {0}", ex.Message);
                 ChainState = ArcChainState.Invalid;
                 return;
             }
@@ -168,5 +169,9 @@ namespace DomainDetective {
             }
             return false;
         }
+        /// <summary>Structured assessments captured during ARC analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     }
 }

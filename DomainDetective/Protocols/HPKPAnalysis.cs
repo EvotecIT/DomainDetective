@@ -123,7 +123,7 @@ namespace DomainDetective {
 
                 _cache[url] = new CacheEntry(Header, DateTimeOffset.UtcNow.Add(CacheDuration));
             } catch (Exception ex) {
-                logger?.WriteError("HPKP check failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(HpkpCodes.CheckFailed, "HPKP check failed for {0}: {1}", url, ex.Message);
             }
         }
     }}

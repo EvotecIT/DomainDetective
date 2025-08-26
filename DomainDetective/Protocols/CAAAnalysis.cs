@@ -16,7 +16,7 @@ namespace DomainDetective {
     /// The analysis inspects CAA tags to determine which certificate
     /// authorities are permitted to issue certificates for the domain.
     /// </remarks>
-    public class CAAAnalysis {
+    public class CAAAnalysis : IHasAssessments {
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
 
@@ -77,12 +77,16 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// <summary>Gets the per-record analysis results.</summary>
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         /// <summary>
         /// Parses the supplied CAA records and populates analysis properties.
         /// </summary>
         /// <param name="dnsResults">DNS query results containing CAA records.</param>
         /// <param name="logger">Logger used for warnings and errors.</param>
         public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CAA");
             // reset all properties so repeated calls don't accumulate data
             DomainName = null;
             ValidRecords = 0;
@@ -111,6 +115,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             }
 
             DomainName = caaRecordList.First().Name;
+            using var _t = _collector.PushTarget(DomainName);
 
             foreach (var record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();

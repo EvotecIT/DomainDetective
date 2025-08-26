@@ -12,7 +12,7 @@ namespace DomainDetective {
     /// Validates PTR records for MX hosts.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class ReverseDnsAnalysis {
+    public class ReverseDnsAnalysis : IHasAssessments {
         /// <summary>Provides DNS configuration for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
@@ -90,6 +90,7 @@ namespace DomainDetective {
                 if (string.IsNullOrWhiteSpace(host)) {
                     continue;
                 }
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDNS", target: host) : null;
                 var aRecords = await QueryDns(host, DnsRecordType.A);
                 var aaaaRecords = await QueryDns(host, DnsRecordType.AAAA);
                 foreach (var record in aRecords.Concat(aaaaRecords ?? Array.Empty<DnsAnswer>())) {
@@ -161,5 +162,7 @@ namespace DomainDetective {
         ///   await hc.Verify("example.com", new[] { HealthCheckType.REVERSEDNS });
         ///   </code>
         /// </example>
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     }
 }

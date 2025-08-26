@@ -8,4 +8,5 @@ internal static class SmimeaCodes {
     public const string SelectorInvalid = "SMIMEA.Selector.Invalid";
     public const string MatchingTypeNotNumeric = "SMIMEA.MatchingType.NotNumeric";
     public const string MatchingTypeInvalid = "SMIMEA.MatchingType.Invalid";
+    public const string NoRecords = "SMIMEA.Records.Missing";
 }

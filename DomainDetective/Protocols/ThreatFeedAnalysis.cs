@@ -97,7 +97,7 @@ public class ThreatFeedAnalysis {
                 var result = await QueryVirusTotal(ip, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
             } catch (Exception ex) {
-                logger?.WriteError("VirusTotal query failed: {0}", ex.Message);
+                logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
         }
@@ -107,7 +107,7 @@ public class ThreatFeedAnalysis {
                 var json = await QueryAbuseIpDb(ip, abuseIpDbApiKey, ct);
                 abuseListed = ParseAbuseIpDb(json);
             } catch (Exception ex) {
-                logger?.WriteError("AbuseIPDB query failed: {0}", ex.Message);
+                logger?.WriteErrorCode(ThreatIntelCodes.AbuseIpdbQueryFailed, "AbuseIPDB query failed: {0}", ex.Message);
                 FailureReason = $"AbuseIPDB query failed: {ex.Message}";
             }
         }

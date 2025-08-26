@@ -98,7 +98,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(OpenRelayCodes.CheckFailed, "Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
                 SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
                 return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }

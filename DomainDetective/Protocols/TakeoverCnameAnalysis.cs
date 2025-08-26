@@ -13,7 +13,7 @@ namespace DomainDetective;
 /// Detects CNAME records pointing to cloud providers prone to subdomain takeover.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class TakeoverCnameAnalysis
+public class TakeoverCnameAnalysis : IHasAssessments
 {
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -79,6 +79,7 @@ public class TakeoverCnameAnalysis
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TAKEOVER", target: domainName);
         CnameRecordExists = false;
         Target = null;
         IsTakeoverRisk = false;
@@ -101,4 +102,7 @@ public class TakeoverCnameAnalysis
             logger?.WriteWarningCode(TakeoverCnameCodes.RiskyProvider, "CNAME target {0} is hosted on a takeover prone provider", Target);
         }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

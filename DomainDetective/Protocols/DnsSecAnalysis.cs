@@ -75,6 +75,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during DNSSEC validation.</summary>
         public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>
         /// Performs DNSSEC validation for the specified domain.

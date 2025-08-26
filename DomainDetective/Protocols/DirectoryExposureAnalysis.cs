@@ -14,7 +14,7 @@ namespace DomainDetective;
 /// Scans common directories on a web server looking for inadvertent exposure.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class DirectoryExposureAnalysis
+public class DirectoryExposureAnalysis : IHasAssessments
 {
     private static readonly string[] _defaultPaths = LoadDefaultPaths();
 
@@ -56,6 +56,7 @@ public class DirectoryExposureAnalysis
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task Analyze(string baseUrl, InternalLogger logger, CancellationToken cancellationToken = default)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DIR", target: baseUrl);
         if (string.IsNullOrWhiteSpace(baseUrl))
         {
             throw new ArgumentNullException(nameof(baseUrl));
@@ -93,4 +94,7 @@ public class DirectoryExposureAnalysis
             }
         }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

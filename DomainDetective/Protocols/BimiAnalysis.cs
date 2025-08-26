@@ -22,7 +22,7 @@ namespace DomainDetective {
     /// that reference an SVG logo file and an optional certificate. This class
     /// validates presence and accessibility of those resources.
     /// </remarks>
-public partial class BimiAnalysis {
+public partial class BimiAnalysis : IHasAssessments {
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }
         /// <summary>Gets a value indicating whether a BIMI record was found.</summary>
@@ -77,6 +77,11 @@ public partial class BimiAnalysis {
         /// <summary>Skip downloading the BIMI indicator image.</summary>
         public bool SkipIndicatorDownload { get; set; }
 
+        /// <summary>Structured assessments captured during BIMI analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         /// <summary>
         /// Processes BIMI DNS records and populates analysis properties.
         /// </summary>
@@ -84,6 +89,7 @@ public partial class BimiAnalysis {
         /// <param name="logger">Logger instance for diagnostic output.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeBimiRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "BIMI");
             await Task.Yield();
 
             ResetState();
@@ -189,10 +195,10 @@ public partial class BimiAnalysis {
                 }
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
-                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(BimiCodes.DownloadFailed, "HTTP request failed for {0}: {1}", url, ex.Message);
                 return (null, 0);
             } catch (Exception ex) {
-                logger?.WriteError("Error downloading BIMI indicator {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(BimiCodes.DownloadFailed, "Error downloading BIMI indicator {0}: {1}", url, ex.Message);
                 return (null, 0);
             }
         }
@@ -236,10 +242,10 @@ public partial class BimiAnalysis {
                 }
             } catch (HttpRequestException ex) {
                 FailureReason = $"HTTP request failed: {ex.Message}";
-                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(BimiCodes.DownloadFailed, "HTTP request failed for {0}: {1}", url, ex.Message);
                 return (false, false, false);
             } catch (Exception ex) {
-                logger?.WriteError("Error downloading BIMI VMC {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(BimiCodes.DownloadFailed, "Error downloading BIMI VMC {0}: {1}", url, ex.Message);
                 return (false, false, false);
             }
         }

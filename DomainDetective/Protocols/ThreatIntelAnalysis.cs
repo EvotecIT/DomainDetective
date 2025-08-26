@@ -156,7 +156,7 @@ public class ThreatIntelAnalysis
             }
             catch (Exception ex)
             {
-                logger?.WriteError("Google Safe Browsing query failed: {0}", ex.Message);
+                logger?.WriteErrorCode(ThreatIntelCodes.GsbQueryFailed, "Google Safe Browsing query failed: {0}", ex.Message);
                 FailureReason = $"Google Safe Browsing query failed: {ex.Message}";
             }
         }
@@ -170,7 +170,7 @@ public class ThreatIntelAnalysis
             }
             catch (Exception ex)
             {
-                logger?.WriteError("PhishTank query failed: {0}", ex.Message);
+                logger?.WriteErrorCode(ThreatIntelCodes.PhishTankQueryFailed, "PhishTank query failed: {0}", ex.Message);
                 FailureReason = $"PhishTank query failed: {ex.Message}";
             }
         }
@@ -189,7 +189,7 @@ public class ThreatIntelAnalysis
             }
             catch (Exception ex)
             {
-                logger?.WriteError("VirusTotal query failed: {0}", ex.Message);
+                logger?.WriteErrorCode(ThreatIntelCodes.VirusTotalQueryFailed, "VirusTotal query failed: {0}", ex.Message);
                 FailureReason = $"VirusTotal query failed: {ex.Message}";
             }
         }

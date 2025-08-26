@@ -85,6 +85,8 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during SPF analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>
         /// True when SPF configuration effectively authorizes outbound senders

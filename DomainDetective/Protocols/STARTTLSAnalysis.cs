@@ -19,6 +19,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments during STARTTLS probe.</summary>
         public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>
         /// Tests a single server for STARTTLS support.

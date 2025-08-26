@@ -85,7 +85,7 @@ namespace DomainDetective {
                     try {
                         message = MimeMessage.Load(asciiStream);
                     } catch (FormatException ex) {
-                        logger?.WriteError("MimeKit failed to parse headers: {0}", ex.Message);
+                        logger?.WriteErrorCode(MessageHeaderCodes.MimeParseFailed, "MimeKit failed to parse headers: {0}", ex.Message);
                         ParseManually(rawHeaders, logger);
                         ComputeTransitTime();
                         DetermineIssues();
@@ -97,7 +97,7 @@ namespace DomainDetective {
                 }
                 ComputeTransitTime();
             } catch (Exception ex) {
-                logger?.WriteError("Failed to parse message headers: {0}", ex.Message);
+                logger?.WriteErrorCode(MessageHeaderCodes.ParseFailed, "Failed to parse message headers: {0}", ex.Message);
             }
             DetermineIssues();
         }
@@ -187,7 +187,7 @@ namespace DomainDetective {
                 Commit();
                 var idx = line.IndexOf(':');
                 if (idx <= 0) {
-                    logger?.WriteError("Malformed header line: {0}", line);
+                    logger?.WriteErrorCode(MessageHeaderCodes.MalformedLine, "Malformed header line: {0}", line);
                     currentField = null;
                     value.Clear();
                     continue;

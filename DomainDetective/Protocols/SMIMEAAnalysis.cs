@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Analyzes SMIMEA records per RFC 8162.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SMIMEAAnalysis {
+    public class SMIMEAAnalysis : IHasAssessments {
         /// <summary>Detailed analysis results for each SMIMEA record.</summary>
         public List<SMIMEARecordAnalysis> AnalysisResults { get; private set; } = new();
         public int NumberOfRecords { get; private set; }
@@ -25,7 +25,13 @@ namespace DomainDetective {
             HasInvalidRecords = false;
         }
 
+        /// <summary>Structured assessments captured during SMIMEA analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         public async Task AnalyzeSMIMEARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMIMEA");
             Reset();
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");

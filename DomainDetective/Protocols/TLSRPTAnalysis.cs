@@ -40,6 +40,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during TLSRPT analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLSRPT");

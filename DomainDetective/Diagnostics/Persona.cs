@@ -19,7 +19,8 @@ public enum PersonaKind {
 /// </summary>
 public static class AssessmentNarrator {
     public static string Narrate(Assessment a, PersonaKind persona) {
-        var core = $"{a.Category}{(string.IsNullOrWhiteSpace(a.Target) ? string.Empty : $" ({a.Target})")} : {a.Message}";
+        var advice = RecommendationCatalog.For(a);
+        var core = $"{a.Category}{(string.IsNullOrWhiteSpace(a.Target) ? string.Empty : $" ({a.Target})")} : {advice.Title}";
         return persona switch {
             PersonaKind.Funny => core + " // not great, not terrible",
             PersonaKind.Geek  => core + " // see RFC?",
@@ -38,5 +39,19 @@ public static class AssessmentNarrator {
         foreach (var a in prioritized)
             yield return Narrate(a, persona);
     }
-}
 
+    /// <summary>
+    /// Persona-styled narration with short advisory context (title + why).
+    /// </summary>
+    public static string NarrateDetailed(Assessment a, PersonaKind persona) {
+        var advice = RecommendationCatalog.For(a);
+        var core = $"{advice.Title} — {advice.Why}";
+        return persona switch {
+            PersonaKind.Funny => core + " // ship it, but maybe not",
+            PersonaKind.Geek  => core + " // see also specs",
+            PersonaKind.Noir  => core + " // the logs knew it all along",
+            PersonaKind.Pirate=> core.Replace("—", "— Arr! "),
+            _ => core
+        };
+    }
+}

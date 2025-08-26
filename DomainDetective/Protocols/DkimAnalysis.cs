@@ -41,6 +41,8 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during DKIM analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Clears <see cref="AnalysisResults"/>.</summary>
         public void Reset() {
@@ -113,7 +115,7 @@ namespace DomainDetective {
                                 if (!analysis.ValidRsaKeyLength)
                                 {
                                     analysis.ValidPublicKey = false;
-                                    logger?.WriteError("DKIM key length {0} bits is below the minimum of {1} bits.", analysis.KeyLength, MinimumRsaKeyBits);
+                                    logger?.WriteErrorCode(DkimCodes.KeyTooShort, "DKIM key length {0} bits is below the minimum of {1} bits.", analysis.KeyLength, MinimumRsaKeyBits);
                                 }
                                 else
                                 {
@@ -161,7 +163,7 @@ namespace DomainDetective {
                                     if (!analysis.UnknownCanonicalizationModes.Contains(part))
                                     {
                                         analysis.UnknownCanonicalizationModes.Add(part);
-                                        logger?.WriteError("Unknown canonicalization mode: {0}", part);
+                                        logger?.WriteErrorCode(DkimCodes.CanonicalizationUnknown, "Unknown canonicalization mode: {0}", part);
                                     }
                                 }
                             }

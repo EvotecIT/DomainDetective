@@ -12,7 +12,7 @@ namespace DomainDetective {
     /// Downloads and validates security.txt files according to the specification.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-public class SecurityTXTAnalysis {
+public class SecurityTXTAnalysis : IHasAssessments {
         private record CacheEntry(string Content, string Url, bool FallbackUsed, DateTimeOffset Expires);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -54,6 +54,8 @@ public class SecurityTXTAnalysis {
 
 
         internal InternalLogger Logger { get; set; }
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
 
         /// <summary>
@@ -61,6 +63,7 @@ public class SecurityTXTAnalysis {
         /// </summary>
         public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string pgpPublicKey = null) {
             Logger = logger;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SECURITYTXT", target: domainName);
 
             if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out _)) {
                 throw new ArgumentException("Invalid host name.", nameof(domainName));

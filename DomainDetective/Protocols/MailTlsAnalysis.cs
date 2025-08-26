@@ -65,6 +65,7 @@ public class MailTlsAnalysis : IHasAssessments
 
     /// <summary>Structured assessments captured during mail TLS checks.</summary>
     public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Analyzes a single host.</summary>
     public async Task AnalyzeServer(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)

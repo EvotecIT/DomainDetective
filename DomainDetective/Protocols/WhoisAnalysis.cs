@@ -531,7 +531,8 @@ public class WhoisAnalysis {
             NormalizeExpiryDateInData();
             _logger?.WriteVerbose("WHOIS received {0} bytes; Registrar='{1}', Expiry='{2}'", responseBytes.Length, Registrar, ExpiryDate);
         } catch (Exception ex) {
-            _logger.WriteError(
+            _logger.WriteErrorCode(
+                WhoisCodes.QueryFailed,
                 "Error querying WHOIS server {0} for domain {1}: {2}",
                 whoisServer,
                 domain,
@@ -1126,7 +1127,7 @@ public class WhoisAnalysis {
                     break;
                 }
             } catch (Exception ex) {
-                _logger.WriteError("Error querying IP WHOIS server: {0}", ex.Message);
+                _logger.WriteErrorCode(WhoisCodes.IpQueryFailed, "Error querying IP WHOIS server: {0}", ex.Message);
             }
         }
 

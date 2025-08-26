@@ -41,6 +41,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during DANE analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
 
         public void Reset() {

@@ -84,6 +84,7 @@ namespace DomainDetective {
 
         /// <summary>Structured assessments captured during banner checks.</summary>
         public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Checks a single SMTP server banner.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
@@ -175,7 +176,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteError("SMTP banner check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(SmtpBannerCodes.CheckFailed, "SMTP banner check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return new BannerResult();
             }
         }

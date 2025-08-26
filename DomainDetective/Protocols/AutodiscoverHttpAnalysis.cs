@@ -11,7 +11,7 @@ namespace DomainDetective {
 /// Performs Autodiscover endpoint checks over HTTP/HTTPS.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class AutodiscoverHttpAnalysis {
+public class AutodiscoverHttpAnalysis : IHasAssessments {
     /// <summary>HTTP request timeout.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
     /// <summary>Maximum redirects to follow.</summary>
@@ -31,6 +31,7 @@ public class AutodiscoverHttpAnalysis {
     /// <param name="logger">Logger for debug output.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     public async Task Analyze(string domain, InternalLogger logger, CancellationToken cancellationToken = default) {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "AUTODISC", target: domain);
         if (string.IsNullOrWhiteSpace(domain)) {
             throw new ArgumentNullException(nameof(domain));
         }
@@ -98,7 +99,7 @@ public class AutodiscoverHttpAnalysis {
                 break;
             }
         } catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException) {
-            logger?.WriteError("Autodiscover HTTP check failed for {0}: {1}", url, ex.Message);
+            logger?.WriteErrorCode(AutodiscoverCodes.CheckFailed, "Autodiscover HTTP check failed for {0}: {1}", url, ex.Message);
         } finally {
             if (tuple.dispose) {
                 client.Dispose();
@@ -113,5 +114,8 @@ public class AutodiscoverHttpAnalysis {
             XmlValid = valid
         };
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }
 }

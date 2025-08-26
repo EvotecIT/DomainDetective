@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Provides functionality for retrieving and analysing MTA-STS policies.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-public class MTASTSAnalysis {
+public class MTASTSAnalysis : IHasAssessments {
     private record CacheEntry(string PolicyId, string Policy, DateTimeOffset Expires);
     private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -168,6 +168,7 @@ public class MTASTSAnalysis {
         /// <param name="logger">A logger for warning messages.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MTASTS", target: domainName);
             Reset();
             Logger = logger;
 
@@ -236,6 +237,9 @@ public class MTASTSAnalysis {
             ParsePolicy(text);
             UpdateAdvisory();
         }
+
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         private void UpdateAdvisory() {
             if (!DnsRecordPresent) {

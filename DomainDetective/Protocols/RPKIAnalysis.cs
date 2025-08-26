@@ -66,7 +66,7 @@ public class RPKIAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("RPKI query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
             return (string.Empty, 0, true);
         }
     }

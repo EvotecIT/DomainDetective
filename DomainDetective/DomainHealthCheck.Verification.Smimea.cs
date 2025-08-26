@@ -36,7 +36,7 @@ namespace DomainDetective {
             if (records.Any()) {
                 await SmimeaAnalysis.AnalyzeSMIMEARecords(records, _logger);
             } else {
-                _logger.WriteWarning("No SMIMEA records found.");
+                _logger.WriteWarningCode(SmimeaCodes.NoRecords, "No SMIMEA records found.");
             }
         }
     }

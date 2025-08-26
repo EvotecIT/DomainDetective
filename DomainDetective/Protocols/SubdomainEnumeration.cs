@@ -106,7 +106,7 @@ public class SubdomainEnumeration
         }
         catch (Exception ex)
         {
-            logger?.WriteError("Passive enumeration failed: {0}", ex.Message);
+            logger?.WriteErrorCode(SubdomainCodes.PassiveQueryFailed, "Passive enumeration failed: {0}", ex.Message);
         }
     }
 }

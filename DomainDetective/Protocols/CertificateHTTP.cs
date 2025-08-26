@@ -228,7 +228,7 @@ namespace DomainDetective {
                                     IsSelfSigned = Chain.Count == 1;
                                 }
                             } catch (Exception ex) {
-                                logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
+                                logger?.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
                             }
                         }
                         if (Certificate != null) {
@@ -247,7 +247,7 @@ namespace DomainDetective {
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
-                        logger?.WriteError("Exception reaching {0}: {1}", url, ex.ToString());
+                        logger?.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
             }

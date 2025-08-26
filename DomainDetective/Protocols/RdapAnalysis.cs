@@ -90,7 +90,7 @@ public class RdapAnalysis
                     var codeText = ex.StatusCode.HasValue
                         ? $"{(int)ex.StatusCode.Value} ({ex.StatusCode})"
                         : ex.Message;
-                    logger?.WriteError("RDAP request to {0} failed with status {1}", url, codeText);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed with status {1}", url, codeText);
                     if (ex.StatusCode == HttpStatusCode.NotFound)
                     {
                         rdapResult = null;
@@ -100,7 +100,7 @@ public class RdapAnalysis
                         throw;
                     }
 #else
-                    logger?.WriteError("RDAP request to {0} failed: {1}", url, ex.Message);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed: {1}", url, ex.Message);
                     if (ex.Message.Contains("404"))
                     {
                         rdapResult = null;
@@ -125,7 +125,7 @@ public class RdapAnalysis
                     var codeText = ex.StatusCode.HasValue
                         ? $"{(int)ex.StatusCode.Value} ({ex.StatusCode})"
                         : ex.Message;
-                    logger?.WriteError("RDAP request to {0} failed with status {1}", url, codeText);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed with status {1}", url, codeText);
                     if (ex.StatusCode == HttpStatusCode.NotFound)
                     {
                         rdapResult = null;
@@ -135,7 +135,7 @@ public class RdapAnalysis
                         throw;
                     }
 #else
-                    logger?.WriteError("RDAP request to {0} failed: {1}", url, ex.Message);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed: {1}", url, ex.Message);
                     if (ex.Message.Contains("404"))
                     {
                         rdapResult = null;

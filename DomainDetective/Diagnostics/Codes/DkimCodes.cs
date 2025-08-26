@@ -7,5 +7,6 @@ internal static class DkimCodes {
     public const string TagGDeprecated = "DKIM.Tag.G.Deprecated";
     public const string TagQDeprecated = "DKIM.Tag.Q.Deprecated";
     public const string AdspObsolete = "DKIM.ADSP.Obsolete";
+    public const string KeyTooShort = "DKIM.Key.TooShort";
+    public const string CanonicalizationUnknown = "DKIM.Canonicalization.Unknown";
 }
-

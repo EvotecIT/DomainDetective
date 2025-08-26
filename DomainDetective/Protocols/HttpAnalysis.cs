@@ -14,7 +14,7 @@ namespace DomainDetective {
     /// Performs basic HTTP checks against a web endpoint.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class HttpAnalysis {
+    public class HttpAnalysis : IHasAssessments {
         /// <summary>Gets the HTTP status code of the response.</summary>
         public int? StatusCode { get; private set; }
         /// <summary>Gets the time taken to receive the response.</summary>
@@ -152,6 +152,11 @@ namespace DomainDetective {
         /// </summary>
         public static IList<string> DefaultSecurityHeaders => _securityHeaderNames;
 
+        /// <summary>Structured assessments captured during HTTP analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         /// <summary>
         /// Performs an HTTP GET request to the specified URL.
         /// </summary>
@@ -162,6 +167,7 @@ namespace DomainDetective {
         /// <param name="captureBody">Whether to capture the response body.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 #if NET6_0_OR_GREATER
             var manualRedirect = RequestVersion >= HttpVersion.Version30;
             using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
@@ -344,6 +350,50 @@ namespace DomainDetective {
                 if (expectCtHeader != null && !collectHeaders) {
                     ParseExpectCt(expectCtHeader);
                 }
+                // Emit fine-grained assessments
+                if (checkHsts && !HstsPresent) {
+                    logger?.WriteWarningCode(HttpCodes.HstsMissing, "Strict-Transport-Security header missing");
+                }
+                if (HstsTooShort) {
+                    logger?.WriteWarningCode(HttpCodes.HstsTooShort, "HSTS max-age is shorter than 18 weeks");
+                }
+                if (UnknownHstsDirectives != null) {
+                    foreach (var unk in UnknownHstsDirectives) {
+                        logger?.WriteWarningCode(HttpCodes.HstsUnknownDirective, "Unknown HSTS directive: {0}", unk);
+                    }
+                }
+                if (CspUnsafeDirectives) {
+                    logger?.WriteWarningCode(HttpCodes.CspUnsafe, "Content-Security-Policy contains unsafe directives");
+                }
+                if (MixedContentDetected) {
+                    logger?.WriteWarningCode(HttpCodes.MixedContent, "HTTPS page references insecure http:// resources");
+                }
+                if (XssProtectionPresent) {
+                    logger?.WriteWarningCode(HttpCodes.XssProtectionDeprecated, "X-XSS-Protection header is obsolete in modern browsers");
+                }
+                if (ExpectCtPresent || expectCtHeader != null) {
+                    logger?.WriteWarningCode(HttpCodes.ExpectCtDeprecated, "Expect-CT header is obsolete");
+                }
+                if (collectHeaders && MissingSecurityHeaders.Count > 0) {
+                    foreach (var miss in MissingSecurityHeaders) {
+                        var code = miss switch {
+                            "Content-Security-Policy" => HttpCodes.MissingHeaderCsp,
+                            "Referrer-Policy" => HttpCodes.MissingHeaderReferrerPolicy,
+                            "X-Frame-Options" => HttpCodes.MissingHeaderXFrameOptions,
+                            "Permissions-Policy" => HttpCodes.MissingHeaderPermissionsPolicy,
+                            "X-Content-Type-Options" => HttpCodes.MissingHeaderXContentTypeOptions,
+                            "Cross-Origin-Opener-Policy" => HttpCodes.MissingHeaderCOOP,
+                            "Cross-Origin-Embedder-Policy" => HttpCodes.MissingHeaderCOEP,
+                            "Cross-Origin-Resource-Policy" => HttpCodes.MissingHeaderCORP,
+                            "Origin-Agent-Cluster" => HttpCodes.MissingHeaderOAC,
+                            "X-Permitted-Cross-Domain-Policies" => HttpCodes.MissingHeaderXPermittedCrossDomainPolicies,
+                            _ => null
+                        };
+                        if (code != null) {
+                            logger?.WriteWarningCode(code, "Missing recommended security header: {0}", miss);
+                        }
+                    }
+                }
                 if (captureBody) {
                     Body = await response.Content.ReadAsStringAsync();
                     var scheme = response.RequestMessage?.RequestUri?.Scheme;
@@ -359,22 +409,22 @@ namespace DomainDetective {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"DNS lookup failed: {se.Message}";
-                logger?.WriteError("DNS lookup failed for {0}: {1}", url, se.Message);
+                logger?.WriteErrorCode(HttpCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", url, se.Message);
             } catch (HttpRequestException ex) {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"HTTP request failed: {ex.Message}";
-                logger?.WriteError("HTTP request failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(HttpCodes.RequestFailed, "HTTP request failed for {0}: {1}", url, ex.Message);
             } catch (TaskCanceledException ex) {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"Timeout: {ex.Message}";
-                logger?.WriteError("HTTP request timed out for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(HttpCodes.Timeout, "HTTP request timed out for {0}: {1}", url, ex.Message);
             } catch (Exception ex) when (ex is not InvalidOperationException) {
                 sw.Stop();
                 IsReachable = false;
                 FailureReason = $"HTTP check failed: {ex.Message}";
-                logger?.WriteError("HTTP check failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(HttpCodes.CheckFailed, "HTTP check failed for {0}: {1}", url, ex.Message);
             }
         }
 
