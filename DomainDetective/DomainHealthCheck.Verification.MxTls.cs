@@ -87,6 +87,7 @@ namespace DomainDetective {
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var hosts = CertificateAnalysis.ExtractMxHosts(mx);
             _logger?.WriteVerbose("MX targets for banner check on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
+            SmtpBannerAnalysis.Subject = domainName;
             await SmtpBannerAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
 
@@ -103,6 +104,7 @@ namespace DomainDetective {
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var hosts = CertificateAnalysis.ExtractMxHosts(mx);
             _logger?.WriteVerbose("MX targets for SMTP AUTH on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
+            SmtpAuthAnalysis.Subject = domainName;
             await SmtpAuthAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
     }

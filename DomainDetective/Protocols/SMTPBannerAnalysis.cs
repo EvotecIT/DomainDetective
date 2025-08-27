@@ -11,6 +11,8 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMTPBannerAnalysis : IHasAssessments {
+        /// <summary>Subject of the check (domain or host).</summary>
+        public string? Subject { get; set; }
         private const int MaxBannerLength = 512;
         private const int MaxBannerTextLength = MaxBannerLength - 2; // exclude CRLF
         /// <summary>Result of a banner check.</summary>

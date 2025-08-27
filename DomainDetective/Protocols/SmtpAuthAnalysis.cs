@@ -11,6 +11,8 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public class SmtpAuthAnalysis : IHasAssessments {
+        /// <summary>Subject of the check (usually domain name).</summary>
+        public string? Subject { get; set; }
         /// <summary>Supported authentication methods per server.</summary>
         public Dictionary<string, string[]> ServerMechanisms { get; } = new();
         /// <summary>Advertised capabilities per server.</summary>

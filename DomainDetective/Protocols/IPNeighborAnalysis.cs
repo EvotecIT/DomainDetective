@@ -16,6 +16,8 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class IPNeighborAnalysis : IHasAssessments
 {
+    /// <summary>Subject of the check (domain name).</summary>
+    public string? Subject { get; set; }
     /// <summary>DNS configuration used for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     /// <summary>Override for DNS queries during testing.</summary>
@@ -107,6 +109,7 @@ public class IPNeighborAnalysis : IHasAssessments
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        Subject = domainName;
         Results = new List<IPNeighborResult>();
         Errors = new List<Exception>();
         var answers = await QueryDns(domainName, DnsRecordType.A);

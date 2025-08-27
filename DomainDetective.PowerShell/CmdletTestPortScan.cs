@@ -1,0 +1,67 @@
+using System.Management.Automation;
+using DomainDetective.Views;
+using System.Threading.Tasks;
+using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
+
+namespace DomainDetective.PowerShell;
+
+/// <summary>Scans a host for open TCP/UDP ports.</summary>
+/// <para>Part of the DomainDetective project.</para>
+/// <remarks>
+/// Returns a unified PortScanInfo view with total/open counts and Raw (full analysis) for details.
+/// Profiles provide curated port lists; Ports overrides scan a custom set.
+/// </remarks>
+/// <example>
+///   <summary>Scan with default profile.</summary>
+///   <code>Test-DDNetworkPortScan -HostName example.com</code>
+/// </example>
+/// <example>
+///   <summary>Scan specific ports.</summary>
+///   <code>Test-DDNetworkPortScan -HostName example.com -Ports 22,80,443</code>
+/// </example>
+/// <example>
+///   <summary>Scan using profiles.</summary>
+///   <code>Test-DDNetworkPortScan -HostName example.com -Profile Default,SMB</code>
+/// </example>
+[Cmdlet(VerbsDiagnostic.Test, "DDNetworkPortScan")]
+[Alias("Test-NetworkPortScan")]
+[OutputType(typeof(PortScanInfo))]
+public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
+{
+    /// <summary>Host to scan.</summary>
+    [Parameter(Mandatory = true, Position = 0)]
+    [ValidateNotNullOrEmpty]
+    public string HostName;
+
+    /// <summary>Port list to scan.</summary>
+    [Parameter(Mandatory = false)]
+    public int[] Ports;
+
+    /// <summary>Predefined profiles.</summary>
+    [Parameter(Mandatory = false)]
+    public PortScanProfile[] Profile;
+
+    /// <summary>Show progress updates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ShowProgress;
+
+    private InternalLogger _logger;
+    private DomainHealthCheck _healthCheck;
+
+    protected override Task BeginProcessingAsync()
+    {
+        _logger = new InternalLogger(false);
+        var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
+        internalLoggerPowerShell.ResetActivityIdCounter();
+        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+        return Task.CompletedTask;
+    }
+
+    protected override async Task ProcessRecordAsync()
+    {
+        await _healthCheck.ScanPorts(HostName, Ports, Profile, default, ShowProgress.IsPresent);
+        var view = DomainDetective.Views.Converters.Convert(_healthCheck.PortScanAnalysis);
+        WriteObject(view);
+        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+    }
+}

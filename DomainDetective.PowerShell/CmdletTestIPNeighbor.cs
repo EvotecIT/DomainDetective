@@ -1,16 +1,22 @@
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
+using DomainDetective.Views;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Lists domains hosted on the same IP.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>
+    /// Returns a unified IpNeighborInfo view including total addresses and neighbor domain counts.
+    /// Raw exposes the full IPNeighborAnalysis.
+    /// </remarks>
     /// <example>
     ///   <summary>Check IP neighbors.</summary>
     ///   <code>Test-DDNetworkIpNeighbor -DomainName example.com</code>
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDNetworkIpNeighbor", DefaultParameterSetName = "ServerName")]
 [Alias("Test-NetworkIpNeighbor")]
+    [OutputType(typeof(IpNeighborInfo))]
     public sealed class CmdletTestIPNeighbor : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -46,7 +52,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying IP neighbors for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.IPNEIGHBOR });
-            WriteObject(_healthCheck.IPNeighborAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.IPNeighborAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
