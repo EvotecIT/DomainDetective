@@ -58,12 +58,8 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying DKIM records for domain: {0}", DomainName);
             // When selectors are not provided, VerifyDKIM will auto-detect well-known selectors
             await healthCheck.VerifyDKIM(DomainName, Selectors);
-            if (Raw) {
-                WriteObject(healthCheck.DKIMAnalysis);
-            } else {
-                var output = OutputHelper.Convert(healthCheck.DKIMAnalysis);
-                WriteObject(output, true);
-            }
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis);
+            WriteObject(output, true);
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDEmailDkimRecord"); // TODO: Dedicated DKIM report
                 return;

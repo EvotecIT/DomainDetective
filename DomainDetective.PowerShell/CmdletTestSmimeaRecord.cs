@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying SMIMEA record for {0}", EmailAddress);
             await _healthCheck.VerifySMIMEA(EmailAddress);
-            WriteObject(_healthCheck.SmimeaAnalysis);
+            var output = DomainDetective.Views.Converters.Convert(_healthCheck.SmimeaAnalysis);
+            WriteObject(output);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

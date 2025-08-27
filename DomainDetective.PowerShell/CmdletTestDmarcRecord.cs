@@ -46,7 +46,7 @@ namespace DomainDetective.PowerShell {
             if (Raw) {
                 WriteObject(healthCheck.DmarcAnalysis);
             } else {
-                var output = OutputHelper.Convert(healthCheck.DmarcAnalysis);
+                var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
             }
             if (IsExportRequested()) {

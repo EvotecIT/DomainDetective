@@ -44,7 +44,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying SPF record for domain: {0}", DomainName);
             await healthCheck.VerifySPF(DomainName);
-            WriteObject(healthCheck.SpfAnalysis);
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
+            WriteObject(output);
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDEmailSpfRecord"); // TODO: Dedicated SPF report
                 return;

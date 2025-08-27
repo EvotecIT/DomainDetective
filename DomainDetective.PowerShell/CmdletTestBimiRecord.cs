@@ -43,7 +43,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying BIMI record for domain: {0}", DomainName);
             await healthCheck.VerifyBIMI(DomainName);
-            WriteObject(healthCheck.BimiAnalysis);
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.BimiAnalysis);
+            WriteObject(output);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
