@@ -12,6 +12,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SOAAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         public string? DomainName { get; private set; }
         public string? PrimaryNameServer { get; private set; }
         public string? ResponsibleMailbox { get; private set; }
@@ -60,6 +61,7 @@ namespace DomainDetective {
 
             var record = soaRecordList.First();
             DomainName = record.Name;
+            Subject = DomainName;
 
             var parts = record.Data?.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
             if (parts?.Length >= 7) {

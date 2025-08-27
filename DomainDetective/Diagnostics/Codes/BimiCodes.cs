@@ -10,5 +10,6 @@ internal static class BimiCodes {
     public const string SvgMissingAttributes = "BIMI.SVG.MissingAttributes";
     public const string SvgWrongDimensions = "BIMI.SVG.WrongDimensions";
     public const string SvgWrongViewBox = "BIMI.SVG.WrongViewBox";
+    public const string MissingRecord = "BIMI.Record.Missing";
+    public const string StartsInvalid = "BIMI.Record.StartsInvalid";
 }
-

@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying SOA record for domain: {0}", DomainName);
             await healthCheck.VerifySOA(DomainName);
-            WriteObject(healthCheck.SOAAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

@@ -19,6 +19,7 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             domainName = NormalizeDomain(domainName);
+            DKIMAnalysis.Subject = domainName;
             if (selectors == null || selectors.Length == 0) {
                 await DKIMAnalysis.QueryWellKnownSelectors(domainName, DnsConfiguration, _logger, cancellationToken);
                 return;

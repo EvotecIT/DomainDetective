@@ -19,6 +19,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SpfAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         internal DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>Combined SPF record text.</summary>
@@ -189,6 +190,20 @@ namespace DomainDetective {
 
             // check the SPF record starts correctly
             StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase);
+
+            // Emit high-level assessments for presence/version/length
+            if (!SpfRecordExists) {
+                logger?.WriteWarningCode(SpfCodes.MissingRecord, "No SPF record found.");
+            }
+            if (MultipleSpfRecords) {
+                logger?.WriteWarningCode(SpfCodes.MultipleRecords, "Multiple SPF records published.");
+            }
+            if (SpfRecordExists && !StartsCorrectly) {
+                logger?.WriteWarningCode(SpfCodes.StartsInvalid, "SPF record does not start with v=spf1.");
+            }
+            if (ExceedsTotalCharacterLimit || ExceedsCharacterLimit) {
+                logger?.WriteWarningCode(SpfCodes.RecordLengthExceeds, "SPF record length exceeds recommended limits (255 per chunk, ~512 total).");
+            }
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();

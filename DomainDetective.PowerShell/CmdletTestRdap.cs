@@ -43,7 +43,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying RDAP for domain: {0}", DomainName);
             await _healthCheck.QueryRDAP(DomainName);
-            WriteObject(_healthCheck.RdapAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.RdapAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

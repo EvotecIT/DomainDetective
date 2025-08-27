@@ -4,6 +4,54 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class DmarcRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[DmarcCodes.MissingRecord] = new RecommendationAdvice {
+            Code = DmarcCodes.MissingRecord,
+            Title = "Publish a DMARC record",
+            Why = "Without DMARC, receivers cannot enforce or report alignment, enabling spoofing and reducing visibility.",
+            How = "Add a TXT record at _dmarc.example.com with v=DMARC1; start with p=none and rua= for monitoring, then move to quarantine/reject.",
+            Links = new [] { "https://dmarc.org/resources/" },
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "dns" },
+            Impact = "Higher spoofing risk and reduced deliverability control.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "dig TXT _dmarc.example.com shows a single v=DMARC1 policy."
+        };
+
+        map[DmarcCodes.MultipleRecords] = new RecommendationAdvice {
+            Code = DmarcCodes.MultipleRecords,
+            Title = "Consolidate DMARC into a single record",
+            Why = "Multiple DMARC records are not well-defined and can be ignored or cause inconsistent behavior.",
+            How = "Merge tags into one v=DMARC1 string and remove duplicates.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc" },
+            Impact = "Policy may not be applied by receivers.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Only one TXT at _dmarc.example.com remains."
+        };
+
+        map[DmarcCodes.StartsInvalid] = new RecommendationAdvice {
+            Code = DmarcCodes.StartsInvalid,
+            Title = "Fix DMARC version tag",
+            Why = "DMARC records must begin with v=DMARC1 to be recognized.",
+            How = "Ensure the record starts with v=DMARC1 and contains valid tags (p, rua, ruf, fo, adkim, aspf, sp, pct, ri).",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc" },
+            Impact = "Policy ignored by receivers.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record starts with v=DMARC1."
+        };
+
+        map[DmarcCodes.RecordLengthExceeds] = new RecommendationAdvice {
+            Code = DmarcCodes.RecordLengthExceeds,
+            Title = "Reduce DMARC TXT size",
+            Why = "Oversized TXT records risk truncation and parsing issues.",
+            How = "Shorten URIs, reduce recipients, and keep chunks ≤255 bytes.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "dns" },
+            Impact = "Receivers may fail to parse policy.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Each TXT chunk ≤255 chars; total comfortably under UDP limits."
+        };
         map[DmarcCodes.AlignmentInvalid] = new RecommendationAdvice {
             Code = DmarcCodes.AlignmentInvalid,
             Title = "Invalid DMARC alignment value",

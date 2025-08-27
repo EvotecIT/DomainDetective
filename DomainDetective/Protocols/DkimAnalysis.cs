@@ -20,6 +20,7 @@ namespace DomainDetective {
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
     public class DkimAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
         /// <summary>Gets the analysis results keyed by selector.</summary>

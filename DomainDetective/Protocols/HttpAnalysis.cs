@@ -15,6 +15,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class HttpAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets the HTTP status code of the response.</summary>
         public int? StatusCode { get; private set; }
         /// <summary>Gets the time taken to receive the response.</summary>

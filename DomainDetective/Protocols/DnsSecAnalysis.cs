@@ -24,6 +24,7 @@ namespace DomainDetective {
     /// against DS records from the parent zone.
     /// </remarks>
     public class DnsSecAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         private readonly List<string> _mismatchSummary = new();
         private readonly List<string> _warnings = new();
 
@@ -94,6 +95,7 @@ namespace DomainDetective {
 
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null, CancellationToken ct = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName);
+            Subject = domainName;
             var client = _client;
 
             _mismatchSummary.Clear();
@@ -173,16 +175,24 @@ namespace DomainDetective {
                 }
 
                 if (!keyAd) {
-                    _mismatchSummary.Add($"DNSKEY for {current} not authenticated");
+                    var msg = $"DNSKEY for {current} not authenticated";
+                    _mismatchSummary.Add(msg);
+                    logger?.WriteWarningCode(DnssecCodes.DnskeyNotAuthenticated, msg);
                 }
                 if (currentDsRecords.Count == 0) {
-                    _mismatchSummary.Add($"No DS record for {current}");
+                    var msg = $"No DS record for {current}";
+                    _mismatchSummary.Add(msg);
+                    logger?.WriteWarningCode(DnssecCodes.DsMissing, msg);
                 } else {
                     if (!dsResult.ad) {
-                        _mismatchSummary.Add($"DS for {current} not authenticated");
+                        var msg = $"DS for {current} not authenticated";
+                        _mismatchSummary.Add(msg);
+                        logger?.WriteWarningCode(DnssecCodes.DsNotAuthenticated, msg);
                     }
                     if (!dsMatch) {
-                        _mismatchSummary.Add($"DS mismatch for {current}");
+                        var msg = $"DS mismatch for {current}";
+                        _mismatchSummary.Add(msg);
+                        logger?.WriteWarningCode(DnssecCodes.DsMismatch, msg);
                     }
                 }
 

@@ -26,6 +26,7 @@ namespace DomainDetective {
     /// https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base
     /// </remarks>
     public class DmarcAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         private const string TagVersion = "v";
         private const string TagPolicy = "p";
         private const string TagSubPolicy = "sp";
@@ -167,8 +168,9 @@ namespace DomainDetective {
             // concatenate all TXT chunks into a single string separated by spaces
             DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
 
-            if (DmarcRecord == null) {
+            if (!DmarcRecordExists || DmarcRecord == null) {
                 logger.WriteVerbose("No DMARC record found.");
+                logger?.WriteWarningCode(DmarcCodes.MissingRecord, "No DMARC record found.");
                 return;
             }
 
@@ -176,9 +178,19 @@ namespace DomainDetective {
 
             // check the character limit
             ExceedsCharacterLimit = DmarcRecord.Trim().Length > 255;
+            if (ExceedsCharacterLimit) {
+                logger?.WriteWarningCode(DmarcCodes.RecordLengthExceeds, "DMARC record exceeds 255 characters.");
+            }
 
             // check the DMARC record starts correctly
             StartsCorrectly = DmarcRecord.StartsWith("v=DMARC1");
+            if (!StartsCorrectly) {
+                logger?.WriteWarningCode(DmarcCodes.StartsInvalid, "DMARC record does not start with v=DMARC1.");
+            }
+
+            if (MultipleRecords) {
+                logger?.WriteWarningCode(DmarcCodes.MultipleRecords, "Multiple DMARC records published.");
+            }
 
             // loop through the tags of the DMARC record
             var tags = DmarcRecord.Split(';');

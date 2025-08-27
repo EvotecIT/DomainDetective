@@ -7,5 +7,8 @@ internal static class DnssecCodes {
     public const string DsDigestLengthUnexpected = "DNSSEC.DS.DigestLengthUnexpected";
     public const string DsAlgorithmUnknown = "DNSSEC.DS.AlgorithmUnknown";
     public const string DsAlgorithmDeprecated = "DNSSEC.DS.AlgorithmDeprecated";
+    public const string DnskeyNotAuthenticated = "DNSSEC.DNSKEY.NotAuthenticated";
+    public const string DsMissing = "DNSSEC.DS.Missing";
+    public const string DsNotAuthenticated = "DNSSEC.DS.NotAuthenticated";
+    public const string DsMismatch = "DNSSEC.DS.Mismatch";
 }
-

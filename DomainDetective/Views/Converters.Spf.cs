@@ -7,8 +7,11 @@ public static partial class Converters
     public static SpfRecordInfo Convert(SpfAnalysis analysis)
     {
         var recs = RecommendationEngine.From(analysis.Assessments);
+        Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new SpfRecordInfo
         {
+            Check = "SPF",
+            Subject = analysis.Subject,
             SpfRecord = analysis.SpfRecord,
             SpfRecordExists = analysis.SpfRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -19,9 +22,10 @@ public static partial class Converters
             ExceedsTotalCharacterLimit = analysis.ExceedsTotalCharacterLimit,
             ExceedsCharacterLimit = analysis.ExceedsCharacterLimit,
             UnknownMechanisms = analysis.UnknownMechanisms,
-            Advisory = analysis.Advisory,
-            Warnings = analysis.Warnings,
             Assessments = analysis.Assessments,
+            Status = status,
+            WarningCount = warnCount,
+            ErrorCount = errCount,
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -31,6 +35,8 @@ public static partial class Converters
 
 public class SpfRecordInfo
 {
+    public string Check { get; set; }
+    public string Subject { get; set; }
     public string SpfRecord { get; set; }
     public bool SpfRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
@@ -41,11 +47,11 @@ public class SpfRecordInfo
     public bool ExceedsTotalCharacterLimit { get; set; }
     public bool ExceedsCharacterLimit { get; set; }
     public IReadOnlyList<string> UnknownMechanisms { get; set; }
-    public string Advisory { get; set; }
-    public IReadOnlyList<string> Warnings { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
+    public string Status { get; set; }
+    public int WarningCount { get; set; }
+    public int ErrorCount { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SpfAnalysis Raw { get; set; }
 }
-

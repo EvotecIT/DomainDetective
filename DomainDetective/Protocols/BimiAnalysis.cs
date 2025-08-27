@@ -23,6 +23,7 @@ namespace DomainDetective {
     /// validates presence and accessibility of those resources.
     /// </remarks>
 public partial class BimiAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }
         /// <summary>Gets a value indicating whether a BIMI record was found.</summary>
@@ -103,6 +104,7 @@ public partial class BimiAnalysis : IHasAssessments {
             BimiRecordExists = recordList.Any();
             if (!BimiRecordExists) {
                 logger.WriteVerbose("No BIMI record found.");
+                logger?.WriteWarningCode(BimiCodes.MissingRecord, "No BIMI record found.");
                 return;
             }
 
@@ -110,6 +112,9 @@ public partial class BimiAnalysis : IHasAssessments {
             logger.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
 
             ParseBimiHeader(BimiRecord!, logger);
+            if (!StartsCorrectly) {
+                logger?.WriteWarningCode(BimiCodes.StartsInvalid, "BIMI record does not start with v=BIMI1.");
+            }
 
             if (!string.IsNullOrEmpty(Location) && !InvalidLocation) {
                 if (!LocationUsesHttps) {

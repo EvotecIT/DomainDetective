@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying MX record for domain: {0}", DomainName);
             await healthCheck.VerifyMX(DomainName);
-            WriteObject(healthCheck.MXAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDDnsMxRecord"); // TODO: Dedicated MX report
                 return;

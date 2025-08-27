@@ -14,8 +14,9 @@ namespace DomainDetective {
     /// Typical TTL thresholds are based on operational best practices and may
     /// be adjusted to suit specific environments.
     /// </remarks>
-    public class DnsTtlAnalysis {
+    public class DnsTtlAnalysis : IHasAssessments {
         private readonly List<string> _warnings = new();
+        public string? Subject { get; set; }
 
         /// <summary>
         /// Indicates whether the zone is signed with DNSSEC.
@@ -34,6 +35,10 @@ namespace DomainDetective {
         public int SoaTtl { get; private set; }
         /// <summary>Collection of warning messages produced during analysis.</summary>
         public IReadOnlyList<string> Warnings => _warnings;
+
+        /// <summary>Structured assessments captured during TTL analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Provides DNS query implementation details.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
@@ -57,6 +62,8 @@ namespace DomainDetective {
         /// <param name="domainName">Domain name to analyze.</param>
         /// <param name="logger">Optional logger used for diagnostics.</param>
         public async Task Analyze(string domainName, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNS", target: domainName);
+            Subject = domainName;
             _warnings.Clear();
             ATtls = Array.Empty<int>();
             AaaaTtls = Array.Empty<int>();
@@ -79,24 +86,30 @@ namespace DomainDetective {
             NsTtls = nsRecords.Select(r => r.TTL).ToArray();
             SoaTtl = soaRecords.Length > 0 ? soaRecords[0].TTL : 0;
 
-            Evaluate("A", ATtls, 300, 86400, DnsSecSigned);
-            Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned);
-            Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned);
-            Evaluate("NS", NsTtls, 300, 86400, DnsSecSigned);
+            Evaluate("A", ATtls, 300, 86400, DnsSecSigned, logger);
+            Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned, logger);
+            Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned, logger);
+            Evaluate("NS", NsTtls, 300, 86400, DnsSecSigned, logger);
             if (soaRecords.Length > 0) {
-                Evaluate("SOA", new[] { SoaTtl }, 300, 86400, DnsSecSigned);
+                Evaluate("SOA", new[] { SoaTtl }, 300, 86400, DnsSecSigned, logger);
             }
         }
 
-        private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned) {
+        private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned, InternalLogger logger) {
             foreach (var ttl in ttls) {
                 if (dnssecSigned && ttl >= min && ttl < 3600) {
-                    _warnings.Add($"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.");
+                    var msg = $"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.";
+                    _warnings.Add(msg);
+                    logger?.WriteWarningCode(TtlCodes.TooShortForDnssec, msg);
                 }
                 if (ttl < min) {
-                    _warnings.Add($"{recordType} TTL {ttl} is shorter than recommended {min} seconds.");
+                    var msg = $"{recordType} TTL {ttl} is shorter than recommended {min} seconds.";
+                    _warnings.Add(msg);
+                    logger?.WriteWarningCode(TtlCodes.TooShort, msg);
                 } else if (ttl > max) {
-                    _warnings.Add($"{recordType} TTL {ttl} exceeds recommended {max} seconds.");
+                    var msg = $"{recordType} TTL {ttl} exceeds recommended {max} seconds.";
+                    _warnings.Add(msg);
+                    logger?.WriteWarningCode(TtlCodes.TooLong, msg);
                 }
             }
 
@@ -105,7 +118,9 @@ namespace DomainDetective {
                 var avgAaaa = AaaaTtls.Average();
                 var ratio = Math.Max(avgA, avgAaaa) / Math.Min(avgA, avgAaaa);
                 if (ratio >= 2 && !_warnings.Any(w => w.StartsWith("A and AAAA TTLs differ", StringComparison.Ordinal))) {
-                    _warnings.Add($"A and AAAA TTLs differ significantly: A {avgA} vs AAAA {avgAaaa} seconds.");
+                    var msg = $"A and AAAA TTLs differ significantly: A {avgA} vs AAAA {avgAaaa} seconds.";
+                    _warnings.Add(msg);
+                    logger?.WriteWarningCode(TtlCodes.A_AAAA_Mismatch, msg);
                 }
             }
         }

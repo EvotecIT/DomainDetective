@@ -1,4 +1,5 @@
 using System.Management.Automation;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -46,14 +47,22 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
             var analysis = _healthCheck.SmtpTlsAnalysis;
-            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            var view = DomainDetective.Views.Converters.Convert(analysis);
             if (FullResponse) {
-                WriteObject(analysis);
+                WriteObject(view);
             } else {
-                WriteObject(result);
+                // Return the specific server entry for convenience
+                var res = view.Servers?.FirstOrDefault(s => s.Key == $"{HostName}:{Port}");
+                if (res != null) {
+                    WriteObject(res);
+                } else {
+                    WriteObject(view);
+                }
             }
-            if (ShowChain && result.Chain.Count > 0) {
-                WriteObject(result.Chain, true);
+            if (ShowChain) {
+                if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue($"{HostName}:{Port}", out var tls) && tls.Chain.Count > 0) {
+                    WriteObject(tls.Chain, true);
+                }
             }
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }

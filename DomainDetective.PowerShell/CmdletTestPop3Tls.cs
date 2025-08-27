@@ -41,8 +41,10 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking POP3 TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckPop3TlsHost(HostName, Port);
-            var result = _healthCheck.Pop3TlsAnalysis.ServerResults[$"{HostName}:{Port}"];
-            WriteObject(result);
+            var analysis = _healthCheck.Pop3TlsAnalysis;
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            WriteObject(view);
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }

@@ -47,7 +47,8 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Verifying website certificate for {0}", Url);
             _healthCheck.CertificateAnalysis.SkipRevocation = SkipRevocation;
             await _healthCheck.VerifyWebsiteCertificate(Url, Port);
-            WriteObject(_healthCheck.CertificateAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.CertificateAnalysis);
+            WriteObject(view);
             if (ShowChain && _healthCheck.CertificateAnalysis.Chain.Count > 0) {
                 WriteObject(_healthCheck.CertificateAnalysis.Chain, true);
             }

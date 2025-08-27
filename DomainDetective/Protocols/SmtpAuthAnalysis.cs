@@ -10,7 +10,7 @@ namespace DomainDetective {
     /// Retrieves advertised AUTH mechanisms from SMTP servers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SmtpAuthAnalysis {
+public class SmtpAuthAnalysis : IHasAssessments {
         /// <summary>Supported authentication methods per server.</summary>
         public Dictionary<string, string[]> ServerMechanisms { get; } = new();
         /// <summary>Advertised capabilities per server.</summary>
@@ -22,6 +22,7 @@ namespace DomainDetective {
 
         /// <summary>Checks a single server for AUTH capabilities.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMTPAUTH", target: $"{host}:{port}");
             ServerMechanisms.Clear();
             if (InspectCapabilities) {
                 ServerCapabilities.Clear();
@@ -42,6 +43,7 @@ namespace DomainDetective {
             }
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMTPAUTH", target: $"{host}:{port}");
                 var result = await QueryAuth(host, port, logger, cancellationToken);
                 ServerMechanisms[$"{host}:{port}"] = result.Mechanisms;
                 if (InspectCapabilities) {
@@ -128,5 +130,8 @@ namespace DomainDetective {
                 return (Array.Empty<string>(), Array.Empty<string>());
             }
         }
+
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     }
 }

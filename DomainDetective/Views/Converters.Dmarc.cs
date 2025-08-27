@@ -6,8 +6,11 @@ public static partial class Converters
 {
     public static DmarcRecordInfo Convert(DmarcAnalysis analysis)
     {
+        Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new DmarcRecordInfo
         {
+            Check = "DMARC",
+            Subject = analysis.Subject,
             DmarcRecord = analysis.DmarcRecord,
             DmarcRecordExists = analysis.DmarcRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -30,6 +33,9 @@ public static partial class Converters
             InvalidReportUri = analysis.InvalidReportUri,
             DeprecatedTags = analysis.DeprecatedTags,
             Assessments = analysis.Assessments,
+            Status = status,
+            WarningCount = warnCount,
+            ErrorCount = errCount,
             Recommendations = analysis.Recommendations,
             References = BuildReferences(System.Array.Empty<StandardReference>(), analysis.Recommendations),
             Raw = analysis
@@ -39,6 +45,8 @@ public static partial class Converters
 
 public class DmarcRecordInfo
 {
+    public string Check { get; set; }
+    public string Subject { get; set; }
     public string DmarcRecord { get; set; }
     public bool DmarcRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
@@ -61,8 +69,10 @@ public class DmarcRecordInfo
     public bool InvalidReportUri { get; set; }
     public IReadOnlyList<string> DeprecatedTags { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
+    public string Status { get; set; }
+    public int WarningCount { get; set; }
+    public int ErrorCount { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DmarcAnalysis Raw { get; set; }
 }
-

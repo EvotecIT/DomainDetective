@@ -13,6 +13,7 @@ namespace DomainDetective {
                 !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
                 url = $"https://{url}";
             }
+            CertificateAnalysis.Subject = url;
             await CertificateAnalysis.AnalyzeUrl(url, port, _logger, cancellationToken);
         }
 
@@ -31,7 +32,8 @@ namespace DomainDetective {
             var host = ValidateHostName(uri.Host);
             var hostWithPort = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
             UpdateIsPublicSuffix(host);
-            await HttpAnalysis.AnalyzeUrl($"http://{hostWithPort}", false, _logger, cancellationToken: cancellationToken);
+            HttpAnalysis.Subject = $"http://{hostWithPort}";
+            await HttpAnalysis.AnalyzeUrl(HttpAnalysis.Subject, false, _logger, cancellationToken: cancellationToken);
         }
     }
 }

@@ -28,6 +28,7 @@ namespace DomainDetective {
     /// system trust store.
     /// </remarks>
     public class CertificateAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; }
         /// <summary>Gets or sets a value indicating whether the certificate chain is valid.</summary>

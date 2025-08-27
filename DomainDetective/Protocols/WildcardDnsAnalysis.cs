@@ -11,7 +11,7 @@ namespace DomainDetective;
 /// Detects wildcard DNS configurations by querying random subdomains.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class WildcardDnsAnalysis
+public class WildcardDnsAnalysis : IHasAssessments
 {
     /// <summary>Names that were queried.</summary>
     public List<string> TestedNames { get; private set; } = new();
@@ -58,6 +58,7 @@ public class WildcardDnsAnalysis
     /// <param name="sampleCount">Number of random names to test.</param>
     public async Task Analyze(string domainName, InternalLogger logger, int sampleCount = 3)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "WILDCARD", target: domainName);
         TestedNames.Clear();
         ResolvedNames.Clear();
         ResolvedAddresses.Clear();
@@ -136,5 +137,12 @@ public class WildcardDnsAnalysis
         int required = (int)Math.Ceiling(TestedNames.Count * ConsistencyThreshold);
         CatchAll = ResolvedNames.Count >= required && addressCount.Values.Any(c => c >= required);
         logger?.WriteVerbose("Wildcard DNS for {0}: {1}", domainName, CatchAll);
+        if (CatchAll)
+        {
+            logger?.WriteWarningCode(WildcardCodes.Enabled, "Wildcard DNS detected for {0}", domainName);
+        }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

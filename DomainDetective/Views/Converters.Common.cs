@@ -28,5 +28,20 @@ public static partial class Converters
         }
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
-}
 
+    internal static void Summarize(IReadOnlyList<Assessment> assessments, out int warningCount, out int errorCount, out string status)
+    {
+        warningCount = 0;
+        errorCount = 0;
+        if (assessments != null)
+        {
+            foreach (var a in assessments)
+            {
+                if (a == null) continue;
+                if (a.Severity == AssessmentSeverity.Error) errorCount++;
+                else if (a.Severity == AssessmentSeverity.Warning) warningCount++;
+            }
+        }
+        status = errorCount > 0 ? "Error" : (warningCount > 0 ? "Warning" : "OK");
+    }
+}

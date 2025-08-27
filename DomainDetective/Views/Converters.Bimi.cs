@@ -7,8 +7,11 @@ public static partial class Converters
     public static BimiRecordInfo Convert(BimiAnalysis analysis)
     {
         var recs = RecommendationEngine.From(analysis.Assessments);
+        Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new BimiRecordInfo
         {
+            Check = "BIMI",
+            Subject = analysis.Subject,
             BimiRecord = analysis.BimiRecord,
             BimiRecordExists = analysis.BimiRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -30,6 +33,9 @@ public static partial class Converters
             VmcContainsLogo = analysis.VmcContainsLogo,
             FailureReason = analysis.FailureReason,
             Assessments = analysis.Assessments,
+            Status = status,
+            WarningCount = warnCount,
+            ErrorCount = errCount,
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -39,6 +45,8 @@ public static partial class Converters
 
 public class BimiRecordInfo
 {
+    public string Check { get; set; }
+    public string Subject { get; set; }
     public string BimiRecord { get; set; }
     public bool BimiRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
@@ -60,8 +68,10 @@ public class BimiRecordInfo
     public bool VmcContainsLogo { get; set; }
     public string FailureReason { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
+    public string Status { get; set; }
+    public int WarningCount { get; set; }
+    public int ErrorCount { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public BimiAnalysis Raw { get; set; }
 }
-

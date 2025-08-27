@@ -13,6 +13,42 @@ internal sealed class MtaStsRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "mta-sts" }
         };
+
+        map[MtaStsCodes.MissingRecord] = new RecommendationAdvice {
+            Code = MtaStsCodes.MissingRecord,
+            Title = "Publish an MTA-STS policy",
+            Why = "Without MTA-STS, SMTP TLS remains opportunistic and subject to downgrade.",
+            How = "Publish a DNS TXT at _mta-sts.<domain> and host https://mta-sts.<domain>/.well-known/mta-sts.txt with valid mode/max_age/mx.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts", "tls" }
+        };
+        map[MtaStsCodes.PolicyInvalid] = new RecommendationAdvice {
+            Code = MtaStsCodes.PolicyInvalid,
+            Title = "Fix invalid MTA-STS policy",
+            Why = "Invalid policies are ignored by receivers, leaving mail vulnerable to downgrade.",
+            How = "Ensure required fields (version: STSv1, mode, max_age, mx) are present and syntactically correct.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts" }
+        };
+        map[MtaStsCodes.NotEnforcing] = new RecommendationAdvice {
+            Code = MtaStsCodes.NotEnforcing,
+            Title = "Enable MTA-STS enforcement when ready",
+            Why = "'testing' mode does not enforce TLS; use 'enforce' after validation to block downgrade attacks.",
+            How = "Change policy 'mode' to 'enforce' once configuration is verified and monitoring is in place.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts" }
+        };
+        map[MtaStsCodes.Enforced] = new RecommendationAdvice {
+            Code = MtaStsCodes.Enforced,
+            Title = "MTA-STS enforced",
+            Why = "Enforced policies protect mail against TLS downgrade.",
+            How = "Monitor reports and keep policy current.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts" }
+        };
     }
 }
-

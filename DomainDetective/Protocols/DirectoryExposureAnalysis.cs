@@ -45,6 +45,9 @@ public class DirectoryExposureAnalysis : IHasAssessments
     /// <summary>HTTP client timeout for each request.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Subject of the check (normalized base URL).</summary>
+    public string? Subject { get; set; }
+
     /// <summary>List of directories detected as accessible.</summary>
     public List<string> ExposedPaths { get; private set; } = new();
 
@@ -71,6 +74,8 @@ public class DirectoryExposureAnalysis : IHasAssessments
         {
             baseUrl = baseUrl.TrimEnd('/');
         }
+
+        Subject = baseUrl;
 
         ExposedPaths.Clear();
 

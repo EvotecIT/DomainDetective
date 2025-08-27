@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying TTL for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.TTL });
-            WriteObject(healthCheck.DnsTtlAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

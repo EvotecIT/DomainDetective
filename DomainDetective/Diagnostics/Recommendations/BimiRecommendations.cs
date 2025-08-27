@@ -4,6 +4,31 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class BimiRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[BimiCodes.MissingRecord] = new RecommendationAdvice {
+            Code = BimiCodes.MissingRecord,
+            Title = "Publish a BIMI record",
+            Why = "Without BIMI, supported receivers will not display your brand logo.",
+            How = "Add a TXT at default._bimi.example.com with v=BIMI1; l=https://.../logo.svg; optionally a=https://.../vmc.pem.",
+            Links = new [] { "https://bimigroup.org/" },
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "bimi", "dns" },
+            Impact = "No brand indicator in inboxes.",
+            Effort = RecommendationEffort.Low,
+            Verify = "dig TXT default._bimi.example.com returns a v=BIMI1 record."
+        };
+
+        map[BimiCodes.StartsInvalid] = new RecommendationAdvice {
+            Code = BimiCodes.StartsInvalid,
+            Title = "Fix BIMI version tag",
+            Why = "BIMI records must begin with v=BIMI1 to be recognized.",
+            How = "Ensure the TXT starts with v=BIMI1 and includes 'l=' (and optionally 'a=').",
+            Links = new [] { "https://bimigroup.org/" },
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "bimi" },
+            Impact = "Record ignored by receivers.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record starts with v=BIMI1."
+        };
         map[BimiCodes.InvalidLocation] = new RecommendationAdvice {
             Code = BimiCodes.InvalidLocation,
             Title = "Invalid BIMI location",

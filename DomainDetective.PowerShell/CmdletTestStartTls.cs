@@ -47,13 +47,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", DomainName, Port);
             await healthCheck.VerifySTARTTLS(DomainName, Port);
-            if (FullResponse) {
-                WriteObject(healthCheck.StartTlsAnalysis);
-            } else {
-                var details = healthCheck.StartTlsAnalysis?.ServerDetails;
-                if (details != null) WriteObject(details.Values, true);
-                else WriteObject(healthCheck.StartTlsAnalysis);
-            }
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.StartTlsAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

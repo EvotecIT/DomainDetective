@@ -1,6 +1,7 @@
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace DomainDetective.PowerShell;
 
@@ -43,7 +44,8 @@ public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet
     {
         _logger.WriteVerbose("Querying EDNS support for domain: {0}", DomainName);
         await healthCheck.Verify(DomainName, new[] { HealthCheckType.EDNSSUPPORT });
-        WriteObject(healthCheck.EdnsSupportAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(healthCheck.EdnsSupportAnalysis);
+        WriteObject(view);
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

@@ -13,8 +13,9 @@ namespace DomainDetective;
 /// Queries threat intelligence services for reputation data.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class ThreatIntelAnalysis
+public class ThreatIntelAnalysis : IHasAssessments
 {
+    public string? Subject { get; set; }
     /// <summary>Override Safe Browsing query.</summary>
     public Func<string, Task<string>>? GoogleSafeBrowsingOverride { private get; set; }
     /// <summary>Override PhishTank query.</summary>
@@ -139,9 +140,11 @@ public class ThreatIntelAnalysis
     /// </summary>
     public async Task Analyze(string domainName, string? googleApiKey, string? phishTankApiKey, string? virusTotalApiKey, InternalLogger logger, CancellationToken ct = default)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "THREATINTEL", target: domainName);
         Listings.Clear();
         RiskScore = null;
         FailureReason = null;
+        Subject = domainName;
 
         var googleListed = false;
         var phishListed = false;
@@ -198,4 +201,7 @@ public class ThreatIntelAnalysis
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed });
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

@@ -13,8 +13,11 @@ public static partial class Converters
             var result = kvp.Value;
             var a = analysis.Assessments?.Where(x => string.Equals(x.Target, kvp.Key, StringComparison.OrdinalIgnoreCase)).ToList() ?? new List<Assessment>();
             var recs = RecommendationEngine.From(a);
+            Summarize(a, out var warnCount, out var errCount, out var status);
             yield return new DkimRecordInfo
             {
+                Check = "DKIM",
+                Subject = analysis.Subject,
                 Selector = kvp.Key,
                 Name = result.Name,
                 DkimRecord = result.DkimRecord,
@@ -41,6 +44,9 @@ public static partial class Converters
                 OldKey = result.OldKey,
                 DeprecatedTags = result.DeprecatedTags,
                 Assessments = a,
+                Status = status,
+                WarningCount = warnCount,
+                ErrorCount = errCount,
                 Recommendations = recs,
                 References = BuildReferences(analysis.RfcReferences, recs),
                 Raw = result
@@ -51,6 +57,8 @@ public static partial class Converters
 
 public class DkimRecordInfo
 {
+    public string Check { get; set; }
+    public string Subject { get; set; }
     public string Selector { get; set; }
     public string Name { get; set; }
     public string DkimRecord { get; set; }
@@ -77,8 +85,10 @@ public class DkimRecordInfo
     public bool OldKey { get; set; }
     public IReadOnlyList<string> DeprecatedTags { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
+    public string Status { get; set; }
+    public int WarningCount { get; set; }
+    public int ErrorCount { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DkimRecordAnalysis Raw { get; set; }
 }
-

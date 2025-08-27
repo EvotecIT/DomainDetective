@@ -39,7 +39,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying NS record for domain: {0}", DomainName);
             await healthCheck.VerifyNS(DomainName);
-            WriteObject(healthCheck.NSAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

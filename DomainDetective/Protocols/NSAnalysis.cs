@@ -11,6 +11,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class NSAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Configuration used for DNS queries.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 

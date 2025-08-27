@@ -43,7 +43,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying CAA record for domain: {0}", DomainName);
             await healthCheck.VerifyCAA(DomainName);
-            WriteObject(healthCheck.CAAAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

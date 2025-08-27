@@ -91,5 +91,50 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Validate resulting macro expansions and ensure encodings are correct."
         };
+        map[SpfCodes.MissingRecord] = new RecommendationAdvice {
+            Code = SpfCodes.MissingRecord,
+            Title = "Publish an SPF record",
+            Why = "Without SPF, receivers cannot verify authorized senders, harming deliverability and spoofing resistance.",
+            How = "Add a TXT record at the apex with v=spf1 and authorized mechanisms; keep lookups ≤10 and end with -all.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "dns" },
+            Impact = "Increased spoofing risk and reduced mail acceptance.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "dig TXT example.com shows a single v=spf1 policy."
+        };
+        map[SpfCodes.MultipleRecords] = new RecommendationAdvice {
+            Code = SpfCodes.MultipleRecords,
+            Title = "Consolidate multiple SPF records into one",
+            Why = "Multiple SPF records make evaluation undefined and can cause permerrors.",
+            How = "Merge mechanisms into a single v=spf1 string; use include where needed; remove duplicates.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf" },
+            Impact = "Receivers may fail SPF evaluation.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Only one TXT with v=spf1 remains."
+        };
+        map[SpfCodes.StartsInvalid] = new RecommendationAdvice {
+            Code = SpfCodes.StartsInvalid,
+            Title = "Fix SPF version tag",
+            Why = "SPF records must begin with v=spf1 to be recognized.",
+            How = "Ensure the record starts with v=spf1 and contains only valid mechanisms/modifiers.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf" },
+            Impact = "Policy ignored by receivers.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record starts with v=spf1."
+        };
+        map[SpfCodes.RecordLengthExceeds] = new RecommendationAdvice {
+            Code = SpfCodes.RecordLengthExceeds,
+            Title = "Reduce SPF record size",
+            Why = "Oversized records risk UDP truncation and parsing issues.",
+            How = "Remove unused mechanisms, split chunks to ≤255 chars, and keep flattened size ≤512 bytes.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "dns" },
+            Impact = "Receivers may fail SPF checks due to truncation.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "TXT response size fits typical UDP limits; no TC bit."
+        };
     }
 }

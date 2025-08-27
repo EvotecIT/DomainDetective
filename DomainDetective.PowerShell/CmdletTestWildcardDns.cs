@@ -43,7 +43,8 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
     {
         _logger.WriteVerbose("Querying wildcard DNS for domain: {0}", DomainName);
         await healthCheck.Verify(DomainName, new[] { HealthCheckType.WILDCARDDNS });
-        WriteObject(healthCheck.WildcardDnsAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis);
+        WriteObject(view);
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

@@ -10,5 +10,8 @@ internal static class DmarcCodes {
     public const string RufTooLarge = "DMARC.RUF.TooLarge";
     public const string ReportingIntervalInvalid = "DMARC.ReportingInterval.Invalid";
     public const string ReportingIntervalZeroOrNegative = "DMARC.ReportingInterval.ZeroOrNegative";
+    public const string MissingRecord = "DMARC.Record.Missing";
+    public const string MultipleRecords = "DMARC.Record.Multiple";
+    public const string StartsInvalid = "DMARC.Record.StartsInvalid";
+    public const string RecordLengthExceeds = "DMARC.Record.LengthExceeds";
 }
-

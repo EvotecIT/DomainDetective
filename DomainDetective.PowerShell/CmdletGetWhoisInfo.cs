@@ -67,7 +67,8 @@ namespace DomainDetective.PowerShell {
                     WriteObject(changes, true);
                 }
             }
-            WriteObject(_healthCheck.WhoisAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.WhoisAnalysis);
+            WriteObject(view);
         }
     }
 }

@@ -11,7 +11,8 @@ namespace DomainDetective;
 /// Queries threat feed APIs for IP reputation data.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class ThreatFeedAnalysis {
+public class ThreatFeedAnalysis : IHasAssessments {
+    public string? Subject { get; set; }
     /// <summary>Override VirusTotal query returning JSON.</summary>
     public Func<string, Task<string>>? VirusTotalOverride { private get; set; }
     /// <summary>Override VirusTotal query returning a model.</summary>
@@ -86,8 +87,10 @@ public class ThreatFeedAnalysis {
 
     /// <summary>Queries all enabled threat feeds.</summary>
     public async Task Analyze(string ip, string? virusTotalApiKey, string? abuseIpDbApiKey, InternalLogger logger, CancellationToken ct = default) {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "THREATFEED", target: ip);
         Listings.Clear();
         FailureReason = null;
+        Subject = ip;
 
         var vtListed = false;
         var abuseListed = false;
@@ -115,4 +118,7 @@ public class ThreatFeedAnalysis {
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed });
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

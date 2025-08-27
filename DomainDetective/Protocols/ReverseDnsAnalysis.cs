@@ -13,6 +13,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class ReverseDnsAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Provides DNS configuration for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 

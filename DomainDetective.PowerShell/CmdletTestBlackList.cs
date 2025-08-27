@@ -186,21 +186,10 @@ namespace DomainDetective.PowerShell {
                         }
                     }
                 } else {
-                    // Flatten domain + MX-IP DNSBL records when domain is provided
-                    if (isIp) {
-                        if (!healthCheck.DNSBLAnalysis.Results.TryGetValue(input, out var res)) {
-                            WriteObject(System.Array.Empty<object>());
-                            goto AfterWrite;
-                        }
-                        var records = res.DNSBLRecords;
-                        if (BlacklistedOnly) records = records.Where(r => r.IsBlackListed);
-                        WriteObject(records);
-                    } else {
-                        var records = healthCheck.DNSBLAnalysis.Results.Values.SelectMany(r => r.DNSBLRecords);
-                        if (BlacklistedOnly) records = records.Where(r => r.IsBlackListed);
-                        var list = records.ToList();
-                        WriteObject(list);
-                    }
+                    // Default simplified summary view
+                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+                    WriteObject(view);
+                    goto AfterWrite;
                 }
             } else {
                 if (FullResponse) {
@@ -212,9 +201,8 @@ namespace DomainDetective.PowerShell {
                         WriteObject(dict);
                     }
                 } else {
-                    var dnsblRecords = healthCheck.DNSBLAnalysis.Results.Values.SelectMany(result => result.DNSBLRecords);
-                    if (BlacklistedOnly) dnsblRecords = dnsblRecords.Where(r => r.IsBlackListed);
-                    WriteObject(dnsblRecords.ToList());
+                    var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+                    WriteObject(view);
                 }
             }
 AfterWrite:

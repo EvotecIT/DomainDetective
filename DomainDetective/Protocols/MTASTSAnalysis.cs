@@ -244,12 +244,16 @@ public class MTASTSAnalysis : IHasAssessments {
         private void UpdateAdvisory() {
             if (!DnsRecordPresent) {
                 Advisory = "No MTA-STS record published.";
+                Logger?.WriteWarningCode(MtaStsCodes.MissingRecord, Advisory);
             } else if (!PolicyValid) {
                 Advisory = "MTA-STS policy invalid.";
+                Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
             } else if (!EnforcesMtaSts) {
                 Advisory = "MTA-STS policy present but not enforcing.";
+                Logger?.WriteWarningCode(MtaStsCodes.NotEnforcing, Advisory);
             } else {
                 Advisory = "MTA-STS policy enforced.";
+                Logger?.WriteInformation("{0}", Advisory);
             }
         }
 

@@ -11,6 +11,7 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class OpenResolverAnalysis : IHasAssessments {
+    public string? Subject { get; set; }
     /// <summary>Recursion results keyed by server and port.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
@@ -27,6 +28,7 @@ public class OpenResolverAnalysis : IHasAssessments {
 
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}") : null;
+        Subject ??= $"{host}:{port}";
         ServerResults.Clear();
         ServerDetails.Clear();
         var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);

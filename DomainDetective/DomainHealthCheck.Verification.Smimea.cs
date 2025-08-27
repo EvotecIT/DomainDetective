@@ -32,6 +32,7 @@ namespace DomainDetective {
 
             var name = SMIMEAAnalysis.GetQueryName(emailAddress);
             SmimeaAnalysis = new SMIMEAAnalysis();
+            SmimeaAnalysis.Subject = emailAddress;
             var records = await DnsConfiguration.QueryDNS(name, DnsRecordType.SMIMEA, cancellationToken: cancellationToken);
             if (records.Any()) {
                 await SmimeaAnalysis.AnalyzeSMIMEARecords(records, _logger);

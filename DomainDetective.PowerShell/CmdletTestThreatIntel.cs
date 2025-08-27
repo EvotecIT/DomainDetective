@@ -58,7 +58,8 @@ public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
 
         _logger.WriteVerbose("Querying threat intel for {0}", NameOrIpAddress);
         await _healthCheck.VerifyThreatIntel(NameOrIpAddress);
-        WriteObject(_healthCheck.ThreatIntelAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(_healthCheck.ThreatIntelAnalysis);
+        WriteObject(view);
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

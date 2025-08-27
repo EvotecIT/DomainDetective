@@ -56,6 +56,7 @@ namespace DomainDetective {
             }
 
             DaneAnalysis = new DANEAnalysis();
+            DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
             using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             var allDaneRecords = new List<DnsAnswer>();
@@ -143,6 +144,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             DaneAnalysis = new DANEAnalysis();
+            DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
             using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             if (serviceTypes == null || serviceTypes.Length == 0) {

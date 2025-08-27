@@ -41,8 +41,10 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking IMAP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckImapTlsHost(HostName, Port);
-            var result = _healthCheck.ImapTlsAnalysis.ServerResults[$"{HostName}:{Port}"];
-            WriteObject(result);
+            var analysis = _healthCheck.ImapTlsAnalysis;
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            WriteObject(view);
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }

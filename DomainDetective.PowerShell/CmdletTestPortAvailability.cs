@@ -37,7 +37,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking ports on {0}", HostName);
             await _healthCheck.CheckPortAvailability(HostName, Ports);
-            WriteObject(_healthCheck.PortAvailabilityAnalysis.ServerResults, true);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.PortAvailabilityAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

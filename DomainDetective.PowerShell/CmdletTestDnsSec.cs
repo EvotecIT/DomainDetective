@@ -47,8 +47,8 @@ namespace DomainDetective.PowerShell {
             if (Raw) {
                 WriteObject(healthCheck.DnsSecAnalysis);
             } else {
-                DnsSecInfo info = DnsSecConverter.Convert(healthCheck.DnsSecAnalysis);
-                WriteObject(info);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis);
+                WriteObject(view);
             }
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDDnsSecStatus"); // TODO: Dedicated DNSSEC report

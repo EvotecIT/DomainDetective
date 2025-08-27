@@ -17,6 +17,7 @@ namespace DomainDetective {
     /// authorities are permitted to issue certificates for the domain.
     /// </remarks>
     public class CAAAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
 

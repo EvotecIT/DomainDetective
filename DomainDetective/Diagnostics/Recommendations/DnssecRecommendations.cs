@@ -66,5 +66,38 @@ internal sealed class DnssecRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dnssec,
             Tags = new [] { "dnssec" }
         };
+
+        map[DnssecCodes.DnskeyNotAuthenticated] = new RecommendationAdvice {
+            Code = DnssecCodes.DnskeyNotAuthenticated,
+            Title = "DNSKEY RRset not authenticated",
+            Why = "Without authenticated DNSKEY, validators cannot build a trust chain for your zone.",
+            How = "Ensure authoritative servers sign DNSKEY RRset and provide valid RRSIGs; check key publishing and rolling procedures.",
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec" }
+        };
+        map[DnssecCodes.DsMissing] = new RecommendationAdvice {
+            Code = DnssecCodes.DsMissing,
+            Title = "Missing DS at parent",
+            Why = "Without a DS record in the parent zone, DNSSEC validation cannot succeed.",
+            How = "Publish a DS record for your zone at the parent registry; coordinate with your registrar.",
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec" }
+        };
+        map[DnssecCodes.DsNotAuthenticated] = new RecommendationAdvice {
+            Code = DnssecCodes.DsNotAuthenticated,
+            Title = "DS not authenticated",
+            Why = "Unauthenticated DS indicates broken chain of trust at the parent.",
+            How = "Investigate parent zone signing; ensure DS RRSIGs are valid and resolvers see AD flag.",
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec" }
+        };
+        map[DnssecCodes.DsMismatch] = new RecommendationAdvice {
+            Code = DnssecCodes.DsMismatch,
+            Title = "DS does not match DNSKEY",
+            Why = "Mismatched DS prevents validators from trusting your zone keys.",
+            How = "Update DS at the parent to match current KSK, or roll keys properly to avoid mismatch.",
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec" }
+        };
     }
 }
