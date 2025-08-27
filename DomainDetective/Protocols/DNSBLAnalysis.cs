@@ -99,7 +99,7 @@ namespace DomainDetective {
     /// Both IP- and domain-based blacklists are supported. Results include
     /// detailed reply codes for further interpretation.
     /// </remarks>
-    public partial class DNSBLAnalysis {
+    public partial class DNSBLAnalysis : IHasAssessments {
         public DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>Optional override for DNS queries used for testing.</summary>
@@ -196,6 +196,7 @@ namespace DomainDetective {
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
 
         internal InternalLogger Logger { get; set; } = new InternalLogger();
+        public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
         /// Clears cached results allowing the instance to be reused.
@@ -390,6 +391,15 @@ namespace DomainDetective {
             }
             Results[ipAddressOrHostname] = queryResult;
             AllResults.AddRange(results);
+
+            // Emit assessments for any listed records
+            foreach (var rec in results) {
+                if (rec.IsBlackListed) {
+                    using var _collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: rec.SourceHost ?? rec.IpAddress ?? ipAddressOrHostname, source: rec.BlackList) : null;
+                    var reason = string.IsNullOrWhiteSpace(rec.ReplyMeaning) ? "Listed" : rec.ReplyMeaning;
+                    Logger?.WriteWarningCode(DnsblCodes.Listed, "{0} listed on {1}", reason, rec.BlackList);
+                }
+            }
         }
 
         private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source) {
@@ -469,6 +479,7 @@ namespace DomainDetective {
                 }
             } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException || ex is System.Net.Sockets.SocketException || ex is System.Threading.Tasks.TaskCanceledException || ex is System.OperationCanceledException || ex is System.TimeoutException) {
                 // fallback to empty responses when the system DNS configuration is invalid
+                Logger?.WriteWarningCode(DnsblCodes.QueryFailed, "DNSBL A query batch failed: {0}", ex.Message);
                 foreach (var query in queries) {
                     responses[query] = new List<DnsAnswer>();
                 }
@@ -486,6 +497,7 @@ namespace DomainDetective {
                         }
                     }
                 } catch (Exception ex) when (ex is UriFormatException || ex is InvalidOperationException || ex is System.Net.Sockets.SocketException || ex is System.Threading.Tasks.TaskCanceledException || ex is System.OperationCanceledException || ex is System.TimeoutException) {
+                    Logger?.WriteWarningCode(DnsblCodes.QueryFailed, "DNSBL AAAA query batch failed: {0}", ex.Message);
                     foreach (var query in queries) {
                         if (!responses.ContainsKey(query)) {
                             responses[query] = new List<DnsAnswer>();

@@ -12,12 +12,14 @@ namespace DomainDetective {
     /// Attempts AXFR queries to determine if name servers allow unauthenticated zone transfers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class ZoneTransferAnalysis {
+    public class ZoneTransferAnalysis : IHasAssessments {
         /// <summary>Dictionary mapping server name to transfer allowance.</summary>
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
         /// <summary>Maximum time to wait for each transfer attempt.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
+
+        public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
         /// Checks all provided name servers for zone transfer capability.
@@ -30,8 +32,13 @@ namespace DomainDetective {
             ServerResults.Clear();
             foreach (var server in nameServers.Where(s => !string.IsNullOrWhiteSpace(s))) {
                 cancellationToken.ThrowIfCancellationRequested();
-                var allowed = await AttemptZoneTransfer(domain, server.Trim('.'), logger, cancellationToken);
+                var ns = server.Trim('.');
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "AXFR", target: ns) : null;
+                var allowed = await AttemptZoneTransfer(domain, ns, logger, cancellationToken);
                 ServerResults[server] = allowed;
+                if (allowed) {
+                    logger?.WriteWarningCode(ZoneTransferCodes.Allowed, "AXFR allowed on {0}", ns);
+                }
             }
         }
 
@@ -185,7 +192,8 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteVerbose("AXFR check failed for {0}: {1}", server, ex.Message);
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "AXFR", target: server) : null;
+                logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR check failed for {0}: {1}", server, ex.Message);
                 return false;
             }
         }

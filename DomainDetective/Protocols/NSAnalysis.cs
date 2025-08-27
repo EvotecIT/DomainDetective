@@ -10,7 +10,7 @@ namespace DomainDetective {
     /// Performs analysis of NS records for a domain.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class NSAnalysis {
+    public class NSAnalysis : IHasAssessments {
         /// <summary>Configuration used for DNS queries.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
@@ -36,6 +36,8 @@ namespace DomainDetective {
 
         public Dictionary<string, bool> RootServerResponses { get; private set; } = new();
         public Dictionary<string, bool> RecursionEnabled { get; private set; } = new();
+
+        public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
         /// Executes a DNS query for the specified record type.
@@ -105,6 +107,7 @@ namespace DomainDetective {
         /// Processes NS records and determines their properties.
         /// </summary>
         public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "NS") : null;
             NsRecords = new List<string>();
             NsRecordExists = false;
             HasDuplicates = false;
@@ -122,6 +125,7 @@ namespace DomainDetective {
             NsRecordExists = nsList.Any();
             AtLeastTwoRecords = nsList.Count >= 2;
 
+            var missingAddressHosts = new List<string>();
             foreach (var record in nsList) {
                 var host = record.Data.Trim('.');
                 NsRecords.Add(host);
@@ -139,6 +143,7 @@ namespace DomainDetective {
                 var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
                 if ((a == null || !a.Any()) && (aaaa == null || !aaaa.Any())) {
                     AllHaveAOrAaaa = false;
+                    missingAddressHosts.Add(ns);
                 }
 
                 foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
@@ -155,6 +160,29 @@ namespace DomainDetective {
             }
 
             HasDiverseLocations = subnets.Count >= 2;
+
+            // Emit assessments for common NS issues
+            if (!NsRecordExists) {
+                logger?.WriteWarningCode(NSCodes.Missing, "No NS records found");
+            }
+            if (HasDuplicates) {
+                logger?.WriteWarningCode(NSCodes.Duplicate, "Duplicate NS records detected");
+            }
+            if (!AtLeastTwoRecords) {
+                logger?.WriteWarningCode(NSCodes.TooFewRecords, "Fewer than two NS records published");
+            }
+            if (PointsToCname) {
+                logger?.WriteWarningCode(NSCodes.CnameTarget, "One or more NS hostnames point to CNAMEs");
+            }
+            if (!AllHaveAOrAaaa) {
+                foreach (var host in missingAddressHosts) {
+                    using (_collector?.PushTarget(host))
+                        logger?.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
+                }
+            }
+            if (!HasDiverseLocations) {
+                logger?.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
+            }
         }
 
         /// <summary>
@@ -162,6 +190,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain being checked.</param>
         public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName) : null;
             ParentNsRecords = new List<string>();
             DelegationMatches = false;
             GlueRecordsComplete = true;
@@ -202,6 +231,16 @@ namespace DomainDetective {
                     GlueRecordsConsistent = false;
                 }
             }
+
+            if (!DelegationMatches) {
+                logger?.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");
+            }
+            if (!GlueRecordsComplete) {
+                logger?.WriteWarningCode(NSCodes.GlueIncomplete, "Parent zone missing glue records for in-bailiwick NS");
+            }
+            if (!GlueRecordsConsistent) {
+                logger?.WriteWarningCode(NSCodes.GlueInconsistent, "Parent glue records do not match child A/AAAA records");
+            }
         }
 
         public async Task QueryRootServers(InternalLogger logger) {
@@ -231,6 +270,10 @@ namespace DomainDetective {
                 var host = ns.Trim('.');
                 bool recursion = await CheckRecursionAsync(host, logger);
                 RecursionEnabled[host] = recursion;
+                if (recursion) {
+                    using var _s = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: host);
+                    logger?.WriteWarningCode(NSCodes.RecursionOnAuthoritative, "Authoritative NS allows recursion");
+                }
             }
         }
 

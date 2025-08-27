@@ -19,7 +19,7 @@ namespace DomainDetective;
 /// Queries WHOIS servers and parses registration details.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class WhoisAnalysis {
+public class WhoisAnalysis : IHasAssessments {
     private string TLD { get; set; }
     private string _domainName;
 
@@ -94,6 +94,7 @@ public class WhoisAnalysis {
     public string? SnapshotDirectory { get; set; }
     public string RegistrarId { get; private set; }
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
+    public List<Assessment> Assessments { get; } = new();
 
     private static readonly InternalLogger _logger = new();
     private static readonly string[] _licensePrefixes = {
@@ -527,7 +528,10 @@ public class WhoisAnalysis {
                 "\n",
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
-            ParseWhoisData();
+            using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: domain))
+            {
+                ParseWhoisData();
+            }
             NormalizeExpiryDateInData();
             _logger?.WriteVerbose("WHOIS received {0} bytes; Registrar='{1}', Expiry='{2}'", responseBytes.Length, Registrar, ExpiryDate);
         } catch (Exception ex) {
@@ -581,6 +585,27 @@ public class WhoisAnalysis {
         UpdateExpiryFlags();
         UpdateRegistrarLock();
         UpdatePrivacyFlag();
+
+        // Emit assessments after parsing flags
+        using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: DomainName))
+        {
+            if (IsExpired)
+            {
+                _logger.WriteWarningCode(WhoisCodes.Expired, "Domain appears expired on {0}", ExpiryDate ?? "unknown");
+            }
+            else if (ExpiresSoon)
+            {
+                _logger.WriteWarningCode(WhoisCodes.ExpirySoon, "Domain expires in {0} days (on {1})", DaysUntilExpiration?.ToString() ?? "?", ExpiryDate ?? "unknown");
+            }
+            if (string.IsNullOrWhiteSpace(Registrar))
+            {
+                _logger.WriteWarningCode(WhoisCodes.NoRegistrar, "WHOIS registrar not identified");
+            }
+            if (!string.IsNullOrWhiteSpace(WhoisData) && string.IsNullOrWhiteSpace(ExpiryDate))
+            {
+                _logger.WriteInformationCode(WhoisCodes.ParseAnomaly, "WHOIS parse anomaly: expiry date not found");
+            }
+        }
     }
 
     private void ParseWhoisDataCOUK() {

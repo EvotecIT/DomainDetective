@@ -14,7 +14,7 @@ namespace DomainDetective;
 /// Collects domains resolving to the same IP address using PTR and passive DNS.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class IPNeighborAnalysis
+public class IPNeighborAnalysis : IHasAssessments
 {
     /// <summary>DNS configuration used for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -29,6 +29,8 @@ public class IPNeighborAnalysis
     public List<Exception> Errors { get; private set; } = new();
     /// <summary>Override for RPKI validity checks.</summary>
     public Func<string, Task<bool>>? RPKIValidationOverride { private get; set; }
+
+    public List<Assessment> Assessments { get; } = new();
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -144,6 +146,12 @@ public class IPNeighborAnalysis
                         Domains = list.ToList(),
                         RPKIValid = rpkiValid
                     });
+                }
+                // Emit assessment if excessive number of co-hosted domains
+                if (list.Count > 50)
+                {
+                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: ipStr) : null;
+                    logger?.WriteWarningCode(IpNeighborCodes.ExcessiveCoHosts, "{0} co-hosted domains observed on {1}", list.Count, ipStr);
                 }
             }
             catch (Exception ex)

@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Parses and validates SOA records for a domain.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SOAAnalysis {
+    public class SOAAnalysis : IHasAssessments {
         public string? DomainName { get; private set; }
         public string? PrimaryNameServer { get; private set; }
         public string? ResponsibleMailbox { get; private set; }
@@ -24,11 +24,13 @@ namespace DomainDetective {
         public int Minimum { get; private set; }
         public int NegativeCacheTtl { get; private set; }
         public bool RecordExists { get; private set; }
+        public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
         /// Reads SOA records and populates analysis properties.
         /// </summary>
         public async Task AnalyzeSoaRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SOA") : null;
             await Task.Yield();
 
             DomainName = null;
@@ -52,7 +54,7 @@ namespace DomainDetective {
             var soaRecordList = dnsResults.ToList();
             RecordExists = soaRecordList.Any();
             if (!RecordExists) {
-                logger?.WriteVerbose("No SOA record found.");
+                logger?.WriteWarningCode(SOACodes.Missing, "No SOA record found");
                 return;
             }
 
@@ -75,12 +77,31 @@ namespace DomainDetective {
                     DateTime.TryParseExact(serialText.Substring(0, 8), "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
                 if (!SerialFormatValid) {
                     SerialFormatSuggestion = "Use YYYYMMDDnn serial format.";
+                    logger?.WriteWarningCode(SOACodes.SerialFormatNonStandard, "Serial number is not in YYYYMMDDnn format");
                 }
                 Refresh = refresh;
                 Retry = retry;
                 Expire = expire;
                 Minimum = minimum;
                 NegativeCacheTtl = Math.Min(record.TTL, Minimum);
+
+                if (string.IsNullOrWhiteSpace(PrimaryNameServer) || !PrimaryNameServer!.Contains('.')) {
+                    logger?.WriteWarningCode(SOACodes.MnameInvalid, "SOA MNAME appears invalid");
+                }
+                if (string.IsNullOrWhiteSpace(ResponsibleMailbox) || !ResponsibleMailbox!.Contains('.')) {
+                    logger?.WriteWarningCode(SOACodes.RnameInvalid, "SOA RNAME appears invalid");
+                }
+
+                // Heuristic extremes based on common practice
+                if (Refresh < 1800 || Refresh > 86400) {
+                    logger?.WriteWarningCode(SOACodes.RefreshExtreme, "SOA Refresh value is extreme: {0}", Refresh);
+                }
+                if (Retry < 300 || Retry > 7200) {
+                    logger?.WriteWarningCode(SOACodes.RetryExtreme, "SOA Retry value is extreme: {0}", Retry);
+                }
+                if (Minimum < 60 || Minimum > 86400) {
+                    logger?.WriteWarningCode(SOACodes.MinimumExtreme, "SOA Minimum/negative TTL value is extreme: {0}", Minimum);
+                }
             }
 
             if (NegativeCacheTtl == 0) {

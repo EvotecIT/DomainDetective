@@ -14,7 +14,7 @@ namespace DomainDetective {
     /// Results indicate whether common autodiscover records are present and
     /// where they point, assisting in troubleshooting client configuration.
     /// </remarks>
-    public class AutodiscoverAnalysis {
+    public class AutodiscoverAnalysis : IHasAssessments {
         /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
@@ -49,6 +49,8 @@ namespace DomainDetective {
             return await config.QueryDNS(name, type);
         }
 
+        public List<Assessment> Assessments { get; } = new();
+
         public async Task Analyze(string domainName, DnsConfiguration config, InternalLogger logger, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
@@ -62,18 +64,39 @@ namespace DomainDetective {
                     SrvPort = port;
                     SrvTarget = parts[3].TrimEnd('.');
                 }
+                if (string.IsNullOrWhiteSpace(SrvTarget)) {
+                    using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: domainName);
+                    logger?.WriteWarningCode(AutodiscoverCodes.BadSrvTarget, "_autodiscover._tcp SRV target missing or invalid");
+                }
+            } else {
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: domainName);
+                logger?.WriteWarningCode(AutodiscoverCodes.MissingSrv, "_autodiscover._tcp SRV record missing");
             }
 
             var ac = await QueryDns($"autoconfig.{domainName}", DnsRecordType.CNAME, config);
             AutoconfigCnameExists = ac != null && ac.Any();
             if (AutoconfigCnameExists) {
                 AutoconfigTarget = ac.First().Data.TrimEnd('.');
+                if (string.IsNullOrWhiteSpace(AutoconfigTarget)) {
+                    using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autoconfig.{domainName}");
+                    logger?.WriteWarningCode(AutodiscoverCodes.BadAutoconfigTarget, "Autoconfig CNAME target invalid");
+                }
+            } else {
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autoconfig.{domainName}");
+                logger?.WriteWarningCode(AutodiscoverCodes.MissingAutoconfigCname, "Autoconfig CNAME missing");
             }
 
             var ad = await QueryDns($"autodiscover.{domainName}", DnsRecordType.CNAME, config);
             AutodiscoverCnameExists = ad != null && ad.Any();
             if (AutodiscoverCnameExists) {
                 AutodiscoverTarget = ad.First().Data.TrimEnd('.');
+                if (string.IsNullOrWhiteSpace(AutodiscoverTarget)) {
+                    using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autodiscover.{domainName}");
+                    logger?.WriteWarningCode(AutodiscoverCodes.BadAutodiscoverTarget, "Autodiscover CNAME target invalid");
+                }
+            } else {
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "Autodiscover", target: $"autodiscover.{domainName}");
+                logger?.WriteWarningCode(AutodiscoverCodes.MissingAutodiscoverCname, "Autodiscover CNAME missing");
             }
         }
     }

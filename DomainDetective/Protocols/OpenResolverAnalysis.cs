@@ -10,7 +10,7 @@ namespace DomainDetective;
 /// Checks if DNS servers allow recursive queries.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class OpenResolverAnalysis {
+public class OpenResolverAnalysis : IHasAssessments {
     /// <summary>Recursion results keyed by server and port.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
@@ -23,12 +23,18 @@ public class OpenResolverAnalysis {
     internal Func<string, int, Task<bool>>? RecursionTestOverride { get; set; }
 
     /// <summary>Tests a single server for open recursion.</summary>
+    public List<Assessment> Assessments { get; } = new();
+
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}") : null;
         ServerResults.Clear();
         ServerDetails.Clear();
         var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
         ServerDetails[$"{host}:{port}"] = detail;
+        if (detail.IsOpenResolver) {
+            logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+        }
     }
 
     /// <summary>Tests multiple servers and ports for open recursion.</summary>
@@ -38,9 +44,13 @@ public class OpenResolverAnalysis {
         foreach (var host in hosts) {
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}") : null;
                 var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);
                 ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
                 ServerDetails[$"{host}:{port}"] = detail;
+                if (detail.IsOpenResolver) {
+                    logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+                }
             }
         }
     }
@@ -139,7 +149,7 @@ public class OpenResolverAnalysis {
         } catch (TaskCanceledException ex) {
             throw new OperationCanceledException(ex.Message, ex, token);
         } catch (Exception ex) {
-            logger?.WriteVerbose("Recursion test failed for {0}:{1} - {2}", server, port, ex.Message);
+            logger?.WriteWarningCode(OpenResolverCodes.CheckFailed, "Open resolver check failed for {0}:{1} - {2}", server, port, ex.Message);
             return new OpenResolverResult {
                 Host = server,
                 Port = port,

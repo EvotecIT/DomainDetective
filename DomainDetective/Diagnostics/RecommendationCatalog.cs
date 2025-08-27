@@ -62,9 +62,20 @@ public static class RecommendationCatalog {
         RegisterProvider(new Recommendations.CaaRecommendations());
         RegisterProvider(new Recommendations.CnameRecommendations());
         RegisterProvider(new Recommendations.ReverseDnsRecommendations());
+        RegisterProvider(new Recommendations.NSRecommendations());
+        RegisterProvider(new Recommendations.SOARecommendations());
         RegisterProvider(new Recommendations.SecurityTxtRecommendations());
         RegisterProvider(new Recommendations.DirectoryExposureRecommendations());
         RegisterProvider(new Recommendations.ThreatIntelRecommendations());
+        RegisterProvider(new Recommendations.AutodiscoverRecommendations());
+        RegisterProvider(new Recommendations.OpenResolverRecommendations());
+        RegisterProvider(new Recommendations.ZoneTransferRecommendations());
+        RegisterProvider(new Recommendations.DnsblRecommendations());
+        RegisterProvider(new Recommendations.IpNeighborRecommendations());
+        RegisterProvider(new Recommendations.WhoisRecommendations());
+        RegisterProvider(new Recommendations.RdapRecommendations());
+        RegisterProvider(new Recommendations.DnsTunnelingRecommendations());
+        RegisterProvider(new Recommendations.RobotsTxtRecommendations());
     }
 
     public static void RegisterProvider(IRecommendationProvider provider) {
