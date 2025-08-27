@@ -74,7 +74,8 @@ namespace DomainDetective.PowerShell {
                 ExternalReportAuthorization = analysis.ExternalReportAuthorization,
                 InvalidReportUri = analysis.InvalidReportUri,
                 DeprecatedTags = analysis.DeprecatedTags,
-                Assessments = analysis.Assessments
+                Assessments = analysis.Assessments,
+                Recommendations = analysis.Recommendations
             };
         }
     }
@@ -225,5 +226,7 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Structured assessments gathered during DMARC analysis.</summary>
         public IReadOnlyList<Assessment> Assessments { get; set; }
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     }
 }
