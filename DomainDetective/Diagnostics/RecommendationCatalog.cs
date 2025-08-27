@@ -46,36 +46,22 @@ public static class RecommendationCatalog {
     private static readonly List<IRecommendationProvider> _providers = new();
 
     static RecommendationCatalog() {
-        // Built-in providers (modular by domain)
-        RegisterProvider(new Recommendations.HttpRecommendations());
-        RegisterProvider(new Recommendations.DkimRecommendations());
-        RegisterProvider(new Recommendations.SpfRecommendations());
-        RegisterProvider(new Recommendations.DmarcRecommendations());
-        RegisterProvider(new Recommendations.DnssecRecommendations());
-        RegisterProvider(new Recommendations.StartTlsRecommendations());
-        RegisterProvider(new Recommendations.MtaStsRecommendations());
-        RegisterProvider(new Recommendations.TlsRptRecommendations());
-        RegisterProvider(new Recommendations.MailTlsRecommendations());
-        RegisterProvider(new Recommendations.SmtpAuthRecommendations());
-        RegisterProvider(new Recommendations.BimiRecommendations());
-        RegisterProvider(new Recommendations.SmimeaRecommendations());
-        RegisterProvider(new Recommendations.CaaRecommendations());
-        RegisterProvider(new Recommendations.CnameRecommendations());
-        RegisterProvider(new Recommendations.ReverseDnsRecommendations());
-        RegisterProvider(new Recommendations.NSRecommendations());
-        RegisterProvider(new Recommendations.SOARecommendations());
-        RegisterProvider(new Recommendations.SecurityTxtRecommendations());
-        RegisterProvider(new Recommendations.DirectoryExposureRecommendations());
-        RegisterProvider(new Recommendations.ThreatIntelRecommendations());
-        RegisterProvider(new Recommendations.AutodiscoverRecommendations());
-        RegisterProvider(new Recommendations.OpenResolverRecommendations());
-        RegisterProvider(new Recommendations.ZoneTransferRecommendations());
-        RegisterProvider(new Recommendations.DnsblRecommendations());
-        RegisterProvider(new Recommendations.IpNeighborRecommendations());
-        RegisterProvider(new Recommendations.WhoisRecommendations());
-        RegisterProvider(new Recommendations.RdapRecommendations());
-        RegisterProvider(new Recommendations.DnsTunnelingRecommendations());
-        RegisterProvider(new Recommendations.RobotsTxtRecommendations());
+        AutoRegisterProvidersFromAssembly(typeof(RecommendationCatalog).Assembly);
+    }
+
+    private static void AutoRegisterProvidersFromAssembly(System.Reflection.Assembly assembly) {
+        try {
+            foreach (var type in assembly.GetTypes()) {
+                if (type.IsAbstract || type.IsInterface) continue;
+                if (!typeof(IRecommendationProvider).IsAssignableFrom(type)) continue;
+                IRecommendationProvider provider;
+                try { provider = (IRecommendationProvider)Activator.CreateInstance(type); }
+                catch { continue; }
+                RegisterProvider(provider);
+            }
+        } catch {
+            // ignore discovery errors to avoid blocking core functionality
+        }
     }
 
     public static void RegisterProvider(IRecommendationProvider provider) {
