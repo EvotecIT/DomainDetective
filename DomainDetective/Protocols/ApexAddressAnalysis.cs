@@ -94,11 +94,21 @@ namespace DomainDetective {
             AllRpkiValid = false;
         }
 
+        private static string NormalizeName(string name)
+        {
+            return (name ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+        }
+
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+            var q = NormalizeName(name);
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                return await QueryDnsOverride(q, type);
             }
-            return await DnsConfiguration.QueryDNS(name, type);
+            // If the DNS configuration has an override, prefer it directly to avoid any indirection issues
+            if (DnsConfiguration?.QueryDnsOverride != null) {
+                return await DnsConfiguration.QueryDnsOverride(q, type);
+            }
+            return await DnsConfiguration.QueryDNS(q, type);
         }
 
         /// <summary>

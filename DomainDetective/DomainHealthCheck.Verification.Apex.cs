@@ -17,8 +17,17 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             // Apex address analysis is useful even for registrable domains; do not short-circuit on public suffix.
 
-            // Use the analysis pipeline which honors overrides on ApexAddressAnalysis.DnsConfiguration
-            await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+            // If a DNS override is supplied (common in tests), use it directly for A/AAAA to avoid resolver indirection.
+            if (DnsConfiguration?.QueryDnsOverride != null) {
+                var a = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
+                var aaaa = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
+                await ApexAddressAnalysis.AnalyzeApexAnswers(a ?? Array.Empty<DnsAnswer>(), aaaa ?? Array.Empty<DnsAnswer>(), _logger);
+                await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
+                await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
+            } else {
+                // Use the analysis pipeline which honors overrides on ApexAddressAnalysis.DnsConfiguration
+                await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+            }
         }
     }
 }
