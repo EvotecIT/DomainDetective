@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Attempts zone transfers against authoritative name servers.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Check for open zone transfers.</summary>
     ///   <code>Test-DDDnsZoneTransfer -DomainName example.com</code>
@@ -46,7 +47,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking zone transfer for domain: {0}", DomainName);
             await _healthCheck.VerifyZoneTransfer(DomainName);
-            WriteObject(_healthCheck.ZoneTransferAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.ZoneTransferAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

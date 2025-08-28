@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks TLS configuration for a specific SMTP host.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test mail server TLS.</summary>
     ///   <code>Test-DDEmailSmtpTls -HostName mail.example.com -Port 587</code>

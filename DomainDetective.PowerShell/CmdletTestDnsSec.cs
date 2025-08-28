@@ -22,9 +22,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-        /// <summary>Return raw analysis object.</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw;
+        // View-by-default: Raw analysis is attached to view.Raw
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
@@ -44,12 +42,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DNSSEC for domain: {0}", DomainName);
             await healthCheck.VerifyDNSSEC(DomainName);
-            if (Raw) {
-                WriteObject(healthCheck.DnsSecAnalysis);
-            } else {
-                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis);
-                WriteObject(view);
-            }
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDDnsSecStatus"); // TODO: Dedicated DNSSEC report
                 return;

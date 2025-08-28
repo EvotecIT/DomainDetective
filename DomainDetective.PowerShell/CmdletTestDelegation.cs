@@ -49,7 +49,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking delegation for domain: {0}", DomainName);
             await _healthCheck.VerifyDelegation(DomainName);
-            WriteObject(_healthCheck.NSAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.NSAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks if an SMTP server is an open relay.</summary>
     /// <para>Returns an <see cref="OpenRelayAnalysis.OpenRelayResult"/> describing the result.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test a mail server.</summary>
     /// <para>Part of the DomainDetective project.</para>
@@ -41,7 +42,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking open relay for {0}:{1}", HostName, Port);
             await _healthCheck.CheckOpenRelayHost(HostName, Port);
-            WriteObject(_healthCheck.OpenRelayAnalysis.ServerResults[$"{HostName}:{Port}"]); 
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.OpenRelayAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

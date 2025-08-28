@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves security.txt information for a domain.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Get security contacts.</summary>
     ///   <code>Test-DDDomainSecurityTxt -DomainName example.com</code>
@@ -39,7 +40,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying security.txt for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.SECURITYTXT });
-            WriteObject(healthCheck.SecurityTXTAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.SecurityTXTAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

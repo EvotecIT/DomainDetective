@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks for dangling CNAME records on a domain.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Detect unclaimed CNAMEs.</summary>
     ///   <code>Test-DDDnsDanglingCname -DomainName example.com</code>
@@ -43,7 +44,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking dangling CNAME for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.DANGLINGCNAME });
-            WriteObject(_healthCheck.DanglingCnameAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.DanglingCnameAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

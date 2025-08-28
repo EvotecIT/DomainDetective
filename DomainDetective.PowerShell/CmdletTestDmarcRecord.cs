@@ -21,9 +21,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-        /// <summary>Return raw analysis object.</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw;
+        // View-by-default: Raw analysis is attached to view.Raw
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
@@ -43,12 +41,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DMARC record for domain: {0}", DomainName);
             await healthCheck.VerifyDMARC(DomainName);
-            if (Raw) {
-                WriteObject(healthCheck.DmarcAnalysis);
-            } else {
-                var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
-                WriteObject(output);
-            }
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
+            WriteObject(output);
             if (IsExportRequested()) {
                 await ExportNotImplementedAsync("Test-DDEmailDmarcRecord"); // TODO: Dedicated DMARC report
                 return;

@@ -6,8 +6,9 @@ namespace DomainDetective.PowerShell;
 
 /// <summary>Gets apex A/AAAA analysis including PTR, FCrDNS, ASN and RPKI details.</summary>
 /// <para>Analyzes apex addresses for SMTP fallback readiness, reverse DNS consistency, announcing ASN diversity, and RPKI validity.</para>
+/// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
 [Cmdlet(VerbsCommon.Get, "DDApexAddressInfo", DefaultParameterSetName = "ByName")]
-[OutputType(typeof(ApexAddressAnalysis))]
+[OutputType(typeof(DomainDetective.Views.ApexAddressInfo))]
 public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
     /// <para>Domain to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
@@ -38,7 +39,7 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
 
     protected override async Task ProcessRecordAsync() {
         await _healthCheck.VerifyApexAddresses(DomainName);
-        WriteObject(_healthCheck.ApexAddressAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(_healthCheck.ApexAddressAnalysis);
+        WriteObject(view);
     }
 }
-

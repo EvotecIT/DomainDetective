@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell;
 
 /// <summary>Validates forward-confirmed reverse DNS for MX hosts.</summary>
+/// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
 /// <example>
 ///   <summary>Check FCrDNS configuration.</summary>
 ///   <code>Test-DDDnsForwardReverse -DomainName example.com</code>
@@ -49,7 +50,8 @@ public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet
     {
         _logger.WriteVerbose("Querying FCrDNS for domain: {0}", DomainName);
         await _healthCheck.Verify(DomainName, new[] { HealthCheckType.FCRDNS });
-        WriteObject(_healthCheck.FcrDnsAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(_healthCheck.FcrDnsAnalysis);
+        WriteObject(view);
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

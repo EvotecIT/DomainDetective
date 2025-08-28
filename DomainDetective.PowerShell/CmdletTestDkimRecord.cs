@@ -30,9 +30,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 
-        /// <para>Return raw response objects.</para>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw;
+        // View-by-default: Raw analysis is attached to view.Raw
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;

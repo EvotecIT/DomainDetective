@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks TLS configuration for a specific IMAP host.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test IMAP TLS.</summary>
     ///   <code>Test-DDEmailImapTls -HostName mail.example.com -Port 993</code>

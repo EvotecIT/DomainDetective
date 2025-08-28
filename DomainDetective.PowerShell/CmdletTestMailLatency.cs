@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Measures SMTP connection and banner latency.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Check mail latency for a server.</summary>
     ///   <code>Test-DDEmailLatency -HostName mail.example.com -Port 25</code>
@@ -39,7 +40,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Measuring mail latency for {0}:{1}", HostName, Port);
             await _healthCheck.CheckMailLatency(HostName, Port);
-            WriteObject(_healthCheck.MailLatencyAnalysis.ServerResults[$"{HostName}:{Port}"]);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.MailLatencyAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

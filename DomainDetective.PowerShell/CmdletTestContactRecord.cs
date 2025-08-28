@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Retrieves contact TXT information for a domain.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Get contact details.</summary>
     ///   <code>Test-DDDomainContactRecord -DomainName example.com</code>
@@ -43,7 +44,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying contact record for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.CONTACT });
-            WriteObject(healthCheck.ContactInfoAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.ContactInfoAnalysis);
+            WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

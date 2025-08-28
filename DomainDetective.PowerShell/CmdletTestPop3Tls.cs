@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks TLS configuration for a specific POP3 host.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test POP3 TLS.</summary>
     ///   <code>Test-DDEmailPop3Tls -HostName mail.example.com -Port 995</code>
