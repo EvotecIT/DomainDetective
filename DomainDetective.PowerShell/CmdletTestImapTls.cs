@@ -11,6 +11,8 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailImapTls", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailImapTls", "Test-ImapTls")]
     public sealed class CmdletTestImapTls : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>IMAP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -32,7 +34,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 

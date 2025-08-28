@@ -11,7 +11,9 @@ namespace DomainDetective.PowerShell;
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainThreatIntel")]
 [Alias("Test-DomainThreatIntel")]
-public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
+    public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
     /// <summary>Domain or IP address to query.</summary>
     [Parameter(Mandatory = true, Position = 0)]
     [ValidateNotNullOrEmpty]
@@ -45,7 +47,7 @@ public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
             this.WriteProgress,
             this.WriteInformation);
         loggerPs.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
         return Task.CompletedTask;
     }
 

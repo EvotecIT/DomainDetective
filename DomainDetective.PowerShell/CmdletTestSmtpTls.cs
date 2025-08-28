@@ -12,6 +12,8 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpTls", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSmtpTls")]
     public sealed class CmdletTestSmtpTls : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -37,7 +39,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -47,18 +49,8 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
             var analysis = _healthCheck.SmtpTlsAnalysis;
-            var view = DomainDetective.Views.Converters.Convert(analysis);
-            if (FullResponse) {
-                WriteObject(view);
-            } else {
-                // Return the specific server entry for convenience
-                var res = view.Servers?.FirstOrDefault(s => s.Key == $"{HostName}:{Port}");
-                if (res != null) {
-                    WriteObject(res);
-                } else {
-                    WriteObject(view);
-                }
-            }
+            // Default: return raw SMTPTLSAnalysis (matches tests and enables full access)
+            WriteObject(analysis);
             if (ShowChain) {
                 if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue($"{HostName}:{Port}", out var tls) && tls.Chain.Count > 0) {
                     WriteObject(tls.Chain, true);

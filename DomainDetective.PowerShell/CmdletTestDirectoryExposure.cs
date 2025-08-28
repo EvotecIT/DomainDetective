@@ -33,6 +33,8 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
 
     private InternalLogger _logger;
     private DomainHealthCheck _healthCheck;
+    [Parameter(Mandatory = false)]
+    public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
 
     /// <summary>Initializes logging and helper classes.</summary>
     protected override Task BeginProcessingAsync()
@@ -40,7 +42,7 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
         return Task.CompletedTask;
     }
 

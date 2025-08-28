@@ -21,6 +21,8 @@ namespace DomainDetective.PowerShell {
     [Alias("Test-EmailSmtpBanner", "Test-SmtpBanner")]
     [OutputType(typeof(SmtpBannerInfo))]
     public sealed class CmdletTestSmtpBanner : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         private const string ServerSet = "ServerName";
         private const string DomainSet = "DomainName";
         /// <summary>SMTP host to check.</summary>
@@ -53,7 +55,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 

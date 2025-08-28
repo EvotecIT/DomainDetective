@@ -11,6 +11,8 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailLatency", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailLatency")]
     public sealed class CmdletTestMailLatency : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -28,7 +30,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var helper = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             helper.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 

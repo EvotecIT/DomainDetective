@@ -23,9 +23,9 @@ namespace DomainDetective {
         /// <summary>Apex AAAA records discovered.</summary>
         public List<string> AaaaRecords { get; private set; } = new();
         /// <summary>True when at least one A record exists.</summary>
-        public bool HasARecord { get; private set; }
+        public bool HasARecord => ARecords != null && ARecords.Count > 0;
         /// <summary>True when at least one AAAA record exists.</summary>
-        public bool HasAaaaRecord { get; private set; }
+        public bool HasAaaaRecord => AaaaRecords != null && AaaaRecords.Count > 0;
         /// <summary>True when either A or AAAA records exist.</summary>
         public bool HasAnyAddress => (ARecords != null && ARecords.Count > 0) || (AaaaRecords != null && AaaaRecords.Count > 0) || HasARecord || HasAaaaRecord;
 
@@ -70,8 +70,7 @@ namespace DomainDetective {
         public void Reset() {
             ARecords = new List<string>();
             AaaaRecords = new List<string>();
-            HasARecord = false;
-            HasAaaaRecord = false;
+            // flags are computed from lists
             IPv4Count = 0;
             IPv6Count = 0;
             DistinctSubnetCountV4 = 0;
@@ -133,8 +132,7 @@ namespace DomainDetective {
                 }
             }
 
-            HasARecord = ARecords.Count > 0;
-            HasAaaaRecord = AaaaRecords.Count > 0;
+            // flags are computed from lists; no assignments
 
             // Compute counts and diversity
             IPv4Count = ARecords.Count;
