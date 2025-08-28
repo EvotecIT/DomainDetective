@@ -49,8 +49,9 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
             var analysis = _healthCheck.SmtpTlsAnalysis;
-            // Default: return raw SMTPTLSAnalysis (matches tests and enables full access)
-            WriteObject(analysis);
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            // View-by-default design: exposes full Raw analysis on view.Raw
+            WriteObject(view);
             if (ShowChain) {
                 if (analysis.ServerResults != null && analysis.ServerResults.TryGetValue($"{HostName}:{Port}", out var tls) && tls.Chain.Count > 0) {
                     WriteObject(tls.Chain, true);
