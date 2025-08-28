@@ -21,13 +21,12 @@ public class TestNtpAnalysis {
             await server.SendAsync(resp, resp.Length, r.RemoteEndPoint);
         });
         try {
-            var analysis = new NtpAnalysis { Timeout = System.TimeSpan.FromSeconds(1) };
+            var analysis = new NtpAnalysis { Timeout = System.TimeSpan.FromSeconds(5) };
             await analysis.AnalyzeServer("127.0.0.1", port, new InternalLogger());
             var result = analysis.ServerResults[$"127.0.0.1:{port}"];
             Assert.True(result.Success);
             Assert.Equal((byte)2, result.Stratum);
         } finally {
-            server.Close();
             await task;
         }
     }

@@ -28,7 +28,18 @@ internal static class PortHelper {
                 var listener = new TcpListener(IPAddress.Loopback, 0);
                 listener.Start();
                 var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+                var udp = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                try {
+                    udp.Bind(new IPEndPoint(IPAddress.Loopback, port));
+                } catch (SocketException) {
+                    listener.Stop();
+                    udp.Dispose();
+                    continue;
+                }
+
                 listener.Stop();
+                udp.Dispose();
 
                 if (!UsedPorts.Add(port)) {
                     continue;
