@@ -19,6 +19,11 @@ namespace DomainDetective.Definitions {
         internal static readonly string[] Hetzner = new[] { "dkim" };
 
         internal static readonly string[] SendGrid = new[] { "s1", "s2" };
+        // Additional vendor selectors
+        internal static readonly string[] ConstantContact = new[] { "ctct1", "ctct2" };
+        internal static readonly string[] AppleICloud = new[] { "sig1" };
+        internal static readonly string[] MailerLite = new[] { "litesrv" };
+        internal static readonly string[] Zendesk = new[] { "zendesk1", "zendesk2" };
 
         internal static readonly string[] CPanel = new[] { "default", "mail" };
 
@@ -77,6 +82,10 @@ namespace DomainDetective.Definitions {
                 .Concat(GlobalMicro)
                 .Concat(Hetzner)
                 .Concat(SendGrid)
+                .Concat(ConstantContact)
+                .Concat(AppleICloud)
+                .Concat(MailerLite)
+                .Concat(Zendesk)
                 .Concat(CPanel)
                 .Concat(Fastmail)
                 .Concat(AmazonSes)

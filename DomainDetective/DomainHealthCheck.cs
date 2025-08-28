@@ -379,6 +379,7 @@ namespace DomainDetective {
             }
 
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;
+            WhoisAnalysis.DnsConfiguration = DnsConfiguration;
 
             SpfAnalysis = new SpfAnalysis() {
                 DnsConfiguration = DnsConfiguration

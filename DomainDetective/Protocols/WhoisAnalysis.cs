@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Text.Json;
 using DomainDetective.Helpers;
+using DnsClientX;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +21,8 @@ namespace DomainDetective;
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
 public class WhoisAnalysis : IHasAssessments {
+    /// <summary>DNS configuration used for auxiliary lookups (e.g., whois-servers.net).</summary>
+    public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
     private string TLD { get; set; }
     private string _domainName;
 
@@ -95,6 +98,11 @@ public class WhoisAnalysis : IHasAssessments {
     public string RegistrarId { get; private set; }
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
     public List<Assessment> Assessments { get; } = new();
+
+    /// <summary>The WHOIS server used to fulfill the query.</summary>
+    public string? WhoisServerUsed { get; private set; }
+    /// <summary>How the WHOIS server was determined (StaticMap, whois-servers.net, IANA).</summary>
+    public string? WhoisLookupSource { get; private set; }
 
     private static readonly InternalLogger _logger = new();
     private static readonly string[] _licensePrefixes = {
@@ -419,6 +427,8 @@ public class WhoisAnalysis : IHasAssessments {
                 if (WhoisServers.TryGetValue(compoundTld, out string server)) {
                     TLD = compoundTld;
                     _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
+                    WhoisServerUsed = server;
+                    WhoisLookupSource = "StaticMap";
                     return server;
                 }
             }
@@ -429,6 +439,8 @@ public class WhoisAnalysis : IHasAssessments {
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(singleTld, out string server)) {
                 _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
+                WhoisServerUsed = server;
+                WhoisLookupSource = "StaticMap";
                 return server;
             }
         }
@@ -438,7 +450,8 @@ public class WhoisAnalysis : IHasAssessments {
             lock (_whoisServersLock) {
                 WhoisServers[singleTld] = dynamicServer;
             }
-        }
+            WhoisServerUsed = dynamicServer;
+            }
 
         return dynamicServer;
     }
@@ -446,10 +459,22 @@ public class WhoisAnalysis : IHasAssessments {
     private async Task<string?> LookupWhoisServerAsync(string tld) {
         var host = $"{tld}.whois-servers.net";
         try {
-            _ = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
-            _logger?.WriteVerbose("WHOIS server autodetected via DNS: {0}", host);
+            // Prefer configured DNS resolver when available
+            DnsAnswer[] answers = Array.Empty<DnsAnswer>();
+            try {
+                answers = await DnsConfiguration.QueryDNS(host, DnsRecordType.A).ConfigureAwait(false);
+            } catch { }
+            if (answers != null && answers.Length > 0) {
+                _logger?.WriteVerbose("WHOIS server autodetected via DNS (configured resolver): {0}", host);
+                WhoisLookupSource = "whois-servers.net";
+                return host;
+            }
+            // Fallback to system DNS
+            _ = await System.Net.Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            _logger?.WriteVerbose("WHOIS server autodetected via DNS (system resolver): {0}", host);
+            WhoisLookupSource = "whois-servers.net";
             return host;
-        } catch (SocketException) {
+        } catch (Exception) {
             // Fallback to IANA lookup below.
         }
 
@@ -471,8 +496,10 @@ public class WhoisAnalysis : IHasAssessments {
 
         Match match = _whoisServerRegex.Match(response);
         if (match.Success) {
-            _logger?.WriteVerbose("WHOIS server discovered via IANA: {0}", match.Groups[1].Value);
-            return match.Groups[1].Value;
+            var server = match.Groups[1].Value;
+            _logger?.WriteVerbose("WHOIS server discovered via IANA: {0}", server);
+            WhoisLookupSource = "IANA";
+            return server;
         }
         _logger?.WriteVerbose("WHOIS server not found via IANA for TLD '{0}'", tld);
         return null;

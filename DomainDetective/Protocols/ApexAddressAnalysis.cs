@@ -27,7 +27,7 @@ namespace DomainDetective {
         /// <summary>True when at least one AAAA record exists.</summary>
         public bool HasAaaaRecord { get; private set; }
         /// <summary>True when either A or AAAA records exist.</summary>
-        public bool HasAnyAddress => HasARecord || HasAaaaRecord;
+        public bool HasAnyAddress => (ARecords != null && ARecords.Count > 0) || (AaaaRecords != null && AaaaRecords.Count > 0) || HasARecord || HasAaaaRecord;
 
         /// <summary>Relevant standards for apex address (SMTP fallback) behavior.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {

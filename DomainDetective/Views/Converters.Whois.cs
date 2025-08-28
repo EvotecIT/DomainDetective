@@ -17,6 +17,8 @@ public static partial class Converters
         {
             Check = "WHOIS",
             Subject = analysis.DomainName,
+            WhoisServer = analysis.WhoisServerUsed,
+            LookupSource = analysis.WhoisLookupSource,
             Registrar = analysis.Registrar,
             RegistrarId = analysis.RegistrarId,
             ExpiryDate = analysis.ExpiryDate,
@@ -41,6 +43,8 @@ public class WhoisInfo
 {
     public string Check { get; set; }
     public string Subject { get; set; }
+    public string WhoisServer { get; set; }
+    public string LookupSource { get; set; }
     public string Registrar { get; set; }
     public string RegistrarId { get; set; }
     public string ExpiryDate { get; set; }
@@ -58,4 +62,3 @@ public class WhoisInfo
     public IReadOnlyList<string> References { get; set; }
     public WhoisAnalysis Raw { get; set; }
 }
-
