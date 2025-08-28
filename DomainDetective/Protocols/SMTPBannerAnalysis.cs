@@ -88,6 +88,10 @@ namespace DomainDetective {
         public List<Assessment> Assessments { get; } = new();
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+        private static readonly Regex _versionLeakRegex = new(
+            @"(?:(?:Postfix\s*\d|Exim\s*\d|Sendmail\s*\d|Microsoft\s+ESMTP\s+MAIL\s+Service\s+\d|Courier\s*\d))",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         /// <summary>Checks a single SMTP server banner.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
@@ -155,8 +159,20 @@ namespace DomainDetective {
                 if (!validFormat && banner != null) {
                     logger?.WriteWarningCode(SmtpBannerCodes.FormatInvalid, $"Banner from {host}:{port} is not RFC 5321 compliant: {banner}");
                 }
+                if (banner != null && !startsWith220) {
+                    logger?.WriteWarningCode(SmtpBannerCodes.Not220, "Greeting from {0}:{1} does not start with 220: {2}", host, port, banner);
+                }
+                if (banner != null && startsWith220 && !containsDomain) {
+                    logger?.WriteWarningCode(SmtpBannerCodes.MissingDomain, "Banner from {0}:{1} lacks a domain name: {2}", host, port, banner);
+                }
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!string.IsNullOrWhiteSpace(ExpectedSoftware) && banner != null && !softMatch) {
+                    logger?.WriteWarningCode(SmtpBannerCodes.UnexpectedSoftware, "Banner software on {0}:{1} does not match expectation '{2}': {3}", host, port, ExpectedSoftware, banner);
+                }
+                if (banner != null && _versionLeakRegex.IsMatch(banner)) {
+                    logger?.WriteWarningCode(SmtpBannerCodes.VersionLeaked, "SMTP banner on {0}:{1} exposes software version: {2}", host, port, banner);
+                }
                 int? code = null;
                 if (!string.IsNullOrEmpty(banner) && banner.Length >= 3 && int.TryParse(banner.Substring(0, 3), out var parsed)) code = parsed;
                 return new BannerResult {

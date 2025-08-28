@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -79,6 +80,7 @@ public class SmtpAuthAnalysis : IHasAssessments {
                 var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 bool hasAuth = false;
                 bool has8BitMime = false;
+                bool hasStartTls = false;
                 string? line;
                 while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                     timeoutCts.Token.ThrowIfCancellationRequested();
@@ -96,6 +98,8 @@ public class SmtpAuthAnalysis : IHasAssessments {
                             capabilities.Add(cap.Split(' ')[0]);
                             if (string.Equals(cap, "8BITMIME", StringComparison.OrdinalIgnoreCase)) {
                                 has8BitMime = true;
+                            } else if (cap.StartsWith("STARTTLS", StringComparison.OrdinalIgnoreCase)) {
+                                hasStartTls = true;
                             }
                         }
                         if (!line.StartsWith("250-", StringComparison.Ordinal)) {
@@ -121,6 +125,25 @@ public class SmtpAuthAnalysis : IHasAssessments {
 
                 if (hasAuth && !has8BitMime) {
                     logger?.WriteWarningCode(SmtpAuthCodes.AuthWithout8BitMime, "SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
+                }
+
+                // AUTH on plaintext (no STARTTLS) on ports expecting STARTTLS (25/587)
+                if (hasAuth && !hasStartTls && (port == 25 || port == 587)) {
+                    logger?.WriteWarningCode(SmtpAuthCodes.AuthOverPlaintext, "SMTP server {0}:{1} advertises AUTH without STARTTLS.", host, port);
+                }
+
+                // Obsolete mechanisms
+                if (mechanisms.Contains("NTLM") || mechanisms.Contains("CRAM-MD5")) {
+                    logger?.WriteWarningCode(SmtpAuthCodes.ObsoleteMechanism, "SMTP server {0}:{1} advertises obsolete AUTH mechanisms: {2}", host, port, string.Join(" ", mechanisms));
+                }
+
+                // Only weak mechanisms present
+                if (hasAuth && mechanisms.Count > 0) {
+                    var strong = mechanisms.Contains("SCRAM-SHA-256") || mechanisms.Contains("OAUTHBEARER") || mechanisms.Contains("XOAUTH2") || mechanisms.Contains("EXTERNAL");
+                    var weakOnly = !strong && mechanisms.All(m => string.Equals(m, "PLAIN", StringComparison.OrdinalIgnoreCase) || string.Equals(m, "LOGIN", StringComparison.OrdinalIgnoreCase));
+                    if (weakOnly && !hasStartTls) {
+                        logger?.WriteWarningCode(SmtpAuthCodes.NoStrongMechanism, "SMTP server {0}:{1} only advertises weak mechanisms (PLAIN/LOGIN) without STARTTLS.", host, port);
+                    }
                 }
 
                 return (

@@ -10,14 +10,25 @@ public static partial class Converters
         var total = analysis.Results?.Count ?? 0;
         var openTcp = analysis.Results?.Count(kv => kv.Value.TcpOpen) ?? 0;
         var openUdp = analysis.Results?.Count(kv => kv.Value.UdpOpen) ?? 0;
+        var assessments = analysis.Assessments ?? new List<Assessment>();
+        Summarize(assessments, out var warnCount, out var errCount, out var status);
+        var recs = RecommendationEngine.From(assessments);
+        var refs = BuildReferences(new List<StandardReference>(), recs);
         return new PortScanInfo
         {
-            Check = "PortScan",
+            Check = "PORTSCAN",
             Subject = null,
             TotalChecked = total,
             OpenTcpCount = openTcp,
             OpenUdpCount = openUdp,
-            Results = analysis.Results
+            Results = analysis.Results,
+            Assessments = assessments,
+            Status = status,
+            WarningCount = warnCount,
+            ErrorCount = errCount,
+            Recommendations = recs,
+            References = refs,
+            Raw = analysis
         };
     }
 }
@@ -30,5 +41,11 @@ public class PortScanInfo
     public int OpenTcpCount { get; set; }
     public int OpenUdpCount { get; set; }
     public IReadOnlyDictionary<int, PortScanAnalysis.ScanResult> Results { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; }
+    public string Status { get; set; }
+    public int WarningCount { get; set; }
+    public int ErrorCount { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<string> References { get; set; }
+    public PortScanAnalysis Raw { get; set; }
 }
-
