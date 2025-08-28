@@ -30,7 +30,7 @@ namespace DomainDetective {
         /// <param name="scanMode">Controls which IPs to resolve and check for IP-based DNSBLs.</param>
         /// <param name="clearExisting">Whether to clear previous results prior to running.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDNSBL(string domainName, DomainIpScanMode scanMode, bool clearExisting = true, CancellationToken cancellationToken = default) {
+        public async Task VerifyDNSBLWithMode(string domainName, DomainIpScanMode scanMode, bool clearExisting = true, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }

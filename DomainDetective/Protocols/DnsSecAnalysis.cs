@@ -94,7 +94,7 @@ namespace DomainDetective {
         }
 
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null, CancellationToken ct = default) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName);
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
             Subject = domainName;
             var client = _client;
 

@@ -157,7 +157,7 @@ namespace DomainDetective.PowerShell {
                     } else {
                         var clear = first;
                         first = false;
-                        await healthCheck.VerifyDNSBL(input, scanMode, clearExisting: clear);
+                        await healthCheck.VerifyDNSBLWithMode(input, scanMode, clearExisting: clear);
                     }
                 }
             }

@@ -15,16 +15,10 @@ namespace DomainDetective {
                 throw new ArgumentNullException(nameof(domainName));
             }
             domainName = NormalizeDomain(domainName);
-            UpdateIsPublicSuffix(domainName);
-            if (IsPublicSuffix) {
-                return;
-            }
+            // Apex address analysis is useful even for registrable domains; do not short-circuit on public suffix.
 
-            var a = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.A, cancellationToken: cancellationToken);
-            var aaaa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.AAAA, cancellationToken: cancellationToken);
-            await ApexAddressAnalysis.AnalyzeApexAnswers(a, aaaa, _logger);
-            await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
-            await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
+            // Use the analysis pipeline which honors overrides on ApexAddressAnalysis.DnsConfiguration
+            await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
         }
     }
 }

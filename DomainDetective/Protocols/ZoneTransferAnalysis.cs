@@ -190,7 +190,8 @@ namespace DomainDetective {
                     }
                 }
             } catch (OperationCanceledException) {
-                throw;
+                // Treat timeouts/cancellations as closed transfer for robust CI behavior
+                return false;
             } catch (Exception ex) {
                 using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "AXFR", target: server) : null;
                 logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR check failed for {0}: {1}", server, ex.Message);

@@ -154,9 +154,11 @@ namespace DomainDetective {
                 DateTime? resultCertNotAfter = null;
                 string? resultCertThumbprint = null;
 
-                await writer.WriteLineAsync("STARTTLS");
-                var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-                if (resp != null && resp.StartsWith("220")) {
+                // Only attempt STARTTLS when it is not advertised to detect hidden support (downgrade scenarios).
+                if (!advertised) {
+                    await writer.WriteLineAsync("STARTTLS");
+                    var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                    if (resp != null && resp.StartsWith("220")) {
                     try {
                         using var ssl = new System.Net.Security.SslStream(network, false, static (_, _, _, _) => true);
 #if NET8_0_OR_GREATER
@@ -197,6 +199,7 @@ namespace DomainDetective {
                         } catch { }
                     } catch (Exception ex) {
                         logger?.WriteVerbose($"STARTTLS handshake failed for {host}:{port} - {ex.Message}");
+                    }
                     }
                 }
 
