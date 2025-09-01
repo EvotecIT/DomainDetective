@@ -122,6 +122,11 @@ namespace DomainDetective {
         /// <summary>Structured assessments captured during certificate checks.</summary>
         public List<Assessment> Assessments { get; } = new();
 
+        /// <summary>Coarse web TLS grade (A/B/C/D/F).</summary>
+        public string Grade { get; private set; } = string.Empty;
+        /// <summary>Indicates legacy TLS protocol negotiated.</summary>
+        public bool LegacyEnabled { get; private set; }
+
         internal CtLogAggregator CtLogs => _ctLogAggregator;
 
         internal static IEnumerable<string> ExtractMxHosts(IEnumerable<DnsAnswer> records)
@@ -249,6 +254,8 @@ namespace DomainDetective {
                             }
                             PopulateSubjectAlternativeNames();
                             await QueryCtLogs(cancellationToken);
+                            // Compute grade once we have basic data (and optional TLS details)
+                            ComputeGrade(logger);
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
@@ -578,6 +585,22 @@ namespace DomainDetective {
             if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                 DhKeyBits = ssl.KeyExchangeStrength;
             }
+        }
+
+        private void ComputeGrade(InternalLogger logger) {
+            // Legacy detection when TLS details are known
+            LegacyEnabled = TlsProtocol == SslProtocols.Tls || TlsProtocol == SslProtocols.Ssl3 || TlsProtocol == SslProtocols.Tls11;
+            if (LegacyEnabled) {
+                logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0} - {1}", Url ?? Subject, TlsProtocol);
+            }
+
+            // Coarse grading aligned to MailTlsAnalysis
+            if (IsExpired || !IsValid || !HostnameMatch) { Grade = "F"; return; }
+            if (Tls13Used) { Grade = "A"; return; }
+            if (TlsProtocol == SslProtocols.Tls12 && !LegacyEnabled) { Grade = "B"; return; }
+            if (TlsProtocol == SslProtocols.Tls11 || TlsProtocol == SslProtocols.Tls) { Grade = "D"; return; }
+            // When TLS details are unknown, fall back to pass (valid cert) grade
+            Grade = !string.IsNullOrEmpty(Certificate?.Subject) ? "C" : "F";
         }
     }
 

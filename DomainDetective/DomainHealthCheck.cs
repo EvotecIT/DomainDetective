@@ -340,6 +340,8 @@ namespace DomainDetective {
         /// <summary>Gets the directory exposure analysis.</summary>
         /// <value>Results of exposed directory checks.</value>
         public DirectoryExposureAnalysis DirectoryExposureAnalysis { get; private set; } = new DirectoryExposureAnalysis();
+        /// <summary>Gets the DNS Health analysis.</summary>
+        public DnsHealthAnalysis DnsHealthAnalysis { get; private set; } = new DnsHealthAnalysis();
 
         /// <summary>Gets the NTP analysis.</summary>
         /// <value>Clock information from NTP servers.</value>
@@ -428,6 +430,7 @@ namespace DomainDetective {
             AutodiscoverAnalysis.DnsConfiguration = DnsConfiguration;
 
             ApexAddressAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsHealthAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);

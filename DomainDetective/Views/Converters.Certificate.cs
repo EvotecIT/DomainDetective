@@ -20,6 +20,7 @@ public static partial class Converters
             DaysToExpire = analysis.DaysToExpire,
             DaysValid = analysis.DaysValid,
             IsExpired = analysis.IsExpired,
+            Grade = analysis.Grade,
             Http2Supported = analysis.Http2Supported,
             Http3Supported = analysis.Http3Supported,
             SubjectAlternativeNames = analysis.SubjectAlternativeNames,
@@ -33,7 +34,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; {analysis.KeyAlgorithm} {analysis.KeySize}b",
+            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; grade {analysis.Grade}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -53,6 +54,7 @@ public class CertificateInfo
     public int DaysToExpire { get; set; }
     public int DaysValid { get; set; }
     public bool IsExpired { get; set; }
+    public string Grade { get; set; }
     public bool Http2Supported { get; set; }
     public bool Http3Supported { get; set; }
     public IReadOnlyList<string> SubjectAlternativeNames { get; set; }

@@ -17,11 +17,49 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] MX integrity: TTL uniformity across MX RRset and their A/AAAA.
 - [x] DNSSEC: NSEC3 Opt‑Out verification; code Dnssec.Nsec3OptOutRisk.
 - [x] EDNS: warn on fragmentation risk (advertised >1232 without PMTU) — Edns.BufferTooLarge; track resolver fallback.
-- [ ] STARTTLS/SMTPTLS grading: coarse grade A/B/C/D/F (protocols, TLS ver, key size, chain validity, expiry, hostname match).
+- [x] STARTTLS/SMTPTLS grading: coarse grade A/B/C/D/F (protocols, TLS ver, key size, chain validity, expiry, hostname match).
 - [x] TLS legacy: emit Tls.LegacyEnabled when SSLv3/TLS1.0/1.1 allowed.
 - [ ] Reverse DNS: Ptr.ForwardMismatch when PTR→A/AAAA does not map back; Ptr.SharedCloudManyToOne advisory.
 - [ ] IP Neighbors: categorize neighbors; warn MailOnSharedIp when MX/SMTP on high co‑tenancy IP.
 - [ ] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage.
+
+### External Feature Parity (from Demo/Pages screenshots)
+The following items come from reviewing examples in `Demo/Pages` (securityheaders.com, HeaderScan, SSL Labs, CheckTLS, DNSChecker, Sucuri/SSLTrust, Sitechecker). They capture gaps and desired parity.
+
+- [ ] Web: HTTP Security Headers analysis and grade (parity with SecurityHeaders/HeaderScan)
+  - [ ] Detect HSTS, CSP, Referrer‑Policy, X‑Content‑Type‑Options, X‑Frame‑Options, Permissions‑Policy
+  - [ ] Flag upcoming COEP/COOP/CORP as advisories
+  - [ ] Capture RawHeaders; per‑header quality checks + recommendations
+  - [ ] Compute concise letter grade and add summary counts in view/CLI/PS
+
+- [ ] Web: HTTPS/TLS analysis (parity with SSL Labs, at coarse level)
+  - [ ] Hostname/chain validity, expiry, key size, SHA2, issuer
+  - [ ] Protocol/cipher support matrix incl. TLS1.0–1.3; weak/deprecated flags
+  - [ ] ALPN detection (h2/h3), OCSP stapling presence, SCT count
+  - [ ] Overall web TLS grade (A/B/C/D/F) aligned to mail TLS grading
+
+- [ ] Mixed‑Content and insecure forms (parity with Sitechecker)
+  - [ ] Crawl homepage (time/size bounded) and report http:// resources and insecure `form action`
+  - [ ] Counts + representative examples; add recommendations
+
+- [ ] Website blacklist/malware aggregation (parity with Sucuri/SSLTrust)
+  - [ ] Pluggable providers (OpenPhish, PhishTank, URLHaus; optional Google Safe Browsing via API key)
+  - [ ] Aggregate status with per‑provider evidence and caching/backoff
+
+- [ ] DNS Health deep checks (parity with DNSChecker Health)
+  - [x] NS recursion disabled test; public AXFR open test (existing in NS/AXFR analyses)
+  - [x] Glue/in‑bailiwick validation; A/AAAA consistency across NS (added DnsHealthAnalysis)
+  - [x] SOA serial skew across NS (added DnsHealthAnalysis)
+  - [ ] TTL uniformity across common RRsets (A/AAAA/CNAME/NS)
+
+- [ ] Mail hardening extras
+  - [ ] MTA‑STS status (policy mode, max_age, MX alignment)
+  - [ ] TLSRPT endpoint resolution and sanity checks
+  - [ ] DANE/TLSA validation for MX
+
+- [ ] Certificate transparency and stapling
+  - [ ] OCSP stapling presence checks (web + mail); advisory when missing
+  - [ ] SCT presence count; advisory when none embedded
 
 ## Type Consistency & Views
 - [ ] Normalize `Subject` type usage across converters (domain vs host:port vs URL); document per‑converter expectations.

@@ -150,6 +150,31 @@
   - [ ] Cookie security assessment
   - [ ] HSTS configuration review
 
+### Additional Analysis (from Demo/Pages parity)
+- [ ] **HTTPS/TLS (Web) Analysis**
+  - [ ] Certificate chain/hostname validation, expiry, key size
+  - [ ] Protocol/cipher support (TLS1.0–1.3) and weak/deprecated flags
+  - [ ] ALPN detection (h2/h3), OCSP stapling presence, SCT count
+  - [ ] Compute web TLS letter grade (A/B/C/D/F) aligned with Mail TLS
+
+- [ ] **Mixed‑Content Audit**
+  - [ ] Parse homepage (size/time‑boxed) for http:// resources and insecure form posts
+  - [ ] Summarize counts and provide examples + remediation
+
+- [ ] **Website Blacklist Aggregator**
+  - [ ] Pluggable providers (OpenPhish, PhishTank, URLHaus; optional Google Safe Browsing)
+  - [ ] Caching/backoff and per‑provider evidence in the view
+
+- [ ] **DNS Health Deep Checks**
+  - [ ] NS recursion disabled, AXFR exposure test
+  - [ ] Glue/in‑bailiwick validation, A/AAAA consistency across NS
+  - [ ] SOA serial skew and TTL uniformity across common RRsets
+
+- [ ] **Mail Hardening Extras**
+  - [ ] MTA‑STS policy detection and validation
+  - [ ] TLSRPT endpoint checks
+  - [ ] DANE/TLSA validation for MX
+
 ### Phase 6: PowerShell Integration
 - [ ] Unified per-cmdlet export switches
   - [x] Add `-ExportFormat` (enum), `-ExportPath`, `-OpenInBrowser` to all Test-* cmdlets
