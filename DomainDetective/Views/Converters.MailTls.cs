@@ -21,6 +21,7 @@ public static partial class Converters
             {
                 Key = kv.Key,
                 StartTlsAdvertised = r.StartTlsAdvertised,
+                Grade = r.Grade,
                 CertificateValid = r.CertificateValid,
                 ChainValid = r.ChainValid,
                 DaysToExpire = r.DaysToExpire,
@@ -39,21 +40,29 @@ public static partial class Converters
             });
         }
         int validCount = 0;
+        var gradeCounts = new Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
         foreach (var s in servers)
         {
             if (s.CertificateValid) validCount++;
+            if (!string.IsNullOrWhiteSpace(s.Grade))
+            {
+                gradeCounts[s.Grade] = (gradeCounts.TryGetValue(s.Grade, out var c) ? c : 0) + 1;
+            }
         }
+        string gradesSummary = gradeCounts.Count > 0
+            ? string.Join("/", new[]{"A","B","C","D","F"}.Select(g => gradeCounts.TryGetValue(g, out var c) ? c.ToString() : "0"))
+            : string.Empty;
         return new MailTlsInfo
         {
             Check = check,
             Area = AreaFor(check),
-            Subject = null,
+            Subject = analysis.Subject,
             Servers = servers,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"servers {servers.Count}; valid cert {validCount}/{servers.Count}",
+            Summary = $"servers {servers.Count}; valid cert {validCount}/{servers.Count}" + (gradesSummary == string.Empty ? string.Empty : $"; grades A/B/C/D/F: {gradesSummary}"),
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207", "https://www.rfc-editor.org/rfc/rfc8314" },
             Raw = analysis
@@ -81,6 +90,7 @@ public class MailTlsServerInfo
 {
     public string Key { get; set; }
     public bool StartTlsAdvertised { get; set; }
+    public string Grade { get; set; }
     public bool CertificateValid { get; set; }
     public bool ChainValid { get; set; }
     public int DaysToExpire { get; set; }

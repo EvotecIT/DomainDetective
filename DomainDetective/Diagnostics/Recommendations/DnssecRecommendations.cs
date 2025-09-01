@@ -99,5 +99,18 @@ internal sealed class DnssecRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dnssec,
             Tags = new [] { "dnssec" }
         };
+
+        map[DnssecCodes.Nsec3OptOutRisk] = new RecommendationAdvice {
+            Code = DnssecCodes.Nsec3OptOutRisk,
+            Title = "NSEC3 Opt-Out reduces DNSSEC coverage",
+            Why = "Opt-Out allows unsigned delegations inside a signed zone, weakening protection for non-existent names and delegations.",
+            How = "Disable Opt-Out where possible or ensure unsigned delegations are intended and low risk. Consider NSEC or NSEC3 without Opt-Out.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc5155" },
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec", "nsec3" },
+            Impact = "Increased risk of certain attack classes and reduced assurance for negative answers.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Query NSEC3PARAM/NSEC3; Flags should be 0 when Opt-Out is not used."
+        };
     }
 }

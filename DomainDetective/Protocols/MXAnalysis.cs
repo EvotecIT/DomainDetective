@@ -54,6 +54,11 @@ namespace DomainDetective {
         /// <summary>True when an MX host points to localhost.</summary>
         public bool PointsToLocalhost { get; private set; }
 
+        // Integrity checks
+        public bool MxTtlUniform { get; private set; } = true;
+        public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
+        public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
+
         /// <summary>Relevant standards for MX analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "Simple Mail Transfer Protocol", Reference = "RFC 5321", Url = "https://datatracker.ietf.org/doc/html/rfc5321" },
@@ -84,6 +89,9 @@ namespace DomainDetective {
             HasBackupServers = false;
             HasNullMx = false;
             PointsToLocalhost = false;
+            MxTtlUniform = true;
+            MxRrsetConsistentAcrossNs = true;
+            TargetAddressConsistentAcrossNs = true;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -184,6 +192,36 @@ namespace DomainDetective {
             if (PointsToLocalhost) {
                 logger?.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
             }
+
+            // TTL uniformity across MX RRset
+            if (mxRecordList.Count > 1) {
+                var ttls = mxRecordList.Select(r => r.TTL).Distinct().ToList();
+                if (ttls.Count > 1) {
+                    MxTtlUniform = false;
+                    logger?.WriteWarningCode(MxCodes.TtlNonUniform, "MX RRset TTLs differ across records");
+                }
+            }
+
+            // TTL uniformity across A/AAAA per MX host
+            foreach (var (_, host) in evaluationList) {
+                var a = await QueryDns(host, DnsRecordType.A);
+                var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+                var addrTtls = (a ?? Array.Empty<DnsAnswer>()).Concat(aaaa ?? Array.Empty<DnsAnswer>())
+                    .Select(x => x.TTL).Distinct().ToList();
+                if (addrTtls.Count > 1) {
+                    using (_collector?.PushTarget(host))
+                        logger?.WriteWarningCode(MxCodes.TargetTtlNonUniform, "A/AAAA TTLs differ for MX host");
+                }
+            }
+
+            // Cross-NS RRset and address consistency (best-effort)
+            try {
+                if (!string.IsNullOrWhiteSpace(Subject)) {
+                    await CheckCrossNsConsistencyAsync(Subject!, evaluationList.Select(e => e.Host), logger);
+                }
+            } catch (Exception ex) {
+                logger?.WriteDebug("MX cross-NS consistency check skipped: {0}", ex.Message);
+            }
         }
 
         /// <summary>
@@ -200,6 +238,88 @@ namespace DomainDetective {
             && !PointsToDomainWithoutAOrAaaaRecord;
 
         public bool ValidateMxConfiguration() => ValidMxConfiguration;
+
+        private static string NormalizeHost(string host) => (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+
+        private static string FormatMx(string data) {
+            var parts = data.Split(new[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2 && int.TryParse(parts[0], out var pref)) {
+                return pref + " " + NormalizeHost(parts[1]);
+            }
+            return data?.Trim() ?? string.Empty;
+        }
+
+        private async Task CheckCrossNsConsistencyAsync(string domain, IEnumerable<string> mxHosts, InternalLogger logger) {
+            // Discover NS and their IPs
+            var nsAnswers = await QueryDns(domain, DnsRecordType.NS) ?? Array.Empty<DnsAnswer>();
+            var nsHosts = nsAnswers.Select(a => NormalizeHost(a.Data)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (nsHosts.Count == 0) return;
+            var nsIps = new List<string>();
+            foreach (var ns in nsHosts) {
+                var a = await QueryDns(ns, DnsRecordType.A);
+                var aaaa = await QueryDns(ns, DnsRecordType.AAAA);
+                nsIps.AddRange((a ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
+                nsIps.AddRange((aaaa ?? Array.Empty<DnsAnswer>()).Select(x => x.Data));
+            }
+            nsIps = nsIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (nsIps.Count == 0) return;
+
+            // Query each NS for MX RRset
+            var mxByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ip in nsIps) {
+                var resp = await QueryViaServer(ip, domain, DnsRecordType.MX);
+                var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var ans in resp?.Answers ?? Array.Empty<DnsAnswer>()) {
+                    set.Add(FormatMx(ans.Data));
+                }
+                mxByServer[ip] = set;
+            }
+            if (mxByServer.Count > 1) {
+                var first = mxByServer.First().Value;
+                foreach (var kv in mxByServer.Skip(1)) {
+                    if (!first.SetEquals(kv.Value)) {
+                        MxRrsetConsistentAcrossNs = false;
+                        logger?.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
+                        break;
+                    }
+                }
+            }
+
+            // Query each NS for A/AAAA of each MX host
+            foreach (var host in mxHosts.Select(NormalizeHost).Distinct(StringComparer.OrdinalIgnoreCase)) {
+                var addrByServer = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var ip in nsIps) {
+                    var aset = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var aResp = await QueryViaServer(ip, host, DnsRecordType.A);
+                    var aaaaResp = await QueryViaServer(ip, host, DnsRecordType.AAAA);
+                    foreach (var ans in aResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
+                    foreach (var ans in aaaaResp?.Answers ?? Array.Empty<DnsAnswer>()) aset.Add(ans.Data);
+                    addrByServer[ip] = aset;
+                }
+                if (addrByServer.Count > 1) {
+                    var firstAddr = addrByServer.First().Value;
+                    foreach (var kv in addrByServer.Skip(1)) {
+                        if (!firstAddr.SetEquals(kv.Value)) {
+                            TargetAddressConsistentAcrossNs = false;
+                            using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: host))
+                                logger?.WriteWarningCode(MxCodes.TargetAddressInconsistentAcrossNs, "A/AAAA differs across name servers");
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static async Task<DnsResponse?> QueryViaServer(string serverIp, string name, DnsRecordType type) {
+            try {
+                using var client = new ClientX(serverIp, DnsRequestFormat.DnsOverUDP, 53);
+                client.EndpointConfiguration.UserAgent = DnsConfiguration.DefaultUserAgent;
+                var resp = await client.Resolve(name, type);
+                return resp;
+            } catch {
+                return null;
+            }
+        }
     }
 
 }

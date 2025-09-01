@@ -13,12 +13,12 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] Apex address analysis: normalize PTR hostnames (trim dot, lowercase) prior to forward checks.
 - [x] Apex address analysis: when overrides exist but A/AAAA empty, hydrate from overrides and PTR hostnames.
 - [x] Add unit test for Apex_HasAOnly to lock behavior.
-- [ ] MX integrity: cross‑NS RRset consistency (serialize A/AAAA per NS and diff).
-- [ ] MX integrity: TTL uniformity across MX RRset and their A/AAAA.
-- [ ] DNSSEC: NSEC3 Opt‑Out verification; code Dnssec.Nsec3OptOutRisk.
-- [ ] EDNS: warn on fragmentation risk (advertised >1232 without PMTU) — Edns.BufferTooLarge; track resolver fallback.
+- [x] MX integrity: cross‑NS RRset consistency (serialize A/AAAA per NS and diff).
+- [x] MX integrity: TTL uniformity across MX RRset and their A/AAAA.
+- [x] DNSSEC: NSEC3 Opt‑Out verification; code Dnssec.Nsec3OptOutRisk.
+- [x] EDNS: warn on fragmentation risk (advertised >1232 without PMTU) — Edns.BufferTooLarge; track resolver fallback.
 - [ ] STARTTLS/SMTPTLS grading: coarse grade A/B/C/D/F (protocols, TLS ver, key size, chain validity, expiry, hostname match).
-- [ ] TLS legacy: emit Tls.LegacyEnabled when SSLv3/TLS1.0/1.1 allowed.
+- [x] TLS legacy: emit Tls.LegacyEnabled when SSLv3/TLS1.0/1.1 allowed.
 - [ ] Reverse DNS: Ptr.ForwardMismatch when PTR→A/AAAA does not map back; Ptr.SharedCloudManyToOne advisory.
 - [ ] IP Neighbors: categorize neighbors; warn MailOnSharedIp when MX/SMTP on high co‑tenancy IP.
 - [ ] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage.
@@ -27,7 +27,7 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [ ] Normalize `Subject` type usage across converters (domain vs host:port vs URL); document per‑converter expectations.
 - [ ] Add `Area` mapping in views for grouping (Mail/DNS/Web/Security) and expose in CLI/PS renders.
 - [ ] Add single‑line `Summary` per view for compact dashboards.
-- [ ] SPF view: add `RecordLength`, ensure `DnsLookupsCount` naming is consistent; align recommendations to RFC 7208 size and lookup limits.
+- [x] SPF view: add `RecordLength`, ensure `DnsLookupsCount` naming is consistent; align recommendations to RFC 7208 size and lookup limits.
 - [ ] Ensure status/warning/error counts aggregate identically in C#, CLI JSON, and PS outputs.
 
 ## DNS Resolver Override (PS + Core)

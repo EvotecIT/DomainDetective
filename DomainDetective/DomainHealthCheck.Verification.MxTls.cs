@@ -19,6 +19,7 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
+            StartTlsAnalysis.Subject = domainName;
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
         }
 
@@ -35,6 +36,7 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
+            SmtpTlsAnalysis.Subject = domainName;
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
         }
 
@@ -56,6 +58,7 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 143, string.Join(", ", tlsHosts));
+            ImapTlsAnalysis.Subject = domainName;
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
         }
 
@@ -71,6 +74,7 @@ namespace DomainDetective {
             var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 110, string.Join(", ", tlsHosts));
+            Pop3TlsAnalysis.Subject = domainName;
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
         }
 

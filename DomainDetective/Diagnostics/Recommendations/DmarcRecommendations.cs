@@ -52,6 +52,17 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Each TXT chunk ≤255 chars; total comfortably under UDP limits."
         };
+
+        map[DmarcCodes.QueryFailed] = new RecommendationAdvice {
+            Code = DmarcCodes.QueryFailed,
+            Title = "DMARC DNS query failed",
+            Why = "Transient DNS issues can prevent DMARC validation.",
+            How = "Retry with different resolver/endpoints or increase timeout; confirm network egress.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "dns" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Re-run TXT lookup for _dmarc.example.com successfully."
+        };
         map[DmarcCodes.AlignmentInvalid] = new RecommendationAdvice {
             Code = DmarcCodes.AlignmentInvalid,
             Title = "Invalid DMARC alignment value",

@@ -15,8 +15,11 @@ public static partial class Converters
             Key = kv.Key,
             Supported = kv.Value.Supported,
             UdpPayloadSize = kv.Value.UdpPayloadSize,
-            DoBit = kv.Value.DoBit
+            DoBit = kv.Value.DoBit,
+            TruncatedUdp = kv.Value.TruncatedUdp
         }).ToList() ?? new List<EdnsServerInfo>();
+        var largeUdp = entries.Count(e => e.UdpPayloadSize > 1232);
+        var truncated = entries.Count(e => e.TruncatedUdp);
         return new EdnsSupportSummary
         {
             Check = "EDNS",
@@ -30,7 +33,7 @@ public static partial class Converters
             Status = notSupported > 0 ? "Warning" : "OK",
             WarningCount = notSupported,
             ErrorCount = 0,
-            Summary = $"{supported}/{total} EDNS; large UDP: {entries.Count(e => e.UdpPayloadSize > 1232)}",
+            Summary = $"{supported}/{total} EDNS; >1232: {largeUdp}; TCP fb: {truncated}; no-edns: {notSupported}",
             Recommendations = (analysis as IHasAssessments) != null ? RecommendationEngine.From(((IHasAssessments)analysis).Assessments) : new List<RecommendationAdvice>(),
             References = new [] { "https://www.rfc-editor.org/rfc/rfc6891" },
             Raw = analysis
@@ -63,4 +66,5 @@ public class EdnsServerInfo
     public bool Supported { get; set; }
     public int UdpPayloadSize { get; set; }
     public bool DoBit { get; set; }
+    public bool TruncatedUdp { get; set; }
 }

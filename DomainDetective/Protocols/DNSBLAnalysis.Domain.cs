@@ -9,15 +9,22 @@ namespace DomainDetective {
     /// </summary>
     public partial class DNSBLAnalysis {
         private static readonly List<DnsblEntry> _domainBlockLists = new();
+        private static readonly object _domainListLock = new();
 
         /// <summary>
         /// Gets the list of enabled domain based DNS block lists.
         /// </summary>
-        internal List<string> DomainDNSBLLists => _domainBlockLists
-            .Where(e => e.Enabled)
-            .Select(e => e.Domain)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        internal List<string> DomainDNSBLLists {
+            get {
+                lock (_domainListLock) {
+                    return _domainBlockLists
+                        .Where(e => e.Enabled)
+                        .Select(e => e.Domain)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+            }
+        }
 
         /// <summary>
         /// Queries all configured domain block lists for the specified domain.

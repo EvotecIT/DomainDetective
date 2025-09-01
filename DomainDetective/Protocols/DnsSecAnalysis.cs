@@ -259,6 +259,55 @@ namespace DomainDetective {
             RootKeyTag = rootKeyTag;
 
             logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
+
+            // Check NSEC3/NSEC3PARAM for Opt-Out usage (risk advisory)
+            try {
+                if (await HasNsec3OptOutAsync(domainName, ct).ConfigureAwait(false)) {
+                    logger?.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
+                }
+            } catch (Exception ex) {
+                logger?.WriteDebug("NSEC3 Opt-Out check skipped: {0}", ex.Message);
+            }
+        }
+
+        private static async Task<bool> HasNsec3OptOutAsync(string domain, CancellationToken ct) {
+            using var respParam = await _client.GetAsync($"https://cloudflare-dns.com/dns-query?name={domain}&type=51&do=1", ct).ConfigureAwait(false);
+            if (respParam.IsSuccessStatusCode) {
+                var json = await respParam.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("Answer", out var answers)) {
+                    foreach (var ans in answers.EnumerateArray()) {
+                        if (ans.GetProperty("type").GetInt32() == 51) {
+                            var data = ans.GetProperty("data").GetString(); // NSEC3PARAM: Hash Flags Iterations Salt
+                            if (!string.IsNullOrWhiteSpace(data)) {
+                                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Fallback: check NSEC3 record flags
+            using var resp = await _client.GetAsync($"https://cloudflare-dns.com/dns-query?name={domain}&type=50&do=1", ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode) return false;
+            var json3 = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var doc3 = JsonDocument.Parse(json3);
+            if (doc3.RootElement.TryGetProperty("Answer", out var ans3)) {
+                foreach (var ans in ans3.EnumerateArray()) {
+                    if (ans.GetProperty("type").GetInt32() == 50) {
+                        var data = ans.GetProperty("data").GetString(); // NSEC3: Hash Flags Iterations Salt Next TypeBitMaps
+                        if (!string.IsNullOrWhiteSpace(data)) {
+                            var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
         }
 
         private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, HttpClient client, CancellationToken ct) {

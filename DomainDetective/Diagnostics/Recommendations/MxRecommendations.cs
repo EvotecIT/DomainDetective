@@ -79,6 +79,52 @@ internal sealed class MxRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "mx" }
         };
+
+        map[MxCodes.RrsetInconsistentAcrossNs] = new RecommendationAdvice {
+            Code = MxCodes.RrsetInconsistentAcrossNs,
+            Title = "MX RRset differs across name servers",
+            Why = "Authoritative NS should serve identical MX RRsets; divergence indicates propagation or zone transfer issues.",
+            How = "Verify zone is fully propagated and AXFR/IXFR completed; ensure all NS have current zone data.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "dns", "ns" },
+            Impact = "Senders may see inconsistent routing and delivery failures.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Query each NS for MX and confirm identical answers."
+        };
+
+        map[MxCodes.TargetAddressInconsistentAcrossNs] = new RecommendationAdvice {
+            Code = MxCodes.TargetAddressInconsistentAcrossNs,
+            Title = "MX host addresses differ across name servers",
+            Why = "A/AAAA RRsets for MX hosts should be consistent across NS; differences can cause flapping routes.",
+            How = "Ensure address records are synchronized across all authoritative servers and not cached stale.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "dns", "ns" },
+            Impact = "Mail delivery may be inconsistent depending on resolver path.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Query A/AAAA for MX hosts on each NS and compare results."
+        };
+
+        map[MxCodes.TtlNonUniform] = new RecommendationAdvice {
+            Code = MxCodes.TtlNonUniform,
+            Title = "Normalize MX RRset TTLs",
+            Why = "Mixed TTLs on the same RRset can create non-deterministic caching behavior.",
+            How = "Set identical TTL values on all MX records for the zone.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "dns", "ttl" },
+            Effort = RecommendationEffort.Low,
+            Verify = "dig +ttlid mx example.com shows equal TTLs."
+        };
+
+        map[MxCodes.TargetTtlNonUniform] = new RecommendationAdvice {
+            Code = MxCodes.TargetTtlNonUniform,
+            Title = "Normalize A/AAAA TTLs for MX hosts",
+            Why = "Large TTL discrepancies for MX host addresses may cause uneven cache aging.",
+            How = "Use consistent TTLs across A/AAAA records for each MX host where operationally feasible.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "dns", "ttl" },
+            Effort = RecommendationEffort.Low,
+            Verify = "dig +ttlid A/AAAA mx1.example.com shows equal TTLs."
+        };
     }
 }
 

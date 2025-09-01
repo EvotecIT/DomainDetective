@@ -709,7 +709,7 @@ namespace DomainDetective {
         private void ApplyDnsblConfiguration(DnsblConfiguration config, bool overwriteExisting, bool clearExisting) {
             if (clearExisting) {
                 ClearDNSBL();
-                _domainBlockLists.Clear();
+                lock (_domainListLock) { _domainBlockLists.Clear(); }
                 _providerReplyCodes.Clear();
                 BlockLists.Entries.Clear();
             }
@@ -748,14 +748,16 @@ namespace DomainDetective {
             }
 
             if (config.DomainBlockLists != null) {
-                foreach (var entry in config.DomainBlockLists) {
-                    var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
-                    if (existing == null) {
-                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
-                    } else if (overwriteExisting) {
-                        existing.Enabled = entry.Enabled;
-                        existing.Comment = entry.Comment;
-                        existing.Port = entry.Port;
+                lock (_domainListLock) {
+                    foreach (var entry in config.DomainBlockLists) {
+                        var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
+                        if (existing == null) {
+                            _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
+                        } else if (overwriteExisting) {
+                            existing.Enabled = entry.Enabled;
+                            existing.Comment = entry.Comment;
+                            existing.Port = entry.Port;
+                        }
                     }
                 }
             }

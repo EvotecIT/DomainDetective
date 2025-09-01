@@ -16,6 +16,7 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class MailTlsAnalysis : IHasAssessments
 {
+    public string? Subject { get; set; }
     /// <summary>Supported mail protocols.</summary>
     public enum MailProtocol
     {
@@ -56,6 +57,8 @@ public class MailTlsAnalysis : IHasAssessments
         public string? PublicKeyAlgorithm { get; set; }
         public int? PublicKeySize { get; set; }
         public List<string> CertificateDnsNames { get; } = new();
+        public string Grade { get; set; } = string.Empty;
+        public bool LegacyEnabled { get; set; }
     }
 
     /// <summary>Stores results for each server.</summary>
@@ -111,8 +114,8 @@ public class MailTlsAnalysis : IHasAssessments
             bool directTls = (protocol == MailProtocol.Imap && port == 993) || (protocol == MailProtocol.Pop3 && port == 995);
             if (directTls)
             {
-                using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) =>
-                {
+            using var ssl = new SslStream(network, false, (sender, certificate, chain, errors) =>
+            {
                     result.CertificateValid = errors == SslPolicyErrors.None;
                     result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     result.Chain.Clear();
@@ -203,6 +206,11 @@ public class MailTlsAnalysis : IHasAssessments
                     result.Tls13Used = result.SupportsTls13;
 #endif
                     result.StartTlsAdvertised = true;
+                    // Grade and legacy detection
+                    ComputeGrade(result);
+                    if (result.LegacyEnabled) {
+                        logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
+                    }
                 }
                 return result;
             }
@@ -421,6 +429,10 @@ public class MailTlsAnalysis : IHasAssessments
                 result.SupportsTls13 = (int)result.Protocol == 12288;
                 result.Tls13Used = result.SupportsTls13;
 #endif
+                ComputeGrade(result);
+                if (result.LegacyEnabled) {
+                    logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
+                }
             }
         }
         catch (Exception ex)
@@ -429,5 +441,29 @@ public class MailTlsAnalysis : IHasAssessments
         }
 
         return result;
+    }
+
+    private static void ComputeGrade(TlsResult r)
+    {
+        // Legacy detection
+        r.LegacyEnabled = r.Protocol == SslProtocols.Tls || r.Protocol == SslProtocols.Ssl3 || r.Protocol == SslProtocols.Tls11;
+        // Coarse grading
+        if (r.IsExpired || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch)
+        {
+            r.Grade = "F";
+            return;
+        }
+        if (r.Tls13Used) { r.Grade = "A"; return; }
+        if (r.Protocol == SslProtocols.Tls12)
+        {
+            r.Grade = "B";
+            return;
+        }
+        if (r.Protocol == SslProtocols.Tls11 || r.Protocol == SslProtocols.Tls)
+        {
+            r.Grade = "D";
+            return;
+        }
+        r.Grade = "C";
     }
 }

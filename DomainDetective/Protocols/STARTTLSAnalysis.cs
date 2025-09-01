@@ -11,7 +11,8 @@ namespace DomainDetective {
     /// Checks whether SMTP servers advertise the STARTTLS capability.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class STARTTLSAnalysis : IHasAssessments {
+public class STARTTLSAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
         public Dictionary<string, bool> DowngradeDetected { get; private set; } = new();
         public Dictionary<string, STARTTLSResult> ServerDetails { get; private set; } = new();
