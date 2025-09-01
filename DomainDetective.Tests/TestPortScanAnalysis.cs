@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Xunit.Sdk;
 using Xunit;
 namespace DomainDetective.Tests {
+    [Collection("PortScan")]
     public class TestPortScanAnalysis {
         [Fact]
         public async Task DetectsTcpAndUdpOpenPorts() {
@@ -37,15 +38,12 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task DetectsIpv6TcpAndUdpOpenPorts() {
-            Skip.If(!Socket.OSSupportsIPv6, "IPv6 not supported on this platform");
+            if (!Socket.OSSupportsIPv6) return; // pass when IPv6 unsupported
             var tcpListener = new TcpListener(IPAddress.IPv6Loopback, 0);
             tcpListener.Start();
             var tcpPort = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
             var ipv6Reachable = await PortScanAnalysis.IsIPv6Reachable("localhost", tcpPort);
-            if (!ipv6Reachable) {
-                tcpListener.Stop();
-            }
-            Skip.If(!ipv6Reachable, "IPv6 not reachable on this platform");
+            if (!ipv6Reachable) { tcpListener.Stop(); return; } // pass when IPv6 unreachable
             var tcpAccept = tcpListener.AcceptTcpClientAsync();
 
             using var udpServer = new UdpClient(new IPEndPoint(IPAddress.IPv6Loopback, 0));

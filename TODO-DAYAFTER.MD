@@ -8,11 +8,11 @@ This single TODO consolidates all open items from previous docs, removes complet
 - Scope `Subject` to actionable granularity (domain, host:port, URL, RRset).
 
 ## Day‑After Priority (High‑Impact)
-- [ ] DirectoryExposure: expand default paths (.bak, ~, _backup/, .DS_Store, package-lock.json, yarn.lock, sitemap.xml|.txt, .well-known/security.txt).
-- [ ] DirectoryExposure: new findings per class — Secrets.DotEnv, Backups.Present, SourceMap.Exposed.
-- [ ] Apex address analysis: normalize PTR hostnames (trim dot, lowercase) prior to forward checks.
-- [ ] Apex address analysis: when overrides exist but A/AAAA empty, hydrate from overrides and PTR hostnames.
-- [ ] Add unit test for Apex_HasAOnly to lock behavior.
+- [x] DirectoryExposure: expand default paths (.bak, ~, _backup/, .DS_Store, package-lock.json, yarn.lock, sitemap.xml|.txt, .well-known/security.txt).
+- [x] DirectoryExposure: new findings per class — Secrets.DotEnv, Backups.Present, SourceMap.Exposed.
+- [x] Apex address analysis: normalize PTR hostnames (trim dot, lowercase) prior to forward checks.
+- [x] Apex address analysis: when overrides exist but A/AAAA empty, hydrate from overrides and PTR hostnames.
+- [x] Add unit test for Apex_HasAOnly to lock behavior.
 - [ ] MX integrity: cross‑NS RRset consistency (serialize A/AAAA per NS and diff).
 - [ ] MX integrity: TTL uniformity across MX RRset and their A/AAAA.
 - [ ] DNSSEC: NSEC3 Opt‑Out verification; code Dnssec.Nsec3OptOutRisk.
