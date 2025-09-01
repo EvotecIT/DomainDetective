@@ -12,6 +12,7 @@ public static partial class Converters
         return new TlsRptInfo
         {
             Check = "TLSRPT",
+            Area = AreaFor("TLSRPT"),
             Subject = null,
             TlsRptRecord = analysis.TlsRptRecord,
             TlsRptRecordExists = analysis.TlsRptRecordExists,
@@ -27,6 +28,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"URIs: mailto {analysis.MailtoRua?.Count ?? 0}, http {analysis.HttpRua?.Count ?? 0}; valid {(analysis.PolicyValid ? "yes" : "no")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -37,6 +39,7 @@ public static partial class Converters
 public class TlsRptInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string TlsRptRecord { get; set; }
     public bool TlsRptRecordExists { get; set; }
@@ -52,6 +55,7 @@ public class TlsRptInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public TLSRPTAnalysis Raw { get; set; }

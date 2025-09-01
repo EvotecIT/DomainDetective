@@ -12,6 +12,7 @@ public static partial class Converters
         return new MxInfo
         {
             Check = "MX",
+            Area = AreaFor("MX"),
             Subject = analysis.Subject,
             MxRecords = analysis.MxRecords,
             MxRecordExists = analysis.MxRecordExists,
@@ -27,6 +28,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c null-MX {(analysis.HasNullMx ? "yes" : "no")}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
             Raw = analysis
@@ -37,6 +39,7 @@ public static partial class Converters
 public class MxInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> MxRecords { get; set; }
     public bool MxRecordExists { get; set; }
@@ -52,8 +55,8 @@ public class MxInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MXAnalysis Raw { get; set; }
 }
-

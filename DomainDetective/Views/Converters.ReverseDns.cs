@@ -14,6 +14,7 @@ public static partial class Converters
         return new ReverseDnsInfo
         {
             Check = "RDNS",
+            Area = AreaFor("RDNS"),
             Subject = analysis.Subject,
             ResultsCount = total,
             ValidCount = valid,
@@ -23,6 +24,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"{valid}/{total} PTR match; FCrDNS {(analysis.Results?.Count(r => r.FcrDnsValid) ?? 0)}/{total}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
             Raw = analysis
@@ -33,6 +35,7 @@ public static partial class Converters
 public class ReverseDnsInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int ResultsCount { get; set; }
     public int ValidCount { get; set; }
@@ -42,8 +45,8 @@ public class ReverseDnsInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ReverseDnsAnalysis Raw { get; set; }
 }
-

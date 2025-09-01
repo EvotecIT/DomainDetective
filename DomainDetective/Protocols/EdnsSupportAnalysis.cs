@@ -21,6 +21,9 @@ public record EdnsSupportInfo
 
     /// <summary>Indicates if the DO bit was set in the response.</summary>
     public bool DoBit { get; init; }
+
+    /// <summary>Indicates the UDP response was truncated and TCP fallback was necessary.</summary>
+    public bool TruncatedUdp { get; init; }
 }
 
 /// <summary>
@@ -195,7 +198,13 @@ public class EdnsSupportAnalysis : IHasAssessments
             data = respData;
         }
 
-        return ParseEdns(data);
+        var info = ParseEdns(data);
+        // Map truncation hint
+        if (info != null)
+        {
+            return info with { TruncatedUdp = truncated };
+        }
+        return info;
     }
 
     /// <summary>
@@ -229,6 +238,17 @@ public class EdnsSupportAnalysis : IHasAssessments
                 if (!support.Supported)
                 {
                     logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, addr.Data);
+                }
+                else
+                {
+                    if (support.UdpPayloadSize > 1232)
+                    {
+                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, addr.Data);
+                    }
+                    if (support.TruncatedUdp)
+                    {
+                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, addr.Data);
+                    }
                 }
             }
         }

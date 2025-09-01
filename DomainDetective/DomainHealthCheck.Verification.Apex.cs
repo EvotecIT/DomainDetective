@@ -50,11 +50,19 @@ namespace DomainDetective {
                 if (!ApexAddressAnalysis.HasAnyAddress && ApexAddressAnalysis.PtrByIp != null && ApexAddressAnalysis.PtrByIp.Count > 0) {
                     foreach (var kv in ApexAddressAnalysis.PtrByIp) {
                         foreach (var host in kv.Value ?? new System.Collections.Generic.List<string>()) {
-                            var answers = await DnsConfiguration.QueryDnsOverride(host, DnsRecordType.A);
+                            var h = (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
+                            var answers = await DnsConfiguration.QueryDnsOverride(h, DnsRecordType.A);
                             foreach (var ans in answers ?? Array.Empty<DnsAnswer>()) {
                                 var val = ans.Data ?? ans.DataRaw;
                                 if (!string.IsNullOrWhiteSpace(val)) {
                                     ApexAddressAnalysis.ARecords.Add(val);
+                                }
+                            }
+                            var answers6 = await DnsConfiguration.QueryDnsOverride(h, DnsRecordType.AAAA);
+                            foreach (var ans in answers6 ?? Array.Empty<DnsAnswer>()) {
+                                var val = ans.Data ?? ans.DataRaw;
+                                if (!string.IsNullOrWhiteSpace(val)) {
+                                    ApexAddressAnalysis.AaaaRecords.Add(val);
                                 }
                             }
                         }

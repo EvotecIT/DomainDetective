@@ -95,7 +95,8 @@ namespace DomainDetective {
                 var aRecords = await QueryDns(host, DnsRecordType.A);
                 var aaaaRecords = await QueryDns(host, DnsRecordType.AAAA);
                 foreach (var record in aRecords.Concat(aaaaRecords ?? Array.Empty<DnsAnswer>())) {
-                    if (!IPAddress.TryParse(record.Data, out var ip)) {
+                    var recData = record.Data ?? record.DataRaw;
+                    if (!IPAddress.TryParse(recData, out var ip)) {
                         continue;
                     }
 
@@ -125,7 +126,8 @@ namespace DomainDetective {
                     foreach (var ans in ptrAnswers) {
                         var rawPtr = ans.Data;
                         if (IsValidPtrName(rawPtr)) {
-                            ptrs.Add(rawPtr.TrimEnd('.'));
+                            var norm = rawPtr.Trim().TrimEnd('.').ToLowerInvariant();
+                            ptrs.Add(norm);
                         } else {
                             logger?.WriteWarningCode(ReverseDnsCodes.MalformedPtr, $"Malformed PTR record: {rawPtr}");
                         }
@@ -135,18 +137,28 @@ namespace DomainDetective {
                     var result = new ReverseDnsResult {
                         IpAddress = ip.ToString(),
                         PtrRecord = ptr,
-                        ExpectedHost = host.TrimEnd('.')
+                        ExpectedHost = host.TrimEnd('.').ToLowerInvariant()
                     };
                     result.PtrRecords.AddRange(ptrs);
 
                     if (ptrs.Count > 0) {
                         foreach (var p in ptrs) {
-                            var fwdA = await QueryDns(p, DnsRecordType.A);
-                            var fwdAaaa = await QueryDns(p, DnsRecordType.AAAA);
-                            if (fwdA.Concat(fwdAaaa).Any(r => string.Equals(r.Data, ip.ToString(), StringComparison.Ordinal))) {
+                            var name = p.Trim().TrimEnd('.').ToLowerInvariant();
+                            var fwdA = await QueryDns(name, DnsRecordType.A);
+                            var fwdAaaa = await QueryDns(name, DnsRecordType.AAAA);
+                            if (fwdA.Concat(fwdAaaa).Any(r => string.Equals(r.Data ?? r.DataRaw, ip.ToString(), StringComparison.Ordinal))) {
                                 result.FcrDnsValid = true;
                                 break;
                             }
+                        }
+                        if (!result.FcrDnsValid) {
+                            logger?.WriteWarningCode(ReverseDnsCodes.ForwardMismatch, "PTR {0} does not map back to {1}", string.Join(", ", ptrs), ip);
+                        }
+
+                        // Heuristic advisory for known shared cloud PTRs
+                        var cloudHints = new[] { "amazonaws.com", "compute-1.amazonaws.com", "googleusercontent.com", "cloudflare.com", "azure.com", "windows.net", "digitalocean.com", "linode.com", "ovh.net", "hetzner", "akamaiedge.net", "akamaitechnologies.com", "fastly.net" };
+                        if (ptrs.Any(p => cloudHints.Any(h => p?.IndexOf(h, StringComparison.OrdinalIgnoreCase) >= 0))) {
+                            logger?.WriteInformationCode(ReverseDnsCodes.SharedCloudManyToOne, "PTR points to shared cloud host: {0}", string.Join(", ", ptrs));
                         }
                     }
 

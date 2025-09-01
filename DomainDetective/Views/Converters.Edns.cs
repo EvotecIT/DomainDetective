@@ -20,6 +20,7 @@ public static partial class Converters
         return new EdnsSupportSummary
         {
             Check = "EDNS",
+            Area = AreaFor("EDNS"),
             Subject = null,
             TotalChecked = total,
             SupportedCount = supported,
@@ -29,6 +30,7 @@ public static partial class Converters
             Status = notSupported > 0 ? "Warning" : "OK",
             WarningCount = notSupported,
             ErrorCount = 0,
+            Summary = $"{supported}/{total} EDNS; large UDP: {entries.Count(e => e.UdpPayloadSize > 1232)}",
             Recommendations = (analysis as IHasAssessments) != null ? RecommendationEngine.From(((IHasAssessments)analysis).Assessments) : new List<RecommendationAdvice>(),
             References = new [] { "https://www.rfc-editor.org/rfc/rfc6891" },
             Raw = analysis
@@ -39,6 +41,7 @@ public static partial class Converters
 public class EdnsSupportSummary
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int SupportedCount { get; set; }
@@ -48,6 +51,7 @@ public class EdnsSupportSummary
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public EdnsSupportAnalysis Raw { get; set; }
@@ -60,4 +64,3 @@ public class EdnsServerInfo
     public int UdpPayloadSize { get; set; }
     public bool DoBit { get; set; }
 }
-

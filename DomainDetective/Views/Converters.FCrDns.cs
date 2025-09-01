@@ -17,6 +17,7 @@ public static partial class Converters
         return new FcrDnsInfo
         {
             Check = "FCRDNS",
+            Area = AreaFor("FCRDNS"),
             Subject = null,
             TotalChecked = total,
             ForwardConfirmed = valid,
@@ -25,6 +26,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warn,
             ErrorCount = err,
+            Summary = $"{valid}/{total} forward-confirmed",
             Recommendations = RecommendationEngine.From(assessments),
             References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.From(assessments)),
             Raw = analysis
@@ -35,6 +37,7 @@ public static partial class Converters
 public class FcrDnsInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int ForwardConfirmed { get; set; }
@@ -43,8 +46,8 @@ public class FcrDnsInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public FCrDnsAnalysis Raw { get; set; }
 }
-

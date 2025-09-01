@@ -11,7 +11,8 @@ public static partial class Converters
         return new NsInfo
         {
             Check = "NS",
-            Subject = null, // NSAnalysis does not track subject explicitly
+            Area = AreaFor("NS"),
+            Subject = analysis.Subject, // if null, leave null
             NsRecords = analysis.NsRecords,
             NsRecordExists = analysis.NsRecordExists,
             HasDuplicates = analysis.HasDuplicates,
@@ -29,6 +30,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"{analysis.NsRecords?.Count ?? 0} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(analysis.GlueRecordsConsistent ? "consistent" : "mixed")}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
             Raw = analysis
@@ -39,6 +41,7 @@ public static partial class Converters
 public class NsInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> NsRecords { get; set; }
     public bool NsRecordExists { get; set; }
@@ -57,8 +60,8 @@ public class NsInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public NSAnalysis Raw { get; set; }
 }
-

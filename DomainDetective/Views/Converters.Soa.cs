@@ -11,6 +11,7 @@ public static partial class Converters
         return new SoaInfo
         {
             Check = "SOA",
+            Area = AreaFor("SOA"),
             Subject = analysis.Subject ?? analysis.DomainName,
             PrimaryNameServer = analysis.PrimaryNameServer,
             ResponsibleMailbox = analysis.ResponsibleMailbox,
@@ -27,6 +28,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"serial {analysis.SerialNumber} ({(analysis.SerialFormatValid ? "valid" : "check")}); refresh {analysis.Refresh}s",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1035" },
             Raw = analysis
@@ -37,6 +39,7 @@ public static partial class Converters
 public class SoaInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string PrimaryNameServer { get; set; }
     public string ResponsibleMailbox { get; set; }
@@ -53,8 +56,8 @@ public class SoaInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SOAAnalysis Raw { get; set; }
 }
-

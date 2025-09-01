@@ -11,6 +11,7 @@ public static partial class Converters
         return new SpfRecordInfo
         {
             Check = "SPF",
+            Area = AreaFor("SPF"),
             Subject = analysis.Subject,
             SpfRecord = analysis.SpfRecord,
             SpfRecordExists = analysis.SpfRecordExists,
@@ -26,6 +27,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -36,6 +38,7 @@ public static partial class Converters
 public class SpfRecordInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string SpfRecord { get; set; }
     public bool SpfRecordExists { get; set; }
@@ -51,6 +54,7 @@ public class SpfRecordInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SpfAnalysis Raw { get; set; }
