@@ -20,99 +20,130 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 - Registry & routing: WHOIS, RDAP, RPKI origin validation
 - Reporting & UX: HTML/JSON report generation, interactive CLI wizard
 
+## Persona (CLI + PowerShell)
+
+DomainDetective supports live persona narration to make CLI and PowerShell output more readable without changing underlying objects.
+
+- CLI flags:
+  - `--persona business|funny|geek|noir|pirate` – choose narration style
+  - `--persona-live` – stream steps live
+  - `--persona-verbose` – include verbose hints and reasons
+
+Examples (CLI):
+
+```
+DomainDetective.CLI.exe WizardScan --domain example.com --persona business --persona-live
+DomainDetective.CLI.exe check example.com --persona geek --persona-verbose
+```
+
+- PowerShell:
+  - `Set-DDPersona -Persona Business -Live -NarrateVerbose` – set persona globally for the session
+
+Examples (PowerShell):
+
+```
+Import-Module ./Module/DomainDetective.PowerShell.psd1
+Set-DDPersona -Persona Business -Live -NarrateVerbose
+Test-DDDomainHealth example.com
+```
+
+Notes:
+- Persona only affects narration/log panels. View objects remain clean, with the full raw analysis on `view.Raw` and summary counts on the top-level view.
+- Use `Select-Object` on `Status`, `WarningCount`, `ErrorCount`, and `Summary` for dashboards; drill into `Raw` for details.
+
 ## Available Cmdlets and Aliases
 
 ### Email
 
-| Prefixed Name                   | Alias Name               | Purpose                         |
-|--------------------------------|--------------------------|---------------------------------|
-| `Test-DDEmailArcRecord`        | `Test-EmailArc`          | Validate ARC headers            |
-| `Test-DDEmailAutoDiscover`     | `Test-EmailAutoDiscover` | Check mail client discovery     |
-| `Test-DDEmailBimiRecord`       | `Test-EmailBimi`         | Verify BIMI record              |
-| `Test-DDEmailDkimRecord`       | `Test-EmailDkim`         | Verify DKIM selectors           |
-| `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`        | Verify DMARC policy             |
-| `Test-DDEmailSpfRecord`        | `Test-EmailSpf`          | Verify SPF policy               |
-| `Test-DDEmailTlsRptRecord`     | `Test-EmailTlsRpt`       | Inspect TLS-RPT                 |
-| `Test-DDEmailStartTls`         | `Test-EmailStartTls`     | Check STARTTLS advertisement    |
-| `Test-DDEmailSmtpTls`          | `Test-EmailSmtpTls`      | Check SMTP TLS posture          |
-| `Test-DDEmailOpenRelay`        | `Test-EmailOpenRelay`    | Detect open SMTP relay          |
-| `Get-DDEmailMessageHeaderInfo` | `Get-EmailHeaderInfo`    | Parse raw email headers         |
-| `Test-DDEmailLatency`          | `Test-EmailLatency`      | Measure SMTP responsiveness     |
-| `Test-DDEmailImapTls`          | `Test-EmailImapTls`      | IMAP TLS check                  |
-| `Test-DDEmailPop3Tls`          | `Test-EmailPop3Tls`      | POP3 TLS check                  |
-| `Test-DDEmailSmtpBanner`       | `Test-EmailSmtpBanner`   | Inspect SMTP banner             |
+| Prefixed Name                  | Alias Name                 | Purpose                       |
+| ------------------------------ | -------------------------- | ----------------------------- |
+| `Test-DDEmailArcRecord`        | `Test-EmailArc`            | Validate ARC headers          |
+| `Test-DDEmailAutoDiscover`     | `Test-EmailAutoDiscover`   | Check mail client discovery   |
+| `Test-DDEmailBimiRecord`       | `Test-EmailBimi`           | Verify BIMI record            |
+| `Test-DDEmailDkimRecord`       | `Test-EmailDkim`           | Verify DKIM selectors         |
+| `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`          | Verify DMARC policy           |
+| `Test-DDEmailSpfRecord`        | `Test-EmailSpf`            | Verify SPF policy             |
+| `Test-DDEmailTlsRptRecord`     | `Test-EmailTlsRpt`         | Inspect TLS-RPT               |
+| `Test-DDEmailStartTls`         | `Test-EmailStartTls`       | Check STARTTLS advertisement  |
+| `Test-DDEmailSmtpTls`          | `Test-EmailSmtpTls`        | Check SMTP TLS posture        |
+| `Test-DDEmailOpenRelay`        | `Test-EmailOpenRelay`      | Detect open SMTP relay        |
+| `Get-DDEmailMessageHeaderInfo` | `Get-EmailHeaderInfo`      | Parse raw email headers       |
+| `Test-DDEmailLatency`          | `Test-EmailLatency`        | Measure SMTP responsiveness   |
+| `Test-DDEmailImapTls`          | `Test-EmailImapTls`        | IMAP TLS check                |
+| `Test-DDEmailPop3Tls`          | `Test-EmailPop3Tls`        | POP3 TLS check                |
+| `Test-DDEmailSmtpBanner`       | `Test-EmailSmtpBanner`     | Inspect SMTP banner           |
 | `Test-DDDmarcAggregate`        | `Test-EmailDmarcAggregate` | Parse DMARC aggregate reports |
-| `New-DDDmarcRecord`            | `New-DmarcRecord`        | Build DMARC record              |
+| `New-DDDmarcRecord`            | `New-DmarcRecord`          | Build DMARC record            |
 
 ### Web
 
-| Prefixed Name             | Alias Name            | Purpose                                      |
-|---------------------------|-----------------------|----------------------------------------------|
-| `Test-DDWebsite`          | `Test-Website`        | Combined website check (cert + HTTPS security)|
-| `Test-DDWebsiteSecurity`  | `Test-WebsiteSecurity`| HTTPS security headers + mixed content        |
-| `Test-DDDomainCertificate`| `Test-DomainCertificate` | Website certificate incl. TLS grade       |
+| Prefixed Name              | Alias Name               | Purpose                                        |
+| -------------------------- | ------------------------ | ---------------------------------------------- |
+| `Test-DDWebsite`           | `Test-Website`           | Combined website check (cert + HTTPS security) |
+| `Test-DDWebsiteSecurity`   | `Test-WebsiteSecurity`   | HTTPS security headers + mixed content         |
+| `Test-DDDomainCertificate` | `Test-DomainCertificate` | Website certificate incl. TLS grade            |
 
 ### DNS
 
-| Prefixed Name                   | Alias Name               | Purpose                         |
-|--------------------------------|--------------------------|---------------------------------|
-| `Test-DDDnsCaaRecord`          | `Test-DnsCaa`            | Verify CAA                      |
-| `Test-DDDnsNsRecord`           | `Test-DnsNs`             | Verify NS                       |
-| `Test-DDDnsSoaRecord`          | `Test-DnsSoa`            | Verify SOA                      |
-| `Test-DDDnsSecStatus`          | `Test-DnsSec`            | Verify DNSSEC                   |
-| `Test-DDDnsBlacklist`          | `Test-DnsBlacklist`      | Check DNSBL (domain + MX IPs)   |
-| `Test-DDDnsOpenResolver`       | `Test-DnsOpenResolver`   | Detect open resolver            |
-| `Test-DDDnsDanglingCname`      | `Test-DnsDanglingCname`  | Find dangling CNAME             |
-| `Test-DDDnsPropagation`        | `Test-DnsPropagation`    | Check global propagation        |
-| `Start-DDDnsPropagationMonitor`| `Start-DnsPropagationMonitor` | Background propagation monitor |
-| `Stop-DDDnsPropagationMonitor` | `Stop-DnsPropagationMonitor`  | Stop propagation monitor       |
-| `Test-DDDnsTtl`                | `Test-DnsTtl`            | TTL analysis                    |
-| `Test-DDDnsTunneling`          | `Test-DnsTunneling`      | Detect DNS tunneling (logs)     |
-| `Test-DDDnsWildcard`           | `Test-DnsWildcard`       | Detect wildcard catch-all       |
-| `Test-DDDnsEdnsSupport`        | `Test-DnsEdnsSupport`    | EDNS support                    |
-| `Test-DDDnsHealth`             | `Test-DnsHealth`         | Authoritative SOA/apex/TTL consistency |
-| `Test-DDDnsSmimeaRecord`       | `Test-DnsSmimea`         | S/MIMEA                         |
-| `Test-DDDnsForwardReverse`     | `Test-DnsFcrDns`         | FCrDNS                          |
-| `Test-DDDnsMxRecord`           | `Test-DnsMx`             | MX records                      |
-| `Test-DDDnsDelegation`         | `Test-DnsDelegation`     | Parent NS/glue consistency      |
-| `Test-DDDnsReverseDns`         | `Test-DnsReverseDns`     | Reverse DNS                     |
-| `Test-DDDnsZoneTransfer`       | `Test-DnsZoneTransfer`   | AXFR exposure                   |
+| Prefixed Name                   | Alias Name                    | Purpose                                |
+| ------------------------------- | ----------------------------- | -------------------------------------- |
+| `Test-DDDnsCaaRecord`           | `Test-DnsCaa`                 | Verify CAA                             |
+| `Test-DDDnsNsRecord`            | `Test-DnsNs`                  | Verify NS                              |
+| `Test-DDDnsSoaRecord`           | `Test-DnsSoa`                 | Verify SOA                             |
+| `Test-DDDnsSecStatus`           | `Test-DnsSec`                 | Verify DNSSEC                          |
+| `Test-DDDnsBlacklist`           | `Test-DnsBlacklist`           | Check DNSBL (domain + MX IPs)          |
+| `Test-DDDnsOpenResolver`        | `Test-DnsOpenResolver`        | Detect open resolver                   |
+| `Test-DDDnsDanglingCname`       | `Test-DnsDanglingCname`       | Find dangling CNAME                    |
+| `Test-DDDnsPropagation`         | `Test-DnsPropagation`         | Check global propagation               |
+| `Start-DDDnsPropagationMonitor` | `Start-DnsPropagationMonitor` | Background propagation monitor         |
+| `Stop-DDDnsPropagationMonitor`  | `Stop-DnsPropagationMonitor`  | Stop propagation monitor               |
+| `Test-DDDnsTtl`                 | `Test-DnsTtl`                 | TTL analysis                           |
+| `Test-DDDnsTunneling`           | `Test-DnsTunneling`           | Detect DNS tunneling (logs)            |
+| `Test-DDDnsWildcard`            | `Test-DnsWildcard`            | Detect wildcard catch-all              |
+| `Test-DDDnsEdnsSupport`         | `Test-DnsEdnsSupport`         | EDNS support                           |
+| `Test-DDDnsHealth`              | `Test-DnsHealth`              | Authoritative SOA/apex/TTL consistency |
+| `Test-DDDnsSmimeaRecord`        | `Test-DnsSmimea`              | S/MIMEA                                |
+| `Test-DDDnsForwardReverse`      | `Test-DnsFcrDns`              | FCrDNS                                 |
+| `Test-DDDnsMxRecord`            | `Test-DnsMx`                  | MX records                             |
+| `Test-DDDnsDelegation`          | `Test-DnsDelegation`          | Parent NS/glue consistency             |
+| `Test-DDDnsReverseDns`          | `Test-DnsReverseDns`          | Reverse DNS                            |
+| `Test-DDDnsZoneTransfer`        | `Test-DnsZoneTransfer`        | AXFR exposure                          |
 
 ### Domain
 
-| Prefixed Name                   | Alias Name               | Purpose                         |
-|--------------------------------|--------------------------|---------------------------------|
-| `Test-DDDomainContactRecord`   | `Test-DomainContact`     | WHOIS contact sanity            |
-| `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | security.txt checks             |
-| `Test-DDDomainCertificate`     | `Test-DomainCertificate` | Website certificate checks      |
-| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | Composite health; -Summary returns DomainSummary; -Export* for reports |
-| `Get-DDDomainWhois`            | `Get-DomainWhois`        | WHOIS                           |
-| `Get-DDDomainFlattenedSpfIp`   | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs            |
-| `Test-DDDomainThreatIntel`     | `Test-DomainThreatIntel` | Threat intel lookups            |
-| `Get-DDRdap`                   | `Get-Rdap`               | RDAP                            |
-| `Get-DDRdapObject`             | `Get-RdapObject`         | RDAP raw object                 |
-| `Get-DDSearchEngineInfo`       | `Get-SearchEngineInfo`   | Search engine queries           |
+| Prefixed Name                | Alias Name                 | Purpose                                                                |
+| ---------------------------- | -------------------------- | ---------------------------------------------------------------------- |
+| `Test-DDDomainContactRecord` | `Test-DomainContact`       | WHOIS contact sanity                                                   |
+| `Test-DDDomainSecurityTxt`   | `Test-DomainSecurityTxt`   | security.txt checks                                                    |
+| `Test-DDDomainCertificate`   | `Test-DomainCertificate`   | Website certificate checks                                             |
+| `Test-DDDomainOverallHealth` | `Test-DomainHealth`        | Composite health; -Summary returns DomainSummary; -Export* for reports |
+| `Get-DDDomainWhois`          | `Get-DomainWhois`          | WHOIS                                                                  |
+| `Get-DDDomainFlattenedSpfIp` | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs                                                     |
+| `Test-DDDomainThreatIntel`   | `Test-DomainThreatIntel`   | Threat intel lookups                                                   |
+| `Get-DDRdap`                 | `Get-Rdap`                 | RDAP                                                                   |
+| `Get-DDRdapObject`           | `Get-RdapObject`           | RDAP raw object                                                        |
+| `Get-DDSearchEngineInfo`     | `Get-SearchEngineInfo`     | Search engine queries                                                  |
 
 ### TLS & Networking
 
-| Prefixed Name                   | Alias Name               | Purpose                         |
-|--------------------------------|--------------------------|---------------------------------|
-| `Test-DDTlsDaneRecord`         | `Test-TlsDane`           | DANE/TLSA                       |
-| `Get-DDTlsCertificateInfo`     | `Get-CertificateInfo`    | Parse PEM/DER certs             |
-| `Test-DDNetworkIpNeighbor`     | `Test-NetworkIpNeighbor` | IP neighbors (add -IncludeMX for mail IPs) |
-| `Test-DDNetworkPortAvailability` | `Test-NetworkPortAvailability` | Port scanning              |
+| Prefixed Name                    | Alias Name                     | Purpose                                    |
+| -------------------------------- | ------------------------------ | ------------------------------------------ |
+| `Test-DDTlsDaneRecord`           | `Test-TlsDane`                 | DANE/TLSA                                  |
+| `Get-DDTlsCertificateInfo`       | `Get-CertificateInfo`          | Parse PEM/DER certs                        |
+| `Test-DDNetworkIpNeighbor`       | `Test-NetworkIpNeighbor`       | IP neighbors (add -IncludeMX for mail IPs) |
+| `Test-DDNetworkPortAvailability` | `Test-NetworkPortAvailability` | Port scanning                              |
 
 ### Configuration & Data
 
-| Prefixed Name                | Alias Name           | Purpose                         |
-|------------------------------|----------------------|---------------------------------|
-| `Add-DDDnsblProvider`        | `Add-DnsblProvider`  | Manage DNSBL                    |
-| `Remove-DDDnsblProvider`     | `Remove-DnsblProvider` | Manage DNSBL                  |
-| `Clear-DDDnsblProviderList`  | `Clear-DnsblProvider` | Manage DNSBL                  |
-| `Import-DDDnsblConfig`       | `Import-DnsblConfig` | Manage DNSBL                    |
-| `Import-DDDmarcReport`       | `Import-DmarcReport` | DMARC aggregate zip             |
-| `Import-DDDmarcForensic`     | `Import-DmarcForensic` | DMARC forensic zip            |
-| `Import-DDEmailTlsRpt`       | `Import-EmailTlsRpt` | TLS-RPT JSON                    |
+| Prefixed Name               | Alias Name             | Purpose             |
+| --------------------------- | ---------------------- | ------------------- |
+| `Add-DDDnsblProvider`       | `Add-DnsblProvider`    | Manage DNSBL        |
+| `Remove-DDDnsblProvider`    | `Remove-DnsblProvider` | Manage DNSBL        |
+| `Clear-DDDnsblProviderList` | `Clear-DnsblProvider`  | Manage DNSBL        |
+| `Import-DDDnsblConfig`      | `Import-DnsblConfig`   | Manage DNSBL        |
+| `Import-DDDmarcReport`      | `Import-DmarcReport`   | DMARC aggregate zip |
+| `Import-DDDmarcForensic`    | `Import-DmarcForensic` | DMARC forensic zip  |
+| `Import-DDEmailTlsRpt`      | `Import-EmailTlsRpt`   | TLS-RPT JSON        |
 
 ## DNSBL Configuration
 DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes with a built-in list, but you can modify it at runtime. Each list entry exposes `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:

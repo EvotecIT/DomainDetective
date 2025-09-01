@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new CaaInfo
         {
-            Check = "CAA",
-            Area = AreaFor("CAA"),
+            Check = HealthCheckType.CAA,
+            Area = AreaForKind(HealthCheckType.CAA),
             Subject = analysis.Subject ?? analysis.DomainName,
             ValidRecords = analysis.ValidRecords,
             InvalidRecords = analysis.InvalidRecords,
@@ -35,8 +35,8 @@ public static partial class Converters
 
 public class CaaInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int ValidRecords { get; set; }
     public int InvalidRecords { get; set; }

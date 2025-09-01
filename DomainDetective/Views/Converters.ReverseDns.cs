@@ -13,8 +13,8 @@ public static partial class Converters
         var valid = analysis.Results?.Count(r => r.IsValid) ?? 0;
         return new ReverseDnsInfo
         {
-            Check = "RDNS",
-            Area = AreaFor("RDNS"),
+            Check = HealthCheckType.REVERSEDNS,
+            Area = AreaForKind(HealthCheckType.REVERSEDNS),
             Subject = analysis.Subject,
             ResultsCount = total,
             ValidCount = valid,
@@ -34,8 +34,8 @@ public static partial class Converters
 
 public class ReverseDnsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int ResultsCount { get; set; }
     public int ValidCount { get; set; }

@@ -11,9 +11,9 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new TlsRptInfo
         {
-            Check = "TLSRPT",
-            Area = AreaFor("TLSRPT"),
-            Subject = null,
+            Check = HealthCheckType.TLSRPT,
+            Area = AreaForKind(HealthCheckType.TLSRPT),
+            Subject = analysis.Subject,
             TlsRptRecord = analysis.TlsRptRecord,
             TlsRptRecordExists = analysis.TlsRptRecordExists,
             MultipleRecords = analysis.MultipleRecords,
@@ -38,8 +38,8 @@ public static partial class Converters
 
 public class TlsRptInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string TlsRptRecord { get; set; }
     public bool TlsRptRecordExists { get; set; }

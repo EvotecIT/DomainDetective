@@ -15,6 +15,7 @@ namespace DomainDetective {
     /// where they point, assisting in troubleshooting client configuration.
     /// </remarks>
     public class AutodiscoverAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
@@ -24,6 +25,13 @@ namespace DomainDetective {
         private readonly List<AutodiscoverEndpointResult> _endpoints = new();
         /// <summary>Results of endpoint checks in the order attempted.</summary>
         public IReadOnlyList<AutodiscoverEndpointResult> Endpoints => _endpoints;
+        /// <summary>Populate endpoint results discovered by HTTP analysis.</summary>
+        public void SetHttpEndpoints(IReadOnlyList<AutodiscoverEndpointResult>? endpoints)
+        {
+            _endpoints.Clear();
+            if (endpoints == null) return;
+            foreach (var e in endpoints) if (e != null) _endpoints.Add(e);
+        }
         /// <summary>Gets a value indicating whether the _autodiscover._tcp SRV record exists.</summary>
         public bool SrvRecordExists { get; private set; }
         /// <summary>Gets the SRV target host if present.</summary>
@@ -55,6 +63,8 @@ namespace DomainDetective {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+
+            Subject = domainName;
 
             var srv = await QueryDns($"_autodiscover._tcp.{domainName}", DnsRecordType.SRV, config);
             SrvRecordExists = srv != null && srv.Any();

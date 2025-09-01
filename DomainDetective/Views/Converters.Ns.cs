@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new NsInfo
         {
-            Check = "NS",
-            Area = AreaFor("NS"),
+            Check = HealthCheckType.NS,
+            Area = AreaForKind(HealthCheckType.NS),
             Subject = analysis.Subject, // if null, leave null
             NsRecords = analysis.NsRecords,
             NsRecordExists = analysis.NsRecordExists,
@@ -40,8 +40,8 @@ public static partial class Converters
 
 public class NsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> NsRecords { get; set; }
     public bool NsRecordExists { get; set; }

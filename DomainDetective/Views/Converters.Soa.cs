@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new SoaInfo
         {
-            Check = "SOA",
-            Area = AreaFor("SOA"),
+            Check = HealthCheckType.SOA,
+            Area = AreaForKind(HealthCheckType.SOA),
             Subject = analysis.Subject ?? analysis.DomainName,
             PrimaryNameServer = analysis.PrimaryNameServer,
             ResponsibleMailbox = analysis.ResponsibleMailbox,
@@ -38,8 +38,8 @@ public static partial class Converters
 
 public class SoaInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string PrimaryNameServer { get; set; }
     public string ResponsibleMailbox { get; set; }

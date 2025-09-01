@@ -14,9 +14,9 @@ public static partial class Converters
         var valid = analysis.Results?.Count(r => r.Valid) ?? 0;
         return new RpkiInfo
         {
-            Check = "RPKI",
-            Area = AreaFor("RPKI"),
-            Subject = null,
+            Check = HealthCheckType.RPKI,
+            Area = AreaForKind(HealthCheckType.RPKI),
+            Subject = analysis.Subject,
             TotalChecked = total,
             ValidCount = valid,
             AllValid = analysis.AllValid,
@@ -35,8 +35,8 @@ public static partial class Converters
 
 public class RpkiInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int ValidCount { get; set; }

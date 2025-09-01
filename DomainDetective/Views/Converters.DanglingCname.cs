@@ -9,9 +9,9 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new DanglingCnameInfo
         {
-            Check = "DANGLINGCNAME",
-            Area = AreaFor("DANGLINGCNAME"),
-            Subject = null,
+            Check = HealthCheckType.DANGLINGCNAME,
+            Area = AreaForKind(HealthCheckType.DANGLINGCNAME),
+            Subject = analysis.Subject,
             CnameRecordExists = analysis.CnameRecordExists,
             Target = analysis.Target,
             TargetResolves = analysis.TargetResolves,
@@ -33,8 +33,8 @@ public static partial class Converters
 
 public class DanglingCnameInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool CnameRecordExists { get; set; }
     public string Target { get; set; }

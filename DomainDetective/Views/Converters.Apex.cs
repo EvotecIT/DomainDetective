@@ -15,9 +15,9 @@ public static partial class Converters
 
         return new ApexAddressInfo
         {
-            Check = "APEX",
-            Area = AreaFor("APEX"),
-            Subject = null,
+            Check = HealthCheckType.APEXADDRESS,
+            Area = AreaForKind(HealthCheckType.APEXADDRESS),
+            Subject = analysis.Subject,
             ARecords = analysis.ARecords,
             AaaaRecords = analysis.AaaaRecords,
             HasARecord = analysis.HasARecord,
@@ -57,8 +57,8 @@ public static partial class Converters
 
 public class ApexAddressInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> ARecords { get; set; }
     public IReadOnlyList<string> AaaaRecords { get; set; }

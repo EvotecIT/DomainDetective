@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new RdapInfo
         {
-            Check = "RDAP",
-            Area = AreaFor("RDAP"),
+            Check = HealthCheckType.RDAP,
+            Area = AreaForKind(HealthCheckType.RDAP),
             Subject = analysis.DomainName,
             Registrar = analysis.Registrar,
             RegistrarId = analysis.RegistrarId,
@@ -32,8 +32,8 @@ public static partial class Converters
 
 public class RdapInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string Registrar { get; set; }
     public string RegistrarId { get; set; }

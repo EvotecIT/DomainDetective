@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new MtastsInfo
         {
-            Check = "MTASTS",
-            Area = AreaFor("MTASTS"),
+            Check = HealthCheckType.MTASTS,
+            Area = AreaForKind(HealthCheckType.MTASTS),
             Subject = analysis.Domain,
             DnsRecordPresent = analysis.DnsRecordPresent,
             DnsRecordValid = analysis.DnsRecordValid,
@@ -37,8 +37,8 @@ public static partial class Converters
 
 public class MtastsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool DnsRecordPresent { get; set; }
     public bool DnsRecordValid { get; set; }

@@ -13,6 +13,8 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
 public class TLSRPTAnalysis : IHasAssessments {
+        /// <summary>Domain under analysis.</summary>
+        public string? Subject { get; set; }
         /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
 

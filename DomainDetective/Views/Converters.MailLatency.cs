@@ -16,8 +16,8 @@ public static partial class Converters
         string status = warn > 0 ? "Warning" : "OK";
         return new MailLatencyInfo
         {
-            Check = "LATENCY",
-            Area = AreaFor("LATENCY"),
+            Check = HealthCheckType.MAILLATENCY,
+            Area = AreaForKind(HealthCheckType.MAILLATENCY),
             Subject = null,
             Servers = analysis.ServerResults,
             AverageConnectMs = analysis.ServerResults.Count == 0 ? 0 : (int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds),
@@ -36,8 +36,8 @@ public static partial class Converters
 
 public class MailLatencyInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int AverageConnectMs { get; set; }
     public int AverageBannerMs { get; set; }

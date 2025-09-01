@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new TtlInfo
         {
-            Check = "TTL",
-            Area = AreaFor("TTL"),
+            Check = HealthCheckType.TTL,
+            Area = AreaForKind(HealthCheckType.TTL),
             Subject = analysis.Subject,
             DnssecSigned = analysis.DnsSecSigned,
             ATtls = analysis.ATtls,
@@ -34,8 +34,8 @@ public static partial class Converters
 
 public class TtlInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool DnssecSigned { get; set; }
     public IReadOnlyList<int> ATtls { get; set; }

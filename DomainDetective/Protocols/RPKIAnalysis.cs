@@ -26,6 +26,8 @@ public class RPKIAnalysis : IHasAssessments
 
     /// <summary>Results for each IP address.</summary>
     public List<RPKIResult> Results { get; private set; } = new();
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>Structured assessments captured during RPKI analysis.</summary>
     public List<Assessment> Assessments { get; } = new();
 
@@ -78,6 +80,7 @@ public class RPKIAnalysis : IHasAssessments
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger? logger = null, CancellationToken ct = default)
     {
+        Subject = domainName;
         Results = new List<RPKIResult>();
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RPKI", target: domainName) : null;
         var a = await QueryDns(domainName, DnsRecordType.A);

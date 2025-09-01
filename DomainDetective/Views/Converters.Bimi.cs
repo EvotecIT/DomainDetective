@@ -10,8 +10,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new BimiRecordInfo
         {
-            Check = "BIMI",
-            Area = AreaFor("BIMI"),
+            Check = HealthCheckType.BIMI,
+            Area = AreaForKind(HealthCheckType.BIMI),
             Subject = analysis.Subject,
             BimiRecord = analysis.BimiRecord,
             BimiRecordExists = analysis.BimiRecordExists,
@@ -47,8 +47,8 @@ public static partial class Converters
 
 public class BimiRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string BimiRecord { get; set; }
     public bool BimiRecordExists { get; set; }

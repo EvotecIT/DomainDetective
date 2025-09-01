@@ -16,9 +16,9 @@ public static partial class Converters
         int err = (valid == 0 && total > 0) ? 1 : 0;
         return new FcrDnsInfo
         {
-            Check = "FCRDNS",
-            Area = AreaFor("FCRDNS"),
-            Subject = null,
+            Check = HealthCheckType.FCRDNS,
+            Area = AreaForKind(HealthCheckType.FCRDNS),
+            Subject = analysis.Subject,
             TotalChecked = total,
             ForwardConfirmed = valid,
             Results = analysis.Results,
@@ -36,8 +36,8 @@ public static partial class Converters
 
 public class FcrDnsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int ForwardConfirmed { get; set; }

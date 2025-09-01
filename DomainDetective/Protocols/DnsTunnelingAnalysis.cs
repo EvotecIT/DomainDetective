@@ -10,6 +10,8 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class DnsTunnelingAnalysis : IHasAssessments
 {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>Collection of detected issues.</summary>
     public List<DnsTunnelingAlert> Alerts { get; private set; } = new();
     /// <summary>Maximum queries allowed per <see cref="FrequencyInterval"/>.</summary>
@@ -26,6 +28,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
 
     public void Analyze(string domainName, IEnumerable<string?>? logLines)
     {
+        Subject = domainName;
         Alerts = new List<DnsTunnelingAlert>();
         var queue = new Queue<DateTimeOffset>();
         if (logLines == null)

@@ -16,8 +16,8 @@ public static partial class Converters
         var apexCount = addrCount - mxCount;
         return new IpNeighborInfo
         {
-            Check = "IPNEIGHBOR",
-            Area = AreaFor("IPNEIGHBOR"),
+            Check = HealthCheckType.IPNEIGHBOR,
+            Area = AreaForKind(HealthCheckType.IPNEIGHBOR),
             Subject = analysis.Subject,
             AddressCount = addrCount,
             TotalNeighborDomains = totalDomains,
@@ -36,8 +36,8 @@ public static partial class Converters
 
 public class IpNeighborInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int AddressCount { get; set; }
     public int TotalNeighborDomains { get; set; }

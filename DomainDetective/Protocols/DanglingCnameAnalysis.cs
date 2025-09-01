@@ -16,6 +16,8 @@ namespace DomainDetective;
 /// expose domains to subdomain takeovers.
 /// </remarks>
 public class DanglingCnameAnalysis : IHasAssessments {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>Gets or sets DNS configuration for queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; }
     /// <summary>Gets or sets override for DNS queries.</summary>
@@ -54,6 +56,7 @@ public class DanglingCnameAnalysis : IHasAssessments {
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default) {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CNAME", target: domainName);
+        Subject = domainName;
         CnameRecordExists = false;
         Target = null;
         TargetResolves = false;

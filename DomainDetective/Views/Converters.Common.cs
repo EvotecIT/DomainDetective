@@ -6,15 +6,76 @@ namespace DomainDetective.Views;
 
 public static partial class Converters
 {
-    internal static string AreaFor(string check)
+    internal static AnalysisArea AreaForKind(HealthCheckType check)
     {
-        var c = (check ?? string.Empty).ToUpperInvariant();
-        if (c is "NS" or "SOA" or "EDNS" or "RDNS" or "FCRDNS" or "DNSSEC" or "CAA" or "TTL" or "WILDCARD" or "AXFR" or "APEX") return "DNS";
-        if (c is "MX" or "SPF" or "DKIM" or "DMARC" or "BIMI" or "MTASTS" or "TLSRPT" or "STARTTLS" or "SMTP" or "IMAPTLS" or "POP3TLS" or "SMTPAUTH" or "SMTPBANNER" or "LATENCY" or "SMIMEA" or "AUTODISCOVER" or "OPENRELAY") return "Mail";
-        if (c is "HTTP" or "CERT" or "DANE" or "SECURITYTXT" or "DIRECTORY") return "Web";
-        if (c is "RDAP" or "RPKI" or "DNSBL" or "THREAT" or "THREATFEED" or "IPNEIGHBOR" or "PORTSCAN" or "PORTAVAILABILITY" or "DNSTUNNELING" or "CONTACT") return "Security";
-        return "General";
+        switch (check)
+        {
+            // DNS group
+            case HealthCheckType.NS:
+            case HealthCheckType.SOA:
+            case HealthCheckType.EDNSSUPPORT:
+            case HealthCheckType.REVERSEDNS:
+            case HealthCheckType.FCRDNS:
+            case HealthCheckType.DNSSEC:
+            case HealthCheckType.CAA:
+            case HealthCheckType.TTL:
+            case HealthCheckType.WILDCARDDNS:
+            case HealthCheckType.ZONETRANSFER:
+            case HealthCheckType.DNSHEALTH:
+            case HealthCheckType.APEXADDRESS:
+                return AnalysisArea.DNS;
+
+            // Mail group
+            case HealthCheckType.MX:
+            case HealthCheckType.SPF:
+            case HealthCheckType.DKIM:
+            case HealthCheckType.DMARC:
+            case HealthCheckType.BIMI:
+            case HealthCheckType.MTASTS:
+            case HealthCheckType.TLSRPT:
+            case HealthCheckType.STARTTLS:
+            case HealthCheckType.SMTPTLS:
+            case HealthCheckType.IMAPTLS:
+            case HealthCheckType.POP3TLS:
+            case HealthCheckType.SMTPAUTH:
+            case HealthCheckType.SMTPBANNER:
+            case HealthCheckType.MAILLATENCY:
+            case HealthCheckType.SMIMEA:
+            case HealthCheckType.AUTODISCOVER:
+            case HealthCheckType.OPENRELAY:
+            case HealthCheckType.SPFFLATTENED:
+            case HealthCheckType.MAILCLASSIFICATION:
+                return AnalysisArea.Mail;
+
+            // Web group
+            case HealthCheckType.HTTP:
+            case HealthCheckType.CERT:
+            case HealthCheckType.DANE:
+            case HealthCheckType.SECURITYTXT:
+            case HealthCheckType.DIRECTORYEXPOSURE:
+            case HealthCheckType.WEBSITE:
+                return AnalysisArea.Web;
+
+            // Security/infra group
+            case HealthCheckType.RDAP:
+            case HealthCheckType.RPKI:
+            case HealthCheckType.DNSBL:
+            case HealthCheckType.WHOIS:
+            case HealthCheckType.THREATINTEL:
+            case HealthCheckType.THREATFEED:
+            case HealthCheckType.IPNEIGHBOR:
+            case HealthCheckType.PORTSCAN:
+            case HealthCheckType.PORTAVAILABILITY:
+            case HealthCheckType.DNSTUNNELING:
+            case HealthCheckType.CONTACT:
+                return AnalysisArea.Security;
+
+            default:
+                return AnalysisArea.General;
+        }
     }
+
+    // All converters now use enum-based mapping; string fallback removed.
     internal static IReadOnlyList<string> BuildReferences(IReadOnlyList<StandardReference> refs, IEnumerable<RecommendationAdvice> advices)
     {
         var list = new List<string>();

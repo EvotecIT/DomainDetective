@@ -18,8 +18,8 @@ public static partial class Converters
         }
         return new MailClassificationInfo
         {
-            Check = "MAILCLASS",
-            Area = AreaFor("MX"),
+            Check = HealthCheckType.MAILCLASSIFICATION,
+            Area = AreaForKind(HealthCheckType.MAILCLASSIFICATION),
             Subject = result.Domain,
             Classification = result.Classification.ToString(),
             Confidence = result.Confidence.ToString(),
@@ -41,8 +41,8 @@ public static partial class Converters
 
 public sealed class MailClassificationInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string Classification { get; set; }
     public string Confidence { get; set; }

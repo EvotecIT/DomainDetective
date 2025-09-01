@@ -11,7 +11,8 @@ namespace DomainDetective {
     /// MX records are absent (RFC 5321).
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public sealed class ApexAddressAnalysis {
+public sealed class ApexAddressAnalysis {
+        public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups when needed.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
@@ -161,6 +162,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task AnalyzeAsync(string domainName, InternalLogger? logger = null) {
             Reset();
+            Subject = domainName;
             var a = await QueryDns(domainName, DnsRecordType.A) ?? Array.Empty<DnsAnswer>();
             var aaaa = await QueryDns(domainName, DnsRecordType.AAAA) ?? Array.Empty<DnsAnswer>();
             await AnalyzeApexAnswers(a, aaaa, logger);

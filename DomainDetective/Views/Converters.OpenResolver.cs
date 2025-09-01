@@ -13,8 +13,8 @@ public static partial class Converters
         var total = analysis.ServerDetails?.Count ?? 0;
         return new OpenResolverInfo
         {
-            Check = "OpenResolver",
-            Area = AreaFor("OPENRESOLVER"),
+            Check = HealthCheckType.OPENRESOLVER,
+            Area = AreaForKind(HealthCheckType.OPENRESOLVER),
             Subject = analysis.Subject,
             TotalChecked = total,
             OpenResolvers = openCount,
@@ -33,8 +33,8 @@ public static partial class Converters
 
 public class OpenResolverInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenResolvers { get; set; }

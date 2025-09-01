@@ -11,8 +11,8 @@ public static partial class Converters
         var grade = ComputeHttpGrade(analysis);
         return new HttpInfo
         {
-            Check = "HTTP",
-            Area = AreaFor("HTTP"),
+            Check = HealthCheckType.HTTP,
+            Area = AreaForKind(HealthCheckType.HTTP),
             Subject = analysis.Subject,
             Url = analysis.Subject,
             IsReachable = analysis.IsReachable,
@@ -65,8 +65,8 @@ public static partial class Converters
 
 public class HttpInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string Url { get; set; }
     public bool IsReachable { get; set; }

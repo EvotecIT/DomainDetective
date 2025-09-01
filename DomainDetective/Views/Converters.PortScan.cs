@@ -16,8 +16,8 @@ public static partial class Converters
         var refs = BuildReferences(new List<StandardReference>(), recs);
         return new PortScanInfo
         {
-            Check = "PORTSCAN",
-            Area = AreaFor("PORTSCAN"),
+            Check = HealthCheckType.PORTSCAN,
+            Area = AreaForKind(HealthCheckType.PORTSCAN),
             Subject = null,
             TotalChecked = total,
             OpenTcpCount = openTcp,
@@ -37,8 +37,8 @@ public static partial class Converters
 
 public class PortScanInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenTcpCount { get; set; }

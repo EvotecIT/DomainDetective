@@ -16,8 +16,8 @@ public static partial class Converters
             Summarize(a, out var warnCount, out var errCount, out var status);
             yield return new DkimRecordInfo
             {
-                Check = "DKIM",
-                Area = AreaFor("DKIM"),
+                Check = HealthCheckType.DKIM,
+                Area = AreaForKind(HealthCheckType.DKIM),
                 Subject = analysis.Subject,
                 Selector = kvp.Key,
                 Name = result.Name,
@@ -59,8 +59,8 @@ public static partial class Converters
 
 public class DkimRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string Selector { get; set; }
     public string Name { get; set; }

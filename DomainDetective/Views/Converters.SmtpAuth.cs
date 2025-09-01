@@ -29,8 +29,8 @@ public static partial class Converters
         int avg = servers.Count == 0 ? 0 : (int)System.Math.Round((double)mechSum / servers.Count);
         return new SmtpAuthInfo
         {
-            Check = "SMTPAUTH",
-            Area = AreaFor("SMTPAUTH"),
+            Check = HealthCheckType.SMTPAUTH,
+            Area = AreaForKind(HealthCheckType.SMTPAUTH),
             Subject = analysis.Subject,
             Servers = servers,
             Assessments = assessments,
@@ -47,8 +47,8 @@ public static partial class Converters
 
 public class SmtpAuthInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<SmtpAuthServerInfo> Servers { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }

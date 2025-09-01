@@ -112,5 +112,16 @@ public enum HealthCheckType {
     /// <summary>Check for exposed directories.</summary>
     DIRECTORYEXPOSURE,
     /// <summary>Query NTP servers for clock information.</summary>
-    NTP
+    NTP,
+    /// <summary>Composite website check (certificate + HTTP security).</summary>
+    WEBSITE
+    ,
+    /// <summary>WHOIS registration lookup.</summary>
+    WHOIS,
+    /// <summary>Apex A/AAAA analysis (SMTP fallback posture).</summary>
+    APEXADDRESS,
+    /// <summary>Flattened SPF (IPs expanded from mechanisms).</summary>
+    SPFFLATTENED,
+    /// <summary>Mail domain classification (sending/receiving posture).</summary>
+    MAILCLASSIFICATION
 }

@@ -14,9 +14,9 @@ public static partial class Converters
         var open = analysis.ServerResults?.Count(kv => kv.Value) ?? 0;
         return new ZoneTransferInfo
         {
-            Check = "AXFR",
-            Area = AreaFor("AXFR"),
-            Subject = null,
+            Check = HealthCheckType.ZONETRANSFER,
+            Area = AreaForKind(HealthCheckType.ZONETRANSFER),
+            Subject = analysis.Subject,
             TotalChecked = total,
             OpenCount = open,
             ServerResults = analysis.ServerResults,
@@ -34,8 +34,8 @@ public static partial class Converters
 
 public class ZoneTransferInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenCount { get; set; }

@@ -16,6 +16,7 @@ namespace DomainDetective {
             await AutodiscoverAnalysis.Analyze(domainName, DnsConfiguration, _logger, cancellationToken);
             AutodiscoverHttpAnalysis = new AutodiscoverHttpAnalysis();
             await AutodiscoverHttpAnalysis.Analyze(domainName, _logger, cancellationToken);
+            AutodiscoverAnalysis.SetHttpEndpoints(AutodiscoverHttpAnalysis.Endpoints);
         }
     }
 }

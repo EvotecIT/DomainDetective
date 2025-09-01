@@ -12,7 +12,9 @@ namespace DomainDetective {
     /// Attempts AXFR queries to determine if name servers allow unauthenticated zone transfers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class ZoneTransferAnalysis : IHasAssessments {
+public class ZoneTransferAnalysis : IHasAssessments {
+        /// <summary>Domain (zone) under test.</summary>
+        public string? Subject { get; set; }
         /// <summary>Dictionary mapping server name to transfer allowance.</summary>
         public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
@@ -29,6 +31,7 @@ namespace DomainDetective {
         /// <param name="logger">Optional logger instance.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
         public async Task AnalyzeServers(string domain, IEnumerable<string> nameServers, InternalLogger logger, CancellationToken cancellationToken = default) {
+            Subject = domain;
             ServerResults.Clear();
             foreach (var server in nameServers.Where(s => !string.IsNullOrWhiteSpace(s))) {
                 cancellationToken.ThrowIfCancellationRequested();

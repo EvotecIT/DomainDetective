@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new DirectoryExposureInfo
         {
-            Check = "DIR",
-            Area = AreaFor("DIRECTORY"),
+            Check = HealthCheckType.DIRECTORYEXPOSURE,
+            Area = AreaForKind(HealthCheckType.DIRECTORYEXPOSURE),
             Subject = analysis.Subject,
             ExposedPaths = analysis.ExposedPaths,
             ExposedCount = analysis.ExposedPaths?.Count ?? 0,
@@ -30,8 +30,8 @@ public static partial class Converters
 
 public class DirectoryExposureInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int ExposedCount { get; set; }
     public IReadOnlyList<string> ExposedPaths { get; set; }

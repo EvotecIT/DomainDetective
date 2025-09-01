@@ -13,7 +13,7 @@ public static partial class Converters
         var flagged = findings.Count(f => f.Listed);
         return new ThreatIntelInfo
         {
-            Check = "THREATINTEL",
+            Check = HealthCheckType.THREATINTEL,
             Subject = analysis.Subject,
             RiskScore = analysis.RiskScore,
             Listings = findings,
@@ -32,7 +32,7 @@ public static partial class Converters
 
 public class ThreatIntelInfo
 {
-    public string Check { get; set; }
+    public HealthCheckType Check { get; set; }
     public string Subject { get; set; }
     public int? RiskScore { get; set; }
     public IReadOnlyList<ThreatListing> Listings { get; set; }

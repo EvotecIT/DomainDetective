@@ -10,8 +10,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new DaneRecordInfo
         {
-            Check = "DANE",
-            Area = AreaFor("DANE"),
+            Check = HealthCheckType.DANE,
+            Area = AreaForKind(HealthCheckType.DANE),
             Subject = analysis.Subject,
             NumberOfRecords = analysis.NumberOfRecords,
             HasDuplicateRecords = analysis.HasDuplicateRecords,
@@ -32,8 +32,8 @@ public static partial class Converters
 
 public class DaneRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int NumberOfRecords { get; set; }
     public bool HasDuplicateRecords { get; set; }

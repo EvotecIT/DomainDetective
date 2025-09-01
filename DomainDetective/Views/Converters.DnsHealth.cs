@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new DnsHealthInfo
         {
-            Check = "DNSHEALTH",
-            Area = AreaFor("NS"),
+            Check = HealthCheckType.DNSHEALTH,
+            Area = AnalysisArea.DNS,
             Subject = analysis.Subject,
             NameServers = analysis.NameServers,
             SoaSerialByServer = analysis.SoaSerialByServer,
@@ -32,8 +32,8 @@ public static partial class Converters
 
 public class DnsHealthInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> NameServers { get; set; }
     public IReadOnlyDictionary<string, long> SoaSerialByServer { get; set; }
@@ -49,4 +49,3 @@ public class DnsHealthInfo
     public IReadOnlyList<string> References { get; set; }
     public DnsHealthAnalysis Raw { get; set; }
 }
-

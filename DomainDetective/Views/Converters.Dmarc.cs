@@ -9,8 +9,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new DmarcRecordInfo
         {
-            Check = "DMARC",
-            Area = AreaFor("DMARC"),
+            Check = HealthCheckType.DMARC,
+            Area = AreaForKind(HealthCheckType.DMARC),
             Subject = analysis.Subject,
             DmarcRecord = analysis.DmarcRecord,
             DmarcRecordExists = analysis.DmarcRecordExists,
@@ -47,8 +47,8 @@ public static partial class Converters
 
 public class DmarcRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string DmarcRecord { get; set; }
     public bool DmarcRecordExists { get; set; }

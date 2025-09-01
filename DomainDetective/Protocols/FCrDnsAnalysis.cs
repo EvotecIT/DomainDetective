@@ -13,6 +13,8 @@ namespace DomainDetective;
 /// </summary>
 public class FCrDnsAnalysis
 {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>DNS client configuration.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     /// <summary>Override for DNS queries during testing.</summary>

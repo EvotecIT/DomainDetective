@@ -14,8 +14,8 @@ public static partial class Converters
         var allows = analysis.ServerResults?.Count(kv => kv.Value?.Status == OpenRelayStatus.AllowsRelay) ?? 0;
         return new OpenRelayInfo
         {
-            Check = "OPENRELAY",
-            Area = AreaFor("OPENRELAY"),
+            Check = HealthCheckType.OPENRELAY,
+            Area = AreaForKind(HealthCheckType.OPENRELAY),
             Subject = null,
             TotalChecked = total,
             OpenAllowed = allows,
@@ -34,8 +34,8 @@ public static partial class Converters
 
 public class OpenRelayInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenAllowed { get; set; }

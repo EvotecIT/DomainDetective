@@ -10,8 +10,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new DnssecStatusInfo
         {
-            Check = "DNSSEC",
-            Area = AreaFor("DNSSEC"),
+            Check = HealthCheckType.DNSSEC,
+            Area = AreaForKind(HealthCheckType.DNSSEC),
             Subject = analysis.Subject,
             AuthenticData = analysis.AuthenticData,
             DsAuthenticData = analysis.DsAuthenticData,
@@ -32,8 +32,8 @@ public static partial class Converters
 
 public class DnssecStatusInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool AuthenticData { get; set; }
     public bool DsAuthenticData { get; set; }

@@ -11,9 +11,9 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new DnsTunnelingInfo
         {
-            Check = "DNSTUNNELING",
-            Area = AreaFor("DNSTUNNELING"),
-            Subject = null,
+            Check = HealthCheckType.DNSTUNNELING,
+            Area = AreaForKind(HealthCheckType.DNSTUNNELING),
+            Subject = analysis.Subject,
             Alerts = analysis.Alerts,
             AlertCount = analysis.Alerts?.Count ?? 0,
             Assessments = assessments,
@@ -30,8 +30,8 @@ public static partial class Converters
 
 public class DnsTunnelingInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int AlertCount { get; set; }
     public IReadOnlyList<DnsTunnelingAlert> Alerts { get; set; }

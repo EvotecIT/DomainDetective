@@ -17,6 +17,7 @@ namespace DomainDetective {
             var rdnsHosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
             ReverseDnsAnalysis.Subject = domainName;
             await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
+            FcrDnsAnalysis.Subject = domainName;
             await FcrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
         }
     }

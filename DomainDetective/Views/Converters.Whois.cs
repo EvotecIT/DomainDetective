@@ -15,8 +15,8 @@ public static partial class Converters
         if (DateTimeOffset.TryParse(analysis.ExpiryDate, out var d)) expiry = d;
         return new WhoisInfo
         {
-            Check = "WHOIS",
-            Area = AreaFor("WHOIS"),
+            Check = HealthCheckType.WHOIS,
+            Area = AreaForKind(HealthCheckType.WHOIS),
             Subject = analysis.DomainName,
             WhoisServer = analysis.WhoisServerUsed,
             LookupSource = analysis.WhoisLookupSource,
@@ -43,8 +43,8 @@ public static partial class Converters
 
 public class WhoisInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string WhoisServer { get; set; }
     public string LookupSource { get; set; }

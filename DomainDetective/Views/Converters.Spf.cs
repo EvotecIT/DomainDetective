@@ -10,8 +10,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new SpfRecordInfo
         {
-            Check = "SPF",
-            Area = AreaFor("SPF"),
+            Check = HealthCheckType.SPF,
+            Area = AreaForKind(HealthCheckType.SPF),
             Subject = analysis.Subject,
             SpfRecord = analysis.SpfRecord,
             RecordLength = analysis?.SpfRecord?.Length ?? 0,
@@ -38,8 +38,8 @@ public static partial class Converters
 
 public class SpfRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string SpfRecord { get; set; }
     public int RecordLength { get; set; }

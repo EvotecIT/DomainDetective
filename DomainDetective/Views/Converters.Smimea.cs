@@ -13,8 +13,8 @@ public static partial class Converters
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new SmimeaRecordInfo
         {
-            Check = "SMIMEA",
-            Area = AreaFor("SMIMEA"),
+            Check = HealthCheckType.SMIMEA,
+            Area = AreaForKind(HealthCheckType.SMIMEA),
             Subject = analysis.Subject,
             NumberOfRecords = total,
             ValidRecords = valid,
@@ -33,8 +33,8 @@ public static partial class Converters
 
 public class SmimeaRecordInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int NumberOfRecords { get; set; }
     public int ValidRecords { get; set; }

@@ -35,8 +35,8 @@ public static partial class Converters
 
         return new DnsblInfo
         {
-            Check = "DNSBL",
-            Area = AreaFor("DNSBL"),
+            Check = HealthCheckType.DNSBL,
+            Area = AreaForKind(HealthCheckType.DNSBL),
             Subject = subject,
             ProvidersChecked = analysis.GetDNSBL().Count,
             HostsChecked = analysis.RecordChecked,
@@ -57,8 +57,8 @@ public static partial class Converters
 
 public class DnsblInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int ProvidersChecked { get; set; }
     public int HostsChecked { get; set; }

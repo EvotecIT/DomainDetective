@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = analysis is IHasAssessments h2 ? RecommendationEngine.From(h2.Assessments) : new List<RecommendationAdvice>();
         return new MxInfo
         {
-            Check = "MX",
-            Area = AreaFor("MX"),
+            Check = HealthCheckType.MX,
+            Area = AreaForKind(HealthCheckType.MX),
             Subject = analysis.Subject,
             MxRecords = analysis.MxRecords,
             MxRecordExists = analysis.MxRecordExists,
@@ -41,8 +41,8 @@ public static partial class Converters
 
 public class MxInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> MxRecords { get; set; }
     public bool MxRecordExists { get; set; }

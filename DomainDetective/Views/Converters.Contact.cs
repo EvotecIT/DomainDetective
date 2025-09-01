@@ -13,9 +13,9 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new ContactInfo
         {
-            Check = "CONTACT",
-            Area = AreaFor("CONTACT"),
-            Subject = null,
+            Check = HealthCheckType.CONTACT,
+            Area = AreaForKind(HealthCheckType.CONTACT),
+            Subject = analysis.Subject,
             RecordExists = analysis.RecordExists,
             ContactRecord = analysis.ContactRecord,
             Fields = analysis.Fields,
@@ -33,8 +33,8 @@ public static partial class Converters
 
 public class ContactInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool RecordExists { get; set; }
     public string ContactRecord { get; set; }

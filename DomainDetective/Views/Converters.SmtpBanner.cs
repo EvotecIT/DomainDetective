@@ -36,8 +36,8 @@ public static partial class Converters
         }
         return new SmtpBannerInfo
         {
-            Check = "SMTPBANNER",
-            Area = AreaFor("SMTPBANNER"),
+            Check = HealthCheckType.SMTPBANNER,
+            Area = AreaForKind(HealthCheckType.SMTPBANNER),
             Subject = analysis.Subject,
             ExpectedHostname = analysis.ExpectedHostname,
             ExpectedSoftware = analysis.ExpectedSoftware,
@@ -56,8 +56,8 @@ public static partial class Converters
 
 public class SmtpBannerInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string ExpectedHostname { get; set; }
     public string ExpectedSoftware { get; set; }

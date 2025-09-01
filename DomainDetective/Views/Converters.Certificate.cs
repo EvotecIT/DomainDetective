@@ -7,8 +7,8 @@ public static partial class Converters {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.From(analysis.Assessments);
         return new CertificateInfo {
-            Check = "CERT",
-            Area = AreaFor("CERT"),
+            Check = HealthCheckType.CERT,
+            Area = AreaForKind(HealthCheckType.CERT),
             Subject = analysis.Subject,
             Url = analysis.Url ?? analysis.Subject,
             IsReachable = analysis.IsReachable,
@@ -47,8 +47,8 @@ public static partial class Converters {
 }
 
 public class CertificateInfo {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public string Url { get; set; }
     public bool IsReachable { get; set; }

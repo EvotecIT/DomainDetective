@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new SecurityTxtInfo
         {
-            Check = "SECURITYTXT",
-            Area = AreaFor("SECURITYTXT"),
+            Check = HealthCheckType.SECURITYTXT,
+            Area = AreaForKind(HealthCheckType.SECURITYTXT),
             Subject = analysis.Domain,
             RecordPresent = analysis.RecordPresent,
             RecordValid = analysis.RecordValid,
@@ -44,8 +44,8 @@ public static partial class Converters
 
 public class SecurityTxtInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool RecordPresent { get; set; }
     public bool RecordValid { get; set; }

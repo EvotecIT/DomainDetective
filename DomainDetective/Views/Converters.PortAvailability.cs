@@ -17,8 +17,8 @@ public static partial class Converters
         }
         return new PortAvailabilityInfo
         {
-            Check = "PortAvailability",
-            Area = AreaFor("PORTAVAILABILITY"),
+            Check = HealthCheckType.PORTAVAILABILITY,
+            Area = AreaForKind(HealthCheckType.PORTAVAILABILITY),
             Subject = null,
             TotalChecked = total,
             OpenCount = open,
@@ -30,8 +30,8 @@ public static partial class Converters
 
 public class PortAvailabilityInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenCount { get; set; }

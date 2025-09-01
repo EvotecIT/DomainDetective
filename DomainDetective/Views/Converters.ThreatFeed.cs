@@ -14,7 +14,7 @@ public static partial class Converters
         var listings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed }).ToList() ?? new List<ThreatListing>();
         return new ThreatFeedInfo
         {
-            Check = "THREATFEED",
+            Check = HealthCheckType.THREATFEED,
             Subject = analysis.Subject,
             Listings = listings,
             FailureReason = analysis.FailureReason,
@@ -31,7 +31,7 @@ public static partial class Converters
 
 public class ThreatFeedInfo
 {
-    public string Check { get; set; }
+    public HealthCheckType Check { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<ThreatListing> Listings { get; set; }
     public string FailureReason { get; set; }

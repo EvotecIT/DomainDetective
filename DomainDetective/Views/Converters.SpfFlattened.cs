@@ -11,9 +11,9 @@ public static partial class Converters
         var dupes = result.DuplicateIps?.Count ?? 0;
         return new SpfFlattenedInfo
         {
-            Check = "SPF-FLAT",
-            Area = AreaFor("SPF"),
-            Subject = null,
+            Check = HealthCheckType.SPFFLATTENED,
+            Area = AreaForKind(HealthCheckType.SPFFLATTENED),
+            Subject = result.Subject,
             Tokens = result.Tokens,
             TokenIpMap = result.TokenIpMap,
             UniqueIps = result.UniqueIps,
@@ -32,8 +32,8 @@ public static partial class Converters
 
 public sealed class SpfFlattenedInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> Tokens { get; set; }
     public IReadOnlyDictionary<string, List<string>> TokenIpMap { get; set; }

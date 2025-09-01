@@ -32,6 +32,8 @@ public record EdnsSupportInfo
 /// <para>Part of the DomainDetective project.</para>
 public class EdnsSupportAnalysis : IHasAssessments
 {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>EDNS support results keyed by server.</summary>
     public Dictionary<string, EdnsSupportInfo> ServerSupport { get; private set; } = new();
 
@@ -214,6 +216,7 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// <param name="logger">Optional logger.</param>
     public async Task Analyze(string domainName, InternalLogger logger)
     {
+        Subject = domainName;
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
         var ns = await QueryDns(domainName, DnsRecordType.NS);

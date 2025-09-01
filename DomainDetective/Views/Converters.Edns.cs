@@ -22,9 +22,9 @@ public static partial class Converters
         var truncated = entries.Count(e => e.TruncatedUdp);
         return new EdnsSupportSummary
         {
-            Check = "EDNS",
-            Area = AreaFor("EDNS"),
-            Subject = null,
+            Check = HealthCheckType.EDNSSUPPORT,
+            Area = AreaForKind(HealthCheckType.EDNSSUPPORT),
+            Subject = analysis.Subject,
             TotalChecked = total,
             SupportedCount = supported,
             NotSupportedCount = notSupported,
@@ -43,8 +43,8 @@ public static partial class Converters
 
 public class EdnsSupportSummary
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int SupportedCount { get; set; }

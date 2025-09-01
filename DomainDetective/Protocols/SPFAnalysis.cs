@@ -690,7 +690,7 @@ namespace DomainDetective {
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
-                FlattenedIpAnalysis = new FlattenedSpfResult();
+                FlattenedIpAnalysis = new FlattenedSpfResult { Subject = domainName };
                 return FlattenedIpAnalysis;
             }
 
@@ -735,6 +735,7 @@ namespace DomainDetective {
             }
 
             FlattenedIpAnalysis = new FlattenedSpfResult {
+                Subject = domainName,
                 Tokens = tokens,
                 TokenIpMap = tokenIpMap,
                 UniqueIps = addresses.ToList(),
@@ -1153,6 +1154,7 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class FlattenedSpfResult {
+        public string? Subject { get; set; }
         public List<string> Tokens { get; set; } = new List<string>();
         public Dictionary<string, List<string>> TokenIpMap { get; set; } = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         public List<string> UniqueIps { get; set; } = new List<string>();

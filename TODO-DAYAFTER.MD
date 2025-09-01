@@ -63,16 +63,27 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
   - [x] SCT presence count; advisory when none embedded
 
 ## Type Consistency & Views
-- [ ] Normalize `Subject` type usage across converters (domain vs host:port vs URL); document per‑converter expectations.
-- [x] Add `Area` mapping in views for grouping (Mail/DNS/Web/Security) and expose in CLI/PS renders.
+- [x] Replace string `Area`/`Check` with enums across views
+  - [x] Add `AnalysisArea { General, DNS, Mail, Web, Security }`
+  - [x] Use `HealthCheckType` for `Check` (HTTP, CERT, DANE, DNSHEALTH, MX, SPF, DKIM, DMARC, NS, SOA, EDNSSUPPORT, WILDCARDDNS, ZONETRANSFER, OPENRESOLVER, OPENRELAY, STARTTLS, SMTPTLS, IMAPTLS, POP3TLS, SMTPBANNER, SMTPAUTH, TLSRPT, MTASTS, SMIMEA, DNSBL, RDAP, WHOIS, RPKI, IPNEIGHBOR, PORTSCAN, PORTAVAILABILITY, DNSTUNNELING, SECURITYTXT, WEBSITE, APEXADDRESS, SPFFLATTENED, MAILCLASSIFICATION)
+  - [x] Update `Converters.AreaForKind(HealthCheckType)` and remove legacy string mapping
+  - [x] CLI/PS renderers consume enums (render via `ToString()`); JSON uses enum-as-string
 - [x] Add single‑line `Summary` per view for compact dashboards.
 - [x] SPF view: add `RecordLength`, ensure `DnsLookupsCount` naming is consistent; align recommendations to RFC 7208 size and lookup limits.
 - [x] Ensure status/warning/error counts aggregate identically in C#, CLI JSON, and PS outputs.
-- [ ] Replace string `Area`/`Check` with enums across all views
-  - [ ] Add `AnalysisArea { General, DNS, Mail, Web, Security }`
-  - [ ] Use `HealthCheckType` for `Check` where applicable; add `WEBSITE` to cover composite view or introduce `ViewKind { Website, ... }` for non-check views
-  - [ ] Update `Converters.AreaFor` to return `AnalysisArea` and refactor all converters to set enum values
-  - [ ] Update CLI/PS renderers to consume enums (render as strings) and adjust JSON output (enum-as-string is already enabled)
+- [x] Normalize `Subject` usage across major converters
+  - [x] Set Subject for: Autodiscover, RPKI, TLSRPT, EDNSSUPPORT, ZONETRANSFER, DANGLINGCNAME, CONTACT, DNSTUNNELING, SPF‑FLAT, FCRDNS, APEXADDRESS
+  - [ ] Decide policy for multi‑host views (PortScan/PortAvailability/MailLatency) — leave blank vs “host:port” for single‑target runs; document choice
+  - [ ] Review DNSBL view Subject (currently picks representative key) — consider explicit domain Subject alongside per‑host lists
+
+## Autodiscover (Enrichment & Coverage)
+- [x] Aggregate HTTP endpoints into Autodiscover view (attempt counts, success, best URL/status, redirects, HTTPS/HTTP split)
+- [ ] Expand endpoint coverage and validation
+  - [ ] Follow redirect chains to final host and record it (o365, etc.)
+  - [ ] Optional content sniff (first KB) to detect HTML error pages vs XML
+  - [ ] Validate XML root/namespace against expected Autodiscover schema
+  - [ ] Advisory when CNAME → outlook.com but HTTP flow fails (network/SNI hint)
+  - [ ] CLI/PS: toggle to display top endpoint verdict inline
 
 ## DNS Resolver Override (PS + Core)
 - [ ] Validate IPv4/IPv6 endpoints; allow multiple resolvers with first‑success semantics (extend `DnsConfiguration`).
@@ -89,14 +100,15 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 - [x] Optional export params `-CsvPath` and `-Json` for records/summaries.
 
 ## Testing & Validation
-- [ ] Snapshot tests for updated converters to verify `Status`, `WarningCount`, `ErrorCount`, `References`.
+- [ ] Snapshot tests for updated converters (Autodiscover, TLSRPT, EDNSSUPPORT, RPKI) to verify `Status`, counts, `Summary`, `References`.
 - [ ] Integration tests: confirm assessments appear under correct `Subject` scopes (e.g., per‑server).
 - [ ] Pester smoke tests: adapt deep asserts to `view.Raw`.
 
 ## Docs
 - [ ] Extend XML examples for enums/classes (TLS enums, DnsEndpoint usage, etc.).
 - [ ] Cmdlet XML remarks: “Outputs a view object with full raw analysis at Raw”.
-- [ ] Add quick dashboards examples in `Docs/REPORTING_USAGE.MD` using Select‑Object, and `view.Raw` for deep data.
+- [ ] Add dashboard examples in `Docs/REPORTING_USAGE.MD` using Select‑Object, and `view.Raw` for deep data.
+- [ ] Document Subject conventions per view (domain vs host:port vs URL) and rationale.
 
 ## Providers & Recommendations (Remaining)
 - [x] WHOIS provider (query failure, parsing anomalies).
@@ -108,10 +120,31 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 - [x] HTTP advice examples/snippets (nginx/Apache/Cloudflare) in `How` for common fixes).
 - [x] Header value quality checks (e.g., X‑Frame‑Options values; X-Content-Type-Options).
 
+## Next Session — Stretch Goals
+- HTTP hardening
+  - [ ] Add COOP/COEP/CORP advisories with remediation snippets
+  - [ ] Expand CSP linting (unsafe-inline/unsafe-eval detection; report-only guidance)
+  - [ ] Permissions‑Policy value validation and common templates
+- WHOIS/RDAP
+  - [ ] Add vendor‑specific WHOIS parsers beyond generic EU fallback (e.g., .de, .uk nuances)
+  - [ ] Cache/TTL policy docs and tunables for rate‑limited registries
+- Threat Intel
+  - [ ] Score aggregation (severity/recency weighting) and normalized confidence
+  - [ ] Passive DNS cache to reduce rate‑limits and speed neighbor checks
+- CLI/PS UX
+  - [ ] Wizard HTML export (parity with JSON; reuse posture panels)
+  - [ ] Inline Autodiscover endpoint verdict row in summaries (toggle)
+  - [ ] Persona: optional concise mode to cap line length per stage
+- TLS/Email
+  - [ ] Extend mail TLS cipher reporting (curve/key exchange) and weak suites mapping
+  - [ ] DKIM: add more provider selector heuristics and tests
+- Validation
+  - [ ] Add snapshot tests for enriched Autodiscover and Subject policies
+
 ## Persona (CLI + PowerShell)
-- [ ] Ensure persona formatting parity between CLI and PowerShell (AssessmentNarrator + PersonaKind shared usage) in docs and examples.
-- [ ] Document persona toggles: CLI `--persona`, `--persona-live`, `--persona-verbose`; PS `Set‑DDPersona` and wizard defaults.
-- [ ] Add examples showing per‑section persona log panels paired with recommendations (already in CLI — ensure PS docs show equivalent experience).
+- [x] Ensure persona formatting parity between CLI and PowerShell (AssessmentNarrator + PersonaKind shared usage) in docs and examples.
+- [x] Document persona toggles: CLI `--persona`, `--persona-live`, `--persona-verbose`; PS `Set‑DDPersona` and wizard defaults.
+- [x] Add examples showing per‑section persona log panels paired with recommendations (already in CLI — ensure PS docs show equivalent experience).
 
 ### Persona — Definition & Behavior
 - Concept: A persona is a presentation layer for logging and assessment narration. It applies consistent icons, colors, phrasing, and optional emojis to every Info/Warning/Error the user sees in console UIs (CLI and PowerShell). It never alters JSON/HTML payloads.

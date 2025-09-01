@@ -14,6 +14,8 @@ namespace DomainDetective;
 /// multiple fields such as contact email addresses or policy links.
 /// </remarks>
 public class ContactInfoAnalysis {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; set; }
     /// <summary>Raw contact TXT record.</summary>
     public string? ContactRecord { get; private set; }
 

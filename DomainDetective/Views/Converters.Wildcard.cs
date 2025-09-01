@@ -11,8 +11,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         return new WildcardDnsInfo
         {
-            Check = "WILDCARD",
-            Area = AreaFor("WILDCARD"),
+            Check = HealthCheckType.WILDCARDDNS,
+            Area = AreaForKind(HealthCheckType.WILDCARDDNS),
             Subject = null,
             CatchAll = analysis.CatchAll,
             SoaExists = analysis.SoaExists,
@@ -34,8 +34,8 @@ public static partial class Converters
 
 public class WildcardDnsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public bool CatchAll { get; set; }
     public bool SoaExists { get; set; }

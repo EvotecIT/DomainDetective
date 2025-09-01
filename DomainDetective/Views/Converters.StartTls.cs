@@ -24,8 +24,8 @@ public static partial class Converters
         }).ToList() ?? new List<StartTlsServerInfo>();
         return new StartTlsInfo
         {
-            Check = "STARTTLS",
-            Area = AreaFor("STARTTLS"),
+            Check = HealthCheckType.STARTTLS,
+            Area = AreaForKind(HealthCheckType.STARTTLS),
             Subject = analysis.Subject,
             Servers = entries,
             Assessments = analysis.Assessments,
@@ -42,8 +42,8 @@ public static partial class Converters
 
 public class StartTlsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<StartTlsServerInfo> Servers { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }

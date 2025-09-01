@@ -28,8 +28,8 @@ public static partial class Converters
         var mixed = http?.MixedContentDetected ?? false;
 
         return new WebsiteInfo {
-            Check = "WEBSITE",
-            Area = AreaFor("HTTP"),
+            Check = HealthCheckType.WEBSITE,
+            Area = AreaForKind(HealthCheckType.WEBSITE),
             Subject = subject,
             Certificate = cert,
             Http = http,
@@ -50,8 +50,8 @@ public static partial class Converters
 
 public class WebsiteInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public CertificateInfo Certificate { get; set; }
     public HttpInfo Http { get; set; }

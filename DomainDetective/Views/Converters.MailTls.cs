@@ -50,10 +50,11 @@ public static partial class Converters
         string gradesSummary = gradeCounts.Count > 0
             ? string.Join("/", new[]{GradeLevel.A,GradeLevel.B,GradeLevel.C,GradeLevel.D,GradeLevel.F}.Select(g => gradeCounts.TryGetValue(g, out var c) ? c.ToString() : "0"))
             : string.Empty;
+        var kind = check switch { "SMTPTLS" => HealthCheckType.SMTPTLS, "IMAPTLS" => HealthCheckType.IMAPTLS, "POP3TLS" => HealthCheckType.POP3TLS, _ => HealthCheckType.STARTTLS };
         return new MailTlsInfo
         {
-            Check = check,
-            Area = AreaFor(check),
+            Check = kind,
+            Area = AreaForKind(kind),
             Subject = analysis.Subject,
             Servers = servers,
             Assessments = analysis.Assessments,
@@ -70,8 +71,8 @@ public static partial class Converters
 
 public class MailTlsInfo
 {
-    public string Check { get; set; }
-    public string Area { get; set; }
+    public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<MailTlsServerInfo> Servers { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
