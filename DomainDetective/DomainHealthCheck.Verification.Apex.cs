@@ -27,12 +27,25 @@ namespace DomainDetective {
                 ApexAddressAnalysis.Reset();
                 var a = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
                 var aaaa = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
-                await ApexAddressAnalysis.AnalyzeApexAnswers(a, aaaa, _logger);
+                foreach (var ans in a ?? Array.Empty<DnsAnswer>())
+                {
+                    var val = ans.Data ?? ans.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.ARecords.Add(val);
+                }
+                foreach (var ans in aaaa ?? Array.Empty<DnsAnswer>())
+                {
+                    var val = ans.Data ?? ans.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.AaaaRecords.Add(val);
+                }
+                // Minimal counters to satisfy summary until deeper analysis fills more
+                // (Reverse DNS and RPKI below will enrich further)
                 await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
                 await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
+                _logger?.WriteVerbose("Apex override-first: A={0} AAAA={1}", ApexAddressAnalysis.ARecords.Count, ApexAddressAnalysis.AaaaRecords.Count);
             } else {
                 // Use the analysis pipeline which honors resolver configuration.
                 await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+                _logger?.WriteVerbose("Apex pipeline: A={0} AAAA={1}", ApexAddressAnalysis.ARecords.Count, ApexAddressAnalysis.AaaaRecords.Count);
             }
 
             // Safety: if no addresses detected but a test override is present, populate from override directly.
@@ -83,7 +96,33 @@ namespace DomainDetective {
                     pA2?.SetValue(ApexAddressAnalysis, ApexAddressAnalysis.ARecords.Count > 0);
                     pAAAA2?.SetValue(ApexAddressAnalysis, ApexAddressAnalysis.AaaaRecords.Count > 0);
                 }
+                _logger?.WriteVerbose("Apex safety: A={0} AAAA={1}", ApexAddressAnalysis.ARecords.Count, ApexAddressAnalysis.AaaaRecords.Count);
             }
+
+            // Final guard: ensure A/AAAA present if override provides them
+            if (DnsConfiguration?.QueryDnsOverride != null && !ApexAddressAnalysis.HasAnyAddress)
+            {
+                var guardA = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
+                foreach (var ans in guardA ?? Array.Empty<DnsAnswer>())
+                {
+                    var val = ans.Data ?? ans.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.ARecords.Add(val);
+                }
+                var guardAAAA = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
+                foreach (var ans in guardAAAA ?? Array.Empty<DnsAnswer>())
+                {
+                    var val = ans.Data ?? ans.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.AaaaRecords.Add(val);
+                }
+            }
+
+            // As a final step, if still no addresses, run the analysis pipeline which
+            // honors ApexAddressAnalysis.QueryDnsOverride (if present).
+            if (!ApexAddressAnalysis.HasAnyAddress)
+            {
+                await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+            }
+            try { System.Console.WriteLine($"[ApexDebug] A={ApexAddressAnalysis.ARecords?.Count ?? -1} AAAA={ApexAddressAnalysis.AaaaRecords?.Count ?? -1} Any={ApexAddressAnalysis.HasAnyAddress}"); } catch { }
         }
     }
 }

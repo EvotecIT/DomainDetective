@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -20,6 +21,12 @@ public static partial class Converters
                 Capabilities = caps ?? System.Array.Empty<string>()
             });
         }
+        int mechSum = 0;
+        foreach (var s in servers)
+        {
+            mechSum += s.Mechanisms?.Count ?? 0;
+        }
+        int avg = servers.Count == 0 ? 0 : (int)System.Math.Round((double)mechSum / servers.Count);
         return new SmtpAuthInfo
         {
             Check = "SMTPAUTH",
@@ -30,7 +37,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"servers {servers.Count}; mechanisms avg {(servers.Count==0?0: (int)System.Math.Round(servers.Average(s => s.Mechanisms?.Count ?? 0)))}",
+            Summary = $"servers {servers.Count}; mechanisms avg {avg}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc4954", "https://www.rfc-editor.org/rfc/rfc6152" },
             Raw = analysis

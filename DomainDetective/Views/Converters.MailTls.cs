@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -37,6 +38,11 @@ public static partial class Converters
                 CertificateNotAfter = r.CertificateNotAfter
             });
         }
+        int validCount = 0;
+        foreach (var s in servers)
+        {
+            if (s.CertificateValid) validCount++;
+        }
         return new MailTlsInfo
         {
             Check = check,
@@ -47,7 +53,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"servers {servers.Count}; valid cert {servers.Count(s => s.CertificateValid)}/{servers.Count}",
+            Summary = $"servers {servers.Count}; valid cert {validCount}/{servers.Count}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207", "https://www.rfc-editor.org/rfc/rfc8314" },
             Raw = analysis

@@ -28,11 +28,11 @@ namespace DomainDetective {
             RegexOptions.Compiled);
 
         private static bool IsValidPtrName(string name) {
-            if (string.IsNullOrWhiteSpace(name) || !name.EndsWith(".", StringComparison.Ordinal)) {
+            if (string.IsNullOrWhiteSpace(name)) {
                 return false;
             }
 
-            var labels = name.TrimEnd('.').Split('.');
+            var labels = name.Trim().TrimEnd('.').Split('.');
             foreach (var label in labels) {
                 if (!_labelRegex.IsMatch(label)) {
                     return false;
@@ -124,7 +124,7 @@ namespace DomainDetective {
 
                     var ptrs = new List<string>();
                     foreach (var ans in ptrAnswers) {
-                        var rawPtr = ans.Data;
+                        var rawPtr = ans.Data ?? ans.DataRaw;
                         if (IsValidPtrName(rawPtr)) {
                             var norm = rawPtr.Trim().TrimEnd('.').ToLowerInvariant();
                             ptrs.Add(norm);

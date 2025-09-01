@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -28,6 +29,11 @@ public static partial class Converters
                 ResponseTimeMs = r?.ResponseTimeMs
             });
         }
+        int hostMatch = 0;
+        foreach (var s in servers)
+        {
+            if (s.HostnameMatch) hostMatch++;
+        }
         return new SmtpBannerInfo
         {
             Check = "SMTPBANNER",
@@ -40,7 +46,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"servers {servers.Count}; hostname match {servers.Count(s => s.HostnameMatch)}/{servers.Count}",
+            Summary = $"servers {servers.Count}; hostname match {hostMatch}/{servers.Count}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
             Raw = analysis
