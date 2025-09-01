@@ -9,7 +9,7 @@ namespace DomainDetective.PowerShell {
     ///   <code>Test-DDDnsHealth -DomainName example.com</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsHealth", DefaultParameterSetName = "Domain")]
-    [Alias("Test-DnsHealth")] 
+    [Alias("Test-DnsHealth")]
     public sealed class CmdletTestDnsHealth : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
@@ -36,4 +36,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

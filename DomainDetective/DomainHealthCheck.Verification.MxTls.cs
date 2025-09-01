@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +39,11 @@ namespace DomainDetective {
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             SmtpTlsAnalysis.Subject = domainName;
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
+
+            // DANE alignment advisory: if we have DANE results or MX but missing TLSA, or weak TLS under TLSA
+            try {
+                EvaluateDaneAlignment(domainName, tlsHosts);
+            } catch { }
         }
 
         /// <summary>
@@ -45,6 +51,23 @@ namespace DomainDetective {
         /// </summary>
         public Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default)
             => VerifySMTPTLS(domainName, 25, cancellationToken);
+
+        private void EvaluateDaneAlignment(string domainName, IEnumerable<string> mxHosts)
+        {
+            var hosts = mxHosts?.ToArray() ?? Array.Empty<string>();
+            if (hosts.Length == 0) return;
+            var hasSmtpTlsa = DaneAnalysis?.AnalysisResults?.Any(r => r.ServiceType == ServiceType.SMTP) == true;
+            if (!hasSmtpTlsa) {
+                _logger?.WriteWarningCode(DaneCodes.AlignmentMissingForMx, "No TLSA coverage for MX hosts on {0}", domainName);
+                return;
+            }
+            // If TLSA exists, ensure TLS posture is not weak
+            var weak = SmtpTlsAnalysis?.ServerResults?.Values?.Any(r =>
+                r == null || r.LegacyEnabled || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch || (r.Grade ?? "C").StartsWith("C")) == true;
+            if (weak) {
+                _logger?.WriteWarningCode(DaneCodes.AlignmentTlsWeak, "TLSA present but negotiated TLS is weak on some MX hosts");
+            }
+        }
 
         /// <summary>
         /// Checks all MX hosts for IMAP TLS configuration.

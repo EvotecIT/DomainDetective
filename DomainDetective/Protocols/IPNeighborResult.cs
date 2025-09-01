@@ -14,4 +14,10 @@ public class IPNeighborResult
     public List<string> Domains { get; set; } = new();
     /// <summary>True when the origin is valid per RPKI.</summary>
     public bool RPKIValid { get; init; }
+    /// <summary>Total number of co-hosted domains observed.</summary>
+    public int CoHostCount { get; set; }
+    /// <summary>Simple categorization of co-hosting density (Low/Medium/High/Extreme).</summary>
+    public string Category { get; set; } = string.Empty;
+    /// <summary>Source type: "Apex" (A/AAAA) or "MX" (mail hosts).</summary>
+    public string Type { get; set; } = "Apex";
 }

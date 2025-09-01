@@ -47,6 +47,13 @@ public class ThreatIntelAnalysis : IHasAssessments
         _client = client ?? _staticClient;
     }
 
+    // Provider toggles and simple in-memory caching
+    public bool EnableUrlHaus { get; set; } = true;
+    public bool EnableOpenPhish { get; set; } = false; // requires feed access; override supported
+    public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(30);
+    private readonly Dictionary<string, (DateTime ts, bool listed)> _cacheUrlHaus = new();
+    private readonly Dictionary<string, (DateTime ts, bool listed)> _cacheOpenPhish = new();
+
     private static async Task<string> ReadAsStringAsync(HttpResponseMessage resp)
     {
         resp.EnsureSuccessStatusCode();
@@ -134,6 +141,53 @@ public class ThreatIntelAnalysis : IHasAssessments
         return valid && inDb;
     }
 
+    // URLHaus host lookup (no API key required)
+    private async Task<bool> QueryUrlHausListed(string domainName, CancellationToken ct)
+    {
+        try {
+            if (_cacheUrlHaus.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
+                return e.listed;
+            }
+            using var content = new System.Net.Http.FormUrlEncodedContent(new[] { new KeyValuePair<string,string>("host", domainName) });
+            using var resp = await _client.PostAsync("https://urlhaus-api.abuse.ch/v1/host/", content, ct);
+            var json = await ReadAsStringAsync(resp);
+            using var doc = JsonDocument.Parse(json);
+            bool listed = false;
+            if (doc.RootElement.TryGetProperty("query_status", out var status) && status.GetString() == "ok") {
+                if (doc.RootElement.TryGetProperty("url_count", out var count) && count.GetInt32() > 0) listed = true;
+            }
+            _cacheUrlHaus[domainName] = (DateTime.UtcNow, listed);
+            return listed;
+        } catch {
+            return false;
+        }
+    }
+
+    /// <summary>Override for OpenPhish JSON/CSV checks (for tests). Returns provider JSON.</summary>
+    public Func<string, Task<string>>? OpenPhishOverride { private get; set; }
+    private async Task<bool> QueryOpenPhishListed(string domainName, CancellationToken ct)
+    {
+        try {
+            if (_cacheOpenPhish.TryGetValue(domainName, out var e) && DateTime.UtcNow - e.ts < CacheTtl) {
+                return e.listed;
+            }
+            if (OpenPhishOverride != null) {
+                var text = await OpenPhishOverride(domainName);
+                // Expect simple responses: "listed" or JSON with { listed: true }
+                bool listed = false;
+                try {
+                    using var doc = JsonDocument.Parse(text);
+                    if (doc.RootElement.TryGetProperty("listed", out var l)) listed = l.GetBoolean();
+                } catch {
+                    listed = text.IndexOf("listed", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+                _cacheOpenPhish[domainName] = (DateTime.UtcNow, listed);
+                return listed;
+            }
+        } catch { }
+        return false; // disabled by default to avoid heavy feed downloads
+    }
+
 
     /// <summary>
     /// Queries all enabled reputation services.
@@ -149,6 +203,8 @@ public class ThreatIntelAnalysis : IHasAssessments
         var googleListed = false;
         var phishListed = false;
         var vtListed = false;
+        var urlHausListed = false;
+        var openPhishListed = false;
 
         if (!string.IsNullOrWhiteSpace(googleApiKey))
         {
@@ -197,9 +253,34 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
         }
 
+        // URLHaus (always attempted unless disabled)
+        if (EnableUrlHaus)
+        {
+            try {
+                urlHausListed = await QueryUrlHausListed(domainName, ct);
+            } catch (Exception ex) {
+                logger?.WriteErrorCode(ThreatIntelCodes.UrlHausQueryFailed, "URLHaus query failed: {0}", ex.Message);
+                FailureReason = $"URLHaus query failed: {ex.Message}";
+            }
+        }
+
+        // OpenPhish (disabled by default, requires override or separate feed arrangement)
+        if (EnableOpenPhish)
+        {
+            try {
+                openPhishListed = await QueryOpenPhishListed(domainName, ct);
+            } catch (Exception ex) {
+                logger?.WriteErrorCode(ThreatIntelCodes.OpenPhishQueryFailed, "OpenPhish query failed: {0}", ex.Message);
+                FailureReason = $"OpenPhish query failed: {ex.Message}";
+            }
+        }
+
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.GoogleSafeBrowsing, IsListed = googleListed });
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.PhishTank, IsListed = phishListed });
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
+        Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.UrlHaus, IsListed = urlHausListed });
+        if (EnableOpenPhish)
+            Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.OpenPhish, IsListed = openPhishListed });
     }
 
     public List<Assessment> Assessments { get; } = new();

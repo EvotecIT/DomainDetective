@@ -9,7 +9,7 @@ namespace DomainDetective.PowerShell {
     ///   <code>Test-DDWebsiteSecurity -DomainName example.com</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDWebsiteSecurity", DefaultParameterSetName = "Domain")]
-    [Alias("Test-WebsiteSecurity")] 
+    [Alias("Test-WebsiteSecurity")]
     public sealed class CmdletTestWebsiteSecurity : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query (host or host:port).</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
@@ -36,4 +36,3 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
-

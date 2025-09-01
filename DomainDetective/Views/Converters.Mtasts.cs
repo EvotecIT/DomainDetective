@@ -21,11 +21,13 @@ public static partial class Converters
             Mode = analysis.Mode,
             MaxAge = analysis.MaxAge,
             HasMx = analysis.HasMx,
+            MxAligned = analysis.MxAligned,
+            MissingMxFromPolicy = analysis.MissingMxFromPolicy?.ToArray() ?? System.Array.Empty<string>(),
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"mode {(analysis.Mode ?? "?")}; max-age {analysis.MaxAge}; DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; valid {(analysis.PolicyValid ? "yes" : "no")}",
+            Summary = $"mode {(analysis.Mode ?? "?")}; max-age {analysis.MaxAge}; DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; valid {(analysis.PolicyValid ? "yes" : "no")}; MX aligned {(analysis.MxAligned ? "yes" : "no")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -45,6 +47,8 @@ public class MtastsInfo
     public string Mode { get; set; }
     public int MaxAge { get; set; }
     public bool HasMx { get; set; }
+    public bool MxAligned { get; set; }
+    public string[] MissingMxFromPolicy { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

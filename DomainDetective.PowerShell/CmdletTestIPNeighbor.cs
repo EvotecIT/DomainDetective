@@ -27,6 +27,9 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        [Parameter(Mandatory = false)]
+        public SwitchParameter IncludeMX;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -52,6 +55,10 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying IP neighbors for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.IPNEIGHBOR });
+            if (IncludeMX.IsPresent)
+            {
+                await _healthCheck.CheckMailIPNeighbors(DomainName);
+            }
             var view = DomainDetective.Views.Converters.Convert(_healthCheck.IPNeighborAnalysis);
             WriteObject(view);
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }

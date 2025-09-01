@@ -12,6 +12,8 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         var addrCount = analysis.Results?.Count ?? 0;
         var totalDomains = analysis.Results?.Sum(r => r.Domains?.Count ?? 0) ?? 0;
+        var mxCount = analysis.Results?.Count(r => string.Equals(r.Type, "MX", System.StringComparison.OrdinalIgnoreCase)) ?? 0;
+        var apexCount = addrCount - mxCount;
         return new IpNeighborInfo
         {
             Check = "IPNEIGHBOR",
@@ -24,7 +26,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"ips {addrCount}; domains {totalDomains}",
+            Summary = $"ips {addrCount} (apex {apexCount}/mx {mxCount}); domains {totalDomains}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
