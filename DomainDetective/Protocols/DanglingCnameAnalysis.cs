@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +15,7 @@ namespace DomainDetective;
 /// A dangling CNAME occurs when the target no longer resolves. Such records may
 /// expose domains to subdomain takeovers.
 /// </remarks>
-public class DanglingCnameAnalysis {
+public class DanglingCnameAnalysis : IHasAssessments {
     /// <summary>Gets or sets DNS configuration for queries.</summary>
     public DnsConfiguration DnsConfiguration { get; set; }
     /// <summary>Gets or sets override for DNS queries.</summary>
@@ -52,6 +53,7 @@ public class DanglingCnameAnalysis {
     /// Queries the CNAME record for a domain and checks the target.
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default) {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CNAME", target: domainName);
         CnameRecordExists = false;
         Target = null;
         TargetResolves = false;
@@ -63,7 +65,7 @@ public class DanglingCnameAnalysis {
             cname = await QueryDns(domainName, DnsRecordType.CNAME);
         } catch (Exception ex) {
             FailureReason = $"DNS lookup failed: {ex.Message}";
-            logger?.WriteError("DNS lookup failed for {0}: {1}", domainName, ex.Message);
+            logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", domainName, ex.Message);
             return;
         }
         if (cname == null || cname.Length == 0) {
@@ -83,13 +85,16 @@ public class DanglingCnameAnalysis {
             aaaa = await QueryDns(Target, DnsRecordType.AAAA);
         } catch (Exception ex) {
             FailureReason = $"DNS lookup failed: {ex.Message}";
-            logger?.WriteError("DNS lookup failed for {0}: {1}", Target, ex.Message);
+            logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);
             return;
         }
         TargetResolves = (a != null && a.Any()) || (aaaa != null && aaaa.Any());
 
         if (!TargetResolves) {
-            logger?.WriteWarning("CNAME target {0} does not resolve", Target);
+            logger?.WriteWarningCode(DanglingCnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
         }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

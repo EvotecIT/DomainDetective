@@ -52,8 +52,7 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 | `Test-DDDnsNsRecord`           | `Test-DnsNs`             | Verify NS                       |
 | `Test-DDDnsSoaRecord`          | `Test-DnsSoa`            | Verify SOA                      |
 | `Test-DDDnsSecStatus`          | `Test-DnsSec`            | Verify DNSSEC                   |
-| `Test-DDDnsBlacklistRecord`    | `Test-DnsBlacklist`      | Check DNSBL                     |
-| `Test-DDDnsDomainBlacklist`    | `Test-DnsDomainBlacklist`| Check domain against DNSBL      |
+| `Test-DDDnsBlacklist`          | `Test-DnsBlacklist`      | Check DNSBL (domain + MX IPs)   |
 | `Test-DDDnsOpenResolver`       | `Test-DnsOpenResolver`   | Detect open resolver            |
 | `Test-DDDnsDanglingCname`      | `Test-DnsDanglingCname`  | Find dangling CNAME             |
 | `Test-DDDnsPropagation`        | `Test-DnsPropagation`    | Check global propagation        |
@@ -77,15 +76,13 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 | `Test-DDDomainContactRecord`   | `Test-DomainContact`     | WHOIS contact sanity            |
 | `Test-DDDomainSecurityTxt`     | `Test-DomainSecurityTxt` | security.txt checks             |
 | `Test-DDDomainCertificate`     | `Test-DomainCertificate` | Website certificate checks      |
-| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | Composite domain health         |
-| `Get-DDDomainHealthReport`     | `Get-DomainSummary`      | Summary object                  |
+| `Test-DDDomainOverallHealth`   | `Test-DomainHealth`      | Composite health; -Summary returns DomainSummary; -Export* for reports |
 | `Get-DDDomainWhois`            | `Get-DomainWhois`        | WHOIS                           |
 | `Get-DDDomainFlattenedSpfIp`   | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs            |
 | `Test-DDDomainThreatIntel`     | `Test-DomainThreatIntel` | Threat intel lookups            |
 | `Get-DDRdap`                   | `Get-Rdap`               | RDAP                            |
 | `Get-DDRdapObject`             | `Get-RdapObject`         | RDAP raw object                 |
 | `Get-DDSearchEngineInfo`       | `Get-SearchEngineInfo`   | Search engine queries           |
-| `Show-DDDomainReport`          | `Export-DomainReport`    | Report generation               |
 
 ### TLS & Networking
 
@@ -117,6 +114,12 @@ DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes w
 - `LoadDNSBL`
 
 You can load a custom list from a file using `LoadDNSBL`. Additionally, JSON files describing DNSBL providers can be imported with `ImportDnsblConfig`.
+
+Flags and knobs:
+- `-TreatAsDomain`: Force domain-mode (domain lists + MX IPs) even if input looks like an IP.
+- `-TreatAsIp`: Force IP-mode (only IP DNSBLs). Fails if input is not a valid IP.
+- `-MaxConcurrency`: Hint to the resolver to cap concurrency (applied if supported by the underlying DNS client).
+- `-BlacklistedOnly`: Filter output to only entries that are actually listed.
 
 Example usage in C#:
 
@@ -220,6 +223,12 @@ Analyze TTL values:
 
 ```powershell
 Test-DnsTtl -DomainName "example.com"
+```
+
+Get concise summaries (Area/Check/Status/Summary) for views returned by cmdlets:
+
+```powershell
+Get-DDApexAddressInfo -DomainName "example.com" | Select-Object Area,Check,Status,Summary
 ```
 
 Check wildcard DNS:

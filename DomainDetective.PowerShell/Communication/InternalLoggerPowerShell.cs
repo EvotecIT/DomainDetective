@@ -1,5 +1,6 @@
 using System;
 using System.Management.Automation;
+using DomainDetective;
 
 namespace DomainDetective.PowerShell {
     /// <summary>
@@ -71,12 +72,22 @@ namespace DomainDetective.PowerShell {
             } else {
                 WriteVerbose(e.Message);
             }
+            var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+            if (enabled && live && narrVerbose) {
+                var line = FormatNarration(e.Message, persona, AssessmentSeverity.Info);
+                _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
+            }
         }
         private void Logger_OnDebugMessage(object sender, LogEventArgs e) {
             WriteDebug(e.Message);
         }
         private void Logger_OnWarningMessage(object sender, LogEventArgs e) {
             WriteWarning(e.Message);
+            var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+            if (enabled && live) {
+                var line = FormatNarration(e.Message, persona, AssessmentSeverity.Warning);
+                _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
+            }
         }
         private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
             var errorId = GetNextErrorId();
@@ -117,6 +128,13 @@ namespace DomainDetective.PowerShell {
                 _isCurrentActivityCompleted = false;
             }
             var progressMessage = e.ProgressCurrentOperation ?? "Processing...";
+            try {
+                var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+                if (enabled && live && !string.IsNullOrWhiteSpace(e.ProgressCurrentOperation)) {
+                    var verb = PersonaLexicon.StepVerb(persona, e.ProgressCurrentOperation);
+                    progressMessage = $"{verb} {e.ProgressCurrentOperation}";
+                }
+            } catch { /* best-effort persona on progress */ }
             var progressRecord = new ProgressRecord(_currentActivityId, e.ProgressActivity, progressMessage);
             if (e.ProgressPercentage.HasValue) {
                 var percentComplete = e.ProgressPercentage.Value;
@@ -162,6 +180,18 @@ namespace DomainDetective.PowerShell {
             InformationRecord informationRecord = new InformationRecord(message, "DnsClientX");
             // Write to PowerShell information stream
             _writeInformationAction?.Invoke(informationRecord);
+        }
+
+        private static string FormatNarration(string message, PersonaKind persona, AssessmentSeverity severity) {
+            var a = new Assessment {
+                Severity = severity,
+                Category = severity == AssessmentSeverity.Warning ? "Warn" : "Info",
+                Message = message
+            };
+            var parts = AssessmentNarrator.NarrateParts(a, persona);
+            return string.IsNullOrWhiteSpace(parts.Phrase)
+                ? parts.Title
+                : $"{parts.Title} | {parts.Phrase}";
         }
 
         private void WriteWarning(string message) {

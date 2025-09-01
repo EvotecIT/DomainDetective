@@ -16,7 +16,8 @@ namespace DomainDetective {
     /// The analysis inspects CAA tags to determine which certificate
     /// authorities are permitted to issue certificates for the domain.
     /// </remarks>
-    public class CAAAnalysis {
+    public class CAAAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets or sets the domain name that provided the record.</summary>
         public string? DomainName { get; set; }
 
@@ -77,12 +78,16 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// <summary>Gets the per-record analysis results.</summary>
         public List<CAARecordAnalysis> AnalysisResults { get; private set; } = new List<CAARecordAnalysis>();
 
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         /// <summary>
         /// Parses the supplied CAA records and populates analysis properties.
         /// </summary>
         /// <param name="dnsResults">DNS query results containing CAA records.</param>
         /// <param name="logger">Logger used for warnings and errors.</param>
         public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CAA");
             // reset all properties so repeated calls don't accumulate data
             DomainName = null;
             ValidRecords = 0;
@@ -111,6 +116,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             }
 
             DomainName = caaRecordList.First().Name;
+            using var _t = _collector.PushTarget(DomainName);
 
             foreach (var record in caaRecordList) {
                 var analysis = new CAARecordAnalysis();
@@ -134,7 +140,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.InvalidFlag = true;
                     } else if ((flag & 0x7F) != 0 && flag != 128) {
                         analysis.InvalidFlag = true;
-                        logger?.WriteWarning($"CAA record uses reserved flag bits: {flag}");
+                        logger?.WriteWarningCode(CaaCodes.ReservedFlagBits, $"CAA record uses reserved flag bits: {flag}");
                     }
                     analysis.Critical = (flag & 0x80) == 0x80;
 
@@ -151,7 +157,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.Tag = CAATagType.Unknown;
                         if (analysis.Critical) {
                             analysis.InvalidTag = true;
-                            logger?.WriteWarning($"Unknown CAA property tag '{tag}' flagged as critical");
+                            logger?.WriteWarningCode(CaaCodes.UnknownCriticalTag, $"Unknown CAA property tag '{tag}' flagged as critical");
                         }
                     }
 
@@ -299,7 +305,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                 mailIssuers.Count != mailIssuers.Distinct(StringComparer.OrdinalIgnoreCase).Count();
 
             if (HasDuplicateIssuers) {
-                logger.WriteWarning($"Duplicate CAA issuers detected for {DomainName}");
+                logger.WriteWarningCode(CaaCodes.DuplicateIssuers, $"Duplicate CAA issuers detected for {DomainName}");
             }
 
             CanIssueCertificatesForDomain = certificateIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

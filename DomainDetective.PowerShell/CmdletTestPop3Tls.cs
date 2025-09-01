@@ -4,13 +4,16 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks TLS configuration for a specific POP3 host.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test POP3 TLS.</summary>
     ///   <code>Test-DDEmailPop3Tls -HostName mail.example.com -Port 995</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailPop3Tls", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailPop3Tls", "Test-Pop3Tls")]
-    public sealed class CmdletTestPop3Tls : AsyncPSCmdlet {
+    public sealed class CmdletTestPop3Tls : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>POP3 host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -32,7 +35,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -41,11 +44,14 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking POP3 TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckPop3TlsHost(HostName, Port);
-            var result = _healthCheck.Pop3TlsAnalysis.ServerResults[$"{HostName}:{Port}"];
-            WriteObject(result);
+            var analysis = _healthCheck.Pop3TlsAnalysis;
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            WriteObject(view);
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

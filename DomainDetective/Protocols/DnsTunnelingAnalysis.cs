@@ -8,7 +8,7 @@ namespace DomainDetective;
 /// Detects potential DNS tunneling activity from query logs.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class DnsTunnelingAnalysis
+public class DnsTunnelingAnalysis : IHasAssessments
 {
     /// <summary>Collection of detected issues.</summary>
     public List<DnsTunnelingAlert> Alerts { get; private set; } = new();
@@ -22,6 +22,8 @@ public class DnsTunnelingAnalysis
     /// </summary>
     /// <param name="domainName">Domain to inspect.</param>
     /// <param name="logLines">Lines from DNS query logs.</param>
+    public List<Assessment> Assessments { get; } = new();
+
     public void Analyze(string domainName, IEnumerable<string?>? logLines)
     {
         Alerts = new List<DnsTunnelingAlert>();
@@ -59,6 +61,13 @@ public class DnsTunnelingAnalysis
             if (first.Length > 50 || LooksEncoded(first))
             {
                 Alerts.Add(new DnsTunnelingAlert { Domain = query, Reason = "Suspicious subdomain" });
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DnsTunneling",
+                    Target = query,
+                    Code = DnsTunnelingCodes.SuspiciousLabel,
+                    Message = "Suspicious long or encoded subdomain label detected"
+                });
             }
 
             if (ts != DateTimeOffset.MinValue)
@@ -71,6 +80,13 @@ public class DnsTunnelingAnalysis
                 if (queue.Count > FrequencyThreshold)
                 {
                     Alerts.Add(new DnsTunnelingAlert { Domain = query, Reason = "High query rate" });
+                    Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Warning,
+                        Category = "DnsTunneling",
+                        Target = domainName,
+                        Code = DnsTunnelingCodes.HighFrequency,
+                        Message = "High DNS query rate observed within interval"
+                    });
                     queue.Clear();
                 }
             }

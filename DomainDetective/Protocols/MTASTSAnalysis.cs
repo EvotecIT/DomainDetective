@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Provides functionality for retrieving and analysing MTA-STS policies.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-public class MTASTSAnalysis {
+public class MTASTSAnalysis : IHasAssessments {
     private record CacheEntry(string PolicyId, string Policy, DateTimeOffset Expires);
     private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -133,6 +133,11 @@ public class MTASTSAnalysis {
         /// <summary>Summary message describing MTA-STS status.</summary>
         public string Advisory { get; private set; }
 
+        /// <summary>Relevant standards for MTA-STS analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "SMTP MTA Strict Transport Security", Reference = "RFC 8461", Url = "https://datatracker.ietf.org/doc/html/rfc8461" }
+        };
+
         /// <summary>
         /// Resets analysis state so the instance can be reused.
         /// </summary>
@@ -163,6 +168,7 @@ public class MTASTSAnalysis {
         /// <param name="logger">A logger for warning messages.</param>
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task AnalyzePolicy(string domainName, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MTASTS", target: domainName);
             Reset();
             Logger = logger;
 
@@ -232,15 +238,22 @@ public class MTASTSAnalysis {
             UpdateAdvisory();
         }
 
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         private void UpdateAdvisory() {
             if (!DnsRecordPresent) {
                 Advisory = "No MTA-STS record published.";
+                Logger?.WriteWarningCode(MtaStsCodes.MissingRecord, Advisory);
             } else if (!PolicyValid) {
                 Advisory = "MTA-STS policy invalid.";
+                Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
             } else if (!EnforcesMtaSts) {
                 Advisory = "MTA-STS policy present but not enforcing.";
+                Logger?.WriteWarningCode(MtaStsCodes.NotEnforcing, Advisory);
             } else {
                 Advisory = "MTA-STS policy enforced.";
+                Logger?.WriteInformation("{0}", Advisory);
             }
         }
 
@@ -265,7 +278,7 @@ public class MTASTSAnalysis {
                     return await response.Content.ReadAsStringAsync();
                 }
             } catch (Exception ex) {
-                Logger?.WriteWarning($"Failed to fetch {url}: {ex.Message}");
+                Logger?.WriteWarningCode(MtaStsCodes.FetchFailed, $"Failed to fetch {url}: {ex.Message}");
             }
 
             return null;

@@ -1,5 +1,6 @@
 using DnsClientX;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace DomainDetective;
 /// Detects if CNAME records point to known flattening services like Cloudflare.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class FlatteningServiceAnalysis
+public class FlatteningServiceAnalysis : IHasAssessments
 {
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -23,6 +24,9 @@ public class FlatteningServiceAnalysis
     public string? Target { get; private set; }
     /// <summary>True when the CNAME points to a known flattening service.</summary>
     public bool IsFlatteningService { get; private set; }
+
+    /// <summary>Structured assessments captured during flattening service detection.</summary>
+    public List<Assessment> Assessments { get; } = new();
 
     private static readonly string[] _flatteningDomains = new[]
     {
@@ -49,6 +53,7 @@ public class FlatteningServiceAnalysis
         Target = null;
         IsFlatteningService = false;
         ct.ThrowIfCancellationRequested();
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "CNAME", target: domainName) : null;
 
         var cname = await QueryDns(domainName, DnsRecordType.CNAME, ct);
         if (cname == null || cname.Length == 0)
@@ -64,7 +69,7 @@ public class FlatteningServiceAnalysis
         IsFlatteningService = _flatteningDomains.Any(d => Target.EndsWith(d, StringComparison.OrdinalIgnoreCase));
         if (IsFlatteningService)
         {
-            logger?.WriteWarning("CNAME uses a known flattening service");
+            logger?.WriteWarningCode(FlatteningServiceCodes.UsesFlatteningService, "CNAME uses a known flattening service");
         }
     }
 }

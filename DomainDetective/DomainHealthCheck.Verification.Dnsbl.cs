@@ -24,44 +24,97 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Checks an IP address against configured DNS block lists.
+        /// Checks domain against DNSBL lists using a specified domain IP scan mode.
         /// </summary>
-        /// <param name="ipAddress">IP address to query.</param>
+        /// <param name="domainName">Domain to verify.</param>
+        /// <param name="scanMode">Controls which IPs to resolve and check for IP-based DNSBLs.</param>
+        /// <param name="clearExisting">Whether to clear previous results prior to running.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckDNSBL(string ipAddress, CancellationToken cancellationToken = default) {
-            if (string.IsNullOrWhiteSpace(ipAddress)) {
-                throw new ArgumentNullException(nameof(ipAddress));
+        public async Task VerifyDNSBLWithMode(string domainName, DomainIpScanMode scanMode, bool clearExisting = true, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
             }
-
-            if (!IPAddress.TryParse(ipAddress, out _)) {
-                throw new ArgumentException("Invalid IP address", nameof(ipAddress));
+            domainName = NormalizeDomain(domainName);
+            UpdateIsPublicSuffix(domainName);
+            if (IsPublicSuffix) {
+                return;
             }
-
-            await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ipAddress, _logger)) {
-                cancellationToken.ThrowIfCancellationRequested();
-                // enumeration triggers processing
-            }
+            await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(domainName, _logger, clearExisting: clearExisting, scanMode: scanMode);
         }
 
         /// <summary>
-        /// Checks multiple IP addresses against DNS block lists.
+        /// Checks a single input (IP address or domain) against configured DNS block lists.
         /// </summary>
-        /// <param name="ipAddresses">IPs to query.</param>
+        /// <param name="nameOrIpAddress">IP address or domain to query.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task CheckDNSBL(string[] ipAddresses, CancellationToken cancellationToken = default) {
-            if (ipAddresses == null) {
-                throw new ArgumentNullException(nameof(ipAddresses));
+        public async Task CheckDNSBL(string nameOrIpAddress, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(nameOrIpAddress)) {
+                throw new ArgumentNullException(nameof(nameOrIpAddress));
             }
 
-            foreach (var ip in ipAddresses) {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!IPAddress.TryParse(ip, out _)) {
-                    throw new ArgumentException("Invalid IP address", nameof(ipAddresses));
+            if (IPAddress.TryParse(nameOrIpAddress, out _)) {
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(new[] { nameOrIpAddress }, _logger, clearExisting: true);
+            } else {
+                // Validate domain and normalize; throws ArgumentException for invalid names
+                var normalized = NormalizeDomain(nameOrIpAddress);
+                // Reject hostnames without a dot (heuristic for this API)
+                if (normalized.IndexOf('.') < 0) {
+                    throw new ArgumentException("Host name must contain a dot.", nameof(nameOrIpAddress));
                 }
+                // Reject IPv4-looking dotted numerics that are not valid IP addresses
+                if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^\d+(?:\.\d+){3}$")) {
+                    throw new ArgumentException("Invalid IPv4 address.", nameof(nameOrIpAddress));
+                }
+                // For domain: include domain blacklists and resolve MX to check IP-based lists
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(normalized, _logger, clearExisting: true);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+        }
 
-                await foreach (var _ in DNSBLAnalysis.AnalyzeDNSBLRecords(ip, _logger)) {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    // enumeration triggers processing
+        /// <summary>
+        /// Checks multiple inputs (IP addresses and/or domains) against DNS block lists.
+        /// </summary>
+        /// <param name="nameOrIpAddresses">Inputs to query.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task CheckDNSBL(string[] nameOrIpAddresses, CancellationToken cancellationToken = default) {
+            if (nameOrIpAddresses == null) {
+                throw new ArgumentNullException(nameof(nameOrIpAddresses));
+            }
+
+            var ips = new List<string>();
+            var domains = new List<string>();
+            foreach (var item in nameOrIpAddresses) {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (string.IsNullOrWhiteSpace(item)) continue;
+                if (IPAddress.TryParse(item, out _)) {
+                    ips.Add(item);
+                } else {
+                    // Validate domain early to surface ArgumentException for bad inputs
+                    var normalized = NormalizeDomain(item);
+                    if (normalized.IndexOf('.') < 0) {
+                        throw new ArgumentException("Host name must contain a dot.", nameof(nameOrIpAddresses));
+                    }
+                    if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^\d+(?:\.\d+){3}$")) {
+                        throw new ArgumentException("Invalid IPv4 address.", nameof(nameOrIpAddresses));
+                    }
+                    domains.Add(normalized);
+                }
+            }
+
+            if (ips.Count > 0) {
+                await DNSBLAnalysis.AnalyzeDNSBLRecordsMany(ips, _logger, clearExisting: true);
+            } else {
+                // ensure previous results are cleared
+                DNSBLAnalysis.Reset();
+                DNSBLAnalysis.Logger = _logger;
+            }
+
+            if (domains.Count > 0) {
+                // append domain+MX-IP results without clearing IP results
+                bool first = ips.Count == 0;
+                foreach (var d in domains) {
+                    await DNSBLAnalysis.AnalyzeDNSBLRecordsMX(d, _logger, clearExisting: first);
+                    first = false;
                 }
             }
         }

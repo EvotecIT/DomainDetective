@@ -422,7 +422,7 @@ namespace DomainDetective {
 
                 var asn = await LookupAsnAsync(server.IPAddress.ToString(), ct).ConfigureAwait(false);
                 if (asn.HasValue && !string.Equals(server.ASN, asn.Value.ToString(), StringComparison.OrdinalIgnoreCase)) {
-                    logger?.WriteWarning("Server {0} expected ASN {1} but is announced by AS{2}", server.IPAddress, server.ASN, asn.Value);
+                    logger?.WriteWarningCode(DnsPropagationCodes.AsnMismatch, "Server {0} expected ASN {1} but is announced by AS{2}", server.IPAddress, server.ASN, asn.Value);
                 }
             }
         }

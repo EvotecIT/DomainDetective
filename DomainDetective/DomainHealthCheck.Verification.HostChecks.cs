@@ -65,6 +65,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task CheckSmtpBannerHost(string host, int port = 25, CancellationToken cancellationToken = default) {
             ValidatePort(port);
+            SmtpBannerAnalysis.Subject = $"{host}:{port}";
             await SmtpBannerAnalysis.AnalyzeServer(host, port, _logger, cancellationToken);
         }
 

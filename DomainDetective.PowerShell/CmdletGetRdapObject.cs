@@ -54,11 +54,16 @@ public sealed class CmdletGetRdapObject : AsyncPSCmdlet
     [Parameter]
     public string ServiceEndpoint { get; set; } = "https://rdap.org";
 
+    /// <para>Return a flattened view for domain queries instead of the raw JSON model.</para>
+    [Parameter]
+    public SwitchParameter Flatten { get; set; }
+
     private RdapClient _client = null!;
 
     /// <summary>Initializes the RDAP client.</summary>
     protected override Task BeginProcessingAsync()
     {
+        WriteVerbose($"Using RDAP endpoint: {ServiceEndpoint}");
         _client = new RdapClient(ServiceEndpoint);
         return Task.CompletedTask;
     }
@@ -66,17 +71,83 @@ public sealed class CmdletGetRdapObject : AsyncPSCmdlet
     /// <summary>Executes the request and writes the object.</summary>
     protected override async Task ProcessRecordAsync()
     {
-        object? result = ParameterSetName switch
+        object? result = null;
+        WriteVerbose($"Querying RDAP ({ParameterSetName})");
+        switch (ParameterSetName)
         {
-            "Domain" => await _client.QueryDomainAsync(Domain, CancelToken).ConfigureAwait(false),
-            "Tld" => await _client.QueryTldAsync(Tld, CancelToken).ConfigureAwait(false),
-            "Ip" => await _client.QueryIpAsync(Ip, CancelToken).ConfigureAwait(false),
-            "As" => await _client.QueryAutnumAsync(AsNumber, CancelToken).ConfigureAwait(false),
-            "Entity" => await _client.QueryEntityAsync(Entity, CancelToken).ConfigureAwait(false),
-            "Registrar" => await _client.QueryRegistrarAsync(Registrar, CancelToken).ConfigureAwait(false),
-            "Nameserver" => await _client.QueryNameserverAsync(Nameserver, CancelToken).ConfigureAwait(false),
-            _ => null,
-        };
+            case "Domain":
+                var dom = await _client.QueryDomainAsync(Domain, CancelToken).ConfigureAwait(false);
+                if (!Flatten || dom == null)
+                {
+                    result = dom;
+                }
+                else
+                {
+                    // Build a flattened view similar to Get-DDRdap
+                    string? registrar = null;
+                    string? registrarId = null;
+                    if (dom.Entities != null)
+                    {
+                        foreach (var ent in dom.Entities)
+                        {
+                            if (ent.Roles != null && ent.Roles.Exists(r => string.Equals(r, "registrar", System.StringComparison.OrdinalIgnoreCase)))
+                            {
+                                registrarId ??= ent.Handle;
+                                if (ent.VcardArray.HasValue && ent.VcardArray.Value.ValueKind == System.Text.Json.JsonValueKind.Array && ent.VcardArray.Value.GetArrayLength() > 1)
+                                {
+                                    foreach (var card in ent.VcardArray.Value[1].EnumerateArray())
+                                    {
+                                        if (card.GetArrayLength() > 3 && card[0].GetString() == "fn")
+                                        {
+                                            registrar = card[3].GetString();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    var nameservers = dom.Nameservers != null
+                        ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(System.Linq.Enumerable.Select(dom.Nameservers, n => n.LdhName), s => !string.IsNullOrEmpty(s))!)
+                        : System.Array.Empty<string>();
+                    var statuses = dom.Status != null ? System.Linq.Enumerable.ToArray(dom.Status) : System.Array.Empty<DomainDetective.RdapDomainStatus>();
+                    var events = dom.Events != null
+                        ? System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(dom.Events, e => new { Action = e.Action, Date = e.Date }))
+                        : System.Array.Empty<object>();
+
+                    var view = new PSObject();
+                    view.Properties.Add(new PSNoteProperty("LdhName", dom.LdhName));
+                    view.Properties.Add(new PSNoteProperty("UnicodeName", dom.UnicodeName));
+                    view.Properties.Add(new PSNoteProperty("Handle", dom.Handle));
+                    view.Properties.Add(new PSNoteProperty("Registrar", registrar));
+                    view.Properties.Add(new PSNoteProperty("RegistrarId", registrarId));
+                    view.Properties.Add(new PSNoteProperty("Status", statuses));
+                    view.Properties.Add(new PSNoteProperty("Events", events));
+                    view.Properties.Add(new PSNoteProperty("Nameservers", nameservers));
+                    result = view;
+                }
+                break;
+
+            case "Tld":
+                result = await _client.QueryTldAsync(Tld, CancelToken).ConfigureAwait(false);
+                break;
+            case "Ip":
+                result = await _client.QueryIpAsync(Ip, CancelToken).ConfigureAwait(false);
+                break;
+            case "As":
+                result = await _client.QueryAutnumAsync(AsNumber, CancelToken).ConfigureAwait(false);
+                break;
+            case "Entity":
+                result = await _client.QueryEntityAsync(Entity, CancelToken).ConfigureAwait(false);
+                break;
+            case "Registrar":
+                result = await _client.QueryRegistrarAsync(Registrar, CancelToken).ConfigureAwait(false);
+                break;
+            case "Nameserver":
+                result = await _client.QueryNameserverAsync(Nameserver, CancelToken).ConfigureAwait(false);
+                break;
+        }
 
         WriteObject(result);
     }

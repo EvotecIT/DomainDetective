@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks Autodiscover related DNS records.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Verify Autodiscover setup.</summary>
     ///   <code>Test-DDEmailAutoDiscover -DomainName example.com</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailAutoDiscover", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailAutoDiscover")]
-    public sealed class CmdletTestAutoDiscover : AsyncPSCmdlet {
+    public sealed class CmdletTestAutoDiscover : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -48,10 +49,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying Autodiscover for domain: {0}", DomainName);
             await _healthCheck.VerifyAutodiscover(DomainName);
-            WriteObject(_healthCheck.AutodiscoverAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.AutodiscoverAnalysis);
+            WriteObject(view);
             if (IncludeEndpoints) {
                 WriteObject(_healthCheck.AutodiscoverHttpAnalysis.Endpoints, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

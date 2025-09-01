@@ -151,40 +151,23 @@
   - [ ] HSTS configuration review
 
 ### Phase 6: PowerShell Integration
-- [ ] **Refactor Existing Cmdlet**
-  - [ ] Rename Export-DomainReport to Show-DDDomainReport
-  - [ ] Update aliases to maintain compatibility
-  - [ ] Add progress reporting during generation
-  - [ ] Support streaming for large reports
+- [ ] Unified per-cmdlet export switches
+  - [x] Add `-ExportFormat` (enum), `-ExportPath`, `-OpenInBrowser` to all Test-* cmdlets
+  - [x] Add same switches to key Get-* cmdlets where sensible (e.g., RDAP, headers)
+  - [x] Provide `Set-DDExportOptions` for module-wide defaults
+  - [ ] Implement dedicated reports per area (DMARC, DKIM, SPF, DNSSEC, MX, etc.)
 
-- [ ] **New Show Cmdlets**
-  - [ ] `Show-DDDomainReport` - Main report display/export
-  - [ ] `Show-DDEmailSpfReport` - SPF-focused report
-  - [ ] `Show-DDEmailDmarcReport` - DMARC-focused report
-  - [ ] `Show-DDEmailDkimReport` - DKIM-focused report
-  - [ ] `Show-DDDnsSecurityReport` - DNS security report
-  - [ ] `Show-DDTlsReport` - TLS/encryption report
-  - [ ] `Show-DDReputationReport` - Blacklist/reputation report
-  - [ ] `New-DDReportTemplate` - Create custom templates
-  - [ ] `Compare-DDDomainReports` - Generate comparison reports
+- [ ] Pipeline Support
+  - [ ] `Test-DDEmailSpfRecord -Domain example.com -ExportFormat Html` (report TODO)
+  - [ ] `Test-DDEmailDmarcRecord -Domain example.com -ExportFormat Html` (report TODO)
+  - [ ] `Test-DDDomainOverallHealth -Domain $domains -ExportFormat Html`
 
-- [ ] **Pipeline Support**
-  - [ ] `Test-DDEmailSpfRecord | Show-DDEmailSpfReport -ExportFormat HTML`
-  - [ ] `Get-DDDomainHealthReport | Show-DDDomainReport -ExportFormat PDF -Path report.pdf`
-  - [ ] `Get-DDDomainHealthReport -Domain $domains | Show-DDDomainReport -Batch -ExportFormat Excel`
-  - [ ] `Test-DDEmailDmarcRecord | Show-DDEmailDmarcReport -ShowInBrowser`
-  - [ ] `Get-DDFlattenedSpfIp | Show-DDEmailSpfReport -IncludeFlattened`
-
-- [ ] **Parameters**
-  - [ ] `-ExportFormat` - HTML, PDF, Excel, Word, Markdown, Json
-  - [ ] `-ShowInBrowser` - Open HTML in browser (default: true)
-  - [ ] `-Path` - Output file path
-  - [ ] `-Template` - Report template (Default, Executive, Technical, Compliance)
-  - [ ] `-Theme` - Visual theme (Light, Dark, Professional, HighContrast)
-  - [ ] `-IncludeProgress` - Include scan progress log
-  - [ ] `-IncludeRawData` - Include raw DNS responses
-  - [ ] `-PassThru` - Return report object
-  - [ ] `-NoOpen` - Don't open report after generation
+- [ ] Parameters
+  - [x] `-ExportFormat` - Html, Pdf, Excel, Word, Json, Csv (enum)
+  - [x] `-OpenInBrowser` - Open HTML in browser (default via Set-DDExportOptions)
+  - [x] `-ExportPath` - Output file path
+  - [ ] Templates/Themes configurable centrally (future)
+  - [ ] IncludeRawData, IncludeRecommendations (future)
 
 ### Phase 7: CLI Integration
 - [ ] **CLI Commands**
@@ -281,10 +264,9 @@
 
 ### Immediate (Week 1-2)
 1. [ ] Implement progress capture in DomainHealthCheck
-2. [ ] Refactor Export-DomainReport to Show-DDDomainReport
-3. [ ] Create base report classes with progress support
-4. [ ] Implement executive dashboard with logs
-5. [ ] Add SPF detailed analysis with flattening
+2. [ ] Create base report classes with progress support
+3. [ ] Implement executive dashboard with logs
+4. [ ] Add SPF detailed analysis with flattening
 
 ### Short Term (Week 3-4)
 1. [ ] Complete all protocol analysis sections
@@ -324,8 +306,8 @@
   - [ ] Minimal external dependencies
 
 ## 📝 Documentation Needs
-- [ ] Report template creation guide
-- [ ] PowerShell cmdlet examples for Show-* commands
+- [ ] Report template creation guide (future)
+- [ ] PowerShell examples for per-cmdlet export switches
 - [ ] CLI usage documentation
 - [ ] API reference
 - [ ] Localization guide
@@ -351,7 +333,7 @@
 - [ ] 90%+ test coverage
 - [ ] Positive user feedback on usability
 - [ ] Extensible architecture for future enhancements
-- [ ] PowerShell cmdlets: New-DDHtmlReport, Show-DDDomainReport
+- [ ] PowerShell export switches in Test-* cmdlets
 - [ ] CLI Integration: ddcli example.com --html-report --template executive
 
 This comprehensive plan transforms DomainDetective's reporting from basic text output to a professional, interactive, and insightful security analysis platform that rivals commercial solutions while maintaining the flexibility of open-source software.

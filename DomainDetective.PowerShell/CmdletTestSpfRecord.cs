@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSpfRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSpf")]
-    public sealed class CmdletTestSpfRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestSpfRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -44,7 +44,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying SPF record for domain: {0}", DomainName);
             await healthCheck.VerifySPF(DomainName);
-            WriteObject(healthCheck.SpfAnalysis);
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
+            WriteObject(output);
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDEmailSpfRecord"); // TODO: Dedicated SPF report
+                return;
+            }
         }
     }
 }

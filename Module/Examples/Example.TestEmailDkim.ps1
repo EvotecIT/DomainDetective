@@ -2,6 +2,10 @@
 
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
-$Results = Test-EmailDkim -DomainName 'evotec.pl' -Verbose -Selectors "selector1", "selector2"
-$Results | Format-Table
-$Results | Format-List
+# Auto-detect common selectors when none are provided
+$Auto = Test-EmailDkim -DomainName 'evotec.pl' -Verbose
+$Auto | Format-Table
+
+# Explicit selectors
+$Explicit = Test-EmailDkim -DomainName 'evotec.pl' -Selectors "selector1", "selector2"
+$Explicit | Format-Table

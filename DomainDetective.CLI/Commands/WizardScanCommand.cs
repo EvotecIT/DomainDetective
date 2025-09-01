@@ -52,9 +52,35 @@ internal sealed class WizardScanSettings : CommandSettings
     [CommandOption("--interactive")]
     public bool Interactive { get; set; }
 
+    [Description("Narration persona: business|funny|geek|noir|pirate")]
+    [CommandOption("--persona <KIND>")]
+    [DefaultValue("business")]
+    public string Persona { get; set; } = "business";
+
+    [Description("Show live persona narration during checks")]
+    [CommandOption("--persona-live")]
+    public bool PersonaLive { get; set; }
+
+    [Description("Include verbose persona narration (info-level logs)")]
+    [CommandOption("--persona-verbose")]
+    public bool PersonaVerbose { get; set; }
+
+    [Description("Keep console open after run and show next steps")]
+    [CommandOption("--pause-exit")]
+    public bool PauseExit { get; set; }
+
+    [Description("Use simple streaming UI (no live layout)")]
+    [CommandOption("--simple-ui")]
+    public bool SimpleUi { get; set; }
+
+    [Description("Use live UI layout (panels + progress)")]
+    [CommandOption("--live-ui")]
+    public bool LiveUi { get; set; }
+
     public override ValidationResult Validate()
     {
-        if (string.IsNullOrWhiteSpace(Domain))
+        // In interactive mode, domain is chosen via prompts; skip strict validation here
+        if (!Interactive && string.IsNullOrWhiteSpace(Domain))
             return ValidationResult.Error("--domain is required");
         return ValidationResult.Success();
     }
@@ -75,47 +101,154 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             Console.Clear();
         }
 
-        var mode = s.Full ? DomainDetective.CLI.Wizard.ScanMode.Full : (s.Quick ? DomainDetective.CLI.Wizard.ScanMode.Quick : DomainDetective.CLI.Wizard.ScanMode.Default);
-
-        HealthCheckType[]? selectedChecks = null;
-        bool activeProbes = s.ActiveMailProbes;
-        string details = s.Details.ToLowerInvariant();
-
-        if (s.Interactive)
+        bool runAgain;
+        do
         {
-            // Let user choose checks via checkboxes with emojis
-            var choices = new[]
+            runAgain = false;
+
+            var mode = s.Full ? DomainDetective.CLI.Wizard.ScanMode.Full : (s.Quick ? DomainDetective.CLI.Wizard.ScanMode.Quick : DomainDetective.CLI.Wizard.ScanMode.Default);
+
+            HealthCheckType[]? selectedChecks = null;
+            bool activeProbes = s.ActiveMailProbes;
+            string details = s.Details.ToLowerInvariant();
+
+            if (s.Interactive)
             {
-                "🧭 DNS",
-                "📧 Mail",
-                "🌐 Web",
-                "🛡 Reputation",
-                "⚙️ Active mail probes"
-            };
-            var picked = AnsiConsole.Prompt(
-                new MultiSelectionPrompt<string>()
-                    .Title($"[green]Select what to scan for [bold]{s.Domain}[/]:[/]")
-                    .InstructionsText("[grey](Press [yellow]<space>[/] to toggle, [yellow]<enter>[/] to accept)[/]")
-                    .NotRequired()
-                    .PageSize(10)
+                // Welcome
+                AnsiConsole.Clear();
+                var fig = new FigletText("DomainDetective").Color(Color.Green);
+                AnsiConsole.Write(new Panel(fig) { Border = BoxBorder.Double, Header = new PanelHeader("[bold yellow]Welcome[/]") });
+
+                // Main Settings (at start)
+                var setup = AnsiConsole.Prompt(
+                    new MultiSelectionPrompt<string>()
+                        .Title("Scan setup — toggle options")
+                        .InstructionsText("[grey](<space> to toggle, <enter> to continue)[/]")
+                        .AddChoices(new[] {
+                            "🎙 Live narration",
+                            "🪵 Verbose details",
+                            "🖨 Output: JSON",
+                            "🖨 Output: HTML",
+                            "🟩 Matrix theme",
+                            "🧩 Animated panels UI"
+                        })
+                        .Select("🎙 Live narration")
+                );
+                s.PersonaLive = setup.Contains("🎙 Live narration");
+                s.PersonaVerbose = setup.Contains("🪵 Verbose details");
+                if (setup.Contains("🖨 Output: JSON") && setup.Contains("🖨 Output: HTML"))
+                {
+                    // Prefer JSON when both toggled; user can change later via flags
+                    s.Output = "json";
+                }
+                else if (setup.Contains("🖨 Output: JSON")) s.Output = "json";
+                else if (setup.Contains("🖨 Output: HTML")) s.Output = "html";
+                s.Matrix = setup.Contains("🟩 Matrix theme");
+                s.LiveUi = setup.Contains("🧩 Animated panels UI");
+                s.SimpleUi = !s.LiveUi;
+
+                // Recent domains or enter new
+                var recent = RecentDomains.Load();
+                var domainChoices = new List<string>();
+                if (recent.Count > 0)
+                {
+                    domainChoices.AddRange(recent.Take(10).Select(d => $"📌 {d}"));
+                }
+                domainChoices.Add("➕ Enter new domain");
+                var pickDomain = AnsiConsole.Prompt(new SelectionPrompt<string>()
+                    .Title("Choose a domain")
+                    .AddChoices(domainChoices));
+                if (pickDomain.StartsWith("📌 "))
+                {
+                    s.Domain = pickDomain.Substring(2).Trim();
+                }
+                else
+                {
+                    s.Domain = AnsiConsole
+                        .Prompt(new TextPrompt<string>("Enter domain:")
+                            .PromptStyle("green")
+                            .Validate(input =>
+                            {
+                                input = (input ?? string.Empty).Trim();
+                                if (string.IsNullOrWhiteSpace(input))
+                                    return ValidationResult.Error("Domain cannot be empty.");
+                                if (input.Contains('/') || input.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                                    return ValidationResult.Error("Enter a bare domain (e.g., example.com), not a URL.");
+                                if (!input.Contains('.'))
+                                    return ValidationResult.Error("Domain should contain a dot (e.g., example.com).");
+                                return ValidationResult.Success();
+                            }))
+                        .Trim();
+                }
+
+                // Scan mode menu (styled with icons)
+                var modeChoice = AnsiConsole.Prompt(new SelectionPrompt<string>()
+                    .Title($"Select scan mode for [bold]{s.Domain}[/]")
+                    .AddChoices(new[] { "⚡ Quick", "🧪 Advanced", "🧩 Custom" })
                     .HighlightStyle(new Style(Color.Green))
-                    .AddChoices(choices)
-                    .Select("🧭 DNS").Select("📧 Mail")
-            );
+                );
 
             var list = new List<HealthCheckType>();
-            if (picked.Contains("🧭 DNS")) list.AddRange(new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL });
-            if (picked.Contains("📧 Mail"))
+            switch (modeChoice)
             {
-                list.AddRange(new[] { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT });
-                if (picked.Contains("⚙️ Active mail probes"))
-                {
-                    activeProbes = true;
-                    list.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
+                case var m when m.Contains("Quick", StringComparison.OrdinalIgnoreCase):
+                    s.Quick = true; s.Full = false;
+                        // DNS + Mail essential (balanced for speed)
+                        list.AddRange(new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.MTASTS, HealthCheckType.TLSRPT });
+                        break;
+                    case var m when m.Contains("Advanced", StringComparison.OrdinalIgnoreCase):
+                        s.Quick = false; s.Full = true;
+                        // DNS + Mail + Web + Reputation
+                        list.AddRange(new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL });
+                        list.AddRange(new[] { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT });
+                        list.AddRange(new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE });
+                        list.AddRange(new[] { HealthCheckType.DNSBL, HealthCheckType.RPKI, HealthCheckType.RDAP });
+                        // Mail probes option as part of Advanced
+                        var wantProbes = AnsiConsole.Prompt(new SelectionPrompt<string>()
+                            .Title("Active mail probes")
+                            .AddChoices(new[] { "Skip", "Include" })
+                            .HighlightStyle(new Style(Color.Green)));
+                        activeProbes = wantProbes.Equals("Include", StringComparison.OrdinalIgnoreCase);
+                        if (activeProbes)
+                            list.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
+                        break;
+                    default: // Custom
+                    {
+                        var choices = new[]
+                        {
+                            "🧭 DNS",
+                            "📧 Mail",
+                            "🌐 Web",
+                            "🛡 Reputation",
+                            "⚙️ Active mail probes"
+                        };
+                        var picked = AnsiConsole.Prompt(
+                            new MultiSelectionPrompt<string>()
+                                .Title($"[green]Select what to scan for [bold]{s.Domain}[/]:[/]")
+                                .InstructionsText("[grey](Press [yellow]<space>[/] to toggle, [yellow]<enter>[/] to accept)[/]")
+                                .NotRequired()
+                                .PageSize(10)
+                                .HighlightStyle(new Style(Color.Green))
+                                .AddChoices(choices)
+                                .Select("🧭 DNS").Select("📧 Mail")
+                        );
+                        if (picked.Contains("🧭 DNS")) list.AddRange(new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL });
+                        if (picked.Contains("📧 Mail"))
+                        {
+                            list.AddRange(new[] { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT });
+                            if (picked.Contains("⚙️ Active mail probes"))
+                            {
+                                activeProbes = true;
+                                list.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
+                            }
+                        }
+                        if (picked.Contains("🌐 Web")) list.AddRange(new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE });
+                        if (picked.Contains("🛡 Reputation")) list.AddRange(new[] { HealthCheckType.DNSBL, HealthCheckType.RPKI, HealthCheckType.RDAP });
+                        // Infer Full if Reputation selected
+                        s.Full = picked.Contains("🛡 Reputation"); s.Quick = !s.Full;
+                        break;
+                    }
                 }
-            }
-            if (picked.Contains("🌐 Web")) list.AddRange(new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE });
-            if (picked.Contains("🛡 Reputation")) list.AddRange(new[] { HealthCheckType.DNSBL, HealthCheckType.RPKI, HealthCheckType.RDAP });
             selectedChecks = list.Distinct().ToArray();
 
             // Details level quick picker
@@ -125,8 +258,15 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
                     .AddChoices(new[] { "standard", "summary", "advanced" })
                     .HighlightStyle(new Style(Color.Green))
             );
-        }
 
+            
+            }
+
+            // Defaults: if user asked for verbose narration, ensure live is on; if neither specified, enable live by default
+            if (s.PersonaVerbose) s.PersonaLive = true;
+            if (!s.Interactive && !s.PersonaLive && !s.PersonaVerbose) s.PersonaLive = true;
+
+        // Default UI: Simple/Testimo-style unless user opted in to live UI
         var wizard = new DomainWizard(new WizardOptions
         {
             Domain = s.Domain.Trim().ToLowerInvariant(),
@@ -136,35 +276,60 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             Matrix = s.Matrix,
             ActiveMailProbes = activeProbes,
             Details = details,
-            Checks = selectedChecks
+            Checks = selectedChecks,
+            Persona = s.Persona,
+            PersonaLive = s.PersonaLive,
+            PersonaVerbose = s.PersonaVerbose,
+            ShowTitle = !s.Interactive, // we already showed the Welcome header in interactive mode
+            DisableLive = s.SimpleUi || !s.LiveUi
         });
 
-        var hc = await wizard.RunAsync(Program.CancellationToken);
+            var hc = await wizard.RunAsync(Program.CancellationToken);
+            // Save domain to recent list
+            RecentDomains.Add(s.Domain);
 
-        switch (wizard.Options.Output)
-        {
-            case "json":
-                {
-                    var json = hc.ToJson();
-                    if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
+            switch (wizard.Options.Output)
+            {
+                case "json":
                     {
-                        File.WriteAllText(wizard.Options.Out!, json);
-                        AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{wizard.Options.Out}[/]");
+                        var json = hc.ToJson();
+                        if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
+                        {
+                            File.WriteAllText(wizard.Options.Out!, json);
+                            AnsiConsole.MarkupLine($"[grey]JSON written to[/] [underline]{wizard.Options.Out}[/]");
+                        }
+                        else
+                        {
+                            Console.WriteLine(json);
+                        }
+                        break;
                     }
-                    else
+                case "html":
                     {
-                        Console.WriteLine(json);
+                        AnsiConsole.MarkupLine("[yellow]HTML export is not enabled yet for the wizard.[/]");
+                        break;
                     }
+                default:
                     break;
-                }
-            case "html":
+            }
+
+            // Post-run next-step menu to keep window open and allow re-runs
+            if (s.Interactive || s.PauseExit)
+            {
+                AnsiConsole.WriteLine();
+                var next = AnsiConsole.Prompt(new SelectionPrompt<string>()
+                    .Title("What next?")
+                    .AddChoices(new[] { "🔁 Run again", "🚪 Exit" })
+                    .HighlightStyle(new Style(Color.Green))
+                );
+                if (next.StartsWith("🔁"))
                 {
-                    AnsiConsole.MarkupLine("[yellow]HTML export is not enabled yet for the wizard.[/]");
-                    break;
+                    runAgain = true;
+                    s.Interactive = true; // return to interactive prompts to choose other tests
                 }
-            default:
-                break;
-        }
+            }
+
+        } while (runAgain && !Program.CancellationToken.IsCancellationRequested);
 
         return 0;
     }

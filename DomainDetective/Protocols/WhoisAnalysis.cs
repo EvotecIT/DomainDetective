@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Globalization;
 using System.Text.Json;
 using DomainDetective.Helpers;
+using DnsClientX;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +20,9 @@ namespace DomainDetective;
 /// Queries WHOIS servers and parses registration details.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class WhoisAnalysis {
+public class WhoisAnalysis : IHasAssessments {
+    /// <summary>DNS configuration used for auxiliary lookups (e.g., whois-servers.net).</summary>
+    public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
     private string TLD { get; set; }
     private string _domainName;
 
@@ -94,6 +97,12 @@ public class WhoisAnalysis {
     public string? SnapshotDirectory { get; set; }
     public string RegistrarId { get; private set; }
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
+    public List<Assessment> Assessments { get; } = new();
+
+    /// <summary>The WHOIS server used to fulfill the query.</summary>
+    public string? WhoisServerUsed { get; private set; }
+    /// <summary>How the WHOIS server was determined (StaticMap, whois-servers.net, IANA).</summary>
+    public string? WhoisLookupSource { get; private set; }
 
     private static readonly InternalLogger _logger = new();
     private static readonly string[] _licensePrefixes = {
@@ -120,7 +129,7 @@ public class WhoisAnalysis {
         RegexOptions.IgnoreCase);
 
     private static readonly Regex _whoisServerRegex = new(
-        "whois:\\s*([^\\s]+)",
+        "whois:\\s*([A-Za-z0-9:._-]+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private void SetExpiryDate(string value) {
@@ -417,6 +426,9 @@ public class WhoisAnalysis {
             lock (_whoisServersLock) {
                 if (WhoisServers.TryGetValue(compoundTld, out string server)) {
                     TLD = compoundTld;
+                    _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
+                    WhoisServerUsed = server;
+                    WhoisLookupSource = "StaticMap";
                     return server;
                 }
             }
@@ -426,6 +438,9 @@ public class WhoisAnalysis {
         TLD = singleTld;
         lock (_whoisServersLock) {
             if (WhoisServers.TryGetValue(singleTld, out string server)) {
+                _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
+                WhoisServerUsed = server;
+                WhoisLookupSource = "StaticMap";
                 return server;
             }
         }
@@ -435,7 +450,8 @@ public class WhoisAnalysis {
             lock (_whoisServersLock) {
                 WhoisServers[singleTld] = dynamicServer;
             }
-        }
+            WhoisServerUsed = dynamicServer;
+            }
 
         return dynamicServer;
     }
@@ -443,9 +459,22 @@ public class WhoisAnalysis {
     private async Task<string?> LookupWhoisServerAsync(string tld) {
         var host = $"{tld}.whois-servers.net";
         try {
-            _ = await Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            // Prefer configured DNS resolver when available
+            DnsAnswer[] answers = Array.Empty<DnsAnswer>();
+            try {
+                answers = await DnsConfiguration.QueryDNS(host, DnsRecordType.A).ConfigureAwait(false);
+            } catch { }
+            if (answers != null && answers.Length > 0) {
+                _logger?.WriteVerbose("WHOIS server autodetected via DNS (configured resolver): {0}", host);
+                WhoisLookupSource = "whois-servers.net";
+                return host;
+            }
+            // Fallback to system DNS
+            _ = await System.Net.Dns.GetHostAddressesAsync(host).ConfigureAwait(false);
+            _logger?.WriteVerbose("WHOIS server autodetected via DNS (system resolver): {0}", host);
+            WhoisLookupSource = "whois-servers.net";
             return host;
-        } catch (SocketException) {
+        } catch (Exception) {
             // Fallback to IANA lookup below.
         }
 
@@ -466,7 +495,14 @@ public class WhoisAnalysis {
         }
 
         Match match = _whoisServerRegex.Match(response);
-        return match.Success ? match.Groups[1].Value : null;
+        if (match.Success) {
+            var server = match.Groups[1].Value;
+            _logger?.WriteVerbose("WHOIS server discovered via IANA: {0}", server);
+            WhoisLookupSource = "IANA";
+            return server;
+        }
+        _logger?.WriteVerbose("WHOIS server not found via IANA for TLD '{0}'", tld);
+        return null;
     }
 
     /// <summary>
@@ -495,6 +531,7 @@ public class WhoisAnalysis {
             }
 
             await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+            _logger?.WriteVerbose("Connected to WHOIS server {0}:{1}", host, port);
 
             using NetworkStream networkStream = tcpClient.GetStream();
             using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
@@ -518,10 +555,15 @@ public class WhoisAnalysis {
                 "\n",
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
-            ParseWhoisData();
+            using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: domain))
+            {
+                ParseWhoisData();
+            }
             NormalizeExpiryDateInData();
+            _logger?.WriteVerbose("WHOIS received {0} bytes; Registrar='{1}', Expiry='{2}'", responseBytes.Length, Registrar, ExpiryDate);
         } catch (Exception ex) {
-            _logger.WriteError(
+            _logger.WriteErrorCode(
+                WhoisCodes.QueryFailed,
                 "Error querying WHOIS server {0} for domain {1}: {2}",
                 whoisServer,
                 domain,
@@ -570,6 +612,27 @@ public class WhoisAnalysis {
         UpdateExpiryFlags();
         UpdateRegistrarLock();
         UpdatePrivacyFlag();
+
+        // Emit assessments after parsing flags
+        using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: DomainName))
+        {
+            if (IsExpired)
+            {
+                _logger.WriteWarningCode(WhoisCodes.Expired, "Domain appears expired on {0}", ExpiryDate ?? "unknown");
+            }
+            else if (ExpiresSoon)
+            {
+                _logger.WriteWarningCode(WhoisCodes.ExpirySoon, "Domain expires in {0} days (on {1})", DaysUntilExpiration?.ToString() ?? "?", ExpiryDate ?? "unknown");
+            }
+            if (string.IsNullOrWhiteSpace(Registrar))
+            {
+                _logger.WriteWarningCode(WhoisCodes.NoRegistrar, "WHOIS registrar not identified");
+            }
+            if (!string.IsNullOrWhiteSpace(WhoisData) && string.IsNullOrWhiteSpace(ExpiryDate))
+            {
+                _logger.WriteInformationCode(WhoisCodes.ParseAnomaly, "WHOIS parse anomaly: expiry date not found");
+            }
+        }
     }
 
     private void ParseWhoisDataCOUK() {
@@ -1116,7 +1179,7 @@ public class WhoisAnalysis {
                     break;
                 }
             } catch (Exception ex) {
-                _logger.WriteError("Error querying IP WHOIS server: {0}", ex.Message);
+                _logger.WriteErrorCode(WhoisCodes.IpQueryFailed, "Error querying IP WHOIS server: {0}", ex.Message);
             }
         }
 
@@ -1132,12 +1195,24 @@ public class WhoisAnalysis {
             json = await IanaQueryOverride(domain).ConfigureAwait(false);
         } else {
             var client = SharedHttpClient.Instance;
+            try {
 #if NETSTANDARD2_0 || NET472
-            using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
-            json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode) {
+                    // Gracefully ignore 404/NotFound and other non-success responses
+                    return;
+                }
+                json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 #else
-            json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
+                json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
 #endif
+            } catch (HttpRequestException ex) {
+                // Ignore IANA RDAP failures; WHOIS data may still be valid
+#if NET6_0_OR_GREATER
+                if (ex.StatusCode.HasValue) return;
+#endif
+                return;
+            }
         }
 
         using var doc = JsonDocument.Parse(json);

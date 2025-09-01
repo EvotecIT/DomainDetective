@@ -14,7 +14,7 @@ namespace DomainDetective;
 /// Provides TLS analysis for various mail protocols.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class MailTlsAnalysis
+public class MailTlsAnalysis : IHasAssessments
 {
     /// <summary>Supported mail protocols.</summary>
     public enum MailProtocol
@@ -44,12 +44,28 @@ public class MailTlsAnalysis
         public List<X509Certificate2> Chain { get; } = new();
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
         public bool ChainValid => ChainErrors.Count == 0;
+
+        // Flattened certificate fields for easier consumption
+        public string? CertificateSubject { get; set; }
+        public string? CertificateIssuer { get; set; }
+        public DateTime? CertificateNotBefore { get; set; }
+        public DateTime? CertificateNotAfter { get; set; }
+        public string? CertificateThumbprint { get; set; }
+        public string? CertificateSerialNumber { get; set; }
+        public string? CertificateSignatureAlgorithm { get; set; }
+        public string? PublicKeyAlgorithm { get; set; }
+        public int? PublicKeySize { get; set; }
+        public List<string> CertificateDnsNames { get; } = new();
     }
 
     /// <summary>Stores results for each server.</summary>
     public Dictionary<string, TlsResult> ServerResults { get; } = new();
     /// <summary>Timeout for connections.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Structured assessments captured during mail TLS checks.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Analyzes a single host.</summary>
     public async Task AnalyzeServer(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
@@ -78,6 +94,8 @@ public class MailTlsAnalysis
 
     private async Task<TlsResult> CheckTls(MailProtocol protocol, string host, int port, InternalLogger logger, CancellationToken cancellationToken)
     {
+        string category = protocol switch { MailProtocol.Smtp => "SMTPTLS", MailProtocol.Imap => "IMAPTLS", MailProtocol.Pop3 => "POP3TLS", _ => "MAILTLS" };
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: category, target: $"{host}:{port}");
         var result = new TlsResult();
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Timeout);
@@ -105,6 +123,37 @@ public class MailTlsAnalysis
                         result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
                         result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
                         result.IsExpired = cert.NotAfter < DateTime.Now;
+                        result.CertificateSubject = cert.Subject;
+                        result.CertificateIssuer = cert.Issuer;
+                        result.CertificateNotBefore = cert.NotBefore;
+                        result.CertificateNotAfter = cert.NotAfter;
+                        result.CertificateThumbprint = cert.Thumbprint;
+                        result.CertificateSerialNumber = cert.SerialNumber;
+                        result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
+                        try {
+                            result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
+                            result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                        } catch { }
+                        try {
+                            foreach (var ext in cert.Extensions)
+                            {
+                                if (ext.Oid?.Value == "2.5.29.17") // Subject Alternative Name
+                                {
+                                    var asn = new System.Security.Cryptography.AsnEncodedData(ext.Oid, ext.RawData);
+                                    // Basic parser for DNS names in SAN
+                                    var text = asn.Format(true);
+                                    foreach (var line in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                                    {
+                                        var idx = line.IndexOf("DNS Name=", StringComparison.OrdinalIgnoreCase);
+                                        if (idx >= 0)
+                                        {
+                                            var name = line.Substring(idx + 9).Trim();
+                                            if (!string.IsNullOrWhiteSpace(name)) result.CertificateDnsNames.Add(name);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch { }
                         if (chain != null)
                         {
                             foreach (var element in chain.ChainElements)
@@ -293,6 +342,36 @@ public class MailTlsAnalysis
                     result.DaysToExpire = (int)(cert.NotAfter - DateTime.Now).TotalDays;
                     result.DaysValid = (int)(cert.NotAfter - cert.NotBefore).TotalDays;
                     result.IsExpired = cert.NotAfter < DateTime.Now;
+                    result.CertificateSubject = cert.Subject;
+                    result.CertificateIssuer = cert.Issuer;
+                    result.CertificateNotBefore = cert.NotBefore;
+                    result.CertificateNotAfter = cert.NotAfter;
+                    result.CertificateThumbprint = cert.Thumbprint;
+                    result.CertificateSerialNumber = cert.SerialNumber;
+                    result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
+                    try {
+                        result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
+                        result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                    } catch { }
+                    try {
+                        foreach (var ext in cert.Extensions)
+                        {
+                            if (ext.Oid?.Value == "2.5.29.17")
+                            {
+                                var asn = new System.Security.Cryptography.AsnEncodedData(ext.Oid, ext.RawData);
+                                var text = asn.Format(true);
+                                foreach (var line in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                                {
+                                    var idx = line.IndexOf("DNS Name=", StringComparison.OrdinalIgnoreCase);
+                                    if (idx >= 0)
+                                    {
+                                        var name = line.Substring(idx + 9).Trim();
+                                        if (!string.IsNullOrWhiteSpace(name)) result.CertificateDnsNames.Add(name);
+                                    }
+                                }
+                            }
+                        }
+                    } catch { }
                     if (chain != null)
                     {
                         foreach (var element in chain.ChainElements)
@@ -346,7 +425,7 @@ public class MailTlsAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
+            logger?.WriteErrorCode(MailTlsCodes.TlsCheckFailed, "TLS check failed for {0}:{1} - {2}", host, port, ex.Message);
         }
 
         return result;

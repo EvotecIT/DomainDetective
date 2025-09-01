@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
+using System.Text.RegularExpressions;
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
 
 namespace DomainDetective;
@@ -18,7 +19,7 @@ namespace DomainDetective;
 /// This analysis attempts connections in parallel and records latency or
 /// failure reasons for each tested port.
 /// </remarks>
-public class PortScanAnalysis
+public class PortScanAnalysis : IHasAssessments
 {
     /// <summary>Result of a single port scan.</summary>
     public class ScanResult
@@ -47,6 +48,25 @@ public class PortScanAnalysis
     /// <summary>Factory used to create <see cref="UdpClient"/> instances.</summary>
     internal Func<AddressFamily, UdpClient> UdpClientFactory { get; set; } = af => new UdpClient(af);
     internal Func<AddressFamily, TcpClient> TcpClientFactory { get; set; } = af => new TcpClient(af);
+
+    /// <summary>Structured assessments captured during port scans.</summary>
+    public List<Assessment> Assessments { get; } = new();
+
+    private static readonly Dictionary<int, (string Code, string Name)> SensitiveTcpServices = new()
+    {
+        [3389] = (PortScanCodes.RdpOpen, "RDP"),
+        [5900] = (PortScanCodes.VncOpen, "VNC"),
+        [23]   = (PortScanCodes.TelnetOpen, "Telnet"),
+        [445]  = (PortScanCodes.SmbOpen, "SMB"),
+        [6379] = (PortScanCodes.RedisOpen, "Redis"),
+        [27017]= (PortScanCodes.MongoOpen, "MongoDB"),
+        [9200] = (PortScanCodes.ElasticOpen, "Elasticsearch"),
+        [11211]= (PortScanCodes.MemcachedOpen, "Memcached"),
+    };
+
+    private static readonly Regex VersionLeakRegex = new(
+        @"(?:(?:OpenSSH_|nginx/|Apache/|Microsoft-IIS/|Exim\s+\d|Redis\s+\d|MongoDB\s+\d|Elasticsearch\s+\d|memcached\s+\d))",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
 
     private static readonly Func<NetworkStream, CancellationToken, Task<string?>>[] DefaultDetectors =
@@ -114,6 +134,7 @@ public class PortScanAnalysis
 
     private async Task<ScanResult> ScanPort(string host, int port, InternalLogger? logger, CancellationToken token)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: $"{host}:{port}");
         bool tcpOpen = false;
         bool udpOpen = false;
         string? banner = null;
@@ -202,6 +223,18 @@ public class PortScanAnalysis
                     error = ex.Message;
                 }
             }
+        }
+
+        // Assess sensitive TCP services exposed
+        if (tcpOpen && SensitiveTcpServices.TryGetValue(port, out var svc))
+        {
+            logger?.WriteWarningCode(svc.Code, "{0} service open on {1}:{2}", svc.Name, host, port);
+        }
+
+        // Assess banner version leakage for known families
+        if (tcpOpen && !string.IsNullOrWhiteSpace(banner) && VersionLeakRegex.IsMatch(banner!))
+        {
+            logger?.WriteWarningCode(PortScanCodes.BannerVersionLeaked, "Service banner discloses version on {0}:{1}: {2}", host, port, banner!.Trim());
         }
 
         return new ScanResult { TcpOpen = tcpOpen, UdpOpen = udpOpen, TcpLatency = sw.Elapsed, Error = error, Banner = banner };

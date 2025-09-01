@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,7 +11,9 @@ namespace DomainDetective {
     /// Retrieves advertised AUTH mechanisms from SMTP servers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SmtpAuthAnalysis {
+public class SmtpAuthAnalysis : IHasAssessments {
+        /// <summary>Subject of the check (usually domain name).</summary>
+        public string? Subject { get; set; }
         /// <summary>Supported authentication methods per server.</summary>
         public Dictionary<string, string[]> ServerMechanisms { get; } = new();
         /// <summary>Advertised capabilities per server.</summary>
@@ -22,6 +25,7 @@ namespace DomainDetective {
 
         /// <summary>Checks a single server for AUTH capabilities.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMTPAUTH", target: $"{host}:{port}");
             ServerMechanisms.Clear();
             if (InspectCapabilities) {
                 ServerCapabilities.Clear();
@@ -42,6 +46,7 @@ namespace DomainDetective {
             }
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMTPAUTH", target: $"{host}:{port}");
                 var result = await QueryAuth(host, port, logger, cancellationToken);
                 ServerMechanisms[$"{host}:{port}"] = result.Mechanisms;
                 if (InspectCapabilities) {
@@ -75,6 +80,7 @@ namespace DomainDetective {
                 var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 bool hasAuth = false;
                 bool has8BitMime = false;
+                bool hasStartTls = false;
                 string? line;
                 while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                     timeoutCts.Token.ThrowIfCancellationRequested();
@@ -92,6 +98,8 @@ namespace DomainDetective {
                             capabilities.Add(cap.Split(' ')[0]);
                             if (string.Equals(cap, "8BITMIME", StringComparison.OrdinalIgnoreCase)) {
                                 has8BitMime = true;
+                            } else if (cap.StartsWith("STARTTLS", StringComparison.OrdinalIgnoreCase)) {
+                                hasStartTls = true;
                             }
                         }
                         if (!line.StartsWith("250-", StringComparison.Ordinal)) {
@@ -116,7 +124,26 @@ namespace DomainDetective {
                 }
 
                 if (hasAuth && !has8BitMime) {
-                    logger?.WriteWarning("SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
+                    logger?.WriteWarningCode(SmtpAuthCodes.AuthWithout8BitMime, "SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
+                }
+
+                // AUTH on plaintext (no STARTTLS) on ports expecting STARTTLS (25/587)
+                if (hasAuth && !hasStartTls && (port == 25 || port == 587)) {
+                    logger?.WriteWarningCode(SmtpAuthCodes.AuthOverPlaintext, "SMTP server {0}:{1} advertises AUTH without STARTTLS.", host, port);
+                }
+
+                // Obsolete mechanisms
+                if (mechanisms.Contains("NTLM") || mechanisms.Contains("CRAM-MD5")) {
+                    logger?.WriteWarningCode(SmtpAuthCodes.ObsoleteMechanism, "SMTP server {0}:{1} advertises obsolete AUTH mechanisms: {2}", host, port, string.Join(" ", mechanisms));
+                }
+
+                // Only weak mechanisms present
+                if (hasAuth && mechanisms.Count > 0) {
+                    var strong = mechanisms.Contains("SCRAM-SHA-256") || mechanisms.Contains("OAUTHBEARER") || mechanisms.Contains("XOAUTH2") || mechanisms.Contains("EXTERNAL");
+                    var weakOnly = !strong && mechanisms.All(m => string.Equals(m, "PLAIN", StringComparison.OrdinalIgnoreCase) || string.Equals(m, "LOGIN", StringComparison.OrdinalIgnoreCase));
+                    if (weakOnly && !hasStartTls) {
+                        logger?.WriteWarningCode(SmtpAuthCodes.NoStrongMechanism, "SMTP server {0}:{1} only advertises weak mechanisms (PLAIN/LOGIN) without STARTTLS.", host, port);
+                    }
                 }
 
                 return (
@@ -124,9 +151,12 @@ namespace DomainDetective {
                     capabilities.Count == 0 ? Array.Empty<string>() : new List<string>(capabilities).ToArray()
                 );
             } catch (Exception ex) {
-                logger?.WriteError("SMTP AUTH check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(SmtpAuthCodes.CheckFailed, "SMTP AUTH check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return (Array.Empty<string>(), Array.Empty<string>());
             }
         }
+
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     }
 }

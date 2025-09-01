@@ -2,14 +2,19 @@
 
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
-$Added = Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
-$Added | Format-Table
 
-$Removed = Remove-DnsblProvider -Domain 'dnsbl.example.com'
-$Removed | Format-Table
+# Add a provider and capture the analysis object
+$analysis = Add-DnsblProvider -Domain 'dnsbl.example.com' -Comment 'custom'
+$analysis | Format-Table
 
-$Cleared = Clear-DnsblProvider
-$Cleared | Format-Table
+# Remove the same provider by piping the analysis object
+$analysis = $analysis | Remove-DnsblProvider -Domain 'dnsbl.example.com'
+$analysis | Format-Table
 
-$Loaded = Import-DnsblConfig -Path $PSScriptRoot/../../DnsblProviders.sample.json -OverwriteExisting
-$Loaded | Format-Table
+# Clear the provider list on the same analysis object
+$analysis = $analysis | Clear-DnsblProvider
+$analysis | Format-Table
+
+# Load providers from JSON into a fresh analysis object
+$loaded = Import-DnsblConfig -Path $PSScriptRoot/../../DnsblProviders.sample.json -OverwriteExisting
+$loaded | Format-Table

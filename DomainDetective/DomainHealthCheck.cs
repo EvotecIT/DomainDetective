@@ -225,6 +225,12 @@ namespace DomainDetective {
         public BimiAnalysis BimiAnalysis { get; private set; } = new BimiAnalysis();
 
         /// <summary>
+        /// Gets the apex address (A/AAAA) analysis.
+        /// </summary>
+        /// <value>Results of apex A/AAAA lookups.</value>
+        public ApexAddressAnalysis ApexAddressAnalysis { get; private set; } = new ApexAddressAnalysis();
+
+        /// <summary>
         /// Gets the Autodiscover analysis.
         /// </summary>
         /// <value>Results of Autodiscover related checks.</value>
@@ -373,6 +379,7 @@ namespace DomainDetective {
             }
 
             DmarcAnalysis.DnsConfiguration = DnsConfiguration;
+            WhoisAnalysis.DnsConfiguration = DnsConfiguration;
 
             SpfAnalysis = new SpfAnalysis() {
                 DnsConfiguration = DnsConfiguration
@@ -419,6 +426,8 @@ namespace DomainDetective {
             FlatteningServiceAnalysis.DnsConfiguration = DnsConfiguration;
             TakeoverCnameAnalysis.DnsConfiguration = DnsConfiguration;
             AutodiscoverAnalysis.DnsConfiguration = DnsConfiguration;
+
+            ApexAddressAnalysis.DnsConfiguration = DnsConfiguration;
 
             _logger.WriteVerbose("DomainHealthCheck initialized.");
             _logger.WriteVerbose("DnsEndpoint: {0}", DnsEndpoint);

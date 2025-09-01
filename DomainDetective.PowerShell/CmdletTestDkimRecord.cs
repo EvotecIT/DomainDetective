@@ -12,15 +12,14 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailDkimRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailDkim")]
-    public sealed class CmdletTestDkimRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestDkimRecord : ExportableAsyncPSCmdlet {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
         public string DomainName;
 
-        /// <para>Selectors to validate.</para>
-        [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ServerName")]
-        [ValidateNotNullOrEmpty]
+        /// <para>Selectors to validate. When omitted, common selectors are auto-detected.</para>
+        [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public string[] Selectors;
 
         /// <para>DNS server used for queries.</para>
@@ -31,9 +30,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter FullResponse;
 
-        /// <para>Return raw response objects.</para>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw;
+        // View-by-default: Raw analysis is attached to view.Raw
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
@@ -57,12 +54,13 @@ namespace DomainDetective.PowerShell {
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying DKIM records for domain: {0}", DomainName);
+            // When selectors are not provided, VerifyDKIM will auto-detect well-known selectors
             await healthCheck.VerifyDKIM(DomainName, Selectors);
-            if (Raw) {
-                WriteObject(healthCheck.DKIMAnalysis);
-            } else {
-                var output = OutputHelper.Convert(healthCheck.DKIMAnalysis);
-                WriteObject(output, true);
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis);
+            WriteObject(output, true);
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDEmailDkimRecord"); // TODO: Dedicated DKIM report
+                return;
             }
         }
     }

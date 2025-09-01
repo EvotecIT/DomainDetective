@@ -27,7 +27,8 @@ namespace DomainDetective {
     /// Validation includes hostname matching and chain verification using the
     /// system trust store.
     /// </remarks>
-    public class CertificateAnalysis {
+    public class CertificateAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
         public string Url { get; set; }
         /// <summary>Gets or sets a value indicating whether the certificate chain is valid.</summary>
@@ -118,6 +119,9 @@ namespace DomainDetective {
         private readonly List<JsonElement> _ctLogEntries = new();
         private readonly CtLogAggregator _ctLogAggregator = new();
 
+        /// <summary>Structured assessments captured during certificate checks.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
         internal CtLogAggregator CtLogs => _ctLogAggregator;
 
         internal static IEnumerable<string> ExtractMxHosts(IEnumerable<DnsAnswer> records)
@@ -154,6 +158,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url) : null;
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
 #if NET8_0_OR_GREATER
                 handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
@@ -228,7 +233,7 @@ namespace DomainDetective {
                                     IsSelfSigned = Chain.Count == 1;
                                 }
                             } catch (Exception ex) {
-                                logger?.WriteError("Error retrieving certificate for {0}: {1}", url, ex.ToString());
+                                logger?.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
                             }
                         }
                         if (Certificate != null) {
@@ -247,7 +252,7 @@ namespace DomainDetective {
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
-                        logger?.WriteError("Exception reaching {0}: {1}", url, ex.ToString());
+                        logger?.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
             }

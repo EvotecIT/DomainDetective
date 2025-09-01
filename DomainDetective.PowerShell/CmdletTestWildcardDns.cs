@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell;
 /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsWildcard", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsWildcard")]
-public sealed class CmdletTestWildcardDns : AsyncPSCmdlet
+public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
 {
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -43,6 +43,8 @@ public sealed class CmdletTestWildcardDns : AsyncPSCmdlet
     {
         _logger.WriteVerbose("Querying wildcard DNS for domain: {0}", DomainName);
         await healthCheck.Verify(DomainName, new[] { HealthCheckType.WILDCARDDNS });
-        WriteObject(healthCheck.WildcardDnsAnalysis);
+        var view = DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis);
+        WriteObject(view);
+        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }

@@ -10,7 +10,7 @@ namespace DomainDetective {
     /// Performs open relay checks against SMTP servers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class OpenRelayAnalysis {
+    public class OpenRelayAnalysis : IHasAssessments {
         /// <summary>Result of a single open relay check.</summary>
         /// <para>Part of the DomainDetective project.</para>
         public class OpenRelayResult {
@@ -27,11 +27,17 @@ namespace DomainDetective {
         /// <summary>
         /// Tests a single server for open relay capabilities.
         /// </summary>
+        public List<Assessment> Assessments { get; } = new();
+
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}") : null;
             var result = await TryRelay(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = result;
+            if (result.Status == OpenRelayStatus.AllowsRelay) {
+                logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+            }
         }
 
         /// <summary>
@@ -42,8 +48,12 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
+                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}") : null;
                     var result = await TryRelay(host, port, logger, cancellationToken);
                     ServerResults[$"{host}:{port}"] = result;
+                    if (result.Status == OpenRelayStatus.AllowsRelay) {
+                        logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+                    }
                 }
             }
         }
@@ -98,7 +108,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteError("Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteErrorCode(OpenRelayCodes.CheckFailed, "Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
                 SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
                 return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }

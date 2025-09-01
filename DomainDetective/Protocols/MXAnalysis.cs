@@ -17,7 +17,8 @@ namespace DomainDetective {
     /// 5.	The MX record should not point to a domain that doesn't have an A or AAAA record.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MXAnalysis {
+    public class MXAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>DNS configuration used for lookups.</summary>
         public DnsConfiguration DnsConfiguration { get; set; }
 
@@ -47,6 +48,21 @@ namespace DomainDetective {
         /// <summary>Indicates whether backup MX servers are present.</summary>
         public bool HasBackupServers { get; private set; }
 
+        /// <summary>True when an RFC 7505 "Null MX" is present (0 .).</summary>
+        public bool HasNullMx { get; private set; }
+
+        /// <summary>True when an MX host points to localhost.</summary>
+        public bool PointsToLocalhost { get; private set; }
+
+        /// <summary>Relevant standards for MX analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "Simple Mail Transfer Protocol", Reference = "RFC 5321", Url = "https://datatracker.ietf.org/doc/html/rfc5321" },
+            new StandardReference { Title = "Null MX for No Service", Reference = "RFC 7505", Url = "https://datatracker.ietf.org/doc/html/rfc7505" }
+        };
+
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
@@ -56,6 +72,7 @@ namespace DomainDetective {
         }
 
         public async Task AnalyzeMxRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "MX") : null;
             // reset properties for repeated calls
             MxRecords = new List<string>();
             MxRecordExists = false;
@@ -65,6 +82,8 @@ namespace DomainDetective {
             PointsToDomainWithoutAOrAaaaRecord = false;
             PrioritiesInOrder = true;
             HasBackupServers = false;
+            HasNullMx = false;
+            PointsToLocalhost = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -79,7 +98,17 @@ namespace DomainDetective {
                 MxRecords.Add(record.Data);
                 var parts = record.Data.Split(new[] { ' ' }, 2, System.StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 2 && int.TryParse(parts[0], out var pref)) {
-                    parsed.Add((pref, parts[1].Trim('.')));
+                    var host = parts[1].Trim('.');
+                    if (pref == 0 && string.IsNullOrEmpty(host)) {
+                        HasNullMx = true;
+                        // Do not evaluate host lookups for null MX
+                        continue;
+                    }
+                    parsed.Add((pref, host));
+                    var lowerHost = host.ToLowerInvariant();
+                    if (lowerHost == "localhost" || lowerHost == "localhost.localdomain" || lowerHost == "127.0.0.1") {
+                        PointsToLocalhost = true;
+                    }
                 }
             }
 
@@ -104,6 +133,7 @@ namespace DomainDetective {
                 .OrderBy(p => p.Preference)
                 .ToList();
 
+            var hostsMissingAddress = new List<string>();
             foreach (var (_, host) in evaluationList) {
                 var cnameResults = await QueryDns(host, DnsRecordType.CNAME);
                 PointsToCname = PointsToCname || (cnameResults != null && cnameResults.Any());
@@ -120,7 +150,39 @@ namespace DomainDetective {
                     var nonExistent = nsResults == null || !nsResults.Any();
                     PointsToNonExistentDomain = PointsToNonExistentDomain || nonExistent;
                     PointsToDomainWithoutAOrAaaaRecord = PointsToDomainWithoutAOrAaaaRecord || !nonExistent;
+                    if (!nonExistent) hostsMissingAddress.Add(host);
                 }
+            }
+            // Emit assessments
+            if (!MxRecordExists) {
+                logger?.WriteWarningCode(MxCodes.Missing, "No MX records found for domain");
+            }
+            if (PointsToCname) {
+                logger?.WriteWarningCode(MxCodes.CnameTarget, "One or more MX hostnames point to CNAMEs");
+            }
+            if (PointsToIpAddress) {
+                logger?.WriteWarningCode(MxCodes.IpTarget, "MX record points directly to an IP address");
+            }
+            if (PointsToNonExistentDomain) {
+                logger?.WriteWarningCode(MxCodes.TargetNonExistent, "One or more MX hostnames do not exist");
+            }
+            if (PointsToDomainWithoutAOrAaaaRecord) {
+                foreach (var h in hostsMissingAddress) {
+                    using (_collector?.PushTarget(h))
+                        logger?.WriteWarningCode(MxCodes.TargetNoAddressRecords, "MX hostname has no A/AAAA records");
+                }
+            }
+            if (!PrioritiesInOrder && evaluationList.Count > 1) {
+                logger?.WriteWarningCode(MxCodes.PrioritiesOutOfOrder, "MX priorities are not in ascending stable order");
+            }
+            if (!HasBackupServers && evaluationList.Count >= 1 && !HasNullMx) {
+                logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
+            }
+            if (HasNullMx) {
+                logger?.WriteWarningCode(MxCodes.NullMxPresent, "Null MX present (0 .) indicates no inbound mail");
+            }
+            if (PointsToLocalhost) {
+                logger?.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
             }
         }
 

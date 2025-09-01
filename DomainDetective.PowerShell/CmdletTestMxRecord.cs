@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsMxRecord", DefaultParameterSetName = "ServerName")]
     [Alias("Test-DnsMx", "Test-MxRecord")]
-    public sealed class CmdletTestMxRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestMxRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -39,7 +39,12 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying MX record for domain: {0}", DomainName);
             await healthCheck.VerifyMX(DomainName);
-            WriteObject(healthCheck.MXAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDDnsMxRecord"); // TODO: Dedicated MX report
+                return;
+            }
         }
     }
 }

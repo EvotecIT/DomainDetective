@@ -22,6 +22,7 @@ namespace DomainDetective {
                 return;
             }
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            NSAnalysis.Subject = domainName;
             await NSAnalysis.AnalyzeNsRecords(ns, _logger);
         }
 
@@ -31,6 +32,7 @@ namespace DomainDetective {
         /// <param name="nsRecord">NS record text.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckNS(string nsRecord, CancellationToken cancellationToken = default) {
+            NSAnalysis.Subject = null;
             await NSAnalysis.AnalyzeNsRecords(new List<DnsAnswer> {
                 new DnsAnswer {
                     DataRaw = nsRecord,
@@ -45,6 +47,7 @@ namespace DomainDetective {
         /// <param name="nsRecords">Collection of NS record texts.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckNS(List<string> nsRecords, CancellationToken cancellationToken = default) {
+            NSAnalysis.Subject = null;
             var dnsResults = nsRecords.Select(record => new DnsAnswer {
                 DataRaw = record,
             }).ToList();

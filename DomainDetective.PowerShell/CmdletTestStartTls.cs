@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailStartTls", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailStartTls")]
-    public sealed class CmdletTestStartTls : AsyncPSCmdlet {
+    public sealed class CmdletTestStartTls : ExportableAsyncPSCmdlet {
         /// <summary>Domain to test.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -24,6 +24,10 @@ namespace DomainDetective.PowerShell {
         /// <summary>SMTP port number.</summary>
         [Parameter(Mandatory = false)]
         public int Port = 25;
+
+        /// <summary>Return the full analysis object instead of per-server details.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter FullResponse;
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
@@ -43,7 +47,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", DomainName, Port);
             await healthCheck.VerifySTARTTLS(DomainName, Port);
-            WriteObject(healthCheck.StartTlsAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.StartTlsAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

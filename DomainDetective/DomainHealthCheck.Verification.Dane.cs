@@ -56,21 +56,29 @@ namespace DomainDetective {
             }
 
             DaneAnalysis = new DANEAnalysis();
+            DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
+            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for {0} on ports: {1}", domainName, string.Join(", ", ports));
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var query = CreateServiceQuery(port, domainName);
                 ValidateServiceQueryProtocol(query);
+                if (!DaneAnalysis.QueriedNames.Contains(query, StringComparer.OrdinalIgnoreCase))
+                    DaneAnalysis.QueriedNames.Add(query);
+                if (!DaneAnalysis.QueriedPorts.Contains(port))
+                    DaneAnalysis.QueriedPorts.Add(port);
                 var dane = await QueryDaneDns(query, cancellationToken);
                 allDaneRecords.AddRange(dane);
             }
 
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
-                _logger.WriteWarning("No DANE records found.");
+                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
 
@@ -87,13 +95,26 @@ namespace DomainDetective {
 
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
+            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE");
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
 
             foreach (var service in services.Distinct()) {
                 cancellationToken.ThrowIfCancellationRequested();
                 var host = NormalizeDomain(service.Host).TrimEnd('.');
                 var daneName = CreateServiceQuery(service.Port, host);
                 ValidateServiceQueryProtocol(daneName);
+                if (!DaneAnalysis.QueriedNames.Contains(daneName, StringComparer.OrdinalIgnoreCase))
+                    DaneAnalysis.QueriedNames.Add(daneName);
+                if (!DaneAnalysis.QueriedPorts.Contains(service.Port))
+                    DaneAnalysis.QueriedPorts.Add(service.Port);
+                if (service.Port == (int)ServiceType.SMTP) {
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.SMTP))
+                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.SMTP);
+                } else if (service.Port == (int)ServiceType.HTTPS) {
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(ServiceType.HTTPS))
+                        DaneAnalysis.QueriedServiceTypes.Add(ServiceType.HTTPS);
+                }
                 var dane = await QueryDaneDns(daneName, cancellationToken);
                 if (dane.Any()) {
                     allDaneRecords.AddRange(dane);
@@ -102,9 +123,10 @@ namespace DomainDetective {
 
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
-                _logger.WriteWarning("No DANE records found.");
+                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
 
@@ -122,7 +144,9 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             DaneAnalysis = new DANEAnalysis();
+            DaneAnalysis.Subject = domainName;
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
+            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: domainName);
             if (serviceTypes == null || serviceTypes.Length == 0) {
                 serviceTypes = new[] { ServiceType.SMTP, ServiceType.HTTPS };
             }
@@ -133,6 +157,7 @@ namespace DomainDetective {
             }
 
             var allDaneRecords = new List<DnsAnswer>();
+            _logger?.WriteVerbose("Probing TLSA for {0} using services: {1}", domainName, string.Join(", ", serviceTypes));
             foreach (var serviceType in serviceTypes) {
                 cancellationToken.ThrowIfCancellationRequested();
                 int port;
@@ -168,6 +193,12 @@ namespace DomainDetective {
                     }
                     var daneRecord = CreateServiceQuery(port, domain);
                     ValidateServiceQueryProtocol(daneRecord);
+                    if (!DaneAnalysis.QueriedNames.Contains(daneRecord, StringComparer.OrdinalIgnoreCase))
+                        DaneAnalysis.QueriedNames.Add(daneRecord);
+                    if (!DaneAnalysis.QueriedPorts.Contains(port))
+                        DaneAnalysis.QueriedPorts.Add(port);
+                    if (!DaneAnalysis.QueriedServiceTypes.Contains(serviceType))
+                        DaneAnalysis.QueriedServiceTypes.Add(serviceType);
                     var dane = await QueryDaneDns(daneRecord, cancellationToken);
                     if (dane.Any()) {
                         allDaneRecords.AddRange(dane);
@@ -177,9 +208,10 @@ namespace DomainDetective {
             }
             if (allDaneRecords.Count > 0) {
                 cancellationToken.ThrowIfCancellationRequested();
+                _logger?.WriteVerbose("TLSA queries: {0}; records found: {1}", DaneAnalysis.QueriedNames.Count, allDaneRecords.Count);
                 await DaneAnalysis.AnalyzeDANERecords(allDaneRecords, _logger, cancellationToken);
             } else {
-                _logger.WriteWarning("No DANE records found.");
+                _logger.WriteWarningCode(DaneCodes.NoRecords, "No DANE records found.");
             }
         }
     }

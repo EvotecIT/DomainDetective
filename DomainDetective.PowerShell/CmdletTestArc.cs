@@ -16,7 +16,9 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailArcRecord", DefaultParameterSetName = "Text")]
 [Alias("Test-EmailArc")]
-    public sealed class CmdletTestArc : AsyncPSCmdlet {
+    public sealed class CmdletTestArc : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <para>Raw header text.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Text", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
@@ -45,7 +47,7 @@ namespace DomainDetective.PowerShell {
                 this.WriteProgress,
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -59,6 +61,7 @@ namespace DomainDetective.PowerShell {
                 : HeaderText;
             var result = await _healthCheck.VerifyARCAsync(text, CancelToken);
             WriteObject(result);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

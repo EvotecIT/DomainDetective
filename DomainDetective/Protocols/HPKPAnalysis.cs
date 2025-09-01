@@ -62,7 +62,7 @@ namespace DomainDetective {
 
         private void ParseHeader(InternalLogger logger)
         {
-            logger?.WriteWarning("HPKP header found but HPKP is obsolete (RFC 7469).");
+            logger?.WriteWarningCode(HttpCodes.HpkpDeprecated, "HPKP header found but HPKP is obsolete (RFC 7469).");
 
             var parts = (Header ?? string.Empty).Split(';');
             var valid = true;
@@ -123,7 +123,7 @@ namespace DomainDetective {
 
                 _cache[url] = new CacheEntry(Header, DateTimeOffset.UtcNow.Add(CacheDuration));
             } catch (Exception ex) {
-                logger?.WriteError("HPKP check failed for {0}: {1}", url, ex.Message);
+                logger?.WriteErrorCode(HpkpCodes.CheckFailed, "HPKP check failed for {0}: {1}", url, ex.Message);
             }
         }
     }}

@@ -21,13 +21,16 @@ public record EdnsSupportInfo
 
     /// <summary>Indicates if the DO bit was set in the response.</summary>
     public bool DoBit { get; init; }
+
+    /// <summary>Indicates the UDP response was truncated and TCP fallback was necessary.</summary>
+    public bool TruncatedUdp { get; init; }
 }
 
 /// <summary>
 /// Performs EDNS capability checks against authoritative servers.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class EdnsSupportAnalysis
+public class EdnsSupportAnalysis : IHasAssessments
 {
     /// <summary>EDNS support results keyed by server.</summary>
     public Dictionary<string, EdnsSupportInfo> ServerSupport { get; private set; } = new();
@@ -195,7 +198,13 @@ public class EdnsSupportAnalysis
             data = respData;
         }
 
-        return ParseEdns(data);
+        var info = ParseEdns(data);
+        // Map truncation hint
+        if (info != null)
+        {
+            return info with { TruncatedUdp = truncated };
+        }
+        return info;
     }
 
     /// <summary>
@@ -205,6 +214,7 @@ public class EdnsSupportAnalysis
     /// <param name="logger">Optional logger.</param>
     public async Task Analyze(string domainName, InternalLogger logger)
     {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "EDNS", target: domainName);
         ServerSupport.Clear();
         var ns = await QueryDns(domainName, DnsRecordType.NS);
         foreach (var record in ns)
@@ -225,7 +235,25 @@ public class EdnsSupportAnalysis
 
                 ServerSupport[$"{host} ({addr.Data})"] = support;
                 logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, addr.Data, support.Supported);
+                if (!support.Supported)
+                {
+                    logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, addr.Data);
+                }
+                else
+                {
+                    if (support.UdpPayloadSize > 1232)
+                    {
+                        logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, addr.Data);
+                    }
+                    if (support.TruncatedUdp)
+                    {
+                        logger?.WriteInformationCode(EdnsCodes.TruncatedFallback, "EDNS response truncated on {0} ({1}); TCP fallback used", host, addr.Data);
+                    }
+                }
             }
         }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }

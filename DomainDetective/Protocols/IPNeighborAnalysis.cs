@@ -14,8 +14,10 @@ namespace DomainDetective;
 /// Collects domains resolving to the same IP address using PTR and passive DNS.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class IPNeighborAnalysis
+public class IPNeighborAnalysis : IHasAssessments
 {
+    /// <summary>Subject of the check (domain name).</summary>
+    public string? Subject { get; set; }
     /// <summary>DNS configuration used for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     /// <summary>Override for DNS queries during testing.</summary>
@@ -29,6 +31,8 @@ public class IPNeighborAnalysis
     public List<Exception> Errors { get; private set; } = new();
     /// <summary>Override for RPKI validity checks.</summary>
     public Func<string, Task<bool>>? RPKIValidationOverride { private get; set; }
+
+    public List<Assessment> Assessments { get; } = new();
 
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
@@ -64,7 +68,7 @@ public class IPNeighborAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("Passive DNS query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(IpNeighborCodes.PassiveDnsQueryFailed, "Passive DNS query failed for {0}: {1}", ip, ex.Message);
             return new List<string>();
         }
     }
@@ -95,7 +99,7 @@ public class IPNeighborAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("RPKI query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
             return true;
         }
     }
@@ -105,6 +109,7 @@ public class IPNeighborAnalysis
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        Subject = domainName;
         Results = new List<IPNeighborResult>();
         Errors = new List<Exception>();
         var answers = await QueryDns(domainName, DnsRecordType.A);
@@ -145,6 +150,12 @@ public class IPNeighborAnalysis
                         RPKIValid = rpkiValid
                     });
                 }
+                // Emit assessment if excessive number of co-hosted domains
+                if (list.Count > 50)
+                {
+                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: ipStr) : null;
+                    logger?.WriteWarningCode(IpNeighborCodes.ExcessiveCoHosts, "{0} co-hosted domains observed on {1}", list.Count, ipStr);
+                }
             }
             catch (Exception ex)
             {
@@ -152,7 +163,7 @@ public class IPNeighborAnalysis
                 {
                     Errors.Add(ex);
                 }
-                logger?.WriteError("Neighbor analysis failed for {0}: {1}", ipStr, ex.Message);
+                logger?.WriteErrorCode(IpNeighborCodes.AnalysisFailed, "Neighbor analysis failed for {0}: {1}", ipStr, ex.Message);
             }
         });
 

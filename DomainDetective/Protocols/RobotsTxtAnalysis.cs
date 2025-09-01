@@ -10,7 +10,7 @@ namespace DomainDetective;
 /// <summary>
 /// Downloads and parses robots.txt files.
 /// </summary>
-public class RobotsTxtAnalysis
+public class RobotsTxtAnalysis : IHasAssessments
 {
     private record CacheEntry(string Content, string Url, bool Fallback, DateTimeOffset Expires);
     private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -40,6 +40,7 @@ public class RobotsTxtAnalysis
     public bool HasAiBotRules => AiBots.Count > 0;
 
     internal InternalLogger? Logger { get; set; }
+    public List<Assessment> Assessments { get; } = new();
 
     private static readonly HttpClient _client;
 
@@ -80,6 +81,16 @@ public class RobotsTxtAnalysis
             Url = cached.Url;
             Robots = RobotsTxtParser.Parse(cached.Content);
             DetectAiBots();
+            if (HasAiBotRules)
+            {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
+                    Code = RobotsTxtCodes.AiBotDirectivesPresent,
+                    Message = "AI bot directives present in robots.txt"
+                });
+            }
             return;
         }
 
@@ -102,6 +113,36 @@ public class RobotsTxtAnalysis
             Robots = RobotsTxtParser.Parse(content);
             DetectAiBots();
             _cache[domain] = new CacheEntry(content, url, fallback, DateTimeOffset.UtcNow.Add(CacheDuration));
+            if (fallback)
+            {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
+                    Code = RobotsTxtCodes.FallbackHttp,
+                    Message = "robots.txt retrieved over HTTP (no HTTPS)"
+                });
+            }
+            if (HasAiBotRules)
+            {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
+                    Code = RobotsTxtCodes.AiBotDirectivesPresent,
+                    Message = "AI bot directives present in robots.txt"
+                });
+            }
+        }
+        else
+        {
+            Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Info,
+                Category = "Robots",
+                Target = Domain,
+                Code = RobotsTxtCodes.Missing,
+                Message = "robots.txt not found"
+            });
         }
     }
 
@@ -118,6 +159,13 @@ public class RobotsTxtAnalysis
         catch (Exception ex)
         {
             Logger?.WriteDebug("Failed to download robots.txt from {0}: {1}", url, ex.Message);
+            Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Info,
+                Category = "Robots",
+                Target = Domain,
+                Code = RobotsTxtCodes.DownloadFailed,
+                Message = $"robots.txt download failed from {url}"
+            });
         }
         return null;
     }

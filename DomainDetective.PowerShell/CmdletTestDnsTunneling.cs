@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Analyzes DNS logs for tunneling patterns.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Analyze logs.</summary>
     ///   <code>Test-DDDnsTunneling -DomainName example.com -Path ./dns.log</code>
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsTunneling", DefaultParameterSetName = "File")]
 [Alias("Test-DnsTunneling")]
-    public sealed class CmdletTestDnsTunneling : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsTunneling : ExportableAsyncPSCmdlet {
         /// <summary>Domain to inspect.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
@@ -34,7 +35,9 @@ namespace DomainDetective.PowerShell {
             var lines = File.ReadAllLines(Path);
             _hc.DnsTunnelingLogs = lines;
             await _hc.CheckDnsTunnelingAsync(DomainName, CancelToken);
-            WriteObject(_hc.DnsTunnelingAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_hc.DnsTunnelingAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

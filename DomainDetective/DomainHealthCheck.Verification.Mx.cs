@@ -22,6 +22,7 @@ namespace DomainDetective {
                 return;
             }
             var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            MXAnalysis.Subject = domainName;
             await MXAnalysis.AnalyzeMxRecords(mx, _logger);
         }
 

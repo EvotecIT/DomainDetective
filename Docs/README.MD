@@ -17,7 +17,7 @@ The comprehensive TODO for the reporting system is located at:
 
 This includes:
 - Detailed implementation phases
-- PowerShell cmdlet specifications (Show-* pattern)
+- Unified per-cmdlet export switches (-ExportFormat, -ExportPath, -OpenInBrowser)
 - Progress tracking integration
 - All protocol coverage including SPF flattening, RDAP, DNSBL, etc.
 - HtmlForgeX component utilization
@@ -25,14 +25,12 @@ This includes:
 
 ## Quick Reference
 
-### PowerShell Cmdlets (New Pattern)
-- `Show-DDDomainReport` - Main report generation/display
-- `Show-DDEmailSpfReport` - SPF-specific reports
-- `Show-DDEmailDmarcReport` - DMARC-specific reports
-- `Show-DDEmailDkimReport` - DKIM-specific reports
-- `Show-DDDnsSecurityReport` - DNS security reports
-- `Show-DDTlsReport` - TLS/encryption reports
-- `Show-DDReputationReport` - Blacklist/reputation reports
+### PowerShell Cmdlets (Export Pattern)
+- `Test-DDDomainOverallHealth` - Health + report export (-Export*)
+- `Test-DDEmailSpfRecord` - SPF (export switches available; report TODO)
+- `Test-DDEmailDmarcRecord` - DMARC (export switches available; report TODO)
+- `Test-DDEmailDkimRecord` - DKIM (export switches available; report TODO)
+- Other `Test-*` cmdlets include the same export switches for future reports
 
 ### Report Formats
 - HTML (interactive, default)

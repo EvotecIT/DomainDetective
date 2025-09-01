@@ -13,7 +13,7 @@ namespace DomainDetective;
 /// Validates IP prefixes against RPKI data.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class RPKIAnalysis
+public class RPKIAnalysis : IHasAssessments
 {
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -26,6 +26,8 @@ public class RPKIAnalysis
 
     /// <summary>Results for each IP address.</summary>
     public List<RPKIResult> Results { get; private set; } = new();
+    /// <summary>Structured assessments captured during RPKI analysis.</summary>
+    public List<Assessment> Assessments { get; } = new();
 
     /// <summary>True when all IPs are valid per RPKI.</summary>
     public bool AllValid => Results.All(r => r.Valid);
@@ -66,7 +68,7 @@ public class RPKIAnalysis
         }
         catch (Exception ex)
         {
-            logger?.WriteError("RPKI query failed for {0}: {1}", ip, ex.Message);
+            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
             return (string.Empty, 0, true);
         }
     }
@@ -77,6 +79,7 @@ public class RPKIAnalysis
     public async Task Analyze(string domainName, InternalLogger? logger = null, CancellationToken ct = default)
     {
         Results = new List<RPKIResult>();
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RPKI", target: domainName) : null;
         var a = await QueryDns(domainName, DnsRecordType.A);
         var aaaa = await QueryDns(domainName, DnsRecordType.AAAA);
 

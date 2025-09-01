@@ -5,13 +5,14 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Validates TLS-RPT record for a domain.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Check TLS report policy.</summary>
     ///   <code>Test-DDEmailTlsRptRecord -DomainName example.com</code>
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailTlsRptRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailTlsRpt")]
-    public sealed class CmdletTestTlsRptRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestTlsRptRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -39,7 +40,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying TLSRPT record for domain: {0}", DomainName);
             await healthCheck.VerifyTLSRPT(DomainName);
-            WriteObject(healthCheck.TLSRPTAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

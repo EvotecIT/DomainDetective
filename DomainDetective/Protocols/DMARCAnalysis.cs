@@ -25,7 +25,8 @@ namespace DomainDetective {
     /// DMARCbis handling follows draft-ietf-dmarcbis-base:
     /// https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base
     /// </remarks>
-    public class DmarcAnalysis {
+    public class DmarcAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         private const string TagVersion = "v";
         private const string TagPolicy = "p";
         private const string TagSubPolicy = "sp";
@@ -109,11 +110,16 @@ namespace DomainDetective {
 
         private const int DefaultReportingInterval = 86400;
 
+        /// <summary>Structured assessments observed during DMARC analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         public async Task AnalyzeDmarcRecords(
             IEnumerable<DnsAnswer> dnsResults,
             InternalLogger logger,
             string? domainName = null,
             Func<string, string>? getOrgDomain = null) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DMARC", target: domainName);
             // reset all properties so repeated calls don't accumulate data
             DnsConfiguration ??= new DnsConfiguration();
             DmarcRecord = null;
@@ -162,8 +168,9 @@ namespace DomainDetective {
             // concatenate all TXT chunks into a single string separated by spaces
             DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
 
-            if (DmarcRecord == null) {
+            if (!DmarcRecordExists || DmarcRecord == null) {
                 logger.WriteVerbose("No DMARC record found.");
+                logger?.WriteWarningCode(DmarcCodes.MissingRecord, "No DMARC record found.");
                 return;
             }
 
@@ -171,9 +178,19 @@ namespace DomainDetective {
 
             // check the character limit
             ExceedsCharacterLimit = DmarcRecord.Trim().Length > 255;
+            if (ExceedsCharacterLimit) {
+                logger?.WriteWarningCode(DmarcCodes.RecordLengthExceeds, "DMARC record exceeds 255 characters.");
+            }
 
             // check the DMARC record starts correctly
             StartsCorrectly = DmarcRecord.StartsWith("v=DMARC1");
+            if (!StartsCorrectly) {
+                logger?.WriteWarningCode(DmarcCodes.StartsInvalid, "DMARC record does not start with v=DMARC1.");
+            }
+
+            if (MultipleRecords) {
+                logger?.WriteWarningCode(DmarcCodes.MultipleRecords, "Multiple DMARC records published.");
+            }
 
             // loop through the tags of the DMARC record
             var tags = DmarcRecord.Split(';');
@@ -225,21 +242,21 @@ namespace DomainDetective {
                             var pctPair = $"{key}={value}";
                             if (!DeprecatedTags.Contains(pctPair)) {
                                 DeprecatedTags.Add(pctPair);
-                                logger?.WriteWarning("Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
+                                logger?.WriteWarningCode(DmarcCodes.TagDeprecated, "Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
                             }
                             break;
                         case TagDkimAlignment:
                             DkimAShort = value;
                             ValidDkimAlignment = value == "s" || value == "r";
                             if (!ValidDkimAlignment) {
-                                logger?.WriteWarning($"Invalid adkim value '{value}', expected 's' or 'r'");
+                                logger?.WriteWarningCode(DmarcCodes.AlignmentInvalid, $"Invalid adkim value '{value}', expected 's' or 'r'");
                             }
                             break;
                         case TagSpfAlignment:
                             SpfAShort = value;
                             ValidSpfAlignment = value == "s" || value == "r";
                             if (!ValidSpfAlignment) {
-                                logger?.WriteWarning($"Invalid aspf value '{value}', expected 's' or 'r'");
+                                logger?.WriteWarningCode(DmarcCodes.AlignmentInvalid, $"Invalid aspf value '{value}', expected 's' or 'r'");
                             }
                             break;
                         case TagRua:
@@ -263,7 +280,7 @@ namespace DomainDetective {
                             var rfPair = $"{key}={value}";
                             if (!DeprecatedTags.Contains(rfPair)) {
                                 DeprecatedTags.Add(rfPair);
-                                logger?.WriteWarning("Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
+                                logger?.WriteWarningCode(DmarcCodes.TagDeprecated, "Tag {0} is deprecated in DMARCbis draft (draft-ietf-dmarcbis-base).", key);
                             }
                             break;
                         default:
@@ -293,7 +310,7 @@ namespace DomainDetective {
                     reportDomains.Add(domain);
                     if (orgDomain != null && getOrgDomain != null &&
                         !string.Equals(getOrgDomain(domain), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarning("Report address {0} is not aligned with {1}.", mail, domainName);
+                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", mail, domainName);
                     }
                 }
             }
@@ -302,7 +319,7 @@ namespace DomainDetective {
                     reportDomains.Add(uri.Host);
                     if (orgDomain != null && getOrgDomain != null &&
                         !string.Equals(getOrgDomain(uri.Host), orgDomain, StringComparison.OrdinalIgnoreCase)) {
-                        logger?.WriteWarning("Report address {0} is not aligned with {1}.", http, domainName);
+                        logger?.WriteWarningCode(DmarcCodes.AlignmentMismatch, "Report address {0} is not aligned with {1}.", http, domainName);
                     }
                 }
             }
@@ -321,6 +338,16 @@ namespace DomainDetective {
             // set the default value for the pct tag if it is not present
             Pct ??= 100;
             UpdateAdvisory();
+            // Add high-level advisories as info assessments for consumers
+            if (!string.IsNullOrWhiteSpace(PolicyRecommendation)) {
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "DMARC",
+                    Target = domainName,
+                    Code = "DMARC.Policy.Recommendation",
+                    Message = PolicyRecommendation
+                });
+            }
         }
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null, bool isRuf = false) {
@@ -345,19 +372,19 @@ namespace DomainDetective {
                         mailtoList.Add(decoded);
                     } catch {
                         InvalidReportUri = true;
-                        logger?.WriteWarning("Report URI {0} is not a valid email address.", u);
+                        logger?.WriteWarningCode(DmarcCodes.UriInvalid, "Report URI {0} is not a valid email address.", u);
                     }
                     if (isRuf) {
                         RufSizeLimits.Add(sizeLimit);
                         if (sizeLimit.HasValue && sizeLimit.Value > 10 * 1024 * 1024) {
-                            logger?.WriteWarning("Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
+                            logger?.WriteWarningCode(DmarcCodes.RufTooLarge, "Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
                         }
                     }
                     continue;
                 }
 
                 if (!Uri.TryCreate(u, UriKind.Absolute, out var parsed)) {
-                    logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
+                    logger?.WriteWarningCode(DmarcCodes.UriMissingScheme, "Report URI {0} is missing a scheme.", u);
                     InvalidReportUri = true;
                     continue;
                 }
@@ -365,16 +392,16 @@ namespace DomainDetective {
                 if (parsed.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) {
                     httpList.Add(u);
                 } else if (parsed.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)) {
-                    logger?.WriteWarning("Report URI {0} uses HTTP instead of HTTPS.", u);
+                    logger?.WriteWarningCode(DmarcCodes.UriInsecure, "Report URI {0} uses HTTP instead of HTTPS.", u);
                     httpList.Add(u);
                 } else {
-                    logger?.WriteWarning("Report URI {0} is missing a scheme.", u);
+                    logger?.WriteWarningCode(DmarcCodes.UriMissingScheme, "Report URI {0} is missing a scheme.", u);
                     InvalidReportUri = true;
                 }
                 if (isRuf) {
                     RufSizeLimits.Add(sizeLimit);
                     if (sizeLimit.HasValue && sizeLimit.Value > 10 * 1024 * 1024) {
-                        logger?.WriteWarning("Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
+                        logger?.WriteWarningCode(DmarcCodes.RufTooLarge, "Forensic report size {0} exceeds 10MB.", sizeLimit.Value);
                     }
                 }
             }
@@ -438,7 +465,8 @@ namespace DomainDetective {
         private string TranslateReportingInterval(string interval, InternalLogger? logger = null) {
             // convert the raw 'ri' tag value to days
             if (!int.TryParse(interval, out var seconds)) {
-                logger?.WriteWarning(
+                logger?.WriteWarningCode(
+                    DmarcCodes.ReportingIntervalInvalid,
                     "Invalid reporting interval '{0}'. Defaulting to {1} seconds.",
                     interval,
                     DefaultReportingInterval);
@@ -447,7 +475,8 @@ namespace DomainDetective {
             }
 
             if (seconds <= 0) {
-                logger?.WriteWarning(
+                logger?.WriteWarningCode(
+                    DmarcCodes.ReportingIntervalZeroOrNegative,
                     "Reporting interval is zero or negative. Resetting to default value of {0} seconds.",
                     DefaultReportingInterval);
                 seconds = DefaultReportingInterval;

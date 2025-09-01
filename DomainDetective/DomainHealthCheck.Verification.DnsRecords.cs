@@ -65,6 +65,7 @@ namespace DomainDetective {
                 return;
             }
             var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            OpenResolverAnalysis.Subject = domainName;
             foreach (var record in nsRecords) {
                 var host = record.Data.Trim('.');
                 cancellationToken.ThrowIfCancellationRequested();

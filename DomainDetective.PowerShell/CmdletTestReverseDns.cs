@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsReverseDns", DefaultParameterSetName = "ServerName")]
     [Alias("Test-DnsReverseDns", "Test-ReverseDns")]
-    public sealed class CmdletTestReverseDns : AsyncPSCmdlet {
+    public sealed class CmdletTestReverseDns : ExportableAsyncPSCmdlet {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -46,7 +46,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying reverse DNS for domain: {0}", DomainName);
             await _healthCheck.Verify(DomainName, new[] { HealthCheckType.REVERSEDNS });
-            WriteObject(_healthCheck.ReverseDnsAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.ReverseDnsAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

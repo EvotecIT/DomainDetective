@@ -21,6 +21,7 @@ namespace DomainDetective {
             if (IsPublicSuffix) {
                 return;
             }
+            CAAAnalysis.Subject = domainName;
             var caa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.CAA, cancellationToken: cancellationToken);
             await CAAAnalysis.AnalyzeCAARecords(caa, _logger);
         }

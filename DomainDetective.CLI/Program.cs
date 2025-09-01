@@ -23,81 +23,14 @@ internal static class Program {
             cts.Cancel();
         };
 
-        // If no arguments provided, run the new Hacker Wizard with interactive prompts
+        // If no arguments provided, route to the interactive wizard by default
+        // If arguments start with options (e.g., --domain), assume the 'wizard' command implicitly
         if (args.Length == 0) {
-            try {
-                while (true)
-                {
-                    var domain = AnsiConsole.Prompt(
-                        new TextPrompt<string>("Enter domain to scan:")
-                            .PromptStyle("green")
-                            .ValidationErrorMessage("[red]Domain is required[/]")
-                            .Validate(s => !string.IsNullOrWhiteSpace(s))
-                    ).Trim();
-
-                var choices = new[]
-                {
-                    "🧭 DNS",
-                    "📧 Mail",
-                    "🌐 Web",
-                    "🛡 Reputation",
-                    "⚙️ Active mail probes"
-                };
-                var prompt = new MultiSelectionPrompt<string>()
-                    .Title($"[green]Select what to scan for [bold]{domain}[/]:[/]")
-                    .InstructionsText("[grey](Press [yellow]<space>[/] to toggle, [yellow]<enter>[/] to accept)[/]")
-                    .NotRequired()
-                    .PageSize(10)
-                    .HighlightStyle(new Style(Color.Green))
-                    .AddChoices(choices)
-                    .Select("🧭 DNS").Select("📧 Mail");
-                var picked = AnsiConsole.Prompt(prompt);
-
-                var list = new List<HealthCheckType>();
-                if (picked.Contains("🧭 DNS")) list.AddRange(new[] { HealthCheckType.NS, HealthCheckType.SOA, HealthCheckType.DNSSEC, HealthCheckType.WILDCARDDNS, HealthCheckType.OPENRESOLVER, HealthCheckType.ZONETRANSFER, HealthCheckType.TTL });
-                if (picked.Contains("📧 Mail"))
-                {
-                    list.AddRange(new[] { HealthCheckType.MX, HealthCheckType.SPF, HealthCheckType.DKIM, HealthCheckType.DMARC, HealthCheckType.BIMI, HealthCheckType.MTASTS, HealthCheckType.TLSRPT });
-                    if (picked.Contains("⚙️ Active mail probes"))
-                    {
-                        list.AddRange(new[] { HealthCheckType.STARTTLS, HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS, HealthCheckType.SMTPBANNER, HealthCheckType.SMTPAUTH, HealthCheckType.OPENRELAY });
-                    }
-                }
-                if (picked.Contains("🌐 Web")) list.AddRange(new[] { HealthCheckType.HTTP, HealthCheckType.CERT, HealthCheckType.DANE });
-                if (picked.Contains("🛡 Reputation")) list.AddRange(new[] { HealthCheckType.DNSBL, HealthCheckType.RPKI, HealthCheckType.RDAP });
-
-                var details = AnsiConsole.Prompt(
-                    new SelectionPrompt<string>()
-                        .Title("Details level")
-                        .AddChoices(new[] { "standard", "summary", "advanced" })
-                        .HighlightStyle(new Style(Color.Green))
-                );
-
-                    var wizard = new DomainWizard(new Wizard.WizardOptions
-                    {
-                        Domain = domain.ToLowerInvariant(),
-                        Mode = ScanMode.Full,
-                        Output = "console",
-                        Matrix = false,
-                        ActiveMailProbes = picked.Contains("⚙️ Active mail probes"),
-                        Details = details,
-                        Checks = list.Distinct().ToArray()
-                    });
-
-                    await wizard.RunAsync(CancellationToken);
-
-                    if (!AnsiConsole.Confirm("Run another scan?"))
-                        break;
-                    AnsiConsole.Clear();
-                }
-                return 0;
-            } catch (OperationCanceledException) {
-                AnsiConsole.MarkupLine("[yellow]⚠️ Operation cancelled.[/]");
-                return 1;
-            } catch (Exception ex) {
-                AnsiConsole.MarkupLine($"[red]❌ Error: {ex.Message}[/]");
-                return 1;
-            }
+            args = new[] { "wizard", "--interactive", "--simple-ui", "--pause-exit" };
+        } else if (args.Length > 0 && args[0].StartsWith("-")) {
+            var list = new List<string> { "wizard" };
+            list.AddRange(args);
+            args = list.ToArray();
         }
 
         var app = new CommandApp();

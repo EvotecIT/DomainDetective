@@ -146,6 +146,22 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Writes an error with a structured code.
+        /// </summary>
+        public void WriteErrorCode(string code, string message, params object[] args) {
+            lock (_lock) {
+                var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                if (!_loggedMessages.Add(formatted)) {
+                    return;
+                }
+                OnErrorMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
+                if (IsError) {
+                    Console.WriteLine("[error] " + message, args);
+                }
+            }
+        }
+
         public void WriteWarning(string message) {
             lock (_lock) {
                 if (!_loggedMessages.Add(message)) {
@@ -165,6 +181,22 @@ namespace DomainDetective {
                     return;
                 }
                 OnWarningMessage?.Invoke(this, new LogEventArgs(formatted));
+                if (IsWarning) {
+                    Console.WriteLine("[warning] " + message, args);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Writes a warning with a structured code.
+        /// </summary>
+        public void WriteWarningCode(string code, string message, params object[] args) {
+            lock (_lock) {
+                var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                if (!_loggedMessages.Add(formatted)) {
+                    return;
+                }
+                OnWarningMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
                 if (IsWarning) {
                     Console.WriteLine("[warning] " + message, args);
                 }
@@ -221,6 +253,22 @@ namespace DomainDetective {
                 }
             }
         }
+
+        /// <summary>
+        /// Writes an information message with a structured code.
+        /// </summary>
+        public void WriteInformationCode(string code, string message, params object[] args) {
+            lock (_lock) {
+                var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
+                if (!_loggedMessages.Add(formatted)) {
+                    return;
+                }
+                OnInformationMessage?.Invoke(this, new LogEventArgs(formatted) { Code = code });
+                if (IsInformation) {
+                    Console.WriteLine("[information] " + message, args);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -228,6 +276,8 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class LogEventArgs : EventArgs {
+        /// <summary>Optional structured event code.</summary>
+        public string? Code { get; set; }
         /// <summary>
         /// Progress percentage
         /// </summary>

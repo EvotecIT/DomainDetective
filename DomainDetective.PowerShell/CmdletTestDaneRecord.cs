@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDTlsDaneRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-TlsDane")]
-    public sealed class CmdletTestDaneRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestDaneRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -54,7 +54,9 @@ namespace DomainDetective.PowerShell {
             _logger.WriteVerbose("Querying DANE record for domain: {0}", DomainName);
             var ports = Ports != null && Ports.Length > 0 ? Ports : new[] { (int)ServiceType.SMTP };
             await healthCheck.VerifyDANE(DomainName, ports, cancellationToken: CancelToken);
-            WriteObject(healthCheck.DaneAnalysis);
+            var output = DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis);
+            WriteObject(output);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

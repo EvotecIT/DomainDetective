@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks if an SMTP server is an open relay.</summary>
     /// <para>Returns an <see cref="OpenRelayAnalysis.OpenRelayResult"/> describing the result.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test a mail server.</summary>
     /// <para>Part of the DomainDetective project.</para>
@@ -11,7 +12,9 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailOpenRelay", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailOpenRelay")]
-    public sealed class CmdletTestOpenRelay : AsyncPSCmdlet {
+    public sealed class CmdletTestOpenRelay : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host name to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -30,7 +33,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -39,7 +42,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking open relay for {0}:{1}", HostName, Port);
             await _healthCheck.CheckOpenRelayHost(HostName, Port);
-            WriteObject(_healthCheck.OpenRelayAnalysis.ServerResults[$"{HostName}:{Port}"]); 
+            var view = DomainDetective.Views.Converters.Convert(_healthCheck.OpenRelayAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

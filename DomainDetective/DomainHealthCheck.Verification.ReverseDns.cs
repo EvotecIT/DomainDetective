@@ -8,12 +8,14 @@ namespace DomainDetective {
         private async Task VerifyReverseDnsAsync(string domainName, CancellationToken cancellationToken) {
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var rdnsHosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
+            ReverseDnsAnalysis.Subject = domainName;
             await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
         }
 
         private async Task VerifyFcrDnsAsync(string domainName, CancellationToken cancellationToken) {
             var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             var rdnsHosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
+            ReverseDnsAnalysis.Subject = domainName;
             await ReverseDnsAnalysis.AnalyzeHosts(rdnsHosts, _logger);
             await FcrDnsAnalysis.Analyze(ReverseDnsAnalysis.Results, _logger);
         }

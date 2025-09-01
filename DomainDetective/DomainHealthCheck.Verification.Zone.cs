@@ -30,6 +30,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             var ns = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
+            NSAnalysis.Subject = domainName;
             await NSAnalysis.AnalyzeNsRecords(ns, _logger);
             await NSAnalysis.AnalyzeParentDelegation(domainName, _logger);
         }

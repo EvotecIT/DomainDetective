@@ -4,13 +4,16 @@ using System.Threading.Tasks;
 namespace DomainDetective.PowerShell {
     /// <summary>Checks TLS configuration for a specific IMAP host.</summary>
     /// <para>Part of the DomainDetective project.</para>
+    /// <remarks>Outputs a view object with full raw analysis attached at Raw.</remarks>
     /// <example>
     ///   <summary>Test IMAP TLS.</summary>
     ///   <code>Test-DDEmailImapTls -HostName mail.example.com -Port 993</code>
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailImapTls", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailImapTls", "Test-ImapTls")]
-    public sealed class CmdletTestImapTls : AsyncPSCmdlet {
+    public sealed class CmdletTestImapTls : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>IMAP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         public string HostName;
@@ -32,7 +35,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -41,11 +44,14 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking IMAP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckImapTlsHost(HostName, Port);
-            var result = _healthCheck.ImapTlsAnalysis.ServerResults[$"{HostName}:{Port}"];
-            WriteObject(result);
+            var analysis = _healthCheck.ImapTlsAnalysis;
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            var result = analysis.ServerResults[$"{HostName}:{Port}"];
+            WriteObject(view);
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

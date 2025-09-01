@@ -14,7 +14,7 @@ namespace DomainDetective;
 /// Queries RDAP servers for domain registration data.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class RdapAnalysis
+public class RdapAnalysis : IHasAssessments
 {
     private record CacheEntry(RdapDomain? Domain, DateTimeOffset Expires);
     private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -40,6 +40,7 @@ public class RdapAnalysis
     public List<RdapDomainStatus> Status { get; private set; } = new();
     /// <summary>Deserialized RDAP domain data.</summary>
     public RdapDomain? DomainData { get; private set; }
+    public List<Assessment> Assessments { get; } = new();
 
     internal Func<string, Task<string>>? QueryOverride { get; set; }
 
@@ -90,7 +91,7 @@ public class RdapAnalysis
                     var codeText = ex.StatusCode.HasValue
                         ? $"{(int)ex.StatusCode.Value} ({ex.StatusCode})"
                         : ex.Message;
-                    logger?.WriteError("RDAP request to {0} failed with status {1}", url, codeText);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed with status {1}", url, codeText);
                     if (ex.StatusCode == HttpStatusCode.NotFound)
                     {
                         rdapResult = null;
@@ -100,7 +101,7 @@ public class RdapAnalysis
                         throw;
                     }
 #else
-                    logger?.WriteError("RDAP request to {0} failed: {1}", url, ex.Message);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed: {1}", url, ex.Message);
                     if (ex.Message.Contains("404"))
                     {
                         rdapResult = null;
@@ -125,7 +126,7 @@ public class RdapAnalysis
                     var codeText = ex.StatusCode.HasValue
                         ? $"{(int)ex.StatusCode.Value} ({ex.StatusCode})"
                         : ex.Message;
-                    logger?.WriteError("RDAP request to {0} failed with status {1}", url, codeText);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed with status {1}", url, codeText);
                     if (ex.StatusCode == HttpStatusCode.NotFound)
                     {
                         rdapResult = null;
@@ -135,7 +136,7 @@ public class RdapAnalysis
                         throw;
                     }
 #else
-                    logger?.WriteError("RDAP request to {0} failed: {1}", url, ex.Message);
+                    logger?.WriteErrorCode(RdapCodes.RequestFailed, "RDAP request to {0} failed: {1}", url, ex.Message);
                     if (ex.Message.Contains("404"))
                     {
                         rdapResult = null;
@@ -153,6 +154,8 @@ public class RdapAnalysis
         }
         if (DomainData == null)
         {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: domain) : null;
+            logger?.WriteWarningCode(RdapCodes.NotFound, "RDAP data not found for domain");
             return;
         }
 
@@ -163,6 +166,12 @@ public class RdapAnalysis
             Status = DomainData.Status
                 .Where(s => s != RdapDomainStatus.Unknown)
                 .ToList();
+            // Emit status-based assessments for hold states
+            if (Status.Contains(RdapDomainStatus.ClientHold) || Status.Contains(RdapDomainStatus.ServerHold))
+            {
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
+                logger?.WriteWarningCode(RdapCodes.StatusHold, "Domain is on hold (client/server)");
+            }
         }
 
         if (DomainData.Nameservers != null)
@@ -208,6 +217,21 @@ public class RdapAnalysis
                 {
                     ExpiryDate = ev.Date;
                 }
+            }
+            // Emit expiry soon when parsed
+            if (!string.IsNullOrWhiteSpace(ExpiryDate) && DateTimeOffset.TryParse(ExpiryDate, out var exp))
+            {
+                var delta = exp - DateTimeOffset.UtcNow;
+                if (delta > TimeSpan.Zero && delta <= TimeSpan.FromDays(30))
+                {
+                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
+                    logger?.WriteWarningCode(RdapCodes.ExpirySoon, "Domain expires in {0} days (on {1:u})", Math.Ceiling(delta.TotalDays), exp);
+                }
+            }
+            else
+            {
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
+                logger?.WriteInformationCode(RdapCodes.ParseAnomaly, "RDAP parse anomaly: missing expiration event");
             }
         }
     }

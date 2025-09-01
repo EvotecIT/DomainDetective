@@ -19,7 +19,8 @@ namespace DomainDetective {
     /// DKIM selectors are queried for public keys and the syntax and key size
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
-    public class DkimAnalysis {
+    public class DkimAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
         /// <summary>Gets the analysis results keyed by selector.</summary>
@@ -33,6 +34,16 @@ namespace DomainDetective {
 
         /// <summary>Summary message describing DKIM validation outcome.</summary>
         public string Advisory { get; private set; }
+
+        /// <summary>Relevant standards for DKIM analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "DomainKeys Identified Mail", Reference = "RFC 6376", Url = "https://datatracker.ietf.org/doc/html/rfc6376" }
+        };
+
+        /// <summary>Structured assessments captured during DKIM analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Clears <see cref="AnalysisResults"/>.</summary>
         public void Reset() {
@@ -49,6 +60,7 @@ namespace DomainDetective {
         /// <param name="dnsResults">TXT records from the DNS query.</param>
         /// <param name="logger">Logger used for verbose output.</param>
         public async Task AnalyzeDkimRecords(string selector, IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DKIM", target: selector);
             await Task.Yield(); // To avoid warning about lack of 'await'
 
             if (dnsResults == null) {
@@ -104,14 +116,14 @@ namespace DomainDetective {
                                 if (!analysis.ValidRsaKeyLength)
                                 {
                                     analysis.ValidPublicKey = false;
-                                    logger?.WriteError("DKIM key length {0} bits is below the minimum of {1} bits.", analysis.KeyLength, MinimumRsaKeyBits);
+                                    logger?.WriteErrorCode(DkimCodes.KeyTooShort, "DKIM key length {0} bits is below the minimum of {1} bits.", analysis.KeyLength, MinimumRsaKeyBits);
                                 }
                                 else
                                 {
                                     analysis.ValidPublicKey = true;
                                     if (analysis.WeakKey)
                                     {
-                                        logger?.WriteWarning("DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
+                                        logger?.WriteWarningCode(DkimCodes.KeyWeak, "DKIM key length {0} bits is weak, use at least 2048 bits.", analysis.KeyLength);
                                     }
                                 }
                                 } catch (Exception) {
@@ -152,7 +164,7 @@ namespace DomainDetective {
                                     if (!analysis.UnknownCanonicalizationModes.Contains(part))
                                     {
                                         analysis.UnknownCanonicalizationModes.Add(part);
-                                        logger?.WriteError("Unknown canonicalization mode: {0}", part);
+                                        logger?.WriteErrorCode(DkimCodes.CanonicalizationUnknown, "Unknown canonicalization mode: {0}", part);
                                     }
                                 }
                             }
@@ -162,16 +174,16 @@ namespace DomainDetective {
                             if (value.IndexOf("sha1", StringComparison.OrdinalIgnoreCase) >= 0)
                             {
                                 analysis.DeprecatedTags.Add($"h={value}");
-                                logger?.WriteWarning("Deprecated hash algorithm detected: {0}", value);
+                                logger?.WriteWarningCode(DkimCodes.HashDeprecated, "Deprecated hash algorithm detected: {0}", value);
                             }
                             break;
                         case "g":
                             analysis.DeprecatedTags.Add("g");
-                            logger?.WriteWarning("DKIM tag 'g' is deprecated and ignored");
+                            logger?.WriteWarningCode(DkimCodes.TagGDeprecated, "DKIM tag 'g' is deprecated and ignored");
                             break;
                         case "q":
                             analysis.DeprecatedTags.Add("q");
-                            logger?.WriteWarning("DKIM tag 'q' is deprecated and ignored");
+                            logger?.WriteWarningCode(DkimCodes.TagQDeprecated, "DKIM tag 'q' is deprecated and ignored");
                             break;
                     }
                 }
@@ -194,7 +206,8 @@ namespace DomainDetective {
                 analysis.KeyAgeDays = (int)(DateTime.UtcNow - parsed).TotalDays;
                 if (DateTime.UtcNow - parsed >= KeyAgeWarningThreshold) {
                     analysis.OldKey = true;
-                    logger?.WriteWarning(
+                    logger?.WriteWarningCode(
+                        DkimCodes.KeyOld,
                         "DKIM key for selector {0} appears older than {1} days ({2:yyyy-MM-dd}).",
                         selector,
                         (int)KeyAgeWarningThreshold.TotalDays,
@@ -233,6 +246,7 @@ namespace DomainDetective {
         /// <param name="dnsResults">TXT answers from the DNS query.</param>
         /// <param name="logger">Logger used for warnings.</param>
         public async Task AnalyzeAdspRecord(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DKIM");
             await Task.Yield();
 
             AdspRecord = null;
@@ -259,7 +273,7 @@ namespace DomainDetective {
             }
 
             AdspRecord = string.Join(" ", chunks);
-            logger?.WriteWarning("ADSP record found but ADSP is obsolete.");
+            logger?.WriteWarningCode(DkimCodes.AdspObsolete, "ADSP record found but ADSP is obsolete.");
         }
 
         /// <summary>
@@ -272,20 +286,33 @@ namespace DomainDetective {
         /// <returns>The selector that returned a record, or <see langword="null"/>.</returns>
         public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
             Reset();
+            logger?.WriteVerbose("Auto-detecting DKIM selectors for {0}", domainName);
             var adsp = await dnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
             if (adsp.Any()) {
                 await AnalyzeAdspRecord(adsp, logger);
             }
 
+            string? firstFound = null;
+            var found = new List<string>();
             foreach (var selector in DKIMSelectors.GuessSelectors()) {
+                cancellationToken.ThrowIfCancellationRequested();
+                logger?.WriteVerbose("Trying DKIM selector '{0}'", selector);
                 var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                 if (dkim.Any()) {
+                    logger?.WriteVerbose("Found DKIM record with selector '{0}'", selector);
                     await AnalyzeDkimRecords(selector, dkim, logger);
-                    return selector;
+                    firstFound ??= selector;
+                    found.Add(selector);
                 }
             }
 
-            return null;
+            if (found.Count == 0) {
+                logger?.WriteVerbose("No DKIM records found in built-in selector list.");
+            } else {
+                logger?.WriteVerbose("Auto-detection discovered {0} selector(s): {1}", found.Count, string.Join(", ", found));
+            }
+
+            return firstFound;
         }
     }
 

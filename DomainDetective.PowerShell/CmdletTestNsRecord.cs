@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsNsRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsNs")]
-    public sealed class CmdletTestNsRecord : AsyncPSCmdlet {
+    public sealed class CmdletTestNsRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -39,7 +39,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying NS record for domain: {0}", DomainName);
             await healthCheck.VerifyNS(DomainName);
-            WriteObject(healthCheck.NSAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

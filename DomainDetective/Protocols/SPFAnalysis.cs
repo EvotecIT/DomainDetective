@@ -18,7 +18,8 @@ namespace DomainDetective {
     /// 5.	Each TXT chunk of the SPF record must be 255 bytes or less.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SpfAnalysis {
+    public class SpfAnalysis : IHasAssessments {
+        public string? Subject { get; set; }
         internal DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>Combined SPF record text.</summary>
@@ -83,6 +84,22 @@ namespace DomainDetective {
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
 
+        /// <summary>Structured assessments captured during SPF analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Actionable recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
+        /// <summary>
+        /// True when SPF configuration effectively authorizes outbound senders
+        /// after resolving include/redirect chains as per RFC 7208.
+        /// </summary>
+        public bool EffectiveSpfSends { get; private set; }
+
+        /// <summary>Relevant standards for SPF analysis.</summary>
+        public IReadOnlyList<StandardReference> RfcReferences => new[] {
+            new StandardReference { Title = "Sender Policy Framework", Reference = "RFC 7208", Url = "https://datatracker.ietf.org/doc/html/rfc7208" }
+        };
+
         private static readonly Regex MacroRegex = new(
             @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{1,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -135,9 +152,11 @@ namespace DomainDetective {
             ExpDnsLookupsCount = 0;
             ExpExceedsDnsLookups = false;
             Advisory = string.Empty;
+            EffectiveSpfSends = false;
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF");
             Reset();
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -171,6 +190,20 @@ namespace DomainDetective {
 
             // check the SPF record starts correctly
             StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase);
+
+            // Emit high-level assessments for presence/version/length
+            if (!SpfRecordExists) {
+                logger?.WriteWarningCode(SpfCodes.MissingRecord, "No SPF record found.");
+            }
+            if (MultipleSpfRecords) {
+                logger?.WriteWarningCode(SpfCodes.MultipleRecords, "Multiple SPF records published.");
+            }
+            if (SpfRecordExists && !StartsCorrectly) {
+                logger?.WriteWarningCode(SpfCodes.StartsInvalid, "SPF record does not start with v=spf1.");
+            }
+            if (ExceedsTotalCharacterLimit || ExceedsCharacterLimit) {
+                logger?.WriteWarningCode(SpfCodes.RecordLengthExceeds, "SPF record length exceeds recommended limits (255 per chunk, ~512 total).");
+            }
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
@@ -339,7 +372,7 @@ namespace DomainDetective {
             for (int i = 0; i < SpfRecords.Count; i++) {
                 if (SpfRecords[i].Length > 255) {
                     _warnings.Add($"SPF record chunk {i + 1} exceeds 255 characters.");
-                    logger?.WriteWarning($"SPF record chunk {i + 1} exceeds 255 characters.");
+                    logger?.WriteWarningCode(SpfCodes.TxtChunkTooLong, $"SPF record chunk {i + 1} exceeds 255 characters.");
                 }
             }
         }
@@ -350,7 +383,7 @@ namespace DomainDetective {
                 if (!_warnings.Contains(message)) {
                     _warnings.Add(message);
                 }
-                logger?.WriteWarning(message);
+                logger?.WriteWarningCode(SpfCodes.LookupsExceeded, message);
             }
         }
 
@@ -448,7 +481,7 @@ namespace DomainDetective {
             while (index >= 0 && index < token.Length) {
                 if (index + 1 >= token.Length) {
                     _warnings.Add($"Invalid percent escape in token '{token}'");
-                    logger?.WriteWarning($"Invalid percent escape in token '{token}'");
+                    logger?.WriteWarningCode(SpfCodes.MacroPercentInvalid, $"Invalid percent escape in token '{token}'");
                     break;
                 }
 
@@ -467,21 +500,21 @@ namespace DomainDetective {
                     var end = token.IndexOf('}', index + 2);
                     if (end == -1) {
                         _warnings.Add($"Invalid SPF macro syntax in token '{token}'");
-                        logger?.WriteWarning($"Invalid SPF macro syntax in token '{token}'");
+                        logger?.WriteWarningCode(SpfCodes.MacroSyntaxInvalid, $"Invalid SPF macro syntax in token '{token}'");
                         break;
                     }
 
                     var macro = token.Substring(index, end - index + 1);
                     if (!IsValidMacro(macro)) {
                         _warnings.Add($"Invalid SPF macro syntax: {macro}");
-                        logger?.WriteWarning($"Invalid SPF macro syntax: {macro}");
+                        logger?.WriteWarningCode(SpfCodes.MacroSyntaxInvalid, $"Invalid SPF macro syntax: {macro}");
                     }
                     index = token.IndexOf('%', end + 1);
                     continue;
                 }
 
                 _warnings.Add($"Invalid percent escape in token '{token}'");
-                logger?.WriteWarning($"Invalid percent escape in token '{token}'");
+                logger?.WriteWarningCode(SpfCodes.MacroPercentInvalid, $"Invalid percent escape in token '{token}'");
                 index = token.IndexOf('%', index + 1);
             }
         }
@@ -617,6 +650,7 @@ namespace DomainDetective {
         /// Produces a flattened SPF record by resolving include and redirect modifiers.
         /// </summary>
         public async Task<string> GetFlattenedSpf(InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF") : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
                 return string.Empty;
             }
@@ -630,10 +664,10 @@ namespace DomainDetective {
 
             if (record.Length > 512) {
                 _warnings.Add("Flattened SPF record exceeds 512 characters.");
-                logger?.WriteWarning("Flattened SPF record exceeds 512 characters.");
+                logger?.WriteWarningCode(SpfCodes.FlattenedLengthExceeds512, "Flattened SPF record exceeds 512 characters.");
             } else if (record.Length > 255) {
                 _warnings.Add("Flattened SPF record exceeds 255 characters.");
-                logger?.WriteWarning("Flattened SPF record exceeds 255 characters.");
+                logger?.WriteWarningCode(SpfCodes.FlattenedLengthExceeds255, "Flattened SPF record exceeds 255 characters.");
             }
 
             return record;
@@ -644,6 +678,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
                 FlattenedIpAnalysis = new FlattenedSpfResult();
                 return FlattenedIpAnalysis;
@@ -712,6 +747,7 @@ namespace DomainDetective {
         /// Builds a flattened SPF tree representation with indentation showing include and redirect branches.
         /// </summary>
         public async Task<List<string>> GetFlattenedSpfTree(InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF") : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
                 return new List<string>();
             }
@@ -726,13 +762,51 @@ namespace DomainDetective {
             var record = string.Join(" ", flatTokens);
             if (record.Length > 512) {
                 _warnings.Add("Flattened SPF record exceeds 512 characters.");
-                logger?.WriteWarning("Flattened SPF record exceeds 512 characters.");
+                logger?.WriteWarningCode(SpfCodes.FlattenedLengthExceeds512, "Flattened SPF record exceeds 512 characters.");
             } else if (record.Length > 255) {
                 _warnings.Add("Flattened SPF record exceeds 255 characters.");
-                logger?.WriteWarning("Flattened SPF record exceeds 255 characters.");
+                logger?.WriteWarningCode(SpfCodes.FlattenedLengthExceeds255, "Flattened SPF record exceeds 255 characters.");
             }
 
             return lines;
+        }
+
+        /// <summary>
+        /// Computes whether SPF effectively authorizes outbound sending after
+        /// resolving include/redirect chains and updates <see cref="EffectiveSpfSends"/>.
+        /// </summary>
+        public async Task ComputeEffectiveSpfSendsAsync(InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF") : null;
+            EffectiveSpfSends = false;
+            if (!SpfRecordExists || string.IsNullOrWhiteSpace(SpfRecord) || !StartsCorrectly) {
+                return;
+            }
+            if (PermError || ExceedsDnsLookups || MultipleSpfRecords) {
+                return;
+            }
+
+            var flattened = await GetFlattenedSpf(logger);
+            if (string.IsNullOrWhiteSpace(flattened)) {
+                return;
+            }
+
+            var tokens = flattened
+                .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim('"'))
+                .Where(t => !t.Equals("v=spf1", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            bool hasAuth = tokens.Any(t =>
+                t.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("a", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("a:", StringComparison.OrdinalIgnoreCase) ||
+                t.Equals("mx", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("mx:", StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
+            );
+
+            EffectiveSpfSends = hasAuth;
         }
 
         private async Task<List<string>> FlattenTokens(IEnumerable<string> tokens, HashSet<string> visited, InternalLogger? logger) {
@@ -745,7 +819,7 @@ namespace DomainDetective {
                         if (!visited.Add(domain)) {
                             CycleDetected = true;
                             _warnings.Add($"Cycle detected when flattening include {domain}");
-                            logger?.WriteWarning($"Cycle detected when flattening include {domain}");
+                            logger?.WriteWarningCode(SpfCodes.IncludeCycle, $"Cycle detected when flattening include {domain}");
                             continue;
                         }
 
@@ -806,7 +880,7 @@ namespace DomainDetective {
                         if (!visited.Add(domain)) {
                             CycleDetected = true;
                             _warnings.Add($"Cycle detected when flattening include {domain}");
-                            logger?.WriteWarning($"Cycle detected when flattening include {domain}");
+                            logger?.WriteWarningCode(SpfCodes.IncludeCycle, $"Cycle detected when flattening include {domain}");
                             continue;
                         }
                         string? includeRecord = null;

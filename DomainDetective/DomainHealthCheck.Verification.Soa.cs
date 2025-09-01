@@ -21,6 +21,7 @@ namespace DomainDetective {
                 return;
             }
             var soa = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.SOA, cancellationToken: cancellationToken);
+            SOAAnalysis.Subject = domainName;
             await SOAAnalysis.AnalyzeSoaRecords(soa, _logger);
         }
 

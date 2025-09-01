@@ -10,7 +10,9 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsOpenResolver")]
     [Alias("Test-DnsOpenResolver", "Test-OpenResolver")]
-    public sealed class CmdletTestOpenResolver : AsyncPSCmdlet {
+    public sealed class CmdletTestOpenResolver : ExportableAsyncPSCmdlet {
+        [Parameter(Mandatory = false)]
+        public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>DNS server to check.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
@@ -28,7 +30,7 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _hc = new DomainHealthCheck(internalLogger: _logger);
+            _hc = new DomainHealthCheck(DnsEndpoint, _logger);
             return Task.CompletedTask;
         }
 
@@ -36,7 +38,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking open resolver for {0}:{1}", Server, Port);
             await _hc.CheckOpenResolverHost(Server, Port, CancelToken);
-            WriteObject(_hc.OpenResolverAnalysis.ServerResults[$"{Server}:{Port}"]);
+            var view = DomainDetective.Views.Converters.Convert(_hc.OpenResolverAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

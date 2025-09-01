@@ -34,7 +34,8 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _analysis = new CertificateAnalysis { SkipRevocation = SkipRevocation };
             await _analysis.AnalyzeCertificate(new X509Certificate2(Path));
-            WriteObject(_analysis);
+            var view = DomainDetective.Views.Converters.Convert(_analysis);
+            WriteObject(view);
             if (ShowChain && _analysis.Chain.Count > 0) {
                 WriteObject(_analysis.Chain, true);
             }

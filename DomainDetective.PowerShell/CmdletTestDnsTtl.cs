@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsTtl", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsTtl")]
-    public sealed class CmdletTestDnsTtl : AsyncPSCmdlet {
+    public sealed class CmdletTestDnsTtl : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
@@ -39,7 +39,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying TTL for domain: {0}", DomainName);
             await healthCheck.Verify(DomainName, new[] { HealthCheckType.TTL });
-            WriteObject(healthCheck.DnsTtlAnalysis);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }
 }

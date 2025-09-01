@@ -19,12 +19,24 @@ namespace DomainDetective.Definitions {
         internal static readonly string[] Hetzner = new[] { "dkim" };
 
         internal static readonly string[] SendGrid = new[] { "s1", "s2" };
+        // Additional vendor selectors
+        internal static readonly string[] ConstantContact = new[] { "ctct1", "ctct2" };
+        internal static readonly string[] AppleICloud = new[] { "sig1" };
+        internal static readonly string[] MailerLite = new[] { "litesrv" };
+        internal static readonly string[] Zendesk = new[] { "zendesk1", "zendesk2" };
 
         internal static readonly string[] CPanel = new[] { "default", "mail" };
 
         internal static readonly string[] Fastmail = new[] { "fm1", "fm2", "fm3" };
 
         internal static readonly string[] AmazonSes = new[] { "amazonses" };
+        // Additional common provider selectors seen in the wild.
+        internal static readonly string[] ProtonMail = new[] { "protonmail", "protonmail2", "pm" };
+        internal static readonly string[] Zoho = new[] { "zoho", "zoho2" };
+        internal static readonly string[] Mailgun = new[] { "mailgun", "mg" };
+        internal static readonly string[] SparkPost = new[] { "scph", "s1" };
+        internal static readonly string[] Sendinblue = new[] { "sib" };
+        internal static readonly string[] Mailjet = new[] { "mailjet" };
 
         private static readonly string[] Dmarcian = new[] {
             "selector1",
@@ -70,9 +82,19 @@ namespace DomainDetective.Definitions {
                 .Concat(GlobalMicro)
                 .Concat(Hetzner)
                 .Concat(SendGrid)
+                .Concat(ConstantContact)
+                .Concat(AppleICloud)
+                .Concat(MailerLite)
+                .Concat(Zendesk)
                 .Concat(CPanel)
                 .Concat(Fastmail)
                 .Concat(AmazonSes)
+                .Concat(ProtonMail)
+                .Concat(Zoho)
+                .Concat(Mailgun)
+                .Concat(SparkPost)
+                .Concat(Sendinblue)
+                .Concat(Mailjet)
                 .Concat(Dmarcian)
                 .Distinct();
         }
