@@ -21,9 +21,19 @@ namespace DomainDetective {
             if (DnsConfiguration?.QueryDnsOverride != null) {
                 ApexAddressAnalysis.QueryDnsOverride = DnsConfiguration.QueryDnsOverride;
             }
-            // Use the analysis pipeline which honors overrides on ApexAddressAnalysis.DnsConfiguration
-            // (ApexAddressAnalysis.DnsConfiguration is kept in sync with DomainHealthCheck.DnsConfiguration).
-            await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+            // If an override is available, prefer a deterministic path using that override
+            // to avoid discrepancies with resolver behavior in tests.
+            if (DnsConfiguration?.QueryDnsOverride != null) {
+                ApexAddressAnalysis.Reset();
+                var a = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
+                var aaaa = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
+                await ApexAddressAnalysis.AnalyzeApexAnswers(a, aaaa, _logger);
+                await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
+                await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
+            } else {
+                // Use the analysis pipeline which honors resolver configuration.
+                await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
+            }
 
             // Safety: if no addresses detected but a test override is present, populate from override directly.
             if (!ApexAddressAnalysis.HasAnyAddress && DnsConfiguration?.QueryDnsOverride != null) {

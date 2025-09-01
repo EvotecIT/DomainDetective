@@ -129,7 +129,7 @@ public class WhoisAnalysis : IHasAssessments {
         RegexOptions.IgnoreCase);
 
     private static readonly Regex _whoisServerRegex = new(
-        "whois:\\s*([a-zA-Z0-9.-]+)",
+        "whois:\\s*([A-Za-z0-9:._-]+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private void SetExpiryDate(string value) {
