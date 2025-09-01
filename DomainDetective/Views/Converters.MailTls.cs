@@ -21,7 +21,7 @@ public static partial class Converters
             {
                 Key = kv.Key,
                 StartTlsAdvertised = r.StartTlsAdvertised,
-                Grade = r.Grade,
+                Grade = r.GradeLevel,
                 CertificateValid = r.CertificateValid,
                 ChainValid = r.ChainValid,
                 DaysToExpire = r.DaysToExpire,
@@ -40,17 +40,15 @@ public static partial class Converters
             });
         }
         int validCount = 0;
-        var gradeCounts = new Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
+        var gradeCounts = new Dictionary<GradeLevel,int>();
         foreach (var s in servers)
         {
             if (s.CertificateValid) validCount++;
-            if (!string.IsNullOrWhiteSpace(s.Grade))
-            {
+            if (s.Grade != GradeLevel.Unknown)
                 gradeCounts[s.Grade] = (gradeCounts.TryGetValue(s.Grade, out var c) ? c : 0) + 1;
-            }
         }
         string gradesSummary = gradeCounts.Count > 0
-            ? string.Join("/", new[]{"A","B","C","D","F"}.Select(g => gradeCounts.TryGetValue(g, out var c) ? c.ToString() : "0"))
+            ? string.Join("/", new[]{GradeLevel.A,GradeLevel.B,GradeLevel.C,GradeLevel.D,GradeLevel.F}.Select(g => gradeCounts.TryGetValue(g, out var c) ? c.ToString() : "0"))
             : string.Empty;
         return new MailTlsInfo
         {
@@ -90,7 +88,7 @@ public class MailTlsServerInfo
 {
     public string Key { get; set; }
     public bool StartTlsAdvertised { get; set; }
-    public string Grade { get; set; }
+    public GradeLevel Grade { get; set; }
     public bool CertificateValid { get; set; }
     public bool ChainValid { get; set; }
     public int DaysToExpire { get; set; }
@@ -106,4 +104,5 @@ public class MailTlsServerInfo
     public string CertificateSubject { get; set; }
     public string CertificateIssuer { get; set; }
     public System.DateTime? CertificateNotAfter { get; set; }
+    public bool? OcspStaplingPresent { get; set; }
 }

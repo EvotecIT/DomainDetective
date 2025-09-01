@@ -30,18 +30,18 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; grade {grade}; {(analysis.StatusCode?.ToString() ?? "")}",
+            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; forms {(analysis.InsecureFormsCount > 0 ? $"insecure {analysis.InsecureFormsCount}" : "ok")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; grade {grade.ToLetter()}; {(analysis.StatusCode?.ToString() ?? "")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
     }
 
-    private static string ComputeHttpGrade(HttpAnalysis analysis)
+    private static GradeLevel ComputeHttpGrade(HttpAnalysis analysis)
     {
-        if (analysis == null) return string.Empty;
-        if (!analysis.IsReachable) return "F";
-        if (analysis.MixedContentDetected) return "F";
+        if (analysis == null) return GradeLevel.Unknown;
+        if (!analysis.IsReachable) return GradeLevel.F;
+        if (analysis.MixedContentDetected) return GradeLevel.F;
 
         // Score based on presence of core headers
         var present = 0;
@@ -53,13 +53,12 @@ public static partial class Converters
         if (Has("X-Frame-Options")) present++;
         if (Has("Permissions-Policy")) present++;
 
-        // Simple letter mapping
         return present switch {
-            >= 6 => "A",
-            5 => "B",
-            4 => "C",
-            2 or 3 => "D",
-            _ => "F"
+            >= 6 => GradeLevel.A,
+            5 => GradeLevel.B,
+            4 => GradeLevel.C,
+            2 or 3 => GradeLevel.D,
+            _ => GradeLevel.F
         };
     }
 }
@@ -80,7 +79,7 @@ public class HttpInfo
     public bool Http3Supported { get; set; }
     public bool MixedContentDetected { get; set; }
     public IReadOnlyCollection<string> MissingSecurityHeaders { get; set; }
-    public string Grade { get; set; }
+    public GradeLevel Grade { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

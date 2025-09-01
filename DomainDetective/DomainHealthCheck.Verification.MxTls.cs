@@ -63,7 +63,7 @@ namespace DomainDetective {
             }
             // If TLSA exists, ensure TLS posture is not weak
             var weak = SmtpTlsAnalysis?.ServerResults?.Values?.Any(r =>
-                r == null || r.LegacyEnabled || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch || (r.Grade ?? "C").StartsWith("C")) == true;
+                r == null || r.LegacyEnabled || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch || r.GradeLevel.IsBelow(GradeLevel.B)) == true;
             if (weak) {
                 _logger?.WriteWarningCode(DaneCodes.AlignmentTlsWeak, "TLSA present but negotiated TLS is weak on some MX hosts");
             }

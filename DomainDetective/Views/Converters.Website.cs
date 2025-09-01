@@ -22,8 +22,8 @@ public static partial class Converters
         var references = BuildReferences(System.Array.Empty<StandardReference>(), recs);
 
         var subject = cert?.Subject ?? http?.Subject;
-        var certGrade = cert?.Grade ?? string.Empty;
-        var httpGrade = http?.Grade ?? string.Empty;
+        var certGrade = cert != null ? cert.Grade.ToLetter() : string.Empty;
+        var httpGrade = http != null ? http.Grade.ToLetter() : string.Empty;
         var hsts = http?.HstsPresent ?? false;
         var mixed = http?.MixedContentDetected ?? false;
 
@@ -33,8 +33,8 @@ public static partial class Converters
             Subject = subject,
             Certificate = cert,
             Http = http,
-            CertificateGrade = certGrade,
-            HttpGrade = httpGrade,
+            CertificateGrade = cert?.Grade ?? GradeLevel.Unknown,
+            HttpGrade = http?.Grade ?? GradeLevel.Unknown,
             HstsPresent = hsts,
             MixedContentDetected = mixed,
             Assessments = allAssessments,
@@ -55,8 +55,8 @@ public class WebsiteInfo
     public string Subject { get; set; }
     public CertificateInfo Certificate { get; set; }
     public HttpInfo Http { get; set; }
-    public string CertificateGrade { get; set; }
-    public string HttpGrade { get; set; }
+    public GradeLevel CertificateGrade { get; set; }
+    public GradeLevel HttpGrade { get; set; }
     public bool HstsPresent { get; set; }
     public bool MixedContentDetected { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
@@ -67,4 +67,3 @@ public class WebsiteInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
 }
-

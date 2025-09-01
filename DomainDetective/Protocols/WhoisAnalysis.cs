@@ -183,6 +183,7 @@ public class WhoisAnalysis : IHasAssessments {
     // Mapping of TLDs to WHOIS servers. Modify this collection only while
     // holding _whoisServersLock to avoid race conditions in multi-threaded tests
     // or applications.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> GlobalWhoisServersCache = new(System.StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> WhoisServers =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
         {"ac", "whois.nic.ac"},
@@ -431,6 +432,13 @@ public class WhoisAnalysis : IHasAssessments {
                     WhoisLookupSource = "StaticMap";
                     return server;
                 }
+                if (GlobalWhoisServersCache.TryGetValue(compoundTld, out var cached)) {
+                    WhoisServers[compoundTld] = cached;
+                    TLD = compoundTld;
+                    WhoisLookupSource = "Cache";
+                    WhoisServerUsed = cached;
+                    return cached;
+                }
             }
         }
 
@@ -443,6 +451,12 @@ public class WhoisAnalysis : IHasAssessments {
                 WhoisLookupSource = "StaticMap";
                 return server;
             }
+            if (GlobalWhoisServersCache.TryGetValue(singleTld, out var cached2)) {
+                WhoisServers[singleTld] = cached2;
+                WhoisServerUsed = cached2;
+                WhoisLookupSource = "Cache";
+                return cached2;
+            }
         }
 
         string? dynamicServer = await LookupWhoisServerAsync(singleTld).ConfigureAwait(false);
@@ -451,6 +465,7 @@ public class WhoisAnalysis : IHasAssessments {
                 WhoisServers[singleTld] = dynamicServer;
             }
             WhoisServerUsed = dynamicServer;
+            GlobalWhoisServersCache[singleTld] = dynamicServer;
             }
 
         return dynamicServer;
@@ -531,7 +546,7 @@ public class WhoisAnalysis : IHasAssessments {
 
             byte[] responseBytes = Array.Empty<byte>();
             Exception lastEx = null;
-            for (int attempt = 0; attempt < 2; attempt++) {
+            for (int attempt = 0; attempt < 3; attempt++) {
                 try {
                     using TcpClient tcpClient = new TcpClient();
                     await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
@@ -554,7 +569,9 @@ public class WhoisAnalysis : IHasAssessments {
                 } catch (SocketException ex) {
                     lastEx = ex;
                 }
-                await Task.Delay(200, timeoutCts.Token);
+                // Exponential backoff with jitter
+                var delayMs = 200 * (int)System.Math.Pow(2, attempt) + new System.Random().Next(0, 100);
+                await Task.Delay(delayMs, timeoutCts.Token);
             }
             if (responseBytes.Length == 0 && lastEx != null) throw lastEx;
 

@@ -19,9 +19,9 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] EDNS: warn on fragmentation risk (advertised >1232 without PMTU) — Edns.BufferTooLarge; track resolver fallback.
 - [x] STARTTLS/SMTPTLS grading: coarse grade A/B/C/D/F (protocols, TLS ver, key size, chain validity, expiry, hostname match).
 - [x] TLS legacy: emit Tls.LegacyEnabled when SSLv3/TLS1.0/1.1 allowed.
-- [ ] Reverse DNS: Ptr.ForwardMismatch when PTR→A/AAAA does not map back; Ptr.SharedCloudManyToOne advisory.
+- [x] Reverse DNS: Ptr.ForwardMismatch when PTR→A/AAAA does not map back; Ptr.SharedCloudManyToOne advisory.
 - [x] IP Neighbors: categorize neighbors; warn MailOnSharedIp when MX/SMTP on high co‑tenancy IP.
-- [ ] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage. (partial: backoff + several ccTLDs implemented)
+- [ ] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage. (partial: cache + backoff implemented; ccTLD parsing pending)
 
 ### External Feature Parity (from Demo/Pages screenshots)
 The following items come from reviewing examples in `Demo/Pages` (securityheaders.com, HeaderScan, SSL Labs, CheckTLS, DNSChecker, Sucuri/SSLTrust, Sitechecker). They capture gaps and desired parity.
@@ -34,14 +34,14 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 
 - [x] Web: HTTPS/TLS analysis (parity with SSL Labs, at coarse level)
   - [x] Hostname/chain validity, expiry, key size, SHA2, issuer
-  - [ ] Protocol/cipher support matrix incl. TLS1.0–1.3; weak/deprecated flags (coarse level covered by grade)
+  - [x] Protocol/cipher support matrix incl. TLS1.0–1.3; weak/deprecated flags (coarse level covered by grade)
   - [x] ALPN detection (h2/h3), SCT presence count (CT queries wired)
   - [x] Overall web TLS grade (A/B/C/D/F) aligned to mail TLS grading
 
-- [ ] Mixed‑Content and insecure forms (parity with Sitechecker)
+- [x] Mixed‑Content and insecure forms (parity with Sitechecker)
   - [x] Detect mixed content on HTTPS page
-  - [ ] Report insecure `form action` and example URLs
-  - [ ] Counts + representative examples; add recommendations
+  - [x] Report insecure `form action` and example URLs
+  - [x] Counts + representative examples; add recommendations
 
 - [x] Website blacklist/malware aggregation (parity with Sucuri/SSLTrust)
   - [x] Pluggable providers (OpenPhish hook, PhishTank, URLHaus; optional Google Safe Browsing via API key)
@@ -58,16 +58,21 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
   - [x] TLSRPT endpoint resolution and sanity checks (optional HEAD)
   - [x] DANE/TLSA validation for MX (alignment advisories)
 
-- [ ] Certificate transparency and stapling
-  - [ ] OCSP stapling presence checks (web + mail); advisory when missing
-  - [ ] SCT presence count; advisory when none embedded
+- [x] Certificate transparency and stapling
+  - [x] OCSP stapling presence checks (web + mail); advisory when missing
+  - [x] SCT presence count; advisory when none embedded
 
 ## Type Consistency & Views
 - [ ] Normalize `Subject` type usage across converters (domain vs host:port vs URL); document per‑converter expectations.
-- [ ] Add `Area` mapping in views for grouping (Mail/DNS/Web/Security) and expose in CLI/PS renders.
-- [ ] Add single‑line `Summary` per view for compact dashboards.
+- [x] Add `Area` mapping in views for grouping (Mail/DNS/Web/Security) and expose in CLI/PS renders.
+- [x] Add single‑line `Summary` per view for compact dashboards.
 - [x] SPF view: add `RecordLength`, ensure `DnsLookupsCount` naming is consistent; align recommendations to RFC 7208 size and lookup limits.
-- [ ] Ensure status/warning/error counts aggregate identically in C#, CLI JSON, and PS outputs.
+- [x] Ensure status/warning/error counts aggregate identically in C#, CLI JSON, and PS outputs.
+- [ ] Replace string `Area`/`Check` with enums across all views
+  - [ ] Add `AnalysisArea { General, DNS, Mail, Web, Security }`
+  - [ ] Use `HealthCheckType` for `Check` where applicable; add `WEBSITE` to cover composite view or introduce `ViewKind { Website, ... }` for non-check views
+  - [ ] Update `Converters.AreaFor` to return `AnalysisArea` and refactor all converters to set enum values
+  - [ ] Update CLI/PS renderers to consume enums (render as strings) and adjust JSON output (enum-as-string is already enabled)
 
 ## DNS Resolver Override (PS + Core)
 - [ ] Validate IPv4/IPv6 endpoints; allow multiple resolvers with first‑success semantics (extend `DnsConfiguration`).
@@ -78,10 +83,10 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 - [ ] Add DKIM auto‑detect tests for new selectors; assert advisory/key parsing results.
 
 ## DMARC Aggregate (RUA)
-- [ ] Unify Test‑DDDmarcAggregate to use `DmarcReportParser` (v1+v2; xml/gz/zip) and add `-SummarizeBy Ip|HeaderFrom`.
+- [x] Unify Test‑DDDmarcAggregate to use `DmarcReportParser` (v1+v2; xml/gz/zip) and add `-SummarizeBy Ip|HeaderFrom`.
 - [ ] Compute and expose `RequestedReportingPolicy` from `policy_published.fo`.
-- [ ] Support directory/glob ingestion; optional de‑dup by report‑id + date range.
-- [ ] Optional export params `-CsvPath` and `-Json` for records/summaries.
+- [x] Support directory/glob ingestion; optional de‑dup by report‑id + date range.
+- [x] Optional export params `-CsvPath` and `-Json` for records/summaries.
 
 ## Testing & Validation
 - [ ] Snapshot tests for updated converters to verify `Status`, `WarningCount`, `ErrorCount`, `References`.

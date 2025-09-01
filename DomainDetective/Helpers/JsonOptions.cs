@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
 namespace DomainDetective.Helpers;
@@ -13,6 +14,7 @@ public static class JsonOptions
         TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         Converters =
         {
+            new JsonStringEnumConverter(),
             new IPAddressJsonConverter(),
             new CountryIdConverter(),
             new LocationIdConverter()

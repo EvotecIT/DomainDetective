@@ -25,4 +25,5 @@ internal static class HttpCodes {
     public const string MissingHeaderCORP = "HTTP.Header.Missing.CORP";
     public const string MissingHeaderOAC = "HTTP.Header.Missing.OAC";
     public const string MissingHeaderXPermittedCrossDomainPolicies = "HTTP.Header.Missing.XPermittedCrossDomainPolicies";
+    public const string InsecureFormAction = "HTTP.Forms.InsecureAction";
 }

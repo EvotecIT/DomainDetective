@@ -69,6 +69,19 @@ internal sealed class HttpRecommendations : IRecommendationProvider {
             Verify = "Run a crawl or browser devtools audit; ensure no http:// subresources."
         };
 
+        map[HttpCodes.InsecureFormAction] = new RecommendationAdvice {
+            Code = HttpCodes.InsecureFormAction,
+            Title = "Form submits over insecure HTTP",
+            Why = "Posting sensitive data from an HTTPS page to an http:// endpoint exposes credentials and form contents.",
+            How = "Update form action URLs to https:// and ensure the destination endpoint supports TLS. Avoid absolute http:// links.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/Security/Mixed_content#forms_and_iframes" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "forms", "mixed-content" },
+            Impact = "Credentials or PII can be intercepted or modified in transit.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Inspect <form> action attributes; confirm all are https:// or relative (which inherit https)."
+        };
+
         map[HttpCodes.MissingHeaderCsp] = new RecommendationAdvice {
             Code = HttpCodes.MissingHeaderCsp,
             Title = "Set a Content-Security-Policy",

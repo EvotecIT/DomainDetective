@@ -91,6 +91,19 @@ public static class DmarcReportParser {
         var report = new DmarcAggregateReport {
             PolicyPublished = ParsePolicy(doc.Root?.Element(ns + "policy_published"), ns)
         };
+        var meta = doc.Root?.Element(ns + "report_metadata");
+        if (meta != null)
+        {
+            report.ReportId = meta.Element(ns + "report_id")?.Value;
+            var dr = meta.Element(ns + "date_range");
+            if (dr != null)
+            {
+                if (long.TryParse(dr.Element(ns + "begin")?.Value, out var begin))
+                    report.RangeBeginUtc = System.DateTimeOffset.FromUnixTimeSeconds(begin);
+                if (long.TryParse(dr.Element(ns + "end")?.Value, out var end))
+                    report.RangeEndUtc = System.DateTimeOffset.FromUnixTimeSeconds(end);
+            }
+        }
         report.ValidationMessages.AddRange(collected);
 
         foreach (var record in doc.Descendants(ns + "record")) {
