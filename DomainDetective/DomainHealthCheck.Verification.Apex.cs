@@ -27,18 +27,7 @@ namespace DomainDetective {
                 ApexAddressAnalysis.Reset();
                 var a = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
                 var aaaa = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
-                foreach (var ans in a ?? Array.Empty<DnsAnswer>())
-                {
-                    var val = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.ARecords.Add(val);
-                }
-                foreach (var ans in aaaa ?? Array.Empty<DnsAnswer>())
-                {
-                    var val = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.AaaaRecords.Add(val);
-                }
-                // Minimal counters to satisfy summary until deeper analysis fills more
-                // (Reverse DNS and RPKI below will enrich further)
+                await ApexAddressAnalysis.AnalyzeApexAnswers(a, aaaa, _logger);
                 await ApexAddressAnalysis.AnalyzeReverseDnsAsync(domainName, _logger);
                 await ApexAddressAnalysis.AnalyzeAsnAndRpkiAsync(domainName, _logger);
                 _logger?.WriteVerbose("Apex override-first: A={0} AAAA={1}", ApexAddressAnalysis.ARecords.Count, ApexAddressAnalysis.AaaaRecords.Count);
@@ -90,6 +79,7 @@ namespace DomainDetective {
                             }
                         }
                     }
+                    // Refresh minimal flags without resetting other computed fields
                     var t2 = ApexAddressAnalysis.GetType();
                     var pA2 = t2.GetProperty("HasARecord", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
                     var pAAAA2 = t2.GetProperty("HasAaaaRecord", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
@@ -103,17 +93,8 @@ namespace DomainDetective {
             if (DnsConfiguration?.QueryDnsOverride != null && !ApexAddressAnalysis.HasAnyAddress)
             {
                 var guardA = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.A);
-                foreach (var ans in guardA ?? Array.Empty<DnsAnswer>())
-                {
-                    var val = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.ARecords.Add(val);
-                }
                 var guardAAAA = await DnsConfiguration.QueryDnsOverride(domainName, DnsRecordType.AAAA);
-                foreach (var ans in guardAAAA ?? Array.Empty<DnsAnswer>())
-                {
-                    var val = ans.Data ?? ans.DataRaw;
-                    if (!string.IsNullOrWhiteSpace(val)) ApexAddressAnalysis.AaaaRecords.Add(val);
-                }
+                await ApexAddressAnalysis.AnalyzeApexAnswers(guardA, guardAAAA, _logger);
             }
 
             // As a final step, if still no addresses, run the analysis pipeline which

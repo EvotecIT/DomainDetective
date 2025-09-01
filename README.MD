@@ -225,6 +225,12 @@ Analyze TTL values:
 Test-DnsTtl -DomainName "example.com"
 ```
 
+Get concise summaries (Area/Check/Status/Summary) for views returned by cmdlets:
+
+```powershell
+Get-DDApexAddressInfo -DomainName "example.com" | Select-Object Area,Check,Status,Summary
+```
+
 Check wildcard DNS:
 
 ```powershell

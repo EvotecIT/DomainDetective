@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using DomainDetective;
+using DomainDetective.Views;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -466,6 +467,9 @@ public sealed class DomainWizard
                     var repRecs = Ui.FilterRecommendationsForStage(allViews, 3).Take(5).ToArray();
                     if (repRecs.Length > 0) Ui.RenderRecommendationsPanel("Reputation Recommendations", repRecs);
                 }
+
+                // Area/Check Status Summaries (compact, scannable)
+                Ui.RenderCheckSummariesPanel(hc, Options.ActiveMailProbes, Options.Mode);
             }
 
             // Persona-driven recommendations summary from assessments
@@ -749,6 +753,66 @@ public static void TitleScreen(string domain, bool matrix, string persona)
 // Helpers
 file static partial class Ui
 {
+    public static void RenderCheckSummariesPanel(DomainHealthCheck hc, bool includeActiveMailProbes, ScanMode mode)
+    {
+        var table = new Table();
+        table.Border = TableBorder.Rounded;
+        table.AddColumn(new TableColumn("Area").LeftAligned());
+        table.AddColumn(new TableColumn("Check").LeftAligned());
+        table.AddColumn(new TableColumn("Status").LeftAligned());
+        table.AddColumn(new TableColumn("Summary").LeftAligned());
+
+        // DNS core
+        try { var v = Converters.Convert(hc.NSAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.SOAAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.DnsSecAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.WildcardDnsAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.ZoneTransferAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.DnsTtlAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+
+        // Mail core
+        try { var v = Converters.Convert(hc.MXAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.SpfAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.DmarcAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.BimiAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.MTASTSAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        try { var v = Converters.Convert(hc.TLSRPTAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+
+        if (includeActiveMailProbes)
+        {
+            try { var v = Converters.Convert(hc.StartTlsAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.SmtpTlsAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.ImapTlsAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.Pop3TlsAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.SmtpBannerAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.SmtpAuthAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.OpenRelayAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        }
+
+        // Web (not in Quick mode)
+        if (mode != ScanMode.Quick)
+        {
+            try { var v = Converters.Convert(hc.HttpAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.CertificateAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.DaneAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        }
+
+        // Reputation (Full mode)
+        if (mode == ScanMode.Full)
+        {
+            try { var v = Converters.Convert(hc.WhoisAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.RdapAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.RpkiAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.DNSBLAnalysis); table.AddRow(v.Area, v.Check, v.Status, v.Summary); } catch { }
+        }
+
+        // If no rows gathered, skip rendering
+        if (table.Rows.Count == 0) return;
+
+        var panel = new Panel(table) { Header = new PanelHeader("[bold]Check Summaries[/]"), Border = BoxBorder.Rounded };
+        AnsiConsole.Write(panel);
+        AnsiConsole.WriteLine();
+    }
     // Map HealthCheckType to a user-friendly label for progress lines
     internal static string FriendlyOpName(HealthCheckType ht) => ht switch
     {
