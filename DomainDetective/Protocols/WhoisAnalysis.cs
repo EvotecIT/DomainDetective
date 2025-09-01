@@ -645,6 +645,8 @@ public class WhoisAnalysis : IHasAssessments {
             ParseWhoisDataIT();
         } else if (string.Equals(TLD, "nl", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataNL();
+        } else if (IsEuCctld(TLD)) {
+            ParseWhoisDataEUGeneric();
         } else {
             ParseWhoisDataDefault();
         }
@@ -974,6 +976,46 @@ public class WhoisAnalysis : IHasAssessments {
 
             next: ;
         }
+    }
+
+    private static bool IsEuCctld(string tld)
+        => string.Equals(tld, "eu", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "se", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "no", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "dk", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "fi", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ie", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "pt", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "gr", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "lt", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "lv", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ee", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "si", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "sk", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ro", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "hu", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "pl", StringComparison.OrdinalIgnoreCase);
+
+    private void ParseWhoisDataEUGeneric()
+    {
+        // Broad EU-style WHOIS parsing with common synonyms
+        WhoisData = System.Text.RegularExpressions.Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Multiline);
+        static bool StartsWithI(string s, string prefix) => s.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase);
+        foreach (var raw in WhoisData.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+            ParseRegistrarLicense(line);
+            if (StartsWithI(line, "domain:")) { DomainName = line.Substring(7).Trim(); continue; }
+            if (StartsWithI(line, "Domain:")) { DomainName = line.Substring(7).Trim(); continue; }
+            if (StartsWithI(line, "nserver:") || StartsWithI(line, "name server:")) { var idx=line.IndexOf(':'); if (idx>0) NameServers.Add(line.Substring(idx+1).Trim()); continue; }
+            if (StartsWithI(line, "expires:") || StartsWithI(line, "Expiry Date:") || StartsWithI(line, "Expiration Date:")) { var idx=line.IndexOf(':'); if (idx>0) SetExpiryDate(line.Substring(idx+1).Trim()); continue; }
+            if (StartsWithI(line, "dnssec:")) { var idx=line.IndexOf(':'); if (idx>0) DnsSec = line.Substring(idx+1).Trim(); continue; }
+            if (StartsWithI(line, "registrar:")) { var idx=line.IndexOf(':'); if (idx>0) Registrar = line.Substring(idx+1).Trim(); continue; }
+        }
+        UpdateExpiryFlags();
+        UpdateRegistrarLock();
+        UpdatePrivacyFlag();
     }
 
     private void ParseWhoisDataDE() {

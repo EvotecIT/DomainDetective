@@ -323,6 +323,12 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
                     }
+                    if (SecurityHeaders.TryGetValue("X-Content-Type-Options", out var xcto)) {
+                        var xv = (xcto.Value ?? string.Empty).Trim();
+                        if (!string.IsNullOrEmpty(xv) && !xv.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.XContentTypeOptionsInvalid, "X-Content-Type-Options should be 'nosniff' (found: {0})", xv);
+                        }
+                    }
                     if (SecurityHeaders.TryGetValue("Permissions-Policy", out var pp)) {
                         ParsePermissionsPolicy(pp.Value);
                     }
@@ -331,6 +337,11 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("X-Frame-Options", out var xfo)) {
                         XFrameOptions = xfo.Value;
+                        var xv = (XFrameOptions ?? string.Empty).Trim();
+                        var valid = xv.Equals("DENY", StringComparison.OrdinalIgnoreCase) || xv.Equals("SAMEORIGIN", StringComparison.OrdinalIgnoreCase);
+                        if (!string.IsNullOrEmpty(xv) && !valid) {
+                            logger?.WriteWarningCode(HttpCodes.XFrameOptionsInvalid, "X-Frame-Options should be DENY or SAMEORIGIN (found: {0})", xv);
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Opener-Policy", out var coop)) {
                         CrossOriginOpenerPolicy = coop.Value;

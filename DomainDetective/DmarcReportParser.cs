@@ -166,7 +166,27 @@ public static class DmarcReportParser {
             }
         }
 
+        result.RequestedReportingPolicy = ComputeReportingPolicy(result.Fo);
         return result;
+    }
+
+    private static string ComputeReportingPolicy(string? fo)
+    {
+        if (string.IsNullOrWhiteSpace(fo)) return "any failure (default, fo=0)";
+        var tokens = fo.Split(new [] { ':', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = new List<string>();
+        foreach (var t in tokens)
+        {
+            switch (t.Trim().ToLowerInvariant())
+            {
+                case "0": parts.Add("any failure (aligned)"); break;
+                case "1": parts.Add("all failures (per-mechanism)"); break;
+                case "d": parts.Add("DKIM failure"); break;
+                case "s": parts.Add("SPF failure"); break;
+                default: parts.Add(t); break;
+            }
+        }
+        return string.Join(", ", parts);
     }
 
     /// <summary>Parses multiple DMARC reports and returns individual records.</summary>

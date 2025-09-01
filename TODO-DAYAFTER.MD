@@ -21,7 +21,7 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] TLS legacy: emit Tls.LegacyEnabled when SSLv3/TLS1.0/1.1 allowed.
 - [x] Reverse DNS: Ptr.ForwardMismatch when PTR→A/AAAA does not map back; Ptr.SharedCloudManyToOne advisory.
 - [x] IP Neighbors: categorize neighbors; warn MailOnSharedIp when MX/SMTP on high co‑tenancy IP.
-- [ ] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage. (partial: cache + backoff implemented; ccTLD parsing pending)
+- [x] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage. (added generic EU parser and session cache)
 
 ### External Feature Parity (from Demo/Pages screenshots)
 The following items come from reviewing examples in `Demo/Pages` (securityheaders.com, HeaderScan, SSL Labs, CheckTLS, DNSChecker, Sucuri/SSLTrust, Sitechecker). They capture gaps and desired parity.
@@ -84,7 +84,7 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 
 ## DMARC Aggregate (RUA)
 - [x] Unify Test‑DDDmarcAggregate to use `DmarcReportParser` (v1+v2; xml/gz/zip) and add `-SummarizeBy Ip|HeaderFrom`.
-- [ ] Compute and expose `RequestedReportingPolicy` from `policy_published.fo`.
+- [x] Compute and expose `RequestedReportingPolicy` from `policy_published.fo`.
 - [x] Support directory/glob ingestion; optional de‑dup by report‑id + date range.
 - [x] Optional export params `-CsvPath` and `-Json` for records/summaries.
 
@@ -99,14 +99,14 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 - [ ] Add quick dashboards examples in `Docs/REPORTING_USAGE.MD` using Select‑Object, and `view.Raw` for deep data.
 
 ## Providers & Recommendations (Remaining)
-- [ ] WHOIS provider (query failure, parsing anomalies).
-- [ ] RDAP provider (request failure, status handling).
-- [ ] Open Relay provider (check failure mapping).
-- [ ] DNSBL provider (listed, per‑provider query failures).
-- [ ] NS/SOA provider (misconfig, serial skew, MNAME/RNAME format, refresh/retry extremes).
-- [ ] IP Neighboring provider (passive DNS failures, high‑risk neighbors if defined).
-- [ ] HTTP advice examples/snippets (nginx/Apache/Cloudflare) in `How` for common fixes.
-- [ ] Header value quality checks (e.g., X‑Frame‑Options values; Permissions‑Policy parsing).
+- [x] WHOIS provider (query failure, parsing anomalies).
+- [x] RDAP provider (request failure, status handling).
+- [x] Open Relay provider (check failure mapping).
+- [x] DNSBL provider (listed, per‑provider query failures).
+- [x] NS/SOA provider (misconfig, serial skew, MNAME/RNAME format, refresh/retry extremes).
+- [x] IP Neighboring provider (passive DNS failures, high‑risk neighbors if defined).
+- [x] HTTP advice examples/snippets (nginx/Apache/Cloudflare) in `How` for common fixes).
+- [x] Header value quality checks (e.g., X‑Frame‑Options values; X-Content-Type-Options).
 
 ## Persona (CLI + PowerShell)
 - [ ] Ensure persona formatting parity between CLI and PowerShell (AssessmentNarrator + PersonaKind shared usage) in docs and examples.
