@@ -9,10 +9,10 @@ public static partial class Converters
     internal static string AreaFor(string check)
     {
         var c = (check ?? string.Empty).ToUpperInvariant();
-        if (c is "NS" or "SOA" or "EDNS" or "RDNS" or "FCRDNS" or "DNSSEC" or "CAA" or "TTL" or "WILDCARD") return "DNS";
-        if (c is "MX" or "SPF" or "DKIM" or "DMARC" or "BIMI" or "MTASTS" or "TLSRPT" or "STARTTLS" or "SMTP" or "IMAPTLS" or "POP3TLS") return "Mail";
+        if (c is "NS" or "SOA" or "EDNS" or "RDNS" or "FCRDNS" or "DNSSEC" or "CAA" or "TTL" or "WILDCARD" or "AXFR" or "APEX") return "DNS";
+        if (c is "MX" or "SPF" or "DKIM" or "DMARC" or "BIMI" or "MTASTS" or "TLSRPT" or "STARTTLS" or "SMTP" or "IMAPTLS" or "POP3TLS" or "SMTPAUTH" or "SMTPBANNER" or "LATENCY" or "SMIMEA" or "AUTODISCOVER" or "OPENRELAY") return "Mail";
         if (c is "HTTP" or "CERT" or "DANE" or "SECURITYTXT" or "DIRECTORY") return "Web";
-        if (c is "RDAP" or "RPKI" or "DNSBL" or "THREAT" or "THREATFEED" or "IPNEIGHBOR") return "Security";
+        if (c is "RDAP" or "RPKI" or "DNSBL" or "THREAT" or "THREATFEED" or "IPNEIGHBOR" or "PORTSCAN" or "PORTAVAILABILITY" or "DNSTUNNELING" or "CONTACT") return "Security";
         return "General";
     }
     internal static IReadOnlyList<string> BuildReferences(IReadOnlyList<StandardReference> refs, IEnumerable<RecommendationAdvice> advices)

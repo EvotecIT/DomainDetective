@@ -23,6 +23,7 @@ public static partial class Converters
         return new DnsblInfo
         {
             Check = "DNSBL",
+            Area = AreaFor("DNSBL"),
             Subject = null,
             ProvidersChecked = analysis.GetDNSBL().Count,
             HostsChecked = analysis.RecordChecked,
@@ -33,6 +34,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}",
             Recommendations = recs,
             References = new [] { "https://datatracker.ietf.org/doc/html/rfc5782" },
             Raw = analysis
@@ -43,6 +45,7 @@ public static partial class Converters
 public class DnsblInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int ProvidersChecked { get; set; }
     public int HostsChecked { get; set; }
@@ -53,6 +56,7 @@ public class DnsblInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DNSBLAnalysis Raw { get; set; }
@@ -65,4 +69,3 @@ public class DnsblHostSummary
     public int Listed { get; set; }
     public IReadOnlyList<string> Blacklists { get; set; }
 }
-

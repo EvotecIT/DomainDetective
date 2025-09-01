@@ -11,6 +11,7 @@ public static partial class Converters
         return new CertificateInfo
         {
             Check = "CERT",
+            Area = AreaFor("CERT"),
             Subject = analysis.Subject,
             Url = analysis.Url ?? analysis.Subject,
             IsReachable = analysis.IsReachable,
@@ -32,6 +33,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -42,6 +44,7 @@ public static partial class Converters
 public class CertificateInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string Url { get; set; }
     public bool IsReachable { get; set; }
@@ -63,8 +66,8 @@ public class CertificateInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public CertificateAnalysis Raw { get; set; }
 }
-

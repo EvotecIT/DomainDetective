@@ -12,6 +12,7 @@ public static partial class Converters
         return new DnsTunnelingInfo
         {
             Check = "DNSTUNNELING",
+            Area = AreaFor("DNSTUNNELING"),
             Subject = null,
             Alerts = analysis.Alerts,
             AlertCount = analysis.Alerts?.Count ?? 0,
@@ -19,6 +20,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"alerts {analysis.Alerts?.Count ?? 0}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -29,6 +31,7 @@ public static partial class Converters
 public class DnsTunnelingInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int AlertCount { get; set; }
     public IReadOnlyList<DnsTunnelingAlert> Alerts { get; set; }
@@ -36,8 +39,8 @@ public class DnsTunnelingInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsTunnelingAnalysis Raw { get; set; }
 }
-

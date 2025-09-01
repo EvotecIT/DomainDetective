@@ -18,10 +18,12 @@ public static partial class Converters
         return new PortAvailabilityInfo
         {
             Check = "PortAvailability",
+            Area = AreaFor("PORTAVAILABILITY"),
             Subject = null,
             TotalChecked = total,
             OpenCount = open,
-            Results = analysis.ServerResults
+            Results = analysis.ServerResults,
+            Summary = $"open {open}/{total}"
         };
     }
 }
@@ -29,8 +31,10 @@ public static partial class Converters
 public class PortAvailabilityInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenCount { get; set; }
     public IReadOnlyDictionary<string, PortAvailabilityAnalysis.PortResult> Results { get; set; }
+    public string Summary { get; set; }
 }

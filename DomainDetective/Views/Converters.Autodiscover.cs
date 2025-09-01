@@ -12,6 +12,7 @@ public static partial class Converters
         return new AutodiscoverInfo
         {
             Check = "AUTODISCOVER",
+            Area = AreaFor("AUTODISCOVER"),
             Subject = null,
             SrvRecordExists = analysis.SrvRecordExists,
             SrvTarget = analysis.SrvTarget,
@@ -25,6 +26,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"SRV {(analysis.SrvRecordExists?"yes":"no")}; CNAME {(analysis.AutodiscoverCnameExists?"yes":"no")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -35,6 +37,7 @@ public static partial class Converters
 public class AutodiscoverInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public bool SrvRecordExists { get; set; }
     public string SrvTarget { get; set; }
@@ -48,8 +51,8 @@ public class AutodiscoverInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public AutodiscoverAnalysis Raw { get; set; }
 }
-

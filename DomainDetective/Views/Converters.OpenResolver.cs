@@ -14,6 +14,7 @@ public static partial class Converters
         return new OpenResolverInfo
         {
             Check = "OpenResolver",
+            Area = AreaFor("OPENRESOLVER"),
             Subject = analysis.Subject,
             TotalChecked = total,
             OpenResolvers = openCount,
@@ -22,6 +23,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"open {openCount}/{total}",
             Recommendations = recs,
             References = new [] { "https://www.us-cert.gov/ncas/alerts/TA13-088A" },
             Raw = analysis
@@ -32,6 +34,7 @@ public static partial class Converters
 public class OpenResolverInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenResolvers { get; set; }
@@ -40,8 +43,8 @@ public class OpenResolverInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public OpenResolverAnalysis Raw { get; set; }
 }
-

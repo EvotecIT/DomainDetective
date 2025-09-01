@@ -14,6 +14,7 @@ public static partial class Converters
         return new SmimeaRecordInfo
         {
             Check = "SMIMEA",
+            Area = AreaFor("SMIMEA"),
             Subject = analysis.Subject,
             NumberOfRecords = total,
             ValidRecords = valid,
@@ -22,6 +23,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"valid {valid}/{total}",
             Recommendations = recs,
             References = new[] { "https://www.rfc-editor.org/rfc/rfc8162" },
             Raw = analysis
@@ -32,6 +34,7 @@ public static partial class Converters
 public class SmimeaRecordInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int NumberOfRecords { get; set; }
     public int ValidRecords { get; set; }
@@ -40,6 +43,7 @@ public class SmimeaRecordInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SMIMEAAnalysis Raw { get; set; }

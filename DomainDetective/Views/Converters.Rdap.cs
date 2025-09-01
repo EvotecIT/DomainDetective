@@ -11,6 +11,7 @@ public static partial class Converters
         return new RdapInfo
         {
             Check = "RDAP",
+            Area = AreaFor("RDAP"),
             Subject = analysis.DomainName,
             Registrar = analysis.Registrar,
             RegistrarId = analysis.RegistrarId,
@@ -20,6 +21,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"registrar {(analysis.Registrar ?? "?")}; expires {analysis.ExpiryDate ?? "?"}",
             Assessments = analysis.Assessments,
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc7483" },
@@ -31,6 +33,7 @@ public static partial class Converters
 public class RdapInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string Registrar { get; set; }
     public string RegistrarId { get; set; }
@@ -41,8 +44,8 @@ public class RdapInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public RdapAnalysis Raw { get; set; }
 }
-

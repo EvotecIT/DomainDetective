@@ -11,6 +11,7 @@ public static partial class Converters
         return new HttpInfo
         {
             Check = "HTTP",
+            Area = AreaFor("HTTP"),
             Subject = analysis.Subject,
             Url = analysis.Subject,
             IsReachable = analysis.IsReachable,
@@ -26,6 +27,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; {(analysis.StatusCode?.ToString() ?? "")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -36,6 +38,7 @@ public static partial class Converters
 public class HttpInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string Url { get; set; }
     public bool IsReachable { get; set; }
@@ -51,8 +54,8 @@ public class HttpInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public HttpAnalysis Raw { get; set; }
 }
-

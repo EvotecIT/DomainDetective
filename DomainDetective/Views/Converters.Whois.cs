@@ -16,6 +16,7 @@ public static partial class Converters
         return new WhoisInfo
         {
             Check = "WHOIS",
+            Area = AreaFor("WHOIS"),
             Subject = analysis.DomainName,
             WhoisServer = analysis.WhoisServerUsed,
             LookupSource = analysis.WhoisLookupSource,
@@ -32,6 +33,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"registrar {(analysis.Registrar ?? "?")}; {(analysis.IsExpired ? "expired" : (analysis.ExpiresSoon ? $"{days}d left" : "ok"))}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3912" },
             Raw = analysis
@@ -42,6 +44,7 @@ public static partial class Converters
 public class WhoisInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string WhoisServer { get; set; }
     public string LookupSource { get; set; }
@@ -58,6 +61,7 @@ public class WhoisInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public WhoisAnalysis Raw { get; set; }

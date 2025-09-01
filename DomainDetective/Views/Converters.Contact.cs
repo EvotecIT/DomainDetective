@@ -14,6 +14,7 @@ public static partial class Converters
         return new ContactInfo
         {
             Check = "CONTACT",
+            Area = AreaFor("CONTACT"),
             Subject = null,
             RecordExists = analysis.RecordExists,
             ContactRecord = analysis.ContactRecord,
@@ -22,6 +23,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warn,
             ErrorCount = 0,
+            Summary = analysis.RecordExists ? "present" : "missing",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -32,6 +34,7 @@ public static partial class Converters
 public class ContactInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public bool RecordExists { get; set; }
     public string ContactRecord { get; set; }
@@ -40,8 +43,8 @@ public class ContactInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ContactInfoAnalysis Raw { get; set; }
 }
-

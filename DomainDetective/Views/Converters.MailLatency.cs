@@ -17,6 +17,7 @@ public static partial class Converters
         return new MailLatencyInfo
         {
             Check = "LATENCY",
+            Area = AreaFor("LATENCY"),
             Subject = null,
             Servers = analysis.ServerResults,
             AverageConnectMs = analysis.ServerResults.Count == 0 ? 0 : (int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds),
@@ -25,6 +26,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warn,
             ErrorCount = 0,
+            Summary = $"avg conn { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds)) } ms; avg banner { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.BannerTime.TotalMilliseconds)) } ms",
             Recommendations = RecommendationEngine.From(assessments),
             References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.From(assessments)),
             Raw = analysis
@@ -35,6 +37,7 @@ public static partial class Converters
 public class MailLatencyInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int AverageConnectMs { get; set; }
     public int AverageBannerMs { get; set; }
@@ -43,8 +46,8 @@ public class MailLatencyInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailLatencyAnalysis Raw { get; set; }
 }
-

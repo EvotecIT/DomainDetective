@@ -15,6 +15,7 @@ public static partial class Converters
         return new OpenRelayInfo
         {
             Check = "OPENRELAY",
+            Area = AreaFor("OPENRELAY"),
             Subject = null,
             TotalChecked = total,
             OpenAllowed = allows,
@@ -23,6 +24,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"allows {allows}/{total}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -33,6 +35,7 @@ public static partial class Converters
 public class OpenRelayInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenAllowed { get; set; }
@@ -41,8 +44,8 @@ public class OpenRelayInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public OpenRelayAnalysis Raw { get; set; }
 }
-

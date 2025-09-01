@@ -10,6 +10,7 @@ public static partial class Converters
         return new DanglingCnameInfo
         {
             Check = "DANGLINGCNAME",
+            Area = AreaFor("DANGLINGCNAME"),
             Subject = null,
             CnameRecordExists = analysis.CnameRecordExists,
             Target = analysis.Target,
@@ -22,6 +23,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"dangling {(analysis.IsDangling ? "yes" : "no")}; service {(analysis.KnownService ? "known" : "unknown")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -32,6 +34,7 @@ public static partial class Converters
 public class DanglingCnameInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public bool CnameRecordExists { get; set; }
     public string Target { get; set; }
@@ -44,8 +47,8 @@ public class DanglingCnameInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public System.Collections.Generic.IReadOnlyList<string> References { get; set; }
     public DanglingCnameAnalysis Raw { get; set; }
 }
-

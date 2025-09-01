@@ -16,6 +16,7 @@ public static partial class Converters
         return new ApexAddressInfo
         {
             Check = "APEX",
+            Area = AreaFor("APEX"),
             Subject = null,
             ARecords = analysis.ARecords,
             AaaaRecords = analysis.AaaaRecords,
@@ -46,6 +47,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"A {analysis.IPv4Count}, AAAA {analysis.IPv6Count}; FCrDNS {(analysis.AllFcrDnsValid ? "ok" : "check")}",
             Recommendations = RecommendationEngine.From(assessments),
             References = BuildReferences(analysis.RfcReferences.ToArray(), RecommendationEngine.From(assessments)),
             Raw = analysis
@@ -56,6 +58,7 @@ public static partial class Converters
 public class ApexAddressInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<string> ARecords { get; set; }
     public IReadOnlyList<string> AaaaRecords { get; set; }
@@ -86,8 +89,8 @@ public class ApexAddressInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ApexAddressAnalysis Raw { get; set; }
 }
-

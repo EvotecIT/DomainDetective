@@ -12,6 +12,7 @@ public static partial class Converters
         return new DirectoryExposureInfo
         {
             Check = "DIR",
+            Area = AreaFor("DIRECTORY"),
             Subject = analysis.Subject,
             ExposedPaths = analysis.ExposedPaths,
             ExposedCount = analysis.ExposedPaths?.Count ?? 0,
@@ -19,6 +20,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"exposed {analysis.ExposedPaths?.Count ?? 0} paths",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -29,6 +31,7 @@ public static partial class Converters
 public class DirectoryExposureInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public int ExposedCount { get; set; }
     public IReadOnlyList<string> ExposedPaths { get; set; }
@@ -36,8 +39,8 @@ public class DirectoryExposureInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DirectoryExposureAnalysis Raw { get; set; }
 }
-

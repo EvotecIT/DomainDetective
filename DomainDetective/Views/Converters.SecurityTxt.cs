@@ -12,6 +12,7 @@ public static partial class Converters
         return new SecurityTxtInfo
         {
             Check = "SECURITYTXT",
+            Area = AreaFor("SECURITYTXT"),
             Subject = analysis.Domain,
             RecordPresent = analysis.RecordPresent,
             RecordValid = analysis.RecordValid,
@@ -33,6 +34,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"present {(analysis.RecordPresent ? "yes" : "no")}; signed {(analysis.PGPSigned ? "yes" : "no")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -43,6 +45,7 @@ public static partial class Converters
 public class SecurityTxtInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public bool RecordPresent { get; set; }
     public bool RecordValid { get; set; }
@@ -64,8 +67,8 @@ public class SecurityTxtInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SecurityTXTAnalysis Raw { get; set; }
 }
-

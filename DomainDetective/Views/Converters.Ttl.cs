@@ -12,6 +12,7 @@ public static partial class Converters
         return new TtlInfo
         {
             Check = "TTL",
+            Area = AreaFor("TTL"),
             Subject = analysis.Subject,
             DnssecSigned = analysis.DnsSecSigned,
             ATtls = analysis.ATtls,
@@ -23,6 +24,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"SOA {analysis.SoaTtl}s; A min/max {(analysis.ATtls?.Count>0?System.Math.Min(int.MaxValue, analysis.ATtls.Min()).ToString():"-")}/{(analysis.ATtls?.Count>0?analysis.ATtls.Max().ToString():"-")}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1035" },
             Raw = analysis
@@ -33,6 +35,7 @@ public static partial class Converters
 public class TtlInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public bool DnssecSigned { get; set; }
     public IReadOnlyList<int> ATtls { get; set; }
@@ -44,8 +47,8 @@ public class TtlInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsTtlAnalysis Raw { get; set; }
 }
-

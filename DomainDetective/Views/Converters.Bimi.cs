@@ -11,6 +11,7 @@ public static partial class Converters
         return new BimiRecordInfo
         {
             Check = "BIMI",
+            Area = AreaFor("BIMI"),
             Subject = analysis.Subject,
             BimiRecord = analysis.BimiRecord,
             BimiRecordExists = analysis.BimiRecordExists,
@@ -36,6 +37,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"svg {(analysis.SvgValid ? "ok" : "invalid")}; vmc {(analysis.ValidVmc ? "ok" : "missing")}; https {(analysis.LocationUsesHttps ? "yes" : "no")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -46,6 +48,7 @@ public static partial class Converters
 public class BimiRecordInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string BimiRecord { get; set; }
     public bool BimiRecordExists { get; set; }
@@ -71,6 +74,7 @@ public class BimiRecordInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public BimiAnalysis Raw { get; set; }

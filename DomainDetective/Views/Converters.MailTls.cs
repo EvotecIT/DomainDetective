@@ -40,12 +40,14 @@ public static partial class Converters
         return new MailTlsInfo
         {
             Check = check,
+            Area = AreaFor(check),
             Subject = null,
             Servers = servers,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"servers {servers.Count}; valid cert {servers.Count(s => s.CertificateValid)}/{servers.Count}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207", "https://www.rfc-editor.org/rfc/rfc8314" },
             Raw = analysis
@@ -56,12 +58,14 @@ public static partial class Converters
 public class MailTlsInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<MailTlsServerInfo> Servers { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailTlsAnalysis Raw { get; set; }
@@ -87,4 +91,3 @@ public class MailTlsServerInfo
     public string CertificateIssuer { get; set; }
     public System.DateTime? CertificateNotAfter { get; set; }
 }
-

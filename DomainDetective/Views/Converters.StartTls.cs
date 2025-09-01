@@ -25,12 +25,14 @@ public static partial class Converters
         return new StartTlsInfo
         {
             Check = "STARTTLS",
+            Area = AreaFor("STARTTLS"),
             Subject = null,
             Servers = entries,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"servers {entries.Count}; negotiated {entries.Count(s => s.TlsNegotiated)}/{entries.Count}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207" },
             Raw = analysis
@@ -41,12 +43,14 @@ public static partial class Converters
 public class StartTlsInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public IReadOnlyList<StartTlsServerInfo> Servers { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public STARTTLSAnalysis Raw { get; set; }
@@ -65,4 +69,3 @@ public class StartTlsServerInfo
     public string CertificateIssuer { get; set; }
     public System.DateTime? CertificateNotAfter { get; set; }
 }
-

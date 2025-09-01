@@ -10,6 +10,7 @@ public static partial class Converters
         return new DmarcRecordInfo
         {
             Check = "DMARC",
+            Area = AreaFor("DMARC"),
             Subject = analysis.Subject,
             DmarcRecord = analysis.DmarcRecord,
             DmarcRecordExists = analysis.DmarcRecordExists,
@@ -36,6 +37,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
+            Summary = $"p={analysis.Policy ?? "?"}; rua {analysis.MailtoRua?.Count ?? 0}; align dkim={analysis.DkimAlignment ?? "?"}/spf={analysis.SpfAlignment ?? "?"}",
             Recommendations = analysis.Recommendations,
             References = BuildReferences(System.Array.Empty<StandardReference>(), analysis.Recommendations),
             Raw = analysis
@@ -46,6 +48,7 @@ public static partial class Converters
 public class DmarcRecordInfo
 {
     public string Check { get; set; }
+    public string Area { get; set; }
     public string Subject { get; set; }
     public string DmarcRecord { get; set; }
     public bool DmarcRecordExists { get; set; }
@@ -72,6 +75,7 @@ public class DmarcRecordInfo
     public string Status { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DmarcAnalysis Raw { get; set; }
