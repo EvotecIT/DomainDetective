@@ -20,11 +20,24 @@ public static partial class Converters
 
         var listedRecords = analysis.AllResults?.Where(r => r.IsBlackListed).ToList() ?? new List<DNSBLRecord>();
 
+        // Pick a subject: prefer a domain-like key; else first key
+        string subject = null;
+        try {
+            var keys = analysis.Results?.Keys?.ToList();
+            if (keys != null && keys.Count > 0) {
+                string pick = null;
+                foreach (var k in keys) {
+                    if (!System.Net.IPAddress.TryParse(k, out _)) { pick = k; break; }
+                }
+                subject = pick ?? keys[0];
+            }
+        } catch { }
+
         return new DnsblInfo
         {
             Check = "DNSBL",
             Area = AreaFor("DNSBL"),
-            Subject = null,
+            Subject = subject,
             ProvidersChecked = analysis.GetDNSBL().Count,
             HostsChecked = analysis.RecordChecked,
             HostsListed = analysis.Blacklisted,

@@ -22,4 +22,7 @@ public sealed class MailDomainClassificationResult {
     public bool? BimiEligible { get; init; }
     public string? BimiEligibilityReason { get; init; }
     public IReadOnlyList<string> BimiNotes { get; init; } = new List<string>();
+
+    // Aggregated assessments from contributing analyses (SPF, DKIM, MX, MTA-STS, TLS-RPT, DANE, BIMI, APEX)
+    public IReadOnlyList<Assessment> Assessments { get; init; } = new List<Assessment>();
 }
