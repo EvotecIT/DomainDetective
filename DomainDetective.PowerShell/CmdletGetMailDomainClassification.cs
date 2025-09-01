@@ -46,6 +46,7 @@ public sealed class CmdletGetMailDomainClassification : AsyncPSCmdlet {
     protected override async Task ProcessRecordAsync() {
         var classifier = new MailDomainClassifier(_healthCheck, _logger);
         var result = await classifier.ClassifyAsync(DomainName);
-        WriteObject(result);
+        var view = DomainDetective.Views.Converters.Convert(result);
+        WriteObject(view);
     }
 }

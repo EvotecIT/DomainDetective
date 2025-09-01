@@ -65,7 +65,8 @@ namespace DomainDetective.PowerShell {
                 await _healthCheck.VerifySPF(DomainName);
             }
             var analysis = await _healthCheck.SpfAnalysis.GetFlattenedIpAnalysis(DomainName, _logger);
-            WriteObject(analysis);
+            var view = DomainDetective.Views.Converters.Convert(analysis);
+            WriteObject(view);
         }
     }
 }
