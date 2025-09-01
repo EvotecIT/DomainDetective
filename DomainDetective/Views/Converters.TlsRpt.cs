@@ -28,7 +28,7 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Recommendations = recs,
-            References = analysis.RfcReferences,
+            References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
     }
@@ -56,4 +56,3 @@ public class TlsRptInfo
     public IReadOnlyList<string> References { get; set; }
     public TLSRPTAnalysis Raw { get; set; }
 }
-

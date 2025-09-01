@@ -128,6 +128,13 @@ namespace DomainDetective.PowerShell {
                 _isCurrentActivityCompleted = false;
             }
             var progressMessage = e.ProgressCurrentOperation ?? "Processing...";
+            try {
+                var (enabled, persona, live, narrVerbose) = PersonaState.Get();
+                if (enabled && live && !string.IsNullOrWhiteSpace(e.ProgressCurrentOperation)) {
+                    var verb = PersonaLexicon.StepVerb(persona, e.ProgressCurrentOperation);
+                    progressMessage = $"{verb} {e.ProgressCurrentOperation}";
+                }
+            } catch { /* best-effort persona on progress */ }
             var progressRecord = new ProgressRecord(_currentActivityId, e.ProgressActivity, progressMessage);
             if (e.ProgressPercentage.HasValue) {
                 var percentComplete = e.ProgressPercentage.Value;
@@ -181,7 +188,10 @@ namespace DomainDetective.PowerShell {
                 Category = severity == AssessmentSeverity.Warning ? "Warn" : "Info",
                 Message = message
             };
-            return AssessmentNarrator.Narrate(a, persona);
+            var parts = AssessmentNarrator.NarrateParts(a, persona);
+            return string.IsNullOrWhiteSpace(parts.Phrase)
+                ? parts.Title
+                : $"{parts.Title} | {parts.Phrase}";
         }
 
         private void WriteWarning(string message) {

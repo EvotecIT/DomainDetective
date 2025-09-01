@@ -130,7 +130,10 @@ public sealed class DomainWizard
             var task = stageTasks[idx];
             if (!task.IsFinished)
             {
-                var desc = $"{stages[idx].Title} [dim]{ht}[/]";
+                var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
+                var friendly = Ui.FriendlyOpName(ht);
+                var stepColor = PersonaFormatter.StepColor(personaKind);
+                var desc = $"{stages[idx].Title} [{stepColor}]{verb} {friendly}[/]";
                 if (Options.PersonaLive && stageLastLine.TryGetValue(idx, out var last))
                 {
                     // Keep the inline narration short to avoid flicker
@@ -223,7 +226,9 @@ public sealed class DomainWizard
                 if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
                 if (!stageIndexMap.TryGetValue(fullIdx, out var idx)) return;
                 stageProgress[idx] = Math.Clamp(e.ProgressPercentage ?? 0, 0, 100);
-                stageOp[idx] = ht.ToString();
+                var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
+                var stepColor = PersonaFormatter.StepColor(personaKind);
+                stageOp[idx] = $"[{stepColor}]{verb} {Ui.FriendlyOpName(ht)}[/]";
             };
 
             var layout = new Layout("root")
@@ -273,7 +278,8 @@ public sealed class DomainWizard
                     if (!typeToStage.TryGetValue(ht, out var fullIdx)) return;
                     if (!stageIndexMap.TryGetValue(fullIdx, out var idx)) return;
                     sProgress[idx] = Math.Clamp(e.ProgressPercentage ?? 0, 0, 100);
-                    sOp[idx] = ht.ToString();
+                    var verb = PersonaLexicon.StepVerb(personaKind, ht.ToString());
+                    sOp[idx] = $"{verb} {Ui.FriendlyOpName(ht)}";
                     progressLineNeedsRedraw = true;
                 };
 
@@ -304,6 +310,13 @@ public sealed class DomainWizard
                         var (title, types, enabled) = stages[i];
                         if (!enabled) continue;
                         currentStageIdx = i;
+
+                        // Persona stage start
+                        var stageName = Ui.FriendlyStageName(i);
+                        var verbStart = PersonaLexicon.StepVerb(personaKind, $"Stage:{stageName}");
+                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Start", $"{verbStart} {stageName}");
+                        if (stageLastLine.TryGetValue(i, out var startLine)) AppendGlobal(startLine);
+
                         try
                         {
                             await hc.Verify(Options.Domain, types, cancellationToken: ct);
@@ -311,6 +324,10 @@ public sealed class DomainWizard
                             {
                                 await hc.CheckWHOIS(Options.Domain, ct);
                             }
+
+                            // Persona stage finish
+                            AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
+                            if (stageLastLine.TryGetValue(i, out var doneLine)) AppendGlobal(doneLine);
                         }
                         catch (Exception ex)
                         {
@@ -349,6 +366,14 @@ public sealed class DomainWizard
                         if (!enabled) continue;
                         currentStageIdx = i;
                         stageProgress[i] = 0;
+
+                        // Persona stage start
+                        var stageName = Ui.FriendlyStageName(i);
+                        var verbStart = PersonaLexicon.StepVerb(personaKind, $"Stage:{stageName}");
+                        AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Start", $"{verbStart} {stageName}");
+                        var startLine = PersonaFormatter.Format(new Assessment { Severity = AssessmentSeverity.Info, Code = $"{stageName}.Start", Message = $"{verbStart} {stageName}" }, personaKind);
+                        AppendGlobal(startLine);
+
                         try
                         {
                             await hc.Verify(Options.Domain, types, cancellationToken: ct);
@@ -356,6 +381,11 @@ public sealed class DomainWizard
                             {
                                 await hc.CheckWHOIS(Options.Domain, ct);
                             }
+
+                            // Persona stage finish
+                            AppendPersonaLine(AssessmentSeverity.Info, $"{stageName}.Done", $"Completed {stageName}");
+                            var doneLine = PersonaFormatter.Format(new Assessment { Severity = AssessmentSeverity.Info, Code = $"{stageName}.Done", Message = $"Completed {stageName}" }, personaKind);
+                            AppendGlobal(doneLine);
                         }
                         catch (Exception ex)
                         {
@@ -716,7 +746,48 @@ public static void TitleScreen(string domain, bool matrix, string persona)
     }
 }
 
-file static class Ui
+// Helpers
+file static partial class Ui
+{
+    // Map HealthCheckType to a user-friendly label for progress lines
+    internal static string FriendlyOpName(HealthCheckType ht) => ht switch
+    {
+        HealthCheckType.MTASTS => "MTA-STS",
+        HealthCheckType.TLSRPT => "TLS-RPT",
+        HealthCheckType.REVERSEDNS => "Reverse DNS",
+        HealthCheckType.FCRDNS => "FCrDNS",
+        HealthCheckType.PORTAVAILABILITY => "Port Availability",
+        HealthCheckType.PORTSCAN => "Port Scan",
+        HealthCheckType.DANGLINGCNAME => "Dangling CNAME",
+        HealthCheckType.WILDCARDDNS => "Wildcard DNS",
+        HealthCheckType.DNSTUNNELING => "DNS Tunneling",
+        HealthCheckType.IPNEIGHBOR => "IP Neighbors",
+        HealthCheckType.SECURITYTXT => "security.txt",
+        HealthCheckType.MESSAGEHEADER => "Message Header",
+        HealthCheckType.SMTPBANNER => "SMTP Banner",
+        HealthCheckType.SMTPAUTH => "SMTP AUTH",
+        HealthCheckType.SMTPTLS => "SMTP TLS",
+        HealthCheckType.IMAPTLS => "IMAP TLS",
+        HealthCheckType.POP3TLS => "POP3 TLS",
+        HealthCheckType.OPENRESOLVER => "Open Resolver",
+        HealthCheckType.ZONETRANSFER => "Zone Transfer",
+        HealthCheckType.FLATTENINGSERVICE => "Flattening Service",
+        HealthCheckType.DNSBL => "DNS Blacklists",
+        HealthCheckType.CERT => "TLS Certificate",
+        _ => ht.ToString()
+    };
+
+    internal static string FriendlyStageName(int idx) => idx switch
+    {
+        0 => "DNS",
+        1 => "Mail",
+        2 => "Web",
+        3 => "Reputation",
+        _ => $"Stage{idx}"
+    };
+}
+
+file static partial class Ui
 {
     public static void RenderPersonaLogPanel(string title, IEnumerable<string> lines)
     {
