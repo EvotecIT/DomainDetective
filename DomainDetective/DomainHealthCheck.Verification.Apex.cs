@@ -103,7 +103,7 @@ namespace DomainDetective {
             {
                 await ApexAddressAnalysis.AnalyzeAsync(domainName, _logger);
             }
-            try { System.Console.WriteLine($"[ApexDebug] A={ApexAddressAnalysis.ARecords?.Count ?? -1} AAAA={ApexAddressAnalysis.AaaaRecords?.Count ?? -1} Any={ApexAddressAnalysis.HasAnyAddress}"); } catch { }
+            // Debug print removed; rely on logger when needed
         }
     }
 }

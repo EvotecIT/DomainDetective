@@ -34,6 +34,14 @@ public class IPNeighborAnalysis : IHasAssessments
 
     public List<Assessment> Assessments { get; } = new();
 
+    private static string Categorize(int count)
+    {
+        if (count >= 200) return "Extreme";
+        if (count >= 50) return "High";
+        if (count >= 10) return "Medium";
+        return "Low";
+    }
+
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
         if (QueryDnsOverride != null)
@@ -147,7 +155,10 @@ public class IPNeighborAnalysis : IHasAssessments
                     Results.Add(new IPNeighborResult {
                         IpAddress = ipStr,
                         Domains = list.ToList(),
-                        RPKIValid = rpkiValid
+                        RPKIValid = rpkiValid,
+                        CoHostCount = list.Count,
+                        Category = Categorize(list.Count),
+                        Type = "Apex"
                     });
                 }
                 // Emit assessment if excessive number of co-hosted domains
@@ -168,5 +179,53 @@ public class IPNeighborAnalysis : IHasAssessments
         });
 
         await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Enumerates neighbors for IPs used by MX targets of the domain.
+    /// </summary>
+    public async Task AnalyzeMx(string domainName, InternalLogger logger, CancellationToken ct = default)
+    {
+        Subject = domainName;
+        var mxRecords = await QueryDns(domainName, DnsRecordType.MX);
+        var mxHosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
+        foreach (var host in mxHosts)
+        {
+            ct.ThrowIfCancellationRequested();
+            var a = await QueryDns(host, DnsRecordType.A);
+            var aaaa = await QueryDns(host, DnsRecordType.AAAA);
+            foreach (var record in a.Concat(aaaa))
+            {
+                if (!IPAddress.TryParse(record.Data, out var ip)) continue;
+                var ipStr = ip.ToString();
+                var list = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    foreach (var dom in await QueryPassiveDns(ipStr, logger)) list.Add(dom);
+                    var rpkiValid = await QueryRpki(ipStr, logger);
+                    lock (Results)
+                    {
+                        Results.Add(new IPNeighborResult {
+                            IpAddress = ipStr,
+                            Domains = list.ToList(),
+                            RPKIValid = rpkiValid,
+                            CoHostCount = list.Count,
+                            Category = Categorize(list.Count),
+                            Type = "MX"
+                        });
+                    }
+                    if (list.Count > 50)
+                    {
+                        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: ipStr) : null;
+                        logger?.WriteWarningCode(IpNeighborCodes.MailOnSharedIp, "MX IP {0} hosts {1} domains", ipStr, list.Count);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    lock (Errors) { Errors.Add(ex); }
+                    logger?.WriteErrorCode(IpNeighborCodes.AnalysisFailed, "Neighbor analysis failed for MX IP {0}: {1}", ipStr, ex.Message);
+                }
+            }
+        }
     }
 }

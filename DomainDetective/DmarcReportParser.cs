@@ -91,6 +91,19 @@ public static class DmarcReportParser {
         var report = new DmarcAggregateReport {
             PolicyPublished = ParsePolicy(doc.Root?.Element(ns + "policy_published"), ns)
         };
+        var meta = doc.Root?.Element(ns + "report_metadata");
+        if (meta != null)
+        {
+            report.ReportId = meta.Element(ns + "report_id")?.Value;
+            var dr = meta.Element(ns + "date_range");
+            if (dr != null)
+            {
+                if (long.TryParse(dr.Element(ns + "begin")?.Value, out var begin))
+                    report.RangeBeginUtc = System.DateTimeOffset.FromUnixTimeSeconds(begin);
+                if (long.TryParse(dr.Element(ns + "end")?.Value, out var end))
+                    report.RangeEndUtc = System.DateTimeOffset.FromUnixTimeSeconds(end);
+            }
+        }
         report.ValidationMessages.AddRange(collected);
 
         foreach (var record in doc.Descendants(ns + "record")) {
@@ -153,7 +166,27 @@ public static class DmarcReportParser {
             }
         }
 
+        result.RequestedReportingPolicy = ComputeReportingPolicy(result.Fo);
         return result;
+    }
+
+    private static string ComputeReportingPolicy(string? fo)
+    {
+        if (string.IsNullOrWhiteSpace(fo)) return "any failure (default, fo=0)";
+        var tokens = fo.Split(new [] { ':', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var parts = new List<string>();
+        foreach (var t in tokens)
+        {
+            switch (t.Trim().ToLowerInvariant())
+            {
+                case "0": parts.Add("any failure (aligned)"); break;
+                case "1": parts.Add("all failures (per-mechanism)"); break;
+                case "d": parts.Add("DKIM failure"); break;
+                case "s": parts.Add("SPF failure"); break;
+                default: parts.Add(t); break;
+            }
+        }
+        return string.Join(", ", parts);
     }
 
     /// <summary>Parses multiple DMARC reports and returns individual records.</summary>

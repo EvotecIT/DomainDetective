@@ -234,12 +234,23 @@ namespace DomainDetective {
 
             bool anyIpChecked = false;
 
-            // Helper local function to query and convert results for a set of IPs
+            // Helper local function to query and convert results for a set of IPs in parallel
             async Task QueryIpsAsync(IEnumerable<(string ip, string host)> items, DnsblIpSource source, string sourceLabel) {
-                foreach (var (ip, host) in items) {
-                    Logger?.WriteVerbose($"Checking {ip} ({sourceLabel}) against {DNSBLLists.Count} blacklists");
-                    var results = await ToListAsync(QueryDNSBL(DNSBLLists, ip, source, sourceHost: host));
-                    ConvertToResults(ip, results);
+                var pairs = items?.ToList() ?? new List<(string ip, string host)>();
+                if (pairs.Count == 0) return;
+                Logger?.WriteVerbose($"Checking {pairs.Count} {sourceLabel} input(s) against {DNSBLLists.Count} blacklists (parallel)…");
+                var tasks = new List<Task<(string key, List<DNSBLRecord> records)>>();
+                foreach (var (ip, host) in pairs) {
+                    var key = ip; var h = host; var src = source;
+                    tasks.Add(Task.Run(async () => {
+                        var list = new List<DNSBLRecord>();
+                        await foreach (var rec in QueryDNSBL(DNSBLLists, key, src, sourceHost: h)) list.Add(rec);
+                        return (key, list);
+                    }));
+                }
+                var results = await Task.WhenAll(tasks);
+                foreach (var (key, records) in results) {
+                    ConvertToResults(key, records);
                     anyIpChecked = true;
                 }
             }
@@ -320,6 +331,13 @@ namespace DomainDetective {
                     }
                     break;
             }
+
+            // Add a summary info assessment for visibility
+            using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: domainName) : null)
+            {
+                var providers = GetDNSBL()?.Count ?? 0;
+                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.");
+            }
         }
 
         /// <summary>
@@ -378,6 +396,13 @@ namespace DomainDetective {
             var results = await Task.WhenAll(tasks);
             foreach (var (key, records) in results) {
                 ConvertToResults(key, records);
+            }
+
+            // Add a summary info assessment for visibility
+            using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL") : null)
+            {
+                var providers = GetDNSBL()?.Count ?? 0;
+                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.");
             }
         }
 
@@ -684,7 +709,7 @@ namespace DomainDetective {
         private void ApplyDnsblConfiguration(DnsblConfiguration config, bool overwriteExisting, bool clearExisting) {
             if (clearExisting) {
                 ClearDNSBL();
-                _domainBlockLists.Clear();
+                lock (_domainListLock) { _domainBlockLists.Clear(); }
                 _providerReplyCodes.Clear();
                 BlockLists.Entries.Clear();
             }
@@ -723,14 +748,16 @@ namespace DomainDetective {
             }
 
             if (config.DomainBlockLists != null) {
-                foreach (var entry in config.DomainBlockLists) {
-                    var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
-                    if (existing == null) {
-                        _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
-                    } else if (overwriteExisting) {
-                        existing.Enabled = entry.Enabled;
-                        existing.Comment = entry.Comment;
-                        existing.Port = entry.Port;
+                lock (_domainListLock) {
+                    foreach (var entry in config.DomainBlockLists) {
+                        var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
+                        if (existing == null) {
+                            _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));
+                        } else if (overwriteExisting) {
+                            existing.Enabled = entry.Enabled;
+                            existing.Comment = entry.Comment;
+                            existing.Port = entry.Port;
+                        }
                     }
                 }
             }

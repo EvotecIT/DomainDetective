@@ -6,4 +6,6 @@ internal static class ThreatIntelCodes {
     public const string PhishTankQueryFailed = "THREAT.PhishTank.QueryFailed";
     public const string VirusTotalQueryFailed = "THREAT.VirusTotal.QueryFailed";
     public const string AbuseIpdbQueryFailed = "THREAT.AbuseIPDB.QueryFailed";
+    public const string UrlHausQueryFailed = "THREAT.UrlHaus.QueryFailed";
+    public const string OpenPhishQueryFailed = "THREAT.OpenPhish.QueryFailed";
 }

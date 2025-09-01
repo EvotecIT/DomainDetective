@@ -277,7 +277,12 @@ namespace DomainDetective {
                             }
                             dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
-                            var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            DnsAnswer[] dnsResults = Array.Empty<DnsAnswer>();
+                            try {
+                                dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                                logger?.WriteWarningCode(SpfCodes.QueryFailed, $"SPF include lookup failed for {domain}: {ex.Message}");
+                            }
                             dnsLookups++;
                             if (dnsResults != null) {
                                 foreach (var dnsResult in dnsResults) {
@@ -312,7 +317,12 @@ namespace DomainDetective {
                             }
                             dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
-                            var dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            DnsAnswer[] dnsResults = Array.Empty<DnsAnswer>();
+                            try {
+                                dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                                logger?.WriteWarningCode(SpfCodes.QueryFailed, $"SPF redirect lookup failed for {domain}: {ex.Message}");
+                            }
                             dnsLookups++;
                             if (dnsResults != null) {
                                 foreach (var dnsResult in dnsResults) {

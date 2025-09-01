@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Xunit;
 
 namespace DomainDetective.Tests {
+    [Collection("PortScan")]
     public class TestPortAvailabilityAnalysis {
         [Fact]
         public async Task ReportsSuccessAndLatency() {

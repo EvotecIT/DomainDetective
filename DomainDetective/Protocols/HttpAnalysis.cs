@@ -71,6 +71,10 @@ namespace DomainDetective {
         public string Body { get; private set; }
         /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
         public bool MixedContentDetected { get; private set; }
+        /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
+        public int InsecureFormsCount { get; private set; }
+        /// <summary>Captures representative insecure form action URLs found on page.</summary>
+        public List<string> InsecureFormActions { get; } = new();
         /// <summary>Gets a value indicating whether a Permissions-Policy header was present.</summary>
         public bool PermissionsPolicyPresent { get; private set; }
         /// <summary>Gets parsed directives from the Permissions-Policy header.</summary>
@@ -182,6 +186,8 @@ namespace DomainDetective {
             ServerHeader = null;
             VisitedUrls.Clear();
             MixedContentDetected = false;
+            InsecureFormsCount = 0;
+            InsecureFormActions.Clear();
             XssProtectionPresent = false;
             ExpectCtPresent = false;
             ExpectCtMaxAge = null;
@@ -317,6 +323,12 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
                     }
+                    if (SecurityHeaders.TryGetValue("X-Content-Type-Options", out var xcto)) {
+                        var xv = (xcto.Value ?? string.Empty).Trim();
+                        if (!string.IsNullOrEmpty(xv) && !xv.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.XContentTypeOptionsInvalid, "X-Content-Type-Options should be 'nosniff' (found: {0})", xv);
+                        }
+                    }
                     if (SecurityHeaders.TryGetValue("Permissions-Policy", out var pp)) {
                         ParsePermissionsPolicy(pp.Value);
                     }
@@ -325,6 +337,11 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("X-Frame-Options", out var xfo)) {
                         XFrameOptions = xfo.Value;
+                        var xv = (XFrameOptions ?? string.Empty).Trim();
+                        var valid = xv.Equals("DENY", StringComparison.OrdinalIgnoreCase) || xv.Equals("SAMEORIGIN", StringComparison.OrdinalIgnoreCase);
+                        if (!string.IsNullOrEmpty(xv) && !valid) {
+                            logger?.WriteWarningCode(HttpCodes.XFrameOptionsInvalid, "X-Frame-Options should be DENY or SAMEORIGIN (found: {0})", xv);
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Opener-Policy", out var coop)) {
                         CrossOriginOpenerPolicy = coop.Value;
@@ -401,6 +418,30 @@ namespace DomainDetective {
                     if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
                         Body.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {
                         MixedContentDetected = true;
+                    }
+                    // Detect insecure form actions when page is HTTPS
+                    if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Body)) {
+                        try {
+                            var html = Body;
+                            // Simple, fast regex for <form ... action="http://...">
+                            var rx = new System.Text.RegularExpressions.Regex(
+                                "<form[^>]*action\\s*=\\s*\"(?<url>[^\"]+)\"|<form[^>]*action\\s*=\\s*'(?<url>[^']+)'",
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+                            var matches = rx.Matches(html);
+                            foreach (System.Text.RegularExpressions.Match m in matches) {
+                                var u = m.Groups["url"]?.Value?.Trim();
+                                if (string.IsNullOrEmpty(u)) continue;
+                                if (u.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+                                    InsecureFormsCount++;
+                                    if (InsecureFormActions.Count < 5 && !InsecureFormActions.Contains(u)) {
+                                        InsecureFormActions.Add(u);
+                                    }
+                                }
+                            }
+                            if (InsecureFormsCount > 0) {
+                                logger?.WriteWarningCode(HttpCodes.InsecureFormAction, "Detected {0} form(s) posting to http:// endpoints", InsecureFormsCount);
+                            }
+                        } catch { /* do not fail analysis on HTML parse issues */ }
                     }
                 }
                 response.Dispose();

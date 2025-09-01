@@ -12,8 +12,9 @@ namespace DomainDetective {
             return HPKPAnalysis.AnalyzeUrl($"http://{domainName}", _logger);
         }
 
-        private Task VerifyDnsTtlAsync(string domainName, CancellationToken cancellationToken) {
-            return DnsTtlAnalysis.Analyze(domainName, _logger);
+        private async Task VerifyDnsTtlAsync(string domainName, CancellationToken cancellationToken) {
+            await DnsTtlAnalysis.Analyze(domainName, _logger);
+            await DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken);
         }
 
         private Task VerifyFlatteningServiceAsync(string domainName, CancellationToken cancellationToken) {

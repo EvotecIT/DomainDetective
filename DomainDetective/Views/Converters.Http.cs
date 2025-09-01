@@ -8,6 +8,7 @@ public static partial class Converters
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.From(analysis.Assessments);
+        var grade = ComputeHttpGrade(analysis);
         return new HttpInfo
         {
             Check = "HTTP",
@@ -22,15 +23,42 @@ public static partial class Converters
             HstsPreloadEligible = analysis.HstsPreloadEligible,
             Http2Supported = analysis.Http2Supported,
             Http3Supported = analysis.Http3Supported,
+            MixedContentDetected = analysis.MixedContentDetected,
             MissingSecurityHeaders = analysis.MissingSecurityHeaders,
+            Grade = grade,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; {(analysis.StatusCode?.ToString() ?? "")}",
+            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; forms {(analysis.InsecureFormsCount > 0 ? $"insecure {analysis.InsecureFormsCount}" : "ok")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; grade {grade.ToLetter()}; {(analysis.StatusCode?.ToString() ?? "")}",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
+        };
+    }
+
+    private static GradeLevel ComputeHttpGrade(HttpAnalysis analysis)
+    {
+        if (analysis == null) return GradeLevel.Unknown;
+        if (!analysis.IsReachable) return GradeLevel.F;
+        if (analysis.MixedContentDetected) return GradeLevel.F;
+
+        // Score based on presence of core headers
+        var present = 0;
+        bool Has(string name) => analysis.SecurityHeaders?.ContainsKey(name) == true;
+        if (Has("Strict-Transport-Security")) present++;
+        if (Has("Content-Security-Policy")) present++;
+        if (Has("Referrer-Policy")) present++;
+        if (Has("X-Content-Type-Options")) present++;
+        if (Has("X-Frame-Options")) present++;
+        if (Has("Permissions-Policy")) present++;
+
+        return present switch {
+            >= 6 => GradeLevel.A,
+            5 => GradeLevel.B,
+            4 => GradeLevel.C,
+            2 or 3 => GradeLevel.D,
+            _ => GradeLevel.F
         };
     }
 }
@@ -49,7 +77,9 @@ public class HttpInfo
     public bool HstsPreloadEligible { get; set; }
     public bool Http2Supported { get; set; }
     public bool Http3Supported { get; set; }
+    public bool MixedContentDetected { get; set; }
     public IReadOnlyCollection<string> MissingSecurityHeaders { get; set; }
+    public GradeLevel Grade { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

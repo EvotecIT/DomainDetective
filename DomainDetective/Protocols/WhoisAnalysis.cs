@@ -183,6 +183,7 @@ public class WhoisAnalysis : IHasAssessments {
     // Mapping of TLDs to WHOIS servers. Modify this collection only while
     // holding _whoisServersLock to avoid race conditions in multi-threaded tests
     // or applications.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> GlobalWhoisServersCache = new(System.StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, string> WhoisServers =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
         {"ac", "whois.nic.ac"},
@@ -431,6 +432,13 @@ public class WhoisAnalysis : IHasAssessments {
                     WhoisLookupSource = "StaticMap";
                     return server;
                 }
+                if (GlobalWhoisServersCache.TryGetValue(compoundTld, out var cached)) {
+                    WhoisServers[compoundTld] = cached;
+                    TLD = compoundTld;
+                    WhoisLookupSource = "Cache";
+                    WhoisServerUsed = cached;
+                    return cached;
+                }
             }
         }
 
@@ -443,6 +451,12 @@ public class WhoisAnalysis : IHasAssessments {
                 WhoisLookupSource = "StaticMap";
                 return server;
             }
+            if (GlobalWhoisServersCache.TryGetValue(singleTld, out var cached2)) {
+                WhoisServers[singleTld] = cached2;
+                WhoisServerUsed = cached2;
+                WhoisLookupSource = "Cache";
+                return cached2;
+            }
         }
 
         string? dynamicServer = await LookupWhoisServerAsync(singleTld).ConfigureAwait(false);
@@ -451,6 +465,7 @@ public class WhoisAnalysis : IHasAssessments {
                 WhoisServers[singleTld] = dynamicServer;
             }
             WhoisServerUsed = dynamicServer;
+            GlobalWhoisServersCache[singleTld] = dynamicServer;
             }
 
         return dynamicServer;
@@ -519,7 +534,6 @@ public class WhoisAnalysis : IHasAssessments {
         }
 
 
-        using TcpClient tcpClient = new TcpClient();
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Timeout);
         try {
@@ -530,19 +544,36 @@ public class WhoisAnalysis : IHasAssessments {
                 port = customPort;
             }
 
-            await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-            _logger?.WriteVerbose("Connected to WHOIS server {0}:{1}", host, port);
+            byte[] responseBytes = Array.Empty<byte>();
+            Exception lastEx = null;
+            for (int attempt = 0; attempt < 3; attempt++) {
+                try {
+                    using TcpClient tcpClient = new TcpClient();
+                    await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
+                    _logger?.WriteVerbose("Connected to WHOIS server {0}:{1} (attempt {2})", host, port, attempt + 1);
 
-            using NetworkStream networkStream = tcpClient.GetStream();
-            using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
-                await streamWriter.WriteLineAsync(domain).WaitWithCancellation(timeoutCts.Token);
-                await streamWriter.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                    using NetworkStream networkStream = tcpClient.GetStream();
+                    using (var streamWriter = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" }) {
+                        await streamWriter.WriteLineAsync(domain).WaitWithCancellation(timeoutCts.Token);
+                        await streamWriter.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                    }
+
+                    await networkStream.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                    using var memoryStream = new MemoryStream();
+                    await networkStream.CopyToAsync(memoryStream, 81920, timeoutCts.Token);
+                    responseBytes = memoryStream.ToArray();
+                    lastEx = null;
+                    break;
+                } catch (IOException ex) {
+                    lastEx = ex;
+                } catch (SocketException ex) {
+                    lastEx = ex;
+                }
+                // Exponential backoff with jitter
+                var delayMs = 200 * (int)System.Math.Pow(2, attempt) + new System.Random().Next(0, 100);
+                await Task.Delay(delayMs, timeoutCts.Token);
             }
-
-            await networkStream.FlushAsync().WaitWithCancellation(timeoutCts.Token);
-            using var memoryStream = new MemoryStream();
-            await networkStream.CopyToAsync(memoryStream, 81920, timeoutCts.Token);
-            var responseBytes = memoryStream.ToArray();
+            if (responseBytes.Length == 0 && lastEx != null) throw lastEx;
 
             string response = Encoding.UTF8.GetString(responseBytes);
             if (response.Contains('\uFFFD')) {
@@ -606,6 +637,16 @@ public class WhoisAnalysis : IHasAssessments {
             ParseWhoisDataCZ();
         } else if (string.Equals(TLD, "be", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataBE();
+        } else if (string.Equals(TLD, "fr", StringComparison.OrdinalIgnoreCase)) {
+            ParseWhoisDataFR();
+        } else if (string.Equals(TLD, "es", StringComparison.OrdinalIgnoreCase)) {
+            ParseWhoisDataES();
+        } else if (string.Equals(TLD, "it", StringComparison.OrdinalIgnoreCase)) {
+            ParseWhoisDataIT();
+        } else if (string.Equals(TLD, "nl", StringComparison.OrdinalIgnoreCase)) {
+            ParseWhoisDataNL();
+        } else if (IsEuCctld(TLD)) {
+            ParseWhoisDataEUGeneric();
         } else {
             ParseWhoisDataDefault();
         }
@@ -869,45 +910,112 @@ public class WhoisAnalysis : IHasAssessments {
     }
 
     private void ParseWhoisDataDefault() {
-        // Parse WHOIS data for most TLDs
-        WhoisData = Regex.Replace(
-            WhoisData,
-            "\r\n|\n|\r",
-            "\n",
-            RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        // Generic parser with common synonyms to cover most registries
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
 
-        foreach (var line in WhoisData.Split('\n')) {
-            var trimmedLine = line.Trim();
-            ParseRegistrarLicense(trimmedLine);
+        static bool StartsWithI(string s, string prefix)
+            => s.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 
-            if (trimmedLine.StartsWith("Domain Name:")) {
-                DomainName = trimmedLine.Substring("Domain Name:".Length).Trim();
-            } else if (trimmedLine.StartsWith("Registrar:")) {
-                Registrar = trimmedLine.Substring("Registrar:".Length).Trim();
-            } else if (trimmedLine.StartsWith("Creation Date:")) {
-                CreationDate = trimmedLine.Substring("Creation Date:".Length).Trim();
-            } else if (trimmedLine.StartsWith("Registry Expiry Date:")) {
-                SetExpiryDate(trimmedLine.Substring("Registry Expiry Date:".Length).Trim());
-            } else if (trimmedLine.StartsWith("Updated Date:")) {
-                LastUpdated = trimmedLine.Substring("Updated Date:".Length).Trim();
-            } else if (trimmedLine.StartsWith("Name Server:")) {
-                NameServers.Add(trimmedLine.Substring("Name Server:".Length).Trim());
-            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Email:")) {
-                var value = trimmedLine.Substring("Registrar Abuse Contact Email:".Length).Trim();
-                RegistrarEmail = value;
-                RegistrarAbuseEmail = value;
-            } else if (trimmedLine.StartsWith("Registrar Abuse Contact Phone:")) {
-                var value = trimmedLine.Substring("Registrar Abuse Contact Phone:".Length).Trim();
-                RegistrarTel = value;
-                RegistrarAbusePhone = value;
-            } else if (trimmedLine.StartsWith("Registrant Organization:")) {
-                RegisteredTo = trimmedLine.Substring("Registrant Organization:".Length).Trim();
-            } else if (trimmedLine.StartsWith("Registrant Country:")) {
-                Country = trimmedLine.Substring("Registrant Country:".Length).Trim();
-            } else if (trimmedLine.StartsWith("DNSSEC:")) {
-                DnsSec = trimmedLine.Substring("DNSSEC:".Length).Trim();
+        string[] domainKeys = { "Domain Name:", "Domain:", "domain:", "domain name:" };
+        string[] registrarKeys = { "Registrar:", "Sponsoring Registrar:", "registrar:" };
+        string[] createdKeys = { "Creation Date:", "Created:", "Created On:", "Created Date:", "registered:" };
+        string[] updatedKeys = { "Updated Date:", "Last Updated On:", "Last Update:", "last-update:", "Modified:", "changed:" };
+        string[] expiryKeys = { "Registry Expiry Date:", "Expiry Date:", "Expiration Date:", "expire-date:", "paid-till:", "expires:" };
+        string[] nsLineKeys = { "Name Server:", "Nameserver:", "Name-Server:" };
+        string[] nsBlockKeys = { "Name Servers:", "Nameservers:", "nserver:", "NSERVER:", "nameservers:", "Name servers:" };
+        string[] dnssecKeys = { "DNSSEC:", "dnssec:" };
+
+        bool inNsBlock = false;
+        foreach (var raw in WhoisData.Split('\n')) {
+            var line = raw.Trim();
+            if (string.IsNullOrWhiteSpace(line)) { inNsBlock = false; continue; }
+            ParseRegistrarLicense(line);
+
+            // Domain
+            foreach (var k in domainKeys) if (StartsWithI(line, k)) { DomainName = line.Substring(k.Length).Trim(); goto next; }
+
+            // Registrar
+            foreach (var k in registrarKeys) if (StartsWithI(line, k)) { Registrar = line.Substring(k.Length).Trim(); goto next; }
+
+            // Created
+            foreach (var k in createdKeys) if (StartsWithI(line, k)) { CreationDate = line.Substring(k.Length).Trim(); goto next; }
+
+            // Updated
+            foreach (var k in updatedKeys) if (StartsWithI(line, k)) { LastUpdated = line.Substring(k.Length).Trim(); goto next; }
+
+            // Expiry
+            foreach (var k in expiryKeys) if (StartsWithI(line, k)) { SetExpiryDate(line.Substring(k.Length).Trim()); goto next; }
+
+            // Name server single-line
+            foreach (var k in nsLineKeys) if (StartsWithI(line, k)) { NameServers.Add(line.Substring(k.Length).Trim()); goto next; }
+
+            // Nameserver block
+            foreach (var k in nsBlockKeys) if (StartsWithI(line, k)) { inNsBlock = true; var rest = line.Substring(k.Length).Trim(); if (!string.IsNullOrWhiteSpace(rest)) NameServers.Add(rest); goto next; }
+            if (inNsBlock) {
+                // Heuristic: hostname with a dot
+                if (line.Contains('.')) NameServers.Add(line);
+                goto next;
             }
+
+            // Abuse contacts
+            if (StartsWithI(line, "Registrar Abuse Contact Email:")) {
+                var value = line.Substring("Registrar Abuse Contact Email:".Length).Trim();
+                RegistrarEmail = value; RegistrarAbuseEmail = value; goto next;
+            }
+            if (StartsWithI(line, "Registrar Abuse Contact Phone:")) {
+                var value = line.Substring("Registrar Abuse Contact Phone:".Length).Trim();
+                RegistrarTel = value; RegistrarAbusePhone = value; goto next;
+            }
+
+            // Registrant
+            if (StartsWithI(line, "Registrant Organization:")) { RegisteredTo = line.Substring("Registrant Organization:".Length).Trim(); goto next; }
+            if (StartsWithI(line, "Registrant Country:")) { Country = line.Substring("Registrant Country:".Length).Trim(); goto next; }
+
+            // DNSSEC
+            foreach (var k in dnssecKeys) if (StartsWithI(line, k)) { DnsSec = line.Substring(k.Length).Trim(); goto next; }
+
+            next: ;
         }
+    }
+
+    private static bool IsEuCctld(string tld)
+        => string.Equals(tld, "eu", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "se", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "no", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "dk", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "fi", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ie", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "pt", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "gr", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "lt", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "lv", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ee", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "si", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "sk", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "ro", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "hu", StringComparison.OrdinalIgnoreCase)
+           || string.Equals(tld, "pl", StringComparison.OrdinalIgnoreCase);
+
+    private void ParseWhoisDataEUGeneric()
+    {
+        // Broad EU-style WHOIS parsing with common synonyms
+        WhoisData = System.Text.RegularExpressions.Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Multiline);
+        static bool StartsWithI(string s, string prefix) => s.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase);
+        foreach (var raw in WhoisData.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (string.IsNullOrEmpty(line)) continue;
+            ParseRegistrarLicense(line);
+            if (StartsWithI(line, "domain:")) { DomainName = line.Substring(7).Trim(); continue; }
+            if (StartsWithI(line, "Domain:")) { DomainName = line.Substring(7).Trim(); continue; }
+            if (StartsWithI(line, "nserver:") || StartsWithI(line, "name server:")) { var idx=line.IndexOf(':'); if (idx>0) NameServers.Add(line.Substring(idx+1).Trim()); continue; }
+            if (StartsWithI(line, "expires:") || StartsWithI(line, "Expiry Date:") || StartsWithI(line, "Expiration Date:")) { var idx=line.IndexOf(':'); if (idx>0) SetExpiryDate(line.Substring(idx+1).Trim()); continue; }
+            if (StartsWithI(line, "dnssec:")) { var idx=line.IndexOf(':'); if (idx>0) DnsSec = line.Substring(idx+1).Trim(); continue; }
+            if (StartsWithI(line, "registrar:")) { var idx=line.IndexOf(':'); if (idx>0) Registrar = line.Substring(idx+1).Trim(); continue; }
+        }
+        UpdateExpiryFlags();
+        UpdateRegistrarLock();
+        UpdatePrivacyFlag();
     }
 
     private void ParseWhoisDataDE() {
@@ -1055,6 +1163,93 @@ public class WhoisAnalysis : IHasAssessments {
                 }
             } else if (trimmedLine.StartsWith("Flags:")) {
                 DnsSec = trimmedLine.Substring("Flags:".Length).Trim();
+            }
+        }
+    }
+
+    private void ParseWhoisDataFR() {
+        // AFNIC style
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        foreach (var line in WhoisData.Split('\n')) {
+            var t = line.Trim();
+            ParseRegistrarLicense(t);
+            if (t.StartsWith("domain:", StringComparison.OrdinalIgnoreCase)) {
+                DomainName = t.Substring(7).Trim();
+            } else if (t.StartsWith("nserver:", StringComparison.OrdinalIgnoreCase)) {
+                NameServers.Add(t.Substring(8).Trim());
+            } else if (t.StartsWith("created:", StringComparison.OrdinalIgnoreCase)) {
+                CreationDate = t.Substring(8).Trim();
+            } else if (t.StartsWith("last-update:", StringComparison.OrdinalIgnoreCase)) {
+                LastUpdated = t.Substring(12).Trim();
+            } else if (t.StartsWith("Expiry Date:", StringComparison.OrdinalIgnoreCase) || t.StartsWith("expires:", StringComparison.OrdinalIgnoreCase)) {
+                var v = t.IndexOf(':') >= 0 ? t.Substring(t.IndexOf(':') + 1).Trim() : t;
+                SetExpiryDate(v);
+            } else if (t.StartsWith("registrar:", StringComparison.OrdinalIgnoreCase)) {
+                Registrar = t.Substring(10).Trim();
+            }
+        }
+    }
+
+    private void ParseWhoisDataES() {
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        foreach (var line in WhoisData.Split('\n')) {
+            var t = line.Trim();
+            ParseRegistrarLicense(t);
+            if (t.StartsWith("Domain name:", StringComparison.OrdinalIgnoreCase)) {
+                DomainName = t.Substring("Domain name:".Length).Trim();
+            } else if (t.StartsWith("Creation date:", StringComparison.OrdinalIgnoreCase)) {
+                CreationDate = t.Substring("Creation date:".Length).Trim();
+            } else if (t.StartsWith("Expiration date:", StringComparison.OrdinalIgnoreCase) || t.StartsWith("Expiry Date:", StringComparison.OrdinalIgnoreCase)) {
+                var v = t.Substring(t.IndexOf(':') + 1).Trim();
+                SetExpiryDate(v);
+            } else if (t.StartsWith("Name servers:", StringComparison.OrdinalIgnoreCase)) {
+                // following lines until blank are ns
+                continue;
+            } else if (t.StartsWith("ns", StringComparison.OrdinalIgnoreCase) && t.Contains('.')) {
+                NameServers.Add(t);
+            }
+        }
+    }
+
+    private void ParseWhoisDataIT() {
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        foreach (var line in WhoisData.Split('\n')) {
+            var t = line.Trim();
+            ParseRegistrarLicense(t);
+            if (t.StartsWith("Domain:", StringComparison.OrdinalIgnoreCase)) {
+                DomainName = t.Substring("Domain:".Length).Trim();
+            } else if (t.StartsWith("Created:", StringComparison.OrdinalIgnoreCase)) {
+                CreationDate = t.Substring("Created:".Length).Trim();
+            } else if (t.StartsWith("Expire Date:", StringComparison.OrdinalIgnoreCase)) {
+                SetExpiryDate(t.Substring("Expire Date:".Length).Trim());
+            } else if (t.StartsWith("Updated:", StringComparison.OrdinalIgnoreCase)) {
+                LastUpdated = t.Substring("Updated:".Length).Trim();
+            } else if (t.StartsWith("Nameservers", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            } else if (t.EndsWith(".it", StringComparison.OrdinalIgnoreCase) && t.Contains('.')) {
+                // rough capture of nameserver lines
+                NameServers.Add(t);
+            }
+        }
+    }
+
+    private void ParseWhoisDataNL() {
+        WhoisData = Regex.Replace(WhoisData, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        foreach (var line in WhoisData.Split('\n')) {
+            var t = line.Trim();
+            ParseRegistrarLicense(t);
+            if (t.StartsWith("Domain name:", StringComparison.OrdinalIgnoreCase)) {
+                DomainName = t.Substring("Domain name:".Length).Trim();
+            } else if (t.StartsWith("Registrar:", StringComparison.OrdinalIgnoreCase)) {
+                Registrar = t.Substring("Registrar:".Length).Trim();
+            } else if (t.StartsWith("DNSSEC:", StringComparison.OrdinalIgnoreCase)) {
+                DnsSec = t.Substring("DNSSEC:".Length).Trim();
+            } else if (t.StartsWith("Updated on:", StringComparison.OrdinalIgnoreCase)) {
+                LastUpdated = t.Substring("Updated on:".Length).Trim();
+            } else if (t.StartsWith("Nameservers:", StringComparison.OrdinalIgnoreCase)) {
+                continue;
+            } else if (t.Contains('.') && (t.StartsWith("ns", StringComparison.OrdinalIgnoreCase) || t.EndsWith("."))) {
+                NameServers.Add(t);
             }
         }
     }

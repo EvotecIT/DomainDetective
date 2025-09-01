@@ -12,5 +12,9 @@ public enum ThreatIntelSource
     /// <summary>VirusTotal reputation service.</summary>
     VirusTotal,
     /// <summary>AbuseIPDB IP reputation database.</summary>
-    AbuseIpDb
+    AbuseIpDb,
+    /// <summary>URLHaus (abuse.ch) URL and host blacklist.</summary>
+    UrlHaus,
+    /// <summary>OpenPhish phishing feed.</summary>
+    OpenPhish
 }

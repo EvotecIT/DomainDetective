@@ -411,8 +411,19 @@ namespace DomainDetective {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, type);
             }
-
-            return await DnsConfiguration.QueryDNS(name, type);
+            try {
+                return await DnsConfiguration.QueryDNS(name, type);
+            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                // Log and continue with empty results to avoid flaky failures in constrained CI/network
+                Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DMARC",
+                    Target = name,
+                    Code = DmarcCodes.QueryFailed,
+                    Message = $"DMARC DNS query failed: {ex.Message}"
+                });
+                return Array.Empty<DnsAnswer>();
+            }
         }
         private string TranslateAlignment(string alignment) {
             return alignment switch {

@@ -24,11 +24,14 @@ public static partial class Converters
             HasBackupServers = analysis.HasBackupServers,
             HasNullMx = analysis.HasNullMx,
             PointsToLocalhost = analysis.PointsToLocalhost,
+            MxTtlUniform = analysis.MxTtlUniform,
+            MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
+            TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c null-MX {(analysis.HasNullMx ? "yes" : "no")}",
+            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
             Recommendations = recs,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
             Raw = analysis
@@ -51,6 +54,9 @@ public class MxInfo
     public bool HasBackupServers { get; set; }
     public bool HasNullMx { get; set; }
     public bool PointsToLocalhost { get; set; }
+    public bool MxTtlUniform { get; set; }
+    public bool MxRrsetConsistentAcrossNs { get; set; }
+    public bool TargetAddressConsistentAcrossNs { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

@@ -156,6 +156,7 @@ namespace DomainDetective {
                 [HealthCheckType.TYPOSQUATTING] = () => VerifyTyposquatting(domainName, cancellationToken),
                 [HealthCheckType.WILDCARDDNS] = () => VerifyWildcardDns(domainName),
                 [HealthCheckType.EDNSSUPPORT] = () => VerifyEdnsSupport(domainName, cancellationToken),
+                [HealthCheckType.DNSHEALTH] = () => VerifyDnsHealth(domainName, cancellationToken),
                 [HealthCheckType.FLATTENINGSERVICE] = () => VerifyFlatteningServiceAsync(domainName, cancellationToken),
                 [HealthCheckType.THREATINTEL] = () => VerifyThreatIntel(domainName, cancellationToken),
                 [HealthCheckType.THREATFEED] = () => VerifyThreatFeed(domainName, cancellationToken),
@@ -187,6 +188,16 @@ namespace DomainDetective {
                     totalChecks);
         }
     }
+
+        private async Task VerifyDnsHealth(string domainName, CancellationToken cancellationToken) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            domainName = NormalizeDomain(domainName);
+            UpdateIsPublicSuffix(domainName);
+            DnsHealthAnalysis.Subject = domainName;
+            await DnsHealthAnalysis.Analyze(domainName, _logger, cancellationToken);
+        }
 
         /// Creates a high level summary of key analyses.
         /// </summary>

@@ -3,6 +3,5 @@
 $DomainClassification = Get-DDMailDomainClassification -DomainName 'evotec.pl' -Verbose
 $DomainClassification | Format-List
 
-
 $DomainClassification = Get-DDMailDomainClassification -DomainName 'evo.yt' -Verbose
 $DomainClassification | Format-List

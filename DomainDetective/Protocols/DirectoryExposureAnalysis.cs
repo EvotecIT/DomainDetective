@@ -90,7 +90,47 @@ public class DirectoryExposureAnalysis : IHasAssessments
                 if (response.IsSuccessStatusCode)
                 {
                     ExposedPaths.Add(path);
-                    logger?.WriteWarningCode(DirectoryExposureCodes.ExposedDirectory, "Exposed directory {0}", url);
+                    var p = (path ?? string.Empty);
+                    var pNorm = p.Trim('/');
+                    var isDir = p.EndsWith("/");
+                    var isEnv = pNorm.Equals(".env", StringComparison.OrdinalIgnoreCase);
+                    var isBackup = isDir && ((pNorm.IndexOf("backup", StringComparison.OrdinalIgnoreCase) >= 0) || pNorm.StartsWith("_backup", StringComparison.OrdinalIgnoreCase))
+                                  || pNorm.Equals(".DS_Store", StringComparison.OrdinalIgnoreCase)
+                                  || pNorm.EndsWith(".bak", StringComparison.OrdinalIgnoreCase)
+                                  || pNorm.EndsWith("~", StringComparison.Ordinal);
+                    var isSourceMap = pNorm.EndsWith(".map", StringComparison.OrdinalIgnoreCase);
+                    var isSitemap = pNorm.Equals("sitemap.xml", StringComparison.OrdinalIgnoreCase) || pNorm.Equals("sitemap.txt", StringComparison.OrdinalIgnoreCase);
+                    var isSecurityTxt = pNorm.Equals(".well-known/security.txt", StringComparison.OrdinalIgnoreCase);
+
+                    if (isEnv)
+                    {
+                        logger?.WriteErrorCode(DirectoryExposureCodes.SecretsDotEnv, "Exposed secret file {0}", url);
+                    }
+                    else if (isBackup)
+                    {
+                        logger?.WriteWarningCode(DirectoryExposureCodes.BackupsPresent, "Exposed backup/artifact {0}", url);
+                    }
+                    else if (isSourceMap)
+                    {
+                        logger?.WriteWarningCode(DirectoryExposureCodes.SourceMapExposed, "Exposed source map {0}", url);
+                    }
+                    else if (isSitemap)
+                    {
+                        logger?.WriteInformationCode(DirectoryExposureCodes.InfoSitemapPresent, "Sitemap present {0}", url);
+                    }
+                    else if (isSecurityTxt)
+                    {
+                        logger?.WriteInformationCode(DirectoryExposureCodes.InfoSecurityTxtPresent, "security.txt present {0}", url);
+                    }
+                    else if (isDir)
+                    {
+                        logger?.WriteWarningCode(DirectoryExposureCodes.ExposedDirectory, "Exposed directory {0}", url);
+                    }
+                    else
+                    {
+                        // generic exposed path (file)
+                        logger?.WriteWarningCode(DirectoryExposureCodes.ExposedDirectory, "Exposed path {0}", url);
+                    }
                 }
             }
             catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)

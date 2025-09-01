@@ -138,11 +138,11 @@ internal static class CommandUtilities {
         var autodiscoverEndpoints = AnsiConsole.Confirm("Show Autodiscover HTTP endpoints?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken);
+        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken);
         return 0;
     }
 
-internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken) {
+internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken) {
         foreach (var domain in domains) {
             var logger = new InternalLogger { IsProgress = showProgress };
             var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
@@ -174,6 +174,10 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                         if (checkHttp) {
                             await hc.VerifyPlainHttp(domain, cancellationToken);
                         }
+                        if (checkWeb) {
+                            await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
+                            await hc.VerifyWebsiteHttps(domain, cancellationToken);
+                        }
                         if (checkTakeover) {
                             await hc.VerifyTakeoverCname(domain, cancellationToken);
                         }
@@ -188,6 +192,10 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                 await hc.Verify(domain, checks, null, null, danePorts, portScanProfiles, cancellationToken);
                 if (checkHttp) {
                     await hc.VerifyPlainHttp(domain, cancellationToken);
+                }
+                if (checkWeb) {
+                    await hc.VerifyWebsiteCertificate(domain, 443, cancellationToken);
+                    await hc.VerifyWebsiteHttps(domain, cancellationToken);
                 }
                 if (checkTakeover) {
                     await hc.VerifyTakeoverCname(domain, cancellationToken);
@@ -234,6 +242,7 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                     HealthCheckType.DNSTUNNELING => hc.DnsTunnelingAnalysis,
                     HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
                     HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
+                    HealthCheckType.DNSHEALTH => hc.DnsHealthAnalysis,
                     _ => null
                 };
                 if (data != null) {
@@ -247,6 +256,10 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
             }
             if (checkHttp) {
                 CliHelpers.ShowPropertiesTable($"PLAIN HTTP for {domain}", hc.HttpAnalysis, unicodeOutput);
+            }
+            if (checkWeb) {
+                CliHelpers.ShowPropertiesTable($"WEB CERT for {domain}", hc.CertificateAnalysis, unicodeOutput);
+                CliHelpers.ShowPropertiesTable($"HTTPS SECURITY for {domain}", hc.HttpAnalysis, unicodeOutput);
             }
             if (checkTakeover) {
                 CliHelpers.ShowPropertiesTable($"TAKEOVER for {domain}", hc.TakeoverCnameAnalysis, unicodeOutput);

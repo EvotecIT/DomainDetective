@@ -15,4 +15,13 @@ public sealed class DmarcAggregateReport {
 
     /// <summary>Total number of parsed records.</summary>
     public int RecordCount => Records.Count;
+
+    /// <summary>Report identifier from metadata (report_id).</summary>
+    public string? ReportId { get; set; }
+
+    /// <summary>Start of the reported date range (UTC).</summary>
+    public System.DateTimeOffset? RangeBeginUtc { get; set; }
+
+    /// <summary>End of the reported date range (UTC).</summary>
+    public System.DateTimeOffset? RangeEndUtc { get; set; }
 }

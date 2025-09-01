@@ -6,4 +6,6 @@ internal static class MtaStsCodes {
     public const string PolicyInvalid = "MTASTS.Policy.Invalid";
     public const string NotEnforcing = "MTASTS.Policy.NotEnforcing";
     public const string Enforced = "MTASTS.Policy.Enforced";
+    public const string MxNotAligned = "MTASTS.MX.NotAligned";
+    public const string MaxAgeLow = "MTASTS.MaxAge.Low";
 }

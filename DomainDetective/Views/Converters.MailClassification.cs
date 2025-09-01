@@ -6,8 +6,11 @@ public static partial class Converters
 {
     public static MailClassificationInfo Convert(MailDomainClassificationResult result)
     {
-        // Mail domain classification is a synthesized view; no assessments
         int warn = 0, err = 0; string status = "OK";
+        if (result.Assessments != null)
+        {
+            Summarize(result.Assessments, out warn, out err, out status);
+        }
         var summary = $"{result.Classification} ({result.Confidence})";
         if (result.ReceivingSignals != null && result.SendingSignals != null)
         {
@@ -24,12 +27,12 @@ public static partial class Converters
             SendingSignals = result.SendingSignals,
             Score = result.Score,
             ScoreBreakdown = result.ScoreBreakdown,
-            Assessments = new List<Assessment>(),
+            Assessments = result.Assessments ?? new List<Assessment>(),
             Status = status,
             WarningCount = warn,
             ErrorCount = err,
             Summary = summary,
-            Recommendations = new List<RecommendationAdvice>(),
+            Recommendations = RecommendationEngine.From(result.Assessments ?? new List<Assessment>()),
             References = BuildReferences(result.RfcReferences, new List<RecommendationAdvice>()),
             Raw = result
         };

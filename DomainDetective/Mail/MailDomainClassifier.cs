@@ -175,6 +175,18 @@ public sealed class MailDomainClassifier {
 
         var references = BuildRfcReferences();
 
+        // Aggregate contributing assessments for consistency in views/PS
+        var agg = new List<Assessment>();
+        void Pull(IHasAssessments a) { if (a?.Assessments != null) agg.AddRange(a.Assessments); }
+        Pull(_health.SpfAnalysis);
+        Pull(_health.DKIMAnalysis);
+        Pull(_health.MXAnalysis);
+        Pull(_health.MTASTSAnalysis);
+        Pull(_health.TLSRPTAnalysis);
+        Pull(_health.DaneAnalysis);
+        Pull(_health.BimiAnalysis);
+        // ApexAddressAnalysis does not implement IHasAssessments; skip
+
         return new MailDomainClassificationResult {
             Domain = domain,
             Classification = category,
@@ -197,7 +209,8 @@ public sealed class MailDomainClassifier {
             DKIMSelectorsFound = _health.DKIMAnalysis?.AnalysisResults?.Keys?.ToList() ?? new List<string>(),
             Score = totalScore,
             ScoreBreakdown = scoreBreakdown,
-            RfcReferences = references
+            RfcReferences = references,
+            Assessments = agg
             ,BimiEligible = bimiEligible
             ,BimiEligibilityReason = bimiReason
             ,BimiNotes = bimiNotes

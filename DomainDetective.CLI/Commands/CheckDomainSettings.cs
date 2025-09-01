@@ -19,6 +19,10 @@ internal sealed class CheckDomainSettings : CommandSettings {
     [CommandOption("--check-http")]
     public bool CheckHttp { get; set; }
 
+    /// <summary>Perform HTTPS web checks (cert + headers/mixed-content).</summary>
+    [CommandOption("--check-web")]
+    public bool CheckWeb { get; set; }
+
     /// <summary>Check for takeover vulnerable CNAMEs.</summary>
     [CommandOption("--check-takeover")]
     public bool CheckTakeover { get; set; }

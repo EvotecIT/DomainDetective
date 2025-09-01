@@ -15,6 +15,7 @@ public class TestCliCancellation
                 ["example.com"],
                 null,
                 checkHttp: false,
+                checkWeb: false,
                 checkTakeover: false,
                 autodiscoverEndpoints: false,
                 outputJson: false,

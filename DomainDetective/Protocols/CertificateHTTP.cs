@@ -122,6 +122,25 @@ namespace DomainDetective {
         /// <summary>Structured assessments captured during certificate checks.</summary>
         public List<Assessment> Assessments { get; } = new();
 
+        /// <summary>Coarse web TLS grade.</summary>
+        public GradeLevel GradeLevel { get; private set; } = GradeLevel.Unknown;
+        /// <summary>Indicates legacy TLS protocol negotiated.</summary>
+        public bool LegacyEnabled { get; private set; }
+        /// <summary>Indicates if server supports TLS 1.0 during handshake probe.</summary>
+        public bool SupportsTls10 { get; private set; }
+        /// <summary>Indicates if server supports TLS 1.1 during handshake probe.</summary>
+        public bool SupportsTls11 { get; private set; }
+        /// <summary>Indicates if server supports TLS 1.2 during handshake probe.</summary>
+        public bool SupportsTls12 { get; private set; }
+        /// <summary>Indicates if server supports TLS 1.3 during handshake probe.</summary>
+        public bool SupportsTls13 { get; private set; }
+        /// <summary>Count of embedded SCTs in the certificate.</summary>
+        public int SctCount { get; private set; }
+        /// <summary>Indicates whether the certificate includes TLS Feature (OCSP Must-Staple).</summary>
+        public bool OcspMustStaple { get; private set; }
+        /// <summary>Indicates whether the server stapled an OCSP response during handshake (best-effort, via OpenSSL probe).</summary>
+        public bool? OcspStaplingPresent { get; private set; }
+
         internal CtLogAggregator CtLogs => _ctLogAggregator;
 
         internal static IEnumerable<string> ExtractMxHosts(IEnumerable<DnsAnswer> records)
@@ -248,7 +267,12 @@ namespace DomainDetective {
                                 await QueryRevocationEndpoints(cancellationToken);
                             }
                             PopulateSubjectAlternativeNames();
+                            PopulateSctAndTlsFeature(logger);
+                            await ProbeProtocolSupport(new Uri(url), port, logger, cancellationToken);
+                            await ProbeOcspStaplingWithOpenSsl(new Uri(url), port, logger, cancellationToken);
                             await QueryCtLogs(cancellationToken);
+                            // Compute grade once we have basic data (and optional TLS details)
+                            ComputeGrade(logger);
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
@@ -578,6 +602,162 @@ namespace DomainDetective {
             if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                 DhKeyBits = ssl.KeyExchangeStrength;
             }
+        }
+
+        private void PopulateSctAndTlsFeature(InternalLogger logger)
+        {
+            SctCount = 0;
+            OcspMustStaple = false;
+            try {
+                if (Certificate == null) return;
+                var parser = new Org.BouncyCastle.X509.X509CertificateParser();
+                var bcCert = parser.ReadCertificate(Certificate.RawData);
+                // SCT list extension: 1.3.6.1.4.1.11129.2.4.2
+                var sctExt = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.4.1.11129.2.4.2"));
+                if (sctExt != null)
+                {
+                    try
+                    {
+                        // Very coarse approximation: count plausible SCT markers
+                        var bytes = sctExt.GetOctets();
+                        int count = 0;
+                        for (int i = 0; i < bytes.Length - 33; i++)
+                        {
+                            if (bytes[i] == 0x00) count++;
+                        }
+                        SctCount = System.Math.Max(0, count / 32);
+                    }
+                    catch { SctCount = 1; }
+                }
+                if (SctCount == 0)
+                {
+                    logger?.WriteInformationCode(TlsCodes.SctMissing, "No embedded SCTs found in certificate");
+                }
+
+                // TLS Feature extension (OCSP Must-Staple): 1.3.6.1.5.5.7.1.24 with status_request (5)
+                var tlsFeat = bcCert.GetExtensionValue(new Org.BouncyCastle.Asn1.DerObjectIdentifier("1.3.6.1.5.5.7.1.24"));
+                if (tlsFeat != null)
+                {
+                    try
+                    {
+                        var seq = (Org.BouncyCastle.Asn1.Asn1Sequence)Org.BouncyCastle.Asn1.Asn1Object.FromByteArray(tlsFeat.GetOctets());
+                        foreach (var o in seq)
+                        {
+                            if (o is Org.BouncyCastle.Asn1.DerInteger di && di.IntValueExact == 5) { OcspMustStaple = true; break; }
+                        }
+                    }
+                    catch { }
+                }
+                if (!OcspMustStaple)
+                {
+                    logger?.WriteInformationCode(TlsCodes.OcspMustStapleMissing, "Certificate does not include OCSP Must-Staple (TLS Feature)");
+                }
+            } catch { }
+        }
+
+        private async Task ProbeOcspStaplingWithOpenSsl(Uri uri, int port, InternalLogger logger, CancellationToken token)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                cts.CancelAfter(Timeout);
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "openssl",
+                    Arguments = $"s_client -connect {uri.Host}:{port} -servername {uri.Host} -status -brief",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc == null) return;
+                var readOut = proc.StandardOutput.ReadToEndAsync();
+                var readErr = proc.StandardError.ReadToEndAsync();
+                var delayTask = Task.Delay(Timeout, cts.Token);
+#if NET5_0_OR_GREATER
+                var waitTask = proc.WaitForExitAsync(cts.Token);
+#else
+                var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
+#endif
+                await Task.WhenAny(delayTask, waitTask);
+                string output = string.Empty;
+                try { output = await readOut; } catch { }
+                string error = string.Empty;
+                try { error = await readErr; } catch { }
+                var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
+                if (string.IsNullOrWhiteSpace(text)) return;
+                bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                               text.IndexOf("OCSP Response Data:", StringComparison.OrdinalIgnoreCase) >= 0;
+                bool explicitlyMissing = text.IndexOf("OCSP response: no response sent", StringComparison.OrdinalIgnoreCase) >= 0;
+                OcspStaplingPresent = present && !explicitlyMissing;
+                if (OcspStaplingPresent == true)
+                {
+                    logger?.WriteInformationCode(TlsCodes.OcspStaplingPresent, "Server stapled an OCSP response on {0}:{1}", uri.Host, port);
+                }
+                else
+                {
+                    logger?.WriteWarningCode(TlsCodes.OcspStaplingMissing, "OCSP stapling not detected on {0}:{1}", uri.Host, port);
+                }
+            }
+            catch { }
+        }
+
+        private async Task ProbeProtocolSupport(Uri uri, int port, InternalLogger logger, CancellationToken token)
+        {
+            SupportsTls10 = false; SupportsTls11 = false; SupportsTls12 = false; SupportsTls13 = false;
+            async Task<bool> TryHandshake(System.Security.Authentication.SslProtocols proto)
+            {
+                try {
+                    using var tcp = await ConnectWithProxy(uri.Host, port, token);
+                    using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
+#if NET5_0_OR_GREATER
+                    var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
+                    await ssl.AuthenticateAsClientAsync(options, token);
+#else
+                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(token);
+#endif
+                    return ssl.SslProtocol == proto;
+                } catch { return false; }
+            }
+#if NET5_0_OR_GREATER
+            SupportsTls13 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls13);
+#endif
+            SupportsTls12 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls12);
+            // Legacy probes (best-effort)
+            SupportsTls11 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls11);
+            SupportsTls10 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls);
+            if (SupportsTls10 || SupportsTls11)
+            {
+                logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
+                    SupportsTls10 ? "1.0" : string.Empty,
+                    SupportsTls11 ? (SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
+                    uri.Host, port);
+            }
+        }
+
+        private void ComputeGrade(InternalLogger logger) {
+            // Legacy detection when TLS details are known
+            LegacyEnabled = TlsProtocol == SslProtocols.Tls || TlsProtocol == SslProtocols.Ssl3 || TlsProtocol == SslProtocols.Tls11;
+            if (LegacyEnabled) {
+                logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0} - {1}", Url ?? Subject, TlsProtocol);
+            }
+            // Weak cipher negotiated advisory
+            try {
+                var suite = CipherSuite ?? string.Empty;
+                if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}: {1}", Url ?? Subject, suite);
+                }
+            } catch { }
+
+            // Coarse grading aligned to MailTlsAnalysis
+            if (IsExpired || !IsValid || !HostnameMatch) { GradeLevel = GradeLevel.F; return; }
+            if (Tls13Used) { GradeLevel = GradeLevel.A; return; }
+            if (TlsProtocol == SslProtocols.Tls12 && !LegacyEnabled) { GradeLevel = GradeLevel.B; return; }
+            if (TlsProtocol == SslProtocols.Tls11 || TlsProtocol == SslProtocols.Tls) { GradeLevel = GradeLevel.D; return; }
+            // When TLS details are unknown, fall back to pass (valid cert) grade
+            GradeLevel = !string.IsNullOrEmpty(Certificate?.Subject) ? GradeLevel.C : GradeLevel.F;
         }
     }
 

@@ -26,7 +26,7 @@ public static partial class Converters
         {
             Check = "STARTTLS",
             Area = AreaFor("STARTTLS"),
-            Subject = null,
+            Subject = analysis.Subject,
             Servers = entries,
             Assessments = analysis.Assessments,
             Status = status,

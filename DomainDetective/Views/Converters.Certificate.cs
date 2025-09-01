@@ -2,14 +2,11 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Views;
 
-public static partial class Converters
-{
-    public static CertificateInfo Convert(CertificateAnalysis analysis)
-    {
+public static partial class Converters {
+    public static CertificateInfo Convert(CertificateAnalysis analysis) {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.From(analysis.Assessments);
-        return new CertificateInfo
-        {
+        return new CertificateInfo {
             Check = "CERT",
             Area = AreaFor("CERT"),
             Subject = analysis.Subject,
@@ -20,8 +17,16 @@ public static partial class Converters
             DaysToExpire = analysis.DaysToExpire,
             DaysValid = analysis.DaysValid,
             IsExpired = analysis.IsExpired,
+            Grade = analysis.GradeLevel,
             Http2Supported = analysis.Http2Supported,
             Http3Supported = analysis.Http3Supported,
+            SupportsTls10 = analysis.SupportsTls10,
+            SupportsTls11 = analysis.SupportsTls11,
+            SupportsTls12 = analysis.SupportsTls12,
+            SupportsTls13 = analysis.SupportsTls13,
+            SctCount = analysis.SctCount,
+            OcspMustStaple = analysis.OcspMustStaple,
+            OcspStaplingPresent = analysis.OcspStaplingPresent,
             SubjectAlternativeNames = analysis.SubjectAlternativeNames,
             IsWildcardCertificate = analysis.IsWildcardCertificate,
             IsSelfSigned = analysis.IsSelfSigned,
@@ -33,7 +38,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; {analysis.KeyAlgorithm} {analysis.KeySize}b",
+            Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Recommendations = recs,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
@@ -41,8 +46,7 @@ public static partial class Converters
     }
 }
 
-public class CertificateInfo
-{
+public class CertificateInfo {
     public string Check { get; set; }
     public string Area { get; set; }
     public string Subject { get; set; }
@@ -53,8 +57,16 @@ public class CertificateInfo
     public int DaysToExpire { get; set; }
     public int DaysValid { get; set; }
     public bool IsExpired { get; set; }
+    public GradeLevel Grade { get; set; }
     public bool Http2Supported { get; set; }
     public bool Http3Supported { get; set; }
+    public bool SupportsTls10 { get; set; }
+    public bool SupportsTls11 { get; set; }
+    public bool SupportsTls12 { get; set; }
+    public bool SupportsTls13 { get; set; }
+    public int SctCount { get; set; }
+    public bool OcspMustStaple { get; set; }
+    public bool? OcspStaplingPresent { get; set; }
     public IReadOnlyList<string> SubjectAlternativeNames { get; set; }
     public bool IsWildcardCertificate { get; set; }
     public bool IsSelfSigned { get; set; }

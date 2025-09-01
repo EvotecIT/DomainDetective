@@ -44,6 +44,14 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 | `Test-DDDmarcAggregate`        | `Test-EmailDmarcAggregate` | Parse DMARC aggregate reports |
 | `New-DDDmarcRecord`            | `New-DmarcRecord`        | Build DMARC record              |
 
+### Web
+
+| Prefixed Name             | Alias Name            | Purpose                                      |
+|---------------------------|-----------------------|----------------------------------------------|
+| `Test-DDWebsite`          | `Test-Website`        | Combined website check (cert + HTTPS security)|
+| `Test-DDWebsiteSecurity`  | `Test-WebsiteSecurity`| HTTPS security headers + mixed content        |
+| `Test-DDDomainCertificate`| `Test-DomainCertificate` | Website certificate incl. TLS grade       |
+
 ### DNS
 
 | Prefixed Name                   | Alias Name               | Purpose                         |
@@ -62,6 +70,7 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 | `Test-DDDnsTunneling`          | `Test-DnsTunneling`      | Detect DNS tunneling (logs)     |
 | `Test-DDDnsWildcard`           | `Test-DnsWildcard`       | Detect wildcard catch-all       |
 | `Test-DDDnsEdnsSupport`        | `Test-DnsEdnsSupport`    | EDNS support                    |
+| `Test-DDDnsHealth`             | `Test-DnsHealth`         | Authoritative SOA/apex/TTL consistency |
 | `Test-DDDnsSmimeaRecord`       | `Test-DnsSmimea`         | S/MIMEA                         |
 | `Test-DDDnsForwardReverse`     | `Test-DnsFcrDns`         | FCrDNS                          |
 | `Test-DDDnsMxRecord`           | `Test-DnsMx`             | MX records                      |
@@ -90,7 +99,7 @@ It’s built for automation, reproducibility, and working with sensitive data wi
 |--------------------------------|--------------------------|---------------------------------|
 | `Test-DDTlsDaneRecord`         | `Test-TlsDane`           | DANE/TLSA                       |
 | `Get-DDTlsCertificateInfo`     | `Get-CertificateInfo`    | Parse PEM/DER certs             |
-| `Test-DDNetworkIpNeighbor`     | `Test-NetworkIpNeighbor` | Passive DNS neighbors           |
+| `Test-DDNetworkIpNeighbor`     | `Test-NetworkIpNeighbor` | IP neighbors (add -IncludeMX for mail IPs) |
 | `Test-DDNetworkPortAvailability` | `Test-NetworkPortAvailability` | Port scanning              |
 
 ### Configuration & Data
@@ -162,6 +171,15 @@ The `CertificateAnalysis` result now includes:
 - `CtLogApiTemplates` allows customizing the list of CT log APIs queried.
 - `SkipRevocation` disables CRL and OCSP checks. Use with care as revoked certificates may appear valid.
 
+### Combined Website Check
+PowerShell users can run a combined check returning a single `WebsiteInfo` object:
+
+```powershell
+Test-Website -DomainName evotec.xyz | Select-Object Area,Check,Status,Summary,CertificateGrade,HttpGrade
+```
+This aggregates `CertificateInfo` and `HttpInfo` with grades, HSTS presence, and mixed-content flag.
+
+
 ## DKIM Analysis (overview)
 `DkimRecordAnalysis` exposes several indicators:
 
@@ -176,6 +194,8 @@ details and chain validity for each server.
 ## HTTP Security Headers (overview)
 `HttpAnalysis.DefaultSecurityHeaders` lists security headers that are inspected when header collection is enabled. The list includes `Content-Security-Policy`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`, `Origin-Agent-Cluster` and several Cross-Origin policies. You can modify the list to capture additional headers.
 `HttpAnalysis` also sets `HstsPreloaded` when the host is found in the bundled HSTS preload list.
+
+Each HTTP check also computes a coarse `Grade` (A–F) summarizing header posture and mixed-content. See `Test-WebsiteSecurity` and `Test-Website`.
 
 
 ## Build and Test
@@ -270,6 +290,9 @@ ddcli example.com --subdomain-policy
 ddcli example.com --checks fcrdns
 ddcli TestSMIMEA user@example.com
 ddcli DnsPropagation --domain example.com --record-type A
+
+ ddcli example.com --check-web
+ ddcli example.com --checks DNSHEALTH
 ```
 
 ### CLI wizard
@@ -278,6 +301,12 @@ ddcli DnsPropagation --domain example.com --record-type A
 ddcli
 ```
 Guides you through domain entry, check selection, and JSON vs summary output.
+For web-focused checks from CLI:
+
+```bash
+ ddcli example.com --check-web
+ ddcli example.com --checks DNSHEALTH
+```
 
 ### CLI: analyze messages
 

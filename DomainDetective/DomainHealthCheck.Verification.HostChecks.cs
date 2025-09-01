@@ -119,5 +119,9 @@ namespace DomainDetective {
         public async Task CheckIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
             await IPNeighborAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
+        /// <summary>Queries neighbors for IPs used by MX hosts of <paramref name="domainName"/>.</summary>
+        public async Task CheckMailIPNeighbors(string domainName, CancellationToken cancellationToken = default) {
+            await IPNeighborAnalysis.AnalyzeMx(domainName, _logger, cancellationToken);
+        }
     }
 }

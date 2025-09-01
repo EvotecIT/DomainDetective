@@ -14,4 +14,5 @@ internal static class DmarcCodes {
     public const string MultipleRecords = "DMARC.Record.Multiple";
     public const string StartsInvalid = "DMARC.Record.StartsInvalid";
     public const string RecordLengthExceeds = "DMARC.Record.LengthExceeds";
+    public const string QueryFailed = "DMARC.Query.Failed";
 }

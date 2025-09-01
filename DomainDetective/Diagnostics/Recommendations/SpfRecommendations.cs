@@ -136,5 +136,17 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "TXT response size fits typical UDP limits; no TC bit."
         };
+
+        map[SpfCodes.QueryFailed] = new RecommendationAdvice {
+            Code = SpfCodes.QueryFailed,
+            Title = "SPF DNS query failed",
+            Why = "Transient DNS or HTTP issues can prevent fetching SPF TXT records, leading to flaky evaluations.",
+            How = "Retry with a different resolver or increase timeout; ensure network egress and DNS over HTTPS endpoints are reachable.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "dns", "availability" },
+            Impact = "SPF validation may be skipped by tooling; receivers may still succeed.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Re-run lookup; confirm TXT v=spf1 is retrievable."
+        };
     }
 }

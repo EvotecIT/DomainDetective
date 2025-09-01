@@ -12,4 +12,5 @@ internal static class SpfCodes {
     public const string MultipleRecords = "SPF.Record.Multiple";
     public const string StartsInvalid = "SPF.Record.StartsInvalid";
     public const string RecordLengthExceeds = "SPF.Record.LengthExceeds";
+    public const string QueryFailed = "SPF.Query.Failed";
 }

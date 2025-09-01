@@ -133,6 +133,11 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>Summary message describing MTA-STS status.</summary>
         public string Advisory { get; private set; }
 
+        /// <summary>Indicates whether policy MX patterns cover actual DNS MX hosts.</summary>
+        public bool MxAligned { get; private set; }
+        /// <summary>Actual MX hosts missing from the policy patterns.</summary>
+        public List<string> MissingMxFromPolicy { get; private set; } = new();
+
         /// <summary>Relevant standards for MTA-STS analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "SMTP MTA Strict Transport Security", Reference = "RFC 8461", Url = "https://datatracker.ietf.org/doc/html/rfc8461" }
@@ -159,6 +164,8 @@ public class MTASTSAnalysis : IHasAssessments {
             DnsRecordValid = false;
             PolicyId = null;
             Advisory = string.Empty;
+            MxAligned = false;
+            MissingMxFromPolicy = new List<string>();
         }
 
         /// <summary>
@@ -216,6 +223,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Policy = content;
             ParsePolicy(content);
             PolicyValid = PolicyValid && DnsRecordValid;
+            await EvaluateMxAlignmentAsync(domainName);
             var expiration = DateTimeOffset.UtcNow.Add(CacheDuration);
             if (ValidMaxAge && MaxAge > 0) {
                 var maxAgeExpiration = DateTimeOffset.UtcNow.Add(TimeSpan.FromSeconds(MaxAge));
@@ -389,6 +397,44 @@ public class MTASTSAnalysis : IHasAssessments {
             }
 
             PolicyValid = PolicyValid && VersionPresent && ValidVersion && ValidMode && ValidMaxAge && HasMx && !HasDuplicateFields;
+        }
+
+        private static bool PatternMatches(string pattern, string host)
+        {
+            if (string.IsNullOrWhiteSpace(pattern) || string.IsNullOrWhiteSpace(host)) return false;
+            var p = pattern.TrimEnd('.');
+            var h = host.TrimEnd('.');
+            if (p.StartsWith("*.", StringComparison.Ordinal))
+            {
+                var suf = p.Substring(1); // ".example.com"
+                return h.EndsWith(suf, StringComparison.OrdinalIgnoreCase);
+            }
+            return string.Equals(p, h, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task EvaluateMxAlignmentAsync(string domainName)
+        {
+            try {
+                MissingMxFromPolicy = new List<string>();
+                MxAligned = false;
+                var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX);
+                var hosts = CertificateAnalysis.ExtractMxHosts(mx).ToArray();
+                if (hosts.Length == 0 || Mx.Count == 0) { MxAligned = false; return; }
+                foreach (var h in hosts) {
+                    if (!Mx.Any(p => PatternMatches(p, h))) {
+                        MissingMxFromPolicy.Add(h);
+                    }
+                }
+                MxAligned = MissingMxFromPolicy.Count == 0;
+                if (!MxAligned) {
+                    Logger?.WriteWarningCode(MtaStsCodes.MxNotAligned, "MTA-STS policy MX patterns do not cover all MX hosts ({0})", string.Join(", ", MissingMxFromPolicy));
+                }
+
+                if (ValidMaxAge && MaxAge > 0 && MaxAge < 86400) {
+                    Logger?.WriteWarningCode(MtaStsCodes.MaxAgeLow, "MTA-STS max_age {0} is low; consider >= 86400", MaxAge);
+                }
+            } catch (Exception) {
+            }
         }
     }
 }

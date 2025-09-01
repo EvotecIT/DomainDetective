@@ -14,6 +14,7 @@ public static partial class Converters
             Area = AreaFor("SPF"),
             Subject = analysis.Subject,
             SpfRecord = analysis.SpfRecord,
+            RecordLength = analysis?.SpfRecord?.Length ?? 0,
             SpfRecordExists = analysis.SpfRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
             MultipleSpfRecords = analysis.MultipleSpfRecords,
@@ -41,6 +42,7 @@ public class SpfRecordInfo
     public string Area { get; set; }
     public string Subject { get; set; }
     public string SpfRecord { get; set; }
+    public int RecordLength { get; set; }
     public bool SpfRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool MultipleSpfRecords { get; set; }

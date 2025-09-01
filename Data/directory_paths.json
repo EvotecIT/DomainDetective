@@ -3,8 +3,15 @@
     ".svn/",
     "config/",
     "backup/",
+    "_backup/",
     "admin/",
     "logs/",
     "tmp/",
-    ".env"
+    ".env",
+    ".DS_Store",
+    "package-lock.json",
+    "yarn.lock",
+    "sitemap.xml",
+    "sitemap.txt",
+    ".well-known/security.txt"
 ]
