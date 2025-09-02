@@ -297,6 +297,20 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
  - [x] Structured tracker detections: `Raw.TrackerDetails` with Host/Domain, FirstParty, RequestCount/Bytes, SampleUrls, ContentTypes, EvidenceKind/Evidence, TrackerName.
  - [x] Provenance completeness: every `TechDetections` entry gets a `TechDetails` record (fallback heuristic with evidence when needed).
  - [x] Broken resource capture: `Raw.BrokenResources` with StatusCode, Category, Source (HTML/CSS/LINK), FirstParty, Referrer.
+ - [x] Per-request protocol: `ProtocolVersion`, `Http2`, `Http3` (from response.Version).
+ - [x] Per-request cache/timing headers: `Cache-Control`, `ETag`, `Last-Modified`, `Age`, `Vary`, `Expires`, `Server-Timing`.
+ - [x] Per-request header size + overhead: `ResponseHeaderBytes`, `HeaderOverBodyPct`.
+ - [x] Per-request CORS echo: `Access-Control-Allow-*` captured alongside scan-level CORS summary.
+ - [x] Per-request hints: `Alt-Svc`, `Link` header parsing (preload count, `as=` types).
+ - [x] Per-request classification: `ResourceCategory` (enum), `MediaSupertype` (enum), `StatusClass` (enum), `FirstParty`, `SameOrigin`.
+ - [x] Per-request TLS/cert provenance stamped from host probe: `TlsProtocol`, `TlsCipherSuite`, `TlsCertSubject/Issuer/NotAfter/Thumbprint`.
+ - [x] Link graph: request `Id/ParentId`, `RequestAdjacency` (parent→children), `ChildCount`, `LinkChildCount`, `MaxLinkDepthFromHere`.
+ - [x] Redirect taxonomy: `WasRedirected`, `RedirectKind`, `RedirectHopCount`, `RedirectToHost/RedirectToScheme`.
+ - [x] Redirect pairs matrix: `RedirectPairs` and `TopRedirectPairs` (by count).
+ - [x] Fan-out hotspots: `TopLinkFanOut` (top nodes by link-derived children).
+ - [x] Per-host header frequency and summaries: `HeaderCounts`, `HeaderDistinctCount`, `TopHeaders`.
+ - [x] Per-host cacheability and freshness: `CacheableResponses/NonCacheableResponses`, `CacheablePercent`, `MaxAgeSecondsMax`, Age header avg/max.
+ - [x] Per-host Content-Length presence: `ResponsesWithContentLength/ResponsesWithoutContentLength`, `ContentLengthPresentPercent`.
 
 ### Static Web Scan — Missing (Keep Focus on Data, not Output)
 - [ ] Threat intel overlay for contacted registrable domains (reuse ThreatIntelAnalysis; optional and capped).
@@ -308,20 +322,68 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
  - [ ] SRI/integrity checks for known CDN libraries; flag missing/invalid integrity on first‑party pages.
  - [ ] Summarize first‑party vs third‑party CORS/HSTS ratios at scan level (views) without cluttering objects.
 
+### Static Web Scan — Provider Parity (Offline Features To Implement)
+Ordered by impact vs effort. Tags: [QW]=Quick Win, [M]=Medium, [H]=Heavy.
+
+- Redirect quality [QW]
+  - Apex↔www consolidation score; http→https coverage; loop detection. [QW]
+  - Mean/95p hops for link redirects; top host pairs to consolidate. [QW]
+
+- Caching/CDN posture [QW/M]
+  - Detect static assets missing long cache; query‑busting heuristics. [QW]
+  - Compression adoption % for textual types; flag uncompressed. [QW]
+  - stale‑while‑revalidate / stale‑if‑error presence and maxima. [M]
+
+- SEO/robots static checks [QW]
+  - Canonical link presence/mismatch; conflicts. [QW]
+  - Robots meta noindex/nofollow on main; sitemap presence via robots (header‑only). [QW]
+
+- HTTP header linting [QW/M]
+  - CSP inline/eval counters; frame‑ancestors presence; enforce vs report‑only guidance. [QW]
+  - Referrer‑Policy strictness scoring; combine with SameSite posture. [QW]
+  - COOP/COEP/CORP maturity score. [M]
+
+- Tracking/cookies posture [QW/M]
+  - Third‑party cookies: setting domains; SameSite=None+Secure adoption; cross‑site risk summary. [QW]
+  - Third‑party JS weight share; top offenders by bytes (by host/type). [QW]
+
+- IPv6/DNS TTL fitness [QW/M]
+  - First/third‑party IPv6 adoption (done) → add critical AAAA gap flags for first‑party hosts. [QW]
+  - TTL reasonableness bands (too short/long) by host/type. [M]
+
+- Web TLS deepen (offline) [M/H]
+  - Probe minimal version/cipher matrix; ALPN outcomes (h2/h3). [H]
+  - Chain quality warnings: AIA issues, duplicate intermediates, Must‑Staple. [M]
+  - OCSP stapling freshness window; SCT embedded count summary. [M]
+
+- SPF/DMARC/DKIM depth (mail posture parity) [M/H]
+  - SPF include chain depth, void lookups, near‑limit queries, broad ranges; flatten size forecasts. [M/H]
+  - DMARC pct<100 and fo modes; rua/ruf syntax/size sanity; alignment advisories. [M]
+  - DKIM multi‑selector sampling; weak key/alg flags; b= length sanity. [H]
+
+- DNS hygiene (zone delegation posture) [H]
+  - Dangling DS at parent; unsigned child with stale DS. [H]
+  - Lame delegation detection; refused/NXDOMAIN/timeout at delegated NS. [H]
+  - Glue/authority drift: in‑bailiwick glue vs authoritative A/AAAA mismatch. [H]
+  - Tightened nameserver consistency (serial/TTL divergence thresholds). [M]
+  - CAA completeness: iodef presence; wildcard vs FQDN policy alignment. [M]
+
+Next Sprint — Quick Wins
+- Redirect consolidation scores (apex/www + http→https) with top host pairs.
+- Cache/compression adoption stats and advisories for textual assets.
+- Canonical/robots meta/sitemap checks on main page.
+- CSP/Referrer‑Policy lint (inline/eval, frame‑ancestors, strictness).
+- Third‑party JS weight share + top offenders; third‑party cookies posture.
+- First‑party AAAA gap flags; TTL band warnings.
 ### Static Web Scan — Next Enrichment Ideas
 - [x] Link-only mode: fast link health audit (anchors only) with depth/pages constraints; skips resource discovery.
 - [x] CLI/PS options to control link checker:
   - `FollowLinks` (bool), `LinkMaxDepth` (int), `LinkMaxPages` (int), `LinkFirstPartyOnly` (bool), `LinkConcurrency` (int)
   - PowerShell parameters and CLI flags mirroring these; defaults conservative.
 - [ ] PoP tables expansion (more codes) + small ASN→Provider offline map extensions.
-- [x] Per‑resource timing capture (headers timing only) to support a minimal waterfall/trends later.
-- [x] View surfacing of NEL/Report‑To/speculation (keep Raw untouched) and broken links summary in views.
-- [ ] Link rel hints: capture `preconnect`/`dns-prefetch`/`preload` to infer intended 3P dependencies.
+- [ ] Link rel hints: capture `preconnect`/`dns-prefetch`/`preload` across pages to infer intended 3P dependencies.
 - [ ] PWA signals: discover and parse `manifest.json` (size‑capped); record service worker registration hints (no execution).
-- [ ] Structured data: detect application/ld+json blocks; record schema `@type` counts (capped bytes).
-- [ ] Robots/sitemaps: list sitemap URLs from robots.txt (no crawl) and record presence.
-- [ ] DNS TTL/IPv6 adoption: store TTLs when available and count IPv6 usage across hosts.
-- [ ] ASN → Provider offline map for top clouds/CDNs as a fallback to RDAP parsing.
+- [ ] ASN → Provider offline map expansion for top clouds/CDNs (fallback when RDAP parsing limited).
 
 ## Stretch Ideas
 - [ ] MTA‑STS deep dive (policy caching, redirects, expiry, enforce only when all MX support TLS).
