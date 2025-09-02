@@ -2,18 +2,32 @@ namespace DomainDetective;
 
 public partial class WebStaticScanAnalysis
 {
+    /// <summary>
+    /// Categorizes common redirect patterns between the original and final URL.
+    /// </summary>
     public enum RedirectKind
     {
+        /// <summary>No redirect or unclassified pattern.</summary>
         None = 0,
+        /// <summary>http → https.</summary>
         SchemeUpgrade,
+        /// <summary>https → http.</summary>
         SchemeDowngrade,
+        /// <summary>apex → www host.</summary>
         ApexToWww,
+        /// <summary>www → apex host.</summary>
         WwwToApex,
+        /// <summary>Redirect changes host in other ways.</summary>
         HostChangeOther,
+        /// <summary>Adds a trailing slash to the path.</summary>
         TrailingSlashAdded,
+        /// <summary>Removes a trailing slash from the path.</summary>
         TrailingSlashRemoved,
+        /// <summary>index.html/htm collapsed to slash.</summary>
         IndexToSlash,
+        /// <summary>Only the query string changes.</summary>
         QueryChangeOnly,
+        /// <summary>Other path changes.</summary>
         PathChangeOther
     }
 

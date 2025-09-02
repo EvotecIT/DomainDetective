@@ -62,6 +62,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     
 
     public HttpAnalysis? MainHttpAnalysis { get; private set; }
+    /// <summary>Final URI of the main document after redirects.</summary>
     public Uri? MainFinalUri { get; private set; }
     /// <summary>Registrable domain derived from the scanned URL host.</summary>
     public string? PrimaryRegistrableDomain { get; private set; }
