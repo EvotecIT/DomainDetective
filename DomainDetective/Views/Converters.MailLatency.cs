@@ -14,11 +14,16 @@ public static partial class Converters
             if (!kv.Value.ConnectSuccess) warn++;
         }
         string status = warn > 0 ? "Warning" : "OK";
+        string subject = null;
+        if (analysis.ServerResults != null && analysis.ServerResults.Count == 1)
+        {
+            foreach (var key in analysis.ServerResults.Keys) { subject = key; break; }
+        }
         return new MailLatencyInfo
         {
             Check = HealthCheckType.MAILLATENCY,
             Area = AreaForKind(HealthCheckType.MAILLATENCY),
-            Subject = null,
+            Subject = subject,
             Servers = analysis.ServerResults,
             AverageConnectMs = analysis.ServerResults.Count == 0 ? 0 : (int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds),
             AverageBannerMs = analysis.ServerResults.Count == 0 ? 0 : (int)analysis.ServerResults.Values.Average(v => v.BannerTime.TotalMilliseconds),

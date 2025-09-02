@@ -216,6 +216,10 @@ namespace DomainDetective {
             // check that the SPF record does not have more than one "all" mechanism
             MultipleAllMechanisms = MultipleAllMechanisms || CountAllMechanisms(parts) > 1;
 
+            if (MultipleAllMechanisms) {
+                logger?.WriteWarningCode(SpfCodes.AllMultiple, "SPF contains multiple 'all' mechanisms; only the last is effective.");
+            }
+
             // add the parts to the appropriate lists
             foreach (var part in parts) {
                 AddPartToList(part, logger);
@@ -226,17 +230,34 @@ namespace DomainDetective {
                 .Where(part => IsAllMechanism(part))
                 .Any(part => !part.Equals(parts.Last(), StringComparison.OrdinalIgnoreCase));
 
+            if (ContainsCharactersAfterAll) {
+                logger?.WriteWarningCode(SpfCodes.AllTrailingContent, "SPF has mechanisms after 'all' that are never evaluated.");
+            }
+
             // check if the SPF record contains a PTR type
             HasPtrType = PtrRecords.Any();
+            if (HasPtrType) {
+                logger?.WriteWarningCode(SpfCodes.PtrUsed, "SPF uses 'ptr' mechanism which is discouraged.");
+            }
 
             // check if the SPF record contains exists: with no domain
             CheckForNullDnsLookups(parts);
+            if (ExistsRecords.Count > 0) {
+                logger?.WriteWarningCode(SpfCodes.ExistsUsed, "SPF uses 'exists' which can be expensive and unpredictable.");
+            }
 
             // keep TestSpfRecords intact so subsequent operations like
             // GetFlattenedSpf can resolve fake DNS records in unit tests
 
             WarnIfExceedsDnsLookups(logger);
             UpdateAdvisory();
+
+            // policy strength advisory for 'all'
+            if (string.IsNullOrWhiteSpace(AllMechanism)) {
+                logger?.WriteWarningCode(SpfCodes.AllMissing, "No terminal '-all' mechanism present; consider adding '-all'.");
+            } else if (!AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase)) {
+                logger?.WriteWarningCode(SpfCodes.AllSoft, $"SPF ends with '{AllMechanism}'. Consider '-all' once senders are validated.");
+            }
         }
 
         private void UpdateAdvisory() {
@@ -422,12 +443,19 @@ namespace DomainDetective {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
             ValidateMacros(token, logger);
+            // Create a mechanism breakdown entry
+            var mech = BuildPart(token);
+            if (mech != null) {
+                SpfPartAnalyses.Add(mech);
+            }
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
                 MxRecords.Add(token.Substring(3).Trim('"'));
             } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                 PtrRecords.Add(token.Substring(4).Trim('"'));
+            } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
+                PtrRecords.Add(string.Empty);
             } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                 ExistsRecords.Add(token.Substring(7).Trim('"'));
             } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
@@ -464,12 +492,19 @@ namespace DomainDetective {
         private void AddPartToResolvedLists(string part, InternalLogger? logger) {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
+            // also ensure mechanism list contains parts encountered through includes/redirects
+            var mech = BuildPart(token);
+            if (mech != null) {
+                SpfPartAnalyses.Add(mech);
+            }
             if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedARecords.Add(token.Substring(2).Trim('"'));
             } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedMxRecords.Add(token.Substring(3).Trim('"'));
             } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedPtrRecords.Add(token.Substring(4).Trim('"'));
+            } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
+                ResolvedPtrRecords.Add(string.Empty);
             } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
                 ResolvedExistsRecords.Add(token.Substring(7).Trim('"'));
             } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
@@ -484,6 +519,117 @@ namespace DomainDetective {
                 }
             }
             ValidateMacros(token, logger);
+        }
+
+        private static readonly (string suffix, string provider)[] _providerSuffixes = new (string, string)[] {
+            ("_spf.google.com", "Google Workspace"),
+            ("spf.protection.outlook.com", "Microsoft 365"),
+            ("outlook.com", "Microsoft 365"),
+            ("_spf.salesforce.com", "Salesforce"),
+            ("_spf.mailgun.org", "Mailgun"),
+            ("mailgun.org", "Mailgun"),
+            ("_spf.sendgrid.net", "SendGrid"),
+            ("sendgrid.net", "SendGrid"),
+            ("spf.mandrillapp.com", "Mailchimp/Mandrill"),
+            ("spf.sparkpostmail.com", "SparkPost"),
+            ("spf.emailsrvr.com", "Rackspace Email"),
+            ("_spf.zoho.com", "Zoho Mail"),
+            ("_spf.yandex.net", "Yandex"),
+            ("_spf.elasticemail.com", "Elastic Email"),
+            ("spf.mailjet.com", "Mailjet"),
+            ("_spf.constantcontact.com", "Constant Contact"),
+            ("_spf.mimecast.com", "Mimecast"),
+        };
+
+        private static string? ProviderForDomain(string? domain)
+        {
+            if (string.IsNullOrWhiteSpace(domain)) return null;
+            var d = domain.Trim('.');
+            foreach (var (suffix, provider) in _providerSuffixes)
+            {
+                if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    return provider;
+            }
+            return null;
+        }
+
+        private static SpfPartAnalysis? BuildPart(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token)) return null;
+            // Qualifier
+            var qualifier = token[0] is '+' or '-' or '~' or '?' ? token[0].ToString() : string.Empty;
+            var trimmed = token.TrimStart('+', '-', '~', '?');
+            string type;
+            string value = string.Empty;
+            if (trimmed.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "redirect"; value = trimmed.Substring(9);
+            }
+            else if (trimmed.StartsWith("exp=", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "exp"; value = trimmed.Substring(4);
+            }
+            else if (trimmed.StartsWith("include:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "include"; value = trimmed.Substring(8);
+            }
+            else if (trimmed.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "ip4"; value = trimmed.Substring(4);
+            }
+            else if (trimmed.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "ip6"; value = trimmed.Substring(4);
+            }
+            else if (trimmed.Equals("a", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("a:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "a"; value = trimmed.Length > 2 ? trimmed.Substring(2) : string.Empty;
+            }
+            else if (trimmed.Equals("mx", StringComparison.OrdinalIgnoreCase) || trimmed.StartsWith("mx:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "mx"; value = trimmed.Length > 3 ? trimmed.Substring(3) : string.Empty;
+            }
+            else if (trimmed.StartsWith("exists:", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "exists"; value = trimmed.Substring(7);
+            }
+            else if (trimmed.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase) || trimmed.Equals("ptr", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "ptr"; value = trimmed.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase) ? trimmed.Substring(4) : string.Empty;
+            }
+            else if (IsAllMechanism(trimmed))
+            {
+                type = "all"; value = trimmed;
+            }
+            else if (trimmed.Equals("v=spf1", StringComparison.OrdinalIgnoreCase))
+            {
+                type = "version"; value = "v=spf1";
+            }
+            else
+            {
+                // Unknown or non-standard, ignore
+                return null;
+            }
+
+            var pa = new SpfPartAnalysis {
+                Prefix = qualifier,
+                Type = type,
+                Value = value,
+                PrefixDesc = qualifier switch { 
+                    "+" => "pass",
+                    "-" => "fail",
+                    "~" => "softfail",
+                    "?" => "neutral",
+                    _ => string.Empty },
+                Description = type
+            };
+            // Provider annotation for domain-bearing parts
+            if (type is "include" or "a" or "mx" or "exists" or "ptr" or "redirect")
+            {
+                var prov = ProviderForDomain(value);
+                if (!string.IsNullOrEmpty(prov)) pa.Provider = prov;
+            }
+            return pa;
         }
 
         private void ValidateMacros(string token, InternalLogger? logger) {
@@ -1137,6 +1283,7 @@ namespace DomainDetective {
         public string Value { get; set; }
         public string PrefixDesc { get; set; }
         public string Description { get; set; }
+        public string? Provider { get; set; }
     }
 
     /// <summary>

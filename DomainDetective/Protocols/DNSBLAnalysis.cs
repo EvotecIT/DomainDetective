@@ -100,6 +100,8 @@ namespace DomainDetective {
     /// detailed reply codes for further interpretation.
     /// </remarks>
     public partial class DNSBLAnalysis : IHasAssessments {
+        /// <summary>Subject for this analysis when domain-scoped; null for multi-input or IP-only runs.</summary>
+        public string? Subject { get; set; }
         public DnsConfiguration DnsConfiguration { get; set; }
 
         /// <summary>Optional override for DNS queries used for testing.</summary>
@@ -205,6 +207,7 @@ namespace DomainDetective {
             Results = new Dictionary<string, DNSQueryResult>();
             AllResults = new List<DNSBLRecord>();
             Logger = null;
+            Subject = null;
         }
 
         private async Task<IEnumerable<DnsResponse>> QueryFullDns(string[] names, DnsRecordType type) {
@@ -220,6 +223,7 @@ namespace DomainDetective {
                 Reset();
             }
             Logger = logger;
+            Subject = domainName;
 
             DnsAnswer[] mxRecords;
             try {

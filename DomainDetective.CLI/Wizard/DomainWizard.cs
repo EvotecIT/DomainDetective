@@ -1043,7 +1043,17 @@ file static partial class Ui
         var root = new Tree("[bold]Mail[/]");
         var spf = root.AddNode("[white]SPF[/]");
         spf.AddNode((hc.SpfAnalysis?.SpfRecord ?? "—").EscapeMarkup());
-        if (advanced) spf.AddNode($"Lookups: {hc.SpfAnalysis?.DnsLookupsCount} / Exceeds10: {hc.SpfAnalysis?.ExceedsDnsLookups}");
+        if (advanced)
+        {
+            spf.AddNode($"Lookups: {hc.SpfAnalysis?.DnsLookupsCount} / Exceeds10: {hc.SpfAnalysis?.ExceedsDnsLookups}");
+            var providers = hc.SpfAnalysis?.SpfPartAnalyses?
+                .Where(p => !string.IsNullOrWhiteSpace(p.Provider))
+                .Select(p => p.Provider!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? Array.Empty<string>();
+            if (providers.Length > 0)
+                spf.AddNode($"Providers: {string.Join(", ", providers).EscapeMarkup()}");
+        }
         var dmarc = root.AddNode("[white]DMARC[/]");
         dmarc.AddNode((hc.DmarcAnalysis?.DmarcRecord ?? "—").EscapeMarkup());
         if (advanced)

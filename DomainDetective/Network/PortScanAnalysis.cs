@@ -21,6 +21,8 @@ namespace DomainDetective;
 /// </remarks>
 public class PortScanAnalysis : IHasAssessments
 {
+    /// <summary>Subject for this analysis (usually the host name).</summary>
+    public string? Subject { get; set; }
     /// <summary>Result of a single port scan.</summary>
     public class ScanResult
     {
@@ -97,6 +99,7 @@ public class PortScanAnalysis : IHasAssessments
     /// <summary>Performs a scan against the host.</summary>
     public async Task Scan(string host, IEnumerable<int>? ports, InternalLogger? logger = null, CancellationToken cancellationToken = default, bool showProgress = true)
     {
+        Subject = host;
         Results.Clear();
         var list = ports ?? PortScanProfileDefinition.DefaultPorts;
         using var semaphore = new SemaphoreSlim(MaxConcurrency);

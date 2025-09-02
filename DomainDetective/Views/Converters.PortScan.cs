@@ -18,7 +18,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.PORTSCAN,
             Area = AreaForKind(HealthCheckType.PORTSCAN),
-            Subject = null,
+            Subject = analysis.Subject,
             TotalChecked = total,
             OpenTcpCount = openTcp,
             OpenUdpCount = openUdp,

@@ -19,19 +19,8 @@ public static partial class Converters
         }).ToList() ?? new List<DnsblHostSummary>();
 
         var listedRecords = analysis.AllResults?.Where(r => r.IsBlackListed).ToList() ?? new List<DNSBLRecord>();
-
-        // Pick a subject: prefer a domain-like key; else first key
-        string subject = null;
-        try {
-            var keys = analysis.Results?.Keys?.ToList();
-            if (keys != null && keys.Count > 0) {
-                string pick = null;
-                foreach (var k in keys) {
-                    if (!System.Net.IPAddress.TryParse(k, out _)) { pick = k; break; }
-                }
-                subject = pick ?? keys[0];
-            }
-        } catch { }
+        // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
+        string subject = analysis.Subject;
 
         return new DnsblInfo
         {

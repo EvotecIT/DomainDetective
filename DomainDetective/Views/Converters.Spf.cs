@@ -8,6 +8,19 @@ public static partial class Converters
     {
         var recs = RecommendationEngine.From(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+        // Build provider summary from part analyses
+        var providerCounts = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+        if (analysis.SpfPartAnalyses != null)
+        {
+            foreach (var p in analysis.SpfPartAnalyses)
+            {
+                if (!string.IsNullOrWhiteSpace(p.Provider))
+                {
+                    providerCounts[p.Provider!] = providerCounts.TryGetValue(p.Provider!, out var c) ? c + 1 : 1;
+                }
+            }
+        }
+        var policy = string.IsNullOrWhiteSpace(analysis.AllMechanism) ? "none" : analysis.AllMechanism.ToLowerInvariant();
         return new SpfRecordInfo
         {
             Check = HealthCheckType.SPF,
@@ -24,11 +37,13 @@ public static partial class Converters
             ExceedsTotalCharacterLimit = analysis.ExceedsTotalCharacterLimit,
             ExceedsCharacterLimit = analysis.ExceedsCharacterLimit,
             UnknownMechanisms = analysis.UnknownMechanisms,
+            Mechanisms = analysis.SpfPartAnalyses,
+            ProviderCounts = providerCounts,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
+            Summary = $"policy {policy}; lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
@@ -52,6 +67,8 @@ public class SpfRecordInfo
     public bool ExceedsTotalCharacterLimit { get; set; }
     public bool ExceedsCharacterLimit { get; set; }
     public IReadOnlyList<string> UnknownMechanisms { get; set; }
+    public IReadOnlyList<SpfPartAnalysis> Mechanisms { get; set; }
+    public IReadOnlyDictionary<string, int> ProviderCounts { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

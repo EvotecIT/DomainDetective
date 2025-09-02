@@ -561,5 +561,31 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeSpfRecords(answers, new InternalLogger());
             Assert.Equal("SPF record passed basic checks.", analysis.Advisory);
         }
+
+        [Fact]
+        public async Task EmitsAdvisoriesForSoftAllPtrAndExists() {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF("v=spf1 ptr exists:%{i}.spf.example.com ip4:192.0.2.1 ~all");
+            var codes = healthCheck.SpfAnalysis.Assessments.Select(a => a.Code).Where(c => !string.IsNullOrEmpty(c)).ToArray();
+            Assert.Contains("SPF.All.Soft", codes);
+            Assert.Contains("SPF.Ptr.Used", codes);
+            Assert.Contains("SPF.Exists.Used", codes);
+        }
+
+        [Fact]
+        public async Task EmitsAdvisoryForTrailingAfterAll() {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF("v=spf1 -all include:_spf.google.com");
+            var codes = healthCheck.SpfAnalysis.Assessments.Select(a => a.Code).Where(c => !string.IsNullOrEmpty(c)).ToArray();
+            Assert.Contains("SPF.All.TrailingContent", codes);
+        }
+
+        [Fact]
+        public async Task EmitsAdvisoryWhenAllMissing() {
+            var healthCheck = new DomainHealthCheck();
+            await healthCheck.CheckSPF("v=spf1 ip4:192.0.2.1 ip6:2001:db8::1 a mx");
+            var codes = healthCheck.SpfAnalysis.Assessments.Select(a => a.Code).Where(c => !string.IsNullOrEmpty(c)).ToArray();
+            Assert.Contains("SPF.All.Missing", codes);
+        }
     }
 }
