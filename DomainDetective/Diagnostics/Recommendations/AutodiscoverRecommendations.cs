@@ -81,5 +81,17 @@ internal sealed class AutodiscoverRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Target resolves and validates over HTTPS."
         };
+
+        map[AutodiscoverCodes.Office365FlowFailed] = new RecommendationAdvice {
+            Code = AutodiscoverCodes.Office365FlowFailed,
+            Title = "Office 365 Autodiscover redirected but HTTP flow failed",
+            Why = "CNAME points to outlook.com indicating Microsoft 365, but the Autodiscover HTTP flow did not complete with valid XML.",
+            How = "Allow HTTPS with SNI to outlook.com endpoints; disable TLS interception or captive portals; verify redirects reach autodiscover-s.outlook.com and return XML.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "autodiscover", "office365", "tls", "network" },
+            Impact = "Outlook/clients may fail automatic configuration.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "GET https://autodiscover.<domain>/autodiscover/autodiscover.xml follows redirects and returns Autodiscover XML (200)."
+        };
     }
 }

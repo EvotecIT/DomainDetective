@@ -59,14 +59,27 @@ internal sealed class TlsRecommendations : IRecommendationProvider {
         map[TlsCodes.WeakCipherNegotiated] = new RecommendationAdvice {
             Code = TlsCodes.WeakCipherNegotiated,
             Title = "Weak cipher negotiated",
-            Why = "Ciphers such as 3DES/RC4 are deprecated and provide insufficient security.",
-            How = "Disable weak ciphers; prefer AEAD suites (e.g., TLS_AES_*, TLS_CHACHA20_POLY1305_*, TLS_ECDHE_*) and TLS 1.2/1.3.",
+            Why = "Deprecated ciphers (e.g., 3DES/RC4) or CBC/SHA1-based suites reduce security and are deprecated.",
+            How = "Disable weak/cbc/sha1 suites; prefer AEAD suites (TLS_AES_*, TLS_CHACHA20_POLY1305_*, TLS_ECDHE_* with GCM) and TLS 1.2/1.3.",
             Links = new [] { "https://datatracker.ietf.org/doc/rfc8996/" },
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "cipher" },
             Impact = "Compromised confidentiality and integrity.",
             Effort = RecommendationEffort.Medium,
             Verify = "After changes, negotiated cipher suite should be modern and strong."
+        };
+
+        map[TlsCodes.WeakKeyExchange] = new RecommendationAdvice {
+            Code = TlsCodes.WeakKeyExchange,
+            Title = "Weak key exchange parameters",
+            Why = "Diffie-Hellman parameters below 2048 bits are considered weak and vulnerable to attacks.",
+            How = "Regenerate DH parameters with 2048+ bits or prefer ECDHE with modern curves.",
+            Links = new [] { "https://weakdh.org/" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "kex", "dh", "ecdhe" },
+            Impact = "Forward secrecy protection is weakened; risk of compromise.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "After changes, DH key size should be ≥ 2048 bits or ECDHE negotiated."
         };
 
         map[TlsCodes.OcspStaplingMissing] = new RecommendationAdvice {

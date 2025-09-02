@@ -15,6 +15,11 @@ internal static class HttpCodes {
     public const string CspUnsafe = "HTTP.CSP.UnsafeDirectives";
     public const string XssProtectionDeprecated = "HTTP.XSSProtection.Deprecated";
     public const string ExpectCtDeprecated = "HTTP.ExpectCT.Deprecated";
+    public const string CspReportOnly = "HTTP.CSP.ReportOnly";
+    public const string PermissionsPolicyWeak = "HTTP.Header.Weak.PermissionsPolicy";
+    public const string COOPWeak = "HTTP.Header.Weak.COOP";
+    public const string COEPWeak = "HTTP.Header.Weak.COEP";
+    public const string CORPWeak = "HTTP.Header.Weak.CORP";
     public const string MissingHeaderCsp = "HTTP.Header.Missing.CSP";
     public const string MissingHeaderReferrerPolicy = "HTTP.Header.Missing.ReferrerPolicy";
     public const string MissingHeaderXFrameOptions = "HTTP.Header.Missing.XFrameOptions";

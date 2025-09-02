@@ -14,4 +14,8 @@ public sealed class VirusTotalAttributes
     /// <summary>Reputation score.</summary>
     [JsonPropertyName("reputation")]
     public int? Reputation { get; set; }
+
+    /// <summary>Unix timestamp (seconds) of last analysis.</summary>
+    [JsonPropertyName("last_analysis_date")]
+    public long? LastAnalysisDateEpoch { get; set; }
 }

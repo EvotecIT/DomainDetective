@@ -14,15 +14,19 @@ public static partial class Converters
         return new ThreatIntelInfo
         {
             Check = HealthCheckType.THREATINTEL,
+            Area = AreaForKind(HealthCheckType.THREATINTEL),
             Subject = analysis.Subject,
             RiskScore = analysis.RiskScore,
+            CompositeScore = analysis.CompositeScore,
+            Severity = analysis.Severity,
+            Confidence = analysis.Confidence,
             Listings = findings,
             FailureReason = analysis.FailureReason,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"Flagged by {flagged}/{findings.Count} providers; RiskScore {analysis.RiskScore?.ToString() ?? "n/a"}",
+            Summary = $"Flagged by {flagged}/{findings.Count} providers; score {analysis.CompositeScore?.ToString() ?? "n/a"} ({analysis.Severity ?? "n/a"})",
             Recommendations = recs,
             References = new [] { "https://developers.google.com/safe-browsing", "https://www.virustotal.com/", "https://www.phishtank.com/", "https://urlhaus.abuse.ch/api/" },
             Raw = analysis
@@ -33,8 +37,12 @@ public static partial class Converters
 public class ThreatIntelInfo
 {
     public HealthCheckType Check { get; set; }
+    public AnalysisArea Area { get; set; }
     public string Subject { get; set; }
     public int? RiskScore { get; set; }
+    public int? CompositeScore { get; set; }
+    public string Severity { get; set; }
+    public double? Confidence { get; set; }
     public IReadOnlyList<ThreatListing> Listings { get; set; }
     public string FailureReason { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }

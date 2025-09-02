@@ -62,6 +62,19 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
   - [x] OCSP stapling presence checks (web + mail); advisory when missing
   - [x] SCT presence count; advisory when none embedded
 
+## Autodiscover (Enrichment & Coverage)
+- [x] Aggregate HTTP endpoints into Autodiscover view (attempt counts, success, best URL/status, redirects, HTTPS/HTTP split)
+- [x] Expand endpoint coverage and validation
+  - [x] Follow redirect chains to final host and record it (o365, etc.)
+  - [x] Optional content sniff (first KB) to detect HTML error pages vs XML
+  - [x] Validate XML root/namespace against expected Autodiscover schema
+  - [x] Advisory when CNAME → outlook.com but HTTP flow fails (network/SNI hint)
+  - [x] Outlook v2 JSON domain discovery + follow‑up POST to discovered URL
+
+## DKIM Selector Coverage
+- [x] Add DKIM provider selector heuristics (Google, M365, SendGrid, Mailgun, SparkPost, Zoho, Campaign Monitor, HubSpot, etc.)
+- [ ] Add DKIM auto‑detect tests for new selectors; assert advisory/key parsing results (partially added; one failing test remains)
+
 ## Type Consistency & Views
 - [x] Replace string `Area`/`Check` with enums across views
   - [x] Add `AnalysisArea { General, DNS, Mail, Web, Security }`
@@ -86,9 +99,22 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
   - [ ] CLI/PS: toggle to display top endpoint verdict inline
 
 ## DNS Resolver Override (PS + Core)
-- [ ] Validate IPv4/IPv6 endpoints; allow multiple resolvers with first‑success semantics (extend `DnsConfiguration`).
-- [ ] Unit tests: override honored and graceful fallback on unreachable resolvers.
-- [ ] Docs: examples for vendor presets and `DnsEndpoint` usage.
+- [ ] Integrate DnsClientX multi‑resolver APIs in `DnsConfiguration`
+  - [ ] Wire `IDnsMultiResolver` (FirstSuccess as default) for `QueryDNS`/`QueryFullDNS`
+  - [ ] Support `MultiResolverOptions` (Strategy: FirstSuccess|FastestWins|SequentialAll; MaxParallelism; PreferIPv6; AllowTcpFallback)
+  - [ ] Accept resolver list as `DnsResolverEndpoint[]` and parse strings: `1.1.1.1:53`, `[2606:4700:4700::1111]:53`, `dns.google:53`, `https://dns.google/dns-query`
+  - [ ] Adopt `QueryBatchAsync` for batch lookups while preserving input order
+- [ ] Endpoint validation and toggles
+  - [ ] Validate IPv4/IPv6 endpoints; friendly errors when invalid/blocked
+  - [ ] Global per‑query timeout + per‑endpoint timeout; propagate cancellation tokens
+  - [ ] TTL passthrough (min/avg) when available on responses (surface on views where useful)
+- [ ] Tests
+  - [ ] Override honored; graceful fallback on unreachable resolvers
+  - [ ] IPv6‑only and IPv4‑only scenarios; mixed family selection
+  - [ ] Batch preserves order and isolates failures
+- [ ] Docs
+  - [ ] Vendor preset examples (Cloudflare/Google/Quad9/DoH) and `DnsEndpoint`/resolver string formats
+  - [ ] Brief strategy guidance (FirstSuccess vs FastestWins vs SequentialAll)
 
 ## DKIM Selector Coverage
 - [ ] Add DKIM auto‑detect tests for new selectors; assert advisory/key parsing results.
@@ -126,10 +152,10 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
   - [ ] Expand CSP linting (unsafe-inline/unsafe-eval detection; report-only guidance)
   - [ ] Permissions‑Policy value validation and common templates
 - WHOIS/RDAP
-  - [ ] Add vendor‑specific WHOIS parsers beyond generic EU fallback (e.g., .de, .uk nuances)
+  - [x] Add vendor‑specific WHOIS parsers beyond generic EU fallback (e.g., .de, .uk nuances)
   - [ ] Cache/TTL policy docs and tunables for rate‑limited registries
 - Threat Intel
-  - [ ] Score aggregation (severity/recency weighting) and normalized confidence
+  - [x] Score aggregation (severity/recency weighting) and normalized confidence
   - [ ] Passive DNS cache to reduce rate‑limits and speed neighbor checks
 - CLI/PS UX
   - [ ] Wizard HTML export (parity with JSON; reuse posture panels)

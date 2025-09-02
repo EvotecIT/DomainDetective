@@ -11,9 +11,9 @@ public static partial class Converters
         var recs = RecommendationEngine.From(assessments);
         var endpoints = analysis.Endpoints ?? new List<AutodiscoverEndpointResult>();
         var attempts = endpoints.Count;
-        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.XmlValid);
+        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.XmlValid || e.JsonValid);
         var first = System.Linq.Enumerable.FirstOrDefault(endpoints);
-        var bestUrl = valid?.Url ?? first?.Url;
+        var bestUrl = valid?.FinalUrl ?? valid?.Url ?? first?.FinalUrl ?? first?.Url;
         var bestStatus = valid?.StatusCode ?? first?.StatusCode;
         var httpsAttempts = System.Linq.Enumerable.Count(endpoints, e => (e.Url ?? string.Empty).StartsWith("https://", System.StringComparison.OrdinalIgnoreCase));
         var httpAttempts = attempts - httpsAttempts;

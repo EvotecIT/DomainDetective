@@ -323,6 +323,10 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
                     }
+                    if (response.Headers.TryGetValues("Content-Security-Policy-Report-Only", out var cspRoVals) || response.Content.Headers.TryGetValues("Content-Security-Policy-Report-Only", out cspRoVals)) {
+                        SecurityHeaders["Content-Security-Policy-Report-Only"] = new SecurityHeader("Content-Security-Policy-Report-Only", string.Join(",", cspRoVals));
+                        logger?.WriteWarningCode(HttpCodes.CspReportOnly, "CSP is report-only; consider enforcing after fixing violations");
+                    }
                     if (SecurityHeaders.TryGetValue("X-Content-Type-Options", out var xcto)) {
                         var xv = (xcto.Value ?? string.Empty).Trim();
                         if (!string.IsNullOrEmpty(xv) && !xv.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
@@ -331,6 +335,10 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Permissions-Policy", out var pp)) {
                         ParsePermissionsPolicy(pp.Value);
+                        // Warn if any feature policy is wildcard or empty
+                        if (PermissionsPolicyPresent && PermissionsPolicy.Any(kv => string.IsNullOrWhiteSpace(kv.Value) || kv.Value == "*")) {
+                            logger?.WriteWarningCode(HttpCodes.PermissionsPolicyWeak, "Permissions-Policy contains empty or wildcard values");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Referrer-Policy", out var rp)) {
                         ReferrerPolicy = rp.Value;
@@ -345,12 +353,24 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Opener-Policy", out var coop)) {
                         CrossOriginOpenerPolicy = coop.Value;
+                        var v = (CrossOriginOpenerPolicy ?? string.Empty).Trim();
+                        if (string.IsNullOrEmpty(v) || v.Equals("unsafe-none", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.COOPWeak, "COOP is missing or set to unsafe-none");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Embedder-Policy", out var coep)) {
                         CrossOriginEmbedderPolicy = coep.Value;
+                        var v = (CrossOriginEmbedderPolicy ?? string.Empty).Trim();
+                        if (!v.Equals("require-corp", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.COEPWeak, "COEP should be 'require-corp' for strong isolation");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Resource-Policy", out var corp)) {
                         CrossOriginResourcePolicy = corp.Value;
+                        var v = (CrossOriginResourcePolicy ?? string.Empty).Trim();
+                        if (!(v.Equals("same-origin", StringComparison.OrdinalIgnoreCase) || v.Equals("same-site", StringComparison.OrdinalIgnoreCase))) {
+                            logger?.WriteWarningCode(HttpCodes.CORPWeak, "CORP should be 'same-origin' or 'same-site'");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("X-Permitted-Cross-Domain-Policies", out var xpcdp)) {
                         XPermittedCrossDomainPolicies = xpcdp.Value;

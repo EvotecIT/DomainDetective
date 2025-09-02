@@ -33,6 +33,7 @@ public static partial class Converters
                 CipherAlgorithm = r.CipherAlgorithm.ToString(),
                 CipherStrength = r.CipherStrength,
                 CipherSuite = r.CipherSuite,
+                KeyExchangeAlgorithm = r.KeyExchangeAlgorithm,
                 DhKeyBits = r.DhKeyBits,
                 CertificateSubject = r.CertificateSubject,
                 CertificateIssuer = r.CertificateIssuer,
@@ -101,6 +102,7 @@ public class MailTlsServerInfo
     public string CipherAlgorithm { get; set; }
     public int CipherStrength { get; set; }
     public string CipherSuite { get; set; }
+    public string KeyExchangeAlgorithm { get; set; }
     public int DhKeyBits { get; set; }
     public string CertificateSubject { get; set; }
     public string CertificateIssuer { get; set; }

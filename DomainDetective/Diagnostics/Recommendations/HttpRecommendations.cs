@@ -146,5 +146,173 @@ internal sealed class HttpRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Confirm header equals 'nosniff' on responses."
         };
+        map[HttpCodes.CspReportOnly] = new RecommendationAdvice {
+            Code = HttpCodes.CspReportOnly,
+            Title = "CSP is report-only",
+            Why = "Report-only CSP does not block violations and leaves risk window open.",
+            How = "Audit reports, fix issues, then move to enforcement by sending Content-Security-Policy (not report-only).",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/CSP" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "csp" },
+            Impact = "Violations are not prevented; only logged.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Confirm Content-Security-Policy header is present and report-only removed."
+        };
+
+        map[HttpCodes.PermissionsPolicyWeak] = new RecommendationAdvice {
+            Code = HttpCodes.PermissionsPolicyWeak,
+            Title = "Tighten Permissions-Policy values",
+            Why = "Empty or wildcard feature policies do not restrict powerful APIs and defeat the purpose of the header.",
+            How = "Set explicit allow-lists per feature (e.g., camera=(), geolocation=()). Avoid '*' or empty lists.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Permissions-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers" },
+            Impact = "Broader exposure to API abuse in embedded contexts.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Inspect header to ensure each feature has a principled allow-list."
+        };
+
+        map[HttpCodes.MissingHeaderPermissionsPolicy] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderPermissionsPolicy,
+            Title = "Set Permissions-Policy",
+            Why = "Controls access to powerful features (camera, geolocation, etc.) by origin and embedding context.",
+            How = "Add 'Permissions-Policy' with explicit allow-lists, e.g., 'camera=(), geolocation=()'.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Permissions-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers" },
+            Impact = "Features may be accessible by default in iframes or third-party contexts.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header present with intended feature lists."
+        };
+
+        map[HttpCodes.MissingHeaderCOOP] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderCOOP,
+            Title = "Set Cross-Origin-Opener-Policy",
+            Why = "COOP isolates browsing contexts to mitigate cross-origin attacks and Spectre-like leaks.",
+            How = "Add 'Cross-Origin-Opener-Policy: same-origin' on top-level documents where isolation is acceptable.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Shared browsing context with cross-origin pages; data leakage risk.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header present and equals 'same-origin'."
+        };
+
+        map[HttpCodes.MissingHeaderCOEP] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderCOEP,
+            Title = "Set Cross-Origin-Embedder-Policy",
+            Why = "COEP enforces that embedded resources are CORS-enabled or CORP-protected, enabling strong isolation.",
+            How = "Add 'Cross-Origin-Embedder-Policy: require-corp' when all subresources are compliant.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Without COEP, strong process isolation (with COOP) is not achieved.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Confirm header present and equals 'require-corp'."
+        };
+
+        map[HttpCodes.MissingHeaderCORP] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderCORP,
+            Title = "Set Cross-Origin-Resource-Policy",
+            Why = "CORP restricts which origins can load your resources, protecting against cross-origin data leaks.",
+            How = "Add 'Cross-Origin-Resource-Policy: same-origin' (or 'same-site' if needed for subdomains).",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Resources can be embedded cross-origin without explicit consent.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header present with a restrictive value."
+        };
+
+        map[HttpCodes.COOPWeak] = new RecommendationAdvice {
+            Code = HttpCodes.COOPWeak,
+            Title = "Harden COOP",
+            Why = "'unsafe-none' does not isolate browsing contexts.",
+            How = "Use 'Cross-Origin-Opener-Policy: same-origin' on top-level documents.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Opener-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Cross-origin popups/iframed contexts can share browsing context.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm COOP equals 'same-origin'."
+        };
+
+        map[HttpCodes.COEPWeak] = new RecommendationAdvice {
+            Code = HttpCodes.COEPWeak,
+            Title = "Harden COEP",
+            Why = "COEP must be 'require-corp' for strong isolation.",
+            How = "Set 'Cross-Origin-Embedder-Policy: require-corp' and ensure subresources use CORS or CORP.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Embedder-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Subresources may be loaded without CORS/CORP constraints.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Confirm COEP equals 'require-corp'."
+        };
+
+        map[HttpCodes.CORPWeak] = new RecommendationAdvice {
+            Code = HttpCodes.CORPWeak,
+            Title = "Harden CORP",
+            Why = "Less restrictive CORP values allow broader cross-origin embedding.",
+            How = "Set 'Cross-Origin-Resource-Policy: same-origin' or at least 'same-site' where needed.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Cross-Origin-Resource-Policy" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Cross-origin sites may load your resources without consent.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm CORP equals 'same-origin' or 'same-site'."
+        };
+
+        map[HttpCodes.MissingHeaderOAC] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderOAC,
+            Title = "Set Origin-Agent-Cluster",
+            Why = "OAC instructs browsers to isolate the origin into its own agent cluster.",
+            How = "Add 'Origin-Agent-Cluster: ?1' on top-level documents where isolation is safe.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/Origin-Agent-Cluster" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "isolation" },
+            Impact = "Less process isolation; potential Spectre-like risk.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header present and equals '?1'."
+        };
+
+        map[HttpCodes.MissingHeaderXPermittedCrossDomainPolicies] = new RecommendationAdvice {
+            Code = HttpCodes.MissingHeaderXPermittedCrossDomainPolicies,
+            Title = "Set X-Permitted-Cross-Domain-Policies",
+            Why = "Restricts Adobe Flash/Acrobat cross-domain data loading (legacy but still seen).",
+            How = "Add 'X-Permitted-Cross-Domain-Policies: none' unless legacy integrations require otherwise.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/X-Permitted-Cross-Domain-Policies" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers" },
+            Impact = "Legacy clients may load data across origins without constraints.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header present with 'none' unless justified."
+        };
+
+        map[HttpCodes.ExpectCtDeprecated] = new RecommendationAdvice {
+            Code = HttpCodes.ExpectCtDeprecated,
+            Title = "Remove Expect-CT",
+            Why = "Expect-CT is deprecated in browsers; rely on Certificate Transparency and SCTs instead.",
+            How = "Remove the Expect-CT header; ensure certificates include embedded SCTs or via TLS extension.",
+            Links = new [] { "https://developer.chrome.com/blog/chrome-security-headers/#expect-ct" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "deprecated" },
+            Impact = "No impact on modern browsers; reduces header surface.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header absent on responses."
+        };
+
+        map[HttpCodes.XssProtectionDeprecated] = new RecommendationAdvice {
+            Code = HttpCodes.XssProtectionDeprecated,
+            Title = "Remove X-XSS-Protection",
+            Why = "X-XSS-Protection is obsolete; modern browsers disable or ignore it.",
+            How = "Remove the header and enforce a strong CSP instead.",
+            Links = new [] { "https://developer.mozilla.org/docs/Web/HTTP/Headers/X-XSS-Protection" },
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "headers", "deprecated" },
+            Impact = "Reduces header bloat and avoids false sense of security.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm header absent and CSP enforced."
+        };
     }
 }

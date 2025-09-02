@@ -629,7 +629,9 @@ public class WhoisAnalysis : IHasAssessments {
         } else if (string.Equals(TLD, "com", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(TLD, "net", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataCOM();
-        } else if (string.Equals(TLD, "co.uk", StringComparison.OrdinalIgnoreCase)) {
+        } else if (string.Equals(TLD, "co.uk", StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(TLD, "uk", StringComparison.OrdinalIgnoreCase)
+                   || (DomainName?.EndsWith(".uk", StringComparison.OrdinalIgnoreCase) ?? false)) {
             ParseWhoisDataCOUK();
         } else if (string.Equals(TLD, "de", StringComparison.OrdinalIgnoreCase)) {
             ParseWhoisDataDE();
@@ -1019,14 +1021,18 @@ public class WhoisAnalysis : IHasAssessments {
     }
 
     private void ParseWhoisDataDE() {
-        foreach (var line in WhoisData.Split('\n')) {
-            ParseRegistrarLicense(line.Trim());
-            if (line.StartsWith("DOMAIN:")) {
-                DomainName = line.Substring("DOMAIN:".Length).Trim();
-            } else if (line.StartsWith("CHANGED:")) {
-                LastUpdated = line.Substring("CHANGED:".Length).Trim();
-            } else if (line.StartsWith("NSERVER:")) {
-                NameServers.Add(line.Substring("NSERVER:".Length).Trim());
+        foreach (var raw in WhoisData.Split('\n')) {
+            var line = raw.Trim();
+            ParseRegistrarLicense(line);
+            if (line.StartsWith("DOMAIN:", StringComparison.OrdinalIgnoreCase)) {
+                var idx = line.IndexOf(':');
+                DomainName = line.Substring(idx + 1).Trim();
+            } else if (line.StartsWith("CHANGED:", StringComparison.OrdinalIgnoreCase)) {
+                var idx = line.IndexOf(':');
+                LastUpdated = line.Substring(idx + 1).Trim();
+            } else if (line.StartsWith("NSERVER:", StringComparison.OrdinalIgnoreCase) || line.StartsWith("Nserver:", StringComparison.OrdinalIgnoreCase)) {
+                var idx = line.IndexOf(':');
+                NameServers.Add(line.Substring(idx + 1).Trim());
             }
         }
     }

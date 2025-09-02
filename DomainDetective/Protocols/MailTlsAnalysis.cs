@@ -41,6 +41,7 @@ public class MailTlsAnalysis : IHasAssessments {
         public int CipherStrength { get; set; }
         public string CipherSuite { get; set; } = string.Empty;
         public int DhKeyBits { get; set; }
+        public string? KeyExchangeAlgorithm { get; set; }
         public X509Certificate2? Certificate { get; set; }
         public List<X509Certificate2> Chain { get; } = new();
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
@@ -169,13 +170,22 @@ public class MailTlsAnalysis : IHasAssessments {
 #if NET6_0_OR_GREATER
                     result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
 #endif
+                    result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
                     if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                         result.DhKeyBits = ssl.KeyExchangeStrength;
                     }
                     try {
                         var suite = result.CipherSuite ?? string.Empty;
-                        if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", System.StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", System.StringComparison.OrdinalIgnoreCase) >= 0)) {
-                            logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                        if (!string.IsNullOrEmpty(suite)) {
+                            var s = suite.ToUpperInvariant();
+                            bool weak = s.Contains("3DES") || s.Contains("RC4") || s.Contains("_CBC_");
+                            if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
+                            if (weak) {
+                                logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                            }
+                        }
+                        if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
+                            logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                         }
                     } catch { }
                     using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
@@ -372,13 +382,22 @@ public class MailTlsAnalysis : IHasAssessments {
 #if NET6_0_OR_GREATER
                 result.CipherSuite = sslStream.NegotiatedCipherSuite.ToString();
 #endif
+                result.KeyExchangeAlgorithm = sslStream.KeyExchangeAlgorithm.ToString();
                 if (sslStream.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                     result.DhKeyBits = sslStream.KeyExchangeStrength;
                 }
                 try {
                     var suite = result.CipherSuite ?? string.Empty;
-                    if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", System.StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", System.StringComparison.OrdinalIgnoreCase) >= 0)) {
-                        logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                    if (!string.IsNullOrEmpty(suite)) {
+                        var s = suite.ToUpperInvariant();
+                        bool weak = s.Contains("3DES") || s.Contains("RC4") || s.Contains("_CBC_");
+                        if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
+                        if (weak) {
+                            logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                        }
+                    }
+                    if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
+                        logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                     }
                 } catch { }
                 using var secureWriter = new StreamWriter(sslStream) { AutoFlush = true, NewLine = "\r\n" };

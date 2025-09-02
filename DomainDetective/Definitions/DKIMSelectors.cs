@@ -24,6 +24,8 @@ namespace DomainDetective.Definitions {
         internal static readonly string[] AppleICloud = new[] { "sig1" };
         internal static readonly string[] MailerLite = new[] { "litesrv" };
         internal static readonly string[] Zendesk = new[] { "zendesk1", "zendesk2" };
+        internal static readonly string[] CampaignMonitor = new[] { "cm", "cm1", "cm2" };
+        internal static readonly string[] HubSpot = new[] { "hs1", "hs2" };
 
         internal static readonly string[] CPanel = new[] { "default", "mail" };
 
@@ -86,6 +88,8 @@ namespace DomainDetective.Definitions {
                 .Concat(AppleICloud)
                 .Concat(MailerLite)
                 .Concat(Zendesk)
+                .Concat(CampaignMonitor)
+                .Concat(HubSpot)
                 .Concat(CPanel)
                 .Concat(Fastmail)
                 .Concat(AmazonSes)
