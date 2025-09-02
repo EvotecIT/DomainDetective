@@ -17,6 +17,8 @@ public static partial class Converters
             Url = analysis.Subject,
             IsReachable = analysis.IsReachable,
             StatusCode = analysis.StatusCode,
+            BodyLength = analysis.BodyLength,
+            BodySha256 = analysis.BodySha256,
             ResponseTime = analysis.ResponseTime,
             HstsPresent = analysis.HstsPresent,
             HstsPreloaded = analysis.HstsPreloaded,
@@ -71,6 +73,8 @@ public class HttpInfo
     public string Url { get; set; }
     public bool IsReachable { get; set; }
     public int? StatusCode { get; set; }
+    public int? BodyLength { get; set; }
+    public string? BodySha256 { get; set; }
     public System.TimeSpan ResponseTime { get; set; }
     public bool HstsPresent { get; set; }
     public bool HstsPreloaded { get; set; }

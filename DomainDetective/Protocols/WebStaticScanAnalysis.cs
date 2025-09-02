@@ -73,12 +73,28 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         public long Bytes { get; set; }
         public bool FirstParty { get; set; }
         public Dictionary<string, long> BytesByType { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Whether any AAAA (IPv6) address was resolved for this host.</summary>
+        public bool HasIPv6 { get; set; }
+        /// <summary>Minimum TTL seen for A answers (seconds).</summary>
+        public int? ATtlMin { get; set; }
+        /// <summary>Maximum TTL seen for A answers (seconds).</summary>
+        public int? ATtlMax { get; set; }
+        /// <summary>Minimum TTL seen for AAAA answers (seconds).</summary>
+        public int? AAAATtlMin { get; set; }
+        /// <summary>Maximum TTL seen for AAAA answers (seconds).</summary>
+        public int? AAAATtlMax { get; set; }
         /// <summary>Edge/CDN provider inferred from headers (e.g., Cloudflare, CloudFront, Fastly, Azure Front Door).</summary>
         public string? EdgeProvider { get; set; }
         /// <summary>Edge Point-of-Presence code when available (e.g., CF-RAY suffix or X-Amz-Cf-Pop).</summary>
         public string? EdgePop { get; set; }
         /// <summary>Edge cache status when available (e.g., HIT/MISS).</summary>
         public string? EdgeCacheStatus { get; set; }
+        /// <summary>Human-friendly PoP city when resolvable (best-effort, offline map).</summary>
+        public string? EdgePopCity { get; set; }
+        /// <summary>Human-friendly PoP country when resolvable (best-effort, offline map).</summary>
+        public string? EdgePopCountry { get; set; }
+        /// <summary>Region for the PoP, e.g., Europe, North America (best-effort).</summary>
+        public string? EdgePopRegion { get; set; }
     }
 
     public HttpAnalysis? MainHttpAnalysis { get; private set; }
@@ -100,6 +116,64 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     /// <summary>Detailed records for each technology detection.</summary>
     public System.Collections.Generic.List<TechDetectionDetail> TechDetails { get; } = new();
+    /// <summary>Aggregated cookie attribute posture for first-party cookies observed.</summary>
+    public CookieAttributeSummary CookieSummary { get; } = new CookieAttributeSummary();
+    /// <summary>Aggregated CORS headers posture for first-party responses.</summary>
+    public CorsSummary Cors { get; } = new CorsSummary();
+    /// <summary>Aggregated Server-Timing metrics observed on first-party responses.</summary>
+    public ServerTimingSummary ServerTiming { get; } = new ServerTimingSummary();
+    /// <summary>Link hints discovered in the main document (preconnect/dns-prefetch/preload/prefetch).</summary>
+    public System.Collections.Generic.List<LinkHint> LinkHints { get; } = new System.Collections.Generic.List<LinkHint>();
+    /// <summary>Sitemaps referenced by robots.txt for the primary host (no crawling).</summary>
+    public System.Collections.Generic.List<string> RobotsSitemaps { get; } = new System.Collections.Generic.List<string>();
+    /// <summary>Counts of structured data schema types found in application/ld+json blocks.</summary>
+    public System.Collections.Generic.Dictionary<string,int> StructuredDataTypes { get; } = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
+
+    public sealed class CookieAttributeSummary
+    {
+        public int TotalFirstParty { get; internal set; }
+        public int Secure { get; internal set; }
+        public int HttpOnly { get; internal set; }
+        public int SameSiteLax { get; internal set; }
+        public int SameSiteStrict { get; internal set; }
+        public int SameSiteNone { get; internal set; }
+        public int SameSiteMissing { get; internal set; }
+        public int MaxAgePresent { get; internal set; }
+        public int DomainPresent { get; internal set; }
+        internal void Clear()
+        {
+            TotalFirstParty = Secure = HttpOnly = SameSiteLax = SameSiteStrict = SameSiteNone = SameSiteMissing = MaxAgePresent = DomainPresent = 0;
+        }
+    }
+
+    public sealed class CorsSummary
+    {
+        public int FirstPartyResponses { get; internal set; }
+        public int WildcardOriginCount { get; internal set; }
+        public int CredentialsCount { get; internal set; }
+        public System.Collections.Generic.HashSet<string> Origins { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        public System.Collections.Generic.HashSet<string> Methods { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        public System.Collections.Generic.HashSet<string> Headers { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        internal void Clear()
+        {
+            FirstPartyResponses = 0; WildcardOriginCount = 0; CredentialsCount = 0; Origins.Clear(); Methods.Clear(); Headers.Clear();
+        }
+    }
+
+    public sealed class ServerTimingSummary
+    {
+        public int FirstPartyResponses { get; internal set; }
+        public System.Collections.Generic.HashSet<string> Metrics { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        internal void Clear() { FirstPartyResponses = 0; Metrics.Clear(); }
+    }
+
+    public sealed class LinkHint
+    {
+        public string Rel { get; set; }
+        public string Href { get; set; }
+        public string? Host { get; set; }
+        public bool FirstParty { get; set; }
+    }
 
     // Regex helpers moved to Regexes partial
 
@@ -109,6 +183,11 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         Requests.Clear();
         Hosts.Clear();
         _cookiesSet = 0;
+        CookieSummary.Clear();
+        Cors.Clear();
+        ServerTiming.Clear();
+        LinkHints.Clear();
+        RobotsSitemaps.Clear();
 
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "WEBSTATIC", target: url);
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true }) { Timeout = Timeout };
@@ -151,7 +230,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 foreach (var v in xg) if (!string.IsNullOrWhiteSpace(v)) TechDetections.Add(v.Split(' ')[0]);
             }
             // Server header will be processed by signature catalog (Header rules)
-            // Cookies → framework hints
+            // Cookies → framework hints + posture aggregation for first-party
             if (headResp.Headers.TryGetValues("Set-Cookie", out var cookies))
             {
                 foreach (var c in cookies)
@@ -164,14 +243,22 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                     if (low.Contains("wordpress_") || low.Contains("wp-settings") || low.Contains("woocommerce")) TechDetections.Add("WordPress");
                     if (low.Contains("xsrf-token")) TechDetections.Add("Angular");
                 }
+                try { RecordCookies(baseUri.Host, headResp); } catch { }
             }
             // Apply header/cookie/meta rules (typed + optional JSON)
             TechSignatureCatalog.ApplyHeadersCookiesMeta(headResp, body, TechDetections, TechDetails);
             // Optional JSON extension rules
             ApplyHeaderCookieMetaRules(headResp, body);
+            // CORS and Server-Timing posture (first-party only)
+            try { RecordCorsHeaders(baseUri.Host, headResp); } catch { }
+            try { RecordServerTiming(baseUri.Host, headResp); } catch { }
         } catch { }
 
         DetectTechFromHeadersAndBody(MainHttpAnalysis, body);
+
+        // Discover link hints and structured data in main HTML (no network activity)
+        try { ParseLinkHintsFromBody(baseUri, body); } catch { }
+        try { ParseStructuredDataFromBody(body); } catch { }
 
         var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, cancellationToken);
         var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, cancellationToken);

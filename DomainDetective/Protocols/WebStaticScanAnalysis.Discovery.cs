@@ -112,9 +112,11 @@ public partial class WebStaticScanAnalysis
                         req.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
                         req.ContentLength = resp.Content?.Headers?.ContentLength;
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
-                        if (resp.Headers.TryGetValues("Set-Cookie", out var _)) System.Threading.Interlocked.Increment(ref _cookiesSet);
-                        // Capture provider hints for this host
+                        if (resp.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, resp); } catch { } }
+                        // Capture provider hints and policy headers for this host
                         try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(resp, hh); } } catch { }
+                        try { RecordCorsHeaders(host, resp); } catch { }
+                        try { RecordServerTiming(host, resp); } catch { }
                     }
                     catch
                     {
@@ -126,9 +128,11 @@ public partial class WebStaticScanAnalysis
                             req.ContentType = get.Content?.Headers?.ContentType?.MediaType ?? get.Content?.Headers?.ContentType?.ToString();
                             req.ContentLength = get.Content?.Headers?.ContentLength;
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
-                            if (get.Headers.TryGetValues("Set-Cookie", out var _)) System.Threading.Interlocked.Increment(ref _cookiesSet);
-                            // Capture provider hints for this host
+                            if (get.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, get); } catch { } }
+                            // Capture provider hints and policy headers for this host
                             try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(get, hh); } } catch { }
+                            try { RecordCorsHeaders(host, get); } catch { }
+                            try { RecordServerTiming(host, get); } catch { }
                         }
                         catch { }
                     }

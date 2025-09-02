@@ -5,7 +5,9 @@ using System.Net;
 using System.Net.Http;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -67,8 +69,18 @@ namespace DomainDetective {
         public string? QuicVersion { get; private set; }
         /// <summary>Gets the value of the Server header if present.</summary>
         public string? ServerHeader { get; private set; }
+        /// <summary>Raw NEL header if present.</summary>
+        public string? NelRaw { get; private set; }
+        /// <summary>Raw Report-To header if present.</summary>
+        public string? ReportToRaw { get; private set; }
+        /// <summary>Raw speculation-rules header if present.</summary>
+        public string? SpeculationRulesRaw { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string Body { get; private set; }
+        /// <summary>Gets the decompressed body length in bytes when <c>captureBody</c> is enabled.</summary>
+        public int? BodyLength { get; private set; }
+        /// <summary>Gets the SHA-256 hash of the decompressed body when <c>captureBody</c> is enabled.</summary>
+        public string? BodySha256 { get; private set; }
         /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
         public bool MixedContentDetected { get; private set; }
         /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
@@ -182,7 +194,7 @@ namespace DomainDetective {
             using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;
-            Body = null;
+            Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
             ServerHeader = null;
             VisitedUrls.Clear();
             MixedContentDetected = false;
@@ -288,6 +300,15 @@ namespace DomainDetective {
                 }
                 if (response.Headers.TryGetValues("Server", out var serverValues)) {
                     serverHeader = string.Join(",", serverValues);
+                }
+                if (response.Headers.TryGetValues("NEL", out var nelValues)) {
+                    NelRaw = string.Join(",", nelValues);
+                }
+                if (response.Headers.TryGetValues("Report-To", out var rptValues)) {
+                    ReportToRaw = string.Join(",", rptValues);
+                }
+                if (response.Headers.TryGetValues("speculation-rules", out var specValues) || response.Headers.TryGetValues("Speculation-Rules", out specValues)) {
+                    SpeculationRulesRaw = string.Join(",", specValues);
                 }
                 ServerHeader = serverHeader;
 #if NET6_0_OR_GREATER
@@ -433,7 +454,23 @@ namespace DomainDetective {
                     }
                 }
                 if (captureBody) {
-                    Body = await response.Content.ReadAsStringAsync();
+                    try {
+                        var bytes = await response.Content.ReadAsByteArrayAsync();
+                        BodyLength = bytes?.Length;
+                        if (bytes != null) {
+#if NET6_0_OR_GREATER
+                            var hash = SHA256.HashData(bytes);
+#else
+                            byte[] hash;
+                            using (var sha = SHA256.Create()) { hash = sha.ComputeHash(bytes); }
+#endif
+                            BodySha256 = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+                        }
+                        string? charset = response.Content?.Headers?.ContentType?.CharSet;
+                        Encoding enc;
+                        try { enc = !string.IsNullOrWhiteSpace(charset) ? Encoding.GetEncoding(charset!) : Encoding.UTF8; } catch { enc = Encoding.UTF8; }
+                        Body = bytes != null ? enc.GetString(bytes) : await response.Content.ReadAsStringAsync();
+                    } catch { Body = await response.Content.ReadAsStringAsync(); }
                     var scheme = response.RequestMessage?.RequestUri?.Scheme;
                     if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
                         Body.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {

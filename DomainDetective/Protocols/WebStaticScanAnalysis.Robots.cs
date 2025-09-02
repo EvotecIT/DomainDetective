@@ -17,6 +17,7 @@ public partial class WebStaticScanAnalysis
     {
         private readonly List<(Regex pattern, string raw)> _allow = new();
         private readonly List<(Regex pattern, string raw)> _disallow = new();
+        public List<string> Sitemaps { get; } = new List<string>();
         public void AddAllow(string raw) { if (string.IsNullOrWhiteSpace(raw)) return; _allow.Add((Compile(raw), raw)); }
         public void AddDisallow(string raw) { if (string.IsNullOrWhiteSpace(raw)) return; _disallow.Add((Compile(raw), raw)); }
 
@@ -73,6 +74,11 @@ public partial class WebStaticScanAnalysis
                 if (string.IsNullOrEmpty(path)) continue;
                 rules.AddAllow(path);
             }
+            else if (line.StartsWith("Sitemap:", StringComparison.OrdinalIgnoreCase))
+            {
+                var url = line.Substring("Sitemap:".Length).Trim();
+                if (!string.IsNullOrWhiteSpace(url)) rules.Sitemaps.Add(url);
+            }
         }
         return rules;
     }
@@ -92,6 +98,15 @@ public partial class WebStaticScanAnalysis
             if (string.IsNullOrWhiteSpace(text)) return null;
             var rules = ParseRobotsRules(text);
             _robotsCache[host] = rules;
+            try {
+                lock (_sync)
+                {
+                    foreach (var s in rules.Sitemaps)
+                    {
+                        if (!RobotsSitemaps.Contains(s)) RobotsSitemaps.Add(s);
+                    }
+                }
+            } catch { }
             return rules;
         }
         catch { return null; }

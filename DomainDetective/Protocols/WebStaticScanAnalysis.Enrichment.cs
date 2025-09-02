@@ -35,6 +35,25 @@ public partial class WebStaticScanAnalysis
                     var ip = a.Data ?? a.DataRaw;
                     if (!string.IsNullOrWhiteSpace(ip) && !kv.Value.IpAddresses.Contains(ip)) kv.Value.IpAddresses.Add(ip);
                 }
+                try
+                {
+                    if (answers6 != null && answers6.Length > 0) kv.Value.HasIPv6 = true; else kv.Value.HasIPv6 = false;
+                    if (answers4 != null && answers4.Length > 0)
+                    {
+                        var mins = answers4.Min(x => x.TTL);
+                        var maxs = answers4.Max(x => x.TTL);
+                        kv.Value.ATtlMin = mins;
+                        kv.Value.ATtlMax = maxs;
+                    }
+                    if (answers6 != null && answers6.Length > 0)
+                    {
+                        var mins6 = answers6.Min(x => x.TTL);
+                        var maxs6 = answers6.Max(x => x.TTL);
+                        kv.Value.AAAATtlMin = mins6;
+                        kv.Value.AAAATtlMax = maxs6;
+                    }
+                }
+                catch { }
                 if (kv.Value.IpAddresses.Count > 0)
                 {
                     var ip = kv.Value.IpAddresses[0];
