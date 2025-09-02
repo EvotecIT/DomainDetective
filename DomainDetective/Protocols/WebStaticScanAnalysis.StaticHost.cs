@@ -33,6 +33,14 @@ public partial class WebStaticScanAnalysis
         public string? ServerHeader { get; set; }
         public bool HostHstsPresent { get; set; }
         public bool CorsAnyOrigin { get; set; }
+        // Cache behavior aggregates
+        public int CacheableResponses { get; set; }
+        public int NonCacheableResponses { get; set; }
+        public int? MaxAgeSecondsMax { get; set; }
+        public int NoStoreCount { get; set; }
+        public int NoCacheCount { get; set; }
+        public int MustRevalidateCount { get; set; }
+        public int ETagCount { get; set; }
+        public int LastModifiedCount { get; set; }
     }
 }
-

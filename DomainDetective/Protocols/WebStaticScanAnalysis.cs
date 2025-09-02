@@ -18,6 +18,8 @@ namespace DomainDetective;
 /// <para>Focuses on data gathering and reuse of existing HttpAnalysis and TLS helpers.</para>
 public partial class WebStaticScanAnalysis : IHasAssessments
 {
+    private int _requestIdSeed = 0;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _requestIdByUrl = new(System.StringComparer.OrdinalIgnoreCase);
     public string? Subject { get; set; }
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
     public int MaxResources { get; set; } = 300;
@@ -152,11 +154,18 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 FirstParty = true,
                 StartedAtUtc = System.DateTimeOffset.UtcNow - (MainHttpAnalysis?.ResponseTime ?? System.TimeSpan.Zero),
                 CompletedAtUtc = System.DateTimeOffset.UtcNow,
-                HeaderDurationMs = (int?)(MainHttpAnalysis?.ResponseTime.TotalMilliseconds)
+                HeaderDurationMs = (int?)(MainHttpAnalysis?.ResponseTime.TotalMilliseconds),
+                ProtocolVersion = MainHttpAnalysis?.ProtocolVersion?.ToString(),
+                Http2 = MainHttpAnalysis?.Http2Supported == true,
+                Http3 = MainHttpAnalysis?.Http3Supported == true,
+                WasRedirected = !string.Equals(finalUrl, url, StringComparison.OrdinalIgnoreCase)
             };
             lock (_sync)
             {
+                reqMain.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
                 Requests.Insert(0, reqMain);
+                _requestIdByUrl.TryAdd(reqMain.Url, reqMain.Id);
+                if (!string.IsNullOrWhiteSpace(reqMain.FinalUrl)) _requestIdByUrl.TryAdd(reqMain.FinalUrl, reqMain.Id);
                 if (!Hosts.TryGetValue(host, out var h))
                 {
                     h = new StaticHost { Host = host, RegistrableDomain = GetRegistrableDomain?.Invoke(host) };

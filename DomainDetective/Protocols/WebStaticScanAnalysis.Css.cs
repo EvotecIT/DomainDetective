@@ -40,7 +40,7 @@ public partial class WebStaticScanAnalysis
                             if (string.IsNullOrWhiteSpace(hh.ServerHeader) && response.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
                             if (!hh.HostHstsPresent && (response.Headers.Contains("Strict-Transport-Security") || response.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
                         }}
-                        RecordCorsHeaders(chost, response); RecordServerTiming(chost, response);
+                        RecordCorsHeaders(chost, response); RecordServerTiming(chost, response); RecordCacheHeaders(chost, response);
                     } catch { }
                     using var stream = await response.Content.ReadAsStreamAsync();
                     using var limited = new System.IO.MemoryStream();
@@ -160,12 +160,18 @@ public partial class WebStaticScanAnalysis
                                     headReq.ContentLength = resp.Content?.Headers?.ContentLength;
                                     headReq.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? abs.AbsoluteUri;
                                     FillResponseMeta(headReq, resp);
+                                    try { headReq.WasRedirected = !string.Equals(headReq.FinalUrl ?? headReq.Url, headReq.Url, System.StringComparison.OrdinalIgnoreCase); } catch { headReq.WasRedirected = false; }
                                 }
                                 catch { headReq.Method = "GET"; }
                                 try { headReq.Host = new Uri(headReq.FinalUrl ?? headReq.Url).Host; } catch { headReq.Host = abs.Host; }
                                 lock (_sync)
                                 {
+                                    headReq.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
+                                    // Parent is the CSS file we are processing
+                                    if (_requestIdByUrl.TryGetValue(css, out var pid)) headReq.ParentId = pid;
                                     Requests.Add(headReq);
+                                    _requestIdByUrl.TryAdd(headReq.Url, headReq.Id);
+                                    if (!string.IsNullOrWhiteSpace(headReq.FinalUrl)) _requestIdByUrl.TryAdd(headReq.FinalUrl, headReq.Id);
                                     if (!Hosts.TryGetValue(headReq.Host, out var host2))
                                     {
                                         host2 = new StaticHost { Host = headReq.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(headReq.Host) };

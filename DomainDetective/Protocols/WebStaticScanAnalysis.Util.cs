@@ -50,10 +50,7 @@ public partial class WebStaticScanAnalysis
                 req.Http3 = false;
             }
 #endif
-            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name)
-            {
-                return h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
-            }
+            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name) => h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
             req.CacheControl = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control");
             req.ETag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
             req.LastModified = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
@@ -61,6 +58,36 @@ public partial class WebStaticScanAnalysis
             if (int.TryParse((ageStr ?? string.Empty).Trim(), out var ageVal)) req.Age = ageVal; else req.Age = null;
             req.Vary = JoinVals(resp.Headers, "Vary") ?? JoinVals(resp.Content?.Headers, "Vary");
             req.Expires = resp.Content?.Headers?.Expires?.ToString() ?? JoinVals(resp.Headers, "Expires") ?? JoinVals(resp.Content?.Headers, "Expires");
+            // Server-Timing
+            var st1 = JoinVals(resp.Headers, "Server-Timing");
+            var st2 = JoinVals(resp.Content?.Headers, "Server-Timing");
+            req.ServerTiming = string.IsNullOrEmpty(st1) ? st2 : (string.IsNullOrEmpty(st2) ? st1 : string.Concat(st1, ",", st2));
+            // CORS per-request capture (for analysis; scan-level summary remains elsewhere)
+            req.AccessControlAllowOrigin = JoinVals(resp.Headers, "Access-Control-Allow-Origin") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Origin");
+            req.AccessControlAllowMethods = JoinVals(resp.Headers, "Access-Control-Allow-Methods") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Methods");
+            req.AccessControlAllowHeaders = JoinVals(resp.Headers, "Access-Control-Allow-Headers") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Headers");
+            var cred = JoinVals(resp.Headers, "Access-Control-Allow-Credentials") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Credentials");
+            if (!string.IsNullOrWhiteSpace(cred)) req.AccessControlAllowCredentials = cred.Trim().Equals("true", System.StringComparison.OrdinalIgnoreCase);
+            // Estimate response header bytes
+            int sum = 0;
+            if (resp != null)
+            {
+                foreach (var h in resp.Headers)
+                {
+                    if (h.Key == null) continue; var nameLen = h.Key.Length + 2; // include ': '
+                    foreach (var v in h.Value) { if (v != null) sum += nameLen + v.Length + 2; } // include CRLF
+                }
+                if (resp.Content?.Headers != null)
+                {
+                    foreach (var h in resp.Content.Headers)
+                    {
+                        if (h.Key == null) continue; var nameLen = h.Key.Length + 2;
+                        foreach (var v in h.Value) { if (v != null) sum += nameLen + v.Length + 2; }
+                    }
+                }
+                sum += 2; // final CRLF
+            }
+            req.ResponseHeaderBytes = sum > 0 ? sum : null;
         }
         catch { }
     }
@@ -306,6 +333,44 @@ public partial class WebStaticScanAnalysis
                     var metric = semi >= 0 ? seg.Substring(0, semi) : seg;
                     if (!string.IsNullOrWhiteSpace(metric)) lock (_sync) ServerTiming.Metrics.Add(metric.Trim());
                 }
+            }
+        }
+        catch { }
+    }
+
+    private void RecordCacheHeaders(string host, System.Net.Http.HttpResponseMessage resp)
+    {
+        try
+        {
+            if (!Hosts.TryGetValue(host, out var hh) || hh == null) return;
+            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name) => h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
+            var cc = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control") ?? string.Empty;
+            var etag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
+            var lastMod = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
+
+            bool noStore = cc.IndexOf("no-store", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            bool noCache = cc.IndexOf("no-cache", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            bool mustRev = cc.IndexOf("must-revalidate", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            int? maxAge = null;
+            try
+            {
+                var maIdx = cc.IndexOf("max-age=", System.StringComparison.OrdinalIgnoreCase);
+                if (maIdx >= 0)
+                {
+                    var rest = cc.Substring(maIdx + 8);
+                    var end = rest.IndexOf(','); var tok = end > 0 ? rest.Substring(0, end) : rest;
+                    tok = tok.Trim(); if (int.TryParse(tok, out var ma)) maxAge = ma;
+                }
+            } catch { }
+            lock (_sync)
+            {
+                if (noStore) hh.NonCacheableResponses++; else hh.CacheableResponses++;
+                if (noStore) hh.NoStoreCount++;
+                if (noCache) hh.NoCacheCount++;
+                if (mustRev) hh.MustRevalidateCount++;
+                if (etag != null) hh.ETagCount++;
+                if (lastMod != null) hh.LastModifiedCount++;
+                if (maxAge.HasValue) hh.MaxAgeSecondsMax = hh.MaxAgeSecondsMax.HasValue ? System.Math.Max(hh.MaxAgeSecondsMax.Value, maxAge.Value) : maxAge.Value;
             }
         }
         catch { }

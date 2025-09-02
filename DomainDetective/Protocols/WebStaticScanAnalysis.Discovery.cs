@@ -121,6 +121,7 @@ public partial class WebStaticScanAnalysis
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                         req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                         FillResponseMeta(req, resp);
+                        try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
                         if (resp.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, resp); } catch { } }
                         try {
                             lock (_sync) {
@@ -134,6 +135,7 @@ public partial class WebStaticScanAnalysis
                         try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(resp, hh); } } catch { }
                         try { RecordCorsHeaders(host, resp); } catch { }
                         try { RecordServerTiming(host, resp); } catch { }
+                        try { RecordCacheHeaders(host, resp); } catch { }
                     }
                     catch
                     {
@@ -151,6 +153,7 @@ public partial class WebStaticScanAnalysis
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                             req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                             FillResponseMeta(req, get);
+                            try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
                             if (get.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, get); } catch { } }
                             try {
                                 lock (_sync) {
@@ -164,6 +167,7 @@ public partial class WebStaticScanAnalysis
                             try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(get, hh); } } catch { }
                             try { RecordCorsHeaders(host, get); } catch { }
                             try { RecordServerTiming(host, get); } catch { }
+                            try { RecordCacheHeaders(host, get); } catch { }
                         }
                         catch { }
                     }
@@ -181,7 +185,11 @@ public partial class WebStaticScanAnalysis
 
                     lock (_sync)
                     {
+                        req.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
+                        req.ParentId = _requestIdByUrl.TryGetValue(baseUri.AbsoluteUri, out var pid) ? pid : (int?)null;
                         Requests.Add(req);
+                        _requestIdByUrl.TryAdd(req.Url, req.Id);
+                        if (!string.IsNullOrWhiteSpace(req.FinalUrl)) _requestIdByUrl.TryAdd(req.FinalUrl, req.Id);
                         if (!Hosts.TryGetValue(req.Host, out var h))
                         {
                             h = new StaticHost { Host = req.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(req.Host) };

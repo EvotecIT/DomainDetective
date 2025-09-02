@@ -72,6 +72,7 @@ public partial class WebStaticScanAnalysis
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                         req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                         FillResponseMeta(req, resp);
+                        try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
                     }
                     catch
                     {
@@ -89,6 +90,7 @@ public partial class WebStaticScanAnalysis
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                             req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                             FillResponseMeta(req, get);
+                            try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
                         }
                         catch { }
                     }
@@ -102,7 +104,11 @@ public partial class WebStaticScanAnalysis
                     } catch { req.FirstParty = false; }
                     lock (_sync)
                     {
+                        req.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
+                        if (!string.IsNullOrWhiteSpace(referrer) && _requestIdByUrl.TryGetValue(referrer, out var pid)) req.ParentId = pid;
                         Requests.Add(req);
+                        _requestIdByUrl.TryAdd(req.Url, req.Id);
+                        if (!string.IsNullOrWhiteSpace(req.FinalUrl)) _requestIdByUrl.TryAdd(req.FinalUrl, req.Id);
                         if (!Hosts.TryGetValue(req.Host, out var h))
                         {
                             h = new StaticHost { Host = req.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(req.Host) };

@@ -6,6 +6,8 @@ public partial class WebStaticScanAnalysis
 {
     public class StaticRequest
     {
+        public int Id { get; set; }
+        public int? ParentId { get; set; }
         public string Url { get; set; }
         public string Host { get; set; }
         public string Method { get; set; }
@@ -33,5 +35,12 @@ public partial class WebStaticScanAnalysis
         public DateTimeOffset? StartedAtUtc { get; set; }
         public DateTimeOffset? CompletedAtUtc { get; set; }
         public int? HeaderDurationMs { get; set; }
+        public int? ResponseHeaderBytes { get; set; }
+        public bool WasRedirected { get; set; }
+        public string? ServerTiming { get; set; }
+        public string? AccessControlAllowOrigin { get; set; }
+        public string? AccessControlAllowMethods { get; set; }
+        public string? AccessControlAllowHeaders { get; set; }
+        public bool? AccessControlAllowCredentials { get; set; }
     }
 }
