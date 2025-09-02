@@ -11,8 +11,9 @@ namespace DomainDetective;
 /// </summary>
 public partial class WebStaticScanAnalysis
 {
-    private async Task EnrichHostsAsync(CancellationToken cancellationToken)
+    private async Task EnrichHostsAsync(InternalLogger logger, CancellationToken cancellationToken)
     {
+        logger?.WriteVerbose("[WEB] TLS probing for {0} hosts ...", Hosts.Count);
         int tlsCap = Math.Max(1, (TlsConcurrency > 0 ? TlsConcurrency : Concurrency));
         using var tlsGate = new SemaphoreSlim(tlsCap);
         var tlsTasks = Hosts.Select(async kv => {
@@ -21,7 +22,9 @@ public partial class WebStaticScanAnalysis
             finally { try { tlsGate.Release(); } catch { } }
         }).ToArray();
         await Task.WhenAll(tlsTasks);
+        logger?.WriteVerbose("[WEB] TLS probing complete.");
 
+        logger?.WriteVerbose("[WEB] DNS/RDAP enrichment for {0} hosts ...", Hosts.Count);
         int dnsCap = Math.Max(1, (DnsConcurrency > 0 ? DnsConcurrency : Concurrency));
         using var dnsGate = new SemaphoreSlim(dnsCap);
         var dnsTasks = Hosts.Select(async kv => {
@@ -93,6 +96,7 @@ public partial class WebStaticScanAnalysis
             finally { try { dnsGate.Release(); } catch { } }
         }).ToArray();
         await Task.WhenAll(dnsTasks);
+        logger?.WriteVerbose("[WEB] DNS/RDAP enrichment complete.");
 
         // Infer provider from ASN/AS name when header hints were absent
         try

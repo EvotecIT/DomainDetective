@@ -15,12 +15,13 @@ namespace DomainDetective;
 /// </summary>
 public partial class WebStaticScanAnalysis
 {
-    private async Task ProcessCssAsync(ConcurrentBag<string> cssCandidates, HashSet<string> seen, ConcurrentDictionary<string, int> hostCounts, HttpClient http, CancellationToken cancellationToken)
+    private async Task ProcessCssAsync(ConcurrentBag<string> cssCandidates, HashSet<string> seen, ConcurrentDictionary<string, int> hostCounts, HttpClient http, InternalLogger logger, CancellationToken cancellationToken)
     {
         const int MaxCssBytes = 128 * 1024;
         var list = cssCandidates.Distinct(System.StringComparer.OrdinalIgnoreCase).ToArray();
         int cap = Math.Max(1, (CssConcurrency > 0 ? CssConcurrency : Concurrency));
         using var gate = new SemaphoreSlim(cap);
+        logger?.WriteVerbose("[WEB] Processing CSS: {0} files (cap={1})", list.Length, cap);
         var tasks = new List<Task>(list.Length);
         foreach (var css in list)
         {
@@ -178,5 +179,6 @@ public partial class WebStaticScanAnalysis
             }, cancellationToken));
         }
         await Task.WhenAll(tasks);
+        logger?.WriteVerbose("[WEB] CSS processing complete.");
     }
 }

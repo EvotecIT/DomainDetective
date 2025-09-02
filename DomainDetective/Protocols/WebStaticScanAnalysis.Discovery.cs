@@ -14,8 +14,9 @@ namespace DomainDetective;
 /// </summary>
 public partial class WebStaticScanAnalysis
 {
-    private async Task<(List<string> schedule, HashSet<string> seen)> DiscoverResourcesAndBuildSchedule(Uri baseUri, string? body, HttpClient http, CancellationToken cancellationToken)
+    private async Task<(List<string> schedule, HashSet<string> seen)> DiscoverResourcesAndBuildSchedule(Uri baseUri, string? body, HttpClient http, InternalLogger logger, CancellationToken cancellationToken)
     {
+        logger?.WriteVerbose("[WEB] Discover from HTML ...");
         var discovered = new List<string>();
         WebStaticScanAnalysis.RobotsRules? robots = null;
         if (RespectRobots)
@@ -81,15 +82,17 @@ public partial class WebStaticScanAnalysis
                 if (kv.Value.Count == 0) buckets.Remove(kv.Key);
             }
         }
+        logger?.WriteVerbose("[WEB] Discovery complete: {0} unique", schedule.Count);
         return (schedule, seen);
     }
 
-    private async Task<(ConcurrentBag<string> cssCandidates, ConcurrentDictionary<string, int> hostCounts)> FetchResourceHeadersAsync(List<string> schedule, HttpClient http, CancellationToken cancellationToken)
+    private async Task<(ConcurrentBag<string> cssCandidates, ConcurrentDictionary<string, int> hostCounts)> FetchResourceHeadersAsync(List<string> schedule, HttpClient http, InternalLogger logger, CancellationToken cancellationToken)
     {
         var cssCandidates = new ConcurrentBag<string>();
         var hostCounts = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         int cap = Math.Max(1, (DiscoveryConcurrency > 0 ? DiscoveryConcurrency : Concurrency));
         using var gate = new SemaphoreSlim(cap);
+        logger?.WriteVerbose("[WEB] Fetching headers for {0} resources (cap={1})", schedule.Count, cap);
         var tasks = new List<Task>(schedule.Count);
         foreach (var res in schedule)
         {
@@ -176,6 +179,7 @@ public partial class WebStaticScanAnalysis
             }, cancellationToken));
         }
         await Task.WhenAll(tasks);
+        logger?.WriteVerbose("[WEB] Header fetch complete. CSS candidates: {0}", cssCandidates.Count);
         return (cssCandidates, hostCounts);
     }
 }

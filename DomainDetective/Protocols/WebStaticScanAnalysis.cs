@@ -194,10 +194,14 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         Uri baseUri = new Uri(url);
         PrimaryRegistrableDomain = GetRegistrableDomain?.Invoke(baseUri.Host) ?? baseUri.Host;
 
+        // Progress: start
+        logger?.WriteVerbose("[WEB] Static scan start: {0}", url);
+        logger?.WriteProgress("WEBSTATIC", "Fetch main document", 5.0, 0, 6);
         // 1) Reuse HttpAnalysis for main document posture
         MainHttpAnalysis = new HttpAnalysis();
         await MainHttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: logger, collectHeaders: true, captureBody: true, cancellationToken);
         string? body = MainHttpAnalysis.Body;
+        try { logger?.WriteVerbose("[WEB] Main document: {0} ({1} bytes)", MainHttpAnalysis.StatusCode, MainHttpAnalysis.BodyLength ?? (body?.Length ?? 0)); } catch { }
         // Title extraction
         try {
             if (!string.IsNullOrWhiteSpace(body))
@@ -255,15 +259,21 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         } catch { }
 
         DetectTechFromHeadersAndBody(MainHttpAnalysis, body);
+        logger?.WriteProgress("WEBSTATIC", "Discover resources", 20.0, 1, 6);
 
         // Discover link hints and structured data in main HTML (no network activity)
         try { ParseLinkHintsFromBody(baseUri, body); } catch { }
         try { ParseStructuredDataFromBody(body); } catch { }
 
-        var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, cancellationToken);
-        var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, cancellationToken);
-        await ProcessCssAsync(cssCandidates, seen, hostCounts, http, cancellationToken);
-        await EnrichHostsAsync(cancellationToken);
+        var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, logger, cancellationToken);
+        logger?.WriteVerbose("[WEB] Discovered {0} resource candidates", schedule?.Count ?? 0);
+        logger?.WriteProgress("WEBSTATIC", "Fetch resource headers", 40.0, 2, 6);
+        var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, logger, cancellationToken);
+        logger?.WriteVerbose("[WEB] CSS candidates: {0}", cssCandidates.Count);
+        logger?.WriteProgress("WEBSTATIC", "Process CSS", 55.0, 3, 6);
+        await ProcessCssAsync(cssCandidates, seen, hostCounts, http, logger, cancellationToken);
+        logger?.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
+        await EnrichHostsAsync(logger, cancellationToken);
 
         // 6) First/third-party classification + trackers
         foreach (var kv in Hosts)
@@ -275,12 +285,16 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 TrackersUsed.Add(kv.Value.RegistrableDomain ?? kv.Key);
             }
         }
+        logger?.WriteProgress("WEBSTATIC", "Apply detections", 90.0, 5, 6);
         // 7) Apply path/domain/body rules (typed + optional JSON)
         TechSignatureCatalog.ApplyPathsDomainsBody(Requests, Hosts, MainHttpAnalysis?.Body, GetRegistrableDomain, TechDetections, TechDetails);
         // Optional JSON extension rules for paths/domains/body
         ApplyPathAndDomainRules();
         // 8) Lightweight DNS TXT detections for verification records
         await ApplyDnsTechDetections(baseUri.Host, cancellationToken).ConfigureAwait(false);
+        logger?.WriteVerbose("[WEB] Hosts: {0}; Requests: {1}; Tech: {2}; Trackers: {3}", Hosts.Count, Requests.Count, TechDetections.Count, TrackersUsed.Count);
+        logger?.WriteProgress("WEBSTATIC", "Done", 100.0, 6, 6);
+        logger?.WriteVerbose("[WEB] Static scan completed: {0}", url);
     }
 
     /// <summary>
