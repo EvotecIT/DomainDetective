@@ -13,6 +13,8 @@ internal static partial class TechSignatureCatalog
         ("X-Powered-By","PHP","PHP"),
         ("X-Powered-By","ASP.NET Core","ASP.NET Core"),
         ("X-Powered-By","ASP.NET","ASP.NET"),
+        ("X-AspNet-Version","","ASP.NET"),
+        ("X-AspNetMvc-Version","","ASP.NET"),
         ("X-Powered-By","Express","Express"),
         ("X-Powered-By","Laravel","Laravel"),
         ("X-Powered-By","Django","Django"),
@@ -20,6 +22,25 @@ internal static partial class TechSignatureCatalog
         ("Server","Apache","Apache HTTP Server"),
         ("Server","nginx","nginx"),
         ("Server","Microsoft-IIS","IIS"),
+        ("X-Shopify-Stage","","Shopify"),
+        ("X-ShopId","","Shopify"),
+        ("X-Magento-Cache-Debug","","Magento"),
+        ("X-Magento-Vary","","Magento"),
+        ("X-Amz-Cf-Id","","CloudFront"),
+        ("X-Cache","","CloudFront"),
+        ("X-Vercel-Id","","Vercel"),
+        ("X-Vercel-Cache","","Vercel"),
+        ("Server","Vercel","Vercel"),
+        ("X-NF-Request-ID","","Netlify"),
+        ("Server","Netlify","Netlify"),
+        // CDN/Security proxies
+        ("CF-RAY","","Cloudflare"),
+        ("CF-Cache-Status","","Cloudflare"),
+        ("Server","AkamaiGHost","Akamai"),
+        ("X-Akamai-Staging","","Akamai"),
+        ("X-True-Cache-Key","","Akamai"),
+        ("X-CDN","Incapsula","Imperva"),
+        ("X-Iinfo","","Imperva"),
         ("X-Generator","","X-Generator") // handled specially to record value
     };
 
@@ -31,8 +52,20 @@ internal static partial class TechSignatureCatalog
         ("ASP.NET_SessionId","ASP.NET"),
         ("wordpress_","WordPress"),
         ("wp-settings","WordPress"),
-        ("woocommerce","WordPress"),
+        ("woocommerce","WooCommerce"),
         ("_shopify","Shopify"),
+        ("SHOP_SESSION_TOKEN","BigCommerce"),
+        ("PrestaShop-","PrestaShop"),
+        // Security/CDN cookies
+        ("__cf_bm","Cloudflare"),
+        ("cf_clearance","Cloudflare"),
+        ("ak_bmsc","Akamai Bot Manager"),
+        ("bm_sv","Akamai Bot Manager"),
+        ("bm_sz","Akamai Bot Manager"),
+        ("abck","Akamai Bot Manager"),
+        ("visid_incap","Imperva"),
+        ("incap_ses","Imperva"),
+        ("nlbi_","Imperva"),
         ("XSRF-TOKEN","Angular")
     };
     /// <summary>
@@ -51,8 +84,9 @@ internal static partial class TechSignatureCatalog
                     foreach (var v in genVals)
                     {
                         var name = (v ?? string.Empty).Trim(); if (name.Length == 0) continue;
-                        outTech.Add(name.Split(' ')[0]);
-                        details?.Add(new TechDetectionDetail { Name = name.Split(' ')[0], SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 100 });
+                        var nm = name.Split(' ')[0];
+                        outTech.Add(nm);
+                        details?.Add(new TechDetectionDetail { Name = nm, SourceKind = TechEvidenceKind.Header, Category = GetCategory(nm), Evidence = $"{header}: {v}", Confidence = 100 });
                     }
                 }
                 continue;
@@ -63,12 +97,37 @@ internal static partial class TechSignatureCatalog
                 {
                     if (string.IsNullOrEmpty(contains))
                     {
-                        if (!string.IsNullOrEmpty(v)) { outTech.Add(tech); details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 90 }); }
+                        if (!string.IsNullOrEmpty(v)) {
+                            outTech.Add(tech);
+                            int conf = 90;
+                            if (header.Equals("X-Served-By", System.StringComparison.OrdinalIgnoreCase)) conf = 80; // Fastly-like but ambiguous
+                            details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Category = GetCategory(tech), Evidence = $"{header}: {v}", Confidence = conf });
+                        }
                     }
                     else if (!string.IsNullOrEmpty(v) && v.IndexOf(contains, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         outTech.Add(tech);
-                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 100 });
+                        string? version = null;
+                        try
+                        {
+                            // Basic version extraction for common headers
+                            if (header.Equals("X-Powered-By", System.StringComparison.OrdinalIgnoreCase))
+                            {
+                                var m = Regex.Match(v ?? string.Empty, "(?i)(?:^|\b)php/?([\\d.]{1,250})");
+                                if (m.Success) version = m.Groups[1].Value;
+                            }
+                            else if (header.Equals("X-AspNet-Version", System.StringComparison.OrdinalIgnoreCase) || header.Equals("X-AspNetMvc-Version", System.StringComparison.OrdinalIgnoreCase))
+                            {
+                                var m = Regex.Match(v ?? string.Empty, "([\\d.]{1,250})");
+                                if (m.Success) version = m.Groups[1].Value;
+                            }
+                            else if (header.Equals("Server", System.StringComparison.OrdinalIgnoreCase))
+                            {
+                                var m = Regex.Match(v ?? string.Empty, "(?i)(?:Apache|nginx|Microsoft-IIS)/([\\d.]{1,250})");
+                                if (m.Success) version = m.Groups[1].Value;
+                            }
+                        } catch { }
+                        details?.Add(new TechDetectionDetail { Name = tech, Version = version, SourceKind = TechEvidenceKind.Header, Category = GetCategory(tech), Evidence = $"{header}: {v}", Confidence = 100 });
                     }
                 }
             }
@@ -83,7 +142,7 @@ internal static partial class TechSignatureCatalog
                     if (!string.IsNullOrEmpty(c) && c.IndexOf(needle, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         outTech.Add(tech);
-                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Cookie, Evidence = c.Length > 120 ? c.Substring(0,120) + "..." : c, Confidence = 90 });
+                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Cookie, Category = GetCategory(tech), Evidence = c.Length > 120 ? c.Substring(0,120) + "..." : c, Confidence = 85 });
                     }
                 }
             }

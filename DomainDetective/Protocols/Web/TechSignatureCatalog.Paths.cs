@@ -11,6 +11,10 @@ internal static partial class TechSignatureCatalog
     {
         (new Regex("wp-(?:content|includes)/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "WordPress"),
         (new Regex("/wp-json/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "WordPress"),
+        (new Regex("(?:^|/)sites/(?:all|default)/|/core/(?:misc|modules)/|misc/drupal\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Drupal"),
+        (new Regex("(?:^|/)(?:media/system/js|templates/system|components/com_)", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Joomla"),
+        // PrestaShop indicators
+        (new Regex("(?:^|/)(?:themes/classic/assets/|modules/ps_[^/]+/|prestashop(?:\\.min)?\\.(?:js|css))", RegexOptions.IgnoreCase|RegexOptions.Compiled), "PrestaShop"),
         (new Regex("jquery.*\\.js(?:\\?ver(?:sion)?=([\\d.]+))?", RegexOptions.IgnoreCase|RegexOptions.Compiled), "jQuery"),
         (new Regex("jquery[\\.-]migrate(?:-([\\d.]+))?(?:\\.min)?\\.js(?:\\?ver=([\\d.]+))?", RegexOptions.IgnoreCase|RegexOptions.Compiled), "jQuery Migrate"),
         (new Regex("_next/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Next.js"),
@@ -20,7 +24,15 @@ internal static partial class TechSignatureCatalog
         (new Regex("vue", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Vue"),
         (new Regex("angular|angularjs", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Angular"),
         (new Regex("shopify", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Shopify"),
-        (new Regex("bootstrap", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Bootstrap")
+        (new Regex("woocommerce", RegexOptions.IgnoreCase|RegexOptions.Compiled), "WooCommerce"),
+        (new Regex("bootstrap", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Bootstrap"),
+        (new Regex("catalog/view/theme/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "OpenCart"),
+        // BigCommerce stencil assets
+        (new Regex("(?:^|/)stencil/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "BigCommerce"),
+        // Security / Widgets
+        (new Regex("recaptcha/(?:api|enterprise)\\.js|www\\.google\\.com/recaptcha|www\\.gstatic\\.com/recaptcha", RegexOptions.IgnoreCase|RegexOptions.Compiled), "reCAPTCHA"),
+        // JS/CSS libraries
+        (new Regex("swiper(?:-bundle)?(?:\\.min)?\\.(?:js|css)", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Swiper"),
     };
 
     private static readonly (string suffix, string tech)[] DomainSuffixes = new[]
@@ -35,7 +47,20 @@ internal static partial class TechSignatureCatalog
         ("ajax.googleapis.com","Google Hosted Libraries"),
         ("wix.com","Wix"),
         ("wixstatic.com","Wix"),
-        ("squarespace-cdn.com","Squarespace")
+        ("squarespace-cdn.com","Squarespace"),
+        ("static.squarespace.com","Squarespace"),
+        ("statuspage.io","Atlassian Statuspage"),
+        ("myshopify.com","Shopify"),
+        ("cdn.shopify.com","Shopify"),
+        ("shopifycdn.net","Shopify"),
+        ("bigcommerce.com","BigCommerce"),
+        ("hsforms.com","HubSpot"),
+        ("hs-analytics.net","HubSpot"),
+        ("hs-scripts.com","HubSpot"),
+        ("vercel.app","Vercel"),
+        ("netlify.app","Netlify"),
+        ("herokuapp.com","Heroku"),
+        ("azurewebsites.net","Azure App Service")
     };
     /// <summary>
     /// Applies compiled path and domain suffix rules to infer technologies and record details.
@@ -55,10 +80,13 @@ internal static partial class TechSignatureCatalog
             foreach (var (regex, tech) in PathRules)
             {
                 try {
-                    if (regex.IsMatch(path)) {
+                    var m = regex.Match(path);
+                    if (m.Success) {
                         outTech.Add(tech);
                         var kind = InferKindFromPathAndContent(path, req.ContentType);
-                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = kind, Evidence = path, Confidence = 100 });
+                        string? version = null;
+                        for (int gi = 1; gi < m.Groups.Count; gi++) { var gv = m.Groups[gi].Value; if (!string.IsNullOrWhiteSpace(gv) && System.Text.RegularExpressions.Regex.IsMatch(gv, "^[0-9]+(?:[.][0-9]+)*$")) { version = gv; break; } }
+                        details?.Add(new TechDetectionDetail { Name = tech, Version = version, SourceKind = kind, Category = GetCategory(tech), Evidence = path, Confidence = 100 });
                     }
                 } catch { }
             }
@@ -72,7 +100,7 @@ internal static partial class TechSignatureCatalog
                 if (dom.EndsWith(suffix, System.StringComparison.OrdinalIgnoreCase))
                 {
                     outTech.Add(tech);
-                    details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.DomainSuffix, Evidence = suffix, Confidence = 100 });
+                    details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.DomainSuffix, Category = GetCategory(tech), Evidence = suffix, Confidence = 90 });
                 }
             }
         }

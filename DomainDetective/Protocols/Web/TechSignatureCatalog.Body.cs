@@ -15,6 +15,11 @@ internal static partial class TechSignatureCatalog
         (new Regex("<link[^>]* href=[^>]+fonts\\.(?:googleapis|google)\\.com", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Google Font API"),
         (new Regex("google-analytics\\.com/(?:ga|urchin|analytics)\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Google Analytics"),
         (new Regex("googletagmanager\\.com/gtag/js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Google Analytics"),
+        (new Regex("forms/v2\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "HubSpot"),
+        (new Regex("js\\.hs-analytics\\.net/analytics", RegexOptions.IgnoreCase|RegexOptions.Compiled), "HubSpot"),
+        (new Regex("js\\.hs-scripts\\.com/\\d+\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "HubSpot"),
+        (new Regex("js\\.hsforms\\.net/", RegexOptions.IgnoreCase|RegexOptions.Compiled), "HubSpot"),
+        (new Regex("googletagmanager\\.com/gtm.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Google Tag Manager"),
         (new Regex("connect\\.facebook\\.[a-z]+/.+\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Facebook Widgets"),
         (new Regex("platform\\.twitter\\.com/widgets\\.js", RegexOptions.IgnoreCase|RegexOptions.Compiled), "Twitter Widgets")
     };
@@ -27,10 +32,13 @@ internal static partial class TechSignatureCatalog
         {
             try
             {
-                if (regex.IsMatch(body))
+                var m = regex.Match(body);
+                if (m.Success)
                 {
                     outTech.Add(tech);
-                    details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Body, Evidence = regex.ToString(), Confidence = 100 });
+                    string? version = null;
+                    for (int gi = 1; gi < m.Groups.Count; gi++) { var gv = m.Groups[gi].Value; if (!string.IsNullOrWhiteSpace(gv) && System.Text.RegularExpressions.Regex.IsMatch(gv, "^[0-9]+(?:[.][0-9]+)*$")) { version = gv; break; } }
+                    details?.Add(new TechDetectionDetail { Name = tech, Version = version, SourceKind = TechEvidenceKind.Body, Category = TechSignatureCatalog.GetCategory(tech), Evidence = regex.ToString(), Confidence = 100 });
                 }
             } catch { }
         }
