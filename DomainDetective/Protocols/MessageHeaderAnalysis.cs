@@ -18,8 +18,8 @@ namespace DomainDetective {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Duplicate header values keyed by header name.</summary>
         public Dictionary<string, List<string>> DuplicateHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>List of <c>Received</c> header values in order.</summary>
-        public List<string> ReceivedChain { get; } = new();
+        /// <summary>List of parsed <c>Received</c> header hops in order.</summary>
+        public List<ReceivedHop> ReceivedHops { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
         public TimeSpan? TotalTransitTime { get; private set; }
         /// <summary>Value of the <c>From</c> header.</summary>
@@ -55,7 +55,7 @@ namespace DomainDetective {
             RawHeaders = rawHeaders;
             Headers.Clear();
             DuplicateHeaders.Clear();
-            ReceivedChain.Clear();
+            ReceivedHops.Clear();
             SpamHeaders.Clear();
             Issues.Clear();
             TotalTransitTime = null;
@@ -132,7 +132,7 @@ namespace DomainDetective {
 
             switch (lower) {
                 case "received":
-                    ReceivedChain.Add(value);
+                    ReceivedHops.Add(ReceivedHop.Parse(value));
                     break;
                 case "from":
                     From = value;
@@ -247,14 +247,9 @@ namespace DomainDetective {
 
         private void ComputeTransitTime() {
             var times = new List<DateTimeOffset>();
-            foreach (var received in ReceivedChain) {
-                var idx = received.LastIndexOf(';');
-                if (idx < 0) {
-                    continue;
-                }
-                var datePart = received.Substring(idx + 1).Trim();
-                if (DateUtils.TryParse(datePart, out var dt)) {
-                    times.Add(dt);
+            foreach (var hop in ReceivedHops) {
+                if (hop.Timestamp.HasValue) {
+                    times.Add(hop.Timestamp.Value);
                 }
             }
             if (times.Count >= 2) {
