@@ -148,22 +148,23 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 
 ## Next Session — Stretch Goals
 - HTTP hardening
-  - [ ] Add COOP/COEP/CORP advisories with remediation snippets
-  - [ ] Expand CSP linting (unsafe-inline/unsafe-eval detection; report-only guidance)
-  - [ ] Permissions‑Policy value validation and common templates
+  - [x] Add COOP/COEP/CORP advisories with remediation snippets
+  - [x] Expand CSP linting (unsafe-inline/unsafe-eval detection; report-only guidance)
+  - [x] Permissions‑Policy value validation and common templates
 - WHOIS/RDAP
   - [x] Add vendor‑specific WHOIS parsers beyond generic EU fallback (e.g., .de, .uk nuances)
-  - [ ] Cache/TTL policy docs and tunables for rate‑limited registries
+  - [x] Cache/TTL policy docs and tunables for rate‑limited registries
 - Threat Intel
   - [x] Score aggregation (severity/recency weighting) and normalized confidence
-  - [ ] Passive DNS cache to reduce rate‑limits and speed neighbor checks
+  - [x] Passive DNS cache to reduce rate‑limits and speed neighbor checks (implemented in IPNeighborAnalysis session cache)
 - CLI/PS UX
   - [ ] Wizard HTML export (parity with JSON; reuse posture panels)
   - [ ] Inline Autodiscover endpoint verdict row in summaries (toggle)
   - [ ] Persona: optional concise mode to cap line length per stage
 - TLS/Email
-  - [ ] Extend mail TLS cipher reporting (curve/key exchange) and weak suites mapping
-  - [ ] DKIM: add more provider selector heuristics and tests
+  - [x] Extend mail TLS cipher reporting (curve/key exchange) and weak suites mapping
+  - [x] DKIM: add more provider selector heuristics
+  - [ ] DKIM: add auto‑detect tests for new selectors; assert advisory/key parsing
 - Validation
   - [ ] Add snapshot tests for enriched Autodiscover and Subject policies
 
@@ -217,6 +218,56 @@ Implementation notes
 
 ## CLI Improvements (Last)
 - [ ] HTML export for wizard mode (parity with JSON; reuse RecommendationViews and posture panels).
+
+## Web Scanning (urlscan‑style, Pingdom Later)
+
+Goal: Add a static (no‑browser) web scanner first, then an optional dynamic/browser flow later (via HtmlTinkerX/Playwright) — topped off with Pingdom‑style synthetic monitoring. Ordered top→bottom from easiest to hardest. Items marked Non‑Browser do not add heavy dependencies.
+
+### Non‑Browser (Static Web Scan MVP)
+- [ ] Resource discovery (HTML): GET main page, parse <script|link|img|iframe|video|audio|source|picture/srcset>; resolve relative URLs. Easiest
+- [ ] Resource metadata: HEAD per resource (small GET fallback); capture status, content‑type/length, redirects, timings. Easiest
+- [ ] TLS per host: SslStream handshake; protocol/cipher suite; cert issuer/SANs/expiry; OCSP stapling via existing OpenSSL helper. Reuse from MailTlsAnalysis by extracting TlsProbe helper. Easy
+- [ ] Security posture (main doc): reuse HttpAnalysis to assess HSTS, CSP, Referrer‑Policy, COOP/COEP/CORP, mixed content, insecure forms. Easy
+- [ ] CSS url(...) extraction: fetch linked CSS (size/time capped), extract url(...) and enqueue; support @import. Medium
+- [ ] DNS/ASN/country enrichment: resolve contacted hosts, cache; optional RDAP/ASN lookup with TTL. Medium
+- [ ] First vs third‑party classification: registrable domain via PSL; per‑host/request totals. Medium
+- [ ] Tracker detection (curated): small bundled list (Disconnect/EasyPrivacy subset) for domain/path matches. Medium
+- [ ] Tech fingerprints (heuristic): headers (Server, X‑Powered‑By), meta generator, common file paths (wp‑, drupal, jquery), cookie names. Medium
+- [ ] Threat intel overlay: run ThreatIntelAnalysis for each contacted registrable domain; add severity/score/recency to host table. Medium
+- [ ] Reporting: HTML section in SimpleDomainReport + CLI summary (top hosts, bytes by type, posture, TLS, trackers, threat intel). Medium
+- [ ] PowerShell cmdlet Test‑DDWebStaticScan: parameters (Url, MaxSeconds, MaxResources, Concurrency, RespectRobots, SkipThreatIntel, SaveArtifactsPath); outputs typed view. Medium
+- [ ] Artifacts: write scan.json (HAR‑like), resources.csv, hosts.csv under ./artifacts/<host>/<timestamp>/; enforce budgets (time/requests/per‑host caps). Medium
+- [ ] Concurrency/fairness: bounded parallelism, per‑host limits, retries with backoff; robots.txt optional respect. Medium
+
+### Beyond urlscan (Static Extras)
+- [ ] TLS OCSP stapling summary per host; issuer chains and expiry heatmap.
+- [ ] CSP quality lint with actionable remediation snippets (nginx/Apache/Cloudflare) — reuse HttpRecommendations.
+- [ ] RPKI/RDAP overlay: per‑host origin ASN/org, optional ROA validity indicator.
+- [ ] Weak certificate/key detection (e.g., RSA<2048, SHA‑1 signatures); grading similar to mail/web TLS.
+
+### Browser‑Assisted (Dynamic, Optional — HtmlTinkerX Later)
+- [ ] Dynamic requests: capture XHR/fetch/WebSocket initiated after load; full network trace (HAR). Hard
+- [ ] Runtime signals: console logs/warnings, JS errors, CSP violation reports. Hard
+- [ ] Storage: cookies/localStorage/sessionStorage snapshots. Hard
+- [ ] Screenshots: full‑page and above‑the‑fold. Hard
+- [ ] Timing metrics: DOMContentLoaded, Load, Navigation Timing, and (optionally) Web Vitals (LCP/CLS/FID). Hard
+- [ ] Script coverage/blocklists: measure third‑party weight, simulate blocking categories. Hard
+
+Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the last stage, behind a CLI/PS flag.
+
+### Pingdom‑Style Synthetic Monitoring (Future)
+- [ ] Uptime checks: scheduled HTTP(S) probe with TLS posture + header checks; trend charts and alert thresholds. Easy
+- [ ] Latency metrics: TTFB/total per probe; regional vantage points; aggregation. Medium
+- [ ] Waterfall charts: generate from static scan (HEAD/GET timings) for first‑load; store snapshots. Medium
+- [ ] Alerts/integrations: webhook/Slack/email; certificate expiry warnings (reuse CertificateMonitor). Medium
+- [ ] Transaction flows (multi‑step): optional browser required; model steps, assertions, data entry. Hard
+
+### Components & Reuse
+- [ ] New: Protocols/WebStaticScanAnalysis.cs orchestrates discovery/fetch/enrichment; exposes Assessments/Recommendations.
+- [ ] New: Views/Converters.WebStaticScan.cs for CLI/PS/HTML.
+- [ ] Extract: Protocols/TlsProbe.cs from MailTlsAnalysis to share TLS/cipher/cert/OCSP logic.
+- [ ] CLI: add --webscan-static; Wizard toggle “Deep web scan (static)”.
+- [ ] PS: Test‑DDWebStaticScan cmdlet with export options and persona narration.
 - [ ] Validate JSON shape stability and type naming across versions (align with PS outputs and C# view contracts).
 - [ ] Minor UX: compact inline operation names in progress table; keep under 80 chars to avoid flicker (audit long names).
 

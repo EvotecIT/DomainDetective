@@ -156,7 +156,25 @@ internal static class OutputFormatters {
         } else {
             findings.Add(GetPositiveFinding(check, data));
         }
-        
+
+        // Inline Autodiscover endpoint verdict summary
+        if (check == HealthCheckType.AUTODISCOVER)
+        {
+            try {
+                var endpoints = hc.AutodiscoverHttpAnalysis?.Endpoints;
+                if (endpoints != null && endpoints.Count > 0)
+                {
+                    var count = endpoints.Count;
+                    var winner = endpoints.FirstOrDefault(e => e.XmlValid) ??
+                                 endpoints.FirstOrDefault(e => e.JsonValid) ??
+                                 endpoints.FirstOrDefault();
+                    var best = winner?.FinalHost ?? new Uri(winner?.Url ?? "http://invalid").Host;
+                    var verdict = (winner?.XmlValid == true) ? "XML" : (winner?.JsonValid == true) ? "JSON" : "None";
+                    findings.Add($"• Endpoints: {count}; Best host: {best}; Valid: {verdict}");
+                }
+            } catch { /* ignore summarization errors */ }
+        }
+
         return (status, string.Join("\n", findings));
     }
     

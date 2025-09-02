@@ -99,6 +99,13 @@ public class WhoisAnalysis : IHasAssessments {
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
     public List<Assessment> Assessments { get; } = new();
 
+    /// <summary>Maximum number of WHOIS TCP connect/query retries on transient failures.</summary>
+    public int MaxQueryRetries { get; set; } = 3;
+    /// <summary>Base delay used for exponential backoff between retries.</summary>
+    public TimeSpan RetryBackoffBase { get; set; } = TimeSpan.FromMilliseconds(200);
+    /// <summary>Maximum additional random jitter (in milliseconds) added to backoff.</summary>
+    public int RetryJitterMaxMs { get; set; } = 100;
+
     /// <summary>The WHOIS server used to fulfill the query.</summary>
     public string? WhoisServerUsed { get; private set; }
     /// <summary>How the WHOIS server was determined (StaticMap, whois-servers.net, IANA).</summary>
@@ -546,7 +553,8 @@ public class WhoisAnalysis : IHasAssessments {
 
             byte[] responseBytes = Array.Empty<byte>();
             Exception lastEx = null;
-            for (int attempt = 0; attempt < 3; attempt++) {
+            var retries = Math.Max(1, MaxQueryRetries);
+            for (int attempt = 0; attempt < retries; attempt++) {
                 try {
                     using TcpClient tcpClient = new TcpClient();
                     await tcpClient.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
@@ -570,7 +578,9 @@ public class WhoisAnalysis : IHasAssessments {
                     lastEx = ex;
                 }
                 // Exponential backoff with jitter
-                var delayMs = 200 * (int)System.Math.Pow(2, attempt) + new System.Random().Next(0, 100);
+                var baseMs = (int)System.Math.Max(0, RetryBackoffBase.TotalMilliseconds);
+                var jitter = new System.Random().Next(0, System.Math.Max(0, RetryJitterMaxMs));
+                var delayMs = baseMs * (int)System.Math.Pow(2, attempt) + jitter;
                 await Task.Delay(delayMs, timeoutCts.Token);
             }
             if (responseBytes.Length == 0 && lastEx != null) throw lastEx;
