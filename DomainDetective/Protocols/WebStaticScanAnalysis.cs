@@ -32,6 +32,8 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public int DnsConcurrency { get; set; } = 0;
     public bool RespectRobots { get; set; } = false;
     public bool EnableThreatIntel { get; set; } = false;
+    /// <summary>When true, skip third-party resources; only first-party (same registrable domain) are fetched.</summary>
+    public bool SkipThirdParty { get; set; } = false;
     /// <summary>Maximum number of resources to fetch per host. Applies to initial and CSS-discovered resources.</summary>
     public int MaxResourcesPerHost { get; set; } = 50;
 

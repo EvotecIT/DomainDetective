@@ -75,6 +75,9 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Run a static (no-browser) web scan for a specific URL.</summary>
     [CommandOption("--webscan-static")]
     public string? WebScanStatic { get; set; }
+    /// <summary>Alias for --webscan-static.</summary>
+    [CommandOption("--webscan")]
+    public string? WebScan { get; set; }
 
     /// <summary>Time budget for web scan in seconds (default 30).</summary>
     [CommandOption("--webscan-max-seconds")]
@@ -87,4 +90,29 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Optional path to tech-detection rules JSON file.</summary>
     [CommandOption("--techrules")]
     public string? TechRules { get; set; }
+
+    // Concurrency tuning for static web scan
+    /// <summary>Max parallel discovery (HEAD/GET) requests; 0 defers to default.</summary>
+    [CommandOption("--webscan-discovery-threads")]
+    public int WebScanDiscoveryThreads { get; set; } = 0;
+
+    /// <summary>Max parallel CSS fetch/parse threads; 0 defers to default.</summary>
+    [CommandOption("--webscan-css-threads")]
+    public int WebScanCssThreads { get; set; } = 0;
+
+    /// <summary>Max parallel TLS probes; 0 defers to default.</summary>
+    [CommandOption("--webscan-tls-threads")]
+    public int WebScanTlsThreads { get; set; } = 0;
+
+    /// <summary>Max parallel DNS/RDAP enrichments; 0 defers to default.</summary>
+    [CommandOption("--webscan-dns-threads")]
+    public int WebScanDnsThreads { get; set; } = 0;
+
+    /// <summary>Respect robots.txt Disallow/Allow rules during discovery.</summary>
+    [CommandOption("--webscan-respect-robots")]
+    public bool WebScanRespectRobots { get; set; }
+
+    /// <summary>Skip third-party resources (first-party only crawl).</summary>
+    [CommandOption("--webscan-first-party-only")]
+    public bool WebScanFirstPartyOnly { get; set; }
 }

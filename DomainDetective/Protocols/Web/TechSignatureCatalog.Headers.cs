@@ -27,7 +27,12 @@ internal static partial class TechSignatureCatalog
         ("X-Magento-Cache-Debug","","Magento"),
         ("X-Magento-Vary","","Magento"),
         ("X-Amz-Cf-Id","","CloudFront"),
-        ("X-Cache","","CloudFront"),
+        ("X-Amz-Cf-Pop","","CloudFront"),
+        ("X-Fastly-Request-ID","","Fastly"),
+        ("X-Fastly-Debug","","Fastly"),
+        ("X-Azure-OriginShield","","Azure CDN"),
+        ("X-Azure-Ref","","Azure CDN"),
+        ("X-Azure-FDID","","Azure CDN"),
         ("X-Vercel-Id","","Vercel"),
         ("X-Vercel-Cache","","Vercel"),
         ("Server","Vercel","Vercel"),
@@ -36,6 +41,7 @@ internal static partial class TechSignatureCatalog
         // CDN/Security proxies
         ("CF-RAY","","Cloudflare"),
         ("CF-Cache-Status","","Cloudflare"),
+        ("Server","cloudflare","Cloudflare"),
         ("Server","AkamaiGHost","Akamai"),
         ("X-Akamai-Staging","","Akamai"),
         ("X-True-Cache-Key","","Akamai"),
@@ -98,9 +104,18 @@ internal static partial class TechSignatureCatalog
                     if (string.IsNullOrEmpty(contains))
                     {
                         if (!string.IsNullOrEmpty(v)) {
+                            // Special-case X-Cache: detect patterns like "Hit from cloudfront"/"Miss from cloudfront"
+                            if (header.Equals("X-Cache", System.StringComparison.OrdinalIgnoreCase)) {
+                                var vv = (v ?? string.Empty);
+                                if (vv.IndexOf(" from cloudfront", System.StringComparison.OrdinalIgnoreCase) >= 0) {
+                                    outTech.Add("CloudFront");
+                                    details?.Add(new TechDetectionDetail { Name = "CloudFront", SourceKind = TechEvidenceKind.Header, Category = GetCategory("CloudFront"), Evidence = $"{header}: {v}", Confidence = 95 });
+                                }
+                                continue; // do not treat generic X-Cache as evidence for any other tech here
+                            }
                             outTech.Add(tech);
                             int conf = 90;
-                            if (header.Equals("X-Served-By", System.StringComparison.OrdinalIgnoreCase)) conf = 80; // Fastly-like but ambiguous
+                            if (header.Equals("X-Served-By", System.StringComparison.OrdinalIgnoreCase)) conf = 80; // ambiguous
                             details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Category = GetCategory(tech), Evidence = $"{header}: {v}", Confidence = conf });
                         }
                     }

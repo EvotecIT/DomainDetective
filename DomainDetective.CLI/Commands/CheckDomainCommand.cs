@@ -36,18 +36,41 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
         }
 
         // Single-URL static web scan mode
-        if (!string.IsNullOrWhiteSpace(settings.WebScanStatic)) {
-            var url = settings.WebScanStatic.Trim();
+        var webScanTarget = !string.IsNullOrWhiteSpace(settings.WebScanStatic) ? settings.WebScanStatic : settings.WebScan;
+        if (!string.IsNullOrWhiteSpace(webScanTarget)) {
+            var raw = webScanTarget!.Trim();
             var hc = new DomainHealthCheck {
                 Progress = false,
                 Verbose = false
             };
             hc.WebStaticScanAnalysis.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.WebScanMaxSeconds));
             hc.WebStaticScanAnalysis.MaxResources = Math.Max(1, settings.WebScanMaxResources);
+            hc.WebStaticScanAnalysis.DiscoveryConcurrency = Math.Max(0, settings.WebScanDiscoveryThreads);
+            hc.WebStaticScanAnalysis.CssConcurrency = Math.Max(0, settings.WebScanCssThreads);
+            hc.WebStaticScanAnalysis.TlsConcurrency = Math.Max(0, settings.WebScanTlsThreads);
+            hc.WebStaticScanAnalysis.DnsConcurrency = Math.Max(0, settings.WebScanDnsThreads);
+            hc.WebStaticScanAnalysis.RespectRobots = settings.WebScanRespectRobots;
+            hc.WebStaticScanAnalysis.SkipThirdParty = settings.WebScanFirstPartyOnly;
             if (!string.IsNullOrWhiteSpace(settings.TechRules)) hc.WebStaticScanAnalysis.TechRulesPath = settings.TechRules;
-            await hc.VerifyWebStaticScan(url, Program.CancellationToken);
+            // Normalize input: allow bare domain; prefer http first to observe redirects, then fallback to https
+            bool hasScheme = false;
+            try { var u = new Uri(raw); hasScheme = u.Scheme == "http" || u.Scheme == "https"; } catch { }
+            string startUrl = raw;
+            if (!hasScheme) {
+                var httpUrl = $"http://{raw}";
+                var httpsUrl = $"https://{raw}";
+                try {
+                    await hc.VerifyWebStaticScan(httpUrl, Program.CancellationToken);
+                    startUrl = httpUrl;
+                } catch {
+                    await hc.VerifyWebStaticScan(httpsUrl, Program.CancellationToken);
+                    startUrl = httpsUrl;
+                }
+            } else {
+                await hc.VerifyWebStaticScan(startUrl, Program.CancellationToken);
+            }
             var view = DomainDetective.Views.Converters.Convert(hc.WebStaticScanAnalysis);
-            CliHelpers.ShowPropertiesTable($"WEB STATIC for {url}", view, settings.Unicode);
+            CliHelpers.ShowPropertiesTable($"WEB STATIC for {startUrl}", view, settings.Unicode);
             return 0;
         }
 

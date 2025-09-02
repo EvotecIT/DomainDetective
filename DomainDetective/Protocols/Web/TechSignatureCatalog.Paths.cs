@@ -60,7 +60,8 @@ internal static partial class TechSignatureCatalog
         ("vercel.app","Vercel"),
         ("netlify.app","Netlify"),
         ("herokuapp.com","Heroku"),
-        ("azurewebsites.net","Azure App Service")
+        ("azurewebsites.net","Azure App Service"),
+        ("azureedge.net","Azure CDN")
     };
     /// <summary>
     /// Applies compiled path and domain suffix rules to infer technologies and record details.

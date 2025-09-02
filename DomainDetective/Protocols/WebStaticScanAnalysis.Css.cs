@@ -51,6 +51,17 @@ public partial class WebStaticScanAnalysis
                         try
                         {
                             var abs = new Uri(new Uri(css), val);
+                            // First-party only filtering
+                            if (SkipThirdParty)
+                            {
+                                try
+                                {
+                                    var baseDom = PrimaryRegistrableDomain ?? new Uri(css).Host;
+                                    var hostDom = GetRegistrableDomain?.Invoke(abs.Host) ?? abs.Host;
+                                    if (!string.Equals(baseDom, hostDom, StringComparison.OrdinalIgnoreCase)) return;
+                                }
+                                catch { }
+                            }
                             bool add;
                             lock (_sync) { add = seen.Add(abs.AbsoluteUri); }
                             if ((abs.Scheme == Uri.UriSchemeHttp || abs.Scheme == Uri.UriSchemeHttps) && add && Requests.Count < MaxResources)
@@ -106,6 +117,17 @@ public partial class WebStaticScanAnalysis
                         try
                         {
                             var abs = new Uri(new Uri(css), val);
+                            // First-party only filtering
+                            if (SkipThirdParty)
+                            {
+                                try
+                                {
+                                    var baseDom = PrimaryRegistrableDomain ?? new Uri(css).Host;
+                                    var hostDom = GetRegistrableDomain?.Invoke(abs.Host) ?? abs.Host;
+                                    if (!string.Equals(baseDom, hostDom, StringComparison.OrdinalIgnoreCase)) return;
+                                }
+                                catch { }
+                            }
                             bool add;
                             lock (_sync) { add = seen.Add(abs.AbsoluteUri); }
                             if ((abs.Scheme == Uri.UriSchemeHttp || abs.Scheme == Uri.UriSchemeHttps) && add && Requests.Count < MaxResources)

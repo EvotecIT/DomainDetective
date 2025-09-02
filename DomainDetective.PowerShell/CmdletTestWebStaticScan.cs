@@ -4,11 +4,12 @@ using System.Linq;
 
 namespace DomainDetective.PowerShell {
     /// <summary>Runs a static (non-browser) web scan for a URL.</summary>
-    [Cmdlet(VerbsDiagnostic.Test, "DDWebStaticScan", DefaultParameterSetName = "Url")]
-    [Alias("Test-WebStaticScan")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDWebsiteStaticScan", DefaultParameterSetName = "Url")]
+    [Alias("Test-WebsiteStaticScan", "Test-WebStaticScan", "Test-DDWebStaticScan")]
     public sealed class CmdletTestWebStaticScan : ExportableAsyncPSCmdlet {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
         [ValidateNotNullOrEmpty]
+        [Alias("DomainName")]
         public string Url;
 
         [Parameter(Mandatory = false)]
@@ -16,6 +17,30 @@ namespace DomainDetective.PowerShell {
 
         [Parameter(Mandatory = false)]
         public int MaxResources = 300;
+
+        /// <summary>Max parallel discovery (HEAD/GET) requests; 0 defers to default.</summary>
+        [Parameter(Mandatory = false)]
+        public int DiscoveryConcurrency = 0;
+
+        /// <summary>Max parallel CSS fetches/processing; 0 defers to default.</summary>
+        [Parameter(Mandatory = false)]
+        public int CssConcurrency = 0;
+
+        /// <summary>Max parallel TLS probes; 0 defers to default.</summary>
+        [Parameter(Mandatory = false)]
+        public int TlsConcurrency = 0;
+
+        /// <summary>Max parallel DNS/RDAP enrichments; 0 defers to default.</summary>
+        [Parameter(Mandatory = false)]
+        public int DnsConcurrency = 0;
+
+        /// <summary>Respect robots.txt Disallow/Allow rules during discovery.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter RespectRobots { get; set; }
+
+        /// <summary>Skip third-party resources (only crawl first-party).</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter SkipThirdParty { get; set; }
 
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
@@ -31,7 +56,32 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _healthCheck.WebStaticScanAnalysis.Timeout = System.TimeSpan.FromSeconds(MaxSeconds);
             _healthCheck.WebStaticScanAnalysis.MaxResources = MaxResources;
-            await _healthCheck.VerifyWebStaticScan(Url);
+            _healthCheck.WebStaticScanAnalysis.DiscoveryConcurrency = System.Math.Max(0, DiscoveryConcurrency);
+            _healthCheck.WebStaticScanAnalysis.CssConcurrency = System.Math.Max(0, CssConcurrency);
+            _healthCheck.WebStaticScanAnalysis.TlsConcurrency = System.Math.Max(0, TlsConcurrency);
+            _healthCheck.WebStaticScanAnalysis.DnsConcurrency = System.Math.Max(0, DnsConcurrency);
+            _healthCheck.WebStaticScanAnalysis.RespectRobots = RespectRobots.IsPresent;
+            _healthCheck.WebStaticScanAnalysis.SkipThirdParty = SkipThirdParty.IsPresent;
+
+            // Normalize input: allow bare domain, prefer http first to capture redirects, fallback to https
+            var input = (Url ?? string.Empty).Trim();
+            string startUrl = input;
+            bool hasScheme = false;
+            try { var u = new System.Uri(input); hasScheme = u.Scheme == "http" || u.Scheme == "https"; } catch { }
+            if (!hasScheme) {
+                // Try http first (to observe redirects), then https if http fails
+                var httpUrl = $"http://{input}";
+                var httpsUrl = $"https://{input}";
+                try {
+                    await _healthCheck.VerifyWebStaticScan(httpUrl);
+                    startUrl = httpUrl;
+                } catch {
+                    await _healthCheck.VerifyWebStaticScan(httpsUrl);
+                    startUrl = httpsUrl;
+                }
+            } else {
+                await _healthCheck.VerifyWebStaticScan(startUrl);
+            }
             var ws = _healthCheck.WebStaticScanAnalysis;
             try {
                 // Emit a concise tech summary similar to the CLI
@@ -65,6 +115,20 @@ namespace DomainDetective.PowerShell {
                         var pct = (int)System.Math.Round(100.0 * https / reqTotal);
                         WriteInformation($"HTTPS: {pct}% of {reqTotal} resources", new string[] { "DD", "WebStaticScan", "HTTPS" });
                     }
+                    // Redirect chain count for the main URL
+                    try {
+                        var redirects = (ws.MainHttpAnalysis?.VisitedUrls?.Count ?? 1) - 1;
+                        if (redirects >= 0) {
+                            string start = ws.MainHttpAnalysis?.VisitedUrls?.FirstOrDefault() ?? (Url ?? "");
+                            string end = ws.MainHttpAnalysis?.VisitedUrls?.LastOrDefault() ?? start;
+                            string sh, eh; try { sh = new System.Uri(start).Host; } catch { sh = start; }
+                            string sl, el; try { sl = new System.Uri(start).AbsoluteUri; } catch { sl = start; }
+                            try { eh = new System.Uri(end).Host; } catch { eh = end; }
+                            try { el = new System.Uri(end).AbsoluteUri; } catch { el = end; }
+                            WriteInformation($"Redirects: {redirects} ({sh} -> {eh})", new string[] { "DD", "WebStaticScan", "Redirects" });
+                            WriteVerbose($"Redirect chain: {sl} -> {el}");
+                        }
+                    } catch { }
                 }
             } catch { }
 

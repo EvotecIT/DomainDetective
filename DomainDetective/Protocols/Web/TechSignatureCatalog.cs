@@ -29,7 +29,7 @@ internal static partial class TechSignatureCatalog
         if (t.Equals("Google Analytics", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Analytics;
         if (t.Equals("Google Tag Manager", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.TagManager;
         if (t.Equals("Cloudflare Browser Insights", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Cloudflare", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
-        if (t.Equals("Akamai", System.StringComparison.OrdinalIgnoreCase) || t.Equals("CloudFront", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
+        if (t.Equals("Akamai", System.StringComparison.OrdinalIgnoreCase) || t.Equals("CloudFront", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Fastly", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure CDN", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
         if (t.Equals("Akamai Bot Manager", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Security;
         if (t.Equals("Imperva", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Security;
         if (t.Equals("Atlassian Statuspage", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.IssueTracker;
@@ -70,6 +70,15 @@ internal static partial class TechSignatureCatalog
                     else if (low.Contains("joomla")) name = "Joomla";
                     else if (low.Contains("drupal")) name = "Drupal";
                     else if (low.Contains("prestashop")) name = "PrestaShop";
+                    else if (low.Contains("shopify")) name = "Shopify";
+                    else if (low.Contains("magento")) name = "Magento";
+                    else if (low.Contains("squarespace")) name = "Squarespace";
+                    else if (low.Contains("wix")) name = "Wix";
+                    else if (low.Contains("opencart")) name = "OpenCart";
+                    else if (low.Contains("blogger")) name = "Blogger";
+                    else if (low.Contains("ghost")) name = "Ghost";
+                    else if (low.Contains("hugo")) name = "Hugo";
+                    else if (low.Contains("jekyll")) name = "Jekyll";
                     else name = val.Split(' ')[0];
                     string? version = null;
                     var vm = System.Text.RegularExpressions.Regex.Match(val, "([\\d]+(?:[.][\\d]+)+)");

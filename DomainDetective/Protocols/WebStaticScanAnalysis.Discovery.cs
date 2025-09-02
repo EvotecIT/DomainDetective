@@ -17,10 +17,10 @@ public partial class WebStaticScanAnalysis
     private async Task<(List<string> schedule, HashSet<string> seen)> DiscoverResourcesAndBuildSchedule(Uri baseUri, string? body, HttpClient http, CancellationToken cancellationToken)
     {
         var discovered = new List<string>();
-        HashSet<string>? disallows = null;
+        WebStaticScanAnalysis.RobotsRules? robots = null;
         if (RespectRobots)
         {
-            try { disallows = await GetRobotsDisallowsAsync(baseUri, http, cancellationToken).ConfigureAwait(false); } catch { }
+            try { robots = await GetRobotsRulesAsync(baseUri, http, cancellationToken).ConfigureAwait(false); } catch { }
         }
         if (!string.IsNullOrEmpty(body))
         {
@@ -35,13 +35,22 @@ public partial class WebStaticScanAnalysis
                     var absolute = new Uri(baseUri, v);
                     if (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps)
                     {
-                        // robots.txt filtering: naive prefix match against Disallow paths
-                        if (disallows != null && disallows.Count > 0)
+                        // robots.txt filtering using parsed rules
+                        if (robots != null)
                         {
                             var path = absolute.AbsolutePath;
-                            bool blocked = false;
-                            foreach (var d in disallows) { if (path.StartsWith(d, System.StringComparison.Ordinal)) { blocked = true; break; } }
-                            if (blocked) continue;
+                            if (!robots.IsAllowed(path)) continue;
+                        }
+                        // First-party only filtering
+                        if (SkipThirdParty)
+                        {
+                            try
+                            {
+                                var baseDom = PrimaryRegistrableDomain ?? baseUri.Host;
+                                var hostDom = GetRegistrableDomain?.Invoke(absolute.Host) ?? absolute.Host;
+                                if (!string.Equals(baseDom, hostDom, StringComparison.OrdinalIgnoreCase)) continue;
+                            }
+                            catch { }
                         }
                         discovered.Add(absolute.AbsoluteUri);
                     }
