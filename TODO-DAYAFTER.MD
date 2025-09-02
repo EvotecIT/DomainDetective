@@ -224,20 +224,21 @@ Implementation notes
 Goal: Add a static (no‑browser) web scanner first, then an optional dynamic/browser flow later (via HtmlTinkerX/Playwright) — topped off with Pingdom‑style synthetic monitoring. Ordered top→bottom from easiest to hardest. Items marked Non‑Browser do not add heavy dependencies.
 
 ### Non‑Browser (Static Web Scan MVP)
-- [ ] Resource discovery (HTML): GET main page, parse <script|link|img|iframe|video|audio|source|picture/srcset>; resolve relative URLs. Easiest
-- [ ] Resource metadata: HEAD per resource (small GET fallback); capture status, content‑type/length, redirects, timings. Easiest
-- [ ] TLS per host: SslStream handshake; protocol/cipher suite; cert issuer/SANs/expiry; OCSP stapling via existing OpenSSL helper. Reuse from MailTlsAnalysis by extracting TlsProbe helper. Easy
-- [ ] Security posture (main doc): reuse HttpAnalysis to assess HSTS, CSP, Referrer‑Policy, COOP/COEP/CORP, mixed content, insecure forms. Easy
-- [ ] CSS url(...) extraction: fetch linked CSS (size/time capped), extract url(...) and enqueue; support @import. Medium
-- [ ] DNS/ASN/country enrichment: resolve contacted hosts, cache; optional RDAP/ASN lookup with TTL. Medium
-- [ ] First vs third‑party classification: registrable domain via PSL; per‑host/request totals. Medium
-- [ ] Tracker detection (curated): small bundled list (Disconnect/EasyPrivacy subset) for domain/path matches. Medium
-- [ ] Tech fingerprints (heuristic): headers (Server, X‑Powered‑By), meta generator, common file paths (wp‑, drupal, jquery), cookie names. Medium
+- [x] Resource discovery (HTML): GET main page, parse <script|link|img|iframe|video|audio|source|picture/srcset>; resolve relative URLs. Easiest
+- [x] Resource metadata: HEAD per resource (small GET fallback); capture status, content‑type/length, redirects, timings. Easiest
+- [x] TLS per host: SslStream handshake; protocol/cipher suite; cert issuer/SANs/expiry; OCSP stapling via existing OpenSSL helper. Reuse from MailTlsAnalysis by extracting TlsProbe helper. Easy
+- [x] Security posture (main doc): reuse HttpAnalysis to assess HSTS, CSP, Referrer‑Policy, COOP/COEP/CORP, mixed content, insecure forms. Easy
+- [x] CSS url(...) extraction: fetch linked CSS (size/time capped), extract url(...) and enqueue; support @import. Medium
+- [x] DNS/ASN/country enrichment: resolve contacted hosts, cache; optional RDAP/ASN lookup with TTL. Medium
+- [x] First vs third‑party classification: registrable domain via PSL; per‑host/request totals. Medium
+- [x] Tracker detection (curated): small bundled list (Disconnect/EasyPrivacy subset) for domain/path matches. Medium
+- [x] Tech fingerprints (heuristic): headers (Server, X‑Powered‑By), meta generator, common file paths (wp‑, drupal, jquery), cookie names. Medium
 - [ ] Threat intel overlay: run ThreatIntelAnalysis for each contacted registrable domain; add severity/score/recency to host table. Medium
 - [ ] Reporting: HTML section in SimpleDomainReport + CLI summary (top hosts, bytes by type, posture, TLS, trackers, threat intel). Medium
-- [ ] PowerShell cmdlet Test‑DDWebStaticScan: parameters (Url, MaxSeconds, MaxResources, Concurrency, RespectRobots, SkipThreatIntel, SaveArtifactsPath); outputs typed view. Medium
+- [x] PowerShell cmdlet Test‑DDWebStaticScan: parameters (Url, MaxSeconds, MaxResources, Concurrency, RespectRobots, SkipThreatIntel, SaveArtifactsPath); outputs typed view. Medium
+  - Implemented as `Test-DDWebsiteStaticScan` with aliases (`Test-DDWebStaticScan`, `Test-WebsiteStaticScan`, `Test-WebStaticScan`). `-Url` has alias `-DomainName`; supports bare domains; tracks redirects. Added `-SkipThirdParty` and concurrency/robots switches.
 - [ ] Artifacts: write scan.json (HAR‑like), resources.csv, hosts.csv under ./artifacts/<host>/<timestamp>/; enforce budgets (time/requests/per‑host caps). Medium
-- [ ] Concurrency/fairness: bounded parallelism, per‑host limits, retries with backoff; robots.txt optional respect. Medium
+- [x] Concurrency/fairness: bounded parallelism, per‑host limits, retries with backoff; robots.txt optional respect. Medium
 
 ### Beyond urlscan (Static Extras)
 - [ ] TLS OCSP stapling summary per host; issuer chains and expiry heatmap.
@@ -263,13 +264,46 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
 - [ ] Transaction flows (multi‑step): optional browser required; model steps, assertions, data entry. Hard
 
 ### Components & Reuse
-- [ ] New: Protocols/WebStaticScanAnalysis.cs orchestrates discovery/fetch/enrichment; exposes Assessments/Recommendations.
-- [ ] New: Views/Converters.WebStaticScan.cs for CLI/PS/HTML.
-- [ ] Extract: Protocols/TlsProbe.cs from MailTlsAnalysis to share TLS/cipher/cert/OCSP logic.
-- [ ] CLI: add --webscan-static; Wizard toggle “Deep web scan (static)”.
-- [ ] PS: Test‑DDWebStaticScan cmdlet with export options and persona narration.
+- [x] New: Protocols/WebStaticScanAnalysis.cs orchestrates discovery/fetch/enrichment; exposes Assessments/Recommendations.
+- [x] New: Views/Converters.WebStaticScan.cs for CLI/PS/HTML.
+- [x] Extract: Protocols/TlsProbe.cs from MailTlsAnalysis to share TLS/cipher/cert/OCSP logic.
+- [x] CLI: add --webscan-static; Wizard toggle “Deep web scan (static)”. (Alias `--webscan` added.)
+- [x] PS: Test‑DDWebStaticScan cmdlet with export options and persona narration. (Implemented via `Test-DDWebsiteStaticScan` + aliases.)
 - [ ] Validate JSON shape stability and type naming across versions (align with PS outputs and C# view contracts).
 - [ ] Minor UX: compact inline operation names in progress table; keep under 80 chars to avoid flicker (audit long names).
+
+### Static Web Scan — Data Enrichment (Closed + New)
+- [x] DNS TXT verification cache (in‑memory, TTL 5m) to reduce repeats.
+- [x] First‑party only mode (SkipThirdParty) to constrain scope on large sites.
+- [x] Generator normalization for Blogger, Ghost, Hugo, Jekyll (with version capture where present).
+- [x] CDN/Edge provider enrichment per host: fields `EdgeProvider`, `EdgePop`, `EdgeCacheStatus`.
+  - [x] Cloudflare: parse `CF-RAY` (PoP), `CF-Cache-Status` (cache result); `Server: cloudflare` as a hint.
+  - [x] CloudFront: parse `X-Amz-Cf-Pop` (PoP), `X-Cache` patterns (“ from cloudfront”).
+  - [x] Fastly: detect via `X-Fastly-Request-ID`, `X-Timer`, `Surrogate-*`; cache status via `X-Cache`/`X-Cache-Hits`.
+  - [x] Azure split: `Azure Front Door` vs `Azure CDN` (headers + suffixes).
+  - [x] Akamai: provider and `X-Cache` first‑token parsing (TCP_HIT/TCP_MISS); additional header hints (`X-True-Cache-Key`, etc.).
+  - [x] Google Frontend provider hint via `Server: Google Frontend`.
+- [x] Safer/expanded domain suffixes: Akamai (edgekey/edgesuite/akamaihd), Azure (azurefd.*, azureedge.net), StackPath, jsDelivr, CDN77, App Engine, Firebase Hosting.
+- [x] RDAP fallback: infer provider from ASN/ASName when headers absent (Cloudflare/Fastly/Akamai/AWS/Azure/Google).
+
+### Static Web Scan — Missing (Keep Focus on Data, not Output)
+- [ ] Threat intel overlay for contacted registrable domains (reuse ThreatIntelAnalysis; optional and capped).
+- [ ] Artifact export: compact JSON + CSV for resources/hosts, time‑bounded; add small re‑import viewer later.
+- [ ] HTML/JSON/CSV report sections (defer; prioritize enrichment first).
+- [ ] Bound concurrency defaults and document caps; validate MaxResources per phase.
+- [ ] Add small TTL/state cache across runs (robots, DNS TXT) with invalidation option.
+
+### Static Web Scan — Next Enrichment Ideas
+- [ ] PoP normalization: map Cloudflare/CloudFront PoP codes → city/region/country (small offline tables); add `EdgePopRegion`/`EdgePopCountry`.
+- [ ] Cookie posture: summarize Secure/HttpOnly/SameSite/Max-Age/Domain attributes across first‑party resources.
+- [ ] CORS/resource policies: capture Access‑Control‑Allow‑* headers across first‑party endpoints; record wildcard vs restricted.
+- [ ] Server‑Timing aggregation: parse Server‑Timing values for first‑party endpoints; store keys/values (capped).
+- [ ] Link rel hints: capture `preconnect`/`dns-prefetch`/`preload` to infer intended 3P dependencies.
+- [ ] PWA signals: discover and parse `manifest.json` (size‑capped); record service worker registration hints (no execution).
+- [ ] Structured data: detect application/ld+json blocks; record schema `@type` counts (capped bytes).
+- [ ] Robots/sitemaps: list sitemap URLs from robots.txt (no crawl) and record presence.
+- [ ] DNS TTL/IPv6 adoption: store TTLs when available and count IPv6 usage across hosts.
+- [ ] ASN → Provider offline map for top clouds/CDNs as a fallback to RDAP parsing.
 
 ## Stretch Ideas
 - [ ] MTA‑STS deep dive (policy caching, redirects, expiry, enforce only when all MX support TLS).
