@@ -40,7 +40,7 @@ public partial class WebStaticScanAnalysis
                             if (string.IsNullOrWhiteSpace(hh.ServerHeader) && response.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
                             if (!hh.HostHstsPresent && (response.Headers.Contains("Strict-Transport-Security") || response.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
                         }}
-                        RecordCorsHeaders(chost, response); RecordServerTiming(chost, response); RecordCacheHeaders(chost, response);
+                        RecordCorsHeaders(chost, response); RecordServerTiming(chost, response); RecordCacheHeaders(chost, response); RecordHeaderFrequency(chost, response);
                     } catch { }
                     using var stream = await response.Content.ReadAsStreamAsync();
                     using var limited = new System.IO.MemoryStream();
@@ -160,7 +160,17 @@ public partial class WebStaticScanAnalysis
                                     headReq.ContentLength = resp.Content?.Headers?.ContentLength;
                                     headReq.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? abs.AbsoluteUri;
                                     FillResponseMeta(headReq, resp);
-                                    try { headReq.WasRedirected = !string.Equals(headReq.FinalUrl ?? headReq.Url, headReq.Url, System.StringComparison.OrdinalIgnoreCase); } catch { headReq.WasRedirected = false; }
+                                    try {
+                                        headReq.WasRedirected = !string.Equals(headReq.FinalUrl ?? headReq.Url, headReq.Url, System.StringComparison.OrdinalIgnoreCase);
+                                        if (headReq.WasRedirected)
+                                        {
+                                            var fromU = new Uri(abs.AbsoluteUri); var toU = new Uri(headReq.FinalUrl ?? headReq.Url);
+                                            headReq.RedirectKind = ClassifyRedirect(fromU, toU);
+                                            headReq.RedirectHopCount = 1;
+                                            headReq.RedirectToHost = toU.Host; headReq.RedirectToScheme = toU.Scheme;
+                                            RecordRedirect(new Uri(css).Host, headReq);
+                                        }
+                                    } catch { headReq.WasRedirected = false; }
                                 }
                                 catch { headReq.Method = "GET"; }
                                 try { headReq.Host = new Uri(headReq.FinalUrl ?? headReq.Url).Host; } catch { headReq.Host = abs.Host; }
@@ -172,12 +182,15 @@ public partial class WebStaticScanAnalysis
                                     Requests.Add(headReq);
                                     _requestIdByUrl.TryAdd(headReq.Url, headReq.Id);
                                     if (!string.IsNullOrWhiteSpace(headReq.FinalUrl)) _requestIdByUrl.TryAdd(headReq.FinalUrl, headReq.Id);
+                                    AddAdjacency(headReq.ParentId, headReq.Id);
                                     if (!Hosts.TryGetValue(headReq.Host, out var host2))
                                     {
                                         host2 = new StaticHost { Host = headReq.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(headReq.Host) };
                                         Hosts[headReq.Host] = host2;
                                     }
+                                    if (host2.GroupId == 0) host2.GroupId = System.Threading.Interlocked.Increment(ref _hostGroupSeed);
                                     host2.RequestCount++;
+                                    headReq.HostGroupId = host2.GroupId;
                                     headReq.CategoryKind = ToCategoryKind(Categorize(headReq.FinalUrl ?? headReq.Url, headReq.ContentType));
                                     if (headReq.ContentLength.HasValue)
                                     {
@@ -191,7 +204,21 @@ public partial class WebStaticScanAnalysis
                                         var baseDom = PrimaryRegistrableDomain ?? new Uri(css).Host;
                                         var hostDom = GetRegistrableDomain?.Invoke(headReq.Host) ?? headReq.Host;
                                         headReq.FirstParty = string.Equals(baseDom, hostDom, System.StringComparison.OrdinalIgnoreCase);
+                                        if (Hosts.TryGetValue(headReq.Host, out var hTls) && hTls?.Tls != null)
+                                        {
+                                            headReq.TlsProtocol = hTls.Tls.Protocol.ToString();
+                                            headReq.TlsCipherSuite = hTls.Tls.CipherSuite;
+                                            try
+                                            {
+                                                headReq.TlsCertSubject = hTls.Tls.CertificateSubject;
+                                                headReq.TlsCertIssuer = hTls.Tls.CertificateIssuer;
+                                                headReq.TlsCertNotAfter = hTls.Tls.NotAfter;
+                                                headReq.TlsCertThumbprint = hTls.Tls.Certificate?.Thumbprint;
+                                            }
+                                            catch { }
+                                        }
                                     } catch { headReq.FirstParty = false; }
+                                    try { if (MainFinalUri != null) { var fu = new Uri(headReq.FinalUrl ?? headReq.Url); headReq.SameOrigin = fu.Scheme == MainFinalUri.Scheme && fu.Host == MainFinalUri.Host && fu.Port == MainFinalUri.Port; } } catch { }
                                 }
                             }
                         }

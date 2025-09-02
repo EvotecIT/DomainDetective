@@ -40,8 +40,8 @@ public partial class WebStaticScanAnalysis
 #if NET6_0_OR_GREATER
             if (ver != null)
             {
-                req.Http3 = ver >= System.Net.Http.HttpVersion.Version30;
-                req.Http2 = ver >= System.Net.Http.HttpVersion.Version20;
+                req.Http3 = ver >= System.Net.HttpVersion.Version30;
+                req.Http2 = ver >= System.Net.HttpVersion.Version20;
             }
 #else
             if (ver != null)
@@ -58,6 +58,39 @@ public partial class WebStaticScanAnalysis
             if (int.TryParse((ageStr ?? string.Empty).Trim(), out var ageVal)) req.Age = ageVal; else req.Age = null;
             req.Vary = JoinVals(resp.Headers, "Vary") ?? JoinVals(resp.Content?.Headers, "Vary");
             req.Expires = resp.Content?.Headers?.Expires?.ToString() ?? JoinVals(resp.Headers, "Expires") ?? JoinVals(resp.Content?.Headers, "Expires");
+            req.AltSvc = JoinVals(resp.Headers, "Alt-Svc");
+            req.LinkHeader = JoinVals(resp.Headers, "Link");
+            if (!string.IsNullOrWhiteSpace(req.LinkHeader))
+            {
+                int preloadCount = 0;
+                var asTypes = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+                foreach (var seg in req.LinkHeader.Split(','))
+                {
+                    var s = seg.Trim(); if (s.Length == 0) continue;
+                    if (s.IndexOf("rel=\"preload\"", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        preloadCount++;
+                        var asIdx = s.IndexOf("as=", System.StringComparison.OrdinalIgnoreCase);
+                        if (asIdx >= 0)
+                        {
+                            var rest = s.Substring(asIdx + 3).Trim();
+                            if (rest.StartsWith("\""))
+                            {
+                                var end = rest.IndexOf('"', 1);
+                                if (end > 1) asTypes.Add(rest.Substring(1, end - 1));
+                            }
+                            else
+                            {
+                                var end2 = rest.IndexOfAny(new[] { ';', ',' });
+                                var tok = end2 > 0 ? rest.Substring(0, end2) : rest;
+                                tok = tok.Trim(); if (!string.IsNullOrEmpty(tok)) asTypes.Add(tok);
+                            }
+                        }
+                    }
+                }
+                if (preloadCount > 0) req.PreloadLinkCount = preloadCount;
+                if (asTypes.Count > 0) req.PreloadAsTypes = string.Join(",", asTypes);
+            }
             // Server-Timing
             var st1 = JoinVals(resp.Headers, "Server-Timing");
             var st2 = JoinVals(resp.Content?.Headers, "Server-Timing");
@@ -68,6 +101,21 @@ public partial class WebStaticScanAnalysis
             req.AccessControlAllowHeaders = JoinVals(resp.Headers, "Access-Control-Allow-Headers") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Headers");
             var cred = JoinVals(resp.Headers, "Access-Control-Allow-Credentials") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Credentials");
             if (!string.IsNullOrWhiteSpace(cred)) req.AccessControlAllowCredentials = cred.Trim().Equals("true", System.StringComparison.OrdinalIgnoreCase);
+            // Per-request HSTS and cookie count
+            req.HstsPresent = (JoinVals(resp.Headers, "Strict-Transport-Security") ?? JoinVals(resp.Content?.Headers, "Strict-Transport-Security")) != null;
+            try
+            {
+                int cookieCount = 0;
+                if (resp.Headers != null && resp.Headers.TryGetValues("Set-Cookie", out var scVals)) cookieCount += System.Linq.Enumerable.Count(scVals);
+                if (resp.Content?.Headers != null && resp.Content.Headers.TryGetValues("Set-Cookie", out var scVals2)) cookieCount += System.Linq.Enumerable.Count(scVals2);
+                if (cookieCount > 0) req.SetCookieCount = cookieCount;
+            }
+            catch { }
+            // Common entity headers
+            req.ContentLanguage = JoinVals(resp.Headers, "Content-Language") ?? JoinVals(resp.Content?.Headers, "Content-Language");
+            req.AcceptRanges = JoinVals(resp.Headers, "Accept-Ranges") ?? JoinVals(resp.Content?.Headers, "Accept-Ranges");
+            req.ContentDisposition = resp.Content?.Headers?.ContentDisposition?.ToString() ?? JoinVals(resp.Headers, "Content-Disposition") ?? JoinVals(resp.Content?.Headers, "Content-Disposition");
+            try { if (resp.Content?.Headers?.ContentEncoding != null) req.ContentEncoding = string.Join(",", resp.Content.Headers.ContentEncoding); } catch { }
             // Estimate response header bytes
             int sum = 0;
             if (resp != null)
@@ -88,6 +136,10 @@ public partial class WebStaticScanAnalysis
                 sum += 2; // final CRLF
             }
             req.ResponseHeaderBytes = sum > 0 ? sum : null;
+            if (req.ResponseHeaderBytes.HasValue && req.ContentLength.HasValue && req.ContentLength.Value > 0)
+            {
+                req.HeaderOverBodyPct = (int)System.Math.Round(100.0 * req.ResponseHeaderBytes.Value / (double)req.ContentLength.Value);
+            }
         }
         catch { }
     }
@@ -347,6 +399,7 @@ public partial class WebStaticScanAnalysis
             var cc = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control") ?? string.Empty;
             var etag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
             var lastMod = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
+            var ageStr = JoinVals(resp.Headers, "Age") ?? JoinVals(resp.Content?.Headers, "Age");
 
             bool noStore = cc.IndexOf("no-store", System.StringComparison.OrdinalIgnoreCase) >= 0;
             bool noCache = cc.IndexOf("no-cache", System.StringComparison.OrdinalIgnoreCase) >= 0;
@@ -371,6 +424,39 @@ public partial class WebStaticScanAnalysis
                 if (etag != null) hh.ETagCount++;
                 if (lastMod != null) hh.LastModifiedCount++;
                 if (maxAge.HasValue) hh.MaxAgeSecondsMax = hh.MaxAgeSecondsMax.HasValue ? System.Math.Max(hh.MaxAgeSecondsMax.Value, maxAge.Value) : maxAge.Value;
+                var hasCL = resp.Content?.Headers?.ContentLength.HasValue == true;
+                if (hasCL) hh.ResponsesWithContentLength++; else hh.ResponsesWithoutContentLength++;
+                if (int.TryParse((ageStr ?? string.Empty).Trim(), out var ageVal))
+                {
+                    hh.AgeHeaderSamples++;
+                    hh.AgeHeaderSecondsSum += ageVal;
+                    hh.AgeHeaderSecondsMax = hh.AgeHeaderSecondsMax.HasValue ? System.Math.Max(hh.AgeHeaderSecondsMax.Value, ageVal) : ageVal;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void RecordHeaderFrequency(string host, System.Net.Http.HttpResponseMessage resp)
+    {
+        try
+        {
+            if (!Hosts.TryGetValue(host, out var hh) || hh == null) return;
+            lock (_sync)
+            {
+                foreach (var h in resp.Headers)
+                {
+                    if (string.IsNullOrWhiteSpace(h.Key)) continue;
+                    hh.HeaderCounts[h.Key] = hh.HeaderCounts.TryGetValue(h.Key, out var c) ? c + System.Linq.Enumerable.Count(h.Value) : System.Linq.Enumerable.Count(h.Value);
+                }
+                if (resp.Content?.Headers != null)
+                {
+                    foreach (var h in resp.Content.Headers)
+                    {
+                        if (string.IsNullOrWhiteSpace(h.Key)) continue;
+                        hh.HeaderCounts[h.Key] = hh.HeaderCounts.TryGetValue(h.Key, out var c) ? c + System.Linq.Enumerable.Count(h.Value) : System.Linq.Enumerable.Count(h.Value);
+                    }
+                }
             }
         }
         catch { }

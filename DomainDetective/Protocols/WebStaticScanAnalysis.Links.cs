@@ -72,7 +72,18 @@ public partial class WebStaticScanAnalysis
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                         req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                         FillResponseMeta(req, resp);
-                        try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
+                        try {
+                            req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase);
+                            if (req.WasRedirected)
+                            {
+                                var fromU = new Uri(u.AbsoluteUri); var toU = new Uri(req.FinalUrl ?? req.Url);
+                                req.RedirectKind = ClassifyRedirect(fromU, toU);
+                                req.RedirectHopCount = 1;
+                                req.RedirectToHost = toU.Host; req.RedirectToScheme = toU.Scheme;
+                                RecordRedirect(u.Host, req);
+                            }
+                        } catch { req.WasRedirected = false; }
+                        try { var freqHost = resp.RequestMessage?.RequestUri?.Host ?? u.Host; RecordHeaderFrequency(freqHost, resp); } catch { }
                     }
                     catch
                     {
@@ -90,7 +101,18 @@ public partial class WebStaticScanAnalysis
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                             req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                             FillResponseMeta(req, get);
-                            try { req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase); } catch { req.WasRedirected = false; }
+                            try {
+                                req.WasRedirected = !string.Equals(req.FinalUrl ?? req.Url, req.Url, System.StringComparison.OrdinalIgnoreCase);
+                                if (req.WasRedirected)
+                                {
+                                    var fromU = new Uri(u.AbsoluteUri); var toU = new Uri(req.FinalUrl ?? req.Url);
+                                    req.RedirectKind = ClassifyRedirect(fromU, toU);
+                                    req.RedirectHopCount = 1;
+                                    req.RedirectToHost = toU.Host; req.RedirectToScheme = toU.Scheme;
+                                    RecordRedirect(u.Host, req);
+                                }
+                            } catch { req.WasRedirected = false; }
+                            try { var freqHost = get.RequestMessage?.RequestUri?.Host ?? u.Host; RecordHeaderFrequency(freqHost, get); } catch { }
                         }
                         catch { }
                     }
@@ -106,15 +128,35 @@ public partial class WebStaticScanAnalysis
                     {
                         req.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
                         if (!string.IsNullOrWhiteSpace(referrer) && _requestIdByUrl.TryGetValue(referrer, out var pid)) req.ParentId = pid;
+                        try { if (MainFinalUri != null) { var fu = new Uri(req.FinalUrl ?? req.Url); req.SameOrigin = fu.Scheme == MainFinalUri.Scheme && fu.Host == MainFinalUri.Host && fu.Port == MainFinalUri.Port; } } catch { }
                         Requests.Add(req);
                         _requestIdByUrl.TryAdd(req.Url, req.Id);
                         if (!string.IsNullOrWhiteSpace(req.FinalUrl)) _requestIdByUrl.TryAdd(req.FinalUrl, req.Id);
+                        AddAdjacency(req.ParentId, req.Id);
                         if (!Hosts.TryGetValue(req.Host, out var h))
                         {
                             h = new StaticHost { Host = req.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(req.Host) };
                             Hosts[req.Host] = h;
                         }
+                        if (h.GroupId == 0) h.GroupId = System.Threading.Interlocked.Increment(ref _hostGroupSeed);
                         h.RequestCount++;
+                        req.HostGroupId = h.GroupId;
+                        try
+                        {
+                            if (Hosts.TryGetValue(req.Host, out var hTls) && hTls?.Tls != null)
+                            {
+                                req.TlsProtocol = hTls.Tls.Protocol.ToString();
+                                req.TlsCipherSuite = hTls.Tls.CipherSuite;
+                                try
+                                {
+                                    req.TlsCertSubject = hTls.Tls.CertificateSubject;
+                                    req.TlsCertIssuer = hTls.Tls.CertificateIssuer;
+                                    req.TlsCertNotAfter = hTls.Tls.NotAfter;
+                                    req.TlsCertThumbprint = hTls.Tls.Certificate?.Thumbprint;
+                                }
+                                catch { }
+                            }
+                        } catch { }
                     }
                     // If HTML and we can go deeper, fetch small body for anchors
                     if (depth < maxDepth)

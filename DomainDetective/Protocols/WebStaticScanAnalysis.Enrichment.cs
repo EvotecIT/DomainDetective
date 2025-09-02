@@ -18,7 +18,14 @@ public partial class WebStaticScanAnalysis
         using var tlsGate = new SemaphoreSlim(tlsCap);
         var tlsTasks = Hosts.Select(async kv => {
             await tlsGate.WaitAsync(cancellationToken);
-            try { kv.Value.Tls = await TlsProbe.ProbeAsync(kv.Key, 443, cancellationToken); } catch { }
+            try {
+                kv.Value.Tls = await TlsProbe.ProbeAsync(kv.Key, 443, cancellationToken);
+                if (kv.Value.Tls != null)
+                {
+                    kv.Value.TlsProtocolSummary = kv.Value.Tls.Protocol.ToString();
+                    kv.Value.TlsCipherSuiteSummary = kv.Value.Tls.CipherSuite;
+                }
+            } catch { }
             finally { try { tlsGate.Release(); } catch { } }
         }).ToArray();
         await Task.WhenAll(tlsTasks);

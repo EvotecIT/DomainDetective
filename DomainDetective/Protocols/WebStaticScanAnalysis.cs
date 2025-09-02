@@ -20,6 +20,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
 {
     private int _requestIdSeed = 0;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> _requestIdByUrl = new(System.StringComparer.OrdinalIgnoreCase);
+    private int _hostGroupSeed = 0;
     public string? Subject { get; set; }
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
     public int MaxResources { get; set; } = 300;
@@ -61,6 +62,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     
 
     public HttpAnalysis? MainHttpAnalysis { get; private set; }
+    public Uri? MainFinalUri { get; private set; }
     /// <summary>Registrable domain derived from the scanned URL host.</summary>
     public string? PrimaryRegistrableDomain { get; private set; }
     /// <summary>Extracted HTML page title when available.</summary>
@@ -75,6 +77,8 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     /// <summary>Total number of Set-Cookie headers observed across resource requests.</summary>
     public int CookiesSet { get => _cookiesSet; private set => _cookiesSet = value; }
     private int _cookiesSet;
+    /// <summary>Adjacency list of request graph: parent RequestId -> list of child RequestIds.</summary>
+    public System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<int>> RequestAdjacency { get; } = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<int>>();
     public List<Assessment> Assessments { get; } = new();
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
     /// <summary>Detailed records for each technology detection.</summary>
@@ -131,6 +135,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
             var mainVisited = MainHttpAnalysis?.VisitedUrls;
             var finalUrl = (mainVisited != null && mainVisited.Count > 0) ? mainVisited[mainVisited.Count - 1] : url;
             var finalUri = new Uri(finalUrl);
+            MainFinalUri = finalUri;
             var host = finalUri.Host;
             var reqMain = new StaticRequest
             {
@@ -155,11 +160,24 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 StartedAtUtc = System.DateTimeOffset.UtcNow - (MainHttpAnalysis?.ResponseTime ?? System.TimeSpan.Zero),
                 CompletedAtUtc = System.DateTimeOffset.UtcNow,
                 HeaderDurationMs = (int?)(MainHttpAnalysis?.ResponseTime.TotalMilliseconds),
-                ProtocolVersion = MainHttpAnalysis?.ProtocolVersion?.ToString(),
-                Http2 = MainHttpAnalysis?.Http2Supported == true,
-                Http3 = MainHttpAnalysis?.Http3Supported == true,
-                WasRedirected = !string.Equals(finalUrl, url, StringComparison.OrdinalIgnoreCase)
+                WasRedirected = !string.Equals(finalUrl, url, StringComparison.OrdinalIgnoreCase),
+                HstsPresent = MainHttpAnalysis?.HstsPresent == true
             };
+            // Redirect classification for main document
+            try
+            {
+                var fromU = new Uri(url); var toU = new Uri(finalUrl);
+                if (!string.Equals(toU.AbsoluteUri, fromU.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
+                {
+                    reqMain.RedirectKind = ClassifyRedirect(fromU, toU);
+                    reqMain.RedirectHopCount = Math.Max(1, (MainHttpAnalysis?.VisitedUrls?.Count ?? 1) - 1);
+                    reqMain.RedirectToHost = toU.Host;
+                    reqMain.RedirectToScheme = toU.Scheme;
+                    RecordRedirect(fromU.Host, reqMain);
+                }
+            }
+            catch { }
+
             lock (_sync)
             {
                 reqMain.Id = System.Threading.Interlocked.Increment(ref _requestIdSeed);
@@ -171,9 +189,11 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                     h = new StaticHost { Host = host, RegistrableDomain = GetRegistrableDomain?.Invoke(host) };
                     Hosts[host] = h;
                 }
+                if (h.GroupId == 0) h.GroupId = System.Threading.Interlocked.Increment(ref _hostGroupSeed);
                 h.RequestCount++;
                 // classify first/third party later globally; set FirstParty true for main
                 h.FirstParty = true;
+                reqMain.HostGroupId = h.GroupId;
                 if (reqMain.ContentLength.HasValue)
                 {
                     h.Bytes += reqMain.ContentLength.Value;
@@ -238,6 +258,8 @@ public partial class WebStaticScanAnalysis : IHasAssessments
             // CORS and Server-Timing posture (first-party only)
             try { RecordCorsHeaders(baseUri.Host, headResp); } catch { }
             try { RecordServerTiming(baseUri.Host, headResp); } catch { }
+            try { RecordCacheHeaders(baseUri.Host, headResp); } catch { }
+            try { RecordHeaderFrequency(baseUri.Host, headResp); } catch { }
         } catch { }
 
         DetectTechFromHeadersAndBody(MainHttpAnalysis, body);
@@ -265,6 +287,82 @@ public partial class WebStaticScanAnalysis : IHasAssessments
             try { await CheckLinksAsync(baseUri, body, http, logger, cancellationToken); } catch { }
             logger?.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
             await EnrichHostsAsync(logger, cancellationToken);
+            // Stamp TLS info onto existing requests where available
+            try
+            {
+                foreach (var r in Requests)
+                {
+                    if (string.IsNullOrWhiteSpace(r?.Host)) continue;
+                    if (string.IsNullOrWhiteSpace(r.TlsProtocol) && Hosts.TryGetValue(r.Host, out var h) && h?.Tls != null)
+                    {
+                        r.TlsProtocol = h.Tls.Protocol.ToString();
+                        r.TlsCipherSuite = h.Tls.CipherSuite;
+                        try
+                        {
+                            r.TlsCertSubject = h.Tls.CertificateSubject;
+                            r.TlsCertIssuer = h.Tls.CertificateIssuer;
+                            r.TlsCertNotAfter = h.Tls.NotAfter;
+                            r.TlsCertThumbprint = h.Tls.Certificate?.Thumbprint;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+
+            // Compute adjacency-based node stats and top redirect pairs
+            try
+            {
+                var byId = new System.Collections.Generic.Dictionary<int, StaticRequest>();
+                foreach (var r in Requests) { if (r != null) byId[r.Id] = r; }
+                foreach (var r in Requests)
+                {
+                    if (r == null) continue;
+                    if (RequestAdjacency.TryGetValue(r.Id, out var list))
+                    {
+                        r.ChildCount = list.Count;
+                        int linkChildren = 0;
+                        foreach (var cid in list) { if (byId.TryGetValue(cid, out var cr) && cr.SourceKind == ResourceSourceKind.Link) linkChildren++; }
+                        r.LinkChildCount = linkChildren;
+                    }
+                    // Max link depth from here
+                    var visited = new System.Collections.Generic.HashSet<int>();
+                    int baseDepth = (r.SourceKind == ResourceSourceKind.Link) ? r.Depth : 0;
+                    int maxAbsDepth = baseDepth;
+                    System.Action<int> dfs = null;
+                    dfs = (int id) =>
+                    {
+                        if (!visited.Add(id)) return;
+                        if (RequestAdjacency.TryGetValue(id, out var kids))
+                        {
+                            foreach (var cid in kids)
+                            {
+                                if (!byId.TryGetValue(cid, out var cr)) continue;
+                                if (cr.SourceKind == ResourceSourceKind.Link)
+                                {
+                                    if (cr.Depth > maxAbsDepth) maxAbsDepth = cr.Depth;
+                                }
+                                dfs(cid);
+                            }
+                        }
+                    };
+                    dfs(r.Id);
+                    r.MaxLinkDepthFromHere = System.Math.Max(0, maxAbsDepth - baseDepth);
+                }
+                // Top redirect pairs
+                TopRedirectPairs.Clear();
+                foreach (var stat in System.Linq.Enumerable.Take(System.Linq.Enumerable.OrderByDescending(RedirectPairs.Values, p => p.Count), 20))
+                {
+                    TopRedirectPairs.Add(stat);
+                }
+                TopLinkFanOut.Clear();
+                foreach (var node in System.Linq.Enumerable.Take(System.Linq.Enumerable.OrderByDescending(Requests, r => r.LinkChildCount), 20))
+                {
+                    try { TopLinkFanOut.Add(new LinkFanOutNode { RequestId = node.Id, Url = node.FinalUrl ?? node.Url, LinkChildCount = node.LinkChildCount, FirstParty = node.FirstParty, Host = node.Host }); } catch { }
+                }
+
+            }
+            catch { }
         }
 
         // 6) First/third-party classification + trackers
@@ -307,9 +405,36 @@ public partial class WebStaticScanAnalysis : IHasAssessments
             }
         }
         catch { }
-        logger?.WriteProgress("WEBSTATIC", "Apply detections", 90.0, 5, 6);
-        // 7) Apply path/domain/body rules (typed + optional JSON)
-        TechSignatureCatalog.ApplyPathsDomainsBody(Requests, Hosts, MainHttpAnalysis?.Body, GetRegistrableDomain, TechDetections, TechDetails);
+            // Compute host-derived stats (top headers, percents)
+            try
+            {
+                foreach (var kv in Hosts)
+                {
+                    var h = kv.Value;
+                    // Top headers by occurrence count
+                    h.HeaderDistinctCount = h.HeaderCounts?.Count ?? 0;
+                    h.TopHeaders.Clear();
+                    if (h.HeaderCounts != null && h.HeaderCounts.Count > 0)
+                    {
+                        foreach (var pair in System.Linq.Enumerable.Take(System.Linq.Enumerable.OrderByDescending(h.HeaderCounts, p => p.Value), 12))
+                        {
+                            h.TopHeaders.Add(new HeaderStat { Name = pair.Key, Count = pair.Value });
+                        }
+                    }
+                    // Derived percents
+                    var totalCache = h.CacheableResponses + h.NonCacheableResponses;
+                    if (totalCache > 0) h.CacheablePercent = (int)System.Math.Round(100.0 * h.CacheableResponses / (double)totalCache);
+                    var totalCL = h.ResponsesWithContentLength + h.ResponsesWithoutContentLength;
+                    if (totalCL > 0) h.ContentLengthPresentPercent = (int)System.Math.Round(100.0 * h.ResponsesWithContentLength / (double)totalCL);
+                    if (h.AgeHeaderSamples > 0) h.AgeHeaderSecondsAvg = h.AgeHeaderSecondsSum / (double)h.AgeHeaderSamples;
+                    if (h.LinkRedirectSamples > 0) h.LinkRedirectHopAvg = h.LinkRedirectHopSum / (double)h.LinkRedirectSamples;
+                }
+            }
+            catch { }
+
+            logger?.WriteProgress("WEBSTATIC", "Apply detections", 90.0, 5, 6);
+            // 7) Apply path/domain/body rules (typed + optional JSON)
+            TechSignatureCatalog.ApplyPathsDomainsBody(Requests, Hosts, MainHttpAnalysis?.Body, GetRegistrableDomain, TechDetections, TechDetails);
         // Optional JSON extension rules for paths/domains/body
         ApplyPathAndDomainRules();
         // 8) Lightweight DNS TXT detections for verification records
