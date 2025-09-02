@@ -123,6 +123,58 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         await MainHttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: logger, collectHeaders: true, captureBody: true, cancellationToken);
         string? body = MainHttpAnalysis.Body;
         try { logger?.WriteVerbose("[WEB] Main document: {0} ({1} bytes)", MainHttpAnalysis.StatusCode, MainHttpAnalysis.BodyLength ?? (body?.Length ?? 0)); } catch { }
+        // Add main document as the first request entry for waterfall/ordering
+        try
+        {
+            var mainVisited = MainHttpAnalysis?.VisitedUrls;
+            var finalUrl = (mainVisited != null && mainVisited.Count > 0) ? mainVisited[mainVisited.Count - 1] : url;
+            var finalUri = new Uri(finalUrl);
+            var host = finalUri.Host;
+            var reqMain = new StaticRequest
+            {
+                Url = url,
+                FinalUrl = finalUrl,
+                Host = host,
+                Method = "GET",
+                StatusCode = MainHttpAnalysis?.StatusCode ?? 0,
+                StatusClass = ToStatusClass(MainHttpAnalysis?.StatusCode ?? 0),
+                ProtocolVersion = MainHttpAnalysis?.ProtocolVersion?.ToString(),
+                Http2 = MainHttpAnalysis?.Http2Supported == true,
+                Http3 = MainHttpAnalysis?.Http3Supported == true,
+                ContentType = null,
+                ContentSupertype = MediaSupertype.Unknown,
+                ContentLength = (MainHttpAnalysis?.BodyLength.HasValue == true ? (long?)MainHttpAnalysis.BodyLength.Value : null),
+                CategoryKind = ResourceCategory.Document,
+                Source = "MAIN",
+                SourceKind = ResourceSourceKind.Html,
+                Referrer = null,
+                Depth = 0,
+                FirstParty = true,
+                StartedAtUtc = System.DateTimeOffset.UtcNow - (MainHttpAnalysis?.ResponseTime ?? System.TimeSpan.Zero),
+                CompletedAtUtc = System.DateTimeOffset.UtcNow,
+                HeaderDurationMs = (int?)(MainHttpAnalysis?.ResponseTime.TotalMilliseconds)
+            };
+            lock (_sync)
+            {
+                Requests.Insert(0, reqMain);
+                if (!Hosts.TryGetValue(host, out var h))
+                {
+                    h = new StaticHost { Host = host, RegistrableDomain = GetRegistrableDomain?.Invoke(host) };
+                    Hosts[host] = h;
+                }
+                h.RequestCount++;
+                // classify first/third party later globally; set FirstParty true for main
+                h.FirstParty = true;
+                if (reqMain.ContentLength.HasValue)
+                {
+                    h.Bytes += reqMain.ContentLength.Value;
+                    var catKey = CategoryKey(reqMain.CategoryKind);
+                    h.BytesByType[catKey] = h.BytesByType.TryGetValue(catKey, out var bv) ? bv + reqMain.ContentLength.Value : reqMain.ContentLength.Value;
+                    BytesByType[catKey] = BytesByType.TryGetValue(catKey, out var v) ? v + reqMain.ContentLength.Value : reqMain.ContentLength.Value;
+                }
+            }
+        }
+        catch { }
         // Title extraction
         try {
             if (!string.IsNullOrWhiteSpace(body))
@@ -230,7 +282,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 {
                     var host = r.Host ?? (new Uri(r.FinalUrl ?? r.Url)).Host;
                     bool fp = false; try { fp = Hosts.TryGetValue(host, out var hh) ? hh.FirstParty : string.Equals(GetRegistrableDomain?.Invoke(host) ?? host, PrimaryRegistrableDomain ?? host, StringComparison.OrdinalIgnoreCase); } catch { }
-                    string? cat = null; try { cat = Categorize(r.FinalUrl ?? r.Url, r.ContentType); } catch { }
+                    string cat = CategoryKey(r.CategoryKind);
                     BrokenResources.Add(new BrokenResource
                     {
                         Url = r.Url,

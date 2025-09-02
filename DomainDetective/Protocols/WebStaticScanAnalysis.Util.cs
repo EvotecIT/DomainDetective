@@ -31,6 +31,100 @@ public partial class WebStaticScanAnalysis
         return "other";
     }
 
+    private static void FillResponseMeta(StaticRequest req, System.Net.Http.HttpResponseMessage resp)
+    {
+        try
+        {
+            var ver = resp?.Version;
+            if (ver != null) { req.ProtocolVersion = ver.ToString(); }
+#if NET6_0_OR_GREATER
+            if (ver != null)
+            {
+                req.Http3 = ver >= System.Net.Http.HttpVersion.Version30;
+                req.Http2 = ver >= System.Net.Http.HttpVersion.Version20;
+            }
+#else
+            if (ver != null)
+            {
+                req.Http2 = ver.Major >= 2;
+                req.Http3 = false;
+            }
+#endif
+            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name)
+            {
+                return h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
+            }
+            req.CacheControl = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control");
+            req.ETag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
+            req.LastModified = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
+            var ageStr = JoinVals(resp.Headers, "Age") ?? JoinVals(resp.Content?.Headers, "Age");
+            if (int.TryParse((ageStr ?? string.Empty).Trim(), out var ageVal)) req.Age = ageVal; else req.Age = null;
+            req.Vary = JoinVals(resp.Headers, "Vary") ?? JoinVals(resp.Content?.Headers, "Vary");
+            req.Expires = resp.Content?.Headers?.Expires?.ToString() ?? JoinVals(resp.Headers, "Expires") ?? JoinVals(resp.Content?.Headers, "Expires");
+        }
+        catch { }
+    }
+    private static ResourceCategory ToCategoryKind(string? category)
+    {
+        switch ((category ?? string.Empty).ToLowerInvariant())
+        {
+            case "document": return ResourceCategory.Document;
+            case "stylesheet": return ResourceCategory.Stylesheet;
+            case "script": return ResourceCategory.Script;
+            case "image": return ResourceCategory.Image;
+            case "font": return ResourceCategory.Font;
+            case "json": return ResourceCategory.Json;
+            default: return ResourceCategory.Other;
+        }
+    }
+
+    private static MediaSupertype ToMediaSupertype(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType)) return MediaSupertype.Unknown;
+        var ct = contentType.Trim();
+        var slash = ct.IndexOf('/');
+        var major = slash > 0 ? ct.Substring(0, slash) : ct;
+        return major.ToLowerInvariant() switch
+        {
+            "text" => MediaSupertype.Text,
+            "image" => MediaSupertype.Image,
+            "audio" => MediaSupertype.Audio,
+            "video" => MediaSupertype.Video,
+            "application" => MediaSupertype.Application,
+            "multipart" => MediaSupertype.Multipart,
+            _ => MediaSupertype.Unknown
+        };
+    }
+
+    private static StatusClass ToStatusClass(int statusCode)
+    {
+        if (statusCode <= 0) return StatusClass.None;
+        var cls = statusCode / 100;
+        return cls switch
+        {
+            1 => StatusClass.Informational,
+            2 => StatusClass.Success,
+            3 => StatusClass.Redirection,
+            4 => StatusClass.ClientError,
+            5 => StatusClass.ServerError,
+            _ => StatusClass.None
+        };
+    }
+
+    private static string CategoryKey(ResourceCategory kind)
+    {
+        return kind switch
+        {
+            ResourceCategory.Document => "document",
+            ResourceCategory.Stylesheet => "stylesheet",
+            ResourceCategory.Script => "script",
+            ResourceCategory.Image => "image",
+            ResourceCategory.Font => "font",
+            ResourceCategory.Json => "json",
+            _ => "other"
+        };
+    }
+
     private void EnsureTechDetailsForAllDetections(string? body, HttpAnalysis? main)
     {
         try

@@ -65,10 +65,13 @@ public partial class WebStaticScanAnalysis
                         using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, ct);
                         _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                         req.StatusCode = (int)resp.StatusCode;
+                        req.StatusClass = ToStatusClass(req.StatusCode);
                         req.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
+                        req.ContentSupertype = ToMediaSupertype(req.ContentType);
                         req.ContentLength = resp.Content?.Headers?.ContentLength;
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                         req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
+                        FillResponseMeta(req, resp);
                     }
                     catch
                     {
@@ -79,15 +82,24 @@ public partial class WebStaticScanAnalysis
                             using var get = await http.GetAsync(u, HttpCompletionOption.ResponseHeadersRead, ct);
                             _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                             req.StatusCode = (int)get.StatusCode;
+                            req.StatusClass = ToStatusClass(req.StatusCode);
                             req.ContentType = get.Content?.Headers?.ContentType?.MediaType ?? get.Content?.Headers?.ContentType?.ToString();
+                            req.ContentSupertype = ToMediaSupertype(req.ContentType);
                             req.ContentLength = get.Content?.Headers?.ContentLength;
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? u.AbsoluteUri;
                             req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
+                            FillResponseMeta(req, get);
                         }
                         catch { }
                     }
                     try { req.Host = new Uri(req.FinalUrl ?? req.Url).Host; } catch { req.Host = u.Host; }
-                    try { req.Category = Categorize(req.FinalUrl ?? req.Url, req.ContentType); } catch { }
+                    try { req.CategoryKind = ToCategoryKind(Categorize(req.FinalUrl ?? req.Url, req.ContentType)); } catch { }
+                    try
+                    {
+                        var baseDom = PrimaryRegistrableDomain ?? baseUri.Host;
+                        var hostDom = GetRegistrableDomain?.Invoke(req.Host) ?? req.Host;
+                        req.FirstParty = string.Equals(baseDom, hostDom, System.StringComparison.OrdinalIgnoreCase);
+                    } catch { req.FirstParty = false; }
                     lock (_sync)
                     {
                         Requests.Add(req);

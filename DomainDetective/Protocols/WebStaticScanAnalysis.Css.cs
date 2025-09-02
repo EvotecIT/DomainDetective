@@ -153,10 +153,13 @@ public partial class WebStaticScanAnalysis
                                     using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                                     _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                                     headReq.StatusCode = (int)resp.StatusCode;
+                                    headReq.StatusClass = ToStatusClass(headReq.StatusCode);
                                     headReq.StartedAtUtc = _start; headReq.CompletedAtUtc = _end; headReq.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                                     headReq.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
+                                    headReq.ContentSupertype = ToMediaSupertype(headReq.ContentType);
                                     headReq.ContentLength = resp.Content?.Headers?.ContentLength;
                                     headReq.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? abs.AbsoluteUri;
+                                    FillResponseMeta(headReq, resp);
                                 }
                                 catch { headReq.Method = "GET"; }
                                 try { headReq.Host = new Uri(headReq.FinalUrl ?? headReq.Url).Host; } catch { headReq.Host = abs.Host; }
@@ -169,17 +172,20 @@ public partial class WebStaticScanAnalysis
                                         Hosts[headReq.Host] = host2;
                                     }
                                     host2.RequestCount++;
-                                    headReq.Category = Categorize(headReq.FinalUrl ?? headReq.Url, headReq.ContentType);
+                                    headReq.CategoryKind = ToCategoryKind(Categorize(headReq.FinalUrl ?? headReq.Url, headReq.ContentType));
                                     if (headReq.ContentLength.HasValue)
                                     {
                                         host2.Bytes += headReq.ContentLength.Value;
-                                        var cat2 = headReq.Category;
-                                        if (!string.IsNullOrEmpty(cat2))
-                                        {
-                                            host2.BytesByType[cat2] = host2.BytesByType.TryGetValue(cat2, out var hb) ? hb + headReq.ContentLength.Value : headReq.ContentLength.Value;
-                                            BytesByType[cat2] = BytesByType.TryGetValue(cat2, out var vb) ? vb + headReq.ContentLength.Value : headReq.ContentLength.Value;
-                                        }
+                                        var catKey2 = CategoryKey(headReq.CategoryKind);
+                                        host2.BytesByType[catKey2] = host2.BytesByType.TryGetValue(catKey2, out var hb) ? hb + headReq.ContentLength.Value : headReq.ContentLength.Value;
+                                        BytesByType[catKey2] = BytesByType.TryGetValue(catKey2, out var vb) ? vb + headReq.ContentLength.Value : headReq.ContentLength.Value;
                                     }
+                                    try
+                                    {
+                                        var baseDom = PrimaryRegistrableDomain ?? new Uri(css).Host;
+                                        var hostDom = GetRegistrableDomain?.Invoke(headReq.Host) ?? headReq.Host;
+                                        headReq.FirstParty = string.Equals(baseDom, hostDom, System.StringComparison.OrdinalIgnoreCase);
+                                    } catch { headReq.FirstParty = false; }
                                 }
                             }
                         }

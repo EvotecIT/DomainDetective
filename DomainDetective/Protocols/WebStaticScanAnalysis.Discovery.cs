@@ -114,10 +114,13 @@ public partial class WebStaticScanAnalysis
                         using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                         _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                         req.StatusCode = (int)resp.StatusCode;
+                        req.StatusClass = ToStatusClass(req.StatusCode);
                         req.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
+                        req.ContentSupertype = ToMediaSupertype(req.ContentType);
                         req.ContentLength = resp.Content?.Headers?.ContentLength;
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                         req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
+                        FillResponseMeta(req, resp);
                         if (resp.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, resp); } catch { } }
                         try {
                             lock (_sync) {
@@ -141,10 +144,13 @@ public partial class WebStaticScanAnalysis
                             using var get = await http.GetAsync(res, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                             _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                             req.StatusCode = (int)get.StatusCode;
+                            req.StatusClass = ToStatusClass(req.StatusCode);
                             req.ContentType = get.Content?.Headers?.ContentType?.MediaType ?? get.Content?.Headers?.ContentType?.ToString();
+                            req.ContentSupertype = ToMediaSupertype(req.ContentType);
                             req.ContentLength = get.Content?.Headers?.ContentLength;
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                             req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
+                            FillResponseMeta(req, get);
                             if (get.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, get); } catch { } }
                             try {
                                 lock (_sync) {
@@ -182,17 +188,20 @@ public partial class WebStaticScanAnalysis
                             Hosts[req.Host] = h;
                         }
                         h.RequestCount++;
-                        req.Category = Categorize(req.FinalUrl ?? req.Url, req.ContentType);
+                        req.CategoryKind = ToCategoryKind(Categorize(req.FinalUrl ?? req.Url, req.ContentType));
                         if (req.ContentLength.HasValue)
                         {
                             h.Bytes += req.ContentLength.Value;
-                            var cat = req.Category;
-                            if (!string.IsNullOrEmpty(cat))
-                            {
-                                h.BytesByType[cat] = h.BytesByType.TryGetValue(cat, out var bv) ? bv + req.ContentLength.Value : req.ContentLength.Value;
-                                BytesByType[cat] = BytesByType.TryGetValue(cat, out var v) ? v + req.ContentLength.Value : req.ContentLength.Value;
-                            }
+                            var catKey = CategoryKey(req.CategoryKind);
+                            h.BytesByType[catKey] = h.BytesByType.TryGetValue(catKey, out var bv) ? bv + req.ContentLength.Value : req.ContentLength.Value;
+                            BytesByType[catKey] = BytesByType.TryGetValue(catKey, out var v) ? v + req.ContentLength.Value : req.ContentLength.Value;
                         }
+                        try
+                        {
+                            var baseDom = PrimaryRegistrableDomain ?? targetUri.Host;
+                            var hostDom = GetRegistrableDomain?.Invoke(req.Host) ?? req.Host;
+                            req.FirstParty = string.Equals(baseDom, hostDom, System.StringComparison.OrdinalIgnoreCase);
+                        } catch { req.FirstParty = false; }
                     }
                 }
                 finally
