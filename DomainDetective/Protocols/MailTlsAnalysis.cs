@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -128,7 +129,12 @@ public class MailTlsAnalysis : IHasAssessments {
                         result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
                         try {
                             result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
-                            result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                            // Prefer modern APIs over obsolete PublicKey.Key
+                            int? size = null;
+                            try { using var rsa = cert.GetRSAPublicKey(); if (rsa != null) size = rsa.KeySize; } catch { }
+                            if (!size.HasValue) { try { using var ecdsa = cert.GetECDsaPublicKey(); if (ecdsa != null) size = ecdsa.KeySize; } catch { } }
+                            if (!size.HasValue) { try { using var dsa = cert.GetDSAPublicKey(); if (dsa != null) size = dsa.KeySize; } catch { } }
+                            result.PublicKeySize = size;
                         } catch { }
                         try {
                             foreach (var ext in cert.Extensions) {
@@ -341,7 +347,12 @@ public class MailTlsAnalysis : IHasAssessments {
                     result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
                     try {
                         result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
-                        result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                        // Prefer modern APIs over obsolete PublicKey.Key
+                        int? size2 = null;
+                        try { using var rsa2 = cert.GetRSAPublicKey(); if (rsa2 != null) size2 = rsa2.KeySize; } catch { }
+                        if (!size2.HasValue) { try { using var ecdsa2 = cert.GetECDsaPublicKey(); if (ecdsa2 != null) size2 = ecdsa2.KeySize; } catch { } }
+                        if (!size2.HasValue) { try { using var dsa2 = cert.GetDSAPublicKey(); if (dsa2 != null) size2 = dsa2.KeySize; } catch { } }
+                        result.PublicKeySize = size2;
                     } catch { }
                     try {
                         foreach (var ext in cert.Extensions) {
@@ -457,8 +468,11 @@ public class MailTlsAnalysis : IHasAssessments {
         result.SupportsTls13 = result.SupportsTls13 || await TryHandshake(SslProtocols.Tls13);
 #endif
         result.SupportsTls12 = await TryHandshake(SslProtocols.Tls12);
+        // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
+#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
         result.SupportsTls11 = await TryHandshake(SslProtocols.Tls11);
         result.SupportsTls10 = await TryHandshake(SslProtocols.Tls);
+#pragma warning restore SYSLIB0039
     }
 
     private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger logger, CancellationToken token) {
@@ -503,7 +517,10 @@ public class MailTlsAnalysis : IHasAssessments {
 
     private static void ComputeGrade(TlsResult r) {
         // Legacy detection
+        // Legacy protocols are checked to assess security posture; suppress deprecation warnings in this check only.
+#pragma warning disable SYSLIB0039, CS0618
         r.LegacyEnabled = r.Protocol == SslProtocols.Tls || r.Protocol == SslProtocols.Ssl3 || r.Protocol == SslProtocols.Tls11;
+#pragma warning restore SYSLIB0039, CS0618
         // Coarse grading
         if (r.IsExpired || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch) {
             r.GradeLevel = GradeLevel.F;
@@ -514,10 +531,13 @@ public class MailTlsAnalysis : IHasAssessments {
             r.GradeLevel = GradeLevel.B;
             return;
         }
+        // Suppress deprecation warnings for legacy protocol grading branch
+#pragma warning disable SYSLIB0039
         if (r.Protocol == SslProtocols.Tls11 || r.Protocol == SslProtocols.Tls) {
             r.GradeLevel = GradeLevel.D;
             return;
         }
+#pragma warning restore SYSLIB0039
         r.GradeLevel = GradeLevel.C;
     }
 }

@@ -37,6 +37,18 @@ public sealed class RdapIpNetwork
     /// <summary>ARIN/extension style list of CIDR entries.</summary>
     [JsonPropertyName("cidr0_cidrs")]
     public RdapCidr0[]? Cidr0Cidrs { get; set; }
+
+    /// <summary>Country code when provided by RDAP service.</summary>
+    [JsonPropertyName("country")]
+    public string? Country { get; set; }
+
+    /// <summary>Display name when provided.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>Entities associated with this IP network (may include ASN orgs).</summary>
+    [JsonPropertyName("entities")]
+    public RdapEntity[]? Entities { get; set; }
 }
 
 /// <summary>

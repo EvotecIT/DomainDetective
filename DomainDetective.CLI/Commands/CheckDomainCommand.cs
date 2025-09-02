@@ -35,6 +35,22 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             return 0;
         }
 
+        // Single-URL static web scan mode
+        if (!string.IsNullOrWhiteSpace(settings.WebScanStatic)) {
+            var url = settings.WebScanStatic.Trim();
+            var hc = new DomainHealthCheck {
+                Progress = false,
+                Verbose = false
+            };
+            hc.WebStaticScanAnalysis.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.WebScanMaxSeconds));
+            hc.WebStaticScanAnalysis.MaxResources = Math.Max(1, settings.WebScanMaxResources);
+            if (!string.IsNullOrWhiteSpace(settings.TechRules)) hc.WebStaticScanAnalysis.TechRulesPath = settings.TechRules;
+            await hc.VerifyWebStaticScan(url, Program.CancellationToken);
+            var view = DomainDetective.Views.Converters.Convert(hc.WebStaticScanAnalysis);
+            CliHelpers.ShowPropertiesTable($"WEB STATIC for {url}", view, settings.Unicode);
+            return 0;
+        }
+
         if (settings.Domains.Length == 0) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.InputEncoding = System.Text.Encoding.UTF8;

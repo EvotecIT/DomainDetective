@@ -724,9 +724,11 @@ namespace DomainDetective {
             SupportsTls13 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls13);
 #endif
             SupportsTls12 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls12);
-            // Legacy probes (best-effort)
+            // Legacy probes (best-effort). We intentionally test legacy protocols to report insecure offerings.
+#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
             SupportsTls11 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls11);
             SupportsTls10 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls);
+#pragma warning restore SYSLIB0039
             if (SupportsTls10 || SupportsTls11)
             {
                 logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
@@ -737,8 +739,10 @@ namespace DomainDetective {
         }
 
         private void ComputeGrade(InternalLogger logger) {
-            // Legacy detection when TLS details are known
+            // Legacy detection when TLS details are known (suppress deprecation warnings in this check only)
+#pragma warning disable SYSLIB0039, CS0618
             LegacyEnabled = TlsProtocol == SslProtocols.Tls || TlsProtocol == SslProtocols.Ssl3 || TlsProtocol == SslProtocols.Tls11;
+#pragma warning restore SYSLIB0039, CS0618
             if (LegacyEnabled) {
                 logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0} - {1}", Url ?? Subject, TlsProtocol);
             }
@@ -755,7 +759,10 @@ namespace DomainDetective {
             if (IsExpired || !IsValid || !HostnameMatch) { GradeLevel = GradeLevel.F; return; }
             if (Tls13Used) { GradeLevel = GradeLevel.A; return; }
             if (TlsProtocol == SslProtocols.Tls12 && !LegacyEnabled) { GradeLevel = GradeLevel.B; return; }
+            // Suppress deprecation warnings for legacy grading branch
+#pragma warning disable SYSLIB0039
             if (TlsProtocol == SslProtocols.Tls11 || TlsProtocol == SslProtocols.Tls) { GradeLevel = GradeLevel.D; return; }
+#pragma warning restore SYSLIB0039
             // When TLS details are unknown, fall back to pass (valid cert) grade
             GradeLevel = !string.IsNullOrEmpty(Certificate?.Subject) ? GradeLevel.C : GradeLevel.F;
         }

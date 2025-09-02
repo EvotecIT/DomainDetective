@@ -70,4 +70,21 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Skip certificate revocation checks.</summary>
     [CommandOption("--skip-revocation")]
     public bool SkipRevocation { get; set; }
+
+    // Static web scan options
+    /// <summary>Run a static (no-browser) web scan for a specific URL.</summary>
+    [CommandOption("--webscan-static")]
+    public string? WebScanStatic { get; set; }
+
+    /// <summary>Time budget for web scan in seconds (default 30).</summary>
+    [CommandOption("--webscan-max-seconds")]
+    public int WebScanMaxSeconds { get; set; } = 30;
+
+    /// <summary>Maximum number of resources to fetch (default 300).</summary>
+    [CommandOption("--webscan-max-resources")]
+    public int WebScanMaxResources { get; set; } = 300;
+
+    /// <summary>Optional path to tech-detection rules JSON file.</summary>
+    [CommandOption("--techrules")]
+    public string? TechRules { get; set; }
 }
