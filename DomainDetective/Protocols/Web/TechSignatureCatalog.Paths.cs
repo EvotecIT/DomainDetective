@@ -54,7 +54,13 @@ internal static partial class TechSignatureCatalog
             if (string.IsNullOrEmpty(path)) continue;
             foreach (var (regex, tech) in PathRules)
             {
-                try { if (regex.IsMatch(path)) { outTech.Add(tech); details?.Add(new TechDetectionDetail { Name = tech, Source = "Path", Evidence = path, Confidence = 100 }); } } catch { }
+                try {
+                    if (regex.IsMatch(path)) {
+                        outTech.Add(tech);
+                        var kind = InferKindFromPathAndContent(path, req.ContentType);
+                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = kind, Evidence = path, Confidence = 100 });
+                    }
+                } catch { }
             }
         }
         foreach (var kv in hosts)
@@ -66,9 +72,18 @@ internal static partial class TechSignatureCatalog
                 if (dom.EndsWith(suffix, System.StringComparison.OrdinalIgnoreCase))
                 {
                     outTech.Add(tech);
-                    details?.Add(new TechDetectionDetail { Name = tech, Source = "DomainSuffix", Evidence = suffix, Confidence = 100 });
+                    details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.DomainSuffix, Evidence = suffix, Confidence = 100 });
                 }
             }
         }
+    }
+
+    private static TechEvidenceKind InferKindFromPathAndContent(string path, string? contentType)
+    {
+        var p = (path ?? string.Empty).ToLowerInvariant();
+        var ct = (contentType ?? string.Empty).ToLowerInvariant();
+        if (p.EndsWith(".js") || ct.Contains("javascript") || ct.Contains("ecmascript")) return TechEvidenceKind.ScriptSrc;
+        if (p.EndsWith(".css") || ct.Contains("text/css")) return TechEvidenceKind.StylesheetSrc;
+        return TechEvidenceKind.Path;
     }
 }

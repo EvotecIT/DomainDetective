@@ -137,6 +137,7 @@ public class WebStaticScanAnalysis : IHasAssessments
             {
                 foreach (var v in xg) if (!string.IsNullOrWhiteSpace(v)) TechDetections.Add(v.Split(' ')[0]);
             }
+            // Server header will be processed by signature catalog (Header rules)
             // Cookies → framework hints
             if (headResp.Headers.TryGetValues("Set-Cookie", out var cookies))
             {
@@ -505,6 +506,8 @@ public class WebStaticScanAnalysis : IHasAssessments
         TechSignatureCatalog.ApplyPathsDomainsBody(Requests, Hosts, MainHttpAnalysis?.Body, GetRegistrableDomain, TechDetections, TechDetails);
         // Optional JSON extension rules for paths/domains/body
         ApplyPathAndDomainRules();
+        // 8) Lightweight DNS TXT detections for verification records
+        await ApplyDnsTechDetections(baseUri.Host, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -690,6 +693,34 @@ public class WebStaticScanAnalysis : IHasAssessments
                 {
                     if (string.IsNullOrEmpty(rule?.Regex) || string.IsNullOrEmpty(rule.Tech)) continue;
                     try { if (System.Text.RegularExpressions.Regex.IsMatch(html, rule.Regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase)) TechDetections.Add(rule.Tech); } catch { }
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Performs minimal DNS TXT detection for well-known verification records to add technology evidence.
+    /// </summary>
+    private async Task ApplyDnsTechDetections(string host, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var namesToCheck = new System.Collections.Generic.List<string>();
+            namesToCheck.Add(host);
+            try { if (!string.IsNullOrWhiteSpace(PrimaryRegistrableDomain) && !string.Equals(PrimaryRegistrableDomain, host, System.StringComparison.OrdinalIgnoreCase)) namesToCheck.Add(PrimaryRegistrableDomain); } catch { }
+            foreach (var name in namesToCheck)
+            {
+                var txtRecords = await DnsConfiguration.QueryDNS(name, DnsRecordType.TXT, cancellationToken: cancellationToken).ConfigureAwait(false);
+                foreach (var rec in txtRecords)
+                {
+                    var txt = rec.Data ?? rec.DataRaw ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(txt)) continue;
+                    if (txt.IndexOf("status-page-domain-verification=", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        TechDetections.Add("Atlassian Statuspage");
+                        TechDetails.Add(new TechDetectionDetail { Name = "Atlassian Statuspage", SourceKind = TechEvidenceKind.Dns, Evidence = txt.Length > 200 ? txt.Substring(0,200) + "..." : txt, Confidence = 100 });
+                    }
                 }
             }
         }

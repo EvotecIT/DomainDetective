@@ -30,7 +30,7 @@ internal static partial class TechSignatureCatalog
                 if (regex.IsMatch(body))
                 {
                     outTech.Add(tech);
-                    details?.Add(new TechDetectionDetail { Name = tech, Source = "Body", Evidence = regex.ToString(), Confidence = 100 });
+                    details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Body, Evidence = regex.ToString(), Confidence = 100 });
                 }
             } catch { }
         }

@@ -16,6 +16,10 @@ internal static partial class TechSignatureCatalog
         ("X-Powered-By","Express","Express"),
         ("X-Powered-By","Laravel","Laravel"),
         ("X-Powered-By","Django","Django"),
+        // Common web server identifiers in Server header
+        ("Server","Apache","Apache HTTP Server"),
+        ("Server","nginx","nginx"),
+        ("Server","Microsoft-IIS","IIS"),
         ("X-Generator","","X-Generator") // handled specially to record value
     };
 
@@ -48,7 +52,7 @@ internal static partial class TechSignatureCatalog
                     {
                         var name = (v ?? string.Empty).Trim(); if (name.Length == 0) continue;
                         outTech.Add(name.Split(' ')[0]);
-                        details?.Add(new TechDetectionDetail { Name = name.Split(' ')[0], Source = "Header", Evidence = $"{header}: {v}", Confidence = 100 });
+                        details?.Add(new TechDetectionDetail { Name = name.Split(' ')[0], SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 100 });
                     }
                 }
                 continue;
@@ -59,12 +63,12 @@ internal static partial class TechSignatureCatalog
                 {
                     if (string.IsNullOrEmpty(contains))
                     {
-                        if (!string.IsNullOrEmpty(v)) { outTech.Add(tech); details?.Add(new TechDetectionDetail { Name = tech, Source = "Header", Evidence = $"{header}: {v}", Confidence = 90 }); }
+                        if (!string.IsNullOrEmpty(v)) { outTech.Add(tech); details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 90 }); }
                     }
                     else if (!string.IsNullOrEmpty(v) && v.IndexOf(contains, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         outTech.Add(tech);
-                        details?.Add(new TechDetectionDetail { Name = tech, Source = "Header", Evidence = $"{header}: {v}", Confidence = 100 });
+                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Evidence = $"{header}: {v}", Confidence = 100 });
                     }
                 }
             }
@@ -79,7 +83,7 @@ internal static partial class TechSignatureCatalog
                     if (!string.IsNullOrEmpty(c) && c.IndexOf(needle, System.StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         outTech.Add(tech);
-                        details?.Add(new TechDetectionDetail { Name = tech, Source = "Cookie", Evidence = c.Length > 120 ? c.Substring(0,120) + "..." : c, Confidence = 90 });
+                        details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Cookie, Evidence = c.Length > 120 ? c.Substring(0,120) + "..." : c, Confidence = 90 });
                     }
                 }
             }

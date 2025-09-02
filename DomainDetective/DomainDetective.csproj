@@ -3,6 +3,7 @@
     <PropertyGroup>
         <TargetFrameworks>net472;net8.0</TargetFrameworks>
         <LangVersion>Latest</LangVersion>
+        <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);1591</NoWarn>
     </PropertyGroup>
