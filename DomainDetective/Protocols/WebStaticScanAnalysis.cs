@@ -73,6 +73,12 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         public long Bytes { get; set; }
         public bool FirstParty { get; set; }
         public Dictionary<string, long> BytesByType { get; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Edge/CDN provider inferred from headers (e.g., Cloudflare, CloudFront, Fastly, Azure Front Door).</summary>
+        public string? EdgeProvider { get; set; }
+        /// <summary>Edge Point-of-Presence code when available (e.g., CF-RAY suffix or X-Amz-Cf-Pop).</summary>
+        public string? EdgePop { get; set; }
+        /// <summary>Edge cache status when available (e.g., HIT/MISS).</summary>
+        public string? EdgeCacheStatus { get; set; }
     }
 
     public HttpAnalysis? MainHttpAnalysis { get; private set; }

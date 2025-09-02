@@ -220,6 +220,7 @@ internal static class OutputFormatters {
                         var pct = (int)Math.Round(100.0 * https / reqTotal);
                         findings.Add($"• HTTPS: {pct}% of {reqTotal} resources");
                     }
+                    // (redirect chain intentionally not included in CLI summary per current scope)
                 }
             }
             catch { /* summary best-effort */ }

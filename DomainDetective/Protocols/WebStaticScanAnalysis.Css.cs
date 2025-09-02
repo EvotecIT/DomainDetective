@@ -32,6 +32,7 @@ public partial class WebStaticScanAnalysis
                     cancellationToken.ThrowIfCancellationRequested();
                     using var response = await http.GetAsync(css, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                     if (response.Headers.TryGetValues("Set-Cookie", out var _)) System.Threading.Interlocked.Increment(ref _cookiesSet);
+                    try { lock (_sync) { var chost = new Uri(css).Host; if (Hosts.TryGetValue(chost, out var hh)) CaptureEdgeHints(response, hh); } } catch { }
                     using var stream = await response.Content.ReadAsStreamAsync();
                     using var limited = new System.IO.MemoryStream();
                     var buffer = new byte[16 * 1024];

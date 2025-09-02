@@ -74,5 +74,27 @@ public partial class WebStaticScanAnalysis
             finally { try { dnsGate.Release(); } catch { } }
         }).ToArray();
         await Task.WhenAll(dnsTasks);
+
+        // Infer provider from ASN/AS name when header hints were absent
+        try
+        {
+            foreach (var kv in Hosts)
+            {
+                var h = kv.Value;
+                if (!string.IsNullOrWhiteSpace(h.EdgeProvider)) continue;
+                var asn = h.Asn;
+                var asname = h.AsName ?? string.Empty;
+                string? prov = null;
+                var low = asname.ToLowerInvariant();
+                if (low.Contains("cloudflare")) prov = "Cloudflare";
+                else if (low.Contains("fastly")) prov = "Fastly";
+                else if (low.Contains("akamai")) prov = "Akamai";
+                else if (low.Contains("amazon") || low.Contains("aws")) prov = "Amazon";
+                else if (low.Contains("microsoft") || low.Contains("azure")) prov = "Azure";
+                else if (low.Contains("google")) prov = "Google";
+                if (!string.IsNullOrWhiteSpace(prov)) h.EdgeProvider = prov;
+            }
+        }
+        catch { }
     }
 }

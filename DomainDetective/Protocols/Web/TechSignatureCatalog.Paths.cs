@@ -42,6 +42,9 @@ internal static partial class TechSignatureCatalog
         ("weebly.com","Weebly"),
         ("cloudflare.com","Cloudflare"),
         ("akamai.net","Akamai"),
+        ("edgekey.net","Akamai"),
+        ("edgesuite.net","Akamai"),
+        ("akamaihd.net","Akamai"),
         ("fastly.net","Fastly"),
         ("cloudfront.net","CloudFront"),
         ("ajax.googleapis.com","Google Hosted Libraries"),
@@ -61,7 +64,14 @@ internal static partial class TechSignatureCatalog
         ("netlify.app","Netlify"),
         ("herokuapp.com","Heroku"),
         ("azurewebsites.net","Azure App Service"),
-        ("azureedge.net","Azure CDN")
+        ("azurefd.net","Azure Front Door"),
+        ("azurefd.us","Azure Front Door"),
+        ("azureedge.net","Azure CDN"),
+        ("stackpathcdn.com","StackPath"),
+        ("cdn.jsdelivr.net","jsDelivr CDN"),
+        ("cdn77.org","CDN77"),
+        ("appspot.com","Google App Engine"),
+        ("firebaseapp.com","Firebase Hosting")
     };
     /// <summary>
     /// Applies compiled path and domain suffix rules to infer technologies and record details.

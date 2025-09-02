@@ -32,12 +32,14 @@ internal static partial class TechSignatureCatalog
         ("X-Fastly-Debug","","Fastly"),
         ("X-Azure-OriginShield","","Azure CDN"),
         ("X-Azure-Ref","","Azure CDN"),
-        ("X-Azure-FDID","","Azure CDN"),
+        ("X-Azure-FDID","","Azure Front Door"),
+        ("Server","AzureFrontDoor","Azure Front Door"),
         ("X-Vercel-Id","","Vercel"),
         ("X-Vercel-Cache","","Vercel"),
         ("Server","Vercel","Vercel"),
         ("X-NF-Request-ID","","Netlify"),
         ("Server","Netlify","Netlify"),
+        ("Server","Google Frontend","Google Frontend"),
         // CDN/Security proxies
         ("CF-RAY","","Cloudflare"),
         ("CF-Cache-Status","","Cloudflare"),
@@ -47,6 +49,12 @@ internal static partial class TechSignatureCatalog
         ("X-True-Cache-Key","","Akamai"),
         ("X-CDN","Incapsula","Imperva"),
         ("X-Iinfo","","Imperva"),
+        // Fastly additional signals
+        ("X-Timer","","Fastly"),
+        ("X-Cache-Hits","","Fastly"),
+        ("Fastly-Restarts","","Fastly"),
+        ("Surrogate-Key","","Fastly"),
+        ("Surrogate-Control","","Fastly"),
         ("X-Generator","","X-Generator") // handled specially to record value
     };
 
@@ -116,6 +124,10 @@ internal static partial class TechSignatureCatalog
                             outTech.Add(tech);
                             int conf = 90;
                             if (header.Equals("X-Served-By", System.StringComparison.OrdinalIgnoreCase)) conf = 80; // ambiguous
+                            if (header.Equals("X-Cache-Hits", System.StringComparison.OrdinalIgnoreCase)) conf = 85; // supportive but not unique
+                            if (header.Equals("Surrogate-Key", System.StringComparison.OrdinalIgnoreCase)) conf = 85; // Fastly feature but can be proxied
+                            if (header.Equals("Surrogate-Control", System.StringComparison.OrdinalIgnoreCase)) conf = 85;
+                            if (header.Equals("Fastly-Restarts", System.StringComparison.OrdinalIgnoreCase)) conf = 85;
                             details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.Header, Category = GetCategory(tech), Evidence = $"{header}: {v}", Confidence = conf });
                         }
                     }

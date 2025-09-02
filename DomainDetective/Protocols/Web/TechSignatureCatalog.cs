@@ -29,13 +29,13 @@ internal static partial class TechSignatureCatalog
         if (t.Equals("Google Analytics", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Analytics;
         if (t.Equals("Google Tag Manager", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.TagManager;
         if (t.Equals("Cloudflare Browser Insights", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Cloudflare", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
-        if (t.Equals("Akamai", System.StringComparison.OrdinalIgnoreCase) || t.Equals("CloudFront", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Fastly", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure CDN", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
+        if (t.Equals("Akamai", System.StringComparison.OrdinalIgnoreCase) || t.Equals("CloudFront", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Fastly", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure CDN", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure Front Door", System.StringComparison.OrdinalIgnoreCase) || t.Equals("jsDelivr CDN", System.StringComparison.OrdinalIgnoreCase) || t.Equals("StackPath", System.StringComparison.OrdinalIgnoreCase) || t.Equals("CDN77", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.CDN;
         if (t.Equals("Akamai Bot Manager", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Security;
         if (t.Equals("Imperva", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Security;
         if (t.Equals("Atlassian Statuspage", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.IssueTracker;
         if (t.Equals("Google Font API", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Fonts;
         if (t.Equals("reCAPTCHA", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Security;
-        if (t.Equals("Vercel", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Netlify", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Heroku", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure App Service", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.PaaS;
+        if (t.Equals("Vercel", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Netlify", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Heroku", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Azure App Service", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Google App Engine", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Firebase Hosting", System.StringComparison.OrdinalIgnoreCase) || t.Equals("Google Frontend", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.PaaS;
         if (t.EndsWith("Site Verification", System.StringComparison.OrdinalIgnoreCase) || t.EndsWith("Domain Verification", System.StringComparison.OrdinalIgnoreCase)) return TechCategory.Verification;
         return TechCategory.Other;
     }

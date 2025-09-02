@@ -113,6 +113,8 @@ public partial class WebStaticScanAnalysis
                         req.ContentLength = resp.Content?.Headers?.ContentLength;
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                         if (resp.Headers.TryGetValues("Set-Cookie", out var _)) System.Threading.Interlocked.Increment(ref _cookiesSet);
+                        // Capture provider hints for this host
+                        try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(resp, hh); } } catch { }
                     }
                     catch
                     {
@@ -125,6 +127,8 @@ public partial class WebStaticScanAnalysis
                             req.ContentLength = get.Content?.Headers?.ContentLength;
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
                             if (get.Headers.TryGetValues("Set-Cookie", out var _)) System.Threading.Interlocked.Increment(ref _cookiesSet);
+                            // Capture provider hints for this host
+                            try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(get, hh); } } catch { }
                         }
                         catch { }
                     }
