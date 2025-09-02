@@ -28,6 +28,13 @@ namespace DomainDetective {
                 ws.MaxResourcesPerHost = prev.MaxResourcesPerHost;
                 ws.TechRulesPath = prev.TechRulesPath;
                 ws.SkipThirdParty = prev.SkipThirdParty;
+                // Link controls
+                ws.FollowLinks = prev.FollowLinks;
+                ws.LinkMaxDepth = prev.LinkMaxDepth;
+                ws.LinkMaxPages = prev.LinkMaxPages;
+                ws.LinkFirstPartyOnly = prev.LinkFirstPartyOnly;
+                ws.LinkConcurrency = prev.LinkConcurrency;
+                ws.LinkOnly = prev.LinkOnly;
             }
             WebStaticScanAnalysis = ws;
             await WebStaticScanAnalysis.Analyze(url, _logger, cancellationToken);

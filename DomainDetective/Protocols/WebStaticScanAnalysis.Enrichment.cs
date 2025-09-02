@@ -101,6 +101,18 @@ public partial class WebStaticScanAnalysis
         // Infer provider from ASN/AS name when header hints were absent
         try
         {
+            // Common ASN → provider mapping (best-effort offline)
+            var asnMap = new System.Collections.Generic.Dictionary<int, string> {
+                [13335] = "Cloudflare",
+                [54113] = "Fastly",
+                [20940] = "Akamai",
+                [16509] = "Amazon",
+                [14618] = "Amazon",
+                [15169] = "Google",
+                [8075] = "Microsoft",
+                [32934] = "Facebook",
+                [22822] = "Limelight",
+            };
             foreach (var kv in Hosts)
             {
                 var h = kv.Value;
@@ -115,6 +127,7 @@ public partial class WebStaticScanAnalysis
                 else if (low.Contains("amazon") || low.Contains("aws")) prov = "Amazon";
                 else if (low.Contains("microsoft") || low.Contains("azure")) prov = "Azure";
                 else if (low.Contains("google")) prov = "Google";
+                if (string.IsNullOrWhiteSpace(prov) && asn.HasValue && asnMap.TryGetValue(asn.Value, out var mapped)) prov = mapped;
                 if (!string.IsNullOrWhiteSpace(prov)) h.EdgeProvider = prov;
             }
         }

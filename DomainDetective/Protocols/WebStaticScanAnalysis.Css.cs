@@ -34,8 +34,13 @@ public partial class WebStaticScanAnalysis
                     using var response = await http.GetAsync(css, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                     if (response.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { var chost = new Uri(css).Host; RecordCookies(chost, response); } catch { } }
                     try {
-                        lock (_sync) { var chost = new Uri(css).Host; if (Hosts.TryGetValue(chost, out var hh)) CaptureEdgeHints(response, hh); }
-                        var chost2 = new Uri(css).Host; RecordCorsHeaders(chost2, response); RecordServerTiming(chost2, response);
+                        var chost = new Uri(css).Host;
+                        lock (_sync) { if (Hosts.TryGetValue(chost, out var hh)) {
+                            CaptureEdgeHints(response, hh);
+                            if (string.IsNullOrWhiteSpace(hh.ServerHeader) && response.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
+                            if (!hh.HostHstsPresent && (response.Headers.Contains("Strict-Transport-Security") || response.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
+                        }}
+                        RecordCorsHeaders(chost, response); RecordServerTiming(chost, response);
                     } catch { }
                     using var stream = await response.Content.ReadAsStreamAsync();
                     using var limited = new System.IO.MemoryStream();
@@ -71,12 +76,15 @@ public partial class WebStaticScanAnalysis
                             lock (_sync) { add = seen.Add(abs.AbsoluteUri); }
                             if ((abs.Scheme == Uri.UriSchemeHttp || abs.Scheme == Uri.UriSchemeHttps) && add && Requests.Count < MaxResources)
                             {
-                                var headReq = new StaticRequest { Url = abs.AbsoluteUri, Method = "HEAD" };
+                                var headReq = new StaticRequest { Url = abs.AbsoluteUri, Method = "HEAD", Source = "CSS", SourceKind = ResourceSourceKind.Css };
                                 try
                                 {
                                     using var head = new HttpRequestMessage(HttpMethod.Head, abs);
+                                    var _start = System.DateTimeOffset.UtcNow; var _sw = System.Diagnostics.Stopwatch.StartNew();
                                     using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                                    _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                                     headReq.StatusCode = (int)resp.StatusCode;
+                                    headReq.StartedAtUtc = _start; headReq.CompletedAtUtc = _end; headReq.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                                     headReq.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
                                     headReq.ContentLength = resp.Content?.Headers?.ContentLength;
                                     headReq.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? abs.AbsoluteUri;
@@ -137,12 +145,15 @@ public partial class WebStaticScanAnalysis
                             lock (_sync) { add = seen.Add(abs.AbsoluteUri); }
                             if ((abs.Scheme == Uri.UriSchemeHttp || abs.Scheme == Uri.UriSchemeHttps) && add && Requests.Count < MaxResources)
                             {
-                                var headReq = new StaticRequest { Url = abs.AbsoluteUri, Method = "HEAD" };
+                                var headReq = new StaticRequest { Url = abs.AbsoluteUri, Method = "HEAD", Source = "CSS", SourceKind = ResourceSourceKind.Css };
                                 try
                                 {
                                     using var head = new HttpRequestMessage(HttpMethod.Head, abs);
+                                    var _start = System.DateTimeOffset.UtcNow; var _sw = System.Diagnostics.Stopwatch.StartNew();
                                     using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                                    _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                                     headReq.StatusCode = (int)resp.StatusCode;
+                                    headReq.StartedAtUtc = _start; headReq.CompletedAtUtc = _end; headReq.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                                     headReq.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
                                     headReq.ContentLength = resp.Content?.Headers?.ContentLength;
                                     headReq.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? abs.AbsoluteUri;
@@ -158,10 +169,11 @@ public partial class WebStaticScanAnalysis
                                         Hosts[headReq.Host] = host2;
                                     }
                                     host2.RequestCount++;
+                                    headReq.Category = Categorize(headReq.FinalUrl ?? headReq.Url, headReq.ContentType);
                                     if (headReq.ContentLength.HasValue)
                                     {
                                         host2.Bytes += headReq.ContentLength.Value;
-                                        var cat2 = Categorize(headReq.FinalUrl ?? headReq.Url, headReq.ContentType);
+                                        var cat2 = headReq.Category;
                                         if (!string.IsNullOrEmpty(cat2))
                                         {
                                             host2.BytesByType[cat2] = host2.BytesByType.TryGetValue(cat2, out var hb) ? hb + headReq.ContentLength.Value : headReq.ContentLength.Value;

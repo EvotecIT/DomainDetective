@@ -285,6 +285,18 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
   - [x] Google Frontend provider hint via `Server: Google Frontend`.
 - [x] Safer/expanded domain suffixes: Akamai (edgekey/edgesuite/akamaihd), Azure (azurefd.*, azureedge.net), StackPath, jsDelivr, CDN77, App Engine, Firebase Hosting.
 - [x] RDAP fallback: infer provider from ASN/ASName when headers absent (Cloudflare/Fastly/Akamai/AWS/Azure/Google).
+ - [x] Per-host posture: `ServerHeader`, `HostHstsPresent`, `CorsAnyOrigin`.
+ - [x] Cookie posture summary: first‑party `Secure/HttpOnly/SameSite/Max‑Age/Domain` counts.
+ - [x] CORS summary: aggregate ACAO/ACAM/ACAH/credentials across first‑party responses.
+ - [x] Server‑Timing summary: aggregate metric names across first‑party responses.
+ - [x] Structured data snapshot: count application/ld+json `@type` occurrences.
+ - [x] DNS TTL/IPv6 adoption: per‑host A/AAAA TTL min/max + HasIPv6.
+ - [x] PoP mapping moved to partial (`WebStaticScanAnalysis.Pops.cs`) and normalized to City/Country/Region.
+ - [x] Main body metrics: BodyLength + BodySha256 (decompressed) in `HttpAnalysis`.
+ - [x] NEL/Report‑To/speculation headers captured in `HttpAnalysis` (Raw), available for future surfacing.
+ - [x] Structured tracker detections: `Raw.TrackerDetails` with Host/Domain, FirstParty, RequestCount/Bytes, SampleUrls, ContentTypes, EvidenceKind/Evidence, TrackerName.
+ - [x] Provenance completeness: every `TechDetections` entry gets a `TechDetails` record (fallback heuristic with evidence when needed).
+ - [x] Broken resource capture: `Raw.BrokenResources` with StatusCode, Category, Source (HTML/CSS/LINK), FirstParty, Referrer.
 
 ### Static Web Scan — Missing (Keep Focus on Data, not Output)
 - [ ] Threat intel overlay for contacted registrable domains (reuse ThreatIntelAnalysis; optional and capped).
@@ -292,12 +304,18 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
 - [ ] HTML/JSON/CSV report sections (defer; prioritize enrichment first).
 - [ ] Bound concurrency defaults and document caps; validate MaxResources per phase.
 - [ ] Add small TTL/state cache across runs (robots, DNS TXT) with invalidation option.
+- [x] Per-resource timing (headers timing only) to enable a minimal waterfall later.
+ - [ ] SRI/integrity checks for known CDN libraries; flag missing/invalid integrity on first‑party pages.
+ - [ ] Summarize first‑party vs third‑party CORS/HSTS ratios at scan level (views) without cluttering objects.
 
 ### Static Web Scan — Next Enrichment Ideas
-- [ ] PoP normalization: map Cloudflare/CloudFront PoP codes → city/region/country (small offline tables); add `EdgePopRegion`/`EdgePopCountry`.
-- [ ] Cookie posture: summarize Secure/HttpOnly/SameSite/Max-Age/Domain attributes across first‑party resources.
-- [ ] CORS/resource policies: capture Access‑Control‑Allow‑* headers across first‑party endpoints; record wildcard vs restricted.
-- [ ] Server‑Timing aggregation: parse Server‑Timing values for first‑party endpoints; store keys/values (capped).
+- [x] Link-only mode: fast link health audit (anchors only) with depth/pages constraints; skips resource discovery.
+- [x] CLI/PS options to control link checker:
+  - `FollowLinks` (bool), `LinkMaxDepth` (int), `LinkMaxPages` (int), `LinkFirstPartyOnly` (bool), `LinkConcurrency` (int)
+  - PowerShell parameters and CLI flags mirroring these; defaults conservative.
+- [ ] PoP tables expansion (more codes) + small ASN→Provider offline map extensions.
+- [x] Per‑resource timing capture (headers timing only) to support a minimal waterfall/trends later.
+- [x] View surfacing of NEL/Report‑To/speculation (keep Raw untouched) and broken links summary in views.
 - [ ] Link rel hints: capture `preconnect`/`dns-prefetch`/`preload` to infer intended 3P dependencies.
 - [ ] PWA signals: discover and parse `manifest.json` (size‑capped); record service worker registration hints (no execution).
 - [ ] Structured data: detect application/ld+json blocks; record schema `@type` counts (capped bytes).

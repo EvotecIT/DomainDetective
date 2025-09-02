@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace DomainDetective;
 
@@ -28,6 +29,73 @@ public partial class WebStaticScanAnalysis
         }
         catch { }
         return "other";
+    }
+
+    private void EnsureTechDetailsForAllDetections(string? body, HttpAnalysis? main)
+    {
+        try
+        {
+            var existing = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            foreach (var d in TechDetails) existing.Add(d.Name);
+            foreach (var name in TechDetections)
+            {
+                if (existing.Contains(name)) continue;
+                // Try to locate plausible evidence by name
+                string? evidence = null; TechEvidenceKind kind = TechEvidenceKind.Heuristic; int conf = 60;
+                var lower = name.ToLowerInvariant();
+                if (lower == "cloudflare")
+                {
+                    var server = main?.ServerHeader ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(server) && server.IndexOf("cloudflare", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    { evidence = "Server: " + server; kind = TechEvidenceKind.Header; conf = 75; }
+                    else if (Hosts.Values.Any(h => string.Equals(h.EdgeProvider, "Cloudflare", System.StringComparison.OrdinalIgnoreCase)))
+                    { evidence = "EdgeProvider=Cloudflare"; kind = TechEvidenceKind.Heuristic; conf = 75; }
+                }
+                else if (lower == "wordpress")
+                {
+                    var hit = Requests.Select(r => { try { return new System.Uri(r.FinalUrl ?? r.Url).AbsolutePath; } catch { return null; } })
+                        .FirstOrDefault(p => p != null && (p.Contains("/wp-content/") || p.Contains("/wp-includes/")));
+                    if (!string.IsNullOrWhiteSpace(hit)) { evidence = hit!; kind = TechEvidenceKind.Path; conf = 75; }
+                    else if (!string.IsNullOrWhiteSpace(body) && System.Text.RegularExpressions.Regex.IsMatch(body, "(?i)name=\"generator\"[^>]*wordpress"))
+                    { evidence = "meta generator contains WordPress"; kind = TechEvidenceKind.Meta; conf = 75; }
+                }
+                else if (lower == "jquery")
+                {
+                    var hit = Requests.Select(r => { try { return new System.Uri(r.FinalUrl ?? r.Url).AbsolutePath; } catch { return null; } })
+                        .FirstOrDefault(p => p != null && p.IndexOf("jquery", System.StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!string.IsNullOrWhiteSpace(hit)) { evidence = hit!; kind = TechEvidenceKind.Path; conf = 70; }
+                }
+                else if (lower == "jquery migrate" || lower == "jquery migrate".Replace(" ", string.Empty))
+                {
+                    var hit = Requests.Select(r => { try { return new System.Uri(r.FinalUrl ?? r.Url).AbsolutePath; } catch { return null; } })
+                        .FirstOrDefault(p => p != null && p.IndexOf("jquery-migrate", System.StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!string.IsNullOrWhiteSpace(hit)) { evidence = hit!; kind = TechEvidenceKind.Path; conf = 70; }
+                }
+                else if (lower == "amp")
+                {
+                    if (!string.IsNullOrWhiteSpace(body) && System.Text.RegularExpressions.Regex.IsMatch(body, "(?i)<link[^>]*rel=\"amphtml\""))
+                    { evidence = "link rel=amphtml"; kind = TechEvidenceKind.Body; conf = 80; }
+                }
+                else if (lower == "google font api")
+                {
+                    var hit = Requests.Select(r => { try { return new System.Uri(r.FinalUrl ?? r.Url).Host; } catch { return null; } })
+                        .FirstOrDefault(h => h != null && (h.EndsWith("fonts.googleapis.com", System.StringComparison.OrdinalIgnoreCase) || h.EndsWith("fonts.google.com", System.StringComparison.OrdinalIgnoreCase)));
+                    if (!string.IsNullOrWhiteSpace(hit)) { evidence = hit!; kind = TechEvidenceKind.DomainSuffix; conf = 75; }
+                }
+
+                if (string.IsNullOrWhiteSpace(evidence)) { evidence = "fallback (summary attribution)"; kind = TechEvidenceKind.Heuristic; conf = 50; }
+                TechDetails.Add(new TechDetectionDetail
+                {
+                    Name = name,
+                    SourceKind = kind,
+                    Category = TechSignatureCatalog.GetCategory(name),
+                    Evidence = evidence,
+                    Confidence = conf
+                });
+                existing.Add(name);
+            }
+        }
+        catch { }
     }
 
     private void RecordCookies(string host, System.Net.Http.HttpResponseMessage resp)
@@ -101,7 +169,7 @@ public partial class WebStaticScanAnalysis
                 Cors.FirstPartyResponses++;
                 if (!string.IsNullOrWhiteSpace(origin))
                 {
-                    if (origin.Trim() == "*") Cors.WildcardOriginCount++;
+                    if (origin.Trim() == "*") { Cors.WildcardOriginCount++; if (Hosts.TryGetValue(host, out var hh)) hh.CorsAnyOrigin = true; }
                     else Cors.Origins.Add(origin.Trim());
                 }
                 if (!string.IsNullOrWhiteSpace(methods))

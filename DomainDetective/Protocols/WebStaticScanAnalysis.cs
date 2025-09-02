@@ -47,55 +47,16 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     private TechRuleSet? _techRules;
     private bool _techRulesTried;
     private readonly object _sync = new();
+    // Link checking controls
+    public bool FollowLinks { get; set; } = false;
+    public int LinkMaxDepth { get; set; } = 0;
+    public int LinkMaxPages { get; set; } = 100;
+    public bool LinkFirstPartyOnly { get; set; } = true;
+    public int LinkConcurrency { get; set; } = 0;
+    /// <summary>When true, skips static resource discovery and performs link checks only.</summary>
+    public bool LinkOnly { get; set; } = false;
 
-    public class StaticRequest
-    {
-        public string Url { get; set; }
-        public string Host { get; set; }
-        public string Method { get; set; }
-        public int StatusCode { get; set; }
-        public string? ContentType { get; set; }
-        public long? ContentLength { get; set; }
-        public string? FinalUrl { get; set; }
-    }
-
-    public class StaticHost
-    {
-        public string Host { get; set; }
-        public string? RegistrableDomain { get; set; }
-        public List<string> IpAddresses { get; } = new();
-        public string? Cidr { get; set; }
-        public int? Asn { get; set; }
-        public string? AsName { get; set; }
-        public string? Country { get; set; }
-        public TlsProbe.Result? Tls { get; set; }
-        public int RequestCount { get; set; }
-        public long Bytes { get; set; }
-        public bool FirstParty { get; set; }
-        public Dictionary<string, long> BytesByType { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>Whether any AAAA (IPv6) address was resolved for this host.</summary>
-        public bool HasIPv6 { get; set; }
-        /// <summary>Minimum TTL seen for A answers (seconds).</summary>
-        public int? ATtlMin { get; set; }
-        /// <summary>Maximum TTL seen for A answers (seconds).</summary>
-        public int? ATtlMax { get; set; }
-        /// <summary>Minimum TTL seen for AAAA answers (seconds).</summary>
-        public int? AAAATtlMin { get; set; }
-        /// <summary>Maximum TTL seen for AAAA answers (seconds).</summary>
-        public int? AAAATtlMax { get; set; }
-        /// <summary>Edge/CDN provider inferred from headers (e.g., Cloudflare, CloudFront, Fastly, Azure Front Door).</summary>
-        public string? EdgeProvider { get; set; }
-        /// <summary>Edge Point-of-Presence code when available (e.g., CF-RAY suffix or X-Amz-Cf-Pop).</summary>
-        public string? EdgePop { get; set; }
-        /// <summary>Edge cache status when available (e.g., HIT/MISS).</summary>
-        public string? EdgeCacheStatus { get; set; }
-        /// <summary>Human-friendly PoP city when resolvable (best-effort, offline map).</summary>
-        public string? EdgePopCity { get; set; }
-        /// <summary>Human-friendly PoP country when resolvable (best-effort, offline map).</summary>
-        public string? EdgePopCountry { get; set; }
-        /// <summary>Region for the PoP, e.g., Europe, North America (best-effort).</summary>
-        public string? EdgePopRegion { get; set; }
-    }
+    
 
     public HttpAnalysis? MainHttpAnalysis { get; private set; }
     /// <summary>Registrable domain derived from the scanned URL host.</summary>
@@ -128,52 +89,12 @@ public partial class WebStaticScanAnalysis : IHasAssessments
     public System.Collections.Generic.List<string> RobotsSitemaps { get; } = new System.Collections.Generic.List<string>();
     /// <summary>Counts of structured data schema types found in application/ld+json blocks.</summary>
     public System.Collections.Generic.Dictionary<string,int> StructuredDataTypes { get; } = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
+    /// <summary>Structured tracker detections with evidence instead of plain strings.</summary>
+    public System.Collections.Generic.List<TrackerDetection> TrackerDetails { get; } = new System.Collections.Generic.List<TrackerDetection>();
+    /// <summary>List of broken resources (HTTP status >= 400 or failed) discovered during the scan.</summary>
+    public System.Collections.Generic.List<BrokenResource> BrokenResources { get; } = new System.Collections.Generic.List<BrokenResource>();
 
-    public sealed class CookieAttributeSummary
-    {
-        public int TotalFirstParty { get; internal set; }
-        public int Secure { get; internal set; }
-        public int HttpOnly { get; internal set; }
-        public int SameSiteLax { get; internal set; }
-        public int SameSiteStrict { get; internal set; }
-        public int SameSiteNone { get; internal set; }
-        public int SameSiteMissing { get; internal set; }
-        public int MaxAgePresent { get; internal set; }
-        public int DomainPresent { get; internal set; }
-        internal void Clear()
-        {
-            TotalFirstParty = Secure = HttpOnly = SameSiteLax = SameSiteStrict = SameSiteNone = SameSiteMissing = MaxAgePresent = DomainPresent = 0;
-        }
-    }
-
-    public sealed class CorsSummary
-    {
-        public int FirstPartyResponses { get; internal set; }
-        public int WildcardOriginCount { get; internal set; }
-        public int CredentialsCount { get; internal set; }
-        public System.Collections.Generic.HashSet<string> Origins { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        public System.Collections.Generic.HashSet<string> Methods { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        public System.Collections.Generic.HashSet<string> Headers { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        internal void Clear()
-        {
-            FirstPartyResponses = 0; WildcardOriginCount = 0; CredentialsCount = 0; Origins.Clear(); Methods.Clear(); Headers.Clear();
-        }
-    }
-
-    public sealed class ServerTimingSummary
-    {
-        public int FirstPartyResponses { get; internal set; }
-        public System.Collections.Generic.HashSet<string> Metrics { get; } = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        internal void Clear() { FirstPartyResponses = 0; Metrics.Clear(); }
-    }
-
-    public sealed class LinkHint
-    {
-        public string Rel { get; set; }
-        public string Href { get; set; }
-        public string? Host { get; set; }
-        public bool FirstParty { get; set; }
-    }
+    
 
     // Regex helpers moved to Regexes partial
 
@@ -265,15 +186,25 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         try { ParseLinkHintsFromBody(baseUri, body); } catch { }
         try { ParseStructuredDataFromBody(body); } catch { }
 
-        var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, logger, cancellationToken);
-        logger?.WriteVerbose("[WEB] Discovered {0} resource candidates", schedule?.Count ?? 0);
-        logger?.WriteProgress("WEBSTATIC", "Fetch resource headers", 40.0, 2, 6);
-        var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, logger, cancellationToken);
-        logger?.WriteVerbose("[WEB] CSS candidates: {0}", cssCandidates.Count);
-        logger?.WriteProgress("WEBSTATIC", "Process CSS", 55.0, 3, 6);
-        await ProcessCssAsync(cssCandidates, seen, hostCounts, http, logger, cancellationToken);
-        logger?.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
-        await EnrichHostsAsync(logger, cancellationToken);
+        if (LinkOnly)
+        {
+            // Link-only mode: skip static resource discovery and CSS; perform bounded link checks only.
+            try { await CheckLinksAsync(baseUri, body, http, logger, cancellationToken); } catch { }
+        }
+        else
+        {
+            var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, logger, cancellationToken);
+            logger?.WriteVerbose("[WEB] Discovered {0} resource candidates", schedule?.Count ?? 0);
+            logger?.WriteProgress("WEBSTATIC", "Fetch resource headers", 40.0, 2, 6);
+            var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, logger, cancellationToken);
+            logger?.WriteVerbose("[WEB] CSS candidates: {0}", cssCandidates.Count);
+            logger?.WriteProgress("WEBSTATIC", "Process CSS", 55.0, 3, 6);
+            await ProcessCssAsync(cssCandidates, seen, hostCounts, http, logger, cancellationToken);
+            // Optional link checking (bounded depth/pages)
+            try { await CheckLinksAsync(baseUri, body, http, logger, cancellationToken); } catch { }
+            logger?.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
+            await EnrichHostsAsync(logger, cancellationToken);
+        }
 
         // 6) First/third-party classification + trackers
         foreach (var kv in Hosts)
@@ -285,6 +216,36 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                 TrackersUsed.Add(kv.Value.RegistrableDomain ?? kv.Key);
             }
         }
+        // Build structured tracker details after classification
+        BuildTrackerDetails();
+        // Broken resource list (status >= 400 or failed)
+        try
+        {
+            BrokenResources.Clear();
+            foreach (var r in Requests)
+            {
+                if (r == null) continue;
+                var sc = r.StatusCode;
+                if (sc >= 400 || sc == 0)
+                {
+                    var host = r.Host ?? (new Uri(r.FinalUrl ?? r.Url)).Host;
+                    bool fp = false; try { fp = Hosts.TryGetValue(host, out var hh) ? hh.FirstParty : string.Equals(GetRegistrableDomain?.Invoke(host) ?? host, PrimaryRegistrableDomain ?? host, StringComparison.OrdinalIgnoreCase); } catch { }
+                    string? cat = null; try { cat = Categorize(r.FinalUrl ?? r.Url, r.ContentType); } catch { }
+                    BrokenResources.Add(new BrokenResource
+                    {
+                        Url = r.Url,
+                        FinalUrl = r.FinalUrl,
+                        StatusCode = sc,
+                        Host = host,
+                        Category = cat,
+                        Source = r.Source,
+                        Referrer = r.Referrer,
+                        FirstParty = fp
+                    });
+                }
+            }
+        }
+        catch { }
         logger?.WriteProgress("WEBSTATIC", "Apply detections", 90.0, 5, 6);
         // 7) Apply path/domain/body rules (typed + optional JSON)
         TechSignatureCatalog.ApplyPathsDomainsBody(Requests, Hosts, MainHttpAnalysis?.Body, GetRegistrableDomain, TechDetections, TechDetails);
@@ -292,6 +253,8 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         ApplyPathAndDomainRules();
         // 8) Lightweight DNS TXT detections for verification records
         await ApplyDnsTechDetections(baseUri.Host, cancellationToken).ConfigureAwait(false);
+        // 9) Ensure every TechDetections entry has provenance in TechDetails
+        EnsureTechDetailsForAllDetections(MainHttpAnalysis?.Body, MainHttpAnalysis);
         logger?.WriteVerbose("[WEB] Hosts: {0}; Requests: {1}; Tech: {2}; Trackers: {3}", Hosts.Count, Requests.Count, TechDetections.Count, TrackersUsed.Count);
         logger?.WriteProgress("WEBSTATIC", "Done", 100.0, 6, 6);
         logger?.WriteVerbose("[WEB] Static scan completed: {0}", url);

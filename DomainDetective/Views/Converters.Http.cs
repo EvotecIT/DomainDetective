@@ -20,6 +20,9 @@ public static partial class Converters
             BodyLength = analysis.BodyLength,
             BodySha256 = analysis.BodySha256,
             ResponseTime = analysis.ResponseTime,
+            Nel = analysis.NelRaw,
+            ReportTo = analysis.ReportToRaw,
+            SpeculationRules = analysis.SpeculationRulesRaw,
             HstsPresent = analysis.HstsPresent,
             HstsPreloaded = analysis.HstsPreloaded,
             HstsPreloadEligible = analysis.HstsPreloadEligible,
@@ -76,6 +79,9 @@ public class HttpInfo
     public int? BodyLength { get; set; }
     public string? BodySha256 { get; set; }
     public System.TimeSpan ResponseTime { get; set; }
+    public string? Nel { get; set; }
+    public string? ReportTo { get; set; }
+    public string? SpeculationRules { get; set; }
     public bool HstsPresent { get; set; }
     public bool HstsPreloaded { get; set; }
     public bool HstsPreloadEligible { get; set; }

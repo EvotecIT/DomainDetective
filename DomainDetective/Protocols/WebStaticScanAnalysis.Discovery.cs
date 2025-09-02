@@ -106,16 +106,27 @@ public partial class WebStaticScanAnalysis
                     var host = targetUri.Host;
                     var current = hostCounts.AddOrUpdate(host, 1, (_, c) => c + 1);
                     if (current > MaxResourcesPerHost) return;
-                    var req = new StaticRequest { Url = res, Method = "HEAD" };
+                    var req = new StaticRequest { Url = res, Method = "HEAD", Source = "HTML", SourceKind = ResourceSourceKind.Html };
                     try
                     {
                         using var head = new HttpRequestMessage(HttpMethod.Head, res);
+                        var _start = System.DateTimeOffset.UtcNow; var _sw = System.Diagnostics.Stopwatch.StartNew();
                         using var resp = await http.SendAsync(head, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                        _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                         req.StatusCode = (int)resp.StatusCode;
                         req.ContentType = resp.Content?.Headers?.ContentType?.MediaType ?? resp.Content?.Headers?.ContentType?.ToString();
                         req.ContentLength = resp.Content?.Headers?.ContentLength;
                         req.FinalUrl = resp.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
+                        req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                         if (resp.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, resp); } catch { } }
+                        try {
+                            lock (_sync) {
+                                if (Hosts.TryGetValue(host, out var hh)) {
+                                    if (string.IsNullOrWhiteSpace(hh.ServerHeader) && resp.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
+                                    if (!hh.HostHstsPresent && (resp.Headers.Contains("Strict-Transport-Security") || resp.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
+                                }
+                            }
+                        } catch { }
                         // Capture provider hints and policy headers for this host
                         try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(resp, hh); } } catch { }
                         try { RecordCorsHeaders(host, resp); } catch { }
@@ -126,12 +137,23 @@ public partial class WebStaticScanAnalysis
                         try
                         {
                             req.Method = "GET";
+                            var _start = System.DateTimeOffset.UtcNow; var _sw = System.Diagnostics.Stopwatch.StartNew();
                             using var get = await http.GetAsync(res, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                            _sw.Stop(); var _end = _start.Add(_sw.Elapsed);
                             req.StatusCode = (int)get.StatusCode;
                             req.ContentType = get.Content?.Headers?.ContentType?.MediaType ?? get.Content?.Headers?.ContentType?.ToString();
                             req.ContentLength = get.Content?.Headers?.ContentLength;
                             req.FinalUrl = get.RequestMessage?.RequestUri?.AbsoluteUri ?? res;
+                            req.StartedAtUtc = _start; req.CompletedAtUtc = _end; req.HeaderDurationMs = (int)_sw.Elapsed.TotalMilliseconds;
                             if (get.Headers.TryGetValues("Set-Cookie", out var _)) { System.Threading.Interlocked.Increment(ref _cookiesSet); try { RecordCookies(host, get); } catch { } }
+                            try {
+                                lock (_sync) {
+                                    if (Hosts.TryGetValue(host, out var hh)) {
+                                        if (string.IsNullOrWhiteSpace(hh.ServerHeader) && get.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
+                                        if (!hh.HostHstsPresent && (get.Headers.Contains("Strict-Transport-Security") || get.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
+                                    }
+                                }
+                            } catch { }
                             // Capture provider hints and policy headers for this host
                             try { lock (_sync) { if (Hosts.TryGetValue(host, out var hh)) CaptureEdgeHints(get, hh); } } catch { }
                             try { RecordCorsHeaders(host, get); } catch { }
@@ -160,10 +182,11 @@ public partial class WebStaticScanAnalysis
                             Hosts[req.Host] = h;
                         }
                         h.RequestCount++;
+                        req.Category = Categorize(req.FinalUrl ?? req.Url, req.ContentType);
                         if (req.ContentLength.HasValue)
                         {
                             h.Bytes += req.ContentLength.Value;
-                            var cat = Categorize(req.FinalUrl ?? req.Url, req.ContentType);
+                            var cat = req.Category;
                             if (!string.IsNullOrEmpty(cat))
                             {
                                 h.BytesByType[cat] = h.BytesByType.TryGetValue(cat, out var bv) ? bv + req.ContentLength.Value : req.ContentLength.Value;

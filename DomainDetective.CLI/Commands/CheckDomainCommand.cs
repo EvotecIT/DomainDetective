@@ -51,6 +51,13 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             hc.WebStaticScanAnalysis.DnsConcurrency = Math.Max(0, settings.WebScanDnsThreads);
             hc.WebStaticScanAnalysis.RespectRobots = settings.WebScanRespectRobots;
             hc.WebStaticScanAnalysis.SkipThirdParty = settings.WebScanFirstPartyOnly;
+            // Link controls
+            hc.WebStaticScanAnalysis.FollowLinks = settings.WebScanFollowLinks;
+            hc.WebStaticScanAnalysis.LinkMaxDepth = Math.Max(0, settings.WebScanLinkMaxDepth);
+            hc.WebStaticScanAnalysis.LinkMaxPages = Math.Max(1, settings.WebScanLinkMaxPages);
+            hc.WebStaticScanAnalysis.LinkFirstPartyOnly = settings.WebScanLinkFirstPartyOnly || hc.WebStaticScanAnalysis.LinkFirstPartyOnly;
+            hc.WebStaticScanAnalysis.LinkConcurrency = Math.Max(0, settings.WebScanLinkThreads);
+            hc.WebStaticScanAnalysis.LinkOnly = settings.WebScanLinkOnly;
             if (!string.IsNullOrWhiteSpace(settings.TechRules)) hc.WebStaticScanAnalysis.TechRulesPath = settings.TechRules;
             // Normalize input: allow bare domain; prefer http first to observe redirects, then fallback to https
             bool hasScheme = false;

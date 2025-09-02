@@ -115,4 +115,29 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Skip third-party resources (first-party only crawl).</summary>
     [CommandOption("--webscan-first-party-only")]
     public bool WebScanFirstPartyOnly { get; set; }
+
+    // Link check controls for web scan
+    /// <summary>Follow anchor links and check them (bounded).</summary>
+    [CommandOption("--webscan-follow-links")]
+    public bool WebScanFollowLinks { get; set; }
+
+    /// <summary>Maximum link depth to follow.</summary>
+    [CommandOption("--webscan-link-max-depth")]
+    public int WebScanLinkMaxDepth { get; set; } = 0;
+
+    /// <summary>Maximum number of link pages to check.</summary>
+    [CommandOption("--webscan-link-max-pages")]
+    public int WebScanLinkMaxPages { get; set; } = 100;
+
+    /// <summary>Restrict link checking to first-party only.</summary>
+    [CommandOption("--webscan-link-first-party-only")]
+    public bool WebScanLinkFirstPartyOnly { get; set; }
+
+    /// <summary>Parallel threads for link checks; 0 defers to discovery threads.</summary>
+    [CommandOption("--webscan-link-threads")]
+    public int WebScanLinkThreads { get; set; } = 0;
+
+    /// <summary>Link-only mode: skip static resource discovery and only check links.</summary>
+    [CommandOption("--webscan-link-only")]
+    public bool WebScanLinkOnly { get; set; }
 }

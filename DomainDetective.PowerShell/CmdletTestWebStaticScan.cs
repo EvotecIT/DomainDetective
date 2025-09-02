@@ -42,6 +42,31 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter SkipThirdParty { get; set; }
 
+        // Link checking controls
+        /// <summary>Follow anchor links and check their status (bounded by depth/pages).</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter FollowLinks { get; set; }
+
+        /// <summary>Maximum link depth to follow (default 0).</summary>
+        [Parameter(Mandatory = false)]
+        public int LinkMaxDepth { get; set; } = 0;
+
+        /// <summary>Maximum number of link pages to check (default 100).</summary>
+        [Parameter(Mandatory = false)]
+        public int LinkMaxPages { get; set; } = 100;
+
+        /// <summary>Restrict link checking to first-party only.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter LinkFirstPartyOnly { get; set; }
+
+        /// <summary>Parallelism for link checks; 0 defers to Concurrency.</summary>
+        [Parameter(Mandatory = false)]
+        public int LinkConcurrency { get; set; } = 0;
+
+        /// <summary>Link-only mode: skip static resource discovery and only check links.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter LinkOnly { get; set; }
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -62,6 +87,12 @@ namespace DomainDetective.PowerShell {
             _healthCheck.WebStaticScanAnalysis.DnsConcurrency = System.Math.Max(0, DnsConcurrency);
             _healthCheck.WebStaticScanAnalysis.RespectRobots = RespectRobots.IsPresent;
             _healthCheck.WebStaticScanAnalysis.SkipThirdParty = SkipThirdParty.IsPresent;
+            _healthCheck.WebStaticScanAnalysis.FollowLinks = FollowLinks.IsPresent;
+            _healthCheck.WebStaticScanAnalysis.LinkMaxDepth = System.Math.Max(0, LinkMaxDepth);
+            _healthCheck.WebStaticScanAnalysis.LinkMaxPages = System.Math.Max(1, LinkMaxPages);
+            _healthCheck.WebStaticScanAnalysis.LinkFirstPartyOnly = LinkFirstPartyOnly.IsPresent ? true : _healthCheck.WebStaticScanAnalysis.LinkFirstPartyOnly;
+            _healthCheck.WebStaticScanAnalysis.LinkConcurrency = System.Math.Max(0, LinkConcurrency);
+            _healthCheck.WebStaticScanAnalysis.LinkOnly = LinkOnly.IsPresent;
 
             // Normalize input: allow bare domain, prefer http first to capture redirects, fallback to https
             var input = (Url ?? string.Empty).Trim();

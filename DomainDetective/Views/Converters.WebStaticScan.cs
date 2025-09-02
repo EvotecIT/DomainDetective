@@ -49,6 +49,14 @@ public static partial class Converters
             if (!string.IsNullOrWhiteSpace(h.Country)) countries.Add(h.Country);
         }
 
+        // Broken links summary
+        int brokenTotal = analysis.BrokenResources?.Count ?? 0;
+        int brokenFirstParty = 0;
+        if (brokenTotal > 0)
+        {
+            try { brokenFirstParty = analysis.BrokenResources.Count(b => b.FirstParty); } catch { }
+        }
+
         return new WebStaticScanInfo
         {
             Check = HealthCheckType.HTTP,
@@ -73,6 +81,8 @@ public static partial class Converters
             CountryCount = countries.Count,
             TransferBytes = transfer,
             CookiesSet = analysis.CookiesSet,
+            BrokenLinksTotal = brokenTotal,
+            BrokenLinksFirstParty = brokenFirstParty,
             Assessments = analysis.Assessments,
             TechDetails = analysis.TechDetails?.ToArray() ?? System.Array.Empty<TechDetectionDetail>(),
             Status = status,
@@ -110,6 +120,8 @@ public sealed class WebStaticScanInfo
     public int CountryCount { get; set; }
     public long TransferBytes { get; set; }
     public int CookiesSet { get; set; }
+    public int BrokenLinksTotal { get; set; }
+    public int BrokenLinksFirstParty { get; set; }
     public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }
