@@ -7,7 +7,8 @@ public static partial class Converters
     public static RdapInfo Convert(RdapAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new RdapInfo
         {
             Check = HealthCheckType.RDAP,
@@ -24,6 +25,7 @@ public static partial class Converters
             Summary = $"registrar {(analysis.Registrar ?? "?")}; expires {analysis.ExpiryDate ?? "?"}",
             Assessments = analysis.Assessments,
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc7483" },
             Raw = analysis
         };
@@ -46,6 +48,7 @@ public class RdapInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public RdapAnalysis Raw { get; set; }
 }

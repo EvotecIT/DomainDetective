@@ -9,7 +9,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var total = analysis.Results?.Count ?? 0;
         var valid = analysis.Results?.Count(r => r.Valid) ?? 0;
         return new RpkiInfo
@@ -27,6 +28,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"valid {valid}/{total}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -48,6 +50,7 @@ public class RpkiInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public RPKIAnalysis Raw { get; set; }
 }

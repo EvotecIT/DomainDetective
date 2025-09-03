@@ -12,7 +12,8 @@ public static partial class Converters
         var openUdp = analysis.Results?.Count(kv => kv.Value.UdpOpen) ?? 0;
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var refs = BuildReferences(new List<StandardReference>(), recs);
         return new PortScanInfo
         {
@@ -29,6 +30,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"open TCP {openTcp}, UDP {openUdp} of {total}",
             Recommendations = recs,
+            Positives = positives,
             References = refs,
             Raw = analysis
         };
@@ -50,6 +52,7 @@ public class PortScanInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public PortScanAnalysis Raw { get; set; }
 }
