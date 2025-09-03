@@ -144,6 +144,7 @@ Test-DDDomainOverallHealth -DomainName "example.com"
 ```
 
 Notes:
-- `-ExportFormat` is an enum: Html, Json, Pdf, Word, Excel, Csv. Only Html/Json are implemented for overall health currently.
+- `-ExportFormat` is an enum: Html, Json, Pdf, Word, Excel. Only Html/Json are implemented for overall health currently.
 - `-ExportPath` sets the destination file; otherwise a timestamp-based filename is used (optionally rooted in the default output directory set via `Set-DDExportOptions`).
 - `-OpenInBrowser` opens HTML exports automatically (controlled by per-call switch or module default).
+Artifacts always include the full DomainHealthCheck in scan.json; no toggle is needed.

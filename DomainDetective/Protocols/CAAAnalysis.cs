@@ -87,7 +87,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// <param name="dnsResults">DNS query results containing CAA records.</param>
         /// <param name="logger">Logger used for warnings and errors.</param>
         public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CAA");
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CAA", target: Subject ?? DomainName);
             // reset all properties so repeated calls don't accumulate data
             DomainName = null;
             ValidRecords = 0;

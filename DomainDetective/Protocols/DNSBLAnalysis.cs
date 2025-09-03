@@ -340,7 +340,7 @@ namespace DomainDetective {
             using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL", target: domainName) : null)
             {
                 var providers = GetDNSBL()?.Count ?? 0;
-                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.");
+                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.", DnsblCodes.Summary);
             }
         }
 
@@ -406,7 +406,7 @@ namespace DomainDetective {
             using (var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSBL") : null)
             {
                 var providers = GetDNSBL()?.Count ?? 0;
-                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.");
+                _collector?.AddInfo($"Checked {providers} providers across {RecordChecked} hosts; listed {Blacklisted}/{RecordChecked}.", DnsblCodes.Summary);
             }
         }
 

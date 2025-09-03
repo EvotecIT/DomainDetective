@@ -156,7 +156,7 @@ namespace DomainDetective {
         }
 
         public async Task AnalyzeSpfRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF");
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: Subject);
             Reset();
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");

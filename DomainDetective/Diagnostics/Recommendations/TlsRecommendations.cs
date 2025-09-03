@@ -94,5 +94,18 @@ internal sealed class TlsRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "Probe with an OCSP-aware client (e.g., openssl s_client -status) to confirm response stapled."
         };
+
+        // Positive signal (informational) – include to enrich datasets
+        map[TlsCodes.OcspStaplingPresent] = new RecommendationAdvice {
+            Code = TlsCodes.OcspStaplingPresent,
+            Title = "OCSP stapling present",
+            Why = "Stapled OCSP responses improve revocation checking performance and reliability for clients.",
+            How = "Maintain stapling configuration and ensure responders remain reachable; monitor freshness of OCSP responses.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "ocsp", "stapling" },
+            Impact = "Better revocation coverage and lower client latency.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Probe with an OCSP-aware client (openssl s_client -status) and confirm stapled response present."
+        };
     }
 }

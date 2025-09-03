@@ -30,11 +30,6 @@ public enum ReportFormat {
     Json,
     
     /// <summary>
-    /// CSV data export
-    /// </summary>
-    Csv,
-    
-    /// <summary>
     /// Markdown documentation
     /// </summary>
     Markdown

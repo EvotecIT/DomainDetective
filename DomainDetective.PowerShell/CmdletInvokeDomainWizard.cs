@@ -198,7 +198,7 @@ namespace DomainDetective.PowerShell {
                     
                     if (summary.Hints?.Count > 0) {
                         Host.UI.WriteLine("");
-                        Host.UI.WriteLine($"Found {summary.Hints.Count} recommendation(s). Run with -Summary to see details.");
+                        Host.UI.WriteLine($"Found {summary.Hints.Count} recommendation(s). Use detailed output or generated report to see full details.");
                     }
                 }
                 

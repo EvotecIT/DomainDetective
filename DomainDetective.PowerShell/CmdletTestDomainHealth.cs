@@ -17,7 +17,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainOverallHealth", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DomainHealth")]
-    [OutputType(typeof(DomainHealthCheck))]
+    [OutputType(typeof(DomainDetective.Views.DomainOverallInfo))]
     public sealed class CmdletTestDomainHealth : ExportableAsyncPSCmdlet {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -46,15 +46,6 @@ namespace DomainDetective.PowerShell {
         /// <summary>Protected brand terms for typosquatting analysis.</summary>
         [Parameter(Mandatory = false)]
         public string[]? BrandKeyword;
-        
-        /// <summary>Return the raw DomainHealthCheck object (includes a Summary property).</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw { get; set; }
-
-        /// <summary>Return only a condensed DomainSummary.</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Summary { get; set; }
-        
         /// <summary>Port scan profiles to use.</summary>
         [Parameter(Mandatory = false)]
         public PortScanProfile[]? PortScanProfile;
@@ -86,14 +77,16 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            // Fail fast on incompatible switches
-
             _logger.WriteVerbose("Querying domain health for domain: {0}", DomainName);
             // Always run checks first (simple flow), then export if requested.
             // Brand keywords already applied in BeginProcessing when provided.
             await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType, DanePorts, PortScanProfile);
 
-            // Export (post-run) if requested
+            // 1) Always return overall view with Raw property first
+            var overall = DomainDetective.Views.Converters.Convert(_healthCheck, DomainName);
+            WriteObject(overall);
+
+            // 2) Export (post-run) if requested, after emitting data
             if (IsExportRequested()) {
                 var fmt = ExportFormat ?? ExportDefaults.Format;
                 try {
@@ -114,20 +107,7 @@ namespace DomainDetective.PowerShell {
                 } catch (System.Exception ex) {
                     WriteWarning($"Export failed: {ex.Message}");
                 }
-                return;
             }
-            if (Summary) {
-                WriteObject(_healthCheck.BuildSummary());
-                return;
-            }
-            if (Raw) {
-                // Return the full object; Summary is available as a property
-                WriteObject(_healthCheck);
-                return;
-            }
-            // Export handled above; normal output below
-            var filterResult = _healthCheck.FilterAnalyses(HealthCheckType);
-            WriteObject(filterResult);
         }
     }
 }

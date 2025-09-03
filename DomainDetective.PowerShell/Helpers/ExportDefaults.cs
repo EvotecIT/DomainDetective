@@ -11,4 +11,3 @@ namespace DomainDetective.PowerShell {
         // Reserved for future: Theme, Template, etc.
     }
 }
-

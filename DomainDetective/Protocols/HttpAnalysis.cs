@@ -453,6 +453,48 @@ namespace DomainDetective {
                         }
                     }
                 }
+                // Positive/presence signals to enrich dataset (emitted after warning checks)
+                try {
+                    if (HstsPresent && !HstsTooShort) {
+                        logger?.WriteInformationCode(HttpCodes.HstsPresent, "HSTS present");
+                    }
+                    bool HasHeader(string name) => SecurityHeaders.ContainsKey(name);
+                    if (HasHeader("Content-Security-Policy") && !CspUnsafeDirectives && !SecurityHeaders.ContainsKey("Content-Security-Policy-Report-Only")) {
+                        logger?.WriteInformationCode(HttpCodes.CspPresent, "CSP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(ReferrerPolicy)) {
+                        logger?.WriteInformationCode(HttpCodes.ReferrerPolicyPresent, "Referrer-Policy present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(XFrameOptions)) {
+                        var xv2 = (XFrameOptions ?? string.Empty).Trim();
+                        var valid2 = xv2.Equals("DENY", StringComparison.OrdinalIgnoreCase) || xv2.Equals("SAMEORIGIN", StringComparison.OrdinalIgnoreCase);
+                        if (valid2) logger?.WriteInformationCode(HttpCodes.XFrameOptionsPresent, "X-Frame-Options present");
+                    }
+                    if (HasHeader("X-Content-Type-Options")) {
+                        var xv3 = (SecurityHeaders["X-Content-Type-Options"].Value ?? string.Empty).Trim();
+                        if (xv3.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteInformationCode(HttpCodes.XContentTypeOptionsPresent, "X-Content-Type-Options nosniff set");
+                        }
+                    }
+                    if (PermissionsPolicyPresent && !(PermissionsPolicy?.Any(kv => string.IsNullOrWhiteSpace(kv.Value) || kv.Value == "*") ?? false)) {
+                        logger?.WriteInformationCode(HttpCodes.PermissionsPolicyPresent, "Permissions-Policy present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginOpenerPolicy) && !(CrossOriginOpenerPolicy ?? "").Trim().Equals("unsafe-none", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteInformationCode(HttpCodes.COOPPresent, "COOP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginEmbedderPolicy) && (CrossOriginEmbedderPolicy ?? string.Empty).Trim().Equals("require-corp", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteInformationCode(HttpCodes.COEPPresent, "COEP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginResourcePolicy)) {
+                        var v3 = (CrossOriginResourcePolicy ?? string.Empty).Trim();
+                        if (v3.Equals("same-origin", StringComparison.OrdinalIgnoreCase) || v3.Equals("same-site", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteInformationCode(HttpCodes.CORPPresent, "CORP present");
+                        }
+                    }
+                    if (OriginAgentClusterEnabled) {
+                        logger?.WriteInformationCode(HttpCodes.OACEnabled, "Origin-Agent-Cluster enabled");
+                    }
+                } catch { }
                 if (captureBody) {
                     try {
                         var bytes = await response.Content.ReadAsByteArrayAsync();

@@ -15,7 +15,7 @@
 ### HtmlForgeX Capabilities Available
 - **DataGrid**: Advanced data display with badges, status indicators, avatars, icons
 - **InfoCards**: Beautiful colorful cards with custom backgrounds and progress bars
-- **DataTables**: Interactive tables with search, export (Excel, CSV, PDF), pagination
+- **DataTables**: Interactive tables with search, export (Excel, PDF), pagination
 - **Charts**: Various chart types for visual data representation
 - **Smart Wizard**: Step-by-step guides for remediation
 - **VisNetwork**: Network graphs for relationship visualization
@@ -134,7 +134,7 @@
 - [ ] **Detailed Test Results** (using DataTables)
   - [ ] Comprehensive test matrix with filters
   - [ ] Column: Test Category, Check Name, Status, Score Impact, Details
-  - [ ] Export options (Excel, CSV, PDF)
+  - [ ] Export options (Excel, PDF)
   - [ ] Search and filter by status/category
   - [ ] Inline expandable details for each test
 
@@ -182,23 +182,30 @@
   - [x] Provide `Set-DDExportOptions` for module-wide defaults
   - [ ] Implement dedicated reports per area (DMARC, DKIM, SPF, DNSSEC, MX, etc.)
 
+- [ ] Output conventions
+  - [x] DomainOverallHealth returns a View object with `.Raw` (no `-Raw`/`-Summary`)
+  - [ ] Convert remaining Test-* cmdlets to return typed View objects with `.Raw`
+  - [ ] Ensure cmdlets emit the View to pipeline first, then run export (no pipeline loss)
+
 - [ ] Pipeline Support
   - [ ] `Test-DDEmailSpfRecord -Domain example.com -ExportFormat Html` (report TODO)
   - [ ] `Test-DDEmailDmarcRecord -Domain example.com -ExportFormat Html` (report TODO)
   - [ ] `Test-DDDomainOverallHealth -Domain $domains -ExportFormat Html`
 
 - [ ] Parameters
-  - [x] `-ExportFormat` - Html, Pdf, Excel, Word, Json, Csv (enum)
+  - [x] `-ExportFormat` - Html, Pdf, Excel, Word, Json (enum)
   - [x] `-OpenInBrowser` - Open HTML in browser (default via Set-DDExportOptions)
   - [x] `-ExportPath` - Output file path
   - [ ] Templates/Themes configurable centrally (future)
-  - [ ] IncludeRawData, IncludeRecommendations (future)
+  - [x] Raw data always included in artifacts; IncludeRecommendations (future)
 
 ### Phase 7: CLI Integration
 - [ ] **CLI Commands**
   - [ ] `domain-detective report generate` - Generate reports
   - [ ] `domain-detective report template list` - List templates
   - [ ] `domain-detective report serve` - Local web server for reports
+  - [ ] `domain-detective runs list` - List recent artifact runs from `index.jsonl`
+  - [ ] `domain-detective runs open --last` - Open last run report/artifacts
 
 - [ ] **Interactive Mode**
   - [ ] Report configuration wizard
@@ -362,3 +369,14 @@
 - [ ] CLI Integration: ddcli example.com --html-report --template executive
 
 This comprehensive plan transforms DomainDetective's reporting from basic text output to a professional, interactive, and insightful security analysis platform that rivals commercial solutions while maintaining the flexibility of open-source software.
+## Cross-Cutting: Progress & Persona
+
+- [ ] Add PowerShell progress sink with persona (Write-Verbose/Warning tone)
+- [ ] Add Spectre.Console sink for CLI persona
+- [ ] Centralize InternalLogger event fan-out (extends ProgressHub if needed)
+
+## Documentation & Schema
+
+- [ ] Document artifact schema (scan.json, metrics.json, progress.jsonl, index.jsonl)
+- [ ] Provide sample artifacts and a data dictionary
+- [ ] Quickstart on consuming `index.jsonl`

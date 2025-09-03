@@ -38,7 +38,7 @@ Category Scores: Horizontal progress bars with icons
 - DataGrid with smart filtering and search
 - Status badges (Pass/Warning/Fail)
 - Expandable rows for detailed findings
-- Export capabilities (Excel, PDF, CSV)
+- Export capabilities (Excel, PDF)
 
 #### **Timeline Analysis**
 - Line charts showing score evolution
@@ -183,7 +183,7 @@ page.Row(row => {
 ```csharp
 page.DataTable(checkResults, table => {
     table.EnableSearchBuilder()
-         .EnableExport(Excel, PDF, CSV)
+         .EnableExport(Excel, PDF)
          .EnableResponsive()
          .ConfigureColumns(cols => {
              cols.Column(c => c.Title("Check")

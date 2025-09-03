@@ -163,16 +163,20 @@ namespace DomainDetective {
             }
             // Emit assessments
             if (!MxRecordExists) {
-                logger?.WriteWarningCode(MxCodes.Missing, "No MX records found for domain");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.Missing, "No MX records found for domain");
             }
             if (PointsToCname) {
-                logger?.WriteWarningCode(MxCodes.CnameTarget, "One or more MX hostnames point to CNAMEs");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.CnameTarget, "One or more MX hostnames point to CNAMEs");
             }
             if (PointsToIpAddress) {
-                logger?.WriteWarningCode(MxCodes.IpTarget, "MX record points directly to an IP address");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.IpTarget, "MX record points directly to an IP address");
             }
             if (PointsToNonExistentDomain) {
-                logger?.WriteWarningCode(MxCodes.TargetNonExistent, "One or more MX hostnames do not exist");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.TargetNonExistent, "One or more MX hostnames do not exist");
             }
             if (PointsToDomainWithoutAOrAaaaRecord) {
                 foreach (var h in hostsMissingAddress) {
@@ -181,16 +185,20 @@ namespace DomainDetective {
                 }
             }
             if (!PrioritiesInOrder && evaluationList.Count > 1) {
-                logger?.WriteWarningCode(MxCodes.PrioritiesOutOfOrder, "MX priorities are not in ascending stable order");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.PrioritiesOutOfOrder, "MX priorities are not in ascending stable order");
             }
             if (!HasBackupServers && evaluationList.Count >= 1 && !HasNullMx) {
-                logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
             }
             if (HasNullMx) {
-                logger?.WriteWarningCode(MxCodes.NullMxPresent, "Null MX present (0 .) indicates no inbound mail");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.NullMxPresent, "Null MX present (0 .) indicates no inbound mail");
             }
             if (PointsToLocalhost) {
-                logger?.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteWarningCode(MxCodes.LocalhostTarget, "MX hostname points to localhost");
             }
 
             // TTL uniformity across MX RRset
@@ -198,7 +206,8 @@ namespace DomainDetective {
                 var ttls = mxRecordList.Select(r => r.TTL).Distinct().ToList();
                 if (ttls.Count > 1) {
                     MxTtlUniform = false;
-                    logger?.WriteWarningCode(MxCodes.TtlNonUniform, "MX RRset TTLs differ across records");
+                    using (_collector?.PushTarget(Subject ?? string.Empty))
+                        logger?.WriteWarningCode(MxCodes.TtlNonUniform, "MX RRset TTLs differ across records");
                 }
             }
 
@@ -279,7 +288,8 @@ namespace DomainDetective {
                 foreach (var kv in mxByServer.Skip(1)) {
                     if (!first.SetEquals(kv.Value)) {
                         MxRrsetConsistentAcrossNs = false;
-                        logger?.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
+                        using (AssessmentCollector.ForAnalysis(logger, this, category: "MX", target: domain))
+                            logger?.WriteWarningCode(MxCodes.RrsetInconsistentAcrossNs, "MX RRset differs across name servers");
                         break;
                     }
                 }

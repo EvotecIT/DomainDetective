@@ -116,7 +116,7 @@ Notes:
 | `Test-DDDomainContactRecord` | `Test-DomainContact`       | WHOIS contact sanity                                                   |
 | `Test-DDDomainSecurityTxt`   | `Test-DomainSecurityTxt`   | security.txt checks                                                    |
 | `Test-DDDomainCertificate`   | `Test-DomainCertificate`   | Website certificate checks                                             |
-| `Test-DDDomainOverallHealth` | `Test-DomainHealth`        | Composite health; -Summary returns DomainSummary; -Export* for reports |
+| `Test-DDDomainOverallHealth` | `Test-DomainHealth`        | Composite health; returns a View (with Raw), supports -Export* |
 | `Get-DDDomainWhois`          | `Get-DomainWhois`          | WHOIS                                                                  |
 | `Get-DDDomainFlattenedSpfIp` | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs                                                     |
 | `Test-DDDomainThreatIntel`   | `Test-DomainThreatIntel`   | Threat intel lookups                                                   |

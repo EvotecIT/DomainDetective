@@ -42,6 +42,49 @@ public sealed class ReportDispatcher
 
     private static IReportGenerator? ResolveGenerator(ReportOptions options)
     {
+        // 1) Try known generator types by name (avoids requiring callers to preload assemblies)
+        static IReportGenerator? TryCreate(string assemblyQualifiedName)
+        {
+            try
+            {
+                var t = Type.GetType(assemblyQualifiedName, throwOnError: false);
+                if (t == null) return null;
+                if (t.IsAbstract) return null;
+                if (!typeof(IReportGenerator).IsAssignableFrom(t)) return null;
+                return (IReportGenerator?)Activator.CreateInstance(t);
+            }
+            catch { return null; }
+        }
+
+        switch (options.Format)
+        {
+            case ReportFormat.Html:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Html.HtmlReportGenerator, DomainDetective.Reports.Html");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.Pdf:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Pdf.PdfReportGenerator, DomainDetective.Reports.Pdf");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.Word:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Office.WordReportGenerator, DomainDetective.Reports.Office");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.Excel:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Office.ExcelReportGenerator, DomainDetective.Reports.Office");
+                if (gen != null) return gen;
+                break;
+            }
+        }
+
+        // 2) Fallback: scan already loaded assemblies for any IReportGenerator
         try
         {
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())

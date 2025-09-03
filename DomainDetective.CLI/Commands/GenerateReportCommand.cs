@@ -75,8 +75,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     await healthCheck.Verify(settings.Domain);
                     analyzeTask.Value = 100;
                     
-                    // Step 2: Generate report
-                    var generateTask = ctx.AddTask("[yellow]Generating report[/]");
+                    // Step 2: Generate report + artifacts
+                    var generateTask = ctx.AddTask("[yellow]Generating report + artifacts[/]");
                     
                     // Determine output path
                     var fmt = settings.Format?.ToLowerInvariant() ?? "html";
@@ -91,23 +91,25 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     var outputPath = settings.OutputPath ??
                         DomainDetective.Reports.ReportPathHelper.GenerateDefaultPath(settings.Domain, formatEnum, null);
                     
-                    // Generate based on format
-                    var dispatcher = new ReportDispatcher();
+                    // Generate report and write artifacts (centralized)
                     var options = new ReportOptions {
                         Format = formatEnum,
                         OutputPath = outputPath
                     };
                     options.CustomProperties["Domain"] = settings.Domain;
                     options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
-                    var result = await dispatcher.GenerateAsync(healthCheck, options, settings.Domain, settings.OpenInBrowser);
+                    var (dir, result) = await coord.EndAndExportAsync(
+                        healthCheck,
+                        options,
+                        settings.Domain,
+                        settings.OpenInBrowser);
                     if (!result.Success) {
                         AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
                         return;
                     }
-                    coord.End(healthCheck);
-                    
+
                     generateTask.Value = 100;
-                    
+
                     // Show summary
                     AnsiConsole.WriteLine();
                     var panel = new Panel(

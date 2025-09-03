@@ -22,7 +22,6 @@ public static class ReportPathHelper
             ReportFormat.Excel => "xlsx",
             ReportFormat.Pdf => "pdf",
             ReportFormat.Json => "json",
-            ReportFormat.Csv => "csv",
             _ => "html"
         };
         var file = $"{safe}_{ts}.{ext}";
@@ -38,4 +37,3 @@ public static class ReportPathHelper
         return file;
     }
 }
-

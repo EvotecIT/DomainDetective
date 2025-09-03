@@ -123,7 +123,12 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 - [x] Unify Test‑DDDmarcAggregate to use `DmarcReportParser` (v1+v2; xml/gz/zip) and add `-SummarizeBy Ip|HeaderFrom`.
 - [x] Compute and expose `RequestedReportingPolicy` from `policy_published.fo`.
 - [x] Support directory/glob ingestion; optional de‑dup by report‑id + date range.
-- [x] Optional export params `-CsvPath` and `-Json` for records/summaries.
+- [x] Optional export param `-Json` for records/summaries (CSV removed).
+
+## PowerShell Output Conventions
+- [x] DomainOverallHealth: return View with `.Raw` (removed `-Raw`/`-Summary`)
+- [ ] Convert remaining Test-* cmdlets to View outputs with `.Raw`
+- [ ] Ensure exports run after pipeline output across cmdlets
 
 ## Testing & Validation
 - [ ] Snapshot tests for updated converters (Autodiscover, TLSRPT, EDNSSUPPORT, RPKI) to verify `Status`, counts, `Summary`, `References`.
@@ -237,7 +242,7 @@ Goal: Add a static (no‑browser) web scanner first, then an optional dynamic/br
 - [ ] Reporting: HTML section in SimpleDomainReport + CLI summary (top hosts, bytes by type, posture, TLS, trackers, threat intel). Medium
 - [x] PowerShell cmdlet Test‑DDWebStaticScan: parameters (Url, MaxSeconds, MaxResources, Concurrency, RespectRobots, SkipThreatIntel, SaveArtifactsPath); outputs typed view. Medium
   - Implemented as `Test-DDWebsiteStaticScan` with aliases (`Test-DDWebStaticScan`, `Test-WebsiteStaticScan`, `Test-WebStaticScan`). `-Url` has alias `-DomainName`; supports bare domains; tracks redirects. Added `-SkipThirdParty` and concurrency/robots switches.
-- [ ] Artifacts: write scan.json (HAR‑like), resources.csv, hosts.csv under ./artifacts/<host>/<timestamp>/; enforce budgets (time/requests/per‑host caps). Medium
+- [ ] Artifacts: write scan.json (HAR‑like), metrics.json, progress.jsonl, and append index.jsonl under ./artifacts/<subject>/<timestamp>/; enforce budgets (time/requests/per‑host caps). Medium
 - [x] Concurrency/fairness: bounded parallelism, per‑host limits, retries with backoff; robots.txt optional respect. Medium
 
 ### Beyond urlscan (Static Extras)
@@ -314,8 +319,8 @@ Note: Keep this dependency optional; wire via HtmlTinkerX/Playwright only at the
 
 ### Static Web Scan — Missing (Keep Focus on Data, not Output)
 - [ ] Threat intel overlay for contacted registrable domains (reuse ThreatIntelAnalysis; optional and capped).
-- [ ] Artifact export: compact JSON + CSV for resources/hosts, time‑bounded; add small re‑import viewer later.
-- [ ] HTML/JSON/CSV report sections (defer; prioritize enrichment first).
+- [ ] Artifact export: compact JSON for resources/hosts (no CSV), time‑bounded; add small re‑import viewer later.
+- [ ] HTML/JSON report sections (defer; prioritize enrichment first).
 - [ ] Bound concurrency defaults and document caps; validate MaxResources per phase.
 - [ ] Add small TTL/state cache across runs (robots, DNS TXT) with invalidation option.
 - [x] Per-resource timing (headers timing only) to enable a minimal waterfall later.

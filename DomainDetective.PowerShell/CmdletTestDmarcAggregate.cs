@@ -34,10 +34,6 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter Deduplicate { get; set; }
 
-        /// <summary>Optional CSV export path for the summary rows.</summary>
-        [Parameter(Mandatory = false)]
-        public string? CsvPath { get; set; }
-
         /// <summary>Emit JSON for the summary to the pipeline.</summary>
         [Parameter(Mandatory = false)]
         public SwitchParameter Json { get; set; }
@@ -118,19 +114,6 @@ namespace DomainDetective.PowerShell {
         }
 
         private void ExportIfRequested<T>(IEnumerable<T> data) {
-            if (!string.IsNullOrWhiteSpace(CsvPath)) {
-                try {
-                    using var writer = new StreamWriter(CsvPath);
-                    var props = typeof(T).GetProperties();
-                    writer.WriteLine(string.Join(",", props.Select(p => p.Name)));
-                    foreach (var item in data) {
-                        var line = string.Join(",", props.Select(p => (p.GetValue(item)?.ToString() ?? string.Empty).Replace(",", " ")));
-                        writer.WriteLine(line);
-                    }
-                } catch (Exception ex) {
-                    WriteWarning($"Failed to write CSV to '{CsvPath}': {ex.Message}");
-                }
-            }
             if (Json.IsPresent) {
                 var json = System.Text.Json.JsonSerializer.Serialize(data, DomainDetective.Helpers.JsonOptions.Default);
                 WriteObject(json);

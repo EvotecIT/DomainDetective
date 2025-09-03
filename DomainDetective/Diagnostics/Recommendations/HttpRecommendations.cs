@@ -250,6 +250,110 @@ internal sealed class HttpRecommendations : IRecommendationProvider {
             Verify = "Confirm COEP equals 'require-corp'."
         };
 
+        // Presence/positive signals
+        map[HttpCodes.HstsPresent] = new RecommendationAdvice {
+            Code = HttpCodes.HstsPresent,
+            Title = "HSTS present",
+            Why = "HSTS enforces HTTPS and mitigates downgrade/strip attacks.",
+            How = "Maintain Strict-Transport-Security with adequate max-age; consider preload eligibility.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "hsts" },
+            Impact = "Stronger transport security posture.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm S-T-S header with max-age and includeSubDomains as intended."
+        };
+        map[HttpCodes.CspPresent] = new RecommendationAdvice {
+            Code = HttpCodes.CspPresent,
+            Title = "CSP present",
+            Why = "A well-configured CSP reduces XSS risk and tightens resource loading.",
+            How = "Maintain CSP with nonces/hashes; avoid report-only and unsafe directives.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "csp" },
+            Impact = "Improved client-side hardening.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Inspect CSP header; ensure enforcement (not report-only)."
+        };
+        map[HttpCodes.ReferrerPolicyPresent] = new RecommendationAdvice {
+            Code = HttpCodes.ReferrerPolicyPresent,
+            Title = "Referrer-Policy present",
+            Why = "Controlling referrer reduces leakage of sensitive URLs across origins.",
+            How = "Set a strict policy (e.g., no-referrer, strict-origin-when-cross-origin) according to your needs.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "referrer" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header present with intended value."
+        };
+        map[HttpCodes.XFrameOptionsPresent] = new RecommendationAdvice {
+            Code = HttpCodes.XFrameOptionsPresent,
+            Title = "X-Frame-Options present",
+            Why = "Prevents clickjacking by disallowing framing.",
+            How = "Keep DENY or SAMEORIGIN as applicable.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "xfo" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header equals DENY or SAMEORIGIN."
+        };
+        map[HttpCodes.XContentTypeOptionsPresent] = new RecommendationAdvice {
+            Code = HttpCodes.XContentTypeOptionsPresent,
+            Title = "X-Content-Type-Options nosniff present",
+            Why = "Disables MIME sniffing to prevent content-type confusion.",
+            How = "Keep 'nosniff' on all responses serving untrusted content.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "xcto" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header equals 'nosniff'."
+        };
+        map[HttpCodes.PermissionsPolicyPresent] = new RecommendationAdvice {
+            Code = HttpCodes.PermissionsPolicyPresent,
+            Title = "Permissions-Policy present",
+            Why = "Restricts access to powerful features by origin/context.",
+            How = "Maintain explicit allow-lists per feature; avoid '*' or empty lists.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "permissions-policy" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header present with non-wildcard feature values."
+        };
+        map[HttpCodes.COOPPresent] = new RecommendationAdvice {
+            Code = HttpCodes.COOPPresent,
+            Title = "COOP present",
+            Why = "Enables process isolation for top-level documents.",
+            How = "Maintain 'same-origin' where isolation is desired.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "coop" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header equals 'same-origin'."
+        };
+        map[HttpCodes.COEPPresent] = new RecommendationAdvice {
+            Code = HttpCodes.COEPPresent,
+            Title = "COEP present",
+            Why = "Enforces CORS/CORP compliance for embedded resources, enabling isolation.",
+            How = "Maintain 'require-corp' once all subresources are compliant.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "coep" },
+            Effort = RecommendationEffort.Medium,
+            Verify = "Header equals 'require-corp'."
+        };
+        map[HttpCodes.CORPPresent] = new RecommendationAdvice {
+            Code = HttpCodes.CORPPresent,
+            Title = "CORP present",
+            Why = "Restricts which origins can load your resources.",
+            How = "Prefer 'same-origin' (or 'same-site' if needed).",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "corp" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header equals 'same-origin' or 'same-site'."
+        };
+        map[HttpCodes.OACEnabled] = new RecommendationAdvice {
+            Code = HttpCodes.OACEnabled,
+            Title = "Origin-Agent-Cluster enabled",
+            Why = "Improves site isolation and security by clustering same-origin contexts.",
+            How = "Maintain 'Origin-Agent-Cluster: ?1' where supported.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "oac", "isolation" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Header present and equals '?1'."
+        };
+
         map[HttpCodes.CORPWeak] = new RecommendationAdvice {
             Code = HttpCodes.CORPWeak,
             Title = "Harden CORP",
