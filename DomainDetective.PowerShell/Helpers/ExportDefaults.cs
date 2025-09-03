@@ -10,6 +10,11 @@ namespace DomainDetective.PowerShell {
         public static string OutputDirectory { get; set; } = string.Empty;
         public static bool EmitArtifacts { get; set; } = false;
         public static string ArtifactsDirectory { get; set; } = string.Empty;
+        // Branding / report cosmetics
+        public static string LogoPath { get; set; } = string.Empty;
+        public static string HeaderText { get; set; } = string.Empty;
+        public static string FooterText { get; set; } = string.Empty;
+        public static string WatermarkText { get; set; } = string.Empty;
         // Reserved for future: Theme, Template, etc.
     }
 }

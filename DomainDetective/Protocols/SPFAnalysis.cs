@@ -690,13 +690,16 @@ namespace DomainDetective {
         }
 
         private static bool IsAllowedMechanismOrModifier(string token) {
-            return token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)
+            return token.Equals("a", StringComparison.OrdinalIgnoreCase)
+                   || token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("mx", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)
+                   || token.Equals("ptr", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)
                    || token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)
                    || token.Equals("v=spf1", StringComparison.OrdinalIgnoreCase)

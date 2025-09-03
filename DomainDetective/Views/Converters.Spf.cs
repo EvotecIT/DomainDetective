@@ -8,6 +8,8 @@ public static partial class Converters
     {
         var recs = RecommendationEngine.From(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+        // Narrative (business-friendly text blocks)
+        var narrative = DomainDetective.Narratives.SpfNarrative.Build(analysis);
         // Build provider summary from part analyses
         var providerCounts = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
         if (analysis.SpfPartAnalyses != null)
@@ -46,7 +48,8 @@ public static partial class Converters
             Summary = $"policy {policy}; lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
-            Raw = analysis
+            Raw = analysis,
+            Narrative = narrative
         };
     }
 }
@@ -77,4 +80,5 @@ public class SpfRecordInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SpfAnalysis Raw { get; set; }
+    public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; }
 }

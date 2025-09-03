@@ -47,7 +47,44 @@ namespace DomainDetective.PowerShell {
             var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
             WriteObject(output);
             if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDEmailSpfRecord"); // TODO: Dedicated SPF report
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
+                try {
+                    switch (fmt) {
+                        case DomainDetective.Reports.ReportFormat.Html:
+                            DomainDetective.Reports.Html.SpfHtmlReport.Generate(outPath, healthCheck.SpfAnalysis, DomainName, false);
+                            WriteVerbose($"SPF HTML report generated: {outPath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                            break;
+                        case DomainDetective.Reports.ReportFormat.Word:
+                            DomainDetective.Reports.Office.SpfWordReport.Generate(
+                                outPath,
+                                healthCheck.SpfAnalysis,
+                                DomainName,
+                                string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
+                                string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                                string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
+                                string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText
+                            );
+                            WriteVerbose($"SPF Word report generated: {outPath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                            break;
+                        case DomainDetective.Reports.ReportFormat.Json:
+                            {
+                                var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                                System.IO.File.WriteAllText(outPath, json);
+                                WriteVerbose($"SPF JSON saved: {outPath}");
+                                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                                break;
+                            }
+                        default:
+                            await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
+                            break;
+                    }
+                }
+                catch (System.Exception ex) {
+                    WriteWarning($"SPF export failed: {ex.Message}");
+                }
                 return;
             }
         }

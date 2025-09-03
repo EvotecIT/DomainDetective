@@ -377,3 +377,4 @@ DEMO/*
 DomainDetective.Tests/Reports/*.gz
 DomainDetective.Tests/Reports/*.zip
 nul
+Projects/*

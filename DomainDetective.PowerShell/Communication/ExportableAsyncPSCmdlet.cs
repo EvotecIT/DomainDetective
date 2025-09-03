@@ -30,6 +30,15 @@ namespace DomainDetective.PowerShell {
         [Alias("ArtifactsPath")]
         public string? ArtifactsDirectory { get; set; }
 
+        protected void TryOpenReport(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try {
+                var psi = new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true };
+                System.Diagnostics.Process.Start(psi);
+            } catch { }
+        }
+
         protected bool IsExportRequested()
             => ExportFormat.HasValue
                || !string.IsNullOrWhiteSpace(ExportPath)

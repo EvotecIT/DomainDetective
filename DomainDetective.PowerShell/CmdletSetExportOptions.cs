@@ -18,6 +18,22 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? ArtifactsDirectory { get; set; }
 
+        /// <summary>Logo path for header branding (optional).</summary>
+        [Parameter(Mandatory = false)]
+        public string? LogoPath { get; set; }
+
+        /// <summary>Header text (optional; shown in Word header if provided).</summary>
+        [Parameter(Mandatory = false)]
+        public string? HeaderText { get; set; }
+
+        /// <summary>Footer text (optional; shown in Word footer if provided).</summary>
+        [Parameter(Mandatory = false)]
+        public string? FooterText { get; set; }
+
+        /// <summary>Watermark text (optional; applied to sections).</summary>
+        [Parameter(Mandatory = false)]
+        public string? WatermarkText { get; set; }
+
         /// <summary>Open reports after generation (HTML in browser, others via shell).</summary>
         [Parameter(Mandatory = false)]
         [Alias("OpenReport")]
@@ -62,6 +78,22 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(ArtifactsDirectory)) {
                 ExportDefaults.ArtifactsDirectory = ArtifactsDirectory!;
                 WriteVerbose($"Default artifacts directory set to {ExportDefaults.ArtifactsDirectory}.");
+            }
+            if (!string.IsNullOrWhiteSpace(LogoPath)) {
+                ExportDefaults.LogoPath = LogoPath!;
+                WriteVerbose($"LogoPath set to {ExportDefaults.LogoPath}.");
+            }
+            if (!string.IsNullOrWhiteSpace(HeaderText)) {
+                ExportDefaults.HeaderText = HeaderText!;
+                WriteVerbose($"HeaderText set to {ExportDefaults.HeaderText}.");
+            }
+            if (!string.IsNullOrWhiteSpace(FooterText)) {
+                ExportDefaults.FooterText = FooterText!;
+                WriteVerbose($"FooterText set to {ExportDefaults.FooterText}.");
+            }
+            if (!string.IsNullOrWhiteSpace(WatermarkText)) {
+                ExportDefaults.WatermarkText = WatermarkText!;
+                WriteVerbose($"WatermarkText set to {ExportDefaults.WatermarkText}.");
             }
 
             if (this.MyInvocation.BoundParameters.ContainsKey(nameof(Artifacts))) {
