@@ -14,9 +14,22 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? OutputDirectory { get; set; }
 
-        /// <summary>Open HTML exports in browser by default.</summary>
+        /// <summary>Default artifacts directory (for scan.json, metrics.json, progress.jsonl).</summary>
         [Parameter(Mandatory = false)]
+        public string? ArtifactsDirectory { get; set; }
+
+        /// <summary>Open reports after generation (HTML in browser, others via shell).</summary>
+        [Parameter(Mandatory = false)]
+        [Alias("OpenReport")]
         public SwitchParameter OpenInBrowser { get; set; }
+
+        /// <summary>Emit artifacts (scan.json, metrics.json, progress.jsonl) by default.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter Artifacts { get; set; }
+
+        /// <summary>Disable artifact emission by default.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter NoArtifacts { get; set; }
 
         /// <summary>Reset export defaults to built-in values.</summary>
         [Parameter(Mandatory = false)]
@@ -27,6 +40,7 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.Format = ReportFormat.Html;
                 ExportDefaults.OpenInBrowser = true;
                 ExportDefaults.OutputDirectory = string.Empty;
+                ExportDefaults.EmitArtifacts = false;
                 WriteVerbose("Export defaults reset to built-in values.");
                 return;
             }
@@ -44,6 +58,19 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(OutputDirectory)) {
                 ExportDefaults.OutputDirectory = OutputDirectory!;
                 WriteVerbose($"Default export directory set to {ExportDefaults.OutputDirectory}.");
+            }
+            if (!string.IsNullOrWhiteSpace(ArtifactsDirectory)) {
+                ExportDefaults.ArtifactsDirectory = ArtifactsDirectory!;
+                WriteVerbose($"Default artifacts directory set to {ExportDefaults.ArtifactsDirectory}.");
+            }
+
+            if (this.MyInvocation.BoundParameters.ContainsKey(nameof(Artifacts))) {
+                ExportDefaults.EmitArtifacts = Artifacts.IsPresent;
+                WriteVerbose($"Artifacts default set to {ExportDefaults.EmitArtifacts}.");
+            }
+            if (this.MyInvocation.BoundParameters.ContainsKey(nameof(NoArtifacts))) {
+                ExportDefaults.EmitArtifacts = !NoArtifacts.IsPresent;
+                WriteVerbose($"Artifacts default set to {ExportDefaults.EmitArtifacts}.");
             }
         }
     }

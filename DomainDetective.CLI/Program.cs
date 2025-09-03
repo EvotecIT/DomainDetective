@@ -113,6 +113,16 @@ internal static class Program {
             config.AddCommand<TestNtpServerCommand>("TestNtpServer")
                 .WithDescription("Query NTP server for clock offset")
                 .WithExample(new[] { "TestNtpServer", "--builtin", "Pool" });
+
+            // Artifacts utilities
+            config.AddCommand<DomainDetective.CLI.Commands.RunsListCommand>("RunsList")
+                .WithDescription("List recent artifact runs (reads index.jsonl)")
+                .WithExample(new[] { "RunsList", "--subject", "example.com" })
+                .WithExample(new[] { "RunsList", "--count", "5" });
+            config.AddCommand<DomainDetective.CLI.Commands.RunsOpenCommand>("RunsOpen")
+                .WithDescription("Open most recent run directory or scan.json")
+                .WithExample(new[] { "RunsOpen", "--subject", "example.com" })
+                .WithExample(new[] { "RunsOpen", "--dir", "/path/to/run" });
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);

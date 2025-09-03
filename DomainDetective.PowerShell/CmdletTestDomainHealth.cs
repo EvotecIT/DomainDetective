@@ -89,25 +89,54 @@ namespace DomainDetective.PowerShell {
             // 2) Export (post-run) if requested, after emitting data
             if (IsExportRequested()) {
                 var fmt = ExportFormat ?? ExportDefaults.Format;
+                var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
+                var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
                 try {
-                    var (dir, reportResult) = await DomainDetective.Reports.ReportRunService.ExportOnlyAsync(
-                        _logger,
-                        DomainName,
-                        _healthCheck,
-                        fmt,
-                        ExportPath,
-                        ExportDefaults.OutputDirectory,
-                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
-                    WriteVerbose($"Artifacts written to {dir}.");
-                    if (reportResult.Success) {
-                        WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                    if (wantArtifacts) {
+                        var artDir = !string.IsNullOrWhiteSpace(this.ArtifactsDirectory)
+                            ? this.ArtifactsDirectory
+                            : (string.IsNullOrWhiteSpace(ExportDefaults.ArtifactsDirectory) ? null : ExportDefaults.ArtifactsDirectory);
+                        var (dir, reportResult) = await DomainDetective.Reports.ReportRunService.ExportOnlyAsync(
+                            _logger,
+                            DomainName,
+                            _healthCheck,
+                            fmt,
+                            outPath,
+                            ExportDefaults.OutputDirectory,
+                            false,
+                            artDir);
+                        WriteVerbose($"Artifacts written to {dir}.");
+                        if (reportResult.Success) {
+                            WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                        } else {
+                            WriteWarning(reportResult.ErrorMessage);
+                        }
                     } else {
-                        WriteWarning(reportResult.ErrorMessage);
+                        var dispatcher = new ReportDispatcher();
+                        var options = new ReportOptions { Format = fmt, OutputPath = outPath };
+                        options.CustomProperties["Domain"] = DomainName;
+                        var reportResult = await dispatcher.GenerateAsync(_healthCheck, options, DomainName, false);
+                        if (reportResult.Success) {
+                            WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                        } else {
+                            WriteWarning(reportResult.ErrorMessage);
+                        }
                     }
                 } catch (System.Exception ex) {
                     WriteWarning($"Export failed: {ex.Message}");
                 }
             }
+        }
+
+        private void TryOpen(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try {
+                var psi = new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true };
+                System.Diagnostics.Process.Start(psi);
+            } catch { }
         }
     }
 }

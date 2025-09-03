@@ -7,7 +7,30 @@ public static class ReportPathHelper
 {
     public static string ResolveOutputPath(string? explicitPath, string? defaultOutputDirectory, string subject, ReportFormat format)
     {
-        if (!string.IsNullOrWhiteSpace(explicitPath)) return explicitPath!;
+        if (!string.IsNullOrWhiteSpace(explicitPath))
+        {
+            try
+            {
+                var p = explicitPath!;
+                var looksLikeDirectory = false;
+                if (Directory.Exists(p)) looksLikeDirectory = true;
+                else if (p.EndsWith(Path.DirectorySeparatorChar.ToString()) || p.EndsWith(Path.AltDirectorySeparatorChar.ToString())) looksLikeDirectory = true;
+                else if (!Path.HasExtension(p)) looksLikeDirectory = true;
+
+                if (looksLikeDirectory)
+                {
+                    // Generate a default file name under this directory
+                    return GenerateDefaultPath(subject, format, p);
+                }
+
+                return p;
+            }
+            catch
+            {
+                // Fall back to default path generation
+                return GenerateDefaultPath(subject, format, defaultOutputDirectory);
+            }
+        }
         return GenerateDefaultPath(subject, format, defaultOutputDirectory);
     }
 

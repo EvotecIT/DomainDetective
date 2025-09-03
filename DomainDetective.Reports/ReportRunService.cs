@@ -36,9 +36,11 @@ public static class ReportRunService
         }
     }
 
-    public static ReportRunScope Begin(InternalLogger logger, string subject, string? explicitExportPath, string? defaultOutputDirectory)
+    public static ReportRunScope Begin(InternalLogger logger, string subject, string? explicitExportPath, string? defaultOutputDirectory, string? artifactsDirectory = null)
     {
-        var baseDir = FilePathHelper.ResolveBaseDirectory(explicitExportPath, defaultOutputDirectory);
+        var baseDir = !string.IsNullOrWhiteSpace(artifactsDirectory)
+            ? artifactsDirectory!
+            : FilePathHelper.ResolveBaseDirectory(explicitExportPath, defaultOutputDirectory);
         var coord = RunCoordinator.Begin(subject, logger, baseDir);
         return new ReportRunScope(coord, subject);
     }
@@ -55,9 +57,10 @@ public static class ReportRunService
         ReportFormat format,
         string? exportPath,
         string? defaultOutputDirectory,
-        bool openInBrowser)
+        bool openInBrowser,
+        string? artifactsDirectory = null)
     {
-        using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory);
+        using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory, artifactsDirectory);
         await work().ConfigureAwait(false);
         return await scope.ExportAsync(hc, format, exportPath, defaultOutputDirectory, openInBrowser).ConfigureAwait(false);
     }
@@ -72,9 +75,10 @@ public static class ReportRunService
         ReportFormat format,
         string? exportPath,
         string? defaultOutputDirectory,
-        bool openInBrowser)
+        bool openInBrowser,
+        string? artifactsDirectory = null)
     {
-        using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory);
+        using var scope = Begin(logger, subject, exportPath, defaultOutputDirectory, artifactsDirectory);
         return await scope.ExportAsync(hc, format, exportPath, defaultOutputDirectory, openInBrowser).ConfigureAwait(false);
     }
 

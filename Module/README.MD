@@ -137,14 +137,24 @@ Set module-wide export defaults to avoid repeating parameters:
 
 ```powershell
 # Default to HTML, write to .\Reports, and open in browser
-Set-DDExportOptions -DefaultFormat Html -OutputDirectory ".\Reports" -OpenInBrowser:$true
+Set-DDExportOptions -DefaultFormat Html -OutputDirectory ".\Reports" -OpenInBrowser:$true -Artifacts:$false -ArtifactsDirectory ".\Artifacts"
 
 # Now you can call without specifying export flags explicitly
 Test-DDDomainOverallHealth -DomainName "example.com"
 ```
 
 Notes:
-- `-ExportFormat` is an enum: Html, Json, Pdf, Word, Excel. Only Html/Json are implemented for overall health currently.
-- `-ExportPath` sets the destination file; otherwise a timestamp-based filename is used (optionally rooted in the default output directory set via `Set-DDExportOptions`).
-- `-OpenInBrowser` opens HTML exports automatically (controlled by per-call switch or module default).
-Artifacts always include the full DomainHealthCheck in scan.json; no toggle is needed.
+- `-ExportFormat` is an enum: Html, Json, Pdf, Word, Excel. Only Html/Json are implemented for overall health currently (basic Word/Excel/PDF summaries available).
+- `-ExportPath` can be a file or a directory. When a directory is provided, a smart filename is generated automatically.
+- `-OpenInBrowser` (alias: `-OpenReport`) opens the generated report using the system shell (browser, Word, Excel, etc.).
+- Artifacts (scan.json, metrics.json, progress.jsonl, index.jsonl) are optional. Use `-Artifacts` per-call or `Set-DDExportOptions -Artifacts` to enable. Default artifacts path is `./artifacts` unless overridden via `-ArtifactsDirectory` on the cmdlet or `Set-DDExportOptions -ArtifactsDirectory`.
+
+Per-call examples:
+
+```powershell
+# Report only, no artifacts, open in browser
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports" -OpenReport
+
+# Report + artifacts into a specific artifacts folder for this call
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports" -Artifacts -ArtifactsDirectory ".\Artifacts\domain-health"
+```

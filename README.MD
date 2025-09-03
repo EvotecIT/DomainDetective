@@ -346,6 +346,16 @@ ddcli AnalyzeMessageHeader --file ./headers.txt --json
 ddcli AnalyzeARC --file ./headers.txt --json
 ```
 
+### CLI artifacts
+
+```bash
+# List recent runs from artifacts index
+ddcli RunsList --subject example.com --count 5
+
+# Open the most recent run (scan.json or directory)
+ddcli RunsOpen --subject example.com
+```
+
 <!-- Tables moved to top under "Available Cmdlets and Aliases" -->
 
 ## Configuration knobs (common)

@@ -88,8 +88,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         "pdf" => ReportFormat.Pdf,
                         _ => ReportFormat.Html
                     };
-                    var outputPath = settings.OutputPath ??
-                        DomainDetective.Reports.ReportPathHelper.GenerateDefaultPath(settings.Domain, formatEnum, null);
+                    var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);
                     
                     // Generate report and write artifacts (centralized)
                     var options = new ReportOptions {
