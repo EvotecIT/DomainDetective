@@ -22,6 +22,10 @@ namespace DomainDetective {
         public List<ReceivedHop> ReceivedHops { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
         public TimeSpan? TotalTransitTime { get; private set; }
+        /// <summary>Maximum delay between consecutive hops.</summary>
+        public TimeSpan? MaxHopDelay { get; private set; }
+        /// <summary>Minimum delay between consecutive hops.</summary>
+        public TimeSpan? MinHopDelay { get; private set; }
         /// <summary>Value of the <c>From</c> header.</summary>
         public string? From { get; private set; }
         /// <summary>Value of the <c>To</c> header.</summary>
@@ -59,6 +63,8 @@ namespace DomainDetective {
             SpamHeaders.Clear();
             Issues.Clear();
             TotalTransitTime = null;
+            MaxHopDelay = null;
+            MinHopDelay = null;
             From = null;
             To = null;
             Subject = null;
@@ -246,15 +252,51 @@ namespace DomainDetective {
         }
 
         private void ComputeTransitTime() {
-            var times = new List<DateTimeOffset>();
-            foreach (var hop in ReceivedHops) {
-                if (hop.Timestamp.HasValue) {
-                    times.Add(hop.Timestamp.Value);
-                }
+            MaxHopDelay = null;
+            MinHopDelay = null;
+            TotalTransitTime = null;
+            if (ReceivedHops.Count == 0) {
+                return;
             }
-            if (times.Count >= 2) {
-                times.Sort();
-                TotalTransitTime = times[times.Count-1] - times[0];
+
+            ReceivedHops.Sort((a, b) => {
+                if (a.Timestamp.HasValue && b.Timestamp.HasValue) {
+                    return a.Timestamp.Value.CompareTo(b.Timestamp.Value);
+                }
+                if (a.Timestamp.HasValue) {
+                    return -1;
+                }
+                if (b.Timestamp.HasValue) {
+                    return 1;
+                }
+                return 0;
+            });
+
+            DateTimeOffset? first = null;
+            DateTimeOffset? prev = null;
+            foreach (var hop in ReceivedHops) {
+                hop.HopDelay = null;
+                if (!hop.Timestamp.HasValue) {
+                    continue;
+                }
+                if (!first.HasValue) {
+                    first = hop.Timestamp;
+                }
+                if (prev.HasValue) {
+                    var delay = hop.Timestamp.Value - prev.Value;
+                    hop.HopDelay = delay;
+                    if (!MaxHopDelay.HasValue || delay > MaxHopDelay.Value) {
+                        MaxHopDelay = delay;
+                    }
+                    if (!MinHopDelay.HasValue || delay < MinHopDelay.Value) {
+                        MinHopDelay = delay;
+                    }
+                }
+                prev = hop.Timestamp;
+            }
+
+            if (first.HasValue && prev.HasValue && prev > first) {
+                TotalTransitTime = prev.Value - first.Value;
             }
         }
 

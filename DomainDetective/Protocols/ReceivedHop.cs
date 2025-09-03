@@ -22,6 +22,8 @@ public class ReceivedHop {
     public string? For { get; set; }
     /// <summary>Timestamp at the end of the header.</summary>
     public DateTimeOffset? Timestamp { get; set; }
+    /// <summary>Delay since the previous hop.</summary>
+    public TimeSpan? HopDelay { get; set; }
     /// <summary>Raw header value.</summary>
     public string Raw { get; set; } = string.Empty;
 
