@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using DomainDetective.Reports;
-using DomainDetective.Reports.Html;
+using DomainDetective.Reports.Artifacts;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -17,7 +17,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Output format (html, word, excel, pdf)")]
+        [Description("Output format (html, json, word, excel, pdf)")]
         [CommandOption("-f|--format")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";
@@ -67,6 +67,11 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     // Step 1: Analyze domain
                     var analyzeTask = ctx.AddTask($"[green]Analyzing {settings.Domain}[/]");
                     var healthCheck = new DomainHealthCheck();
+                    var logger = new InternalLogger(false);
+                    // Use same logger in health check for consistent events
+                    healthCheck = new DomainHealthCheck(healthCheck.DnsEndpoint, logger);
+                    var artifactsBase = DomainDetective.Reports.FilePathHelper.ResolveBaseDirectory(settings.OutputPath, null);
+                    using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
                     await healthCheck.Verify(settings.Domain);
                     analyzeTask.Value = 100;
                     
@@ -74,32 +79,32 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     var generateTask = ctx.AddTask("[yellow]Generating report[/]");
                     
                     // Determine output path
-                    var outputPath = settings.OutputPath ?? 
-                        $"{settings.Domain.Replace(".", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.{settings.Format}";
+                    var fmt = settings.Format?.ToLowerInvariant() ?? "html";
+                    var formatEnum = fmt switch {
+                        "html" => ReportFormat.Html,
+                        "json" => ReportFormat.Json,
+                        "word" => ReportFormat.Word,
+                        "excel" => ReportFormat.Excel,
+                        "pdf" => ReportFormat.Pdf,
+                        _ => ReportFormat.Html
+                    };
+                    var outputPath = settings.OutputPath ??
+                        DomainDetective.Reports.ReportPathHelper.GenerateDefaultPath(settings.Domain, formatEnum, null);
                     
                     // Generate based on format
-                    switch (settings.Format.ToLower()) {
-                        case "html":
-                            var htmlReport = new DomainSecurityReport(healthCheck, settings.Domain);
-                            htmlReport.GenerateReport(outputPath, settings.OpenInBrowser);
-                            break;
-                            
-                        case "word":
-                            AnsiConsole.MarkupLine("[red]Word format not yet implemented[/]");
-                            return;
-                            
-                        case "excel":
-                            AnsiConsole.MarkupLine("[red]Excel format not yet implemented[/]");
-                            return;
-                            
-                        case "pdf":
-                            AnsiConsole.MarkupLine("[red]PDF format not yet implemented[/]");
-                            return;
-                            
-                        default:
-                            AnsiConsole.MarkupLine($"[red]Unknown format: {settings.Format}[/]");
-                            return;
+                    var dispatcher = new ReportDispatcher();
+                    var options = new ReportOptions {
+                        Format = formatEnum,
+                        OutputPath = outputPath
+                    };
+                    options.CustomProperties["Domain"] = settings.Domain;
+                    options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
+                    var result = await dispatcher.GenerateAsync(healthCheck, options, settings.Domain, settings.OpenInBrowser);
+                    if (!result.Success) {
+                        AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
+                        return;
                     }
+                    coord.End(healthCheck);
                     
                     generateTask.Value = 100;
                     
