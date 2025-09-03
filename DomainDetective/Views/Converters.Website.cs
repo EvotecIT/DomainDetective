@@ -19,6 +19,7 @@ public static partial class Converters
         if (cert?.Recommendations != null) recs.AddRange(cert.Recommendations);
         if (http?.Recommendations != null) recs.AddRange(http.Recommendations);
 
+        var positives = RecommendationEngine.FromPositives(allAssessments);
         var references = BuildReferences(System.Array.Empty<StandardReference>(), recs);
 
         var subject = cert?.Subject ?? http?.Subject;
@@ -43,6 +44,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"Cert {certGrade}; Http {httpGrade}; HSTS {(hsts ? "yes" : "no")}; Mixed {(mixed ? "yes" : "no")} ",
             Recommendations = recs,
+            Positives = positives,
             References = references
         };
     }
@@ -65,5 +67,6 @@ public class WebsiteInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
 }

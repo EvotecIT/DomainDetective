@@ -48,8 +48,9 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"A {analysis.IPv4Count}, AAAA {analysis.IPv6Count}; FCrDNS {(analysis.AllFcrDnsValid ? "ok" : "check")}",
-            Recommendations = RecommendationEngine.From(assessments),
-            References = BuildReferences(analysis.RfcReferences.ToArray(), RecommendationEngine.From(assessments)),
+            Recommendations = RecommendationEngine.FromProblems(assessments),
+            Positives = RecommendationEngine.FromPositives(assessments),
+            References = BuildReferences(analysis.RfcReferences.ToArray(), RecommendationEngine.FromProblems(assessments)),
             Raw = analysis
         };
     }
@@ -91,6 +92,7 @@ public class ApexAddressInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ApexAddressAnalysis Raw { get; set; }
 }

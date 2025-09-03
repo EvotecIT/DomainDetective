@@ -34,7 +34,7 @@ public static partial class Converters
             WarningCount = notSupported,
             ErrorCount = 0,
             Summary = $"{supported}/{total} EDNS; >1232: {largeUdp}; TCP fb: {truncated}; no-edns: {notSupported}",
-            Recommendations = (analysis as IHasAssessments) != null ? RecommendationEngine.From(((IHasAssessments)analysis).Assessments) : new List<RecommendationAdvice>(),
+            Recommendations = (analysis as IHasAssessments) != null ? RecommendationEngine.FromProblems(((IHasAssessments)analysis).Assessments) : new List<RecommendationAdvice>(),
             References = new [] { "https://www.rfc-editor.org/rfc/rfc6891" },
             Raw = analysis
         };
@@ -56,6 +56,7 @@ public class EdnsSupportSummary
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public EdnsSupportAnalysis Raw { get; set; }
 }

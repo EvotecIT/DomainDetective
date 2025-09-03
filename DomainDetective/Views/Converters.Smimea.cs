@@ -7,7 +7,8 @@ public static partial class Converters
 {
     public static SmimeaRecordInfo Convert(SMIMEAAnalysis analysis)
     {
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var valid = analysis.AnalysisResults?.Count(r => r.ValidSMIMEARecord) ?? 0;
         var total = analysis.AnalysisResults?.Count ?? 0;
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
@@ -25,6 +26,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"valid {valid}/{total}",
             Recommendations = recs,
+            Positives = positives,
             References = new[] { "https://www.rfc-editor.org/rfc/rfc8162" },
             Raw = analysis
         };
@@ -45,6 +47,7 @@ public class SmimeaRecordInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SMIMEAAnalysis Raw { get; set; }
 }

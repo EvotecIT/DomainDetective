@@ -8,7 +8,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new SecurityTxtInfo
         {
             Check = HealthCheckType.SECURITYTXT,
@@ -36,6 +37,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"present {(analysis.RecordPresent ? "yes" : "no")}; signed {(analysis.PGPSigned ? "yes" : "no")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -69,6 +71,7 @@ public class SecurityTxtInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SecurityTXTAnalysis Raw { get; set; }
 }

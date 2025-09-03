@@ -6,7 +6,8 @@ public static partial class Converters
     public static WebStaticScanInfo Convert(WebStaticScanAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var page = analysis.MainHttpAnalysis != null ? Convert(analysis.MainHttpAnalysis) : null;
         int fp = 0, tp = 0;
         foreach (var kv in analysis.Hosts) { if (kv.Value.FirstParty) fp++; else tp++; }
@@ -89,6 +90,7 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -127,6 +129,7 @@ public sealed class WebStaticScanInfo
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public System.Collections.Generic.IReadOnlyList<string> References { get; set; }
     public WebStaticScanAnalysis Raw { get; set; }
 }

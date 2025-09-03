@@ -10,7 +10,8 @@ public static partial class Converters
         var assessments = new List<Assessment>();
         int warn = analysis.RecordExists ? 0 : 1;
         string status = analysis.RecordExists ? "OK" : "Warning";
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new ContactInfo
         {
             Check = HealthCheckType.CONTACT,
@@ -25,6 +26,7 @@ public static partial class Converters
             ErrorCount = 0,
             Summary = analysis.RecordExists ? "present" : "missing",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -45,6 +47,7 @@ public class ContactInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ContactInfoAnalysis Raw { get; set; }
 }

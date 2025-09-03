@@ -7,7 +7,8 @@ public static partial class Converters
     public static CaaInfo Convert(CAAAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new CaaInfo
         {
             Check = HealthCheckType.CAA,
@@ -27,6 +28,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"valid {analysis.ValidRecords}, invalid {analysis.InvalidRecords}; wildcard {(analysis.CanIssueWildcardCertificatesForDomain?.Count>0?"yes":"no")}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc8659" },
             Raw = analysis
         };
@@ -52,6 +54,7 @@ public class CaaInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public CAAAnalysis Raw { get; set; }
 }

@@ -9,7 +9,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var total = analysis.ServerResults?.Count ?? 0;
         var allows = analysis.ServerResults?.Count(kv => kv.Value?.Status == OpenRelayStatus.AllowsRelay) ?? 0;
         return new OpenRelayInfo
@@ -26,6 +27,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"allows {allows}/{total}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -46,6 +48,7 @@ public class OpenRelayInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public OpenRelayAnalysis Raw { get; set; }
 }

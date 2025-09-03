@@ -32,8 +32,9 @@ public static partial class Converters
             WarningCount = warn,
             ErrorCount = 0,
             Summary = $"avg conn { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds)) } ms; avg banner { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.BannerTime.TotalMilliseconds)) } ms",
-            Recommendations = RecommendationEngine.From(assessments),
-            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.From(assessments)),
+            Recommendations = RecommendationEngine.FromProblems(assessments),
+            Positives = RecommendationEngine.FromPositives(assessments),
+            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.FromProblems(assessments)),
             Raw = analysis
         };
     }
@@ -53,6 +54,7 @@ public class MailLatencyInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailLatencyAnalysis Raw { get; set; }
 }

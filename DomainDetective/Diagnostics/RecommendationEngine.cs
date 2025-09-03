@@ -40,6 +40,20 @@ public static class RecommendationEngine {
     }
 
     /// <summary>
+    /// Returns recommendations for non-Info assessments (i.e., actionable problems to fix).
+    /// </summary>
+    public static IReadOnlyList<RecommendationAdvice> FromProblems(IEnumerable<Assessment> assessments)
+        => From(assessments?.Where(a => a != null && a.Severity != AssessmentSeverity.Info) 
+                   ?? Array.Empty<Assessment>());
+
+    /// <summary>
+    /// Returns recommendations for Info-level assessments (i.e., positive posture signals).
+    /// </summary>
+    public static IReadOnlyList<RecommendationAdvice> FromPositives(IEnumerable<Assessment> assessments)
+        => From(assessments?.Where(a => a != null && a.Severity == AssessmentSeverity.Info)
+                   ?? Array.Empty<Assessment>());
+
+    /// <summary>
     /// Groups assessments by code and returns a summary view of each recommendation
     /// with severity, category and instance targets.
     /// </summary>

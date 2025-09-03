@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
@@ -8,20 +9,35 @@ public static class DmarcNarrative
 {
     public sealed class Sections
     {
+        public string Title { get; init; } = string.Empty;
+        public string Subtitle { get; init; } = string.Empty;
+        public string Category { get; init; } = string.Empty;
+        public string Keywords { get; init; } = string.Empty;
+        public string Creator { get; init; } = string.Empty;
         public string Introduction { get; init; } = string.Empty;
         public string WhyItMatters { get; init; } = string.Empty;
         public List<string> Highlights { get; init; } = new();
         public List<string> Details { get; init; } = new();
         public List<string> References { get; init; } = new();
+        public List<string> Positives { get; init; } = new();
+        public List<string> Remediations { get; init; } = new();
     }
 
     public static Sections Build(DmarcAnalysis dmarc)
     {
+        var subj = string.IsNullOrWhiteSpace(dmarc?.Subject) ? "(domain)" : dmarc.Subject;
+        var title = $"DMARC Report — {subj}";
+        var subtitle = "DMARC Assessment";
+        var category = "Email Security";
+        var keywords = $"DMARC, email, security, DomainDetective, {subj}";
+        var creator = "DomainDetective";
         var intro = "Domain-based Message Authentication, Reporting, and Conformance (DMARC) lets a domain specify policy for handling spoofed mail and receive feedback reports.";
         var why = "DMARC reduces impersonation by requiring alignment of SPF and/or DKIM with the visible From domain, and enables receivers to report abuse.";
 
         var hi = new List<string>();
         var det = new List<string>();
+        var positives = new List<string>();
+        var remediations = new List<string>();
 
         // Highlights
         hi.Add(dmarc.DmarcRecordExists
@@ -92,13 +108,26 @@ public static class DmarcNarrative
             "https://datatracker.ietf.org/doc/html/draft-ietf-dmarcbis-base"
         };
 
+        try
+        {
+            AssessmentSplit.SplitTitles(dmarc.Assessments ?? new List<Assessment>(), out positives, out remediations);
+        }
+        catch { }
+
         return new Sections
         {
+            Title = title,
+            Subtitle = subtitle,
+            Category = category,
+            Keywords = keywords,
+            Creator = creator,
             Introduction = intro,
             WhyItMatters = why,
             Highlights = hi,
             Details = det,
-            References = refs
+            References = refs,
+            Positives = positives,
+            Remediations = remediations
         };
     }
 }

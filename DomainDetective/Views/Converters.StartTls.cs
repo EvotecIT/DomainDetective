@@ -8,7 +8,8 @@ public static partial class Converters
     public static StartTlsInfo Convert(STARTTLSAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var entries = analysis.ServerDetails?.Select(kv => new StartTlsServerInfo
         {
             Key = kv.Key,
@@ -34,6 +35,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"servers {entries.Count}; negotiated {entries.Count(s => s.TlsNegotiated)}/{entries.Count}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207" },
             Raw = analysis
         };
@@ -52,6 +54,7 @@ public class StartTlsInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public STARTTLSAnalysis Raw { get; set; }
 }

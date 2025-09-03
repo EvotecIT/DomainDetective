@@ -9,7 +9,8 @@ public static partial class Converters
     {
         // DNSBLAnalysis already emits assessments for listed/timeouts/failures.
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var hostSummaries = analysis.Results?.Select(kv => new DnsblHostSummary
         {
             Key = kv.Key,
@@ -38,6 +39,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://datatracker.ietf.org/doc/html/rfc5782" },
             Raw = analysis
         };
@@ -60,6 +62,7 @@ public class DnsblInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DNSBLAnalysis Raw { get; set; }
 }

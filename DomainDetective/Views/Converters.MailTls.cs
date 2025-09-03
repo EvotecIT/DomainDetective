@@ -12,7 +12,8 @@ public static partial class Converters
     private static MailTlsInfo ConvertCore(MailTlsAnalysis analysis, string check)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var servers = new List<MailTlsServerInfo>();
         foreach (var kv in analysis.ServerResults)
         {
@@ -64,6 +65,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"servers {servers.Count}; valid cert {validCount}/{servers.Count}" + (gradesSummary == string.Empty ? string.Empty : $"; grades A/B/C/D/F: {gradesSummary}"),
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3207", "https://www.rfc-editor.org/rfc/rfc8314" },
             Raw = analysis
         };
@@ -82,6 +84,7 @@ public class MailTlsInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailTlsAnalysis Raw { get; set; }
 }

@@ -34,6 +34,18 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? WatermarkText { get; set; }
 
+        /// <summary>Company name for custom document properties.</summary>
+        [Parameter(Mandatory = false)]
+        public string? CompanyName { get; set; }
+
+        /// <summary>Company address for custom document properties.</summary>
+        [Parameter(Mandatory = false)]
+        public string? CompanyAddress { get; set; }
+
+        /// <summary>Company year for custom document properties.</summary>
+        [Parameter(Mandatory = false)]
+        public string? CompanyYear { get; set; }
+
         /// <summary>Open reports after generation (HTML in browser, others via shell).</summary>
         [Parameter(Mandatory = false)]
         [Alias("OpenReport")]
@@ -57,6 +69,14 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.OpenInBrowser = true;
                 ExportDefaults.OutputDirectory = string.Empty;
                 ExportDefaults.EmitArtifacts = false;
+                ExportDefaults.ArtifactsDirectory = string.Empty;
+                ExportDefaults.LogoPath = string.Empty;
+                ExportDefaults.HeaderText = string.Empty;
+                ExportDefaults.FooterText = string.Empty;
+                ExportDefaults.WatermarkText = string.Empty;
+                ExportDefaults.CompanyName = string.Empty;
+                ExportDefaults.CompanyAddress = string.Empty;
+                ExportDefaults.CompanyYear = string.Empty;
                 WriteVerbose("Export defaults reset to built-in values.");
                 return;
             }
@@ -94,6 +114,18 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(WatermarkText)) {
                 ExportDefaults.WatermarkText = WatermarkText!;
                 WriteVerbose($"WatermarkText set to {ExportDefaults.WatermarkText}.");
+            }
+            if (!string.IsNullOrWhiteSpace(CompanyName)) {
+                ExportDefaults.CompanyName = CompanyName!;
+                WriteVerbose($"CompanyName set to {ExportDefaults.CompanyName}.");
+            }
+            if (!string.IsNullOrWhiteSpace(CompanyAddress)) {
+                ExportDefaults.CompanyAddress = CompanyAddress!;
+                WriteVerbose($"CompanyAddress set to {ExportDefaults.CompanyAddress}.");
+            }
+            if (!string.IsNullOrWhiteSpace(CompanyYear)) {
+                ExportDefaults.CompanyYear = CompanyYear!;
+                WriteVerbose($"CompanyYear set to {ExportDefaults.CompanyYear}.");
             }
 
             if (this.MyInvocation.BoundParameters.ContainsKey(nameof(Artifacts))) {

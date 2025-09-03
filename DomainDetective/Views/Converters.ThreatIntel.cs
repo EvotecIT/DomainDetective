@@ -8,7 +8,8 @@ public static partial class Converters
     public static ThreatIntelInfo Convert(ThreatIntelAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var findings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed }).ToList() ?? new List<ThreatListing>();
         var flagged = findings.Count(f => f.Listed);
         return new ThreatIntelInfo
@@ -28,6 +29,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"Flagged by {flagged}/{findings.Count} providers; score {analysis.CompositeScore?.ToString() ?? "n/a"} ({analysis.Severity ?? "n/a"})",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://developers.google.com/safe-browsing", "https://www.virustotal.com/", "https://www.phishtank.com/", "https://urlhaus.abuse.ch/api/" },
             Raw = analysis
         };
@@ -51,6 +53,7 @@ public class ThreatIntelInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ThreatIntelAnalysis Raw { get; set; }
 }

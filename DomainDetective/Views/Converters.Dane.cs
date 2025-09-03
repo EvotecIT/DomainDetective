@@ -6,7 +6,8 @@ public static partial class Converters
 {
     public static DaneRecordInfo Convert(DANEAnalysis analysis)
     {
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new DaneRecordInfo
         {
@@ -24,6 +25,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"{analysis.NumberOfRecords} records; invalid {(analysis.HasInvalidRecords ? "yes" : "no")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
@@ -46,6 +48,7 @@ public class DaneRecordInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DANEAnalysis Raw { get; set; }
 }

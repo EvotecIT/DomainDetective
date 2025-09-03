@@ -10,7 +10,8 @@ public static partial class Converters
         var hasAssess = (analysis as IHasAssessments) != null;
         var assessments = hasAssess ? ((IHasAssessments)analysis).Assessments : new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = hasAssess ? RecommendationEngine.From(assessments) : new List<RecommendationAdvice>();
+        var recs = hasAssess ? RecommendationEngine.FromProblems(assessments) : new List<RecommendationAdvice>();
+        var positives = hasAssess ? RecommendationEngine.FromPositives(assessments) : new List<RecommendationAdvice>();
         var listings = analysis.Listings?.Select(l => new ThreatListing { Source = l.Source.ToString(), Listed = l.IsListed }).ToList() ?? new List<ThreatListing>();
         return new ThreatFeedInfo
         {
@@ -23,6 +24,7 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.virustotal.com/", "https://www.abuseipdb.com/" },
             Raw = analysis
         };
@@ -40,6 +42,7 @@ public class ThreatFeedInfo
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public ThreatFeedAnalysis Raw { get; set; }
 }

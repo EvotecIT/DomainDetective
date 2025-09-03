@@ -15,6 +15,10 @@ namespace DomainDetective.PowerShell {
         public static string HeaderText { get; set; } = string.Empty;
         public static string FooterText { get; set; } = string.Empty;
         public static string WatermarkText { get; set; } = string.Empty;
+        // Company custom properties (exposed to Word reports)
+        public static string CompanyName { get; set; } = string.Empty;
+        public static string CompanyAddress { get; set; } = string.Empty;
+        public static string CompanyYear { get; set; } = string.Empty;
         // Reserved for future: Theme, Template, etc.
     }
 }

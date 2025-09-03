@@ -27,8 +27,9 @@ public static partial class Converters
             WarningCount = warn,
             ErrorCount = err,
             Summary = $"{valid}/{total} forward-confirmed",
-            Recommendations = RecommendationEngine.From(assessments),
-            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.From(assessments)),
+            Recommendations = RecommendationEngine.FromProblems(assessments),
+            Positives = RecommendationEngine.FromPositives(assessments),
+            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.FromProblems(assessments)),
             Raw = analysis
         };
     }
@@ -48,6 +49,7 @@ public class FcrDnsInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public FCrDnsAnalysis Raw { get; set; }
 }

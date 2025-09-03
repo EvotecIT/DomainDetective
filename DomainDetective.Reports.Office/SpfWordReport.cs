@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
+using DomainDetective;
+using System.IO;
 using OfficeIMO.Word;
 using DocumentFormat.OpenXml.Wordprocessing;
 using DomainDetective.Narratives;
@@ -8,47 +11,54 @@ namespace DomainDetective.Reports.Office;
 
 public static class SpfWordReport
 {
-    public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, string? logoPath = null, string? headerText = null, string? footerText = null, string? watermarkText = null, bool showInfoFindings = true)
+    public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, string? logoPath = null, string? headerText = null, string? footerText = null, string? watermarkText = null, bool showInfoFindings = true, string? companyName = null, string? companyAddress = null, string? companyYear = null)
     {
         using var doc = WordDocument.Create(path);
 
         // Document settings
         doc.Settings.UpdateFieldsOnOpen = true;
 
-        // Optional cover page and TOC
-        try { doc.AddCoverPage(CoverPageTemplate.IonDark); } catch { }
-        try { doc.AddTableOfContent(TableOfContentStyle.Template1); } catch { }
+        // Narrative (provides Title/Subtitle/Intro/Why + metadata)
+        var nar = SpfNarrative.Build(spf);
+
+        // Built-in properties from narrative (with defaults)
+        WordReportCommon.ApplyNarrativeProperties(
+            doc,
+            narrative: nar,
+            defaultTitle: $"SPF Report — {domain}",
+            defaultSubject: "SPF Assessment",
+            defaultCategory: "Email Security",
+            defaultKeywords: $"SPF, email, security, DomainDetective, {domain}",
+            defaultCreator: "DomainDetective");
+
+        // Custom properties for company branding
+        WordReportCommon.ApplyCompanyBranding(doc, companyName, companyAddress, companyYear);
+
+        // Cover page and table of contents
+        doc.AddCoverPage(CoverPageTemplate.IonDark);
+        doc.AddTableOfContent(TableOfContentStyle.Template1);
         doc.AddPageBreak();
 
         // Header & footer with page numbers and branding
-        doc.AddHeadersAndFooters();
-        doc.DifferentFirstPage = false;
-        doc.Header.Default.AddParagraph(string.IsNullOrWhiteSpace(headerText) ? $"SPF Report — {domain}" : headerText);
-        doc.Header.Default.AddParagraph($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-        if (!string.IsNullOrWhiteSpace(logoPath))
-        {
-            try { doc.Header.Default.AddParagraph().AddImage(logoPath, 48, 48); } catch { }
-        }
-        var footerTable = doc.Footer.Default.AddTable(1, 2, WordTableStyle.TableGrid);
+        WordReportCommon.AddHeader(
+            doc,
+            leftText: WordReportCommon.ResolveHeaderLeftText(headerText, nar, $"SPF Report — {domain}"),
+            rightText: $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
+            logoPath: logoPath,
+            watermarkText: watermarkText);
+        var footerTable = doc.Footer.Default.AddTable(1, 2, WordTableStyle.TableNormal);
         footerTable.WidthType = TableWidthUnitValues.Pct; // 5000 = 100%
         footerTable.Width = 5000;
         footerTable.Rows[0].Cells[0].AddParagraph(string.IsNullOrWhiteSpace(footerText) ? "Confidential" : footerText);
         var footerRight = footerTable.Rows[0].Cells[1].AddParagraph();
         footerRight.ParagraphAlignment = JustificationValues.Right;
         footerRight.AddPageNumber(includeTotalPages: true, separator: " / ");
-        if (!string.IsNullOrWhiteSpace(watermarkText))
-        {
-            try { doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText); } catch { }
-        }
-
-        // Title in header; no body title block
-
+        
         // Numbered headings list (TOC-driven)
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
-        headings.AddItem($"SPF Assessment for {domain}");
+        headings.AddItem(string.IsNullOrWhiteSpace(nar.Subtitle) ? $"SPF Assessment for {domain}" : nar.Subtitle);
 
         // Introduction & Why it matters (business facing)
-        var nar = SpfNarrative.Build(spf);
         headings.AddItem("Introduction", 1);
         doc.AddParagraph(nar.Introduction);
         headings.AddItem("Why this matters", 1);
@@ -73,6 +83,14 @@ public static class SpfWordReport
         {
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var h in nar.Highlights) list.AddItem(h);
+        }
+
+        // Good Posture (positives)
+        if (nar.Positives.Count > 0)
+        {
+            headings.AddItem("Good Posture", 1);
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in nar.Positives) plist.AddItem(p);
         }
 
         // 1.2 Findings
@@ -243,20 +261,22 @@ public static class SpfWordReport
         checks.Rows[2].Cells[1].Paragraphs[0].Text = spf.Advisory ?? string.Empty;
 
         // Recommendations
-        var recs = spf.Recommendations ?? Array.Empty<RecommendationAdvice>();
-        if (recs.Count > 0)
+        var assessList = (IEnumerable<Assessment>)(spf.Assessments ?? new List<Assessment>());
+        var grouped = RecommendationEngine.GroupByCode(assessList);
+        var negative = grouped.Where(g => g.MaxSeverity != AssessmentSeverity.Info).ToList();
+        if (negative.Count > 0)
         {
             headings.AddItem("Recommendations", 1);
-            var rt = doc.AddTable(recs.Count + 1, 3, WordTableStyle.TableGrid);
+            var rt = doc.AddTable(negative.Count + 1, 3, WordTableStyle.TableGrid);
             rt.Rows[0].Cells[0].Paragraphs[0].Text = "Code";
             rt.Rows[0].Cells[1].Paragraphs[0].Text = "Title";
             rt.Rows[0].Cells[2].Paragraphs[0].Text = "How";
-            for (int i = 0; i < recs.Count; i++)
+            for (int i = 0; i < negative.Count; i++)
             {
-                var rr = recs[i];
-                rt.Rows[i + 1].Cells[0].Paragraphs[0].Text = rr.Code ?? string.Empty;
-                rt.Rows[i + 1].Cells[1].Paragraphs[0].Text = rr.Title ?? string.Empty;
-                rt.Rows[i + 1].Cells[2].Paragraphs[0].Text = rr.How ?? string.Empty;
+                var rv = negative[i];
+                rt.Rows[i + 1].Cells[0].Paragraphs[0].Text = rv.Code ?? string.Empty;
+                rt.Rows[i + 1].Cells[1].Paragraphs[0].Text = rv.Advice?.Title ?? string.Empty;
+                rt.Rows[i + 1].Cells[2].Paragraphs[0].Text = rv.Advice?.How ?? string.Empty;
             }
         }
 

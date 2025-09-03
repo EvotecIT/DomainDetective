@@ -6,7 +6,8 @@ public static partial class Converters
 {
     public static SpfRecordInfo Convert(SpfAnalysis analysis)
     {
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         // Narrative (business-friendly text blocks)
         var narrative = DomainDetective.Narratives.SpfNarrative.Build(analysis);
@@ -47,6 +48,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"policy {policy}; lookups {analysis.DnsLookupsCount}/10; size {(analysis.ExceedsTotalCharacterLimit || analysis.ExceedsCharacterLimit ? "limit" : "ok")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis,
             Narrative = narrative,
@@ -79,6 +81,7 @@ public class SpfRecordInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SpfAnalysis Raw { get; set; }
     public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; }

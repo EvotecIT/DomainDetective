@@ -9,7 +9,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var addrCount = analysis.Results?.Count ?? 0;
         var totalDomains = analysis.Results?.Sum(r => r.Domains?.Count ?? 0) ?? 0;
         var mxCount = analysis.Results?.Count(r => string.Equals(r.Type, "MX", System.StringComparison.OrdinalIgnoreCase)) ?? 0;
@@ -28,6 +29,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"ips {addrCount} (apex {apexCount}/mx {mxCount}); domains {totalDomains}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -48,6 +50,7 @@ public class IpNeighborInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public IPNeighborAnalysis Raw { get; set; }
 }

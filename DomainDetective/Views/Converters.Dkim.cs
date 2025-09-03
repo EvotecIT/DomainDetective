@@ -12,9 +12,9 @@ public static partial class Converters
         {
             var result = kvp.Value;
             var a = analysis.Assessments?.Where(x => string.Equals(x.Target, kvp.Key, StringComparison.OrdinalIgnoreCase)).ToList() ?? new List<Assessment>();
-            var recs = RecommendationEngine.From(a);
+            var recs = RecommendationEngine.FromProblems(a);
             Summarize(a, out var warnCount, out var errCount, out var status);
-            var narrative = DomainDetective.Narratives.DkimNarrative.Build(result, kvp.Key);
+            var narrative = DomainDetective.Narratives.DkimNarrative.Build(result, kvp.Key, a);
             yield return new DkimRecordInfo
             {
                 Check = HealthCheckType.DKIM,
@@ -51,6 +51,7 @@ public static partial class Converters
                 ErrorCount = errCount,
                 Summary = $"{(result.PublicKeyExists ? result.KeyLength.ToString() : "no key")} bits; alg {result.HashAlgorithm ?? "?"}",
                 Recommendations = recs,
+                Positives = RecommendationEngine.FromPositives(a),
                 References = BuildReferences(analysis.RfcReferences, recs),
                 Raw = result,
                 Narrative = narrative,
@@ -96,6 +97,7 @@ public class DkimRecordInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DkimRecordAnalysis Raw { get; set; }
     public DomainDetective.Narratives.DkimNarrative.Sections Narrative { get; set; }

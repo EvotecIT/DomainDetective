@@ -7,7 +7,8 @@ public static partial class Converters
     public static DnsHealthInfo Convert(DnsHealthAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warn, out var err, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new DnsHealthInfo
         {
             Check = HealthCheckType.DNSHEALTH,
@@ -24,6 +25,7 @@ public static partial class Converters
             ErrorCount = err,
             Summary = $"SOA consistent: {analysis.SoaSerialConsistent}; Apex consistent: {analysis.ApexAddressesConsistent}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -46,6 +48,7 @@ public class DnsHealthInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsHealthAnalysis Raw { get; set; }
 }

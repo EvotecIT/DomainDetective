@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
@@ -8,21 +9,36 @@ public static class DkimNarrative
 {
     public sealed class Sections
     {
+        public string Title { get; init; } = string.Empty;
+        public string Subtitle { get; init; } = string.Empty;
+        public string Category { get; init; } = string.Empty;
+        public string Keywords { get; init; } = string.Empty;
+        public string Creator { get; init; } = string.Empty;
         public string Introduction { get; init; } = string.Empty;
         public string WhyItMatters { get; init; } = string.Empty;
         public List<string> Highlights { get; init; } = new();
         public List<string> Details { get; init; } = new();
         public List<string> References { get; init; } = new();
+        public List<string> Positives { get; init; } = new();
+        public List<string> Remediations { get; init; } = new();
     }
 
-    public static Sections Build(DkimRecordAnalysis dkim, string? selector = null)
+    public static Sections Build(DkimRecordAnalysis dkim, string? selector = null, System.Collections.Generic.IEnumerable<Assessment>? assessments = null)
     {
+        var shown = selector ?? dkim?.Name ?? "(selector)";
+        var title = $"DKIM Record — {shown}";
+        var subtitle = "DKIM Assessment";
+        var category = "Email Security";
+        var keywords = $"DKIM, email, security, DomainDetective, {shown}";
+        var creator = "DomainDetective";
         var intro = "DomainKeys Identified Mail (DKIM) uses a cryptographic signature to prove a message was authorized by the domain and not altered in transit.";
         var why = "DKIM is one of the two mechanisms (alongside SPF) that can satisfy DMARC alignment. Strong keys and valid configuration improve deliverability and security.";
 
         var sel = selector ?? dkim?.Name;
         var hi = new List<string>();
         var det = new List<string>();
+        var positives = new List<string>();
+        var remediations = new List<string>();
 
         // Highlights
         if (dkim == null)
@@ -102,13 +118,29 @@ public static class DkimNarrative
         // References
         var refs = DefaultRefs();
 
+        try
+        {
+            if (assessments != null)
+            {
+                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+            }
+        }
+        catch { }
+
         return new Sections
         {
+            Title = title,
+            Subtitle = subtitle,
+            Category = category,
+            Keywords = keywords,
+            Creator = creator,
             Introduction = intro,
             WhyItMatters = why,
             Highlights = hi,
             Details = det,
-            References = refs
+            References = refs,
+            Positives = positives,
+            Remediations = remediations
         };
     }
 

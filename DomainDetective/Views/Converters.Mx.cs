@@ -8,7 +8,8 @@ public static partial class Converters
     {
         // MXAnalysis doesn't emit assessments yet; summarize will return OK/0/0
         Summarize(analysis is IHasAssessments has ? has.Assessments : new List<Assessment>(), out var warnCount, out var errCount, out var status);
-        var recs = analysis is IHasAssessments h2 ? RecommendationEngine.From(h2.Assessments) : new List<RecommendationAdvice>();
+        var recs = analysis is IHasAssessments h2 ? RecommendationEngine.FromProblems(h2.Assessments) : new List<RecommendationAdvice>();
+        var positives = analysis is IHasAssessments h3 ? RecommendationEngine.FromPositives(h3.Assessments) : new List<RecommendationAdvice>();
         return new MxInfo
         {
             Check = HealthCheckType.MX,
@@ -33,6 +34,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
             Raw = analysis
         };
@@ -63,6 +65,7 @@ public class MxInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MXAnalysis Raw { get; set; }
 }
