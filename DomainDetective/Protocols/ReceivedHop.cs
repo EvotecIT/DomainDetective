@@ -32,6 +32,7 @@ public class ReceivedHop {
     private static readonly Regex HeaderRegex = new(
         @"^from\s+(?<fromHost>[^\s]+)(?:\s+\((?<fromDetails>.*?)\))?\s+by\s+(?<byHost>[^\s]+)(?:\s+\((?<byDetails>.*?)\))?(?:\s+with\s+(?<with>[^\s]+))?(?:\s+id\s+(?<id>[^\s]+))?(?:\s+for\s+(?<for>.+))?",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex IpRegex = new("\\[(?<ip>[0-9A-Fa-f:.]+)\\]", RegexOptions.Compiled);
 
     /// <summary>Parses a <c>Received</c> header value into a <see cref="ReceivedHop"/>.</summary>
     /// <param name="raw">Raw header value.</param>
@@ -41,7 +42,8 @@ public class ReceivedHop {
         var noFold = FoldingWhitespace.Replace(raw, " ");
         var normalized = LinearWhitespace.Replace(noFold, " ").Trim();
 
-        var idx = normalized.LastIndexOf(';');
+        var searchStart = Math.Max(0, normalized.Length - 200);
+        var idx = normalized.LastIndexOf(';', normalized.Length - 1, normalized.Length - searchStart);
         var before = normalized;
         if (idx >= 0) {
             var datePart = normalized.Substring(idx + 1).Trim();
@@ -67,21 +69,20 @@ public class ReceivedHop {
 
             var fromDetails = match.Groups["fromDetails"].Value;
             if (!string.IsNullOrEmpty(fromDetails)) {
-                var ipMatch = Regex.Match(fromDetails, @"\[(?<ip>[0-9A-Fa-f:.]+)\]");
-                if (ipMatch.Success) {
-                    hop.FromIp = ipMatch.Groups["ip"].Value;
-                }
+                hop.FromIp = ExtractIp(fromDetails);
             }
             var byDetails = match.Groups["byDetails"].Value;
             if (!string.IsNullOrEmpty(byDetails)) {
-                var ipMatch = Regex.Match(byDetails, @"\[(?<ip>[0-9A-Fa-f:.]+)\]");
-                if (ipMatch.Success) {
-                    hop.ByIp = ipMatch.Groups["ip"].Value;
-                }
+                hop.ByIp = ExtractIp(byDetails);
             }
         }
 
         return hop;
+    }
+
+    private static string? ExtractIp(string details) {
+        var ipMatch = IpRegex.Match(details);
+        return ipMatch.Success ? ipMatch.Groups["ip"].Value : null;
     }
 }
 
