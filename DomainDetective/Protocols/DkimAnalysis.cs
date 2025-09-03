@@ -297,6 +297,23 @@ namespace DomainDetective {
             analysis.KeyTypeExists = !string.IsNullOrEmpty(analysis.KeyType);
 
             AnalysisResults[selector] = analysis;
+            // Info-level positives (posture signals)
+            if (analysis.DkimRecordExists)
+                logger?.WriteInformationCode(DkimCodes.RecordPresent, "DKIM record present for selector {0}", selector);
+            if (analysis.StartsCorrectly)
+                logger?.WriteInformationCode(DkimCodes.RecordStartsV1, "DKIM starts with v=DKIM1 for selector {0}", selector);
+            if (analysis.PublicKeyExists)
+                logger?.WriteInformationCode(DkimCodes.PublicKeyPresent, "DKIM public key present for selector {0}", selector);
+            if (analysis.ValidRsaKeyLength && analysis.KeyLength >= 2048)
+                logger?.WriteInformationCode(DkimCodes.KeyStrong, "DKIM RSA key length {0} bits for selector {1}", analysis.KeyLength, selector);
+            if (analysis.ValidKeyType)
+                logger?.WriteInformationCode(DkimCodes.KeyTypeValid, "DKIM key type valid: {0}", analysis.KeyType ?? "unknown");
+            if (analysis.ValidCanonicalization && !string.IsNullOrWhiteSpace(analysis.Canonicalization))
+                logger?.WriteInformationCode(DkimCodes.CanonicalizationValid, "DKIM canonicalization valid: {0}", analysis.Canonicalization);
+            if (!string.IsNullOrWhiteSpace(analysis.HashAlgorithm) && analysis.HashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
+                logger?.WriteInformationCode(DkimCodes.HashSha256, "DKIM hash algorithm includes sha256 for selector {0}", selector);
+            if (analysis.ValidFlags)
+                logger?.WriteInformationCode(DkimCodes.FlagsValid, "DKIM flags valid for selector {0}", selector);
             UpdateAdvisory();
         }
 

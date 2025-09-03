@@ -7,6 +7,7 @@ public static partial class Converters
     public static DmarcRecordInfo Convert(DmarcAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
+        var narrative = DomainDetective.Narratives.DmarcNarrative.Build(analysis);
         return new DmarcRecordInfo
         {
             Check = HealthCheckType.DMARC,
@@ -40,7 +41,9 @@ public static partial class Converters
             Summary = $"p={analysis.Policy ?? "?"}; rua {analysis.MailtoRua?.Count ?? 0}; align dkim={analysis.DkimAlignment ?? "?"}/spf={analysis.SpfAlignment ?? "?"}",
             Recommendations = analysis.Recommendations,
             References = BuildReferences(System.Array.Empty<StandardReference>(), analysis.Recommendations),
-            Raw = analysis
+            Raw = analysis,
+            Narrative = narrative,
+            Highlights = narrative.Highlights
         };
     }
 }
@@ -79,4 +82,6 @@ public class DmarcRecordInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DmarcAnalysis Raw { get; set; }
+    public DomainDetective.Narratives.DmarcNarrative.Sections Narrative { get; set; }
+    public IReadOnlyList<string> Highlights { get; set; }
 }

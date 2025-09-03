@@ -49,7 +49,8 @@ public static partial class Converters
             Recommendations = recs,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis,
-            Narrative = narrative
+            Narrative = narrative,
+            Highlights = narrative.Highlights
         };
     }
 }
@@ -81,4 +82,5 @@ public class SpfRecordInfo
     public IReadOnlyList<string> References { get; set; }
     public SpfAnalysis Raw { get; set; }
     public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; }
+    public IReadOnlyList<string> Highlights { get; set; }
 }
