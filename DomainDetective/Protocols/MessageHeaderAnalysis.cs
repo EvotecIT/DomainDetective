@@ -18,10 +18,14 @@ namespace DomainDetective {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
         /// <summary>Duplicate header values keyed by header name.</summary>
         public Dictionary<string, List<string>> DuplicateHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        /// <summary>List of <c>Received</c> header values in order.</summary>
-        public List<string> ReceivedChain { get; } = new();
+        /// <summary>List of parsed <c>Received</c> header hops in order.</summary>
+        public List<ReceivedHop> ReceivedHops { get; } = new();
         /// <summary>Total message transit time across all hops.</summary>
         public TimeSpan? TotalTransitTime { get; private set; }
+        /// <summary>Maximum delay between consecutive hops.</summary>
+        public TimeSpan? MaxHopDelay { get; private set; }
+        /// <summary>Minimum delay between consecutive hops.</summary>
+        public TimeSpan? MinHopDelay { get; private set; }
         /// <summary>Value of the <c>From</c> header.</summary>
         public string? From { get; private set; }
         /// <summary>Value of the <c>To</c> header.</summary>
@@ -55,10 +59,12 @@ namespace DomainDetective {
             RawHeaders = rawHeaders;
             Headers.Clear();
             DuplicateHeaders.Clear();
-            ReceivedChain.Clear();
+            ReceivedHops.Clear();
             SpamHeaders.Clear();
             Issues.Clear();
             TotalTransitTime = null;
+            MaxHopDelay = null;
+            MinHopDelay = null;
             From = null;
             To = null;
             Subject = null;
@@ -132,7 +138,7 @@ namespace DomainDetective {
 
             switch (lower) {
                 case "received":
-                    ReceivedChain.Add(value);
+                    ReceivedHops.Add(ReceivedHop.Parse(value));
                     break;
                 case "from":
                     From = value;
@@ -246,20 +252,51 @@ namespace DomainDetective {
         }
 
         private void ComputeTransitTime() {
-            var times = new List<DateTimeOffset>();
-            foreach (var received in ReceivedChain) {
-                var idx = received.LastIndexOf(';');
-                if (idx < 0) {
+            MaxHopDelay = null;
+            MinHopDelay = null;
+            TotalTransitTime = null;
+            if (ReceivedHops.Count == 0) {
+                return;
+            }
+
+            ReceivedHops.Sort((a, b) => {
+                if (a.Timestamp.HasValue && b.Timestamp.HasValue) {
+                    return a.Timestamp.Value.CompareTo(b.Timestamp.Value);
+                }
+                if (a.Timestamp.HasValue) {
+                    return -1;
+                }
+                if (b.Timestamp.HasValue) {
+                    return 1;
+                }
+                return 0;
+            });
+
+            DateTimeOffset? first = null;
+            DateTimeOffset? prev = null;
+            foreach (var hop in ReceivedHops) {
+                hop.HopDelay = null;
+                if (!hop.Timestamp.HasValue) {
                     continue;
                 }
-                var datePart = received.Substring(idx + 1).Trim();
-                if (DateUtils.TryParse(datePart, out var dt)) {
-                    times.Add(dt);
+                if (!first.HasValue) {
+                    first = hop.Timestamp;
                 }
+                if (prev.HasValue) {
+                    var delay = hop.Timestamp.Value - prev.Value;
+                    hop.HopDelay = delay;
+                    if (!MaxHopDelay.HasValue || delay > MaxHopDelay.Value) {
+                        MaxHopDelay = delay;
+                    }
+                    if (!MinHopDelay.HasValue || delay < MinHopDelay.Value) {
+                        MinHopDelay = delay;
+                    }
+                }
+                prev = hop.Timestamp;
             }
-            if (times.Count >= 2) {
-                times.Sort();
-                TotalTransitTime = times[times.Count-1] - times[0];
+
+            if (first.HasValue && prev.HasValue && prev > first) {
+                TotalTransitTime = prev.Value - first.Value;
             }
         }
 

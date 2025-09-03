@@ -12,7 +12,7 @@ namespace DomainDetective.Tests {
             Assert.Equal("recipient@example.com", analysis.To);
             Assert.Equal("Malformed Message", analysis.Subject);
             Assert.NotNull(analysis.Date);
-            Assert.Single(analysis.ReceivedChain);
+            Assert.Single(analysis.ReceivedHops);
             Assert.Equal("pass", analysis.DkimResult);
             Assert.Equal("pass", analysis.SpfResult);
             Assert.Equal("pass", analysis.DmarcResult);
