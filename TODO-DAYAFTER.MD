@@ -137,9 +137,20 @@ The following items come from reviewing examples in `Demo/Pages` (securityheader
 
 ## Docs
 - [ ] Extend XML examples for enums/classes (TLS enums, DnsEndpoint usage, etc.).
-- [ ] Cmdlet XML remarks: “Outputs a view object with full raw analysis at Raw”.
-- [ ] Add dashboard examples in `Docs/REPORTING_USAGE.MD` using Select‑Object, and `view.Raw` for deep data.
+- [ ] Cmdlet XML remarks: “Outputs a view object with full raw analysis at Raw, and business narrative at Narrative when available”.
+- [ ] Add dashboard examples in `Docs/REPORTING_USAGE.MD` using Select‑Object, and `view.Raw` + `view.Narrative` for deep data.
 - [ ] Document Subject conventions per view (domain vs host:port vs URL) and rationale.
+
+## Reporting (Consolidated Roadmap)
+- Narratives in core for all areas (Introduction, WhyItMatters, Highlights, Details, References) and surfaced on views as `.Narrative`.
+- Word reports (OfficeIMO): cover, TOC, numbered list headings, header/footer branding (logo/header/footer text), watermark, styled tables; later charts.
+- HTML reports (HtmlForgeX): anchors + sticky TOC, infocards, tables, provider summaries, explainers; later charts.
+- SPF (done: narrative + deep sections). Next: DMARC, DKIM, MX, DNSSEC, MTA‑STS, TLSRPT, DANE, HTTP, DNSBL, WHOIS, Security.txt, Autodiscover, Mail TLS.
+- Multi‑domain aggregate: portfolio summary matrix + per‑domain sections.
+
+## Recommendations & Positive Signals
+- Design: keep actionable items in `RecommendationAdvice` (problems to fix). Add positive posture via Info‐level Assessments (coded) and surface them as Highlights/Narrative — do not overuse RecommendationAdvice for positives.
+- SPF: add Info codes for positives (present, starts with v=spf1, -all enforced, lookups within limit). Map into Narrative.Highlights and reports. Repeat this pattern for HTTP (already present), DKIM, DMARC, etc.
 
 ## Providers & Recommendations (Remaining)
 - [x] WHOIS provider (query failure, parsing anomalies).

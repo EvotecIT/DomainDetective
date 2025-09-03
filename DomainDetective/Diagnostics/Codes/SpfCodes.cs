@@ -19,4 +19,10 @@ internal static class SpfCodes {
     public const string AllMissing = "SPF.All.Missing";
     public const string PtrUsed = "SPF.Ptr.Used";
     public const string ExistsUsed = "SPF.Exists.Used";
+
+    // Positive/posture signals
+    public const string Present = "SPF.Record.Present";
+    public const string StartsV1 = "SPF.Record.StartsV1";
+    public const string AllEnforced = "SPF.All.Enforced";
+    public const string LookupsWithinLimit = "SPF.Lookups.WithinLimit";
 }

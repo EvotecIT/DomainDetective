@@ -44,7 +44,7 @@ public static class SpfWordReport
         // Title in header; no body title block
 
         // Numbered headings list (TOC-driven)
-        var headings = doc.AddTableOfContentList(WordListStyle.Headings111Shifted);
+        var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem($"SPF Assessment for {domain}");
 
         // Introduction & Why it matters (business facing)

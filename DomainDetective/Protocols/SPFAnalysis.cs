@@ -263,15 +263,32 @@ namespace DomainDetective {
         private void UpdateAdvisory() {
             if (!SpfRecordExists) {
                 Advisory = "No SPF record found.";
-            } else if (MultipleSpfRecords) {
-                Advisory = "Multiple SPF records published.";
-            } else if (!StartsCorrectly) {
-                Advisory = "SPF record does not start with v=spf1.";
-            } else if (ExceedsDnsLookups) {
-                Advisory = "SPF record exceeds DNS lookup limit.";
-            } else {
-                Advisory = "SPF record passed basic checks.";
+                Logger?.WriteWarningCode(SpfCodes.MissingRecord, Advisory);
+                return;
             }
+            if (MultipleSpfRecords) {
+                Advisory = "Multiple SPF records published.";
+                Logger?.WriteWarningCode(SpfCodes.MultipleRecords, Advisory);
+                return;
+            }
+            if (!StartsCorrectly) {
+                Advisory = "SPF record does not start with v=spf1.";
+                Logger?.WriteWarningCode(SpfCodes.StartsInvalid, Advisory);
+                return;
+            }
+            if (ExceedsDnsLookups) {
+                Advisory = "SPF record exceeds DNS lookup limit.";
+                Logger?.WriteWarningCode(SpfCodes.LookupsExceeded, Advisory);
+                return;
+            }
+
+            Advisory = "SPF record passed basic checks.";
+            Logger?.WriteInformationCode(SpfCodes.Present, "SPF record present");
+            Logger?.WriteInformationCode(SpfCodes.StartsV1, "SPF starts with v=spf1");
+            if (!string.IsNullOrWhiteSpace(AllMechanism) && AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase))
+                Logger?.WriteInformationCode(SpfCodes.AllEnforced, "SPF ends with -all (enforced)");
+            if (!ExceedsDnsLookups)
+                Logger?.WriteInformationCode(SpfCodes.LookupsWithinLimit, $"DNS lookups within limit: {DnsLookupsCount}/10");
         }
 
 
