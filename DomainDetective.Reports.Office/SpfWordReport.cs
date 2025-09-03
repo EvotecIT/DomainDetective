@@ -8,7 +8,7 @@ namespace DomainDetective.Reports.Office;
 
 public static class SpfWordReport
 {
-    public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, string? logoPath = null, string? headerText = null, string? footerText = null, string? watermarkText = null)
+    public static void Generate(string path, DomainDetective.SpfAnalysis spf, string domain, string? logoPath = null, string? headerText = null, string? footerText = null, string? watermarkText = null, bool showInfoFindings = true)
     {
         using var doc = WordDocument.Create(path);
 
@@ -77,7 +77,8 @@ public static class SpfWordReport
 
         // 1.2 Findings
         headings.AddItem("Findings", 1);
-        var assess = spf.Assessments?.ToList() ?? new System.Collections.Generic.List<DomainDetective.Assessment>();
+        var assessAll = spf.Assessments?.ToList() ?? new System.Collections.Generic.List<DomainDetective.Assessment>();
+        var assess = showInfoFindings ? assessAll : assessAll.Where(a => a.Severity != AssessmentSeverity.Info).ToList();
         if (assess.Count > 0)
         {
             var table = doc.AddTable(assess.Count + 1, 4, WordTableStyle.TableGrid);

@@ -6,7 +6,7 @@ namespace DomainDetective.Reports;
 /// <summary>
 /// Options for report generation
 /// </summary>
-public class ReportOptions {
+    public class ReportOptions {
     /// <summary>
     /// Report title
     /// </summary>
@@ -46,6 +46,11 @@ public class ReportOptions {
     /// Include raw data export
     /// </summary>
     public bool IncludeRawData { get; set; } = false;
+
+    /// <summary>
+    /// Include Info-level assessments in Findings sections
+    /// </summary>
+    public bool ShowInfoFindings { get; set; } = true;
     
     /// <summary>
     /// Custom properties for specific generators

@@ -100,13 +100,16 @@ public static class SpfHtmlReport
                         card.Header(h => h.Title("Assessments"));
                         card.Body(body =>
                         {
-                            var table = (TablerTable)body.Table(assessments.Select(a => new
+                            // Include Info-level findings by default to show positives (can be toggled at callsite later if needed)
+                            var showInfo = true;
+                            var rows = (showInfo ? assessments : assessments.Where(a => a.Severity != AssessmentSeverity.Info)).Select(a => new
                             {
                                 Severity = a.Severity.ToString(),
                                 Code = a.Code,
                                 Target = a.Target,
                                 Message = a.Message
-                            }), TableType.Tabler);
+                            });
+                            var table = (TablerTable)body.Table(rows, TableType.Tabler);
                             table.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                         });
                     });

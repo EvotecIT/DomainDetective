@@ -250,7 +250,7 @@ namespace DomainDetective {
             // GetFlattenedSpf can resolve fake DNS records in unit tests
 
             WarnIfExceedsDnsLookups(logger);
-            UpdateAdvisory();
+            UpdateAdvisory(logger);
 
             // policy strength advisory for 'all'
             if (string.IsNullOrWhiteSpace(AllMechanism)) {
@@ -260,35 +260,35 @@ namespace DomainDetective {
             }
         }
 
-        private void UpdateAdvisory() {
+        private void UpdateAdvisory(InternalLogger? logger) {
             if (!SpfRecordExists) {
                 Advisory = "No SPF record found.";
-                Logger?.WriteWarningCode(SpfCodes.MissingRecord, Advisory);
+                logger?.WriteWarningCode(SpfCodes.MissingRecord, Advisory);
                 return;
             }
             if (MultipleSpfRecords) {
                 Advisory = "Multiple SPF records published.";
-                Logger?.WriteWarningCode(SpfCodes.MultipleRecords, Advisory);
+                logger?.WriteWarningCode(SpfCodes.MultipleRecords, Advisory);
                 return;
             }
             if (!StartsCorrectly) {
                 Advisory = "SPF record does not start with v=spf1.";
-                Logger?.WriteWarningCode(SpfCodes.StartsInvalid, Advisory);
+                logger?.WriteWarningCode(SpfCodes.StartsInvalid, Advisory);
                 return;
             }
             if (ExceedsDnsLookups) {
                 Advisory = "SPF record exceeds DNS lookup limit.";
-                Logger?.WriteWarningCode(SpfCodes.LookupsExceeded, Advisory);
+                logger?.WriteWarningCode(SpfCodes.LookupsExceeded, Advisory);
                 return;
             }
 
             Advisory = "SPF record passed basic checks.";
-            Logger?.WriteInformationCode(SpfCodes.Present, "SPF record present");
-            Logger?.WriteInformationCode(SpfCodes.StartsV1, "SPF starts with v=spf1");
+            logger?.WriteInformationCode(SpfCodes.Present, "SPF record present");
+            logger?.WriteInformationCode(SpfCodes.StartsV1, "SPF starts with v=spf1");
             if (!string.IsNullOrWhiteSpace(AllMechanism) && AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase))
-                Logger?.WriteInformationCode(SpfCodes.AllEnforced, "SPF ends with -all (enforced)");
+                logger?.WriteInformationCode(SpfCodes.AllEnforced, "SPF ends with -all (enforced)");
             if (!ExceedsDnsLookups)
-                Logger?.WriteInformationCode(SpfCodes.LookupsWithinLimit, $"DNS lookups within limit: {DnsLookupsCount}/10");
+                logger?.WriteInformationCode(SpfCodes.LookupsWithinLimit, $"DNS lookups within limit: {DnsLookupsCount}/10");
         }
 
 
