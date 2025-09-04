@@ -316,7 +316,7 @@ public class PortScanAnalysis : IHasAssessments
     private static async Task<string?> DetectSshAsync(NetworkStream stream, CancellationToken token)
     {
         var banner = await DetectBannerAsync(stream, token).ConfigureAwait(false);
-        return banner != null && banner.StartsWith("SSH-", StringComparison.OrdinalIgnoreCase) ? banner : null;
+        return banner is not null && banner.StartsWith("SSH-", StringComparison.OrdinalIgnoreCase) ? banner : null;
     }
 
     private static async Task<string?> DetectHttpAsync(NetworkStream stream, CancellationToken token)
