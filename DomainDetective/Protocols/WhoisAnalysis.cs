@@ -685,6 +685,18 @@ public class WhoisAnalysis : IHasAssessments {
             {
                 _logger.WriteInformationCode(WhoisCodes.ParseAnomaly, "WHOIS parse anomaly: expiry date not found");
             }
+            if (!IsExpired && !ExpiresSoon && DaysUntilExpiration.HasValue && DaysUntilExpiration.Value > 365)
+            {
+                _logger.WriteInformationCode(
+                    WhoisCodes.ExpiryFuture,
+                    "Domain expires in {0} days (on {1})",
+                    DaysUntilExpiration?.ToString() ?? "?",
+                    ExpiryDate ?? "unknown");
+            }
+            if (!PrivacyProtected && (!string.IsNullOrWhiteSpace(RegisteredTo) || !string.IsNullOrWhiteSpace(RegistrarEmail)))
+            {
+                _logger.WriteInformationCode(WhoisCodes.ContactValid, "WHOIS contact data present");
+            }
         }
     }
 
