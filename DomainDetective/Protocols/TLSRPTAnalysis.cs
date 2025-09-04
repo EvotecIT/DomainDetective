@@ -41,6 +41,9 @@ public class TLSRPTAnalysis : IHasAssessments {
         /// <summary>HTTP status per HTTPS RUA endpoint (when CheckEndpoints = true).</summary>
         public Dictionary<string, int> RuaHttpStatus { get; private set; } = new();
 
+        /// <summary>HTTP client used for HTTPS RUA validation. Override for testing.</summary>
+        public HttpClient HttpClient { get; set; } = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
+
         /// <summary>Relevant standards for TLSRPT analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "SMTP TLS Reporting", Reference = "RFC 8460", Url = "https://datatracker.ietf.org/doc/html/rfc8460" }
@@ -80,10 +83,15 @@ public class TLSRPTAnalysis : IHasAssessments {
                 return;
             }
 
+            logger?.WriteInformationCode(TlsRptCodes.RecordPresent, "TLSRPT record present");
+
             TlsRptRecord = string.Join(" ", recordList.Select(r => r.Data));
             logger?.WriteVerbose($"Analyzing TLSRPT record {TlsRptRecord}");
 
             StartsCorrectly = TlsRptRecord?.StartsWith("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) == true;
+            if (StartsCorrectly) {
+                logger?.WriteInformationCode(TlsRptCodes.RecordStartsV1, "TLSRPT starts with v=TLSRPTv1");
+            }
 
             foreach (var part in (TlsRptRecord ?? string.Empty).Split(';')) {
                 var kv = part.Split(new[] { '=' }, 2);
@@ -93,7 +101,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                     switch (key.ToLowerInvariant()) {
                         case "rua":
                             RuaDefined = true;
-                            AddUriToList(value, MailtoRua, HttpRua, InvalidRua);
+                            AddUriToList(value, MailtoRua, HttpRua, InvalidRua, logger);
                             break;
                         case "v":
                             break;
@@ -112,6 +120,13 @@ public class TLSRPTAnalysis : IHasAssessments {
                 }
             }
 
+            if (MailtoRua.Count > 0) {
+                logger?.WriteInformationCode(TlsRptCodes.RuaMailtoPresent, $"TLSRPT mailto RUA configured: {MailtoRua.Count} address(es)");
+            }
+            if (HttpRua.Count > 0) {
+                logger?.WriteInformationCode(TlsRptCodes.RuaHttpPresent, $"TLSRPT HTTPS RUA configured: {HttpRua.Count} endpoint(s)");
+            }
+
             if (!RuaDefined) {
                 logger?.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
             }
@@ -120,9 +135,12 @@ public class TLSRPTAnalysis : IHasAssessments {
             {
                 await ValidateHttpRuaAsync(logger, cancellationToken);
             }
+
+            if (PolicyValid) {
+                logger?.WriteInformationCode(TlsRptCodes.PolicyValid, "TLSRPT policy valid");
+            }
         }
 
-        private static readonly HttpClient _httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
         private async Task ValidateHttpRuaAsync(InternalLogger logger, CancellationToken ct)
         {
             foreach (var url in HttpRua)
@@ -130,7 +148,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Head, url);
-                    using var resp = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
+                    using var resp = await HttpClient.SendAsync(req, ct).ConfigureAwait(false);
                     RuaHttpStatus[url] = (int)resp.StatusCode;
                     if ((int)resp.StatusCode >= 400)
                     {
@@ -145,17 +163,25 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
         }
 
-        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList) {
+        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList, InternalLogger logger) {
             var uris = uri.Split(',');
             foreach (var raw in uris) {
                 var u = raw.Trim();
                 if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
                     var part = u.Substring(7);
+                    string decoded;
                     try {
-                        var decoded = Uri.UnescapeDataString(part);
+                        decoded = Uri.UnescapeDataString(part);
+                    } catch (Exception ex) {
+                        logger?.WriteWarning($"Failed to unescape mailto RUA '{u}': {ex.Message}");
+                        invalidList.Add(u);
+                        continue;
+                    }
+                    try {
                         _ = new MailAddress(decoded);
                         mailtoList.Add(decoded);
-                    } catch {
+                    } catch (Exception ex) {
+                        logger?.WriteWarning($"Invalid mailto RUA '{decoded}': {ex.Message}");
                         invalidList.Add(u);
                     }
                 } else if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) &&
