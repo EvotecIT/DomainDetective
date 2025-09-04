@@ -107,6 +107,7 @@ public partial class BimiAnalysis : IHasAssessments {
                 logger?.WriteWarningCode(BimiCodes.MissingRecord, "No BIMI record found.");
                 return;
             }
+            logger?.WriteInformationCode(BimiCodes.RecordPresent, "BIMI record present");
 
             BimiRecord = string.Join(" ", recordList.Select(r => r.Data));
             logger.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
@@ -126,6 +127,9 @@ public partial class BimiAnalysis : IHasAssessments {
                     if (svg != null) {
                         SvgFetched = true;
                         SvgValid = ValidateSvg(svg, size, logger);
+                        if (SvgValid) {
+                            logger?.WriteInformationCode(BimiCodes.SvgValid, "BIMI SVG valid");
+                        }
                         logger?.WriteVerbose("Successfully downloaded BIMI indicator from {0}", Location);
                     } else {
                         logger?.WriteWarningCode(BimiCodes.DownloadFailed, "Failed to download BIMI indicator from {0}", Location);
@@ -141,6 +145,9 @@ public partial class BimiAnalysis : IHasAssessments {
                 }
 
                 (ValidVmc, VmcSignedByKnownRoot, VmcContainsLogo) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
+                if (ValidVmc && VmcSignedByKnownRoot) {
+                    logger?.WriteInformationCode(BimiCodes.VmcVerified, "BIMI certificate valid and trusted");
+                }
             }
         }
 

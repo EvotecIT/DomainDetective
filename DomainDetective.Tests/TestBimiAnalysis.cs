@@ -12,7 +12,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
 namespace DomainDetective.Tests {
-    public class TestBimiAnalysis {
+    public partial class TestBimiAnalysis {
         [Fact]
         public async Task ParseBimiRecord() {
             using var cert = CreateSelfSigned();
