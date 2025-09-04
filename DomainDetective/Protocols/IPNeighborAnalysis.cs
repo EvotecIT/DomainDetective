@@ -188,6 +188,12 @@ public class IPNeighborAnalysis : IHasAssessments
         });
 
         await Task.WhenAll(tasks);
+
+        if (!Results.Any(r => r.CoHostCount > 50))
+        {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: domainName) : null;
+            logger?.WriteInformationCode(IpNeighborCodes.NoMaliciousNeighbors, "No malicious IP neighbors detected");
+        }
     }
 
     /// <summary>
@@ -236,5 +242,13 @@ public class IPNeighborAnalysis : IHasAssessments
                 }
             }
         }
+
+        if (!Results.Any(r => r.CoHostCount > 50))
+        {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: domainName) : null;
+            logger?.WriteInformationCode(IpNeighborCodes.NoMaliciousNeighbors, "No malicious IP neighbors detected");
+        }
     }
+
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }
