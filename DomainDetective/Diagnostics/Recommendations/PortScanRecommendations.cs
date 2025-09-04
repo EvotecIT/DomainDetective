@@ -125,7 +125,7 @@ internal sealed class PortScanRecommendations : IRecommendationProvider {
             Code = PortScanCodes.ExpectedPortsOnly,
             Title = "Only expected ports are open",
             Why = "Restricting services to necessary ports minimizes attack surface.",
-            How = "Keep unnecessary services disabled and monitor for unexpected openings.",
+            How = "Document required services (e.g., 80/443 for web) and close all other ports via firewall rules; monitor for unexpected openings.",
             Links = new [] { "https://nmap.org/book/man-port-scanning-basics.html" },
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "portscan", "hardening" },

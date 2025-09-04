@@ -20,14 +20,21 @@ namespace DomainDetective.Tests
         [Fact]
         public async Task EmitsPositiveAdvice()
         {
-            using var listener = new TcpListener(IPAddress.Loopback, 0);
+            var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-            var analysis = new PortScanAnalysis();
-            var logger = new InternalLogger();
-            await analysis.Scan("127.0.0.1", new[] { port }, logger);
-            var positives = RecommendationEngine.FromPositives(analysis.Assessments);
-            Assert.Contains(positives, p => p.Code == PortScanCodes.ExpectedPortsOnly);
+            try
+            {
+                var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                var analysis = new PortScanAnalysis();
+                var logger = new InternalLogger();
+                await analysis.Scan("127.0.0.1", new[] { port }, logger);
+                var positives = RecommendationEngine.FromPositives(analysis.Assessments);
+                Assert.Contains(positives, p => p.Code == PortScanCodes.ExpectedPortsOnly);
+            }
+            finally
+            {
+                listener.Stop();
+            }
         }
     }
 }

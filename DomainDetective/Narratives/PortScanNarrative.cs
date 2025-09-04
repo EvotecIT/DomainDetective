@@ -3,10 +3,22 @@ using System.Linq;
 
 namespace DomainDetective.Narratives;
 
+/// <summary>
+/// Generates narrative sections summarizing port scan results.
+/// </summary>
 public static class PortScanNarrative
 {
+    /// <summary>
+    /// Container for generated narrative sections.
+    /// </summary>
     public sealed class Sections : NarrativeSections { }
 
+    /// <summary>
+    /// Builds narrative sections from a <see cref="PortScanAnalysis"/>.
+    /// </summary>
+    /// <param name="analysis">The port scan analysis to summarize.</param>
+    /// <param name="assessments">Optional assessments to include.</param>
+    /// <returns>The narrative sections describing the analysis.</returns>
     public static Sections Build(PortScanAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
         var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
@@ -35,9 +47,9 @@ public static class PortScanNarrative
             };
         }
 
-        var open = analysis.Results
+        var sorted = analysis.Results.OrderBy(kv => kv.Key).ToList();
+        var open = sorted
             .Where(kv => kv.Value.TcpOpen || kv.Value.UdpOpen)
-            .OrderBy(kv => kv.Key)
             .ToList();
 
         if (open.Count == 0)
@@ -55,7 +67,7 @@ public static class PortScanNarrative
             }
         }
 
-        foreach (var kv in analysis.Results.OrderBy(kv => kv.Key))
+        foreach (var kv in sorted)
         {
             var r = kv.Value;
             var status = r.TcpOpen || r.UdpOpen ? "open" : "closed";
