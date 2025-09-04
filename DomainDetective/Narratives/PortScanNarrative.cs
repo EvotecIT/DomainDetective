@@ -48,31 +48,30 @@ public static class PortScanNarrative
         }
 
         var sorted = analysis.Results.OrderBy(kv => kv.Key).ToList();
-        var open = sorted
-            .Where(kv => kv.Value.TcpOpen || kv.Value.UdpOpen)
-            .ToList();
-
-        if (open.Count == 0)
-        {
-            hi.Add("No open ports detected.");
-        }
-        else
-        {
-            foreach (var kv in open)
-            {
-                var r = kv.Value;
-                var proto = r.TcpOpen ? "TCP" : "UDP";
-                var banner = string.IsNullOrWhiteSpace(r.Banner) ? string.Empty : $" - {r.Banner.Trim()}";
-                hi.Add($"Port {kv.Key} {proto} open{banner}");
-            }
-        }
+        var openCount = 0;
 
         foreach (var kv in sorted)
         {
             var r = kv.Value;
-            var status = r.TcpOpen || r.UdpOpen ? "open" : "closed";
-            var banner = string.IsNullOrWhiteSpace(r.Banner) ? string.Empty : $" ({r.Banner.Trim()})";
-            det.Add($"Port {kv.Key} {status}{banner}");
+            var bannerText = string.IsNullOrWhiteSpace(r.Banner) ? string.Empty : r.Banner.Trim();
+            var status = r.TcpOpen || r.UdpOpen;
+
+            if (status)
+            {
+                openCount++;
+                var proto = r.TcpOpen ? "TCP" : "UDP";
+                var bannerHi = string.IsNullOrEmpty(bannerText) ? string.Empty : $" - {bannerText}";
+                hi.Add($"Port {kv.Key} {proto} open{bannerHi}");
+            }
+
+            var bannerDet = string.IsNullOrEmpty(bannerText) ? string.Empty : $" ({bannerText})";
+            var state = status ? "open" : "closed";
+            det.Add($"Port {kv.Key} {state}{bannerDet}");
+        }
+
+        if (openCount == 0)
+        {
+            hi.Add("No open ports detected.");
         }
 
         try
@@ -102,6 +101,9 @@ public static class PortScanNarrative
         };
     }
 
+    /// <summary>
+    /// Default reference links explaining port scanning fundamentals.
+    /// </summary>
     private static List<string> DefaultRefs() => new()
     {
         "https://nmap.org/book/man-port-scanning-basics.html"
