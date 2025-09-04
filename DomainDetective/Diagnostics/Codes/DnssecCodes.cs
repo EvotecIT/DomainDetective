@@ -12,4 +12,6 @@ internal static class DnssecCodes {
     public const string DsNotAuthenticated = "DNSSEC.DS.NotAuthenticated";
     public const string DsMismatch = "DNSSEC.DS.Mismatch";
     public const string Nsec3OptOutRisk = "DNSSEC.NSEC3.OptOutRisk";
+    public const string SignaturesValid = "DNSSEC.Signatures.Valid";
+    public const string ChainValid = "DNSSEC.Chain.Valid";
 }

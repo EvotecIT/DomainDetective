@@ -112,5 +112,25 @@ internal sealed class DnssecRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "Query NSEC3PARAM/NSEC3; Flags should be 0 when Opt-Out is not used."
         };
+
+        map[DnssecCodes.SignaturesValid] = new RecommendationAdvice {
+            Code = DnssecCodes.SignaturesValid,
+            Title = "DNSSEC signatures validated",
+            Why = "Valid signatures ensure DNS responses are authentic and unaltered.",
+            How = "Maintain key rollover procedures and monitor signature expiration windows.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc4035" },
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec", "signatures" }
+        };
+
+        map[DnssecCodes.ChainValid] = new RecommendationAdvice {
+            Code = DnssecCodes.ChainValid,
+            Title = "DNSSEC chain of trust intact",
+            Why = "A complete chain of trust prevents spoofed DNS responses.",
+            How = "Ensure DS records are published and keys are rotated before expiry to preserve validation.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc4035" },
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec", "integrity" }
+        };
     }
 }
