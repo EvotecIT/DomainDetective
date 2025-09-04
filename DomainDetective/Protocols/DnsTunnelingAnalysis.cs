@@ -10,6 +10,8 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class DnsTunnelingAnalysis : IHasAssessments
 {
+    private const int MaxLabelLength = 50;
+    private const int MinEncodingLength = 20;
     /// <summary>Domain under analysis.</summary>
     public string? Subject { get; set; }
     /// <summary>Collection of detected issues.</summary>
@@ -30,6 +32,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
     {
         Subject = domainName;
         Alerts = new List<DnsTunnelingAlert>();
+        Assessments.Clear();
         var queue = new Queue<DateTimeOffset>();
         if (logLines == null)
         {
@@ -59,9 +62,14 @@ public class DnsTunnelingAnalysis : IHasAssessments
                 continue;
             }
 
+            if (query.Length <= domainName.Length)
+            {
+                continue; // Skip invalid queries
+            }
+
             var label = query.Substring(0, query.Length - domainName.Length).TrimEnd('.');
             var first = label.Split('.').FirstOrDefault() ?? string.Empty;
-            if (first.Length > 50 || LooksEncoded(first))
+            if (first.Length > MaxLabelLength || LooksEncoded(first))
             {
                 Alerts.Add(new DnsTunnelingAlert { Domain = query, Reason = "Suspicious subdomain" });
                 Assessments.Add(new Assessment {
@@ -94,11 +102,23 @@ public class DnsTunnelingAnalysis : IHasAssessments
                 }
             }
         }
+
+        if (Alerts.Count == 0)
+        {
+            Assessments.Add(new Assessment
+            {
+                Severity = AssessmentSeverity.Info,
+                Category = "DnsTunneling",
+                Target = domainName,
+                Code = DnsTunnelingCodes.NoIndicators,
+                Message = "No tunneling indicators found in DNS logs",
+            });
+        }
     }
 
     private static bool LooksEncoded(string label)
     {
-        if (label.Length < 20)
+        if (label.Length < MinEncodingLength)
         {
             return false;
         }
