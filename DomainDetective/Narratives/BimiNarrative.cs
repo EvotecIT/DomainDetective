@@ -25,7 +25,11 @@ public static class BimiNarrative
 
     public static Sections Build(BimiAnalysis bimi)
     {
-        var subj = string.IsNullOrWhiteSpace(bimi?.Subject) ? "(domain)" : bimi.Subject;
+        var subj = bimi?.Subject;
+        if (string.IsNullOrWhiteSpace(subj))
+        {
+            subj = "(domain)";
+        }
         var title = $"BIMI Report — {subj}";
         var subtitle = "BIMI Assessment";
         var category = "Email Branding";
@@ -94,8 +98,10 @@ public static class BimiNarrative
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            // Continue building narrative even if assessment grouping fails.
+            Console.Error.WriteLine($"[BIMI narrative] assessment processing error: {ex.Message}");
         }
 
         return new Sections

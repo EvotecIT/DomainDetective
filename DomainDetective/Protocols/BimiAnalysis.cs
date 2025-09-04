@@ -23,6 +23,8 @@ namespace DomainDetective {
     /// validates presence and accessibility of those resources.
     /// </remarks>
 public partial class BimiAnalysis : IHasAssessments {
+        private const int SvgRequiredDimension = 64;
+        private const string SvgRequiredViewBox = "0 0 64 64";
         public string? Subject { get; set; }
         /// <summary>Gets the concatenated BIMI record text.</summary>
         public string? BimiRecord { get; private set; }
@@ -297,15 +299,15 @@ public partial class BimiAnalysis : IHasAssessments {
 
                 var widthStr = widthAttr?.Value;
                 var heightStr = heightAttr?.Value;
-                DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == 64 && h == 64;
+                DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == SvgRequiredDimension && h == SvgRequiredDimension;
                 if (!DimensionsValid) {
-                    logger?.WriteWarningCode(BimiCodes.SvgWrongDimensions, "BIMI SVG width and height must be 64x64");
+                    logger?.WriteWarningCode(BimiCodes.SvgWrongDimensions, $"BIMI SVG width and height must be {SvgRequiredDimension}x{SvgRequiredDimension}");
                 }
 
                 var viewBox = viewBoxAttr?.Value;
-                ViewBoxValid = viewBox == "0 0 64 64";
+                ViewBoxValid = viewBox == SvgRequiredViewBox;
                 if (!ViewBoxValid) {
-                    logger?.WriteWarningCode(BimiCodes.SvgWrongViewBox, "BIMI SVG viewBox must be '0 0 64 64'");
+                    logger?.WriteWarningCode(BimiCodes.SvgWrongViewBox, $"BIMI SVG viewBox must be '{SvgRequiredViewBox}'");
                 }
 
                 return isSvg && SvgSizeValid;
