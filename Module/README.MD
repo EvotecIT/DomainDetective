@@ -58,6 +58,18 @@ Test-DnsNs -DomainName "example.com" -Verbose
   ```powershell
   Test-DomainSecurityTxt -DomainName "example.com"
   ```
+  
+- `Test-DDDmarcAggregate` – parse DMARC aggregate reports and summarize failures.
+  ```powershell
+  # Summarize by reporter organization/email
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Reporter -Deduplicate
+
+  # Summarize by ASN (network enrichment performed automatically)
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Asn -Deduplicate
+
+  # Summarize by country (GeoIP enrichment performed automatically)
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Country -Deduplicate
+  ```
 - `Test-EmailStartTls` – verifies SMTP STARTTLS support and reports downgrades via `DowngradeDetected`.
   ```powershell
   Test-EmailStartTls -DomainName "example.com" -Port 587 -Verbose
@@ -152,6 +164,14 @@ JSON shaping when needed:
 ```powershell
 Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -AsJson | Out-File .\spf-eval.json
 ```
+
+### Identity (IdP) tenant hints
+
+```powershell
+Get-DDIdpInfo -DomainName 'example.com' |
+  Format-Table Subject, TenantId, NameSpaceType, FederatedAuthUrl
+```
+Returns a view object with OIDC discovery URL, TenantId (if found), NameSpaceType and FederatedAuthUrl from GetUserRealm.
 
 ## Exporting Reports
 

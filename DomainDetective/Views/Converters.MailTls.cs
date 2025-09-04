@@ -38,7 +38,12 @@ public static partial class Converters
                 DhKeyBits = r.DhKeyBits,
                 CertificateSubject = r.CertificateSubject,
                 CertificateIssuer = r.CertificateIssuer,
-                CertificateNotAfter = r.CertificateNotAfter
+                CertificateNotAfter = r.CertificateNotAfter,
+                // New summary-friendly aliases
+                Issuer = r.CertificateIssuer,
+                ValidFrom = r.CertificateNotBefore,
+                ValidTo = r.CertificateNotAfter,
+                Thumbprint = r.CertificateThumbprint
             });
         }
         int validCount = 0;

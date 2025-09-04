@@ -330,6 +330,35 @@ ddcli DnsPropagation --domain example.com --record-type A
 ```
 ddcli SpfTestHost example.com --ip 192.0.2.10 --sender postmaster@example.com --json
 ```
+
+IdP tenant hints in C#:
+
+```csharp
+var hc = new DomainHealthCheck();
+await hc.VerifyIdpInfo("example.com");
+var idp = hc.IdpInfoAnalysis;
+Console.WriteLine($"Tenant: {idp.TenantId}, Namespace: {idp.NameSpaceType}, FederatedAuthUrl: {idp.FederatedAuthUrl}");
+```
+
+DMARC aggregate enrichment and summaries in C#:
+
+```csharp
+var paths = Directory.GetFiles("./reports", "*.xml");
+var reports = paths.Select(p => DmarcReportParser.Parse(p)).ToList();
+// Enrich records with ASN and country
+await DmarcAggregateEnrichment.EnrichAsync(reports.SelectMany(r => r.Records));
+
+// Reporter summary
+var pairs = reports.SelectMany(r => r.Records.Select(rec => (Report: r, Record: rec)));
+var byReporter = pairs.SummarizeFailuresByReporter().OrderByDescending(x => x.Count);
+
+// By ASN
+var all = reports.SelectMany(r => r.Records);
+var byAsn = all.SummarizeFailuresByAsn().OrderByDescending(x => x.Count);
+
+// By Country
+var byCountry = all.SummarizeFailuresByCountry().OrderByDescending(x => x.Count);
+```
 Returns a verdict (pass/fail/softfail/neutral/permerror), the matched token/type and the include/redirect chain that led to the match.
 ```
 

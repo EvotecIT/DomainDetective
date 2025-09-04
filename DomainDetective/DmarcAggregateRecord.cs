@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DomainDetective;
 
@@ -27,5 +28,29 @@ public sealed class DmarcAggregateRecord {
             || string.Equals(Spf, "pass", StringComparison.OrdinalIgnoreCase))
         && !string.Equals(Disposition, "reject", StringComparison.OrdinalIgnoreCase)
         && !string.Equals(Disposition, "quarantine", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>SPF authenticated domain (auth_results/spf/domain).</summary>
+    public string? SpfDomain { get; set; }
+
+    /// <summary>SPF result (auth_results/spf/result).</summary>
+    public string? SpfResult { get; set; }
+
+    /// <summary>DKIM signing domain (auth_results/dkim/domain).</summary>
+    public string? DkimDomain { get; set; }
+
+    /// <summary>DKIM selector (auth_results/dkim/selector).</summary>
+    public string? DkimSelector { get; set; }
+
+    /// <summary>DKIM result (auth_results/dkim/result).</summary>
+    public string? DkimResult { get; set; }
+
+    /// <summary>Policy evaluation reasons (policy_evaluated/reason/type and comments).</summary>
+    public List<string> Reasons { get; set; } = new List<string>();
+
+    /// <summary>Enriched: Origin ASN for SourceIp when available.</summary>
+    public int? Asn { get; set; }
+
+    /// <summary>Enriched: Country derived from SourceIp.</summary>
+    public string? Country { get; set; }
 }
 
