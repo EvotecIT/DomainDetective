@@ -24,6 +24,9 @@ public record EdnsSupportInfo
 
     /// <summary>Indicates the UDP response was truncated and TCP fallback was necessary.</summary>
     public bool TruncatedUdp { get; init; }
+
+    /// <summary>EDNS version reported by the server.</summary>
+    public int Version { get; init; }
 }
 
 /// <summary>
@@ -109,18 +112,20 @@ public class EdnsSupportAnalysis : IHasAssessments
             if (data[i] == 0x00 && data[i + 1] == 0x00 && data[i + 2] == 0x29)
             {
                 int udpPayload = data[i + 3] << 8 | data[i + 4];
+                int version = data[i + 6];
                 int flags = data[i + 7] << 8 | data[i + 8];
                 bool doBit = (flags & 0x8000) != 0;
                 return new EdnsSupportInfo
                 {
                     Supported = true,
                     UdpPayloadSize = udpPayload,
-                    DoBit = doBit
+                    DoBit = doBit,
+                    Version = version
                 };
             }
         }
 
-        return new EdnsSupportInfo { Supported = false, UdpPayloadSize = 0, DoBit = false };
+        return new EdnsSupportInfo { Supported = false, UdpPayloadSize = 0, DoBit = false, Version = 0 };
     }
 
     private static async Task<EdnsSupportInfo> QueryServerAsync(string ip)
@@ -244,9 +249,18 @@ public class EdnsSupportAnalysis : IHasAssessments
                 }
                 else
                 {
+                    logger?.WriteInformationCode(EdnsCodes.Supported, "EDNS supported on {0} ({1})", host, addr.Data);
                     if (support.UdpPayloadSize > 1232)
                     {
                         logger?.WriteWarningCode(EdnsCodes.BufferTooLarge, "EDNS UDP payload {0} on {1} ({2}) > 1232", support.UdpPayloadSize, host, addr.Data);
+                    }
+                    else
+                    {
+                        logger?.WriteInformationCode(EdnsCodes.UdpSizeOk, "EDNS UDP payload {0} on {1} ({2})", support.UdpPayloadSize, host, addr.Data);
+                    }
+                    if (support.Version == 0)
+                    {
+                        logger?.WriteInformationCode(EdnsCodes.VersionZero, "EDNS version 0 on {0} ({1})", host, addr.Data);
                     }
                     if (support.TruncatedUdp)
                     {
