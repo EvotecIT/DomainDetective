@@ -171,6 +171,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "policy" },
             Impact = "Receivers will reject mail that fails DMARC.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains p=reject."
         };
 
@@ -183,6 +184,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "policy" },
             Impact = "Spoofed mail is quarantined by receivers.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains p=quarantine."
         };
 
@@ -195,6 +197,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "alignment" },
             Impact = "Mitigates spoofing by enforcing domain match on DKIM.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/overview/" },
             Verify = "DMARC record shows adkim=s."
         };
 
@@ -207,6 +210,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "alignment" },
             Impact = "Ensures SPF-authenticated mail uses the same domain as From.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/overview/" },
             Verify = "DMARC record shows aspf=s."
         };
 
@@ -219,6 +223,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "reporting" },
             Impact = "Enables visibility into overall DMARC performance.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains a rua=mailto: address."
         };
 
@@ -231,6 +236,7 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc", "reporting" },
             Impact = "Provides granular insight into individual DMARC failures.",
             Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains a ruf=mailto: address."
         };
     }
