@@ -25,4 +25,5 @@ internal static class SpfCodes {
     public const string StartsV1 = "SPF.Record.StartsV1";
     public const string AllEnforced = "SPF.All.Enforced";
     public const string LookupsWithinLimit = "SPF.Lookups.WithinLimit";
+    public const string IncludeChainValid = "SPF.Include.ChainValid";
 }
