@@ -41,6 +41,12 @@ public class ZoneTransferAnalysis : IHasAssessments {
                 ServerResults[server] = allowed;
                 if (allowed) {
                     logger?.WriteWarningCode(ZoneTransferCodes.Allowed, "AXFR allowed on {0}", ns);
+                } else {
+                    var failed = Assessments.Any(a => a.Code == ZoneTransferCodes.CheckFailed &&
+                                                     string.Equals(a.Target, ns, StringComparison.OrdinalIgnoreCase));
+                    if (!failed) {
+                        logger?.WriteInformationCode(ZoneTransferCodes.Restricted, "AXFR refused on {0}", ns);
+                    }
                 }
             }
         }
