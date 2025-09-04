@@ -94,6 +94,7 @@ public class WhoisAnalysis : IHasAssessments {
     public bool RegistrarLocked { get; private set; }
     public bool PrivacyProtected { get; private set; }
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
+    public TimeSpan ExpirationLongTermThreshold { get; set; } = TimeSpan.FromDays(365);
     public string? SnapshotDirectory { get; set; }
     public string RegistrarId { get; private set; }
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
@@ -685,7 +686,8 @@ public class WhoisAnalysis : IHasAssessments {
             {
                 _logger.WriteInformationCode(WhoisCodes.ParseAnomaly, "WHOIS parse anomaly: expiry date not found");
             }
-            if (!IsExpired && !ExpiresSoon && DaysUntilExpiration.HasValue && DaysUntilExpiration.Value > 365)
+            if (!IsExpired && !ExpiresSoon && DaysUntilExpiration.HasValue &&
+                DaysUntilExpiration.Value > ExpirationLongTermThreshold.TotalDays)
             {
                 _logger.WriteInformationCode(
                     WhoisCodes.ExpiryFuture,
@@ -911,6 +913,8 @@ public class WhoisAnalysis : IHasAssessments {
                 DomainName = line.Substring("   Domain Name:".Length).Trim();
             } else if (line.StartsWith("   Registrar:")) {
                 Registrar = line.Substring("   Registrar:".Length).Trim();
+            } else if (line.StartsWith("   Registrant Organization:")) {
+                RegisteredTo = line.Substring("   Registrant Organization:".Length).Trim();
             } else if (line.StartsWith("   Creation Date:")) {
                 CreationDate = line.Substring("   Creation Date:".Length).Trim();
             } else if (line.StartsWith("   Registry Expiry Date:")) {

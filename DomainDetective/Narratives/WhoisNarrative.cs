@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Narratives;
 
@@ -53,9 +54,13 @@ public static class WhoisNarrative
         {
             det.Add($"Country: {whois.Country}");
         }
-        if (whois?.NameServers != null && whois.NameServers.Count > 0)
+        if (whois?.NameServers != null)
         {
-            det.Add($"Name servers: {string.Join(", ", whois.NameServers)}");
+            var ns = whois.NameServers.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+            if (ns.Count > 0)
+            {
+                det.Add($"Name servers: {string.Join(", ", ns)}");
+            }
         }
 
         var refs = new List<string>
@@ -63,14 +68,7 @@ public static class WhoisNarrative
             "https://datatracker.ietf.org/doc/html/rfc3912"
         };
 
-        try
-        {
-            AssessmentSplit.SplitTitles(whois?.Assessments ?? new List<Assessment>(), out positives, out remediations);
-        }
-        catch (Exception)
-        {
-            // best effort
-        }
+        AssessmentSplit.SplitTitles(whois?.Assessments ?? new List<Assessment>(), out positives, out remediations);
 
         return new Sections
         {
