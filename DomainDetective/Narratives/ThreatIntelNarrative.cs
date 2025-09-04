@@ -5,20 +5,7 @@ using DomainDetective;
 namespace DomainDetective.Narratives;
 
 public static class ThreatIntelNarrative {
-    public sealed class Sections {
-        public string Title { get; init; } = string.Empty;
-        public string Subtitle { get; init; } = string.Empty;
-        public string Category { get; init; } = string.Empty;
-        public string Keywords { get; init; } = string.Empty;
-        public string Creator { get; init; } = string.Empty;
-        public string Introduction { get; init; } = string.Empty;
-        public string WhyItMatters { get; init; } = string.Empty;
-        public List<string> Highlights { get; init; } = new();
-        public List<string> Details { get; init; } = new();
-        public List<string> References { get; init; } = new();
-        public List<string> Positives { get; init; } = new();
-        public List<string> Remediations { get; init; } = new();
-    }
+    public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(ThreatIntelAnalysis ti) {
         var subj = string.IsNullOrWhiteSpace(ti?.Subject) ? "(domain)" : ti.Subject;
