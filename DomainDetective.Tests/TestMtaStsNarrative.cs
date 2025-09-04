@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective;
 using DomainDetective.Narratives;
 using System.Net;
 using System.Text;
@@ -18,7 +19,6 @@ public class TestMtaStsNarrative
         var prefix = $"http://localhost:{port}/";
         listener.Prefixes.Add(prefix);
         listener.Start();
-        PortHelper.ReleasePort(port);
         const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
         var serverTask = Task.Run(async () => {
             var ctx = await listener.GetContextAsync();
@@ -46,6 +46,24 @@ public class TestMtaStsNarrative
         } finally {
             listener.Stop();
             await serverTask;
+            PortHelper.ReleasePort(port);
         }
+    }
+
+    [Fact]
+    public void HandlesNullAnalysis()
+    {
+        var sections = MtaStsNarrative.Build(null);
+        Assert.Contains("No MTA-STS data available", sections.Highlights[0]);
+        Assert.Empty(sections.Positives);
+    }
+
+    [Fact]
+    public void HandlesEmptyAssessments()
+    {
+        var analysis = new MTASTSAnalysis();
+        var sections = MtaStsNarrative.Build(analysis, Array.Empty<Assessment>());
+        Assert.Empty(sections.Positives);
+        Assert.Empty(sections.Remediations);
     }
 }

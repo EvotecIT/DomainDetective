@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using DomainDetective;
 
 namespace DomainDetective.Narratives;
@@ -29,7 +31,13 @@ public static class MtaStsNarrative
         var title = $"MTA-STS Report — {subj}";
         var subtitle = "MTA-STS Assessment";
         var category = "Email Security";
-        var keywords = $"MTA-STS, email, security, DomainDetective, {subj}";
+        var kb = new StringBuilder("MTA-STS, email, security, DomainDetective");
+        if (!string.IsNullOrWhiteSpace(subj))
+        {
+            kb.Append(", ").Append(subj);
+        }
+
+        var keywords = kb.ToString();
         var creator = "DomainDetective";
         var intro = "SMTP MTA Strict Transport Security (MTA-STS) allows a domain to require TLS for inbound mail using a policy published over HTTPS.";
         var why = "A valid MTA-STS policy helps prevent downgrade attacks by ensuring sending MTAs use TLS.";
@@ -88,7 +96,10 @@ public static class MtaStsNarrative
                 AssessmentSplit.SplitTitles(ass, out positives, out remediations);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
 
         return new Sections
         {

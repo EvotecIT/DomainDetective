@@ -204,6 +204,19 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task FetchPolicyNetworkFailureHandled() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                PolicyUrlOverride = "http://localhost:1/.well-known/mta-sts.txt",
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+            Assert.False(analysis.PolicyPresent);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
         public void InvalidMaxAgeInvalidatesPolicy() {
             var policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: -1";
             var analysis = new MTASTSAnalysis();
