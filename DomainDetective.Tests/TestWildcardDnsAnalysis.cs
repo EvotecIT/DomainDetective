@@ -145,4 +145,17 @@ public class TestWildcardDnsAnalysis
 
         Assert.True(analysis.CatchAll);
     }
+
+    [Fact]
+    public async Task EmitsNotDetectedCodeWhenNoWildcard()
+    {
+        var analysis = new WildcardDnsAnalysis
+        {
+            QueryDnsOverride = (_, _) => Task.FromResult(Array.Empty<DnsAnswer>())
+        };
+
+        await analysis.Analyze("example.com", new InternalLogger(), sampleCount: 1);
+
+        Assert.Contains(analysis.Assessments, a => a.Code == WildcardCodes.NotDetected);
+    }
 }

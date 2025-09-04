@@ -12,6 +12,15 @@ internal sealed class WildcardRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "wildcard" }
         };
+
+        map[WildcardCodes.NotDetected] = new RecommendationAdvice {
+            Code = WildcardCodes.NotDetected,
+            Title = "No wildcard DNS detected",
+            Why = "Explicit DNS records prevent shadow subdomains and simplify troubleshooting.",
+            How = "No action required.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "wildcard" }
+        };
     }
 }
 

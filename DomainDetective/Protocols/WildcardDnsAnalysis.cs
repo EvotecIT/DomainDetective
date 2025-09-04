@@ -141,6 +141,10 @@ public class WildcardDnsAnalysis : IHasAssessments
         {
             logger?.WriteWarningCode(WildcardCodes.Enabled, "Wildcard DNS detected for {0}", domainName);
         }
+        else
+        {
+            logger?.WriteInformationCode(WildcardCodes.NotDetected, "No wildcard DNS detected for {0}", domainName);
+        }
     }
 
     public List<Assessment> Assessments { get; } = new();
