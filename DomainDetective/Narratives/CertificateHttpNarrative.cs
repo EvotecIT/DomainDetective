@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -20,7 +21,7 @@ public static class CertificateHttpNarrative {
     }
 
     public static Sections Build(CertificateAnalysis analysis, IEnumerable<Assessment>? assessments = null) {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
         var title = $"HTTPS Certificate — {subj}";
         var subtitle = "TLS Certificate Assessment";
         var category = "Web Security";
@@ -62,7 +63,9 @@ public static class CertificateHttpNarrative {
             if (assessments != null) {
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
-        } catch { }
+        } catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine(ex);
+        }
 
         return new Sections {
             Title = title,

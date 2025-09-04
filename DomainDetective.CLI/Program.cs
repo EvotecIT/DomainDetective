@@ -27,7 +27,7 @@ internal static class Program {
         // If arguments start with options (e.g., --domain), assume the 'wizard' command implicitly
         if (args.Length == 0) {
             args = new[] { "wizard", "--interactive", "--simple-ui", "--pause-exit" };
-        } else if (args.Length > 0 && args[0].StartsWith("-")) {
+        } else if (args.Length > 0 && args[0].StartsWith("-") && args[0] != "--help" && args[0] != "-h") {
             var list = new List<string> { "wizard" };
             list.AddRange(args);
             args = list.ToArray();
@@ -36,6 +36,7 @@ internal static class Program {
         var app = new CommandApp();
         app.Configure(config => {
             config.SetApplicationName("DomainDetective");
+            config.AddExample(new[] { "check", "example.com" });
             config.AddCommand<WizardScanCommand>("WizardScan")
                 .WithDescription("Run the Hacker Wizard (parallel, animated)")
                 .WithExample(new[] { "WizardScan", "--domain", "example.com", "--full", "--matrix" })
