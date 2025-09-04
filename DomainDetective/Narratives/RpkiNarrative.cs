@@ -35,14 +35,8 @@ public static class RpkiNarrative
                 hi.Add($"{r.IpAddress} ⇒ {r.Prefix} (AS{r.Asn}) {status}.");
                 det.Add($"IP {r.IpAddress} prefix {r.Prefix} ASN {r.Asn} valid={r.Valid}");
             }
-            try
-            {
-                var assess = assessments ?? analysis.Assessments;
-                AssessmentSplit.SplitTitles(assess, out positives, out remediations);
-            }
-            catch
-            {
-            }
+            var assess = assessments ?? analysis.Assessments ?? new List<Assessment>();
+            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
         }
 
         var refs = new List<string>

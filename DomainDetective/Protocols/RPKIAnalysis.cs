@@ -57,8 +57,19 @@ public class RPKIAnalysis : IHasAssessments
             prefixResp.EnsureSuccessStatusCode();
             using var prefixStream = await prefixResp.Content.ReadAsStreamAsync();
             var prefixDoc = await JsonDocument.ParseAsync(prefixStream);
-            string? prefix = prefixDoc.RootElement.GetProperty("data").GetProperty("resource").GetString();
-            int asn = prefixDoc.RootElement.GetProperty("data").GetProperty("asns")[0].GetProperty("asn").GetInt32();
+            var data = prefixDoc.RootElement.GetProperty("data");
+            string? prefix = data.GetProperty("resource").GetString();
+            var asnsElement = data.GetProperty("asns");
+            int asn = 0;
+            if (asnsElement.ValueKind == JsonValueKind.Array && asnsElement.GetArrayLength() > 0)
+            {
+                asn = asnsElement[0].GetProperty("asn").GetInt32();
+            }
+            else
+            {
+                logger?.WriteErrorCode(RpkiCodes.QueryFailed, "No ASN data for {0}.", ip);
+                return (prefix ?? string.Empty, 0, false);
+            }
             string rpkiUrl = $"https://stat.ripe.net/data/rpki-validation/data.json?prefix={prefix}&resource=AS{asn}";
             using var rpkiResp = await client.GetAsync(rpkiUrl);
             rpkiResp.EnsureSuccessStatusCode();
@@ -71,7 +82,7 @@ public class RPKIAnalysis : IHasAssessments
         catch (Exception ex)
         {
             logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
-            return (string.Empty, 0, true);
+            return (string.Empty, 0, false);
         }
     }
 
