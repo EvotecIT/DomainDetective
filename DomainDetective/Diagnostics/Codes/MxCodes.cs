@@ -14,5 +14,7 @@ internal static class MxCodes {
     public const string TargetAddressInconsistentAcrossNs = "MX.Target.Address.InconsistentAcrossNS";
     public const string TtlNonUniform = "MX.TTL.NonUniform";
     public const string TargetTtlNonUniform = "MX.Target.TTL.NonUniform";
+    public const string RedundantHosts = "MX.Success.RedundantHosts";
+    public const string TlsSupported = "MX.Success.TlsSupported";
 }
 

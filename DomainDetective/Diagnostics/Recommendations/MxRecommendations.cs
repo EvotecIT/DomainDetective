@@ -125,6 +125,24 @@ internal sealed class MxRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "dig +ttlid A/AAAA mx1.example.com shows equal TTLs."
         };
+
+        map[MxCodes.RedundantHosts] = new RecommendationAdvice {
+            Code = MxCodes.RedundantHosts,
+            Title = "Redundant MX hosts configured",
+            Why = "Multiple MX hosts improve resilience and availability of inbound mail.",
+            How = "Maintain at least two MX records with differing preferences hosted on separate infrastructure.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "resilience" }
+        };
+
+        map[MxCodes.TlsSupported] = new RecommendationAdvice {
+            Code = MxCodes.TlsSupported,
+            Title = "MX hosts support STARTTLS",
+            Why = "TLS encryption protects email in transit and is widely expected by modern mail servers.",
+            How = "Keep TLS enabled and certificates valid on all MX hosts.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "tls" }
+        };
     }
 }
 

@@ -54,6 +54,9 @@ namespace DomainDetective {
         /// <summary>True when an MX host points to localhost.</summary>
         public bool PointsToLocalhost { get; private set; }
 
+        /// <summary>True when at least one MX host has an AAAA record.</summary>
+        public bool Ipv6Supported { get; private set; }
+
         // Integrity checks
         public bool MxTtlUniform { get; private set; } = true;
         public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
@@ -89,6 +92,7 @@ namespace DomainDetective {
             HasBackupServers = false;
             HasNullMx = false;
             PointsToLocalhost = false;
+            Ipv6Supported = false;
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
             TargetAddressConsistentAcrossNs = true;
@@ -152,6 +156,7 @@ namespace DomainDetective {
                 var aaaaResults = await QueryDns(host, DnsRecordType.AAAA);
                 var noA = aResults == null || !aResults.Any();
                 var noAAAA = aaaaResults == null || !aaaaResults.Any();
+                Ipv6Supported = Ipv6Supported || !noAAAA;
 
                 if (noA && noAAAA) {
                     var nsResults = await QueryDns(host, DnsRecordType.NS);
@@ -188,7 +193,10 @@ namespace DomainDetective {
                 using (_collector?.PushTarget(Subject ?? string.Empty))
                     logger?.WriteWarningCode(MxCodes.PrioritiesOutOfOrder, "MX priorities are not in ascending stable order");
             }
-            if (!HasBackupServers && evaluationList.Count >= 1 && !HasNullMx) {
+            if (HasBackupServers) {
+                using (_collector?.PushTarget(Subject ?? string.Empty))
+                    logger?.WriteInformationCode(MxCodes.RedundantHosts, "Multiple MX preferences detected");
+            } else if (evaluationList.Count >= 1 && !HasNullMx) {
                 using (_collector?.PushTarget(Subject ?? string.Empty))
                     logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
             }
