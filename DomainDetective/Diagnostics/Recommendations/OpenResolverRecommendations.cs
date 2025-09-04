@@ -15,6 +15,17 @@ internal sealed class OpenResolverRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Queries for unrelated domains return REFUSED and RA bit is not set."
         };
+        map[OpenResolverCodes.RecursionClosed] = new RecommendationAdvice {
+            Code = OpenResolverCodes.RecursionClosed,
+            Title = "Recursive queries denied",
+            Why = "Server refuses recursion from arbitrary clients, reducing amplification risk.",
+            How = "No action required; maintain current recursion restrictions.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "recursion" },
+            Impact = "Prevents reflection and cache-poisoning abuse.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Queries for unrelated domains return REFUSED and RA bit is unset."
+        };
         map[OpenResolverCodes.CheckFailed] = new RecommendationAdvice {
             Code = OpenResolverCodes.CheckFailed,
             Title = "Open resolver test failed",

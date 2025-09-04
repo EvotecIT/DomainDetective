@@ -7,4 +7,6 @@ internal static class WhoisCodes {
     public const string Expired = "WHOIS.Expiry.Expired";
     public const string NoRegistrar = "WHOIS.Registrar.Missing";
     public const string ParseAnomaly = "WHOIS.Parse.Anomaly";
+    public const string ExpiryFuture = "WHOIS.Expiry.Future";
+    public const string ContactValid = "WHOIS.Contact.Valid";
 }

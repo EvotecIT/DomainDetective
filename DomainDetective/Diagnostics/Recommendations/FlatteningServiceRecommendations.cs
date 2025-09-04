@@ -15,6 +15,18 @@ internal sealed class FlatteningServiceRecommendations : IRecommendationProvider
             Effort = RecommendationEffort.Low,
             Verify = "Resolve apex and confirm addresses align with intended provider behavior."
         };
+
+        map[FlatteningServiceCodes.ResolvedAddresses] = new RecommendationAdvice {
+            Code = FlatteningServiceCodes.ResolvedAddresses,
+            Title = "flattening service returns addresses",
+            Why = "Provider flattening supplies A/AAAA records at the apex for seamless aliasing.",
+            How = "Document provider dependency and monitor for address changes.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "cname", "flattening" },
+            Impact = "Simplifies apex alias management.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Resolve apex and observe provider-managed addresses."
+        };
     }
 }
 

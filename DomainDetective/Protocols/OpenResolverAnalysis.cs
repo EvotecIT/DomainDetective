@@ -36,6 +36,8 @@ public class OpenResolverAnalysis : IHasAssessments {
         ServerDetails[$"{host}:{port}"] = detail;
         if (detail.IsOpenResolver) {
             logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+        } else {
+            logger?.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
         }
     }
 
@@ -52,6 +54,8 @@ public class OpenResolverAnalysis : IHasAssessments {
                 ServerDetails[$"{host}:{port}"] = detail;
                 if (detail.IsOpenResolver) {
                     logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+                } else {
+                    logger?.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
                 }
             }
         }

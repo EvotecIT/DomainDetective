@@ -91,14 +91,28 @@ public sealed class ReportDispatcher
             {
                 Type[] types;
                 try { types = asm.GetTypes(); } catch { continue; }
-                foreach (var t in types)
-                {
-                    if (t.IsAbstract) continue;
-                    if (!typeof(IReportGenerator).IsAssignableFrom(t)) continue;
-                    IReportGenerator gen;
-                    try { gen = (IReportGenerator)Activator.CreateInstance(t); } catch { continue; }
-                    try { if (gen.CanGenerate(options)) return gen; } catch { }
-                }
+                    foreach (var t in types)
+                    {
+                        if (t.IsAbstract) continue;
+                        if (!typeof(IReportGenerator).IsAssignableFrom(t)) continue;
+                        IReportGenerator? gen;
+                        try
+                        {
+                            gen = Activator.CreateInstance(t) as IReportGenerator;
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+                        if (gen == null) continue;
+                        try
+                        {
+                            if (gen.CanGenerate(options)) return gen;
+                        }
+                        catch
+                        {
+                        }
+                    }
             }
         }
         catch { }
