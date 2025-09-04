@@ -79,6 +79,8 @@ public partial class BimiAnalysis : IHasAssessments {
 
         /// <summary>Skip downloading the BIMI indicator image.</summary>
         public bool SkipIndicatorDownload { get; set; }
+        /// <summary>Root certificates considered trusted when validating VMCs.</summary>
+        public ICollection<X509Certificate2> TrustedRoots { get; } = new List<X509Certificate2>();
 
         /// <summary>Structured assessments captured during BIMI analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -244,6 +246,14 @@ public partial class BimiAnalysis : IHasAssessments {
 
                 using var trustedChain = new X509Chain();
                 trustedChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+#if NET5_0_OR_GREATER
+                if (TrustedRoots.Count > 0) {
+                    trustedChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                    foreach (var root in TrustedRoots) {
+                        trustedChain.ChainPolicy.CustomTrustStore.Add(root);
+                    }
+                }
+#endif
                 var trusted = trustedChain.Build(cert);
 
                 var hasLogo = CertificateHasLogo(cert);
