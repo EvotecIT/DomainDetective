@@ -22,7 +22,7 @@ public class TestCaaNarrative
         await hc.CheckCAA(records);
         var sections = CaaNarrative.Build(hc.CAAAnalysis);
         Assert.Contains(sections.Highlights, h => h.Contains("letsencrypt.org"));
-        Assert.Contains(sections.Highlights, h => h.Contains("Wildcard", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sections.Highlights, h => h.IndexOf("wildcard", System.StringComparison.OrdinalIgnoreCase) >= 0);
         Assert.Contains(sections.Highlights, h => h.Contains("security@example.com"));
         var positives = RecommendationEngine.FromPositives(hc.CAAAnalysis.Assessments);
         Assert.Contains(positives, p => p.Code == CaaCodes.RecordPresent);

@@ -9,17 +9,40 @@ public static class CaaNarrative
 {
     public sealed class Sections
     {
+        /// <summary>Gets the narrative title.</summary>
         public string Title { get; init; } = string.Empty;
+
+        /// <summary>Gets the narrative subtitle.</summary>
         public string Subtitle { get; init; } = string.Empty;
+
+        /// <summary>Gets the category describing the narrative.</summary>
         public string Category { get; init; } = string.Empty;
+
+        /// <summary>Gets keywords associated with the narrative.</summary>
         public string Keywords { get; init; } = string.Empty;
+
+        /// <summary>Gets the narrative creator name.</summary>
         public string Creator { get; init; } = string.Empty;
+
+        /// <summary>Gets the introductory text.</summary>
         public string Introduction { get; init; } = string.Empty;
+
+        /// <summary>Gets the description why CAA matters.</summary>
         public string WhyItMatters { get; init; } = string.Empty;
+
+        /// <summary>Gets highlighted summary lines.</summary>
         public List<string> Highlights { get; init; } = new();
+
+        /// <summary>Gets detailed lines explaining the analysis.</summary>
         public List<string> Details { get; init; } = new();
+
+        /// <summary>Gets reference links for further reading.</summary>
         public List<string> References { get; init; } = new();
+
+        /// <summary>Gets positive assessment titles.</summary>
         public List<string> Positives { get; init; } = new();
+
+        /// <summary>Gets remediation assessment titles.</summary>
         public List<string> Remediations { get; init; } = new();
     }
 
@@ -59,7 +82,11 @@ public static class CaaNarrative
         {
             AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>(), out positives, out remediations);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            var logger = new InternalLogger();
+            logger.WriteWarning($"Failed to split assessments for CAA narrative: {ex.Message}");
+        }
 
         return new Sections
         {
