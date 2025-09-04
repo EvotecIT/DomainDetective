@@ -7,6 +7,8 @@ internal static class NSCodes {
     public const string CnameTarget = "NS.CNAME.Target";
     public const string MissingAddressRecords = "NS.Address.Missing";
     public const string LowDiversity = "NS.Diversity.Low";
+    // Positive signals
+    public const string HighDiversity = "NS.Diversity.High";
     public const string DelegationMismatch = "NS.Delegation.Mismatch";
     public const string GlueIncomplete = "NS.Glue.Incomplete";
     public const string GlueInconsistent = "NS.Glue.Inconsistent";

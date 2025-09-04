@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using DomainDetective;
 
 namespace DomainDetective.Recommendations;
 
@@ -32,6 +33,56 @@ internal sealed class TlsRptRecommendations : IRecommendationProvider {
             Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "tlsrpt", "reporting", "endpoint" }
+        };
+
+        map[TlsRptCodes.RecordPresent] = new RecommendationAdvice {
+            Code = TlsRptCodes.RecordPresent,
+            Title = "TLSRPT record present",
+            Why = "A TLSRPT record provides destinations for TLS failure reports.",
+            How = "Monitor the listed addresses to detect TLS delivery issues early.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "reporting" }
+        };
+
+        map[TlsRptCodes.RecordStartsV1] = new RecommendationAdvice {
+            Code = TlsRptCodes.RecordStartsV1,
+            Title = "TLSRPT starts with v=TLSRPTv1",
+            Why = "The correct version tag ensures receivers recognize the policy.",
+            How = "No action needed.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "reporting" }
+        };
+
+        map[TlsRptCodes.RuaMailtoPresent] = new RecommendationAdvice {
+            Code = TlsRptCodes.RuaMailtoPresent,
+            Title = "TLSRPT mailto RUA configured",
+            Why = "Mailto destinations receive aggregated TLS failure reports.",
+            How = "Review reports to remediate delivery issues.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "reporting" }
+        };
+
+        map[TlsRptCodes.RuaHttpPresent] = new RecommendationAdvice {
+            Code = TlsRptCodes.RuaHttpPresent,
+            Title = "TLSRPT HTTPS RUA configured",
+            Why = "HTTPS endpoints can accept JSON reports securely.",
+            How = "Ensure the endpoint is maintained and monitored.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "reporting", "endpoint" }
+        };
+
+        map[TlsRptCodes.PolicyValid] = new RecommendationAdvice {
+            Code = TlsRptCodes.PolicyValid,
+            Title = "TLSRPT policy valid",
+            Why = "A valid policy enables reliable reporting of TLS issues.",
+            How = "No action required.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "reporting" }
         };
     }
 }
