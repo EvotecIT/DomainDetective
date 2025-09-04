@@ -697,7 +697,10 @@ public class WhoisAnalysis : IHasAssessments {
             }
             if (!PrivacyProtected && (!string.IsNullOrWhiteSpace(RegisteredTo) || !string.IsNullOrWhiteSpace(RegistrarEmail)))
             {
-                _logger.WriteInformationCode(WhoisCodes.ContactValid, "WHOIS contact data present");
+                _logger.WriteInformationCode(
+                    WhoisCodes.ContactValid,
+                    "WHOIS contact data present for {0}",
+                    DomainName ?? "(unknown)");
             }
         }
     }
