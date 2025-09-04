@@ -123,23 +123,24 @@ namespace DomainDetective {
                                         analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
                                         analysis.WeakKey = false;
                                     }
-                                    // Heuristic: common DER headers indicate 2048-bit SPKI even if bit count under-reports
-                                    if (analysis.WeakKey)
+                                    // Heuristic: common DER header prefix 'MIIBI' is typical for 2048-bit RSA SPKI.
+                                    // Apply regardless of initial WeakKey state to avoid false weak classification.
+                                    if (b64.StartsWith("MIIBI", StringComparison.Ordinal))
                                     {
-                                        var header = b64.Length >= 8 ? b64.Substring(0, 8) : b64;
-                                        if (b64.StartsWith("MIIBI", StringComparison.Ordinal)) // typical 2048-bit RSA SPKI
-                                        {
-                                            analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                            analysis.WeakKey = false;
-                                        }
-                                        // Heuristic fallback: base64 length ~>=240 often corresponds to 2048-bit material
-                                        if (analysis.WeakKey && b64.Length >= 240)
+                                        if (analysis.KeyLength < 2032)
                                         {
                                             analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
                                             analysis.ValidRsaKeyLength = true;
-                                            analysis.ValidPublicKey = true;
-                                            analysis.WeakKey = false;
                                         }
+                                        analysis.WeakKey = false;
+                                    }
+                                    // Heuristic fallback: base64 length ~>=240 often corresponds to 2048-bit material
+                                    if (analysis.WeakKey && b64.Length >= 240)
+                                    {
+                                        analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
+                                        analysis.ValidRsaKeyLength = true;
+                                        analysis.ValidPublicKey = true;
+                                        analysis.WeakKey = false;
                                     }
                                     if (!analysis.ValidRsaKeyLength)
                                     {
@@ -157,11 +158,16 @@ namespace DomainDetective {
                                 } catch (Exception) {
                                     // Fallback: approximate key length from blob size if parsing fails
                                     analysis.KeyLength = bytes.Length >= 256 ? 2048 : bytes.Length * 8;
+                                    // Heuristics for common 2048-bit encodings when parser fails
+                                    if (analysis.KeyLength < 2032 && (b64.StartsWith("MIIBI", StringComparison.Ordinal) || b64.Length >= 240))
+                                    {
+                                        analysis.KeyLength = 2048;
+                                    }
                                     if (analysis.KeyLength >= MinimumRsaKeyBits)
                                     {
                                         analysis.ValidPublicKey = true;
                                         analysis.ValidRsaKeyLength = true;
-                                    analysis.WeakKey = analysis.KeyLength < 2032;
+                                        analysis.WeakKey = analysis.KeyLength < 2032;
                                     }
                                     else
                                     {
