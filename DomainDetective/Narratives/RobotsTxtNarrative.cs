@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective;
 
 namespace DomainDetective.Narratives;
 
@@ -89,8 +90,9 @@ public static class RobotsTxtNarrative
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            analysis?.Logger?.WriteDebug("Failed to split assessments: {0}", ex.Message);
         }
 
         return new Sections

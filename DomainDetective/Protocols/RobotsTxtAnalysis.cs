@@ -136,7 +136,8 @@ public class RobotsTxtAnalysis : IHasAssessments
             }
             if (HasAiBotRules)
             {
-                Assessments.Add(new Assessment {
+                Assessments.Add(new Assessment
+                {
                     Severity = AssessmentSeverity.Info,
                     Category = "Robots",
                     Target = Domain,
@@ -144,9 +145,12 @@ public class RobotsTxtAnalysis : IHasAssessments
                     Message = "AI bot directives present in robots.txt"
                 });
             }
-            if (Robots?.Groups.Any(g => g.Directives.Any(d => d.Type == RobotsDirectiveType.Disallow)) == true)
+
+            var hasDisallow = Robots?.Groups.Any(g => g.Directives.Any(d => d.Type == RobotsDirectiveType.Disallow)) ?? false;
+            if (hasDisallow)
             {
-                Assessments.Add(new Assessment {
+                Assessments.Add(new Assessment
+                {
                     Severity = AssessmentSeverity.Info,
                     Category = "Robots",
                     Target = Domain,
@@ -154,9 +158,11 @@ public class RobotsTxtAnalysis : IHasAssessments
                     Message = "robots.txt defines disallow rules"
                 });
             }
+
             if (Robots?.Sitemaps.Count > 0)
             {
-                Assessments.Add(new Assessment {
+                Assessments.Add(new Assessment
+                {
                     Severity = AssessmentSeverity.Info,
                     Category = "Robots",
                     Target = Domain,

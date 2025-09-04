@@ -57,7 +57,8 @@ public class TestRobotsTxtNarrative
     {
         Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
 
-        while (true)
+        var attempts = 0;
+        while (attempts < 5)
         {
             var port = GetFreePort();
             prefix = $"http://127.0.0.1:{port}/";
@@ -73,8 +74,11 @@ public class TestRobotsTxtNarrative
             {
                 l.Close();
                 PortHelper.ReleasePort(port);
+                attempts++;
             }
         }
+
+        throw new XunitException("Failed to acquire a free HTTP listener port.");
     }
 }
 
