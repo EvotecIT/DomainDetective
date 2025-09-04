@@ -92,6 +92,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
                 RecordPresent = true;
                 Url = url;
                 FallbackUsed = fallback;
+                Logger?.WriteInformationCode(SecurityTxtCodes.RecordPresent, "security.txt present");
                 ParseSecurityTxt(response, pgpPublicKey, url);
 
                 if (DateTimeOffset.TryParse(Expires, out var expires)) {
@@ -293,6 +294,8 @@ public class SecurityTXTAnalysis : IHasAssessments {
 
             if (!RecordValid) {
                 Logger.WriteWarningCode(SecurityTxtCodes.InvalidFile, "Invalid security.txt file");
+            } else {
+                Logger.WriteInformationCode(SecurityTxtCodes.RecordValid, "security.txt syntax valid");
             }
         }
 
