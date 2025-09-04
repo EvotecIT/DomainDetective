@@ -9,4 +9,6 @@ internal static class TlsCodes {
     public const string WeakKeyExchange = "TLS.Kex.Weak";
     public const string OcspStaplingPresent = "TLS.OCSP.StaplingPresent";
     public const string OcspStaplingMissing = "TLS.OCSP.StaplingMissing";
+    public const string StrongProtocol = "TLS.Protocol.Strong";
+    public const string PfsCipher = "TLS.Cipher.ForwardSecrecy";
 }

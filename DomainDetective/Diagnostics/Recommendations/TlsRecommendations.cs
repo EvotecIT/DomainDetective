@@ -107,5 +107,31 @@ internal sealed class TlsRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Probe with an OCSP-aware client (openssl s_client -status) and confirm stapled response present."
         };
+
+        map[TlsCodes.StrongProtocol] = new RecommendationAdvice {
+            Code = TlsCodes.StrongProtocol,
+            Title = "Modern TLS protocol negotiated",
+            Why = "Using TLS 1.2 or 1.3 provides strong encryption and broad client compatibility.",
+            How = "Keep TLS 1.2/1.3 enabled and disable older protocols when possible.",
+            Links = new [] { "https://datatracker.ietf.org/doc/rfc8996/" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "protocol" },
+            Impact = "Reduces exposure to known protocol attacks and meets industry requirements.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Handshake should negotiate TLS 1.2 or TLS 1.3."
+        };
+
+        map[TlsCodes.PfsCipher] = new RecommendationAdvice {
+            Code = TlsCodes.PfsCipher,
+            Title = "Forward secrecy cipher suite negotiated",
+            Why = "Perfect forward secrecy prevents compromise of past sessions if keys are exposed.",
+            How = "Prefer ECDHE/DHE-based cipher suites such as TLS_AES_* or TLS_CHACHA20_POLY1305_*.",
+            Links = new [] { "https://en.wikipedia.org/wiki/Perfect_forward_secrecy" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "pfs", "cipher" },
+            Impact = "Protects historical traffic even if long-term keys are compromised.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Confirm handshake negotiates an ECDHE or DHE cipher suite."
+        };
     }
 }
