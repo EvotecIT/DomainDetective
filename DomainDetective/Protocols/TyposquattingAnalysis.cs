@@ -11,7 +11,7 @@ namespace DomainDetective;
 /// Generates common typosquatting variants and checks if they resolve.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class TyposquattingAnalysis
+public class TyposquattingAnalysis : IHasAssessments
 {
     private static readonly Dictionary<char, char[]> _homoglyphs = new()
     {
@@ -27,6 +27,9 @@ public class TyposquattingAnalysis
         ['e'] = new[] { '3' },
         ['3'] = new[] { 'e' }
     };
+
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; private set; }
 
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -172,7 +175,9 @@ public class TyposquattingAnalysis
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        Subject = domainName;
         var list = PublicSuffixList ?? new PublicSuffixList();
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "TYPOSQUAT", target: domainName) : null;
         ContainsHomoglyphs = DetectHomoglyphs && StringAlgorithms.ContainsHomoglyphs(domainName);
         if (ContainsHomoglyphs)
         {
@@ -193,5 +198,17 @@ public class TyposquattingAnalysis
                 logger?.WriteWarningCode(TyposquattingCodes.VariantActive, "Potential typosquat detected: {0}", variant);
             }
         }
+
+        if (ActiveDomains.Count == 0)
+        {
+            logger?.WriteInformationCode(TyposquattingCodes.VariantNone, "No active typosquat variants detected");
+        }
+        else
+        {
+            logger?.WriteInformationCode(TyposquattingCodes.DefensiveRegistered, $"{ActiveDomains.Count} variant(s) resolve");
+        }
     }
+
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }
