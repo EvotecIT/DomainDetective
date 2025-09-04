@@ -61,7 +61,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
         /// <summary>
         /// Retrieves and parses the security.txt file for the given domain.
         /// </summary>
-        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string pgpPublicKey = null) {
+        public async Task AnalyzeSecurityTxtRecord(string domainName, InternalLogger logger, string? pgpPublicKey = null) {
             Logger = logger;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SECURITYTXT", target: domainName);
 

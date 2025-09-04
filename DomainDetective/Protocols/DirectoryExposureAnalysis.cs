@@ -138,6 +138,11 @@ public class DirectoryExposureAnalysis : IHasAssessments
                 logger?.WriteDebug("Failed to query {0}: {1}", url, ex.Message);
             }
         }
+
+        if (ExposedPaths.Count == 0)
+        {
+            logger?.WriteInformationCode(DirectoryExposureCodes.DirectoryListingDisabled, "Directory browsing disabled for common paths");
+        }
     }
 
     public List<Assessment> Assessments { get; } = new();

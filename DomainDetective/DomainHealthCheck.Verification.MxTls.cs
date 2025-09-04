@@ -22,6 +22,9 @@ namespace DomainDetective {
             _logger?.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             StartTlsAnalysis.Subject = domainName;
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
+            if (StartTlsAnalysis.ServerResults.Count > 0 && StartTlsAnalysis.ServerResults.Values.All(v => v)) {
+                _logger?.WriteInformationCode(MxCodes.TlsSupported, "All MX hosts support STARTTLS");
+            }
         }
 
         /// <summary>

@@ -41,7 +41,7 @@ namespace DomainDetective {
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Provides DNS query implementation details.</summary>
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         // Per-authoritative-server TTL uniformity results
         public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
@@ -144,7 +144,7 @@ namespace DomainDetective {
         private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct) {
             var q = BuildQuery(name, qtype);
             var buf = await QueryUdp(ip, q, ct);
-            return ParseFirstAnswerTtl(buf, qtype);
+            return buf != null ? ParseFirstAnswerTtl(buf, qtype) : null;
         }
 
         /// <summary>
@@ -223,28 +223,53 @@ namespace DomainDetective {
             NsUniformAcrossServers = IsUniform(ServerTtlNs);
             CnameUniformAcrossServers = IsUniform(ServerTtlCname);
 
-            if (!AUniformAcrossServers) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_A, "A TTL differs across authoritative name servers");
-            if (!AaaaUniformAcrossServers) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_AAAA, "AAAA TTL differs across authoritative name servers");
-            if (!NsUniformAcrossServers) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_NS, "NS TTL differs across authoritative name servers");
-            if (!CnameUniformAcrossServers) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_CNAME, "CNAME TTL differs across authoritative name servers");
+            if (!AUniformAcrossServers) {
+                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_A, "A TTL differs across authoritative name servers");
+            } else {
+                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_A, "A TTL consistent across authoritative name servers.");
+            }
+            if (!AaaaUniformAcrossServers) {
+                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_AAAA, "AAAA TTL differs across authoritative name servers");
+            } else {
+                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_AAAA, "AAAA TTL consistent across authoritative name servers.");
+            }
+            if (!NsUniformAcrossServers) {
+                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_NS, "NS TTL differs across authoritative name servers");
+            } else {
+                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_NS, "NS TTL consistent across authoritative name servers.");
+            }
+            if (!CnameUniformAcrossServers) {
+                logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_CNAME, "CNAME TTL differs across authoritative name servers");
+            } else {
+                logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_CNAME, "CNAME TTL consistent across authoritative name servers.");
+            }
         }
 
         private void Evaluate(string recordType, IEnumerable<int> ttls, int min, int max, bool dnssecSigned, InternalLogger logger) {
-            foreach (var ttl in ttls) {
+            var list = ttls?.ToArray() ?? Array.Empty<int>();
+            var allGood = true;
+            foreach (var ttl in list) {
                 if (dnssecSigned && ttl >= min && ttl < 3600) {
                     var msg = $"{recordType} TTL {ttl} is shorter than recommended 3600 seconds for DNSSEC-signed zones.";
                     _warnings.Add(msg);
                     logger?.WriteWarningCode(TtlCodes.TooShortForDnssec, msg);
+                    allGood = false;
                 }
                 if (ttl < min) {
                     var msg = $"{recordType} TTL {ttl} is shorter than recommended {min} seconds.";
                     _warnings.Add(msg);
                     logger?.WriteWarningCode(TtlCodes.TooShort, msg);
+                    allGood = false;
                 } else if (ttl > max) {
                     var msg = $"{recordType} TTL {ttl} exceeds recommended {max} seconds.";
                     _warnings.Add(msg);
                     logger?.WriteWarningCode(TtlCodes.TooLong, msg);
+                    allGood = false;
                 }
+            }
+
+            if (list.Any() && allGood) {
+                logger?.WriteInformationCode(TtlCodes.Optimal, $"{recordType} TTLs within recommended range.");
             }
 
             if ((recordType == "A" || recordType == "AAAA") && ATtls.Any() && AaaaTtls.Any()) {
@@ -255,6 +280,8 @@ namespace DomainDetective {
                     var msg = $"A and AAAA TTLs differ significantly: A {avgA} vs AAAA {avgAaaa} seconds.";
                     _warnings.Add(msg);
                     logger?.WriteWarningCode(TtlCodes.A_AAAA_Mismatch, msg);
+                } else if (ratio < 2) {
+                    logger?.WriteInformationCode(TtlCodes.A_AAAA_Aligned, "A and AAAA TTLs are aligned.");
                 }
             }
         }

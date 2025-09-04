@@ -133,16 +133,16 @@ namespace DomainDetective {
     /// </remarks>
     public class DnsSecInfo {
         /// <summary>Returned DS records.</summary>
-        public IReadOnlyList<DsRecordInfo> DsRecords { get; set; }
+        public IReadOnlyList<DsRecordInfo> DsRecords { get; set; } = Array.Empty<DsRecordInfo>();
 
         /// <summary>Returned DNSKEY records.</summary>
-        public IReadOnlyList<DnsKeyInfo> DnsKeys { get; set; }
+        public IReadOnlyList<DnsKeyInfo> DnsKeys { get; set; } = Array.Empty<DnsKeyInfo>();
 
         /// <summary>DNSSEC signature records.</summary>
-        public IReadOnlyList<string> Signatures { get; set; }
+        public IReadOnlyList<string> Signatures { get; set; } = Array.Empty<string>();
 
         /// <summary>Structured RRSIG records.</summary>
-        public IReadOnlyList<RrsigInfo> Rrsigs { get; set; }
+        public IReadOnlyList<RrsigInfo> Rrsigs { get; set; } = Array.Empty<RrsigInfo>();
 
         /// <summary>True when the DNSKEY query had the AD flag set.</summary>
         public bool AuthenticData { get; set; }
@@ -157,16 +157,16 @@ namespace DomainDetective {
         public bool ChainValid { get; set; }
 
         /// <summary>TTL values for each DS lookup in the validation chain.</summary>
-        public IReadOnlyList<int> DsTtls { get; set; }
+        public IReadOnlyList<int> DsTtls { get; set; } = Array.Empty<int>();
 
         /// <summary>Key tag for the root trust anchor.</summary>
         public int RootKeyTag { get; set; }
 
         /// <summary>Descriptions of any mismatches encountered.</summary>
-        public IReadOnlyList<string> MismatchSummary { get; set; }
+        public IReadOnlyList<string> MismatchSummary { get; set; } = Array.Empty<string>();
 
         /// <summary>Structured assessments gathered during DNSSEC validation.</summary>
-        public IReadOnlyList<Assessment> Assessments { get; set; }
+        public IReadOnlyList<Assessment> Assessments { get; set; } = Array.Empty<Assessment>();
     }
 
     /// <summary>
@@ -179,13 +179,13 @@ namespace DomainDetective {
         public int KeyTag { get; set; }
 
         /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        public string Algorithm { get; set; } = string.Empty;
 
         /// <summary>Digest type identifier.</summary>
         public DnsDigestType DigestType { get; set; }
 
         /// <summary>Digest hex string.</summary>
-        public string Digest { get; set; }
+        public string Digest { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -203,10 +203,10 @@ namespace DomainDetective {
         public byte Protocol { get; set; }
 
         /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        public string Algorithm { get; set; } = string.Empty;
 
         /// <summary>Base64 encoded public key.</summary>
-        public string PublicKey { get; set; }
+        public string PublicKey { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -221,7 +221,7 @@ namespace DomainDetective {
         public int KeyTag { get; set; }
 
         /// <summary>Algorithm name.</summary>
-        public string Algorithm { get; set; }
+        public string Algorithm { get; set; } = string.Empty;
 
         /// <summary>Signature inception time.</summary>
         public DateTimeOffset Inception { get; set; }

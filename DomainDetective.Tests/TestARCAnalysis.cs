@@ -13,6 +13,15 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task ValidArcChainEmitsPositiveCodes() {
+            var raw = File.ReadAllText("Data/arc-valid.txt");
+            var hc = new DomainHealthCheck();
+            var result = await hc.VerifyARCAsync(raw);
+            Assert.Contains(result.Assessments, a => a.Code == ArcCodes.ChainValid);
+            Assert.Contains(result.Assessments, a => a.Code == ArcCodes.SealsIntact);
+        }
+
+        [Fact]
         public async Task InvalidArcChain() {
             var raw = File.ReadAllText("Data/arc-invalid.txt");
             var hc = new DomainHealthCheck();

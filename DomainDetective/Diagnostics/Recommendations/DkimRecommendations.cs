@@ -13,6 +13,33 @@ internal sealed class DkimRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "email", "dkim", "keys" }
         };
+        map[DkimCodes.SignatureValid] = new RecommendationAdvice {
+            Code = DkimCodes.SignatureValid,
+            Title = "DKIM signature validated",
+            Why = "A valid DKIM signature helps receivers verify message authenticity.",
+            How = "Keep rotating keys regularly and monitor for verification failures.",
+            Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "email", "authentication" }
+        };
+        map[DkimCodes.SelectorAligned] = new RecommendationAdvice {
+            Code = DkimCodes.SelectorAligned,
+            Title = "DKIM selectors aligned",
+            Why = "Aligned selectors simplify management and reduce deliverability issues.",
+            How = "Maintain consistent selector naming across all sending services.",
+            Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "selectors" }
+        };
+        map[DkimCodes.AlgorithmRecommended] = new RecommendationAdvice {
+            Code = DkimCodes.AlgorithmRecommended,
+            Title = "Recommended DKIM algorithm in use",
+            Why = "Modern algorithms like rsa-sha256 or ed25519-sha256 provide strong signatures.",
+            How = "Continue using modern algorithms and phase out weaker ones.",
+            Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "crypto", "algorithm" }
+        };
     }
 }
 

@@ -25,6 +25,7 @@ public static partial class Converters
             HasBackupServers = analysis.HasBackupServers,
             HasNullMx = analysis.HasNullMx,
             PointsToLocalhost = analysis.PointsToLocalhost,
+            Ipv6Supported = analysis.Ipv6Supported,
             MxTtlUniform = analysis.MxTtlUniform,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
@@ -56,6 +57,7 @@ public class MxInfo
     public bool HasBackupServers { get; set; }
     public bool HasNullMx { get; set; }
     public bool PointsToLocalhost { get; set; }
+    public bool Ipv6Supported { get; set; }
     public bool MxTtlUniform { get; set; }
     public bool MxRrsetConsistentAcrossNs { get; set; }
     public bool TargetAddressConsistentAcrossNs { get; set; }

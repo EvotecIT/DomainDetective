@@ -39,6 +39,57 @@ internal sealed class TtlRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "ttl" }
         };
+
+        map[TtlCodes.Optimal] = new RecommendationAdvice {
+            Code = TtlCodes.Optimal,
+            Title = "DNS TTLs within recommended range",
+            Why = "Balanced TTLs reduce lookup load while still allowing timely updates.",
+            How = "Maintain TTLs between 300 and 86400 seconds; use ≥3600s when DNSSEC is enabled.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
+
+        map[TtlCodes.A_AAAA_Aligned] = new RecommendationAdvice {
+            Code = TtlCodes.A_AAAA_Aligned,
+            Title = "A and AAAA TTLs aligned",
+            Why = "Consistent IPv4 and IPv6 TTLs ensure uniform caching behavior across clients.",
+            How = "Keep A and AAAA records synchronized with matching TTL values.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
+
+        map[TtlCodes.UniformAcrossNS_A] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_A,
+            Title = "A TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Ensure zone transfers propagate TTL updates to all authoritative servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
+        map[TtlCodes.UniformAcrossNS_AAAA] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_AAAA,
+            Title = "AAAA TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Ensure zone transfers propagate TTL updates to all authoritative servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
+        map[TtlCodes.UniformAcrossNS_NS] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_NS,
+            Title = "NS TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Ensure zone transfers propagate TTL updates to all authoritative servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
+        map[TtlCodes.UniformAcrossNS_CNAME] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_CNAME,
+            Title = "CNAME TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Ensure zone transfers propagate TTL updates to all authoritative servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl" }
+        };
     }
 }
 

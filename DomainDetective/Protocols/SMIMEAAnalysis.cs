@@ -114,6 +114,12 @@ namespace DomainDetective {
                 AnalysisResults.Add(analysis);
             }
             HasInvalidRecords = AnalysisResults.Any(x => !x.ValidSMIMEARecord);
+            if (NumberOfRecords > 0) {
+                logger?.WriteInformationCode(SmimeaCodes.RecordPresent, "SMIMEA record present");
+            }
+            if (AnalysisResults.Any(x => x.ValidSMIMEARecord)) {
+                logger?.WriteInformationCode(SmimeaCodes.CertificateValid, "Valid SMIMEA certificate association");
+            }
         }
 
         private bool ValidateUsage(int usage) => usage switch { 0 or 1 or 2 or 3 => true, _ => false };

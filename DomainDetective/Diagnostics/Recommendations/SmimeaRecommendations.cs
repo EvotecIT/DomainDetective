@@ -29,5 +29,26 @@ internal sealed class SmimeaRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Confirm owner name matches <hash>._smimecert.<domain>."
         };
+
+        map[SmimeaCodes.RecordPresent] = new RecommendationAdvice {
+            Code = SmimeaCodes.RecordPresent,
+            Title = "SMIMEA record present",
+            Why = "Publishing SMIMEA enables DNSSEC-backed discovery of S/MIME certificates.",
+            How = "Maintain SMIMEA records for addresses that use S/MIME.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8162" },
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "smimea" }
+        };
+
+        map[SmimeaCodes.CertificateValid] = new RecommendationAdvice {
+            Code = SmimeaCodes.CertificateValid,
+            Title = "Valid S/MIME certificate association",
+            Why = "Correct usage, selector, and matching type allow clients to verify certificates.",
+            How = "Continue renewing and monitoring published S/MIME certificates.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8162" },
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "smimea", "certificate" }
+        };
     }
 }
+

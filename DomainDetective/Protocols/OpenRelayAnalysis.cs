@@ -37,6 +37,8 @@ namespace DomainDetective {
             ServerResults[$"{host}:{port}"] = result;
             if (result.Status == OpenRelayStatus.AllowsRelay) {
                 logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+            } else if (result.Status == OpenRelayStatus.Denied) {
+                logger?.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
             }
         }
 
@@ -53,6 +55,8 @@ namespace DomainDetective {
                     ServerResults[$"{host}:{port}"] = result;
                     if (result.Status == OpenRelayStatus.AllowsRelay) {
                         logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+                    } else if (result.Status == OpenRelayStatus.Denied) {
+                        logger?.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
                     }
                 }
             }
@@ -99,7 +103,7 @@ namespace DomainDetective {
 
                 int mailCode = ParseStatusCode(mailResp);
                 int rcptCode = ParseStatusCode(rcptResp);
-                var status = mailCode >= 200 && mailCode < 300 && rcptCode >= 200 && rcptCode < 300 && mailCode != 550 && mailCode != 551 && rcptCode != 550 && rcptCode != 551
+                var status = mailCode >= 200 && mailCode < 300 && rcptCode >= 200 && rcptCode < 300
                     ? OpenRelayStatus.AllowsRelay
                     : OpenRelayStatus.Denied;
                 return new OpenRelayResult { Status = status };
@@ -108,7 +112,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteErrorCode(OpenRelayCodes.CheckFailed, "Open relay check failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger?.WriteInformationCode(OpenRelayCodes.ConnectionFailed, "Open relay connection failed for {0}:{1} - {2}", host, port, ex.Message);
                 SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
                 return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }

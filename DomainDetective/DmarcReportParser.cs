@@ -173,7 +173,7 @@ public static class DmarcReportParser {
     private static string ComputeReportingPolicy(string? fo)
     {
         if (string.IsNullOrWhiteSpace(fo)) return "any failure (default, fo=0)";
-        var tokens = fo.Split(new [] { ':', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+          var tokens = fo!.Split(new [] { ':', ',', ' ' }, StringSplitOptions.RemoveEmptyEntries);
         var parts = new List<string>();
         foreach (var t in tokens)
         {
