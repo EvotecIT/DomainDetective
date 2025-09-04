@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DomainDetective;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Html;
+using System.Linq;
 
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
 namespace DomainDetective.PowerShell {
@@ -16,7 +17,7 @@ namespace DomainDetective.PowerShell {
     /// </example>
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainOverallHealth", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DomainHealth")]
-    [OutputType(typeof(DomainHealthCheck))]
+    [OutputType(typeof(DomainDetective.Views.DomainOverallInfo))]
     public sealed class CmdletTestDomainHealth : ExportableAsyncPSCmdlet {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
@@ -45,15 +46,6 @@ namespace DomainDetective.PowerShell {
         /// <summary>Protected brand terms for typosquatting analysis.</summary>
         [Parameter(Mandatory = false)]
         public string[]? BrandKeyword;
-        
-        /// <summary>Return the raw DomainHealthCheck object (includes a Summary property).</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Raw { get; set; }
-
-        /// <summary>Return only a condensed DomainSummary.</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter Summary { get; set; }
-        
         /// <summary>Port scan profiles to use.</summary>
         [Parameter(Mandatory = false)]
         public PortScanProfile[]? PortScanProfile;
@@ -86,94 +78,65 @@ namespace DomainDetective.PowerShell {
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying domain health for domain: {0}", DomainName);
-            if (BrandKeyword != null) {
-                _healthCheck.TyposquattingBrandKeywords.Clear();
-                _healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
-            }
+            // Always run checks first (simple flow), then export if requested.
+            // Brand keywords already applied in BeginProcessing when provided.
             await _healthCheck.Verify(DomainName, HealthCheckType, DkimSelectors, DaneServiceType, DanePorts, PortScanProfile);
-            if (Summary && Raw) {
-                throw new ParameterBindingException("Specify only one of -Summary or -Raw.");
-            }
-            if (Summary) {
-                WriteObject(_healthCheck.BuildSummary());
-                return;
-            }
-            if (Raw) {
-                // Return the full object; Summary is available as a property
-                WriteObject(_healthCheck);
-                return;
-            }
-            // If export requested, generate report
+
+            // 1) Always return overall view with Raw property first
+            var overall = DomainDetective.Views.Converters.Convert(_healthCheck, DomainName);
+            WriteObject(overall);
+
+            // 2) Export (post-run) if requested, after emitting data
             if (IsExportRequested()) {
-                await GenerateReportAsync(_healthCheck);
-                return;
-            }
-
-            var result = _healthCheck.FilterAnalyses(HealthCheckType);
-            WriteObject(result);
-        }
-        private async Task GenerateReportAsync(DomainHealthCheck health) {
-            var fmt = ExportFormat ?? ExportDefaults.Format;
-            var path = string.IsNullOrWhiteSpace(ExportPath)
-                ? GenerateDefaultPath(fmt)
-                : ExportPath!;
-
-            ReportResult result;
-            switch (fmt) {
-                case ReportFormat.Html:
-                    WriteVerbose("Generating HTML report...");
-                    var htmlReport = new DomainSecurityReport(health, DomainName);
-                    htmlReport.GenerateReport(path, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
-                    result = new ReportResult { Success = true, FilePath = path, Format = ReportFormat.Html };
-                    break;
-                case ReportFormat.Json:
-                    WriteVerbose("Exporting to JSON...");
-                    var json = System.Text.Json.JsonSerializer.Serialize(health, DomainHealthCheck.JsonOptions);
-#if NET472
-                    System.IO.File.WriteAllText(path, json);
-#else
-                    await System.IO.File.WriteAllTextAsync(path, json);
-#endif
-                    result = new ReportResult { Success = true, FilePath = path, Format = ReportFormat.Json, FileSize = json.Length };
-                    break;
-                case ReportFormat.Pdf:
-                case ReportFormat.Word:
-                case ReportFormat.Excel:
-                case ReportFormat.Csv:
-                    WriteWarning($"{fmt} format not yet implemented (TODO)");
-                    result = new ReportResult { Success = false, ErrorMessage = $"{fmt} format not yet implemented", Format = fmt };
-                    break;
-                default:
-                    throw new ArgumentException($"Unknown export format: {fmt}");
-            }
-
-            if (result.Success) {
-                WriteObject(result);
-                WriteInformation($"Report generated successfully: {result.FilePath}", new string[] { "ReportGenerated" });
-            } else {
-                WriteError(new ErrorRecord(new InvalidOperationException(result.ErrorMessage), "ReportGenerationFailed", ErrorCategory.NotImplemented, fmt));
-            }
-        }
-        private string GenerateDefaultPath(ReportFormat format) {
-            var ts = System.DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var ext = format switch {
-                ReportFormat.Html => "html",
-                ReportFormat.Word => "docx",
-                ReportFormat.Excel => "xlsx",
-                ReportFormat.Pdf => "pdf",
-                ReportFormat.Json => "json",
-                ReportFormat.Csv => "csv",
-                _ => "html"
-            };
-            var safe = (DomainName ?? "domain").Replace('.', '_');
-            var file = $"{safe}_{ts}.{ext}";
-            if (!string.IsNullOrWhiteSpace(ExportDefaults.OutputDirectory)) {
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
+                var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
                 try {
-                    System.IO.Directory.CreateDirectory(ExportDefaults.OutputDirectory);
-                    return System.IO.Path.Combine(ExportDefaults.OutputDirectory, file);
-                } catch { /* ignore and fall back */ }
+                    if (wantArtifacts) {
+                        var artDir = !string.IsNullOrWhiteSpace(this.ArtifactsDirectory)
+                            ? this.ArtifactsDirectory
+                            : (string.IsNullOrWhiteSpace(ExportDefaults.ArtifactsDirectory) ? null : ExportDefaults.ArtifactsDirectory);
+                        var (dir, reportResult) = await DomainDetective.Reports.ReportRunService.ExportOnlyAsync(
+                            _logger,
+                            DomainName,
+                            _healthCheck,
+                            fmt,
+                            outPath,
+                            ExportDefaults.OutputDirectory,
+                            false,
+                            artDir);
+                        WriteVerbose($"Artifacts written to {dir}.");
+                        if (reportResult.Success) {
+                            WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                        } else {
+                            WriteWarning(reportResult.ErrorMessage);
+                        }
+                    } else {
+                        var dispatcher = new ReportDispatcher();
+                        var options = new ReportOptions { Format = fmt, OutputPath = outPath };
+                        options.CustomProperties["Domain"] = DomainName;
+                        var reportResult = await dispatcher.GenerateAsync(_healthCheck, options, DomainName, false);
+                        if (reportResult.Success) {
+                            WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                        } else {
+                            WriteWarning(reportResult.ErrorMessage);
+                        }
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"Export failed: {ex.Message}");
+                }
             }
-            return file;
+        }
+
+        private void TryOpen(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try {
+                var psi = new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true };
+                System.Diagnostics.Process.Start(psi);
+            } catch { }
         }
     }
 }

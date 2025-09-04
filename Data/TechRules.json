@@ -1,0 +1,20 @@
+{
+  "headers": [
+    { "name": "X-Powered-By", "contains": "PHP", "tech": "PHP" }
+  ],
+  "cookies": [
+    { "contains": "PHPSESSID", "tech": "PHP" }
+  ],
+  "meta": [
+    { "name": "generator", "contains": "WordPress", "tech": "WordPress" }
+  ],
+  "paths": [
+    { "contains": "/wp-content/", "tech": "WordPress" }
+  ],
+  "domains": [
+    { "suffix": "cloudflare.com", "tech": "Cloudflare" }
+  ],
+  "body": [
+    { "regex": "<link\\s+rel=\\\"amphtml\\\"", "tech": "AMP" }
+  ]
+}

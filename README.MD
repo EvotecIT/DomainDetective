@@ -116,7 +116,7 @@ Notes:
 | `Test-DDDomainContactRecord` | `Test-DomainContact`       | WHOIS contact sanity                                                   |
 | `Test-DDDomainSecurityTxt`   | `Test-DomainSecurityTxt`   | security.txt checks                                                    |
 | `Test-DDDomainCertificate`   | `Test-DomainCertificate`   | Website certificate checks                                             |
-| `Test-DDDomainOverallHealth` | `Test-DomainHealth`        | Composite health; -Summary returns DomainSummary; -Export* for reports |
+| `Test-DDDomainOverallHealth` | `Test-DomainHealth`        | Composite health; returns a View (with Raw), supports -Export* |
 | `Get-DDDomainWhois`          | `Get-DomainWhois`          | WHOIS                                                                  |
 | `Get-DDDomainFlattenedSpfIp` | `Get-DomainFlattenedSpfIp` | Flatten SPF to IPs                                                     |
 | `Test-DDDomainThreatIntel`   | `Test-DomainThreatIntel`   | Threat intel lookups                                                   |
@@ -344,6 +344,16 @@ For web-focused checks from CLI:
 ```bash
 ddcli AnalyzeMessageHeader --file ./headers.txt --json
 ddcli AnalyzeARC --file ./headers.txt --json
+```
+
+### CLI artifacts
+
+```bash
+# List recent runs from artifacts index
+ddcli RunsList --subject example.com --count 5
+
+# Open the most recent run (scan.json or directory)
+ddcli RunsOpen --subject example.com
 ```
 
 <!-- Tables moved to top under "Available Cmdlets and Aliases" -->

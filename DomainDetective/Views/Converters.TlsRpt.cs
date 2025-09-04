@@ -8,7 +8,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new TlsRptInfo
         {
             Check = HealthCheckType.TLSRPT,
@@ -30,6 +31,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"URIs: mailto {analysis.MailtoRua?.Count ?? 0}, http {analysis.HttpRua?.Count ?? 0}; valid {(analysis.PolicyValid ? "yes" : "no")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
@@ -57,6 +59,7 @@ public class TlsRptInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public TLSRPTAnalysis Raw { get; set; }
 }

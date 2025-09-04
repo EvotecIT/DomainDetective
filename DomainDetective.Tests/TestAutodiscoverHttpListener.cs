@@ -109,13 +109,14 @@ public class TestAutodiscoverHttpListener {
             HttpHandlerFactory = () => new RewriteHandler(new HttpClientHandler { AllowAutoRedirect = false })
         };
         await analysis.Analyze($"localhost:{port}", new InternalLogger());
-        Assert.Equal(4, analysis.Endpoints.Count);
+        Assert.Equal(5, analysis.Endpoints.Count);
         Assert.Equal(
             new[] {
                 AutodiscoverMethod.AutodiscoverSubdomainHttps,
                 AutodiscoverMethod.RootDomainHttps,
                 AutodiscoverMethod.HttpRedirect,
-                AutodiscoverMethod.HttpRedirect
+                AutodiscoverMethod.HttpRedirect,
+                AutodiscoverMethod.OutlookV2Json
             },
             analysis.Endpoints.Select(e => e.Method).ToArray());
         Assert.All(analysis.Endpoints, e => Assert.Equal(0, e.StatusCode));

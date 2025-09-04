@@ -87,6 +87,15 @@ public class SimpleDomainReport {
                                             tlsStatus = anyCertValid ? "✅ Secure" : "⚠️ Issues";
                                         }
                                         grid.AddItem("TLS", tlsStatus);
+
+                                        // Threat Intel
+                                        var ti = _healthCheck.ThreatIntelAnalysis;
+                                        if (ti != null) {
+                                            var threat = ti.CompositeScore.HasValue || (ti.Listings?.Count > 0)
+                                                ? $"{(ti.Severity ?? "None")}{(ti.CompositeScore.HasValue ? $" ({ti.CompositeScore})" : string.Empty)}"
+                                                : "—";
+                                            grid.AddItem("Threat Intel", threat);
+                                        }
                                     });
                                 });
                             });
@@ -109,6 +118,13 @@ public class SimpleDomainReport {
                                 if (_healthCheck.SpfAnalysis != null) {
                                     grid.AddItem("SPF Record", _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "Valid" : "Invalid");
                                     grid.AddItem("SPF Status", _healthCheck.SpfAnalysis.SpfRecordExists ? "Found" : "Not found");
+                                    var policy = string.IsNullOrWhiteSpace(_healthCheck.SpfAnalysis.AllMechanism) ? "none" : _healthCheck.SpfAnalysis.AllMechanism.ToLowerInvariant();
+                                    grid.AddItem("SPF Policy", policy);
+                                    var lookups = _healthCheck.SpfAnalysis.DnsLookupsCount;
+                                    var lookupsTxt = _healthCheck.SpfAnalysis.ExceedsDnsLookups ? $"{lookups}/10 (exceeds)" : $"{lookups}/10";
+                                    grid.AddItem("SPF Lookups", lookupsTxt);
+                                    var spfProviders = SummarizeSpfProviders(_healthCheck.SpfAnalysis);
+                                    if (!string.IsNullOrEmpty(spfProviders)) grid.AddItem("SPF Providers", spfProviders);
                                 }
 
                                 // DMARC
@@ -123,6 +139,8 @@ public class SimpleDomainReport {
                                     grid.AddItem("DKIM Valid", dkimValid ? "Yes" : "No");
                                     var selectorCount = _healthCheck.DKIMAnalysis.AnalysisResults?.Count ?? 0;
                                     grid.AddItem("DKIM Selectors", selectorCount.ToString());
+                                    var dkimProviders = SummarizeDkimProviders(_healthCheck.DKIMAnalysis);
+                                    if (!string.IsNullOrEmpty(dkimProviders)) grid.AddItem("DKIM Providers", dkimProviders);
                                 }
                             });
                         });
@@ -205,6 +223,12 @@ public class SimpleDomainReport {
             score -= 10; // No TLS data
         }
 
+        // Threat intel impact
+        var ti = _healthCheck.ThreatIntelAnalysis;
+        if (ti?.CompositeScore is int cs) {
+            score -= cs >= 80 ? 20 : cs >= 60 ? 15 : cs >= 40 ? 10 : cs >= 20 ? 5 : 0;
+        }
+
         return Math.Max(0, score);
     }
 
@@ -250,5 +274,52 @@ public class SimpleDomainReport {
         }
 
         return recommendations.ToArray();
+    }
+
+    // Summarize SPF providers based on annotated mechanisms
+    private static string SummarizeSpfProviders(SpfAnalysis spf)
+    {
+        if (spf?.SpfPartAnalyses == null || spf.SpfPartAnalyses.Count == 0) return string.Empty;
+        var counts = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var p in spf.SpfPartAnalyses)
+        {
+            if (!string.IsNullOrWhiteSpace(p.Provider))
+            {
+                counts[p.Provider!] = counts.TryGetValue(p.Provider!, out var c) ? c + 1 : 1;
+            }
+        }
+        if (counts.Count == 0) return string.Empty;
+        var top = counts.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Take(3)
+            .Select(kv => kv.Value > 1 ? $"{kv.Key}({kv.Value})" : kv.Key);
+        return string.Join(", ", top);
+    }
+
+    // Summarize DKIM providers by matching common selector names
+    private static string SummarizeDkimProviders(DkimAnalysis dkim)
+    {
+        if (dkim?.AnalysisResults == null || dkim.AnalysisResults.Count == 0) return string.Empty;
+        var selectors = dkim.AnalysisResults.Keys.Select(k => k?.Trim()?.ToLowerInvariant()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        if (selectors.Length == 0) return string.Empty;
+        var map = new System.Collections.Generic.Dictionary<string, string[]>(System.StringComparer.OrdinalIgnoreCase)
+        {
+            ["Google"] = new [] { "google" },
+            ["Microsoft 365"] = new [] { "selector1", "selector2" },
+            ["SendGrid"] = new [] { "s1", "s2" },
+            ["Mailgun"] = new [] { "mailgun", "mg" },
+            ["SparkPost"] = new [] { "scph", "s1" },
+            ["Zoho"] = new [] { "zoho", "zoho2" },
+            ["Fastmail"] = new [] { "fm1", "fm2", "fm3" },
+            ["Amazon SES"] = new [] { "amazonses" },
+            ["Campaign Monitor"] = new [] { "cm", "cm1", "cm2" },
+            ["HubSpot"] = new [] { "hs1", "hs2" },
+            ["Mailchimp"] = new [] { "k1" },
+            ["cPanel"] = new [] { "default", "mail" }
+        };
+        var matched = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in map)
+        {
+            if (kv.Value.Any(sel => selectors.Contains(sel))) matched.Add(kv.Key);
+        }
+        return matched.Count == 0 ? string.Empty : string.Join(", ", matched.OrderBy(s => s));
     }
 }

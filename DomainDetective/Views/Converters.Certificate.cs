@@ -5,7 +5,8 @@ namespace DomainDetective.Views;
 public static partial class Converters {
     public static CertificateInfo Convert(CertificateAnalysis analysis) {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new CertificateInfo {
             Check = HealthCheckType.CERT,
             Area = AreaForKind(HealthCheckType.CERT),
@@ -40,6 +41,7 @@ public static partial class Converters {
             ErrorCount = errCount,
             Summary = $"{(analysis.IsValid ? "valid" : "invalid")}; host {(analysis.HostnameMatch ? "match" : "mismatch")}; expires {analysis.DaysToExpire}d; grade {analysis.GradeLevel.ToLetter()}; {analysis.KeyAlgorithm} {analysis.KeySize}b",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -80,6 +82,7 @@ public class CertificateInfo {
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public CertificateAnalysis Raw { get; set; }
 }

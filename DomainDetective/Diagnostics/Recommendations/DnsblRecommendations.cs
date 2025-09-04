@@ -37,6 +37,19 @@ internal sealed class DnsblRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Subsequent queries succeed within normal latency."
         };
+
+        // Informational summary of the DNSBL check sweep (coded for consistent views)
+        map[DnsblCodes.Summary] = new RecommendationAdvice {
+            Code = DnsblCodes.Summary,
+            Title = "DNSBL scan summary",
+            Why = "Aggregated outcome of DNSBL checks across providers and inputs.",
+            How = "Use as a high-level metric; investigate 'listed' details if any providers reported a listing.",
+            Domain = RecommendationDomain.ThreatIntel,
+            Tags = new [] { "dnsbl", "summary" },
+            Impact = "Shows overall blacklist posture at-a-glance.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Re-run checks or inspect per-host DNSBLRecords in raw results."
+        };
     }
 }
 

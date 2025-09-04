@@ -2,6 +2,8 @@ Ignore/*
 .vs/*
 .vscode/*
 Examples/Output/*
+Examples/Reports/*
+Examples/Artifacts/*
 Releases/*
 Artefacts/*
 ReleasedUnpacked/*

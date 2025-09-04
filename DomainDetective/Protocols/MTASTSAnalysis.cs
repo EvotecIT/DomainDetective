@@ -261,7 +261,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 Logger?.WriteWarningCode(MtaStsCodes.NotEnforcing, Advisory);
             } else {
                 Advisory = "MTA-STS policy enforced.";
-                Logger?.WriteInformation("{0}", Advisory);
+                Logger?.WriteInformationCode(MtaStsCodes.Enforced, "{0}", Advisory);
             }
         }
 

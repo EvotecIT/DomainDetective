@@ -95,7 +95,11 @@ namespace DomainDetective {
 
             DaneAnalysis = new DANEAnalysis();
             DaneAnalysis.QueryDnsOverride = DaneDnsOverride;
-            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE");
+            // If a single host is provided, treat it as the subject/target for clearer assessments
+            string? target = null;
+            try { target = services.Length == 1 ? NormalizeDomain(services[0].Host) : null; } catch { target = services[0].Host; }
+            if (!string.IsNullOrWhiteSpace(target)) { DaneAnalysis.Subject = target; }
+            using var _collector = AssessmentCollector.ForAnalysis(_logger, DaneAnalysis, category: "DANE", target: target);
             var allDaneRecords = new List<DnsAnswer>();
             _logger?.WriteVerbose("Probing TLSA for explicit services on {0} (count: {1})", string.Join(", ", services.Select(s => s.Host).Distinct()), services.Length);
 

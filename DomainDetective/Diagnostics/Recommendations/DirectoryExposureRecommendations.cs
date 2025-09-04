@@ -58,5 +58,29 @@ internal sealed class DirectoryExposureRecommendations : IRecommendationProvider
             Effort = RecommendationEffort.Low,
             Verify = "Requests to *.map return 403/404 and are not deployed."
         };
+
+        // Informational presence signals (coded to appear in datasets consistently)
+        map[DirectoryExposureCodes.InfoSitemapPresent] = new RecommendationAdvice {
+            Code = DirectoryExposureCodes.InfoSitemapPresent,
+            Title = "sitemap.xml present",
+            Why = "A sitemap helps crawlers discover content efficiently and is expected on many sites.",
+            How = "Keep sitemap.xml up to date and ensure correct URLs; reference it in robots.txt.",
+            Domain = RecommendationDomain.Other,
+            Tags = new [] { "seo", "robots" },
+            Impact = "Improves crawl coverage and discoverability.",
+            Effort = RecommendationEffort.Low,
+            Verify = "GET https://<domain>/sitemap.xml returns a valid sitemap."
+        };
+        map[DirectoryExposureCodes.InfoSecurityTxtPresent] = new RecommendationAdvice {
+            Code = DirectoryExposureCodes.InfoSecurityTxtPresent,
+            Title = "security.txt present",
+            Why = "The presence of security.txt signals a vulnerability disclosure policy and contact for researchers.",
+            How = "Keep the file current with valid contact and policy fields; serve over HTTPS at /.well-known/security.txt.",
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "security.txt", "vulnerability-disclosure" },
+            Impact = "Facilitates responsible disclosure and reduces response time.",
+            Effort = RecommendationEffort.Low,
+            Verify = "GET https://<domain>/.well-known/security.txt returns policy and contact."
+        };
     }
 }

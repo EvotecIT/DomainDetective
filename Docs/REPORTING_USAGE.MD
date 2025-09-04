@@ -25,6 +25,10 @@ ddcli report example.com --format html --template executive --output executive_r
 # Generate without opening browser
 ddcli report example.com --no-open
 
+# List and open recent artifact runs
+ddcli RunsList --subject example.com --count 5
+ddcli RunsOpen --subject example.com
+
 # Batch processing
 ddcli report example.com,test.com,demo.com --format html
 ```
@@ -38,11 +42,10 @@ Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 # HTML report with custom path
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "C:\Reports\exec_report.html"
 
-# Generate report from existing health check
-$health = Test-DDDomainOverallHealth -Domain "example.com" -Raw
-# Access summary directly via property
-$summary = $health.Summary
-$health = Test-DDDomainOverallHealth -DomainName "example.com" -Raw
+# Return a View with Raw included; then export separately
+$view = Test-DDDomainOverallHealth -DomainName "example.com"
+# Access raw analysis if needed
+$health = $view.Raw
 $null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "report.html" -OpenInBrowser
 
 # Batch reporting
@@ -89,6 +92,17 @@ Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: rep
 - Compliance documentation
 - Digital signatures support
 - Archive-ready format
+
+## Artifacts
+
+- Emitted under `./artifacts/<subject>/<timestamp>/` when using coordinated runs.
+- Files include:
+  - `scan.json`: envelope with metadata, summary, assessments, recommendations, and full `DomainHealthCheck`.
+  - `metrics.json`: counters and timing.
+  - `progress.jsonl`: JSON lines stream of progress and messages.
+  - `index.jsonl`: subject-level index with one line per run.
+
+Use `RunsList` and `RunsOpen` to discover and open recent runs from the index.
 
 ## Templates
 

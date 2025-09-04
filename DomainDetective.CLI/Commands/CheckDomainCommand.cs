@@ -35,6 +35,52 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             return 0;
         }
 
+        // Single-URL static web scan mode
+        var webScanTarget = !string.IsNullOrWhiteSpace(settings.WebScanStatic) ? settings.WebScanStatic : settings.WebScan;
+        if (!string.IsNullOrWhiteSpace(webScanTarget)) {
+            var raw = webScanTarget!.Trim();
+            var hc = new DomainHealthCheck {
+                Progress = false,
+                Verbose = false
+            };
+            hc.WebStaticScanAnalysis.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.WebScanMaxSeconds));
+            hc.WebStaticScanAnalysis.MaxResources = Math.Max(1, settings.WebScanMaxResources);
+            hc.WebStaticScanAnalysis.DiscoveryConcurrency = Math.Max(0, settings.WebScanDiscoveryThreads);
+            hc.WebStaticScanAnalysis.CssConcurrency = Math.Max(0, settings.WebScanCssThreads);
+            hc.WebStaticScanAnalysis.TlsConcurrency = Math.Max(0, settings.WebScanTlsThreads);
+            hc.WebStaticScanAnalysis.DnsConcurrency = Math.Max(0, settings.WebScanDnsThreads);
+            hc.WebStaticScanAnalysis.RespectRobots = settings.WebScanRespectRobots;
+            hc.WebStaticScanAnalysis.SkipThirdParty = settings.WebScanFirstPartyOnly;
+            // Link controls
+            hc.WebStaticScanAnalysis.FollowLinks = settings.WebScanFollowLinks;
+            hc.WebStaticScanAnalysis.LinkMaxDepth = Math.Max(0, settings.WebScanLinkMaxDepth);
+            hc.WebStaticScanAnalysis.LinkMaxPages = Math.Max(1, settings.WebScanLinkMaxPages);
+            hc.WebStaticScanAnalysis.LinkFirstPartyOnly = settings.WebScanLinkFirstPartyOnly || hc.WebStaticScanAnalysis.LinkFirstPartyOnly;
+            hc.WebStaticScanAnalysis.LinkConcurrency = Math.Max(0, settings.WebScanLinkThreads);
+            hc.WebStaticScanAnalysis.LinkOnly = settings.WebScanLinkOnly;
+            if (!string.IsNullOrWhiteSpace(settings.TechRules)) hc.WebStaticScanAnalysis.TechRulesPath = settings.TechRules;
+            // Normalize input: allow bare domain; prefer http first to observe redirects, then fallback to https
+            bool hasScheme = false;
+            try { var u = new Uri(raw); hasScheme = u.Scheme == "http" || u.Scheme == "https"; } catch { }
+            string startUrl = raw;
+            if (!hasScheme) {
+                var httpUrl = $"http://{raw}";
+                var httpsUrl = $"https://{raw}";
+                try {
+                    await hc.VerifyWebStaticScan(httpUrl, Program.CancellationToken);
+                    startUrl = httpUrl;
+                } catch {
+                    await hc.VerifyWebStaticScan(httpsUrl, Program.CancellationToken);
+                    startUrl = httpsUrl;
+                }
+            } else {
+                await hc.VerifyWebStaticScan(startUrl, Program.CancellationToken);
+            }
+            var view = DomainDetective.Views.Converters.Convert(hc.WebStaticScanAnalysis);
+            CliHelpers.ShowPropertiesTable($"WEB STATIC for {startUrl}", view, settings.Unicode);
+            return 0;
+        }
+
         if (settings.Domains.Length == 0) {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             Console.InputEncoding = System.Text.Encoding.UTF8;

@@ -13,4 +13,16 @@ internal static class SpfCodes {
     public const string StartsInvalid = "SPF.Record.StartsInvalid";
     public const string RecordLengthExceeds = "SPF.Record.LengthExceeds";
     public const string QueryFailed = "SPF.Query.Failed";
+    public const string AllMultiple = "SPF.All.Multiple";
+    public const string AllTrailingContent = "SPF.All.TrailingContent";
+    public const string AllSoft = "SPF.All.Soft";
+    public const string AllMissing = "SPF.All.Missing";
+    public const string PtrUsed = "SPF.Ptr.Used";
+    public const string ExistsUsed = "SPF.Exists.Used";
+
+    // Positive/posture signals
+    public const string Present = "SPF.Record.Present";
+    public const string StartsV1 = "SPF.Record.StartsV1";
+    public const string AllEnforced = "SPF.All.Enforced";
+    public const string LookupsWithinLimit = "SPF.Lookups.WithinLimit";
 }

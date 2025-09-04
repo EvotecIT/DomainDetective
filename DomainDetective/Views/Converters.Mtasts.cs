@@ -8,7 +8,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new MtastsInfo
         {
             Check = HealthCheckType.MTASTS,
@@ -29,6 +30,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"mode {(analysis.Mode ?? "?")}; max-age {analysis.MaxAge}; DNS {(analysis.DnsRecordPresent ? "yes" : "no")}; valid {(analysis.PolicyValid ? "yes" : "no")}; MX aligned {(analysis.MxAligned ? "yes" : "no")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
@@ -55,6 +57,7 @@ public class MtastsInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MTASTSAnalysis Raw { get; set; }
 }

@@ -8,7 +8,8 @@ public static partial class Converters
     public static TtlInfo Convert(DnsTtlAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new TtlInfo
         {
             Check = HealthCheckType.TTL,
@@ -26,6 +27,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"SOA {analysis.SoaTtl}s; A min/max {(analysis.ATtls?.Count>0?System.Math.Min(int.MaxValue, analysis.ATtls.Min()).ToString():"-")}/{(analysis.ATtls?.Count>0?analysis.ATtls.Max().ToString():"-")}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1035" },
             Raw = analysis
         };
@@ -49,6 +51,7 @@ public class TtlInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsTtlAnalysis Raw { get; set; }
 }

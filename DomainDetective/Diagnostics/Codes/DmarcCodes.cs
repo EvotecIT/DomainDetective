@@ -15,4 +15,15 @@ internal static class DmarcCodes {
     public const string StartsInvalid = "DMARC.Record.StartsInvalid";
     public const string RecordLengthExceeds = "DMARC.Record.LengthExceeds";
     public const string QueryFailed = "DMARC.Query.Failed";
+
+    // Positive/posture signals
+    public const string Present = "DMARC.Record.Present";
+    public const string StartsV1 = "DMARC.Record.StartsV1";
+    public const string PolicyReject = "DMARC.Policy.Reject";
+    public const string PolicyQuarantine = "DMARC.Policy.Quarantine";
+    public const string RuaPresent = "DMARC.RUA.Present";
+    public const string RufPresent = "DMARC.RUF.Present";
+    public const string AlignmentStrictDkim = "DMARC.Alignment.DKIM.Strict";
+    public const string AlignmentStrictSpf = "DMARC.Alignment.SPF.Strict";
+    public const string Percent100 = "DMARC.Percent.100";
 }

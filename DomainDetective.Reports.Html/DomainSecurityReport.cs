@@ -51,12 +51,39 @@ public class DomainSecurityReport {
             
             // Recommendations
             CreateRecommendations(page);
-            
+
+            // Facts (Info-level signals)
+            CreateFacts(page);
+
             // Technical Details
             CreateTechnicalDetails(page);
         });
 
         document.Save(outputPath, openInBrowser);
+    }
+
+    private void CreateFacts(TablerPage page) {
+        try {
+            var infos = _healthCheck.GetAllAssessments()?.Where(a => a.Severity == AssessmentSeverity.Info).ToList() ?? new List<Assessment>();
+            if (infos.Count == 0) return;
+            page.Divider("Facts & Signals");
+            page.Row(row => {
+                row.Column(TablerColumnNumber.Twelve, col => {
+                    col.Card(card => {
+                        card.Header(h => h.Title("Informational Signals"));
+                        card.Body(body => {
+                            var table = (TablerTable)body.Table(infos.Select(i => new {
+                                Category = i.Category,
+                                Code = i.Code ?? string.Empty,
+                                Target = i.Target ?? string.Empty,
+                                Message = i.Message
+                            }), TableType.Tabler);
+                            table.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                        });
+                    });
+                });
+            });
+        } catch { }
     }
 
     private void CreateHeader(TablerPage page) {

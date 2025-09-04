@@ -804,6 +804,7 @@ file static partial class Ui
             try { var v = Converters.Convert(hc.RdapAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
             try { var v = Converters.Convert(hc.RpkiAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
             try { var v = Converters.Convert(hc.DNSBLAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
+            try { var v = Converters.Convert(hc.ThreatIntelAnalysis); table.AddRow(v.Area.ToString(), v.Check.ToString(), v.Status, v.Summary); } catch { }
         }
 
         // If no rows gathered, skip rendering
@@ -1043,7 +1044,17 @@ file static partial class Ui
         var root = new Tree("[bold]Mail[/]");
         var spf = root.AddNode("[white]SPF[/]");
         spf.AddNode((hc.SpfAnalysis?.SpfRecord ?? "—").EscapeMarkup());
-        if (advanced) spf.AddNode($"Lookups: {hc.SpfAnalysis?.DnsLookupsCount} / Exceeds10: {hc.SpfAnalysis?.ExceedsDnsLookups}");
+        if (advanced)
+        {
+            spf.AddNode($"Lookups: {hc.SpfAnalysis?.DnsLookupsCount} / Exceeds10: {hc.SpfAnalysis?.ExceedsDnsLookups}");
+            var providers = hc.SpfAnalysis?.SpfPartAnalyses?
+                .Where(p => !string.IsNullOrWhiteSpace(p.Provider))
+                .Select(p => p.Provider!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? Array.Empty<string>();
+            if (providers.Length > 0)
+                spf.AddNode($"Providers: {string.Join(", ", providers).EscapeMarkup()}");
+        }
         var dmarc = root.AddNode("[white]DMARC[/]");
         dmarc.AddNode((hc.DmarcAnalysis?.DmarcRecord ?? "—").EscapeMarkup());
         if (advanced)
@@ -1052,7 +1063,15 @@ file static partial class Ui
             dmarc.AddNode($"Valid: {hc.DmarcAnalysis?.IsPolicyValid}");
         }
         var dkim = root.AddNode("[white]DKIM[/]");
-        foreach (var kv in hc.DKIMAnalysis?.AnalysisResults ?? new Dictionary<string, DkimRecordAnalysis>())
+        var dkimResults = hc.DKIMAnalysis?.AnalysisResults ?? new Dictionary<string, DkimRecordAnalysis>();
+        // Compact coverage/providers hint
+        if (dkimResults.Count > 0)
+        {
+            var selList = dkimResults.Keys.ToArray();
+            var providers = MapDkimProviders(selList).ToArray();
+            dkim.AddNode($"Selectors: {selList.Length}; Providers: {(providers.Length>0 ? string.Join(", ", providers) : "—")}");
+        }
+        foreach (var kv in dkimResults)
         {
             var sel = dkim.AddNode($"[green]{kv.Key}[/]");
             sel.AddNode($"KeyLength: {kv.Value.KeyLength}");
@@ -1071,6 +1090,57 @@ file static partial class Ui
             RenderTlsResults("SMTP TLS", hc.SmtpTlsAnalysis?.ServerResults?.Select(kv => ($"{kv.Key}", ok: kv.Value.CertificateValid)));
             RenderTlsResults("IMAP TLS", hc.ImapTlsAnalysis?.ServerResults?.Select(kv => ($"{kv.Key}", ok: kv.Value.CertificateValid)));
             RenderTlsResults("POP3 TLS", hc.Pop3TlsAnalysis?.ServerResults?.Select(kv => ($"{kv.Key}", ok: kv.Value.CertificateValid)));
+        }
+    }
+
+    private static readonly Dictionary<string, string> DkimSelectorProviders = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Microsoft 365
+        ["selector1"] = "Microsoft 365",
+        ["selector2"] = "Microsoft 365",
+        // Google Workspace
+        ["google"] = "Google Workspace",
+        // SendGrid
+        ["s1"] = "SendGrid",
+        ["s2"] = "SendGrid",
+        // SparkPost
+        ["scph"] = "SparkPost",
+        // Zoho
+        ["zoho"] = "Zoho",
+        ["zoho2"] = "Zoho",
+        // Mailgun
+        ["mg"] = "Mailgun",
+        ["mailgun"] = "Mailgun",
+        // Fastmail
+        ["fm1"] = "Fastmail",
+        ["fm2"] = "Fastmail",
+        ["fm3"] = "Fastmail",
+        // cPanel
+        ["default"] = "cPanel",
+        ["mail"] = "cPanel",
+        // Campaign Monitor
+        ["cm"] = "Campaign Monitor",
+        ["cm1"] = "Campaign Monitor",
+        ["cm2"] = "Campaign Monitor",
+        // HubSpot
+        ["hs1"] = "HubSpot",
+        ["hs2"] = "HubSpot",
+        // ProtonMail
+        ["protonmail"] = "ProtonMail",
+        ["protonmail2"] = "ProtonMail",
+        ["pm"] = "ProtonMail"
+    };
+
+    private static IEnumerable<string> MapDkimProviders(IEnumerable<string> selectors)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var s in selectors)
+        {
+            if (string.IsNullOrWhiteSpace(s)) continue;
+            if (DkimSelectorProviders.TryGetValue(s, out var provider))
+            {
+                if (seen.Add(provider)) yield return provider;
+            }
         }
     }
 

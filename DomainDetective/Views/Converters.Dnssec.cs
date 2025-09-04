@@ -7,7 +7,8 @@ public static partial class Converters
     public static DnssecStatusInfo Convert(DnsSecAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new DnssecStatusInfo
         {
             Check = HealthCheckType.DNSSEC,
@@ -24,6 +25,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"chain {(analysis.ChainValid ? "valid" : "invalid")}; DS {(analysis.DsMatch ? "match" : "check")}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc4035" },
             Raw = analysis
         };
@@ -46,6 +48,7 @@ public class DnssecStatusInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsSecAnalysis Raw { get; set; }
 }

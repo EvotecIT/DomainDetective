@@ -7,7 +7,8 @@ public static partial class Converters
     public static SoaInfo Convert(SOAAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         return new SoaInfo
         {
             Check = HealthCheckType.SOA,
@@ -30,6 +31,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"serial {analysis.SerialNumber} ({(analysis.SerialFormatValid ? "valid" : "check")}); refresh {analysis.Refresh}s",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1035" },
             Raw = analysis
         };
@@ -58,6 +60,7 @@ public class SoaInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SOAAnalysis Raw { get; set; }
 }

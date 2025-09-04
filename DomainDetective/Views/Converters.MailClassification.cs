@@ -32,7 +32,8 @@ public static partial class Converters
             WarningCount = warn,
             ErrorCount = err,
             Summary = summary,
-            Recommendations = RecommendationEngine.From(result.Assessments ?? new List<Assessment>()),
+            Recommendations = RecommendationEngine.FromProblems(result.Assessments ?? new List<Assessment>()),
+            Positives = RecommendationEngine.FromPositives(result.Assessments ?? new List<Assessment>()),
             References = BuildReferences(result.RfcReferences, new List<RecommendationAdvice>()),
             Raw = result
         };
@@ -56,6 +57,7 @@ public sealed class MailClassificationInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailDomainClassificationResult Raw { get; set; }
 }

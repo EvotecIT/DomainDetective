@@ -3,6 +3,7 @@ using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text;
+using System.Linq;
 
 namespace DomainDetective.CLI;
 
@@ -156,7 +157,75 @@ internal static class OutputFormatters {
         } else {
             findings.Add(GetPositiveFinding(check, data));
         }
-        
+
+        // Inline Autodiscover endpoint verdict summary
+        if (check == HealthCheckType.AUTODISCOVER)
+        {
+            try {
+                var endpoints = hc.AutodiscoverHttpAnalysis?.Endpoints;
+                if (endpoints != null && endpoints.Count > 0)
+                {
+                    var count = endpoints.Count;
+                    var winner = endpoints.FirstOrDefault(e => e.XmlValid) ??
+                                 endpoints.FirstOrDefault(e => e.JsonValid) ??
+                                 endpoints.FirstOrDefault();
+                    var best = winner?.FinalHost ?? new Uri(winner?.Url ?? "http://invalid").Host;
+                    var verdict = (winner?.XmlValid == true) ? "XML" : (winner?.JsonValid == true) ? "JSON" : "None";
+                    findings.Add($"• Endpoints: {count}; Best host: {best}; Valid: {verdict}");
+                }
+            } catch { /* ignore summarization errors */ }
+        }
+
+        // Inline HTTP: summarize detected technologies and 3P hosts
+        if (check == HealthCheckType.HTTP)
+        {
+            try
+            {
+                var ws = hc.WebStaticScanAnalysis;
+                if (ws != null && ws.TechDetails != null && ws.TechDetails.Count > 0)
+                {
+                    // Group by technology; pick representative category/source/version
+                    var techs = ws.TechDetails
+                        .GroupBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => {
+                            var first = g.First();
+                            return new { Name = g.Key, Cat = first.Category.ToString(), Src = first.SourceKind.ToString(), Ver = first.Version, Conf = first.Confidence };
+                        })
+                        .OrderBy(x => x.Name)
+                        .Take(8)
+                        .ToArray();
+                    if (techs.Length > 0)
+                    {
+                        var items = techs.Select(t => string.IsNullOrWhiteSpace(t.Ver)
+                            ? $"{t.Name} ({t.Cat}, {t.Src}, c{t.Conf})"
+                            : $"{t.Name} {t.Ver} ({t.Cat}, {t.Src}, c{t.Conf})");
+                        findings.Add("• Tech: " + string.Join("; ", items));
+                    }
+                    // Top third-party hosts
+                    var third = ws.Hosts.Values.Where(h => !h.FirstParty)
+                        .OrderByDescending(h => h.Bytes)
+                        .Take(3)
+                        .Select(h => h.Host)
+                        .ToArray();
+                    if (third.Length > 0)
+                    {
+                        findings.Add("• Top 3P: " + string.Join(", ", third));
+                    }
+                    // HTTPS ratio
+                    var reqTotal = ws.Requests.Count;
+                    if (reqTotal > 0)
+                    {
+                        int https = 0;
+                        foreach (var r in ws.Requests) { try { var u = new Uri(r.FinalUrl ?? r.Url); if (u.Scheme == "https") https++; } catch { } }
+                        var pct = (int)Math.Round(100.0 * https / reqTotal);
+                        findings.Add($"• HTTPS: {pct}% of {reqTotal} resources");
+                    }
+                    // (redirect chain intentionally not included in CLI summary per current scope)
+                }
+            }
+            catch { /* summary best-effort */ }
+        }
+
         return (status, string.Join("\n", findings));
     }
     

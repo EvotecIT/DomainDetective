@@ -17,7 +17,27 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Open export in browser when applicable.</summary>
         [Parameter(Mandatory = false)]
+        [Alias("OpenReport")]
         public SwitchParameter OpenInBrowser { get; set; }
+
+        /// <summary>Emit artifacts (scan.json, metrics.json, progress.jsonl).</summary>
+        [Parameter(Mandatory = false)]
+        [Alias("Artifacts")]
+        public SwitchParameter ExportArtifacts { get; set; }
+
+        /// <summary>Destination directory for artifacts when emitted.</summary>
+        [Parameter(Mandatory = false)]
+        [Alias("ArtifactsPath")]
+        public string? ArtifactsDirectory { get; set; }
+
+        protected void TryOpenReport(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return;
+            try {
+                var psi = new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true };
+                System.Diagnostics.Process.Start(psi);
+            } catch { }
+        }
 
         protected bool IsExportRequested()
             => ExportFormat.HasValue

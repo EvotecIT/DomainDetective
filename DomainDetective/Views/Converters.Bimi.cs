@@ -6,7 +6,8 @@ public static partial class Converters
 {
     public static BimiRecordInfo Convert(BimiAnalysis analysis)
     {
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         return new BimiRecordInfo
         {
@@ -39,6 +40,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"svg {(analysis.SvgValid ? "ok" : "invalid")}; vmc {(analysis.ValidVmc ? "ok" : "missing")}; https {(analysis.LocationUsesHttps ? "yes" : "no")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
@@ -76,6 +78,7 @@ public class BimiRecordInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public BimiAnalysis Raw { get; set; }
 }

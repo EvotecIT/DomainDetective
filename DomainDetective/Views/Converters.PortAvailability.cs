@@ -15,11 +15,16 @@ public static partial class Converters
                 if (r != null && r.Success) open++;
             }
         }
+        string subject = null;
+        if (analysis.ServerResults != null && analysis.ServerResults.Count == 1)
+        {
+            foreach (var key in analysis.ServerResults.Keys) { subject = key; break; }
+        }
         return new PortAvailabilityInfo
         {
             Check = HealthCheckType.PORTAVAILABILITY,
             Area = AreaForKind(HealthCheckType.PORTAVAILABILITY),
-            Subject = null,
+            Subject = subject,
             TotalChecked = total,
             OpenCount = open,
             Results = analysis.ServerResults,

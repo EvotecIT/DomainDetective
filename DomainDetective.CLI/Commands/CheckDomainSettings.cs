@@ -70,4 +70,74 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Skip certificate revocation checks.</summary>
     [CommandOption("--skip-revocation")]
     public bool SkipRevocation { get; set; }
+
+    // Static web scan options
+    /// <summary>Run a static (no-browser) web scan for a specific URL.</summary>
+    [CommandOption("--webscan-static")]
+    public string? WebScanStatic { get; set; }
+    /// <summary>Alias for --webscan-static.</summary>
+    [CommandOption("--webscan")]
+    public string? WebScan { get; set; }
+
+    /// <summary>Time budget for web scan in seconds (default 30).</summary>
+    [CommandOption("--webscan-max-seconds")]
+    public int WebScanMaxSeconds { get; set; } = 30;
+
+    /// <summary>Maximum number of resources to fetch (default 300).</summary>
+    [CommandOption("--webscan-max-resources")]
+    public int WebScanMaxResources { get; set; } = 300;
+
+    /// <summary>Optional path to tech-detection rules JSON file.</summary>
+    [CommandOption("--techrules")]
+    public string? TechRules { get; set; }
+
+    // Concurrency tuning for static web scan
+    /// <summary>Max parallel discovery (HEAD/GET) requests; 0 defers to default.</summary>
+    [CommandOption("--webscan-discovery-threads")]
+    public int WebScanDiscoveryThreads { get; set; } = 0;
+
+    /// <summary>Max parallel CSS fetch/parse threads; 0 defers to default.</summary>
+    [CommandOption("--webscan-css-threads")]
+    public int WebScanCssThreads { get; set; } = 0;
+
+    /// <summary>Max parallel TLS probes; 0 defers to default.</summary>
+    [CommandOption("--webscan-tls-threads")]
+    public int WebScanTlsThreads { get; set; } = 0;
+
+    /// <summary>Max parallel DNS/RDAP enrichments; 0 defers to default.</summary>
+    [CommandOption("--webscan-dns-threads")]
+    public int WebScanDnsThreads { get; set; } = 0;
+
+    /// <summary>Respect robots.txt Disallow/Allow rules during discovery.</summary>
+    [CommandOption("--webscan-respect-robots")]
+    public bool WebScanRespectRobots { get; set; }
+
+    /// <summary>Skip third-party resources (first-party only crawl).</summary>
+    [CommandOption("--webscan-first-party-only")]
+    public bool WebScanFirstPartyOnly { get; set; }
+
+    // Link check controls for web scan
+    /// <summary>Follow anchor links and check them (bounded).</summary>
+    [CommandOption("--webscan-follow-links")]
+    public bool WebScanFollowLinks { get; set; }
+
+    /// <summary>Maximum link depth to follow.</summary>
+    [CommandOption("--webscan-link-max-depth")]
+    public int WebScanLinkMaxDepth { get; set; } = 0;
+
+    /// <summary>Maximum number of link pages to check.</summary>
+    [CommandOption("--webscan-link-max-pages")]
+    public int WebScanLinkMaxPages { get; set; } = 100;
+
+    /// <summary>Restrict link checking to first-party only.</summary>
+    [CommandOption("--webscan-link-first-party-only")]
+    public bool WebScanLinkFirstPartyOnly { get; set; }
+
+    /// <summary>Parallel threads for link checks; 0 defers to discovery threads.</summary>
+    [CommandOption("--webscan-link-threads")]
+    public int WebScanLinkThreads { get; set; } = 0;
+
+    /// <summary>Link-only mode: skip static resource discovery and only check links.</summary>
+    [CommandOption("--webscan-link-only")]
+    public bool WebScanLinkOnly { get; set; }
 }

@@ -114,12 +114,13 @@ public class TestAutodiscoverHttpListenerResults {
             HttpHandlerFactory = () => new RewriteHandler(new HttpClientHandler { AllowAutoRedirect = false })
         };
         await analysis.Analyze($"localhost:{port}", new InternalLogger());
-        Assert.Equal(4, analysis.Endpoints.Count);
+        Assert.Equal(5, analysis.Endpoints.Count);
         var expectedUrls = new[] {
             $"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
             $"https://localhost:{port}/autodiscover/autodiscover.xml",
             $"http://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
-            $"http://localhost:{port}/autodiscover/autodiscover.xml"
+            $"http://localhost:{port}/autodiscover/autodiscover.xml",
+            $"https://autodiscover-s.outlook.com/autodiscover/autodiscover.json/v1.0/localhost:{port}?Protocol=AutodiscoverV1"
         };
         Assert.Equal(expectedUrls, analysis.Endpoints.Select(e => e.Url).ToArray());
         Assert.Equal(
@@ -127,7 +128,8 @@ public class TestAutodiscoverHttpListenerResults {
                 AutodiscoverMethod.AutodiscoverSubdomainHttps,
                 AutodiscoverMethod.RootDomainHttps,
                 AutodiscoverMethod.HttpRedirect,
-                AutodiscoverMethod.HttpRedirect
+                AutodiscoverMethod.HttpRedirect,
+                AutodiscoverMethod.OutlookV2Json
             },
             analysis.Endpoints.Select(e => e.Method).ToArray());
         foreach (var result in analysis.Endpoints) {

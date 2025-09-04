@@ -5,7 +5,9 @@ using System.Net;
 using System.Net.Http;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -67,8 +69,18 @@ namespace DomainDetective {
         public string? QuicVersion { get; private set; }
         /// <summary>Gets the value of the Server header if present.</summary>
         public string? ServerHeader { get; private set; }
+        /// <summary>Raw NEL header if present.</summary>
+        public string? NelRaw { get; private set; }
+        /// <summary>Raw Report-To header if present.</summary>
+        public string? ReportToRaw { get; private set; }
+        /// <summary>Raw speculation-rules header if present.</summary>
+        public string? SpeculationRulesRaw { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
         public string Body { get; private set; }
+        /// <summary>Gets the decompressed body length in bytes when <c>captureBody</c> is enabled.</summary>
+        public int? BodyLength { get; private set; }
+        /// <summary>Gets the SHA-256 hash of the decompressed body when <c>captureBody</c> is enabled.</summary>
+        public string? BodySha256 { get; private set; }
         /// <summary>Gets a value indicating whether HTTPS content references insecure HTTP resources.</summary>
         public bool MixedContentDetected { get; private set; }
         /// <summary>Gets the number of forms with insecure http:// action URLs on an HTTPS page.</summary>
@@ -182,7 +194,7 @@ namespace DomainDetective {
             using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;
-            Body = null;
+            Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
             ServerHeader = null;
             VisitedUrls.Clear();
             MixedContentDetected = false;
@@ -289,6 +301,15 @@ namespace DomainDetective {
                 if (response.Headers.TryGetValues("Server", out var serverValues)) {
                     serverHeader = string.Join(",", serverValues);
                 }
+                if (response.Headers.TryGetValues("NEL", out var nelValues)) {
+                    NelRaw = string.Join(",", nelValues);
+                }
+                if (response.Headers.TryGetValues("Report-To", out var rptValues)) {
+                    ReportToRaw = string.Join(",", rptValues);
+                }
+                if (response.Headers.TryGetValues("speculation-rules", out var specValues) || response.Headers.TryGetValues("Speculation-Rules", out specValues)) {
+                    SpeculationRulesRaw = string.Join(",", specValues);
+                }
                 ServerHeader = serverHeader;
 #if NET6_0_OR_GREATER
                 if (IsReachable && ProtocolVersion >= HttpVersion.Version30) {
@@ -323,6 +344,10 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
                     }
+                    if (response.Headers.TryGetValues("Content-Security-Policy-Report-Only", out var cspRoVals) || response.Content.Headers.TryGetValues("Content-Security-Policy-Report-Only", out cspRoVals)) {
+                        SecurityHeaders["Content-Security-Policy-Report-Only"] = new SecurityHeader("Content-Security-Policy-Report-Only", string.Join(",", cspRoVals));
+                        logger?.WriteWarningCode(HttpCodes.CspReportOnly, "CSP is report-only; consider enforcing after fixing violations");
+                    }
                     if (SecurityHeaders.TryGetValue("X-Content-Type-Options", out var xcto)) {
                         var xv = (xcto.Value ?? string.Empty).Trim();
                         if (!string.IsNullOrEmpty(xv) && !xv.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
@@ -331,6 +356,10 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Permissions-Policy", out var pp)) {
                         ParsePermissionsPolicy(pp.Value);
+                        // Warn if any feature policy is wildcard or empty
+                        if (PermissionsPolicyPresent && PermissionsPolicy.Any(kv => string.IsNullOrWhiteSpace(kv.Value) || kv.Value == "*")) {
+                            logger?.WriteWarningCode(HttpCodes.PermissionsPolicyWeak, "Permissions-Policy contains empty or wildcard values");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Referrer-Policy", out var rp)) {
                         ReferrerPolicy = rp.Value;
@@ -345,12 +374,24 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Opener-Policy", out var coop)) {
                         CrossOriginOpenerPolicy = coop.Value;
+                        var v = (CrossOriginOpenerPolicy ?? string.Empty).Trim();
+                        if (string.IsNullOrEmpty(v) || v.Equals("unsafe-none", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.COOPWeak, "COOP is missing or set to unsafe-none");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Embedder-Policy", out var coep)) {
                         CrossOriginEmbedderPolicy = coep.Value;
+                        var v = (CrossOriginEmbedderPolicy ?? string.Empty).Trim();
+                        if (!v.Equals("require-corp", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteWarningCode(HttpCodes.COEPWeak, "COEP should be 'require-corp' for strong isolation");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("Cross-Origin-Resource-Policy", out var corp)) {
                         CrossOriginResourcePolicy = corp.Value;
+                        var v = (CrossOriginResourcePolicy ?? string.Empty).Trim();
+                        if (!(v.Equals("same-origin", StringComparison.OrdinalIgnoreCase) || v.Equals("same-site", StringComparison.OrdinalIgnoreCase))) {
+                            logger?.WriteWarningCode(HttpCodes.CORPWeak, "CORP should be 'same-origin' or 'same-site'");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("X-Permitted-Cross-Domain-Policies", out var xpcdp)) {
                         XPermittedCrossDomainPolicies = xpcdp.Value;
@@ -412,8 +453,66 @@ namespace DomainDetective {
                         }
                     }
                 }
+                // Positive/presence signals to enrich dataset (emitted after warning checks)
+                try {
+                    if (HstsPresent && !HstsTooShort) {
+                        logger?.WriteInformationCode(HttpCodes.HstsPresent, "HSTS present");
+                    }
+                    bool HasHeader(string name) => SecurityHeaders.ContainsKey(name);
+                    if (HasHeader("Content-Security-Policy") && !CspUnsafeDirectives && !SecurityHeaders.ContainsKey("Content-Security-Policy-Report-Only")) {
+                        logger?.WriteInformationCode(HttpCodes.CspPresent, "CSP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(ReferrerPolicy)) {
+                        logger?.WriteInformationCode(HttpCodes.ReferrerPolicyPresent, "Referrer-Policy present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(XFrameOptions)) {
+                        var xv2 = (XFrameOptions ?? string.Empty).Trim();
+                        var valid2 = xv2.Equals("DENY", StringComparison.OrdinalIgnoreCase) || xv2.Equals("SAMEORIGIN", StringComparison.OrdinalIgnoreCase);
+                        if (valid2) logger?.WriteInformationCode(HttpCodes.XFrameOptionsPresent, "X-Frame-Options present");
+                    }
+                    if (HasHeader("X-Content-Type-Options")) {
+                        var xv3 = (SecurityHeaders["X-Content-Type-Options"].Value ?? string.Empty).Trim();
+                        if (xv3.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteInformationCode(HttpCodes.XContentTypeOptionsPresent, "X-Content-Type-Options nosniff set");
+                        }
+                    }
+                    if (PermissionsPolicyPresent && !(PermissionsPolicy?.Any(kv => string.IsNullOrWhiteSpace(kv.Value) || kv.Value == "*") ?? false)) {
+                        logger?.WriteInformationCode(HttpCodes.PermissionsPolicyPresent, "Permissions-Policy present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginOpenerPolicy) && !(CrossOriginOpenerPolicy ?? "").Trim().Equals("unsafe-none", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteInformationCode(HttpCodes.COOPPresent, "COOP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginEmbedderPolicy) && (CrossOriginEmbedderPolicy ?? string.Empty).Trim().Equals("require-corp", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteInformationCode(HttpCodes.COEPPresent, "COEP present");
+                    }
+                    if (!string.IsNullOrWhiteSpace(CrossOriginResourcePolicy)) {
+                        var v3 = (CrossOriginResourcePolicy ?? string.Empty).Trim();
+                        if (v3.Equals("same-origin", StringComparison.OrdinalIgnoreCase) || v3.Equals("same-site", StringComparison.OrdinalIgnoreCase)) {
+                            logger?.WriteInformationCode(HttpCodes.CORPPresent, "CORP present");
+                        }
+                    }
+                    if (OriginAgentClusterEnabled) {
+                        logger?.WriteInformationCode(HttpCodes.OACEnabled, "Origin-Agent-Cluster enabled");
+                    }
+                } catch { }
                 if (captureBody) {
-                    Body = await response.Content.ReadAsStringAsync();
+                    try {
+                        var bytes = await response.Content.ReadAsByteArrayAsync();
+                        BodyLength = bytes?.Length;
+                        if (bytes != null) {
+#if NET6_0_OR_GREATER
+                            var hash = SHA256.HashData(bytes);
+#else
+                            byte[] hash;
+                            using (var sha = SHA256.Create()) { hash = sha.ComputeHash(bytes); }
+#endif
+                            BodySha256 = BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
+                        }
+                        string? charset = response.Content?.Headers?.ContentType?.CharSet;
+                        Encoding enc;
+                        try { enc = !string.IsNullOrWhiteSpace(charset) ? Encoding.GetEncoding(charset!) : Encoding.UTF8; } catch { enc = Encoding.UTF8; }
+                        Body = bytes != null ? enc.GetString(bytes) : await response.Content.ReadAsStringAsync();
+                    } catch { Body = await response.Content.ReadAsStringAsync(); }
                     var scheme = response.RequestMessage?.RequestUri?.Scheme;
                     if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
                         Body.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {

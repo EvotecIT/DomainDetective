@@ -36,7 +36,7 @@ internal sealed class SearchDomainSettings : CommandSettings
     [CommandOption("--preset")]
     public string? Preset { get; set; }
 
-    /// <summary>Output format: text, json, json-stream, json-array, csv.</summary>
+    /// <summary>Output format: text, json, json-stream, json-array.</summary>
     [CommandOption("--output")]
     public string Output { get; set; } = "text";
 
@@ -115,15 +115,6 @@ internal sealed class SearchDomainCommand : AsyncCommand<SearchDomainSettings>
                     list.Add(r);
                 }
                 Console.WriteLine(JsonSerializer.Serialize(list, DomainDetective.Helpers.JsonOptions.Default));
-                break;
-            }
-            case "csv":
-            {
-                Console.WriteLine("Domain,Available");
-                await foreach (var r in results)
-                {
-                    Console.WriteLine($"{r.Domain},{r.Available}");
-                }
                 break;
             }
             default:

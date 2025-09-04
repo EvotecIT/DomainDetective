@@ -5,6 +5,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -41,6 +42,7 @@ public class MailTlsAnalysis : IHasAssessments {
         public int CipherStrength { get; set; }
         public string CipherSuite { get; set; } = string.Empty;
         public int DhKeyBits { get; set; }
+        public string? KeyExchangeAlgorithm { get; set; }
         public X509Certificate2? Certificate { get; set; }
         public List<X509Certificate2> Chain { get; } = new();
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
@@ -127,7 +129,12 @@ public class MailTlsAnalysis : IHasAssessments {
                         result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
                         try {
                             result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
-                            result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                            // Prefer modern APIs over obsolete PublicKey.Key
+                            int? size = null;
+                            try { using var rsa = cert.GetRSAPublicKey(); if (rsa != null) size = rsa.KeySize; } catch { }
+                            if (!size.HasValue) { try { using var ecdsa = cert.GetECDsaPublicKey(); if (ecdsa != null) size = ecdsa.KeySize; } catch { } }
+                            if (!size.HasValue) { try { using var dsa = cert.GetDSAPublicKey(); if (dsa != null) size = dsa.KeySize; } catch { } }
+                            result.PublicKeySize = size;
                         } catch { }
                         try {
                             foreach (var ext in cert.Extensions) {
@@ -169,13 +176,22 @@ public class MailTlsAnalysis : IHasAssessments {
 #if NET6_0_OR_GREATER
                     result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
 #endif
+                    result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
                     if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                         result.DhKeyBits = ssl.KeyExchangeStrength;
                     }
                     try {
                         var suite = result.CipherSuite ?? string.Empty;
-                        if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", System.StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", System.StringComparison.OrdinalIgnoreCase) >= 0)) {
-                            logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                        if (!string.IsNullOrEmpty(suite)) {
+                            var s = suite.ToUpperInvariant();
+                            bool weak = s.Contains("3DES") || s.Contains("RC4") || s.Contains("_CBC_");
+                            if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
+                            if (weak) {
+                                logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                            }
+                        }
+                        if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
+                            logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                         }
                     } catch { }
                     using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
@@ -331,7 +347,12 @@ public class MailTlsAnalysis : IHasAssessments {
                     result.CertificateSignatureAlgorithm = cert.SignatureAlgorithm?.FriendlyName;
                     try {
                         result.PublicKeyAlgorithm = cert.PublicKey?.Oid?.FriendlyName;
-                        result.PublicKeySize = cert.PublicKey?.Key?.KeySize;
+                        // Prefer modern APIs over obsolete PublicKey.Key
+                        int? size2 = null;
+                        try { using var rsa2 = cert.GetRSAPublicKey(); if (rsa2 != null) size2 = rsa2.KeySize; } catch { }
+                        if (!size2.HasValue) { try { using var ecdsa2 = cert.GetECDsaPublicKey(); if (ecdsa2 != null) size2 = ecdsa2.KeySize; } catch { } }
+                        if (!size2.HasValue) { try { using var dsa2 = cert.GetDSAPublicKey(); if (dsa2 != null) size2 = dsa2.KeySize; } catch { } }
+                        result.PublicKeySize = size2;
                     } catch { }
                     try {
                         foreach (var ext in cert.Extensions) {
@@ -372,13 +393,22 @@ public class MailTlsAnalysis : IHasAssessments {
 #if NET6_0_OR_GREATER
                 result.CipherSuite = sslStream.NegotiatedCipherSuite.ToString();
 #endif
+                result.KeyExchangeAlgorithm = sslStream.KeyExchangeAlgorithm.ToString();
                 if (sslStream.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
                     result.DhKeyBits = sslStream.KeyExchangeStrength;
                 }
                 try {
                     var suite = result.CipherSuite ?? string.Empty;
-                    if (!string.IsNullOrEmpty(suite) && (suite.IndexOf("3DES", System.StringComparison.OrdinalIgnoreCase) >= 0 || suite.IndexOf("RC4", System.StringComparison.OrdinalIgnoreCase) >= 0)) {
-                        logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                    if (!string.IsNullOrEmpty(suite)) {
+                        var s = suite.ToUpperInvariant();
+                        bool weak = s.Contains("3DES") || s.Contains("RC4") || s.Contains("_CBC_");
+                        if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
+                        if (weak) {
+                            logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                        }
+                    }
+                    if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
+                        logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                     }
                 } catch { }
                 using var secureWriter = new StreamWriter(sslStream) { AutoFlush = true, NewLine = "\r\n" };
@@ -438,8 +468,11 @@ public class MailTlsAnalysis : IHasAssessments {
         result.SupportsTls13 = result.SupportsTls13 || await TryHandshake(SslProtocols.Tls13);
 #endif
         result.SupportsTls12 = await TryHandshake(SslProtocols.Tls12);
+        // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
+#pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
         result.SupportsTls11 = await TryHandshake(SslProtocols.Tls11);
         result.SupportsTls10 = await TryHandshake(SslProtocols.Tls);
+#pragma warning restore SYSLIB0039
     }
 
     private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger logger, CancellationToken token) {
@@ -484,7 +517,10 @@ public class MailTlsAnalysis : IHasAssessments {
 
     private static void ComputeGrade(TlsResult r) {
         // Legacy detection
+        // Legacy protocols are checked to assess security posture; suppress deprecation warnings in this check only.
+#pragma warning disable SYSLIB0039, CS0618
         r.LegacyEnabled = r.Protocol == SslProtocols.Tls || r.Protocol == SslProtocols.Ssl3 || r.Protocol == SslProtocols.Tls11;
+#pragma warning restore SYSLIB0039, CS0618
         // Coarse grading
         if (r.IsExpired || !r.CertificateValid || !r.ChainValid || !r.HostnameMatch) {
             r.GradeLevel = GradeLevel.F;
@@ -495,10 +531,13 @@ public class MailTlsAnalysis : IHasAssessments {
             r.GradeLevel = GradeLevel.B;
             return;
         }
+        // Suppress deprecation warnings for legacy protocol grading branch
+#pragma warning disable SYSLIB0039
         if (r.Protocol == SslProtocols.Tls11 || r.Protocol == SslProtocols.Tls) {
             r.GradeLevel = GradeLevel.D;
             return;
         }
+#pragma warning restore SYSLIB0039
         r.GradeLevel = GradeLevel.C;
     }
 }

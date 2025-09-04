@@ -8,7 +8,8 @@ public static partial class Converters
     public static WhoisInfo Convert(WhoisAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         int? days = analysis.DaysUntilExpiration;
         bool? expiresSoon = analysis.ExpiresSoon;
         DateTimeOffset? expiry = null;
@@ -35,6 +36,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"registrar {(analysis.Registrar ?? "?")}; {(analysis.IsExpired ? "expired" : (analysis.ExpiresSoon ? $"{days}d left" : "ok"))}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc3912" },
             Raw = analysis
         };
@@ -63,6 +65,7 @@ public class WhoisInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public WhoisAnalysis Raw { get; set; }
 }

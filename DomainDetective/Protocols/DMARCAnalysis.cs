@@ -348,6 +348,28 @@ namespace DomainDetective {
                     Message = PolicyRecommendation
                 });
             }
+
+            // Info-level positives (posture signals)
+            if (DmarcRecordExists)
+                logger?.WriteInformationCode(DmarcCodes.Present, "DMARC record present");
+            if (StartsCorrectly)
+                logger?.WriteInformationCode(DmarcCodes.StartsV1, "DMARC starts with v=DMARC1");
+            if (string.Equals(PolicyShort, "reject", StringComparison.OrdinalIgnoreCase))
+                logger?.WriteInformationCode(DmarcCodes.PolicyReject, "DMARC policy reject in effect");
+            else if (string.Equals(PolicyShort, "quarantine", StringComparison.OrdinalIgnoreCase))
+                logger?.WriteInformationCode(DmarcCodes.PolicyQuarantine, "DMARC policy quarantine in effect");
+            var ruaCount = MailtoRua?.Count ?? 0;
+            if (ruaCount > 0)
+                logger?.WriteInformationCode(DmarcCodes.RuaPresent, $"Aggregate reporting (rua) configured: {ruaCount} address(es)");
+            var rufCount = (MailtoRuf?.Count ?? 0) + (HttpRuf?.Count ?? 0);
+            if (rufCount > 0)
+                logger?.WriteInformationCode(DmarcCodes.RufPresent, $"Forensic reporting (ruf) configured: {rufCount} address(es)");
+            if (string.Equals(DkimAShort, "s", StringComparison.OrdinalIgnoreCase))
+                logger?.WriteInformationCode(DmarcCodes.AlignmentStrictDkim, "DKIM alignment strict (adkim=s)");
+            if (string.Equals(SpfAShort, "s", StringComparison.OrdinalIgnoreCase))
+                logger?.WriteInformationCode(DmarcCodes.AlignmentStrictSpf, "SPF alignment strict (aspf=s)");
+            if (Pct.HasValue && Pct.Value >= 100)
+                logger?.WriteInformationCode(DmarcCodes.Percent100, "pct=100 (full enforcement)");
         }
 
         private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, InternalLogger? logger = null, bool isRuf = false) {

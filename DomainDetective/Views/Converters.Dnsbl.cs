@@ -9,7 +9,8 @@ public static partial class Converters
     {
         // DNSBLAnalysis already emits assessments for listed/timeouts/failures.
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(analysis.Assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var hostSummaries = analysis.Results?.Select(kv => new DnsblHostSummary
         {
             Key = kv.Key,
@@ -19,19 +20,8 @@ public static partial class Converters
         }).ToList() ?? new List<DnsblHostSummary>();
 
         var listedRecords = analysis.AllResults?.Where(r => r.IsBlackListed).ToList() ?? new List<DNSBLRecord>();
-
-        // Pick a subject: prefer a domain-like key; else first key
-        string subject = null;
-        try {
-            var keys = analysis.Results?.Keys?.ToList();
-            if (keys != null && keys.Count > 0) {
-                string pick = null;
-                foreach (var k in keys) {
-                    if (!System.Net.IPAddress.TryParse(k, out _)) { pick = k; break; }
-                }
-                subject = pick ?? keys[0];
-            }
-        } catch { }
+        // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
+        string subject = analysis.Subject;
 
         return new DnsblInfo
         {
@@ -49,6 +39,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"listed hosts {analysis.Blacklisted}/{analysis.RecordChecked}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://datatracker.ietf.org/doc/html/rfc5782" },
             Raw = analysis
         };
@@ -71,6 +62,7 @@ public class DnsblInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DNSBLAnalysis Raw { get; set; }
 }

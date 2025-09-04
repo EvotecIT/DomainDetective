@@ -51,7 +51,7 @@ public class TLSRPTAnalysis : IHasAssessments {
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         public async Task AnalyzeTlsRptRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLSRPT");
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLSRPT", target: Subject);
             cancellationToken.ThrowIfCancellationRequested();
 
             TlsRptRecord = null;

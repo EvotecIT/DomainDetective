@@ -9,7 +9,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var servers = new List<SmtpAuthServerInfo>();
         foreach (var kv in analysis.ServerMechanisms)
         {
@@ -39,6 +40,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"servers {servers.Count}; mechanisms avg {avg}",
             Recommendations = recs,
+            Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc4954", "https://www.rfc-editor.org/rfc/rfc6152" },
             Raw = analysis
         };
@@ -57,6 +59,7 @@ public class SmtpAuthInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public SmtpAuthAnalysis Raw { get; set; }
 }

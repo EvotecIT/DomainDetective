@@ -9,4 +9,14 @@ internal static class DkimCodes {
     public const string AdspObsolete = "DKIM.ADSP.Obsolete";
     public const string KeyTooShort = "DKIM.Key.TooShort";
     public const string CanonicalizationUnknown = "DKIM.Canonicalization.Unknown";
+
+    // Positive/posture signals
+    public const string RecordPresent = "DKIM.Record.Present";
+    public const string RecordStartsV1 = "DKIM.Record.StartsV1";
+    public const string PublicKeyPresent = "DKIM.Key.Present";
+    public const string KeyStrong = "DKIM.Key.Rsa2048Plus";
+    public const string KeyTypeValid = "DKIM.KeyType.Valid";
+    public const string CanonicalizationValid = "DKIM.Canonicalization.Valid";
+    public const string HashSha256 = "DKIM.Hash.Sha256";
+    public const string FlagsValid = "DKIM.Flags.Valid";
 }

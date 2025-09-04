@@ -347,6 +347,10 @@ namespace DomainDetective {
         /// <value>Clock information from NTP servers.</value>
         public NtpAnalysis NtpAnalysis { get; private set; } = new NtpAnalysis();
 
+        /// <summary>Gets the static web scan analysis.</summary>
+        /// <value>Results of static (non-browser) web scanning.</value>
+        public WebStaticScanAnalysis WebStaticScanAnalysis { get; private set; } = new WebStaticScanAnalysis();
+
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
         /// <summary>
@@ -428,6 +432,8 @@ namespace DomainDetective {
             FlatteningServiceAnalysis.DnsConfiguration = DnsConfiguration;
             TakeoverCnameAnalysis.DnsConfiguration = DnsConfiguration;
             AutodiscoverAnalysis.DnsConfiguration = DnsConfiguration;
+
+            WebStaticScanAnalysis.DnsConfiguration = DnsConfiguration;
 
             ApexAddressAnalysis.DnsConfiguration = DnsConfiguration;
             DnsHealthAnalysis.DnsConfiguration = DnsConfiguration;

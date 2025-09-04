@@ -33,6 +33,9 @@ public class IPNeighborAnalysis : IHasAssessments
     public Func<string, Task<bool>>? RPKIValidationOverride { private get; set; }
 
     public List<Assessment> Assessments { get; } = new();
+    /// <summary>TTL for passive DNS cache entries.</summary>
+    public TimeSpan PassiveDnsCacheTtl { get; set; } = TimeSpan.FromMinutes(30);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime ts, List<string> list)> _passiveDnsCache = new();
 
     private static string Categorize(int count)
     {
@@ -58,6 +61,11 @@ public class IPNeighborAnalysis : IHasAssessments
             return await PassiveDnsLookupOverride(ip);
         }
 
+        if (_passiveDnsCache.TryGetValue(ip, out var cached) && DateTime.UtcNow - cached.ts < PassiveDnsCacheTtl)
+        {
+            return cached.list;
+        }
+
         try
         {
             var client = SharedHttpClient.Instance;
@@ -72,6 +80,7 @@ public class IPNeighborAnalysis : IHasAssessments
                 .Select(d => d.Trim())
                 .Where(d => d.Length > 0 && !d.StartsWith("error", StringComparison.OrdinalIgnoreCase))
                 .ToList();
+            _passiveDnsCache[ip] = (DateTime.UtcNow, domains);
             return domains;
         }
         catch (Exception ex)

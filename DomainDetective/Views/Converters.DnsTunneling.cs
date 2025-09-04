@@ -8,7 +8,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new DnsTunnelingInfo
         {
             Check = HealthCheckType.DNSTUNNELING,
@@ -22,6 +23,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"alerts {analysis.Alerts?.Count ?? 0}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -41,6 +43,7 @@ public class DnsTunnelingInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public DnsTunnelingAnalysis Raw { get; set; }
 }

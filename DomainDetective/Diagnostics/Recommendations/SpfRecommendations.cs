@@ -148,5 +148,83 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Re-run lookup; confirm TXT v=spf1 is retrievable."
         };
+
+        map[SpfCodes.AllSoft] = new RecommendationAdvice {
+            Code = SpfCodes.AllSoft,
+            Title = "Strengthen SPF policy to -all",
+            Why = "Softfail/neutral (~all/?all) do not enforce rejection and allow spoof attempts to be accepted more easily.",
+            How = "After validating legitimate senders, switch to '-all' for enforcement. Coordinate with DMARC so alignment continues to pass.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-5.1" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "policy" },
+            Impact = "Improves spoof resistance at receivers that evaluate SPF strictly.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Mail from authorized IPs passes; unauthorized sources fail with -all."
+        };
+
+        map[SpfCodes.AllMissing] = new RecommendationAdvice {
+            Code = SpfCodes.AllMissing,
+            Title = "Add final -all mechanism",
+            Why = "A terminating '-all' clarifies policy and signals that only listed sources are authorized.",
+            How = "Append '-all' to the end of the SPF record once all sources are listed and validated.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-4.6.2" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "policy" },
+            Impact = "Prevents ambiguous evaluation and reduces spoof acceptance.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SPF terminates with '-all' and tests show expected failures for unauthorized senders."
+        };
+
+        map[SpfCodes.AllMultiple] = new RecommendationAdvice {
+            Code = SpfCodes.AllMultiple,
+            Title = "Remove duplicate 'all' mechanisms",
+            Why = "Only the last 'all' is effective; earlier ones are ignored and add noise and size.",
+            How = "Keep a single 'all' at the end of the record; remove extras.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-4.7" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf" },
+            Impact = "Simplifies policy and reduces risk of misinterpretation.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record contains exactly one 'all' as the last mechanism."
+        };
+
+        map[SpfCodes.AllTrailingContent] = new RecommendationAdvice {
+            Code = SpfCodes.AllTrailingContent,
+            Title = "Remove mechanisms after 'all'",
+            Why = "Mechanisms after 'all' are never evaluated and only increase record size.",
+            How = "Reorder or remove trailing mechanisms; ensure 'all' remains last.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-4.7" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf" },
+            Impact = "Avoids confusion and reduces DNS payload size.",
+            Effort = RecommendationEffort.Low,
+            Verify = "'all' is last; no trailing tokens after it."
+        };
+
+        map[SpfCodes.PtrUsed] = new RecommendationAdvice {
+            Code = SpfCodes.PtrUsed,
+            Title = "Avoid PTR mechanism in SPF",
+            Why = "'ptr' is slow, unreliable, and discouraged by RFC 7208 due to operational and privacy issues.",
+            How = "Replace 'ptr' with explicit ip4/ip6 ranges or a/mx mechanisms where appropriate.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-5.5" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "ptr" },
+            Impact = "Reduces DNS load and evaluation variability.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "No 'ptr:' tokens remain; evaluation time decreases."
+        };
+
+        map[SpfCodes.ExistsUsed] = new RecommendationAdvice {
+            Code = SpfCodes.ExistsUsed,
+            Title = "Use 'exists' sparingly",
+            Why = "'exists' performs custom DNS lookups which can be expensive and unpredictable.",
+            How = "Prefer explicit ip4/ip6 or a/mx mechanisms; limit 'exists' to necessary cases.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7208#section-5.7" },
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "dns" },
+            Impact = "Improves reliability and performance of SPF evaluation.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record contains minimal or no 'exists:' tokens."
+        };
     }
 }

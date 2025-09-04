@@ -6,7 +6,8 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments;
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new DanglingCnameInfo
         {
             Check = HealthCheckType.DANGLINGCNAME,
@@ -25,6 +26,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"dangling {(analysis.IsDangling ? "yes" : "no")}; service {(analysis.KnownService ? "known" : "unknown")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -49,6 +51,7 @@ public class DanglingCnameInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public System.Collections.Generic.IReadOnlyList<string> References { get; set; }
     public DanglingCnameAnalysis Raw { get; set; }
 }

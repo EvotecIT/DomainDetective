@@ -8,12 +8,13 @@ public static partial class Converters
     {
         var assessments = analysis.Assessments ?? new List<Assessment>();
         Summarize(assessments, out var warnCount, out var errCount, out var status);
-        var recs = RecommendationEngine.From(assessments);
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         var endpoints = analysis.Endpoints ?? new List<AutodiscoverEndpointResult>();
         var attempts = endpoints.Count;
-        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.XmlValid);
+        var valid = System.Linq.Enumerable.FirstOrDefault(endpoints, e => e.XmlValid || e.JsonValid);
         var first = System.Linq.Enumerable.FirstOrDefault(endpoints);
-        var bestUrl = valid?.Url ?? first?.Url;
+        var bestUrl = valid?.FinalUrl ?? valid?.Url ?? first?.FinalUrl ?? first?.Url;
         var bestStatus = valid?.StatusCode ?? first?.StatusCode;
         var httpsAttempts = System.Linq.Enumerable.Count(endpoints, e => (e.Url ?? string.Empty).StartsWith("https://", System.StringComparison.OrdinalIgnoreCase));
         var httpAttempts = attempts - httpsAttempts;
@@ -47,6 +48,7 @@ public static partial class Converters
             ErrorCount = errCount,
             Summary = $"SRV {(analysis.SrvRecordExists?"yes":"no")}; CNAME {(analysis.AutodiscoverCnameExists?"yes":"no")}; HTTP {(successCount>0?"ok":"fail")}",
             Recommendations = recs,
+            Positives = positives,
             References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
@@ -80,6 +82,7 @@ public class AutodiscoverInfo
     public int ErrorCount { get; set; }
     public string Summary { get; set; }
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public AutodiscoverAnalysis Raw { get; set; }
 }
