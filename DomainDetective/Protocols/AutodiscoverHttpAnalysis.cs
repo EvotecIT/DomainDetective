@@ -302,7 +302,7 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
                                     var alt = body.Replace("\\\"", "\"");
                                     alt = alt.Replace("\\\\", "\\");
                                     alt = alt.Trim();
-                                    if (alt.Length > 2 && alt[0] == '"' && alt[^1] == '"') {
+                                    if (alt.Length > 2 && alt[0] == '"' && alt[alt.Length - 1] == '"') {
                                         alt = alt.Substring(1, alt.Length - 2);
                                     }
                                     using var altDoc = System.Text.Json.JsonDocument.Parse(alt);
