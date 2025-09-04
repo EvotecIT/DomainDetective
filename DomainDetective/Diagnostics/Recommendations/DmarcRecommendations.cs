@@ -162,6 +162,32 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Tags = new [] { "dmarc" }
         };
 
+        map[DmarcCodes.Present] = new RecommendationAdvice {
+            Code = DmarcCodes.Present,
+            Title = "DMARC record present",
+            Why = "A published DMARC record declares policy and reporting endpoints.",
+            How = "Maintain the TXT record at _dmarc.example.com and review reports.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "dns" },
+            Impact = "Provides baseline spoofing protection and visibility.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "TXT lookup for _dmarc.example.com returns a DMARC record."
+        };
+
+        map[DmarcCodes.StartsV1] = new RecommendationAdvice {
+            Code = DmarcCodes.StartsV1,
+            Title = "DMARC record begins with v=DMARC1",
+            Why = "Receivers only evaluate records that start with the required version tag.",
+            How = "Ensure the record string starts with v=DMARC1; remove any leading characters.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc" },
+            Impact = "Ensures receivers process the DMARC policy.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7489" },
+            Verify = "Record at _dmarc.example.com starts with v=DMARC1."
+        };
+
         map[DmarcCodes.PolicyReject] = new RecommendationAdvice {
             Code = DmarcCodes.PolicyReject,
             Title = "DMARC policy set to reject",
@@ -238,6 +264,19 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains a ruf=mailto: address."
+        };
+
+        map[DmarcCodes.Percent100] = new RecommendationAdvice {
+            Code = DmarcCodes.Percent100,
+            Title = "DMARC applies to 100% of mail",
+            Why = "pct=100 enforces policy for every message, maximizing protection.",
+            How = "Keep pct=100 or omit the pct tag to apply the policy to all mail.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "policy" },
+            Impact = "All messages are subject to the configured DMARC policy.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains pct=100 or omits pct (default 100)."
         };
     }
 }
