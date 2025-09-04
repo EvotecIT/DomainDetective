@@ -61,7 +61,12 @@ public static class DnsTunnelingNarrative
                 AssessmentSplit.SplitTitles(ass, out positives, out remediations);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // Log the exception or handle specific expected exceptions
+            // For now, continue with empty lists which is the current behavior
+            _ = ex;
+        }
 
         return new Sections
         {
