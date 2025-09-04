@@ -106,5 +106,31 @@ internal sealed class BimiRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Validate width == height and viewBox square."
         };
+
+        map[BimiCodes.SvgValid] = new RecommendationAdvice {
+            Code = BimiCodes.SvgValid,
+            Title = "BIMI SVG valid",
+            Why = "A compliant SVG indicator allows inboxes to display your brand logo.",
+            How = "Maintain SVG within BIMI size and dimension requirements.",
+            Links = new [] { "https://bimigroup.org/" },
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "bimi", "svg" },
+            Impact = "Logo eligible for display.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SVG passes BIMI validation checks."
+        };
+
+        map[BimiCodes.VmcVerified] = new RecommendationAdvice {
+            Code = BimiCodes.VmcVerified,
+            Title = "BIMI certificate verified",
+            Why = "A verified VMC proves logo ownership and is trusted by receivers.",
+            How = "Keep the certificate renewed and monitor expiry dates.",
+            Links = new [] { "https://bimigroup.org/" },
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "bimi", "vmc" },
+            Impact = "Logo can display in supporting inboxes.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "VMC chain builds to a trusted root."
+        };
     }
 }
