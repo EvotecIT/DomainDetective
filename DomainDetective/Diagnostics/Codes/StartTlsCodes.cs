@@ -5,5 +5,7 @@ internal static class StartTlsCodes {
     public const string EhloUnexpected = "STARTTLS.EHLO.Unexpected";
     public const string EhloMissingFinal250 = "STARTTLS.EHLO.MissingFinal250";
     public const string CheckFailed = "STARTTLS.Check.Failed";
+    public const string Enforced = "STARTTLS.Session.Enforced";
+    public const string ModernCipher = "STARTTLS.Cipher.Modern";
 }
 
