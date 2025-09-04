@@ -33,7 +33,7 @@ public class TestNSNarrative
 
         var sections = NSNarrative.Build(analysis);
 
-        Assert.Contains(sections.Highlights, h => h.Contains("geographically", System.StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(sections.Positives, p => p.Contains("geographically", System.StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sections.Highlights, h => h.IndexOf("geographically", System.StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(sections.Positives, p => p.IndexOf("geographically", System.StringComparison.OrdinalIgnoreCase) >= 0);
     }
 }
