@@ -80,10 +80,15 @@ public class TLSRPTAnalysis : IHasAssessments {
                 return;
             }
 
+            logger?.WriteInformationCode(TlsRptCodes.RecordPresent, "TLSRPT record present");
+
             TlsRptRecord = string.Join(" ", recordList.Select(r => r.Data));
             logger?.WriteVerbose($"Analyzing TLSRPT record {TlsRptRecord}");
 
             StartsCorrectly = TlsRptRecord?.StartsWith("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) == true;
+            if (StartsCorrectly) {
+                logger?.WriteInformationCode(TlsRptCodes.RecordStartsV1, "TLSRPT starts with v=TLSRPTv1");
+            }
 
             foreach (var part in (TlsRptRecord ?? string.Empty).Split(';')) {
                 var kv = part.Split(new[] { '=' }, 2);
@@ -112,6 +117,13 @@ public class TLSRPTAnalysis : IHasAssessments {
                 }
             }
 
+            if (MailtoRua.Count > 0) {
+                logger?.WriteInformationCode(TlsRptCodes.RuaMailtoPresent, $"TLSRPT mailto RUA configured: {MailtoRua.Count} address(es)");
+            }
+            if (HttpRua.Count > 0) {
+                logger?.WriteInformationCode(TlsRptCodes.RuaHttpPresent, $"TLSRPT HTTPS RUA configured: {HttpRua.Count} endpoint(s)");
+            }
+
             if (!RuaDefined) {
                 logger?.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
             }
@@ -119,6 +131,10 @@ public class TLSRPTAnalysis : IHasAssessments {
             if (CheckEndpoints && HttpRua.Count > 0)
             {
                 await ValidateHttpRuaAsync(logger, cancellationToken);
+            }
+
+            if (PolicyValid) {
+                logger?.WriteInformationCode(TlsRptCodes.PolicyValid, "TLSRPT policy valid");
             }
         }
 
