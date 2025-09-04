@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace DomainDetective.Narratives;
 
@@ -20,30 +19,32 @@ public static class CertificateHttpNarrative {
         public List<string> Remediations { get; init; } = new();
     }
 
-    public static Sections Build(CertificateAnalysis analysis, IEnumerable<Assessment>? assessments = null) {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
-        var title = $"HTTPS Certificate — {subj}";
-        var subtitle = "TLS Certificate Assessment";
-        var category = "Web Security";
-        var keywords = $"TLS, certificate, DomainDetective, {subj}";
-        var creator = "DomainDetective";
+    /// <summary>Builds narrative sections for HTTP certificate analysis.</summary>
+    public static Sections Build(CertificateAnalysis? analysis, IEnumerable<Assessment>? assessments = null) {
         var intro = "Retrieves the TLS certificate over HTTPS and evaluates chain trust and expiry.";
         var why = "Trusted certificates with reasonable lifetimes prevent browser warnings and ensure secure connections.";
-
-        var hi = new List<string>();
-        var det = new List<string>();
-        var positives = new List<string>();
-        var remediations = new List<string>();
 
         if (analysis == null) {
             return new Sections {
                 Introduction = intro,
                 WhyItMatters = why,
                 Highlights = new List<string> { "No certificate data available." },
-                Details = det,
+                Details = new List<string>(),
                 References = DefaultRefs()
             };
         }
+
+        var subj = string.IsNullOrWhiteSpace(analysis.Subject) ? "(domain)" : analysis.Subject;
+        var title = $"HTTPS Certificate — {subj}";
+        const string subtitle = "TLS Certificate Assessment";
+        const string category = "Web Security";
+        var keywords = $"TLS, certificate, DomainDetective, {subj}";
+        const string creator = "DomainDetective";
+
+        var hi = new List<string>();
+        var det = new List<string>();
+        var positives = new List<string>();
+        var remediations = new List<string>();
 
         hi.Add(analysis.IsReachable
             ? $"Successfully retrieved certificate from {analysis.Url ?? subj}."
