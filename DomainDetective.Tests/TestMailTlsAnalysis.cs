@@ -7,6 +7,8 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
+using DomainDetective;
 
 namespace DomainDetective.Tests;
 
@@ -78,6 +80,30 @@ public class TestMailTlsAnalysis
             await analysis.AnalyzeServer("localhost", port, new InternalLogger());
             var result = analysis.ServerResults[$"localhost:{port}"];
             Assert.False(result.StartTlsAdvertised);
+        }
+        finally
+        {
+            cts.Cancel();
+            listener.Stop();
+            await serverTask;
+        }
+    }
+
+    [Fact]
+    public async Task StrongCipherLoggedAsInfo()
+    {
+        using var cert = CreateSelfSigned();
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        using var cts = new CancellationTokenSource();
+        var serverTask = Task.Run(() => RunImapServer(listener, cert, SslProtocols.Tls12, cts.Token), cts.Token);
+
+        try
+        {
+            var analysis = new IMAPTLSAnalysis();
+            await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+            Assert.Contains(analysis.Assessments, a => a.Code == MailTlsCodes.StrongCipherSuite && a.Severity == AssessmentSeverity.Info);
         }
         finally
         {

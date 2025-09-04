@@ -13,6 +13,24 @@ internal sealed class MailTlsRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "smtp", "tls" }
         };
+
+        map[MailTlsCodes.StrongCipherSuite] = new RecommendationAdvice {
+            Code = MailTlsCodes.StrongCipherSuite,
+            Title = "Strong cipher suite negotiated",
+            Why = "Modern cipher suites protect confidentiality and integrity of mail in transit.",
+            How = "No action required; maintain current TLS configuration.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "cipher" }
+        };
+
+        map[MailTlsCodes.CertificateValid] = new RecommendationAdvice {
+            Code = MailTlsCodes.CertificateValid,
+            Title = "Valid TLS certificate",
+            Why = "A valid certificate assures clients of server authenticity and prevents interception.",
+            How = "Monitor certificate expiration and renew promptly.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "certificate" }
+        };
     }
 }
 

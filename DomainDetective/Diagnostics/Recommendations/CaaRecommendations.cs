@@ -42,5 +42,31 @@ internal sealed class CaaRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "List unique issuers; remove duplicates."
         };
+
+        map[CaaCodes.RecordPresent] = new RecommendationAdvice {
+            Code = CaaCodes.RecordPresent,
+            Title = "CAA record present",
+            Why = "Restricts certificate issuance to specified authorities.",
+            How = "Maintain the authorized CA list to match organizational requirements.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8659" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "caa", "tls" },
+            Impact = "Reduces risk of unauthorized certificates.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Query CAA records and confirm expected issuers."
+        };
+
+        map[CaaCodes.IodefPresent] = new RecommendationAdvice {
+            Code = CaaCodes.IodefPresent,
+            Title = "CAA reporting endpoint present",
+            Why = "Enables CAs to report unauthorized certificate requests.",
+            How = "Monitor the listed contact address or URL for CAA violation reports.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8659" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "caa", "reporting" },
+            Impact = "Provides visibility into certificate issuance attempts.",
+            Effort = RecommendationEffort.Low,
+            Verify = "CAA record includes an iodef tag with a reachable URI."
+        };
     }
 }

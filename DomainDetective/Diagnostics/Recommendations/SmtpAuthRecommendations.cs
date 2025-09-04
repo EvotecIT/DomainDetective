@@ -4,6 +4,25 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class SmtpAuthRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[SmtpAuthCodes.TlsRequired] = new RecommendationAdvice {
+            Code = SmtpAuthCodes.TlsRequired,
+            Title = "AUTH protected by TLS",
+            Why = "Requiring STARTTLS before AUTH prevents credential interception.",
+            How = "No action required; maintain TLS enforcement before authentication.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8314" },
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "tls", "auth" }
+        };
+
+        map[SmtpAuthCodes.StrongMechanism] = new RecommendationAdvice {
+            Code = SmtpAuthCodes.StrongMechanism,
+            Title = "Strong AUTH mechanism advertised",
+            Why = "Secure SASL mechanisms like SCRAM or OAuth resist credential attacks.",
+            How = "No action required; keep strong mechanisms enabled.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc5802" },
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "sasl" }
+        };
         map[SmtpAuthCodes.AuthWithout8BitMime] = new RecommendationAdvice {
             Code = SmtpAuthCodes.AuthWithout8BitMime,
             Title = "AUTH advertised without 8BITMIME",

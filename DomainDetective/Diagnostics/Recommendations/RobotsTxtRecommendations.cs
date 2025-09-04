@@ -48,6 +48,39 @@ internal sealed class RobotsTxtRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "robots.txt fetch returns 200 over HTTPS."
         };
+        map[RobotsTxtCodes.Available] = new RecommendationAdvice {
+            Code = RobotsTxtCodes.Available,
+            Title = "robots.txt accessible over HTTPS",
+            Why = "Serving robots.txt over HTTPS ensures policies are retrieved securely.",
+            How = "Maintain robots.txt at https://<domain>/robots.txt and enforce HTTPS redirects.",
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "robots", "https" },
+            Impact = "Crawlers reliably obtain crawl policy.",
+            Effort = RecommendationEffort.Low,
+            Verify = "GET https://<domain>/robots.txt returns 200."
+        };
+        map[RobotsTxtCodes.DisallowPresent] = new RecommendationAdvice {
+            Code = RobotsTxtCodes.DisallowPresent,
+            Title = "Disallow rules defined",
+            Why = "Disallow directives restrict crawler access to sensitive paths.",
+            How = "Review and update Disallow entries as site structure changes.",
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "robots", "disallow" },
+            Impact = "Helps protect areas from unwanted crawling.",
+            Effort = RecommendationEffort.Low,
+            Verify = "robots.txt contains Disallow directives."
+        };
+        map[RobotsTxtCodes.SitemapPresent] = new RecommendationAdvice {
+            Code = RobotsTxtCodes.SitemapPresent,
+            Title = "Sitemap referenced in robots.txt",
+            Why = "Listing sitemaps aids crawlers in discovering site content.",
+            How = "Ensure sitemap URLs are accurate and reachable.",
+            Domain = RecommendationDomain.Privacy,
+            Tags = new [] { "robots", "sitemap" },
+            Impact = "Improves crawler coverage of valid URLs.",
+            Effort = RecommendationEffort.Low,
+            Verify = "robots.txt contains a Sitemap directive pointing to an existing sitemap."
+        };
     }
 }
 

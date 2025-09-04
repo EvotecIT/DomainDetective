@@ -268,6 +268,11 @@ namespace DomainDetective {
             } catch (Exception ex) {
                 logger?.WriteDebug("NSEC3 Opt-Out check skipped: {0}", ex.Message);
             }
+
+            if (ChainValid) {
+                logger?.WriteInformationCode(DnssecCodes.SignaturesValid, "DNSSEC signatures validated");
+                logger?.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
+            }
         }
 
         private static async Task<bool> HasNsec3OptOutAsync(string domain, CancellationToken ct) {

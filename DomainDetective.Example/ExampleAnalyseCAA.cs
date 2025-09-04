@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using DomainDetective.Narratives;
 
 namespace DomainDetective.Example;
 
@@ -34,6 +36,9 @@ public static partial class Program {
         Helpers.ShowPropertiesTable(analysisOf: "CAA Example by String", objs: healthCheck.CAAAnalysis);
 
         Helpers.ShowPropertiesTable(analysisOf: "CAA Example by String", objs: healthCheck.CAAAnalysis.AnalysisResults);
+        var narrative = CaaNarrative.Build(healthCheck.CAAAnalysis);
+        Console.WriteLine(narrative.Title);
+        foreach (var h in narrative.Highlights) Console.WriteLine(" - " + h);
     }
 
     public static async Task ExampleAnalyseByDomainCAA() {

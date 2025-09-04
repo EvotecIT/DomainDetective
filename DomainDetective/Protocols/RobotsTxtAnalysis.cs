@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -123,14 +124,50 @@ public class RobotsTxtAnalysis : IHasAssessments
                     Message = "robots.txt retrieved over HTTP (no HTTPS)"
                 });
             }
-            if (HasAiBotRules)
+            else
             {
                 Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Info,
                     Category = "Robots",
                     Target = Domain,
+                    Code = RobotsTxtCodes.Available,
+                    Message = "robots.txt available over HTTPS"
+                });
+            }
+            if (HasAiBotRules)
+            {
+                Assessments.Add(new Assessment
+                {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
                     Code = RobotsTxtCodes.AiBotDirectivesPresent,
                     Message = "AI bot directives present in robots.txt"
+                });
+            }
+
+            var hasDisallow = Robots?.Groups.Any(g => g.Directives.Any(d => d.Type == RobotsDirectiveType.Disallow)) ?? false;
+            if (hasDisallow)
+            {
+                Assessments.Add(new Assessment
+                {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
+                    Code = RobotsTxtCodes.DisallowPresent,
+                    Message = "robots.txt defines disallow rules"
+                });
+            }
+
+            if (Robots?.Sitemaps.Count > 0)
+            {
+                Assessments.Add(new Assessment
+                {
+                    Severity = AssessmentSeverity.Info,
+                    Category = "Robots",
+                    Target = Domain,
+                    Code = RobotsTxtCodes.SitemapPresent,
+                    Message = "robots.txt references sitemap"
                 });
             }
         }

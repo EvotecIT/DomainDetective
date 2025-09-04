@@ -50,5 +50,31 @@ internal sealed class MtaStsRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "mta-sts" }
         };
+
+        map[MtaStsCodes.PolicyValid] = new RecommendationAdvice {
+            Code = MtaStsCodes.PolicyValid,
+            Title = "MTA-STS policy valid",
+            Why = "A syntactically correct policy enables secure SMTP TLS enforcement.",
+            How = "Keep policy fields (version, mode, max_age, mx) correct and up to date.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts", "tls" },
+            Impact = "Helps prevent mail downgrade attacks.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Fetch policy and ensure required fields are present."
+        };
+
+        map[MtaStsCodes.HttpsAvailable] = new RecommendationAdvice {
+            Code = MtaStsCodes.HttpsAvailable,
+            Title = "MTA-STS policy HTTPS reachable",
+            Why = "Senders must retrieve the policy over HTTPS to trust it.",
+            How = "Serve the policy at https://mta-sts.<domain>/.well-known/mta-sts.txt with a valid certificate.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts", "https" },
+            Impact = "Enables secure policy distribution.",
+            Effort = RecommendationEffort.Low,
+            Verify = "GET https://mta-sts.<domain>/.well-known/mta-sts.txt returns 200."
+        };
     }
 }

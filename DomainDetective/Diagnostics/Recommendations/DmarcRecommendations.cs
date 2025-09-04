@@ -161,5 +161,122 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dmarc,
             Tags = new [] { "dmarc" }
         };
+
+        map[DmarcCodes.Present] = new RecommendationAdvice {
+            Code = DmarcCodes.Present,
+            Title = "DMARC record present",
+            Why = "A published DMARC record declares policy and reporting endpoints.",
+            How = "Maintain the TXT record at _dmarc.example.com and review reports.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "dns" },
+            Impact = "Provides baseline spoofing protection and visibility.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "TXT lookup for _dmarc.example.com returns a DMARC record."
+        };
+
+        map[DmarcCodes.StartsV1] = new RecommendationAdvice {
+            Code = DmarcCodes.StartsV1,
+            Title = "DMARC record begins with v=DMARC1",
+            Why = "Receivers only evaluate records that start with the required version tag.",
+            How = "Ensure the record string starts with v=DMARC1; remove any leading characters.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc" },
+            Impact = "Ensures receivers process the DMARC policy.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7489" },
+            Verify = "Record at _dmarc.example.com starts with v=DMARC1."
+        };
+
+        map[DmarcCodes.PolicyReject] = new RecommendationAdvice {
+            Code = DmarcCodes.PolicyReject,
+            Title = "DMARC policy set to reject",
+            Why = "Reject policy blocks unauthenticated mail and prevents spoofing.",
+            How = "Maintain p=reject so fraudulent messages are discarded.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "policy" },
+            Impact = "Receivers will reject mail that fails DMARC.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains p=reject."
+        };
+
+        map[DmarcCodes.PolicyQuarantine] = new RecommendationAdvice {
+            Code = DmarcCodes.PolicyQuarantine,
+            Title = "DMARC policy set to quarantine",
+            Why = "Quarantine policy directs unauthenticated mail to spam folders.",
+            How = "Maintain p=quarantine to isolate suspicious messages.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "policy" },
+            Impact = "Spoofed mail is quarantined by receivers.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains p=quarantine."
+        };
+
+        map[DmarcCodes.AlignmentStrictDkim] = new RecommendationAdvice {
+            Code = DmarcCodes.AlignmentStrictDkim,
+            Title = "Strict DKIM alignment enforced",
+            Why = "adkim=s requires DKIM d= to exactly match the From domain.",
+            How = "Keep adkim=s and sign messages with aligned DKIM domains.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "alignment" },
+            Impact = "Mitigates spoofing by enforcing domain match on DKIM.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/overview/" },
+            Verify = "DMARC record shows adkim=s."
+        };
+
+        map[DmarcCodes.AlignmentStrictSpf] = new RecommendationAdvice {
+            Code = DmarcCodes.AlignmentStrictSpf,
+            Title = "Strict SPF alignment enforced",
+            Why = "aspf=s requires the MAIL FROM domain to exactly match the From domain.",
+            How = "Keep aspf=s and align envelope-from with the From domain.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "alignment" },
+            Impact = "Ensures SPF-authenticated mail uses the same domain as From.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/overview/" },
+            Verify = "DMARC record shows aspf=s."
+        };
+
+        map[DmarcCodes.RuaPresent] = new RecommendationAdvice {
+            Code = DmarcCodes.RuaPresent,
+            Title = "Aggregate reporting address configured",
+            Why = "rua= receives aggregate DMARC reports for visibility.",
+            How = "Monitor the rua mailbox and adjust addresses as needed.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "reporting" },
+            Impact = "Enables visibility into overall DMARC performance.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains a rua=mailto: address."
+        };
+
+        map[DmarcCodes.RufPresent] = new RecommendationAdvice {
+            Code = DmarcCodes.RufPresent,
+            Title = "Forensic reporting address configured",
+            Why = "ruf= receives detailed failure reports for investigation.",
+            How = "Monitor the ruf mailbox and handle sensitive data appropriately.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "reporting" },
+            Impact = "Provides granular insight into individual DMARC failures.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains a ruf=mailto: address."
+        };
+
+        map[DmarcCodes.Percent100] = new RecommendationAdvice {
+            Code = DmarcCodes.Percent100,
+            Title = "DMARC applies to 100% of mail",
+            Why = "pct=100 enforces policy for every message, maximizing protection.",
+            How = "Keep pct=100 or omit the pct tag to apply the policy to all mail.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "policy" },
+            Impact = "All messages are subject to the configured DMARC policy.",
+            Effort = RecommendationEffort.Low,
+            Links = new [] { "https://dmarc.org/resources/" },
+            Verify = "DMARC record contains pct=100 or omits pct (default 100)."
+        };
     }
 }

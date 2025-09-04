@@ -8,4 +8,5 @@ internal static class ThreatIntelCodes {
     public const string AbuseIpdbQueryFailed = "THREAT.AbuseIPDB.QueryFailed";
     public const string UrlHausQueryFailed = "THREAT.UrlHaus.QueryFailed";
     public const string OpenPhishQueryFailed = "THREAT.OpenPhish.QueryFailed";
+    public const string NoListings = "THREAT.Success.NoListings";
 }

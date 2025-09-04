@@ -186,6 +186,14 @@ namespace DomainDetective {
                 }
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
+                if (analysis.ValidDANERecord)
+                {
+                    logger?.WriteInformationCode(DaneCodes.RecordValid, $"TLSA record valid for {record.Name}");
+                    if (analysis.ValidCertificateAssociationData && analysis.CorrectLengthOfCertificateAssociationData)
+                    {
+                        logger?.WriteInformationCode(DaneCodes.CertificateMatches, $"TLSA certificate association data valid for {record.Name}");
+                    }
+                }
 
                 // Add the analysis to the results
                 AnalysisResults.Add(analysis);

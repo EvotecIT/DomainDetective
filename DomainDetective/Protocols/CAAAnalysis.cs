@@ -312,6 +312,14 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             CanIssueWildcardCertificatesForDomain = wildcardIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             CanIssueMail = mailIssuers.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             ReportViolationEmail = emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (Valid && AnalysisResults.Count > 0) {
+                logger?.WriteInformationCode(CaaCodes.RecordPresent, $"CAA record present with {AnalysisResults.Count} record(s)");
+            }
+
+            if (ReportViolationEmail.Count > 0) {
+                logger?.WriteInformationCode(CaaCodes.IodefPresent, $"CAA reporting endpoint(s) configured: {ReportViolationEmail.Count}");
+            }
         }
 
         /// <summary>

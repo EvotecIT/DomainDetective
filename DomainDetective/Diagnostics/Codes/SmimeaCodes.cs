@@ -9,4 +9,6 @@ internal static class SmimeaCodes {
     public const string MatchingTypeNotNumeric = "SMIMEA.MatchingType.NotNumeric";
     public const string MatchingTypeInvalid = "SMIMEA.MatchingType.Invalid";
     public const string NoRecords = "SMIMEA.Records.Missing";
+    public const string RecordPresent = "SMIMEA.Record.Present";
+    public const string CertificateValid = "SMIMEA.Certificate.Valid";
 }
