@@ -96,6 +96,30 @@ internal sealed class DaneRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "Re-test STARTTLS; handshake negotiates TLS1.2+ with valid hostname and chain."
         };
+
+        map[DaneCodes.RecordValid] = new RecommendationAdvice {
+            Code = DaneCodes.RecordValid,
+            Title = "Valid TLSA record published",
+            Why = "A well-formed TLSA record enables certificate pinning via DNSSEC.",
+            How = "Maintain accurate TLSA records for relevant services and keep them DNSSEC-signed.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "dane", "tlsa" },
+            Impact = "Strengthens TLS authenticity through DANE.",
+            Effort = RecommendationEffort.Low,
+            Verify = "dig _25._tcp.example.com TLSA and confirm fields match expectations."
+        };
+
+        map[DaneCodes.CertificateMatches] = new RecommendationAdvice {
+            Code = DaneCodes.CertificateMatches,
+            Title = "TLSA hash matches certificate",
+            Why = "Matching association data confirms the service presents the expected certificate.",
+            How = "Synchronize TLS certificates with published TLSA records whenever rotating keys.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "dane", "tlsa", "cert" },
+            Impact = "Reduces risk of man-in-the-middle by pinning certificates.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Compare server certificate fingerprint with TLSA record."
+        };
     }
 }
 

@@ -13,6 +13,7 @@ public static partial class Program {
         await healthCheck.CheckDMARC(dmarcRecord);
         //ShowProperties("DMARC for EXAMPLE1 " + dmarcRecord, healthCheck.DmarcAnalysis);
         Helpers.ShowPropertiesTable("DMARC for string ", healthCheck.DmarcAnalysis);
+        Helpers.ShowPropertiesTable("DMARC recommendations", healthCheck.GetRecommendations());
     }
     /// <summary>
     /// Example performing DMARC analysis by querying a domain.
@@ -23,6 +24,7 @@ public static partial class Program {
         await healthCheck.Verify("xn--bcher-kva.ch", [HealthCheckType.DMARC]);
         //ShowProperties("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
         Helpers.ShowPropertiesTable("DMARC for bücher.ch ", healthCheck.DmarcAnalysis);
+        Helpers.ShowPropertiesTable("DMARC recommendations", healthCheck.GetRecommendations());
     }
 
     /// <summary>
@@ -33,5 +35,6 @@ public static partial class Program {
         var healthCheck = new DomainHealthCheck();
         await healthCheck.CheckDMARC(record);
         Helpers.ShowPropertiesTable("DMARCbis example", healthCheck.DmarcAnalysis);
+        Helpers.ShowPropertiesTable("DMARC recommendations", healthCheck.GetRecommendations());
     }
 }

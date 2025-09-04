@@ -9,6 +9,8 @@ public static partial class Program {
         await healthCheck.Verify("github.com", [HealthCheckType.SPF]);
         //ShowProperties("Domain analysis of github.com", healthCheck.SpfAnalysis);
         Helpers.ShowPropertiesTable("Domain analysis of github.com", healthCheck.SpfAnalysis);
+        var positives = RecommendationEngine.FromPositives(healthCheck.SpfAnalysis.Assessments);
+        Helpers.ShowPropertiesTable("Positive SPF posture for github.com", positives);
 
         var healthCheck3 = new DomainHealthCheck();
         await healthCheck3.Verify("microsoft.com", [HealthCheckType.SPF]);
@@ -34,6 +36,8 @@ public static partial class Program {
         await healthCheck4.CheckSPF(spfRecord1);
         //ShowProperties("SPF for EVOTEC.PL " + spfRecord1, healthCheck4.SpfAnalysis);
         Helpers.ShowPropertiesTable("SPF for EVOTEC.PL " + spfRecord1, healthCheck4.SpfAnalysis);
+        var positivesString = RecommendationEngine.FromPositives(healthCheck4.SpfAnalysis.Assessments);
+        Helpers.ShowPropertiesTable("Positive SPF posture for EVOTEC.PL", positivesString);
 
         var spfRecord2 = "v=spf1 ip4:207.68.169.173/30 ip4:207.68.176.1/26 ip4:207.46.132.129/27 ip4:207.68.176.97/27 ip4:65.55.238.129/26 ip4:207.46.222.193/26 ip4:207.46.116.135/29 ip4:65.55.178.129/27 ip4:213.199.161.129/27 ip4:65.55.33.70/28 ~all";
         var healthCheck5 = new DomainHealthCheck();

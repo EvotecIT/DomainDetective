@@ -226,5 +226,42 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Record contains minimal or no 'exists:' tokens."
         };
+
+        // Presence/positive signals
+        map[SpfCodes.IncludeChainValid] = new RecommendationAdvice {
+            Code = SpfCodes.IncludeChainValid,
+            Title = "SPF include chain resolves cleanly",
+            Why = "All include/redirect mechanisms resolved without loops, ensuring dependable policy evaluation.",
+            How = "Keep third-party include targets stable and monitor for DNS changes or deprecations.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "dns" },
+            Impact = "Improves reliability of SPF processing.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Include and redirect lookups succeed with no cycles."
+        };
+
+        map[SpfCodes.LookupsWithinLimit] = new RecommendationAdvice {
+            Code = SpfCodes.LookupsWithinLimit,
+            Title = "SPF DNS lookups within limit",
+            Why = "Staying under the 10-lookup cap avoids permerrors and speeds evaluation.",
+            How = "Continue using flattened includes and consolidated mechanisms to keep lookups minimal.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "dns" },
+            Impact = "Ensures receivers can evaluate the record efficiently.",
+            Effort = RecommendationEffort.Low,
+            Verify = "DNS lookups remain under 10."
+        };
+
+        map[SpfCodes.AllEnforced] = new RecommendationAdvice {
+            Code = SpfCodes.AllEnforced,
+            Title = "SPF policy aligned and enforced",
+            Why = "A terminating '-all' rejects unauthorized senders and aligns with strict DMARC policy.",
+            How = "Maintain '-all' after confirming all legitimate sources are authorized.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "policy" },
+            Impact = "Reduces spoofing and supports DMARC alignment.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Record ends with '-all' and passes DMARC alignment tests."
+        };
     }
 }

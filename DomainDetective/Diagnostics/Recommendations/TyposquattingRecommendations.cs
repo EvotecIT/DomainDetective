@@ -27,6 +27,30 @@ internal sealed class TyposquattingRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.High,
             Verify = "Confirm control or takedown of the variant domain."
         };
+
+        map[TyposquattingCodes.VariantNone] = new RecommendationAdvice {
+            Code = TyposquattingCodes.VariantNone,
+            Title = "No active typosquat variants detected",
+            Why = "No look-alike domains resolved in DNS during analysis.",
+            How = "Continue monitoring for new registrations and maintain defensive strategy.",
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "typosquat" },
+            Impact = "Low current risk from typosquatting.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Run periodic scans for emerging variants."
+        };
+
+        map[TyposquattingCodes.DefensiveRegistered] = new RecommendationAdvice {
+            Code = TyposquattingCodes.DefensiveRegistered,
+            Title = "Defensive typosquat domains registered",
+            Why = "Registered variants reduce the chance of malicious use by third parties.",
+            How = "Maintain control and renew these domains as part of brand protection.",
+            Domain = RecommendationDomain.Branding,
+            Tags = new [] { "typosquat", "defensive" },
+            Impact = "Helps prevent brand abuse.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Ensure the domains remain under your ownership."
+        };
     }
 }
 

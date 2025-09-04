@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using DomainDetective.Narratives;
 
 namespace DomainDetective.Example;
 
@@ -18,5 +19,8 @@ public static partial class Program
                 Console.WriteLine($"{kvp.Key}: {string.Join(", ", kvp.Value)}");
             }
         }
+        var narrative = RobotsTxtNarrative.Build(healthCheck.RobotsTxtAnalysis, healthCheck.RobotsTxtAnalysis.Assessments);
+        Console.WriteLine(narrative.Title);
+        foreach (var h in narrative.Highlights) Console.WriteLine(" - " + h);
     }
 }
