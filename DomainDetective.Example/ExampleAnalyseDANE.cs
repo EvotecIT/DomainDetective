@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using DomainDetective.Narratives;
 
 namespace DomainDetective.Example;
 
@@ -12,6 +13,9 @@ public static partial class Program {
         await healthCheck.CheckDANE(daneRecord);
         Helpers.ShowPropertiesTable(analysisOf: "DANE Example by String", objs: healthCheck.DaneAnalysis);
         Helpers.ShowPropertiesTable(analysisOf: "DANE Example by String", objs: healthCheck.DaneAnalysis.AnalysisResults);
+        var narrative = DaneNarrative.Build(healthCheck.DaneAnalysis, healthCheck.DaneAnalysis.Assessments);
+        System.Console.WriteLine(narrative.Title);
+        foreach (var h in narrative.Highlights) System.Console.WriteLine(" - " + h);
     }
 
     public static async Task ExampleAnalyseByDomainDANE() {
