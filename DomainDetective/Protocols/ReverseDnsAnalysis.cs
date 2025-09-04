@@ -142,6 +142,7 @@ namespace DomainDetective {
                     result.PtrRecords.AddRange(ptrs);
 
                     if (ptrs.Count > 0) {
+                        logger?.WriteInformationCode(ReverseDnsCodes.PtrRecordPresent, "PTR record present for {0}", ip);
                         foreach (var p in ptrs) {
                             var name = p.Trim().TrimEnd('.').ToLowerInvariant();
                             var fwdA = await QueryDns(name, DnsRecordType.A);
@@ -151,7 +152,12 @@ namespace DomainDetective {
                                 break;
                             }
                         }
-                        if (!result.FcrDnsValid) {
+                        if (result.IsValid) {
+                            logger?.WriteInformationCode(ReverseDnsCodes.PtrMatchesMx, "PTR {0} matches MX host {1}", ptr, host);
+                        }
+                        if (result.FcrDnsValid) {
+                            logger?.WriteInformationCode(ReverseDnsCodes.ForwardConfirmed, "PTR {0} resolves back to {1}", string.Join(", ", ptrs), ip);
+                        } else {
                             logger?.WriteWarningCode(ReverseDnsCodes.ForwardMismatch, "PTR {0} does not map back to {1}", string.Join(", ", ptrs), ip);
                         }
 

@@ -43,5 +43,35 @@ internal sealed class ReverseDnsRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "ptr", "cloud" }
         };
+
+        map[ReverseDnsCodes.PtrRecordPresent] = new RecommendationAdvice {
+            Code = ReverseDnsCodes.PtrRecordPresent,
+            Title = "PTR record present",
+            Why = "Reverse DNS entries assist with logging and reputation checks.",
+            How = "Maintain PTR records for all outbound IP addresses.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc1912#section-2.1" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ptr" }
+        };
+
+        map[ReverseDnsCodes.PtrMatchesMx] = new RecommendationAdvice {
+            Code = ReverseDnsCodes.PtrMatchesMx,
+            Title = "PTR aligns with MX host",
+            Why = "Matching PTR and MX names reduce spam scores and improve deliverability.",
+            How = "Ensure PTR hostnames mirror the mail server's hostname.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ptr", "mx" }
+        };
+
+        map[ReverseDnsCodes.ForwardConfirmed] = new RecommendationAdvice {
+            Code = ReverseDnsCodes.ForwardConfirmed,
+            Title = "PTR forward-confirmed",
+            Why = "Forward-confirmed reverse DNS assures the hostname resolves back to the original IP.",
+            How = "Publish A/AAAA records for the PTR hostname pointing to the originating IP.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc1912#section-2.1" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ptr", "fcrdns" }
+        };
     }
 }
