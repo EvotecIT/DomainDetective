@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DomainDetective;
 
@@ -31,32 +32,32 @@ public static class ArcNarrative
         var intro = "Authenticated Received Chain (ARC) preserves authentication results through intermediaries.";
         var why = "Valid ARC chains allow receivers to trust authentication results even after forwarding.";
 
-        var hi = new List<string>();
-        var det = new List<string>();
+        var highlights = new List<string>();
+        var details = new List<string>();
         var positives = new List<string>();
         var remediations = new List<string>();
 
-        hi.Add(arc.ArcHeadersFound ? "ARC headers present." : "No ARC headers present.");
+        highlights.Add(arc.ArcHeadersFound ? "ARC headers present." : "No ARC headers present.");
         if (arc.ChainState == ArcChainState.Valid)
         {
-            hi.Add("ARC chain is valid and sequential.");
+            highlights.Add("ARC chain is valid and sequential.");
         }
         else if (arc.ChainState == ArcChainState.Invalid)
         {
-            hi.Add("ARC chain is invalid or incomplete.");
+            highlights.Add("ARC chain is invalid or incomplete.");
         }
         else
         {
-            hi.Add("ARC chain missing.");
+            highlights.Add("ARC chain missing.");
         }
 
-        if (arc.ValidChain)
+        if (arc.SealsIncludeSignatures)
         {
-            hi.Add("ARC seals include signatures.");
+            highlights.Add("ARC seals include signatures.");
         }
 
-        det.Add($"ARC-Seal headers: {arc.ArcSealHeaders.Count}");
-        det.Add($"ARC-Authentication-Results headers: {arc.ArcAuthenticationResultsHeaders.Count}");
+        details.Add($"ARC-Seal headers: {arc.ArcSealHeaders.Count}");
+        details.Add($"ARC-Authentication-Results headers: {arc.ArcAuthenticationResultsHeaders.Count}");
 
         var refs = new List<string>
         {
@@ -67,7 +68,10 @@ public static class ArcNarrative
         {
             AssessmentSplit.SplitTitles(arc.Assessments ?? new List<Assessment>(), out positives, out remediations);
         }
-        catch { }
+        catch (Exception)
+        {
+            // Assessment splitting is best effort; narrative should still render even if it fails.
+        }
 
         return new Sections
         {
@@ -78,8 +82,8 @@ public static class ArcNarrative
             Creator = creator,
             Introduction = intro,
             WhyItMatters = why,
-            Highlights = hi,
-            Details = det,
+            Highlights = highlights,
+            Details = details,
             References = refs,
             Positives = positives,
             Remediations = remediations

@@ -25,6 +25,8 @@ namespace DomainDetective {
         public bool ArcHeadersFound { get; private set; }
         /// <summary>Indicates whether the ARC chain is sequential and complete.</summary>
         public bool ValidChain { get; private set; }
+        /// <summary>True when all ARC-Seal headers include signatures.</summary>
+        public bool SealsIncludeSignatures { get; private set; }
         /// <summary>Overall status of the ARC chain.</summary>
         public ArcChainState ChainState { get; private set; } = ArcChainState.Missing;
 
@@ -34,6 +36,7 @@ namespace DomainDetective {
             ArcAuthenticationResultsHeaders.Clear();
             ArcHeadersFound = false;
             ValidChain = false;
+            SealsIncludeSignatures = false;
             ChainState = ArcChainState.Missing;
         }
 
@@ -89,8 +92,10 @@ namespace DomainDetective {
             var sealSequence = new List<int>();
             var aarSequence = new List<int>();
 
+            SealsIncludeSignatures = ArcSealHeaders.Count > 0;
             foreach (var seal in ArcSealHeaders) {
                 if (!HasSignature(seal)) {
+                    SealsIncludeSignatures = false;
                     ValidChain = false;
                     ChainState = ArcChainState.Invalid;
                     return;
@@ -146,8 +151,10 @@ namespace DomainDetective {
 
             ValidChain = true;
             ChainState = ArcChainState.Valid;
-            logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals include signatures");
-            logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC chain validated");
+            if (_collector != null) {
+                logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals include signatures");
+                logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC chain validated");
+            }
         }
 
         private static int? ParseInstance(string value) {
