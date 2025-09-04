@@ -54,7 +54,9 @@ namespace DomainDetective.Tests {
         var leafReq = new CertificateRequest("CN=example", leafKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         leafReq.CertificateExtensions.Add(new X509Extension("1.3.6.1.5.5.7.1.12", Encoding.ASCII.GetBytes("image/svg+xml"), false));
         var serial = new byte[8];
-        RandomNumberGenerator.Fill(serial);
+        using (var rng = RandomNumberGenerator.Create()) {
+            rng.GetBytes(serial);
+        }
         var leafCert = leafReq.Create(root, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30), serial);
         return new X509Certificate2(leafCert.Export(X509ContentType.Pfx));
     }
