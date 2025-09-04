@@ -30,6 +30,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
     {
         Subject = domainName;
         Alerts = new List<DnsTunnelingAlert>();
+        Assessments.Clear();
         var queue = new Queue<DateTimeOffset>();
         if (logLines == null)
         {
@@ -93,6 +94,18 @@ public class DnsTunnelingAnalysis : IHasAssessments
                     queue.Clear();
                 }
             }
+        }
+
+        if (Alerts.Count == 0)
+        {
+            Assessments.Add(new Assessment
+            {
+                Severity = AssessmentSeverity.Info,
+                Category = "DnsTunneling",
+                Target = domainName,
+                Code = DnsTunnelingCodes.NoIndicators,
+                Message = "No tunneling indicators found in DNS logs",
+            });
         }
     }
 
