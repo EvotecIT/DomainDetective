@@ -15,6 +15,30 @@ internal sealed class ArcRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Re-parse headers and confirm a valid sequential ARC chain."
         };
+
+        map[ArcCodes.ChainValid] = new RecommendationAdvice {
+            Code = ArcCodes.ChainValid,
+            Title = "ARC chain validated",
+            Why = "A complete, sequential ARC chain preserves authentication results across forwarding hops.",
+            How = "No action needed. Continue signing and validating ARC headers for forwarded mail.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "arc" },
+            Impact = "Receivers can trust the original authentication context.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Use ARC validation tools to confirm chain integrity."
+        };
+
+        map[ArcCodes.SealsIntact] = new RecommendationAdvice {
+            Code = ArcCodes.SealsIntact,
+            Title = "ARC seals include signatures",
+            Why = "Signed ARC-Seal headers ensure each intermediary's contribution is tamper-evident.",
+            How = "Maintain ARC signing so every hop seals messages with a valid signature.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "arc", "seal" },
+            Impact = "Improves trust in messages handled by intermediaries.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Inspect ARC-Seal headers for non-empty b= signatures."
+        };
     }
 }
 
