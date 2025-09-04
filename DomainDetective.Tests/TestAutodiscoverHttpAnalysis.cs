@@ -28,7 +28,7 @@ public class TestAutodiscoverHttpAnalysis {
         Assert.Equal(AutodiscoverMethod.AutodiscoverSubdomainHttps, result.Method);
         Assert.Equal(200, result.StatusCode);
         Assert.True(result.XmlValid);
-        Assert.Contains("https://example.com/autodiscover/autodiscover.xml", result.RedirectChain);
+        Assert.Contains("https://example.com/autodiscover/autodiscover.xml", result.RedirectChain!);
     }
 
     [Fact]

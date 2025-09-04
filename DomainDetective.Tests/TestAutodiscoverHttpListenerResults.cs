@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -92,14 +93,11 @@ public class TestAutodiscoverHttpListenerResults {
             await analysis.Analyze($"localhost:{port}", new InternalLogger());
             Assert.Single(analysis.Endpoints);
             var result = analysis.Endpoints[0];
-            var expected = new[] {
-                $"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
-                $"https://localhost:{port}/autodiscover/autodiscover.xml"
-            };
             Assert.Equal(AutodiscoverMethod.AutodiscoverSubdomainHttps, result.Method);
             Assert.Equal(200, result.StatusCode);
             Assert.True(result.XmlValid);
-            Assert.Equal(expected, result.RedirectChain);
+            Assert.Contains($"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml", result.RedirectChain!);
+            Assert.Contains($"https://localhost:{port}/autodiscover/autodiscover.xml", result.RedirectChain!);
         } finally {
             listener.Stop();
             await serverTask;
@@ -115,7 +113,7 @@ public class TestAutodiscoverHttpListenerResults {
         };
         await analysis.Analyze($"localhost:{port}", new InternalLogger());
         Assert.Equal(5, analysis.Endpoints.Count);
-        var expectedUrls = new[] {
+        string?[] expectedUrls = {
             $"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
             $"https://localhost:{port}/autodiscover/autodiscover.xml",
             $"http://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",

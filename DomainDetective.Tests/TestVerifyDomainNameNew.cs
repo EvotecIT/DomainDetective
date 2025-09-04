@@ -11,7 +11,7 @@ namespace DomainDetective.Tests {
         public async Task VerifyDmarcThrowsIfDomainNullOrWhitespace(string? domain) {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await healthCheck.VerifyDMARC(domain));
+                await healthCheck.VerifyDMARC(domain!));
         }
     }
 }

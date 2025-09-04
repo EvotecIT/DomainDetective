@@ -42,7 +42,7 @@ namespace DomainDetective.Tests {
         public async Task VerifyPlainHttpThrowsIfDomainNullOrWhitespace(string? domain) {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await healthCheck.VerifyPlainHttp(domain));
+                await healthCheck.VerifyPlainHttp(domain!));
         }
 
         [Theory]

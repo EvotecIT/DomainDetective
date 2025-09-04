@@ -22,7 +22,7 @@ public class TestDirectoryExposureAnalysis
             while (listener.IsListening)
             {
                 var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url.AbsolutePath.StartsWith("/.git"))
+                if (ctx.Request.Url?.AbsolutePath.StartsWith("/.git") == true)
                 {
                     ctx.Response.StatusCode = 200;
                 }

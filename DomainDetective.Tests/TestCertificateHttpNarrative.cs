@@ -67,7 +67,7 @@ public class TestCertificateHttpNarrative {
             Url = "https://nocert.example",
             IsReachable = true,
             IsValid = true,
-            Certificate = null
+            Certificate = null!
         };
 
         var sections = CertificateHttpNarrative.Build(analysis, new List<Assessment>());
@@ -86,7 +86,7 @@ public class TestCertificateHttpNarrative {
 
         var sections = CertificateHttpNarrative.Build(analysis, analysis.Assessments);
         Assert.Equal(200, analysis.Assessments.Count);
-        Assert.Equal(1, sections.Positives.Count);
-        Assert.Equal(1, sections.Remediations.Count);
+        Assert.Single(sections.Positives);
+        Assert.Single(sections.Remediations);
     }
 }

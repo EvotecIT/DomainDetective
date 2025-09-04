@@ -27,7 +27,9 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task AnalysisWithoutDsRecordsSetsDsMatchFalse() {
             var analysis = new DnsSecAnalysis();
-            await analysis.Analyze("cisco.com", null);
+            await analysis.Analyze("cisco.com", null!);
             Assert.False(analysis.DsMatch);
             Assert.Empty(analysis.DsRecords);
-        }    }}
+        }
+    }
+}

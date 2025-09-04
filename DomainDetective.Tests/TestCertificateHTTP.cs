@@ -176,10 +176,10 @@ namespace DomainDetective.Tests {
                         using var reader = new StreamReader(ssl);
                         using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
                         await reader.ReadLineAsync();
-                        string line;
-                        do {
-                            line = await reader.ReadLineAsync();
-                        } while (!string.IsNullOrEmpty(line));
+                          string? line;
+                          do {
+                              line = await reader.ReadLineAsync();
+                          } while (!string.IsNullOrEmpty(line));
                         await writer.WriteLineAsync("HTTP/1.1 200 OK");
                         await writer.WriteLineAsync("Content-Length: 0");
                         await writer.WriteLineAsync();

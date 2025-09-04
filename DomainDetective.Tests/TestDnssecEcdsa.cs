@@ -13,8 +13,8 @@ namespace DomainDetective.Tests {
             byte[] sig = EnsureP1363(rawSig, 32);
             ECParameters p = ecdsa.ExportParameters(false);
             byte[] pub = new byte[64];
-            Buffer.BlockCopy(p.Q.X, 0, pub, 0, 32);
-            Buffer.BlockCopy(p.Q.Y, 0, pub, 32, 32);
+            Buffer.BlockCopy(p.Q.X!, 0, pub, 0, 32);
+            Buffer.BlockCopy(p.Q.Y!, 0, pub, 32, 32);
             string key = Convert.ToBase64String(pub);
             string sigBase64 = Convert.ToBase64String(sig);
             var method = typeof(DnsSecAnalysis).GetMethod("VerifyEcdsaSignature", BindingFlags.NonPublic | BindingFlags.Static)!;
@@ -30,8 +30,8 @@ namespace DomainDetective.Tests {
             byte[] sig = EnsureP1363(rawSig, 48);
             ECParameters p = ecdsa.ExportParameters(false);
             byte[] pub = new byte[96];
-            Buffer.BlockCopy(p.Q.X, 0, pub, 0, 48);
-            Buffer.BlockCopy(p.Q.Y, 0, pub, 48, 48);
+            Buffer.BlockCopy(p.Q.X!, 0, pub, 0, 48);
+            Buffer.BlockCopy(p.Q.Y!, 0, pub, 48, 48);
             string key = Convert.ToBase64String(pub);
             string sigBase64 = Convert.ToBase64String(sig);
             var method = typeof(DnsSecAnalysis).GetMethod("VerifyEcdsaSignature", BindingFlags.NonPublic | BindingFlags.Static)!;

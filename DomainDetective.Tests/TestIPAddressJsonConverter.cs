@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace DomainDetective.Tests {
     public class TestIPAddressJsonConverter {
         private class Dummy {
-            public IPAddress Address { get; set; }
+            public IPAddress Address { get; set; } = IPAddress.None;
         }
 
         [Fact]

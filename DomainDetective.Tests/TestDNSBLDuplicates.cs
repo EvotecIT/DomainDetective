@@ -8,7 +8,8 @@ namespace DomainDetective.Tests {
         [Fact]
         public void ConvertToResultsReplacesExistingEntry() {
             var analysis = new DNSBLAnalysis();
-            var method = typeof(DNSBLAnalysis).GetMethod("ConvertToResults", BindingFlags.NonPublic | BindingFlags.Instance);
+            var method = typeof(DNSBLAnalysis).GetMethod("ConvertToResults", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?? throw new InvalidOperationException("ConvertToResults not found");
             var first = new[] { new DNSBLRecord { Query = "1.2.3.4", FQDN = "1.2.3.4.test", BlackList = "first", IsBlackListed = true, Answer = "127.0.0.2" } };
             method.Invoke(analysis, new object[] { "1.2.3.4", first });
             var second = new[] { new DNSBLRecord { Query = "1.2.3.4", FQDN = "1.2.3.4.test2", BlackList = "second", IsBlackListed = false, Answer = string.Empty } };

@@ -22,7 +22,7 @@ public class TestMtaStsNarrative
         const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
         var serverTask = Task.Run(async () => {
             var ctx = await listener.GetContextAsync();
-            if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+            if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                 var data = Encoding.UTF8.GetBytes(policy);
                 ctx.Response.StatusCode = 200;
                 await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
@@ -53,7 +53,7 @@ public class TestMtaStsNarrative
     [Fact]
     public void HandlesNullAnalysis()
     {
-        var sections = MtaStsNarrative.Build(null);
+        var sections = MtaStsNarrative.Build(null!);
         Assert.Contains("No MTA-STS data available", sections.Highlights[0]);
         Assert.Empty(sections.Positives);
     }

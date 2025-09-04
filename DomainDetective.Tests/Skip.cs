@@ -10,7 +10,7 @@ public static class Skip
     {
         if (condition)
         {
-            throw Xunit.Sdk.SkipException.ForSkip(reason);
+            throw Xunit.Sdk.SkipException.ForSkip(reason ?? string.Empty);
         }
     }
 
@@ -21,7 +21,7 @@ public static class Skip
     {
         if (!condition)
         {
-            throw Xunit.Sdk.SkipException.ForSkip(reason);
+            throw Xunit.Sdk.SkipException.ForSkip(reason ?? string.Empty);
         }
     }
 }

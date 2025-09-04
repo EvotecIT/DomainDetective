@@ -188,7 +188,7 @@ namespace DomainDetective.Tests {
                 new DnsPropagationResult {
                     Server = new PublicDnsEntry { IPAddress = IPAddress.Parse("1.1.1.1") },
                     RecordType = DnsRecordType.A,
-                    Records = null,
+                    Records = null!,
                     Success = true
                 }
             };

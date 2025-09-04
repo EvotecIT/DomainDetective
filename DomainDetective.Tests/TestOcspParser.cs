@@ -51,7 +51,7 @@ public class TestOcspParser {
         var sigFactory = new Asn1SignatureFactory("SHA256WITHRSA", keyPair.Private);
         X509Certificate cert = certGen.Generate(sigFactory);
 
-        var id = new CertificateID(CertificateID.HashSha1, cert, serial);
+        var id = new CertificateID(CertificateID.DigestSha1, cert, serial);
         var respGen = new BasicOcspRespGenerator(keyPair.Public);
         respGen.AddResponse(id, status);
         var basic = respGen.Generate(sigFactory, null, DateTime.UtcNow);

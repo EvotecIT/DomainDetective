@@ -44,6 +44,6 @@ public class TestEdnsSupportHealthCheck
     public async Task VerifyEdnsSupportThrowsIfDomainNullOrWhitespace(string? domain)
     {
         var hc = new DomainHealthCheck();
-        await Assert.ThrowsAsync<ArgumentNullException>(async () => await hc.VerifyEdnsSupport(domain));
+        await Assert.ThrowsAsync<ArgumentNullException>(async () => await hc.VerifyEdnsSupport(domain!));
     }
 }
