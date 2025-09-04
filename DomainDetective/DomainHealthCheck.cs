@@ -423,6 +423,9 @@ namespace DomainDetective {
                 DnsConfiguration = DnsConfiguration
             };
 
+            // Ensure DKIM analysis can perform auxiliary DNS lookups (CNAME for provider mapping)
+            DKIMAnalysis.DnsConfiguration = DnsConfiguration;
+
             PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
             PortScanAnalysis = new PortScanAnalysis();
             SnmpAnalysis = new SnmpAnalysis();

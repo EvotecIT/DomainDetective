@@ -20,6 +20,8 @@ namespace DomainDetective {
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
     public class DkimAnalysis : IHasAssessments {
+        /// <summary>DNS configuration used for auxiliary lookups (e.g., CNAME for provider mapping).</summary>
+        public DnsConfiguration? DnsConfiguration { get; set; }
         public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
@@ -346,6 +348,27 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.SelectorAligned, "All DKIM selectors are aligned");
             }
 
+            // Provider mapping via CNAME target when available
+            try
+            {
+                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
+                {
+                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
+                    if (cname != null && cname.Length > 0)
+                    {
+                        var target = cname[0].Data?.Trim('.') ?? string.Empty;
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            analysis.CnameTarget = target;
+                            analysis.Provider = ProviderForDomain(target);
+                        }
+                    }
+                }
+                // If still unknown, try to infer from record name (rare)
+                analysis.Provider ??= ProviderForDomain(analysis.Name);
+            }
+            catch { }
+
             // Key reuse detection across selectors (same fingerprint)
             try {
                 var duplicates = AnalysisResults
@@ -494,5 +517,41 @@ namespace DomainDetective {
         public bool OldKey { get; set; }
         /// <summary>SHA-256 fingerprint of the DKIM public key (DER bytes).</summary>
         public string? KeyFingerprint { get; set; }
+        /// <summary>Provider inferred from CNAME target or name suffix (best-effort).</summary>
+        public string? Provider { get; set; }
+        /// <summary>Resolved CNAME target (when present).</summary>
+        public string? CnameTarget { get; set; }
+    }
+
+    internal static partial class DKIMProviders
+    {
+        private static readonly (string Suffix, string Provider)[] _providerSuffixes = new (string, string)[]
+        {
+            ("amazonses.com", "Amazon SES"),
+            ("sendgrid.net", "SendGrid"),
+            ("sparkpostmail.com", "SparkPost"),
+            ("mandrillapp.com", "Mailchimp/Mandrill"),
+            ("mailgun.org", "Mailgun"),
+            ("pphosted.com", "Proofpoint"),
+            ("mimecast.com", "Mimecast"),
+            ("google.com", "Google Workspace"),
+            ("googlemail.com", "Google Workspace"),
+            ("outlook.com", "Microsoft 365"),
+            ("protection.outlook.com", "Microsoft 365"),
+            ("exclaimer.net", "Exclaimer"),
+            ("cust.barracudanetworks.com", "Barracuda"),
+            ("bnc3.mailjet.com", "Mailjet")
+        };
+
+        public static string? ProviderForDomain(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var d = name.Trim('.');
+            foreach (var (suffix, provider) in _providerSuffixes)
+            {
+                if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return provider;
+            }
+            return null;
+        }
     }
 }

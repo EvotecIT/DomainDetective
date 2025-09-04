@@ -88,6 +88,12 @@ public class WhoisAnalysis : IHasAssessments {
     public string RegistrarAbuseEmail { get; set; }
     public string RegistrarAbusePhone { get; set; }
     public string WhoisData { get; set; }
+    /// <summary>When true, follows Registrar WHOIS referrals for gTLDs when available.</summary>
+    public bool FollowReferral { get; set; } = false;
+    /// <summary>Maximum referral depth when <see cref="FollowReferral"/> is enabled.</summary>
+    public int MaxReferralDepth { get; set; } = 2;
+    /// <summary>WHOIS servers visited via referral (in order).</summary>
+    public List<string> ReferralChain { get; private set; } = new List<string>();
     public bool ExpiresSoon { get; private set; }
     public bool IsExpired { get; private set; }
     public int? DaysUntilExpiration { get; private set; }
@@ -138,6 +144,15 @@ public class WhoisAnalysis : IHasAssessments {
 
     private static readonly Regex _whoisServerRegex = new(
         "whois:\\s*([A-Za-z0-9:._-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex _referralServerRegex1 = new(
+        "Registrar\\s+WHOIS\\s+Server:\\s*([A-Za-z0-9:._-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex _referralServerRegex2 = new(
+        "Whois\\s+Server:\\s*([A-Za-z0-9:._-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex _referralServerRegex3 = new(
+        "ReferralServer:\\s*whois://([A-Za-z0-9:._-]+)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     private void SetExpiryDate(string value) {
@@ -603,6 +618,12 @@ public class WhoisAnalysis : IHasAssessments {
             }
             NormalizeExpiryDateInData();
             _logger?.WriteVerbose("WHOIS received {0} bytes; Registrar='{1}', Expiry='{2}'", responseBytes.Length, Registrar, ExpiryDate);
+
+            // Follow registrar referrals when enabled
+            if (FollowReferral && MaxReferralDepth > 0)
+            {
+                await FollowRegistrarReferralAsync(domain, response, whoisServer, timeoutCts.Token).ConfigureAwait(false);
+            }
         } catch (Exception ex) {
             _logger.WriteErrorCode(
                 WhoisCodes.QueryFailed,
@@ -610,6 +631,98 @@ public class WhoisAnalysis : IHasAssessments {
                 whoisServer,
                 domain,
                 ex.Message);
+        }
+    }
+
+    private string? ExtractReferralServer(string response)
+    {
+        var m1 = _referralServerRegex1.Match(response);
+        if (m1.Success) return m1.Groups[1].Value.Trim();
+        var m2 = _referralServerRegex2.Match(response);
+        if (m2.Success) return m2.Groups[1].Value.Trim();
+        var m3 = _referralServerRegex3.Match(response);
+        if (m3.Success) return m3.Groups[1].Value.Trim();
+        return null;
+    }
+
+    private async Task FollowRegistrarReferralAsync(string domain, string initialResponse, string initialServer, CancellationToken ct)
+    {
+        string? current = ExtractReferralServer(initialResponse);
+        int depth = 0;
+        while (!string.IsNullOrWhiteSpace(current) && depth < MaxReferralDepth)
+        {
+            depth++;
+            ReferralChain.Add(current);
+            _logger?.WriteVerbose("Following referral to WHOIS server: {0}", current);
+            string? nextResponse = await QueryWhoisRawAsync(current!, domain, ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(nextResponse)) break;
+
+            // Overwrite data with registrar WHOIS details
+            WhoisServerUsed = current;
+            WhoisLookupSource = "Referral";
+            WhoisData = nextResponse;
+            using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: domain))
+            {
+                ParseWhoisData();
+            }
+            NormalizeExpiryDateInData();
+
+            // Check if further referrals exist
+            current = ExtractReferralServer(nextResponse!);
+        }
+    }
+
+    private async Task<string?> QueryWhoisRawAsync(string server, string domain, CancellationToken ct)
+    {
+        try
+        {
+            var serverParts = server.Split(':');
+            var host = serverParts[0];
+            var port = 43;
+            if (serverParts.Length > 1 && int.TryParse(serverParts[1], out var customPort)) port = customPort;
+
+            byte[] responseBytes = Array.Empty<byte>();
+            Exception? lastEx = null;
+            var retries = Math.Max(1, MaxQueryRetries);
+            for (int attempt = 0; attempt < retries; attempt++)
+            {
+                try
+                {
+                    using var tcpClient = new TcpClient();
+#if NET6_0_OR_GREATER
+                    await tcpClient.ConnectAsync(host, port, ct).ConfigureAwait(false);
+#else
+                    await tcpClient.ConnectAsync(host, port).WaitWithCancellation(ct).ConfigureAwait(false);
+#endif
+                    using var networkStream = tcpClient.GetStream();
+                    using (var writer = new StreamWriter(networkStream, Encoding.ASCII, 1024, leaveOpen: true) { NewLine = "\r\n" })
+                    {
+                        await writer.WriteLineAsync(domain).WaitWithCancellation(ct).ConfigureAwait(false);
+                        await writer.FlushAsync().WaitWithCancellation(ct).ConfigureAwait(false);
+                    }
+                    await networkStream.FlushAsync().WaitWithCancellation(ct).ConfigureAwait(false);
+                    using var ms = new MemoryStream();
+                    await networkStream.CopyToAsync(ms, 81920, ct).ConfigureAwait(false);
+                    responseBytes = ms.ToArray();
+                    lastEx = null;
+                    break;
+                }
+                catch (IOException ex) { lastEx = ex; }
+                catch (SocketException ex) { lastEx = ex; }
+                var baseMs = (int)Math.Max(0, RetryBackoffBase.TotalMilliseconds);
+                var jitter = new Random().Next(0, Math.Max(0, RetryJitterMaxMs));
+                var delayMs = baseMs * (int)Math.Pow(2, attempt) + jitter;
+                await Task.Delay(delayMs, ct).ConfigureAwait(false);
+            }
+            if (responseBytes.Length == 0 && lastEx != null) throw lastEx;
+            var text = Encoding.UTF8.GetString(responseBytes);
+            if (text.Contains('\uFFFD')) text = Encoding.GetEncoding("ISO-8859-1").GetString(responseBytes);
+            text = Regex.Replace(text, "\r\n|\n|\r", "\n", RegexOptions.CultureInvariant | RegexOptions.Multiline);
+            return text;
+        }
+        catch
+        {
+            return null;
         }
     }
 

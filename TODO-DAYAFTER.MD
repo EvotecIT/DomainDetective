@@ -28,12 +28,17 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] SPF provenance: Enrich `SpfPartAnalysis` with `SourceDomain`, `Chain` (list) and `Depth`, so each mechanism shows where it came from. Surface in views and HTML as an include tree with provider annotations.
 - [x] TXT TTLs: Extend `DnsTtlAnalysis` to collect and evaluate TTLs for TXT RRsets: apex SPF, `_dmarc`, and discovered DKIM selectors. Include authoritative‑server uniformity for TXT. Thresholds (tunable): SPF/DMARC ≥ 3600; DKIM selectors ≥ 3600; warn on extreme values and non‑uniform TTLs.
 - [x] DMARC aggregate analytics: Expose reporter metadata (org_name/email), parse auth_results/reasons, and add summarizers by reporter, ASN, and country. Keep existing de‑duplication by report_id + date range. (Export formats deferred)
-- [ ] WHOIS referrals: Optionally follow registry referrals to registrar WHOIS for gTLDs. Add `WhoisAnalysis.ReferralChain`, `-FollowReferral`, and `-MaxReferralDepth` (default 2). Respect backoff/limits and annotate `LookupSource=Referral` in the view.
-- [ ] WHOIS UX: Add `-Raw` and `-Fields` switches to the PS cmdlet to emit raw WHOIS text or a slim object of selected fields; surface the same in CLI with `--raw`/`--fields`.
+- [x] WHOIS referrals: Optionally follow registry referrals to registrar WHOIS for gTLDs. Add `WhoisAnalysis.ReferralChain`, `-FollowReferral`, and `-MaxReferralDepth` (default 2). Respect backoff/limits and annotate `LookupSource=Referral` in the view.
+- [ ] WHOIS UX: (deferred) Avoid -Raw/-Fields for now; consider generic Flatten() projector later when we have a concrete consumer.
 - [x] Identity tenant detection: Probe OIDC discovery `/.well-known/openid-configuration` to extract tenant identifier and call `getuserrealm.srf` for NameSpaceType/AuthURL. New view `IdPInfo` and roll‑up into mail domain classification.
 - [ ] DNS over HTTPS fallback: Add optional DoH resolver (Google/Cloudflare) as a fallback path in `DnsConfiguration` when UDP/TCP fails/timeouts; emit an assessment when used.
 - [ ] Posture one‑liner: Add `--posture` (CLI) / `-Posture` (PS) to print a condensed line with SPF (-all + lookups), DKIM (selector count/weak keys), DMARC (policy/alignment), MTA‑STS/TLS‑RPT presence, SMTPTLS grade, and DNSSEC flag; `--posture-json` returns a machine‑friendly blob.
 - [ ] Mail TLS summary fields: Add `Issuer`, `ValidFrom`, `ValidTo`, and `Thumbprint` to the mail TLS view summary to simplify scripting and table exports.
+  - [x] Data exposed on MailTlsServerInfo (no UI change).
+
+### New (Data)
+- [x] DKIM provider mapping via CNAME (Provider on DkimRecordAnalysis).
+- [x] TLS-RPT rollups: parse failure-details and expose FailureByType in TlsRptSummary.
 
 
 ### External Feature Parity (from Demo/Pages screenshots)
