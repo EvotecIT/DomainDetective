@@ -30,7 +30,7 @@ namespace DomainDetective {
         /// <summary>
         /// Reads SOA records and populates analysis properties.
         /// </summary>
-        public async Task AnalyzeSoaRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public async Task AnalyzeSoaRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, IEnumerable<DnsAnswer>? nsResults = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SOA") : null;
             await Task.Yield();
 
@@ -97,12 +97,27 @@ namespace DomainDetective {
                 // Heuristic extremes based on common practice
                 if (Refresh < 1800 || Refresh > 86400) {
                     logger?.WriteWarningCode(SOACodes.RefreshExtreme, "SOA Refresh value is extreme: {0}", Refresh);
+                } else {
+                    logger?.WriteInformationCode(SOACodes.RefreshSane, "SOA Refresh value is within recommended range: {0}", Refresh);
                 }
                 if (Retry < 300 || Retry > 7200) {
                     logger?.WriteWarningCode(SOACodes.RetryExtreme, "SOA Retry value is extreme: {0}", Retry);
+                } else {
+                    logger?.WriteInformationCode(SOACodes.RetrySane, "SOA Retry value is within recommended range: {0}", Retry);
+                }
+                if (Expire >= 604800 && Expire <= 2419200) {
+                    logger?.WriteInformationCode(SOACodes.ExpireSane, "SOA Expire value is within recommended range: {0}", Expire);
                 }
                 if (Minimum < 60 || Minimum > 86400) {
                     logger?.WriteWarningCode(SOACodes.MinimumExtreme, "SOA Minimum/negative TTL value is extreme: {0}", Minimum);
+                }
+                if (nsResults != null && !string.IsNullOrWhiteSpace(PrimaryNameServer)) {
+                    var nsHosts = nsResults
+                        .Select(n => n.Data?.TrimEnd('.'))
+                        .Where(n => !string.IsNullOrWhiteSpace(n));
+                    if (nsHosts.Any(n => string.Equals(n, PrimaryNameServer, StringComparison.OrdinalIgnoreCase))) {
+                        logger?.WriteInformationCode(SOACodes.MnameMatchesNs, "SOA MNAME matches published NS records");
+                    }
                 }
             }
 

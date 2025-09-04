@@ -8,5 +8,9 @@ internal static class SOACodes {
     public const string RefreshExtreme = "SOA.Refresh.Extreme";
     public const string RetryExtreme = "SOA.Retry.Extreme";
     public const string MinimumExtreme = "SOA.Minimum.Extreme";
+    public const string RefreshSane = "SOA.Refresh.Sane";
+    public const string RetrySane = "SOA.Retry.Sane";
+    public const string ExpireSane = "SOA.Expire.Sane";
+    public const string MnameMatchesNs = "SOA.MNAME.MatchesNS";
 }
 

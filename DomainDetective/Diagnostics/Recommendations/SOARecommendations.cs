@@ -81,5 +81,49 @@ internal sealed class SOARecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "NXDOMAIN caching duration matches policy."
         };
+        map[SOACodes.RefreshSane] = new RecommendationAdvice {
+            Code = SOACodes.RefreshSane,
+            Title = "SOA Refresh interval within recommended range",
+            Why = "Sensible refresh values keep secondaries updated without undue traffic.",
+            How = "Maintain refresh between 30 minutes and 24 hours based on update needs.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "soa", "timers" },
+            Impact = "Healthy secondary synchronization cadence.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SOA Refresh is between 1800 and 86400 seconds."
+        };
+        map[SOACodes.RetrySane] = new RecommendationAdvice {
+            Code = SOACodes.RetrySane,
+            Title = "SOA Retry interval within recommended range",
+            Why = "Balanced retry timing speeds recovery from transient failures.",
+            How = "Keep retry around 5 minutes to 2 hours depending on operations.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "soa", "timers" },
+            Impact = "Prompt retry without excessive load.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SOA Retry is between 300 and 7200 seconds."
+        };
+        map[SOACodes.ExpireSane] = new RecommendationAdvice {
+            Code = SOACodes.ExpireSane,
+            Title = "SOA Expire interval within recommended range",
+            Why = "Appropriate expire ensures stale zones are discarded after extended outages.",
+            How = "Use an expire around 1–4 weeks depending on tolerance for stale data.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "soa", "timers" },
+            Impact = "Secondaries drop obsolete zones in a timely manner.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SOA Expire is between 604800 and 2419200 seconds."
+        };
+        map[SOACodes.MnameMatchesNs] = new RecommendationAdvice {
+            Code = SOACodes.MnameMatchesNs,
+            Title = "SOA primary NS matches published NS records",
+            Why = "MNAME should point to an authoritative NS for operational consistency.",
+            How = "Use one of the zone's NS hostnames as the SOA MNAME.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "soa", "ns" },
+            Impact = "Accurate reference for zone maintenance and transfers.",
+            Effort = RecommendationEffort.Low,
+            Verify = "SOA MNAME hostname appears in the NS RRset."
+        };
     }
 }
