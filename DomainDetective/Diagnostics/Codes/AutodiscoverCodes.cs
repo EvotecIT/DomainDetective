@@ -9,4 +9,7 @@ internal static class AutodiscoverCodes {
     public const string BadAutoconfigTarget = "AUTODISC.Autoconfig.BadTarget";
     public const string BadAutodiscoverTarget = "AUTODISC.Autodiscover.BadTarget";
     public const string Office365FlowFailed = "AUTODISC.Office365.FlowFailed";
+    public const string EndpointDiscovered = "AUTODISC.Endpoint.Discovered";
+    public const string XmlValid = "AUTODISC.Xml.Valid";
+    public const string JsonValid = "AUTODISC.Json.Valid";
 }
