@@ -185,6 +185,7 @@ public class RdapAnalysis : IHasAssessments
 
         if (DomainData.Entities != null)
         {
+            var hasContact = false;
             foreach (var ent in DomainData.Entities)
             {
                 if (ent.Roles.Any(r => string.Equals(r, "registrar", StringComparison.OrdinalIgnoreCase)))
@@ -202,6 +203,26 @@ public class RdapAnalysis : IHasAssessments
                         }
                     }
                 }
+                if (!hasContact && ent.VcardArray.HasValue && ent.VcardArray.Value.ValueKind == JsonValueKind.Array && ent.VcardArray.Value.GetArrayLength() > 1)
+                {
+                    foreach (var card in ent.VcardArray.Value[1].EnumerateArray())
+                    {
+                        if (card.GetArrayLength() > 3)
+                        {
+                            var t = card[0].GetString();
+                            if ((t == "email" || t == "tel") && !string.IsNullOrWhiteSpace(card[3].GetString()))
+                            {
+                                hasContact = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (hasContact)
+            {
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
+                logger?.WriteInformationCode(RdapCodes.ContactValid, "RDAP contact data present");
             }
         }
 
@@ -226,6 +247,11 @@ public class RdapAnalysis : IHasAssessments
                 {
                     using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
                     logger?.WriteWarningCode(RdapCodes.ExpirySoon, "Domain expires in {0} days (on {1:u})", Math.Ceiling(delta.TotalDays), exp);
+                }
+                else if (delta > TimeSpan.FromDays(30))
+                {
+                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RDAP", target: DomainName) : null;
+                    logger?.WriteInformationCode(RdapCodes.ExpiryFuture, "Domain expires in {0} days (on {1:u})", Math.Ceiling(delta.TotalDays), exp);
                 }
             }
             else
