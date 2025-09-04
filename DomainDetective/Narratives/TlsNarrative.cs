@@ -1,0 +1,83 @@
+using System.Collections.Generic;
+using System.Linq;
+
+namespace DomainDetective.Narratives;
+
+public static class TlsNarrative
+{
+    public sealed class Sections
+    {
+        public string Title { get; init; } = string.Empty;
+        public string Subtitle { get; init; } = string.Empty;
+        public string Category { get; init; } = string.Empty;
+        public string Keywords { get; init; } = string.Empty;
+        public string Creator { get; init; } = string.Empty;
+        public string Introduction { get; init; } = string.Empty;
+        public string WhyItMatters { get; init; } = string.Empty;
+        public List<string> Highlights { get; init; } = new();
+        public List<string> Details { get; init; } = new();
+        public List<string> References { get; init; } = new();
+        public List<string> Positives { get; init; } = new();
+        public List<string> Remediations { get; init; } = new();
+    }
+
+    public static Sections Build(TlsAnalysis analysis)
+    {
+        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var title = $"TLS Report — {subj}";
+        var subtitle = "HTTPS TLS Assessment";
+        var category = "Web Security";
+        var keywords = $"TLS, HTTPS, security, DomainDetective, {subj}";
+        var creator = "DomainDetective";
+        var intro = "TLS secures HTTPS connections and verifies server identity.";
+        var why = "Modern protocols and ciphers protect confidentiality and integrity.";
+
+        var hi = new List<string>();
+        var det = new List<string>();
+        var positives = new List<string>();
+        var remediations = new List<string>();
+
+        if (analysis != null)
+        {
+            foreach (var kv in analysis.ServerResults)
+            {
+                var r = kv.Value;
+                var cipher = string.IsNullOrWhiteSpace(r.CipherSuite) ? r.KeyExchangeAlgorithm : r.CipherSuite;
+                var certStatus = r.CertificateValid && r.ChainValid && r.HostnameMatch ? "valid certificate" : "certificate issues";
+                hi.Add($"{kv.Key} negotiated {r.Protocol} ({cipher}) — {certStatus}.");
+                if (!string.IsNullOrWhiteSpace(r.CertificateSubject) || !string.IsNullOrWhiteSpace(r.CertificateIssuer))
+                {
+                    det.Add($"{kv.Key} certificate: {r.CertificateSubject} issued by {r.CertificateIssuer}");
+                }
+            }
+            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
+        }
+        else
+        {
+            hi.Add("No TLS data available.");
+        }
+
+        var refs = new List<string>
+        {
+            "https://datatracker.ietf.org/doc/rfc8446/",
+            "https://ssl-config.mozilla.org/"
+        };
+
+        return new Sections
+        {
+            Title = title,
+            Subtitle = subtitle,
+            Category = category,
+            Keywords = keywords,
+            Creator = creator,
+            Introduction = intro,
+            WhyItMatters = why,
+            Highlights = hi,
+            Details = det,
+            References = refs,
+            Positives = positives.Distinct().ToList(),
+            Remediations = remediations.Distinct().ToList()
+        };
+    }
+}
+

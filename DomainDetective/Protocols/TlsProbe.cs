@@ -24,6 +24,7 @@ public static class TlsProbe
         public bool HostnameMatch { get; set; }
         public bool ChainValid => ChainErrors.Count == 0;
         public List<X509ChainStatusFlags> ChainErrors { get; } = new();
+        public List<X509Certificate2> Chain { get; } = new();
         public X509Certificate2? Certificate { get; set; }
         public string? CertificateSubject { get; set; }
         public string? CertificateIssuer { get; set; }
@@ -46,8 +47,13 @@ public static class TlsProbe
             result.CertificateValid = errors == SslPolicyErrors.None;
             result.HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
             result.ChainErrors.Clear();
+            result.Chain.Clear();
             if (chain != null)
             {
+                foreach (var element in chain.ChainElements)
+                {
+                    result.Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                }
                 foreach (var s in chain.ChainStatus) result.ChainErrors.Add(s.Status);
             }
             if (certificate is X509Certificate2 cert)
