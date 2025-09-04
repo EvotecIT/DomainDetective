@@ -22,7 +22,7 @@ public static class TlsRptNarrative
         public List<string> Remediations { get; init; } = new();
     }
 
-    public static Sections Build(TLSRPTAnalysis analysis)
+    public static Sections Build(TLSRPTAnalysis analysis, InternalLogger? logger = null)
     {
         var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
         var title = $"TLS-RPT Report — {subj}";
@@ -75,8 +75,11 @@ public static class TlsRptNarrative
         {
             AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger?.WriteWarning($"Failed to split assessments: {ex.Message}");
+            positives = new List<string>();
+            remediations = new List<string>();
         }
 
         return new Sections

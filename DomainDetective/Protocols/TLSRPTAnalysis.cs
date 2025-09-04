@@ -41,6 +41,9 @@ public class TLSRPTAnalysis : IHasAssessments {
         /// <summary>HTTP status per HTTPS RUA endpoint (when CheckEndpoints = true).</summary>
         public Dictionary<string, int> RuaHttpStatus { get; private set; } = new();
 
+        /// <summary>HTTP client used for HTTPS RUA validation. Override for testing.</summary>
+        public HttpClient HttpClient { get; set; } = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
+
         /// <summary>Relevant standards for TLSRPT analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
             new StandardReference { Title = "SMTP TLS Reporting", Reference = "RFC 8460", Url = "https://datatracker.ietf.org/doc/html/rfc8460" }
@@ -98,7 +101,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                     switch (key.ToLowerInvariant()) {
                         case "rua":
                             RuaDefined = true;
-                            AddUriToList(value, MailtoRua, HttpRua, InvalidRua);
+                            AddUriToList(value, MailtoRua, HttpRua, InvalidRua, logger);
                             break;
                         case "v":
                             break;
@@ -138,7 +141,6 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
         }
 
-        private static readonly HttpClient _httpClient = new HttpClient(new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 5 });
         private async Task ValidateHttpRuaAsync(InternalLogger logger, CancellationToken ct)
         {
             foreach (var url in HttpRua)
@@ -146,7 +148,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                 try
                 {
                     using var req = new HttpRequestMessage(HttpMethod.Head, url);
-                    using var resp = await _httpClient.SendAsync(req, ct).ConfigureAwait(false);
+                    using var resp = await HttpClient.SendAsync(req, ct).ConfigureAwait(false);
                     RuaHttpStatus[url] = (int)resp.StatusCode;
                     if ((int)resp.StatusCode >= 400)
                     {
@@ -161,17 +163,25 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
         }
 
-        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList) {
+        private void AddUriToList(string uri, List<string> mailtoList, List<string> httpList, List<string> invalidList, InternalLogger logger) {
             var uris = uri.Split(',');
             foreach (var raw in uris) {
                 var u = raw.Trim();
                 if (u.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase)) {
                     var part = u.Substring(7);
+                    string decoded;
                     try {
-                        var decoded = Uri.UnescapeDataString(part);
+                        decoded = Uri.UnescapeDataString(part);
+                    } catch (Exception ex) {
+                        logger?.WriteWarning($"Failed to unescape mailto RUA '{u}': {ex.Message}");
+                        invalidList.Add(u);
+                        continue;
+                    }
+                    try {
                         _ = new MailAddress(decoded);
                         mailtoList.Add(decoded);
-                    } catch {
+                    } catch (Exception ex) {
+                        logger?.WriteWarning($"Invalid mailto RUA '{decoded}': {ex.Message}");
                         invalidList.Add(u);
                     }
                 } else if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) &&
