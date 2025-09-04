@@ -38,6 +38,18 @@ internal sealed class DnsblRecommendations : IRecommendationProvider {
             Verify = "Subsequent queries succeed within normal latency."
         };
 
+        map[DnsblCodes.NotListed] = new RecommendationAdvice {
+            Code = DnsblCodes.NotListed,
+            Title = "No DNSBL listings detected",
+            Why = "The queried host or domain was not listed by any checked DNSBL provider.",
+            How = "Monitor periodically to ensure continued clean reputation.",
+            Domain = RecommendationDomain.ThreatIntel,
+            Tags = new [] { "dnsbl", "clean" },
+            Impact = "Indicates no blacklist impact at time of check.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Repeat the check; expect NXDOMAIN or not listed responses."
+        };
+
         // Informational summary of the DNSBL check sweep (coded for consistent views)
         map[DnsblCodes.Summary] = new RecommendationAdvice {
             Code = DnsblCodes.Summary,
