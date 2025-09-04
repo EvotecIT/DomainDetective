@@ -13,6 +13,14 @@ internal sealed class ThreatIntelRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.ThreatIntel,
             Tags = new [] { "reputation" }
         };
+        map[ThreatIntelCodes.NoListings] = new RecommendationAdvice {
+            Code = ThreatIntelCodes.NoListings,
+            Title = "No threats detected",
+            Why = "None of the checked feeds list the domain or IP, indicating a clean reputation.",
+            How = "Maintain security hygiene and monitor feeds regularly to keep the reputation clean.",
+            Domain = RecommendationDomain.ThreatIntel,
+            Tags = new [] { "reputation" }
+        };
     }
 }
 

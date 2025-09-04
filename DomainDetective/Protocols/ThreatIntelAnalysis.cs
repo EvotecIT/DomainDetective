@@ -326,6 +326,9 @@ public class ThreatIntelAnalysis : IHasAssessments
 
         // Compute composite score and confidence
         ComputeComposite(domainName, googleListed, phishListed, vtListed, urlHausListed, openPhishListed, RiskScore);
+        if (!googleListed && !phishListed && !vtListed && !urlHausListed && !openPhishListed && (!RiskScore.HasValue || RiskScore.Value <= 0)) {
+            logger?.WriteInformationCode(ThreatIntelCodes.NoListings, "No threat intelligence listings for {0}", domainName);
+        }
     }
 
     public List<Assessment> Assessments { get; } = new();
