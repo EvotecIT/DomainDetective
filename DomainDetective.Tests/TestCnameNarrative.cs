@@ -1,0 +1,44 @@
+using System.Linq;
+using System.Threading.Tasks;
+using DomainDetective.Narratives;
+using DnsClientX;
+using Xunit;
+
+namespace DomainDetective.Tests;
+
+public class TestCnameNarrative {
+    private static CnameAnalysis Create() {
+        return new CnameAnalysis {
+            DnsConfiguration = new DnsConfiguration(),
+            QueryDnsOverride = (name, type) => {
+                if (type == DnsRecordType.CNAME && name == "alias.example.com") {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "target.example.com" } });
+                }
+                if (type == DnsRecordType.CNAME && name == "target.example.com") {
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+                if (type == DnsRecordType.A && name == "target.example.com") {
+                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "192.0.2.1" } });
+                }
+                if (type == DnsRecordType.AAAA && name == "target.example.com") {
+                    return Task.FromResult(System.Array.Empty<DnsAnswer>());
+                }
+                return Task.FromResult(System.Array.Empty<DnsAnswer>());
+            }
+        };
+    }
+
+    [Fact]
+    public async Task BuildsNarrativeAndRecommendations() {
+        var analysis = Create();
+        await analysis.Analyze("alias.example.com", new InternalLogger());
+        var narrative = CnameNarrative.Build(analysis, analysis.Assessments);
+        Assert.Contains("alias.example.com CNAME → target.example.com.", narrative.Highlights);
+        Assert.Contains("No CNAME loop detected.", narrative.Highlights);
+        var codes = analysis.Recommendations.Select(r => r.Code).ToList();
+        Assert.Contains(CnameCodes.TargetResolves, codes);
+        Assert.Contains(CnameCodes.NoLoop, codes);
+        Assert.Contains("CNAME target resolves", narrative.Positives);
+        Assert.Contains("No CNAME loop detected", narrative.Positives);
+    }
+}

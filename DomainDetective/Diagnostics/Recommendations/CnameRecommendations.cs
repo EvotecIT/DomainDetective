@@ -29,5 +29,29 @@ internal sealed class CnameRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Resolve target; if NXDOMAIN, confirm service state and owner."
         };
+
+        map[CnameCodes.TargetResolves] = new RecommendationAdvice {
+            Code = CnameCodes.TargetResolves,
+            Title = "CNAME target resolves",
+            Why = "A resolving target confirms the alias points to an active destination, avoiding dangling records.",
+            How = "Keep the target record in service and monitor for changes.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "cname" },
+            Impact = "Improves reliability and reduces takeover risk.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Resolve the CNAME target and confirm A/AAAA records exist."
+        };
+
+        map[CnameCodes.NoLoop] = new RecommendationAdvice {
+            Code = CnameCodes.NoLoop,
+            Title = "No CNAME loop detected",
+            Why = "A well-formed CNAME chain terminates cleanly without redirecting back to itself.",
+            How = "No change required; retain current alias structure.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "cname" },
+            Impact = "Prevents resolver failures caused by misconfiguration.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Follow the CNAME chain and confirm it reaches a final target."
+        };
     }
 }
