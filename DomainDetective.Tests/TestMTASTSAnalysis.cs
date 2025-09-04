@@ -2,6 +2,7 @@ using DomainDetective;
 using DnsClientX;
 using System.Net;
 using System.Text;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 using Xunit.Sdk;
@@ -199,6 +200,19 @@ namespace DomainDetective.Tests {
             analysis.AnalyzePolicyText(policy);
 
             Assert.False(analysis.ValidMode);
+            Assert.False(analysis.PolicyValid);
+        }
+
+        [Fact]
+        public async Task FetchPolicyNetworkFailureHandled() {
+            var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+            var analysis = new MTASTSAnalysis {
+                PolicyUrlOverride = "http://localhost:1/.well-known/mta-sts.txt",
+                QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                DnsConfiguration = new DnsConfiguration()
+            };
+            await analysis.AnalyzePolicy("example.com", new InternalLogger());
+            Assert.False(analysis.PolicyPresent);
             Assert.False(analysis.PolicyValid);
         }
 
@@ -409,6 +423,44 @@ namespace DomainDetective.Tests {
                 };
                 await analysis.AnalyzePolicy("example.com", new InternalLogger());
                 Assert.Equal("MTA-STS policy enforced.", analysis.Advisory);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
+
+        [Fact]
+        public async Task AddsPositiveAssessments() {
+            Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
+            using var listener = new HttpListener();
+            var port = GetFreePort();
+            var prefix = $"http://localhost:{port}/";
+            listener.Prefixes.Add(prefix);
+            listener.Start();
+            PortHelper.ReleasePort(port);
+            const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
+            var serverTask = Task.Run(async () => {
+                var ctx = await listener.GetContextAsync();
+                if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                    var data = Encoding.UTF8.GetBytes(policy);
+                    ctx.Response.StatusCode = 200;
+                    await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
+                } else {
+                    ctx.Response.StatusCode = 404;
+                }
+                ctx.Response.Close();
+            });
+            try {
+                var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
+                var analysis = new MTASTSAnalysis {
+                    PolicyUrlOverride = prefix + ".well-known/mta-sts.txt",
+                    QueryDnsOverride = (_, _) => Task.FromResult(answers),
+                    DnsConfiguration = new DnsConfiguration()
+                };
+                await analysis.AnalyzePolicy("example.com", new InternalLogger());
+                var codes = analysis.Assessments.Select(a => a.Code).ToArray();
+                Assert.Contains(MtaStsCodes.PolicyValid, codes);
+                Assert.Contains(MtaStsCodes.HttpsAvailable, codes);
             } finally {
                 listener.Stop();
                 await serverTask;
