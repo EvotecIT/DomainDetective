@@ -72,5 +72,19 @@ namespace DomainDetective.Tests {
 
             Assert.Equal(600, analysis.NegativeCacheTtl);
         }
+
+        [Fact]
+        public async Task EmitsInfoCodesForSaneTimersAndMnameMatch() {
+            var soa = new[] {
+                new DnsAnswer { DataRaw = "ns1.example.com. hostmaster.example.com. 2023102301 3600 600 1209600 300", Type = DnsRecordType.SOA }
+            };
+            var ns = new[] {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = new SOAAnalysis();
+            await analysis.AnalyzeSoaRecords(soa, new InternalLogger(), ns);
+            Assert.Contains(analysis.Assessments, a => a.Code == SOACodes.RefreshSane && a.Severity == AssessmentSeverity.Info);
+            Assert.Contains(analysis.Assessments, a => a.Code == SOACodes.MnameMatchesNs && a.Severity == AssessmentSeverity.Info);
+        }
     }
 }
