@@ -17,6 +17,8 @@ namespace DomainDetective {
         public string? Subject { get; set; }
         public DnsConfiguration DnsConfiguration { get; set; }
 
+        public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
+
         public List<string> NameServers { get; private set; } = new();
         public Dictionary<string, long> SoaSerialByServer { get; } = new();
         public bool SoaSerialConsistent { get; private set; }
@@ -175,7 +177,11 @@ namespace DomainDetective {
             offset += 4; return v;
         }
 
-        private static async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token) {
+        private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token) {
+            if (QueryUdpOverride != null) {
+                return await QueryUdpOverride(server, query, token);
+            }
+
             using var udp = new UdpClient(new IPEndPoint(server.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = 4000;
 #if NET6_0_OR_GREATER

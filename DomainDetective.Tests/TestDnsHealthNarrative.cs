@@ -35,7 +35,8 @@ public class TestDnsHealthNarrative
                         _ => Task.FromResult(Array.Empty<DnsAnswer>())
                     };
                 }
-            }
+            },
+            QueryUdpOverride = (ip, query, token) => Task.FromResult<byte[]?>(null)
         };
         await analysis.Analyze("example.com", new InternalLogger());
         var sections = DnsHealthNarrative.Build(analysis);
