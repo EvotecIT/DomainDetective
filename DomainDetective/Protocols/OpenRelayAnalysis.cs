@@ -103,7 +103,7 @@ namespace DomainDetective {
 
                 int mailCode = ParseStatusCode(mailResp);
                 int rcptCode = ParseStatusCode(rcptResp);
-                var status = mailCode >= 200 && mailCode < 300 && rcptCode >= 200 && rcptCode < 300 && mailCode != 550 && mailCode != 551 && rcptCode != 550 && rcptCode != 551
+                var status = mailCode >= 200 && mailCode < 300 && rcptCode >= 200 && rcptCode < 300
                     ? OpenRelayStatus.AllowsRelay
                     : OpenRelayStatus.Denied;
                 return new OpenRelayResult { Status = status };

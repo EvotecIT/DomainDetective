@@ -41,7 +41,7 @@ public class TestOpenRelayNarrative
             var logger = new InternalLogger();
             var analysis = new OpenRelayAnalysis();
             await analysis.AnalyzeServer("localhost", port, logger);
-            var narrative = OpenRelayNarrative.Build(analysis);
+            var narrative = OpenRelayNarrative.Build(analysis, logger);
             Assert.Contains("No servers allowed unauthenticated relay.", narrative.Highlights);
             var positives = RecommendationEngine.FromPositives(analysis.Assessments);
             Assert.Contains(positives, p => p.Code == OpenRelayCodes.Denied);

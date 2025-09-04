@@ -23,7 +23,7 @@ public static class OpenRelayNarrative
         public List<string> Remediations { get; init; } = new();
     }
 
-    public static Sections Build(OpenRelayAnalysis analysis)
+    public static Sections Build(OpenRelayAnalysis analysis, InternalLogger? logger = null)
     {
         var title = "Open Relay Report";
         var subtitle = "SMTP Relay Assessment";
@@ -70,7 +70,10 @@ public static class OpenRelayNarrative
         {
             AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out remediations);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            logger?.WriteWarning($"Failed to split assessments: {ex.Message}");
+        }
 
         return new Sections
         {

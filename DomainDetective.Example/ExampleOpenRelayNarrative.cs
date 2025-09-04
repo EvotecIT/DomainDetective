@@ -16,7 +16,7 @@ public static partial class Program
         {
             Status = OpenRelayStatus.Denied
         };
-        var narrative = OpenRelayNarrative.Build(analysis);
+        var narrative = OpenRelayNarrative.Build(analysis, new InternalLogger());
         Helpers.ShowPropertiesTable("Open Relay Narrative", narrative);
         return Task.CompletedTask;
     }
