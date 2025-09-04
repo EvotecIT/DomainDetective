@@ -117,6 +117,42 @@ To execute the PowerShell test suite run:
 pwsh ./Module/DomainDetective.Tests.ps1
 ```
 
+### SPF host simulation
+
+```
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -Sender 'postmaster@example.com'
+
+# JSON output
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -AsJson
+```
+Outputs an object with `Verdict`, `MatchedType`, `MatchedToken`, `MatchedDomain`, `Chain`, and `DnsLookups`.
+
+### Shaping output (PowerShell objects)
+
+Use standard PowerShell formatting to render concise tables/lists. The cmdlets return rich objects — no custom renderer is required.
+
+Evaluate host (summary table):
+
+```powershell
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' |
+  Format-Table Subject, IpAddress, Verdict, MatchedType, MatchedDomain, DnsLookups, LookupsExceeded
+```
+
+SPF provenance (mechanism breakdown) with include/redirect chain:
+
+```powershell
+Test-EmailSpf -DomainName 'example.com' |
+  Select-Object -Expand Mechanisms |
+  Sort-Object Depth, SourceDomain |
+  Format-Table Depth, SourceDomain, Type, Prefix, Value, Provider, @{N='Chain';E={$_.Chain -join ' -> '}}
+```
+
+JSON shaping when needed:
+
+```powershell
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -AsJson | Out-File .\spf-eval.json
+```
+
 ## Exporting Reports
 
 All `Test-*` cmdlets support unified export switches. The overall health cmdlet generates HTML/JSON reports today; other formats and cmdlets will emit a clear TODO until their dedicated reports are implemented.

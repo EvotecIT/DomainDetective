@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
@@ -13,6 +14,13 @@ namespace DomainDetective {
         }
 
         private async Task VerifyDnsTtlAsync(string domainName, CancellationToken cancellationToken) {
+            // Provide DKIM selectors discovered earlier (if any)
+            try {
+                if (DKIMAnalysis?.AnalysisResults != null && DKIMAnalysis.AnalysisResults.Count > 0) {
+                    DnsTtlAnalysis.DkimSelectors = DKIMAnalysis.AnalysisResults.Keys.ToList();
+                }
+            } catch { /* best effort */ }
+
             await DnsTtlAnalysis.Analyze(domainName, _logger);
             await DnsTtlAnalysis.AnalyzeUniformityAcrossServers(domainName, _logger, cancellationToken);
         }

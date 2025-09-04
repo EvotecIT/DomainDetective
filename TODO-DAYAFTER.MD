@@ -23,6 +23,19 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [x] IP Neighbors: categorize neighbors; warn MailOnSharedIp when MX/SMTP on high co‑tenancy IP.
 - [x] WHOIS: cache TLD→server within session; backoff/retry on transient TCP failures; extend EU ccTLD parser coverage. (added generic EU parser and session cache)
 
+### Email Auth UX and WHOIS Enhancements (Next Up)
+- [x] SPF host simulator: Add a C# evaluator and PS/CLI surfaces to test an IP/sender/HELO against a domain’s SPF, returning the matched mechanism(s), final verdict, and the include/redirect chain. Parameters: `-IpAddress`, `-Sender`, `-Helo`, `-TestSpfRecord`. PS cmdlet `Test-DDSpfHost`; CLI verb `SpfTestHost`. Include macro expansion and an `-AsJson` switch.
+- [x] SPF provenance: Enrich `SpfPartAnalysis` with `SourceDomain`, `Chain` (list) and `Depth`, so each mechanism shows where it came from. Surface in views and HTML as an include tree with provider annotations.
+- [x] TXT TTLs: Extend `DnsTtlAnalysis` to collect and evaluate TTLs for TXT RRsets: apex SPF, `_dmarc`, and discovered DKIM selectors. Include authoritative‑server uniformity for TXT. Thresholds (tunable): SPF/DMARC ≥ 3600; DKIM selectors ≥ 3600; warn on extreme values and non‑uniform TTLs.
+- [ ] DMARC aggregate analytics: Expose reporter metadata (org_name/email), parse auth_results/reasons, and add summarizers by reporter, ASN, and country; support `-Csv`/`-OutFile` in PS and `--csv` in CLI. Keep existing de‑duplication by report_id + date range.
+- [ ] WHOIS referrals: Optionally follow registry referrals to registrar WHOIS for gTLDs. Add `WhoisAnalysis.ReferralChain`, `-FollowReferral`, and `-MaxReferralDepth` (default 2). Respect backoff/limits and annotate `LookupSource=Referral` in the view.
+- [ ] WHOIS UX: Add `-Raw` and `-Fields` switches to the PS cmdlet to emit raw WHOIS text or a slim object of selected fields; surface the same in CLI with `--raw`/`--fields`.
+- [ ] Identity tenant detection: Probe OIDC discovery `/.well-known/openid-configuration` to extract tenant identifier and call `getuserrealm.srf` for NameSpaceType/AuthURL. New view `IdPInfo` and roll‑up into mail domain classification.
+- [ ] DNS over HTTPS fallback: Add optional DoH resolver (Google/Cloudflare) as a fallback path in `DnsConfiguration` when UDP/TCP fails/timeouts; emit an assessment when used.
+- [ ] Posture one‑liner: Add `--posture` (CLI) / `-Posture` (PS) to print a condensed line with SPF (-all + lookups), DKIM (selector count/weak keys), DMARC (policy/alignment), MTA‑STS/TLS‑RPT presence, SMTPTLS grade, and DNSSEC flag; `--posture-json` returns a machine‑friendly blob.
+- [ ] Mail TLS summary fields: Add `Issuer`, `ValidFrom`, `ValidTo`, and `Thumbprint` to the mail TLS view summary to simplify scripting and table exports.
+
+
 ### External Feature Parity (from Demo/Pages screenshots)
 The following items come from reviewing examples in `Demo/Pages` (securityheaders.com, HeaderScan, SSL Labs, CheckTLS, DNSChecker, Sucuri/SSLTrust, Sitechecker). They capture gaps and desired parity.
 

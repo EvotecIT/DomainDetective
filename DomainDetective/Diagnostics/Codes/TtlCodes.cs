@@ -15,5 +15,11 @@ internal static class TtlCodes {
     public const string UniformAcrossNS_AAAA = "DNS.TTL.Success.AAAA.UniformAcrossNS";
     public const string UniformAcrossNS_NS = "DNS.TTL.Success.NS.UniformAcrossNS";
     public const string UniformAcrossNS_CNAME = "DNS.TTL.Success.CNAME.UniformAcrossNS";
+    public const string NonUniformAcrossNS_TXT_SPF = "DNS.TTL.TXT.SPF.NonUniformAcrossNS";
+    public const string UniformAcrossNS_TXT_SPF = "DNS.TTL.Success.TXT.SPF.UniformAcrossNS";
+    public const string NonUniformAcrossNS_TXT_DMARC = "DNS.TTL.TXT.DMARC.NonUniformAcrossNS";
+    public const string UniformAcrossNS_TXT_DMARC = "DNS.TTL.Success.TXT.DMARC.UniformAcrossNS";
+    public const string NonUniformAcrossNS_TXT_DKIM = "DNS.TTL.TXT.DKIM.NonUniformAcrossNS";
+    public const string UniformAcrossNS_TXT_DKIM = "DNS.TTL.Success.TXT.DKIM.UniformAcrossNS";
 }
 

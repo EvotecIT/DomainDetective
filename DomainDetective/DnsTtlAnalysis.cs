@@ -33,6 +33,12 @@ namespace DomainDetective {
         public IReadOnlyList<int> NsTtls { get; private set; } = Array.Empty<int>();
         /// <summary>Gets the TTL value for the SOA record; zero indicates no TTL or missing record.</summary>
         public int SoaTtl { get; private set; }
+        /// <summary>TTL values for SPF TXT at the zone apex.</summary>
+        public IReadOnlyList<int> SpfTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for _dmarc TXT.</summary>
+        public IReadOnlyList<int> DmarcTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for DKIM selector TXT records, keyed by FQDN (selector._domainkey.domain).</summary>
+        public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; private set; } = new();
         /// <summary>Collection of warning messages produced during analysis.</summary>
         public IReadOnlyList<string> Warnings => _warnings;
 
@@ -42,12 +48,24 @@ namespace DomainDetective {
 
         /// <summary>Provides DNS query implementation details.</summary>
         public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+        /// <summary>Optional list of DKIM selectors discovered earlier (used for TXT TTL checks).</summary>
+        public List<string> DkimSelectors { get; set; } = new();
+        /// <summary>Minimum TTL for SPF TXT records (seconds).</summary>
+        public int MinTtlSpfSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for DMARC TXT records (seconds).</summary>
+        public int MinTtlDmarcSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for DKIM selector TXT records (seconds).</summary>
+        public int MinTtlDkimSelectorSeconds { get; set; } = 3600;
 
         // Per-authoritative-server TTL uniformity results
         public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
         public Dictionary<string, int?> ServerTtlAaaa { get; private set; } = new();
         public Dictionary<string, int?> ServerTtlNs { get; private set; } = new();
         public Dictionary<string, int?> ServerTtlCname { get; private set; } = new();
+        public Dictionary<string, int?> ServerTtlTxtSpf { get; private set; } = new();
+        public Dictionary<string, int?> ServerTtlTxtDmarc { get; private set; } = new();
+        /// <summary>Per-name TXT TTLs across authoritative servers. Key is the record name (e.g., s1._domainkey.example.com).</summary>
+        public Dictionary<string, Dictionary<string, int?>> ServerTtlTxtPerName { get; private set; } = new();
         public bool AUniformAcrossServers { get; private set; }
         public bool AaaaUniformAcrossServers { get; private set; }
         public bool NsUniformAcrossServers { get; private set; }
@@ -161,6 +179,9 @@ namespace DomainDetective {
             MxTtls = Array.Empty<int>();
             NsTtls = Array.Empty<int>();
             SoaTtl = 0;
+            SpfTxtTtls = Array.Empty<int>();
+            DmarcTxtTtls = Array.Empty<int>();
+            DkimTxtTtls = new Dictionary<string, IReadOnlyList<int>>();
 
             var aRecords = await QueryDns(domainName, DnsRecordType.A);
             var aaaaRecords = await QueryDns(domainName, DnsRecordType.AAAA);
@@ -168,6 +189,8 @@ namespace DomainDetective {
             var nsRecords = await QueryDns(domainName, DnsRecordType.NS);
             var soaRecords = await QueryDns(domainName, DnsRecordType.SOA);
             var dsRecords = await QueryDns(domainName, DnsRecordType.DS);
+            var txtApex = await QueryDns(domainName, DnsRecordType.TXT);
+            var txtDmarc = await QueryDns($"_dmarc.{domainName}", DnsRecordType.TXT);
 
             DnsSecSigned = dsRecords.Length > 0;
 
@@ -177,6 +200,26 @@ namespace DomainDetective {
             NsTtls = nsRecords.Select(r => r.TTL).ToArray();
             SoaTtl = soaRecords.Length > 0 ? soaRecords[0].TTL : 0;
 
+            // TXT TTLs
+            SpfTxtTtls = txtApex
+                .Where(r => (r.Data ?? string.Empty).IndexOf("v=spf1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
+            DmarcTxtTtls = txtDmarc.Select(r => r.TTL).ToArray();
+
+            if (DkimSelectors != null && DkimSelectors.Count > 0)
+            {
+                foreach (var sel in DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    var name = $"{sel}._domainkey.{domainName}";
+                    var dkimTxt = await QueryDns(name, DnsRecordType.TXT);
+                    var list = dkimTxt.Select(r => r.TTL).ToArray();
+                    DkimTxtTtls[name] = list;
+                    // Evaluate per selector
+                    Evaluate($"DKIM TXT ({sel})", list, MinTtlDkimSelectorSeconds, 86400, DnsSecSigned, logger);
+                }
+            }
+
             Evaluate("A", ATtls, 300, 86400, DnsSecSigned, logger);
             Evaluate("AAAA", AaaaTtls, 300, 86400, DnsSecSigned, logger);
             Evaluate("MX", MxTtls, 300, 86400, DnsSecSigned, logger);
@@ -184,6 +227,10 @@ namespace DomainDetective {
             if (soaRecords.Length > 0) {
                 Evaluate("SOA", new[] { SoaTtl }, 300, 86400, DnsSecSigned, logger);
             }
+
+            // Evaluate TXT categories with specific minima
+            if (SpfTxtTtls.Any()) Evaluate("SPF TXT", SpfTxtTtls, MinTtlSpfSeconds, 86400, false, logger);
+            if (DmarcTxtTtls.Any()) Evaluate("DMARC TXT", DmarcTxtTtls, MinTtlDmarcSeconds, 86400, false, logger);
         }
 
         /// <summary>
@@ -191,6 +238,7 @@ namespace DomainDetective {
         /// </summary>
         public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
             ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
+            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtPerName = new();
             AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
 
             // Discover authoritative NS hosts and IPs via resolver
@@ -212,6 +260,19 @@ namespace DomainDetective {
                 try { ServerTtlAaaa[key] = await QueryTtlFromServer(ip, domainName, 28, ct); } catch { ServerTtlAaaa[key] = null; }
                 try { ServerTtlNs[key] = await QueryTtlFromServer(ip, domainName, 2, ct); } catch { ServerTtlNs[key] = null; }
                 try { ServerTtlCname[key] = await QueryTtlFromServer(ip, domainName, 5, ct); } catch { ServerTtlCname[key] = null; }
+                // TXT names: apex (SPF) and _dmarc
+                try { ServerTtlTxtSpf[key] = await QueryTtlFromServer(ip, domainName, 16, ct); } catch { ServerTtlTxtSpf[key] = null; }
+                try { ServerTtlTxtDmarc[key] = await QueryTtlFromServer(ip, $"_dmarc.{domainName}", 16, ct); } catch { ServerTtlTxtDmarc[key] = null; }
+                // DKIM selectors
+                if (DkimSelectors != null && DkimSelectors.Count > 0)
+                {
+                    foreach (var sel in DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        var name = $"{sel}._domainkey.{domainName}";
+                        if (!ServerTtlTxtPerName.TryGetValue(name, out var map)) { map = new(); ServerTtlTxtPerName[name] = map; }
+                        try { map[key] = await QueryTtlFromServer(ip, name, 16, ct); } catch { map[key] = null; }
+                    }
+                }
             }
 
             static bool IsUniform(Dictionary<string, int?> map) {
@@ -242,6 +303,27 @@ namespace DomainDetective {
                 logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_CNAME, "CNAME TTL differs across authoritative name servers");
             } else {
                 logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_CNAME, "CNAME TTL consistent across authoritative name servers.");
+            }
+
+            // TXT apex (SPF)
+            var txtSpfUniform = IsUniform(ServerTtlTxtSpf);
+            if (!txtSpfUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_SPF, "SPF TXT TTL differs across authoritative name servers");
+            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_SPF, "SPF TXT TTL consistent across authoritative name servers.");
+
+            // TXT _dmarc
+            var txtDmarcUniform = IsUniform(ServerTtlTxtDmarc);
+            if (!txtDmarcUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DMARC, "DMARC TXT TTL differs across authoritative name servers");
+            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DMARC, "DMARC TXT TTL consistent across authoritative name servers.");
+
+            // DKIM selectors per name
+            if (ServerTtlTxtPerName.Count > 0)
+            {
+                foreach (var kv in ServerTtlTxtPerName)
+                {
+                    var uniform = IsUniform(kv.Value);
+                    if (!uniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL differs across authoritative servers for {kv.Key}");
+                    else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL consistent across authoritative servers for {kv.Key}");
+                }
             }
         }
 

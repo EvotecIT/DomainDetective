@@ -21,6 +21,9 @@ public static partial class Converters
             MxTtls = analysis.MxTtls,
             NsTtls = analysis.NsTtls,
             SoaTtl = analysis.SoaTtl,
+            SpfTxtTtls = analysis.SpfTxtTtls,
+            DmarcTxtTtls = analysis.DmarcTxtTtls,
+            DkimTxtTtls = analysis.DkimTxtTtls,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -45,6 +48,9 @@ public class TtlInfo
     public IReadOnlyList<int> MxTtls { get; set; }
     public IReadOnlyList<int> NsTtls { get; set; }
     public int SoaTtl { get; set; }
+    public IReadOnlyList<int> SpfTxtTtls { get; set; }
+    public IReadOnlyList<int> DmarcTxtTtls { get; set; }
+    public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

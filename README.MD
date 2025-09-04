@@ -324,6 +324,13 @@ ddcli DnsPropagation --domain example.com --record-type A
 
  ddcli example.com --check-web
  ddcli example.com --checks DNSHEALTH
+
+#### SPF host simulation
+
+```
+ddcli SpfTestHost example.com --ip 192.0.2.10 --sender postmaster@example.com --json
+```
+Returns a verdict (pass/fail/softfail/neutral/permerror), the matched token/type and the include/redirect chain that led to the match.
 ```
 
 ### CLI wizard
