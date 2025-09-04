@@ -273,24 +273,41 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
                         contentSnippet = body.Length > 512 ? body.Substring(0, 512) : body;
                         // naive JSON parsing for Url property
                         try {
-                            using var doc = System.Text.Json.JsonDocument.Parse(body);
-                            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object) {
-                                if (doc.RootElement.TryGetProperty("Url", out var urlProp) && urlProp.ValueKind == System.Text.Json.JsonValueKind.String) {
-                                    var u = urlProp.GetString();
-                                    if (!string.IsNullOrWhiteSpace(u) && (u!.StartsWith("http://") || u.StartsWith("https://"))) {
-                                        jsonEndpoint = u;
-                                    }
-                                }
-                            } else if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array) {
-                                foreach (var el in doc.RootElement.EnumerateArray()) {
-                                    if (el.ValueKind == System.Text.Json.JsonValueKind.Object && el.TryGetProperty("Url", out var urlEl) && urlEl.ValueKind == System.Text.Json.JsonValueKind.String) {
-                                        var u = urlEl.GetString();
+                            void ParseForUrl(System.Text.Json.JsonDocument doc) {
+                                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object) {
+                                    if (doc.RootElement.TryGetProperty("Url", out var urlProp) && urlProp.ValueKind == System.Text.Json.JsonValueKind.String) {
+                                        var u = urlProp.GetString();
                                         if (!string.IsNullOrWhiteSpace(u) && (u!.StartsWith("http://") || u.StartsWith("https://"))) {
                                             jsonEndpoint = u;
-                                            break;
+                                        }
+                                    }
+                                } else if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array) {
+                                    foreach (var el in doc.RootElement.EnumerateArray()) {
+                                        if (el.ValueKind == System.Text.Json.JsonValueKind.Object && el.TryGetProperty("Url", out var urlEl) && urlEl.ValueKind == System.Text.Json.JsonValueKind.String) {
+                                            var u = urlEl.GetString();
+                                            if (!string.IsNullOrWhiteSpace(u) && (u!.StartsWith("http://") || u.StartsWith("https://"))) {
+                                                jsonEndpoint = u;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
+                            }
+                            try {
+                                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                                ParseForUrl(doc);
+                            } catch {
+                                // Fallback: attempt to unescape common over-escaped JSON bodies (e.g. with \" quotes)
+                                try {
+                                    var alt = body.Replace("\\\"", "\"");
+                                    alt = alt.Replace("\\\\", "\\");
+                                    alt = alt.Trim();
+                                    if (alt.Length > 2 && alt[0] == '"' && alt[^1] == '"') {
+                                        alt = alt.Substring(1, alt.Length - 2);
+                                    }
+                                    using var altDoc = System.Text.Json.JsonDocument.Parse(alt);
+                                    ParseForUrl(altDoc);
+                                } catch { /* ignore if still invalid */ }
                             }
                         } catch { /* ignore JSON parse errors */ }
                     }

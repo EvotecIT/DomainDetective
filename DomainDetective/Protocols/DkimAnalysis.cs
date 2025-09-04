@@ -106,20 +106,6 @@ namespace DomainDetective {
                     switch (key) {
                         case "p":
                             analysis.PublicKey = value;
-                            // Heuristic fast-path: known 2048-bit RSA DKIM keys often produce base64 strings >= ~240 chars
-                            // When encountered, classify as 2048 bits to avoid under-reporting by some parsers/encodings used by providers.
-                            if (!string.IsNullOrWhiteSpace(value))
-                            {
-                                var l = value.Trim().Replace("\r", string.Empty).Replace("\n", string.Empty).Replace(" ", string.Empty).Length;
-                                if (l >= 240)
-                                {
-                                    analysis.KeyLength = Math.Max(analysis.KeyLength, 2048);
-                                    analysis.ValidPublicKey = true;
-                                    analysis.ValidRsaKeyLength = true;
-                                    analysis.WeakKey = false;
-                                    break;
-                                }
-                            }
                             try {
                                 var b64 = (value ?? string.Empty).Trim();
                                 b64 = b64.Replace("\r", string.Empty).Replace("\n", string.Empty).Replace(" ", string.Empty);

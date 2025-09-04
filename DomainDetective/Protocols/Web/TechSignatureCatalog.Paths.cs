@@ -86,12 +86,17 @@ internal static partial class TechSignatureCatalog
         foreach (var req in requests)
         {
             string path = string.Empty;
-            try { path = new System.Uri(req.FinalUrl ?? req.Url).AbsolutePath; } catch { }
-            if (string.IsNullOrEmpty(path)) continue;
+            string matchTarget = string.Empty;
+            try {
+                var uri = new System.Uri(req.FinalUrl ?? req.Url);
+                path = uri.AbsolutePath;
+                matchTarget = uri.PathAndQuery; // include query so we can extract versions from ?ver= style params
+            } catch { }
+            if (string.IsNullOrEmpty(path) && string.IsNullOrEmpty(matchTarget)) continue;
             foreach (var (regex, tech) in PathRules)
             {
                 try {
-                    var m = regex.Match(path);
+                    var m = regex.Match(string.IsNullOrEmpty(matchTarget) ? path : matchTarget);
                     if (m.Success) {
                         outTech.Add(tech);
                         var kind = InferKindFromPathAndContent(path, req.ContentType);

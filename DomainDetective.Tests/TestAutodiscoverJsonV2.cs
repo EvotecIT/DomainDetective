@@ -20,7 +20,7 @@ public class TestAutodiscoverJsonV2 {
         // JSON v2 discovery success
         var jsonUrl = "https://autodiscover-s.outlook.com/autodiscover/autodiscover.json/v1.0/example.org?Protocol=AutodiscoverV1";
         mock.When(HttpMethod.Get, jsonUrl)
-            .Respond("application/json", "{ \\\"Protocol\\\": \\\"AutodiscoverV1\\\", \\\"Url\\\": \\\"https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml\\\" }");
+            .Respond("application/json", "{ \"Protocol\": \"AutodiscoverV1\", \"Url\": \"https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml\" }");
 
         // Follow-up POST to discovered URL: GET returns 405 then POST returns XML
         mock.When(HttpMethod.Get, "https://autodiscover-s.outlook.com/autodiscover/autodiscover.xml")

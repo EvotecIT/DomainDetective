@@ -58,13 +58,13 @@ public class TestAutodiscoverHints {
         mock.When("https://autodiscover-s.outlook.com/autodiscover/autodiscover.json/v1.0/example.net?Protocol=AutodiscoverV1")
             .Respond(HttpStatusCode.NotFound);
 
-        // SRV target: GET returns XML directly
-        mock.When(HttpMethod.Get, "https://autodiscover.example.net:443/autodiscover/autodiscover.xml")
+        // SRV target: GET returns XML directly on a distinct host to avoid clashes with earlier rules
+        mock.When(HttpMethod.Get, "https://autodiscover-srv.example.net:443/autodiscover/autodiscover.xml")
             .Respond("application/xml", "<Autodiscover></Autodiscover>");
 
         var analysis = new AutodiscoverHttpAnalysis {
             HttpHandlerFactory = () => mock,
-            SrvTarget = "autodiscover.example.net",
+            SrvTarget = "autodiscover-srv.example.net",
             SrvPort = 443
         };
         await analysis.Analyze("example.net", new InternalLogger());
