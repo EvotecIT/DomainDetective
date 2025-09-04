@@ -11,7 +11,7 @@ namespace DomainDetective.Tests {
         public async Task VerifyThrowsIfDomainNullOrWhitespace(string? domain) {
             var healthCheck = new DomainHealthCheck();
             await Assert.ThrowsAsync<ArgumentNullException>(async () =>
-                await healthCheck.VerifySPF(domain));
+                await healthCheck.VerifySPF(domain!));
         }
 
         [Fact]

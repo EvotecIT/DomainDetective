@@ -34,8 +34,8 @@ public class TestAutodiscoverJsonV2 {
         // Debug: print methods seen
         System.Console.WriteLine(string.Join(", ", analysis.Endpoints.Select(e => e.Method.ToString())));
 
-        Assert.True(analysis.Endpoints.Any(e => e.Method == AutodiscoverMethod.OutlookV2Json));
-        Assert.True(analysis.Endpoints.Any(e => e.Method == AutodiscoverMethod.OutlookV2JsonPost));
+        Assert.Contains(analysis.Endpoints, e => e.Method == AutodiscoverMethod.OutlookV2Json);
+        Assert.Contains(analysis.Endpoints, e => e.Method == AutodiscoverMethod.OutlookV2JsonPost);
         var json = analysis.Endpoints.First(e => e.Method == AutodiscoverMethod.OutlookV2Json);
         var post = analysis.Endpoints.First(e => e.Method == AutodiscoverMethod.OutlookV2JsonPost);
         Assert.Equal(AutodiscoverMethod.OutlookV2Json, json.Method);

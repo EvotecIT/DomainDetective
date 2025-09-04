@@ -85,7 +85,7 @@ namespace DomainDetective.Tests {
             const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
             var serverTask = Task.Run(async () => {
                 var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                     var data = Encoding.UTF8.GetBytes(policy);
                     ctx.Response.StatusCode = 200;
                     await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
@@ -299,7 +299,7 @@ namespace DomainDetective.Tests {
             var serverTask = Task.Run(async () => {
                 while (listener.IsListening) {
                     var ctx = await listener.GetContextAsync();
-                    if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                    if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                         hitCount++;
                         var data = Encoding.UTF8.GetBytes(policy);
                         ctx.Response.StatusCode = 200;
@@ -351,7 +351,7 @@ namespace DomainDetective.Tests {
             var serverTask = Task.Run(async () => {
                 while (listener.IsListening) {
                     var ctx = await listener.GetContextAsync();
-                    if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                    if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                         hitCount++;
                         var data = Encoding.UTF8.GetBytes(policy);
                         ctx.Response.StatusCode = 200;
@@ -406,7 +406,7 @@ namespace DomainDetective.Tests {
             const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
             var serverTask = Task.Run(async () => {
                 var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                     var data = Encoding.UTF8.GetBytes(policy);
                     ctx.Response.StatusCode = 200;
                     await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
@@ -441,7 +441,7 @@ namespace DomainDetective.Tests {
             const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
             var serverTask = Task.Run(async () => {
                 var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url.AbsolutePath == "/.well-known/mta-sts.txt") {
+                if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
                     var data = Encoding.UTF8.GetBytes(policy);
                     ctx.Response.StatusCode = 200;
                     await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);

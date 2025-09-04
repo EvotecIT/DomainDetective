@@ -1,3 +1,5 @@
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
@@ -51,7 +53,9 @@ public class TestOcspParser {
         var sigFactory = new Asn1SignatureFactory("SHA256WITHRSA", keyPair.Private);
         X509Certificate cert = certGen.Generate(sigFactory);
 
-        var id = new CertificateID(CertificateID.HashSha1, cert, serial);
+        var ctor = typeof(CertificateID).GetConstructor(new[] { typeof(DerObjectIdentifier), typeof(X509Certificate), typeof(BigInteger) })
+            ?? throw new InvalidOperationException("Constructor not found");
+        var id = (CertificateID)ctor.Invoke(new object[] { OiwObjectIdentifiers.IdSha1.Id, cert, serial });
         var respGen = new BasicOcspRespGenerator(keyPair.Public);
         respGen.AddResponse(id, status);
         var basic = respGen.Generate(sigFactory, null, DateTime.UtcNow);

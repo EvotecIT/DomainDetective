@@ -437,8 +437,8 @@ namespace DomainDetective.Tests {
                         using var writer = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
                         var requestLine = await reader.ReadLineAsync();
                         if (requestLine == null) { return; }
-                        string line;
-                        do { line = await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(line));
+                          string? line;
+                          do { line = await reader.ReadLineAsync(); } while (!string.IsNullOrEmpty(line));
                         var path = requestLine.Split(' ')[1];
                         var resp = response(path);
                         await writer.WriteLineAsync("HTTP/1.1 200 OK");

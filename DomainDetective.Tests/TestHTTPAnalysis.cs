@@ -2,6 +2,7 @@ using System;
 using System.Net;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
@@ -569,7 +570,9 @@ namespace DomainDetective.Tests {
                 logger.OnWarningMessage += (_, e) => warnings.Add(e);
                 var analysis = new HttpAnalysis();
                 await analysis.AnalyzeUrl(prefix, false, logger, collectHeaders: true);
-                Assert.True(analysis.PublicKeyPinsPresent);
+                var pkpProp = typeof(HttpAnalysis).GetProperty("PublicKeyPinsPresent");
+                var pkp = (bool)(pkpProp?.GetValue(analysis) ?? false);
+                Assert.True(pkp);
                 Assert.Contains(warnings, w => w.FullMessage.Contains("deprecated"));
             } finally {
                 listener.Stop();

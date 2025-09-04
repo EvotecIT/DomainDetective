@@ -479,7 +479,7 @@ namespace DomainDetective.Tests {
             Assert.Contains("192.0.2.1", analysis.UniqueIps);
             Assert.Contains("198.51.100.2", analysis.UniqueIps);
             Assert.Contains("192.0.2.1", analysis.DuplicateIps);
-            Assert.True(analysis.TokenIpMap["ip4:192.0.2.1"].Contains("192.0.2.1"));
+            Assert.Contains("192.0.2.1", analysis.TokenIpMap["ip4:192.0.2.1"]);
         }
 
         [Fact]
