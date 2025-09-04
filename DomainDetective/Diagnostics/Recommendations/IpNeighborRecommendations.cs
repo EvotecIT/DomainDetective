@@ -21,6 +21,15 @@ internal sealed class IpNeighborRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "ip", "neighbors", "mail" }
         };
+
+        map[IpNeighborCodes.NoMaliciousNeighbors] = new RecommendationAdvice {
+            Code = IpNeighborCodes.NoMaliciousNeighbors,
+            Title = "No malicious neighbors detected",
+            Why = "Passive DNS and PTR checks did not reveal suspicious co-hosted domains.",
+            How = "No action required.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "ip", "neighbors" }
+        };
     }
 }
 
