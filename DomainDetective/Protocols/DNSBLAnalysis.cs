@@ -429,6 +429,11 @@ namespace DomainDetective {
                     Logger?.WriteWarningCode(DnsblCodes.Listed, "{0} listed on {1}", reason, rec.BlackList);
                 }
             }
+
+            if (!queryResult.IsBlacklisted) {
+                using var _collector = Logger != null ? AssessmentCollector.ForAnalysis(Logger, this, category: "DNSBL", target: ipAddressOrHostname) : null;
+                _collector?.AddInfo("Not listed on any DNSBL", DnsblCodes.NotListed);
+            }
         }
 
         private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> source) {
