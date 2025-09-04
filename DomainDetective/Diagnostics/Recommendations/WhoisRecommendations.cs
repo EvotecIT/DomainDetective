@@ -59,6 +59,28 @@ internal sealed class WhoisRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "WHOIS response retrieved successfully."
         };
+        map[WhoisCodes.ContactValid] = new RecommendationAdvice {
+            Code = WhoisCodes.ContactValid,
+            Title = "WHOIS contact details available",
+            Why = "Published contact information helps reach the domain owner for operational or abuse issues.",
+            How = "Ensure registrar and registrant contact fields remain accurate and complete.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "whois", "contact" },
+            Impact = "Improves accountability and facilitates communication.",
+            Effort = RecommendationEffort.Low,
+            Verify = "WHOIS publishes reachable email or telephone data."
+        };
+        map[WhoisCodes.ExpiryFuture] = new RecommendationAdvice {
+            Code = WhoisCodes.ExpiryFuture,
+            Title = "Domain not near expiry",
+            Why = "A long registration period indicates the domain is under stable control.",
+            How = "Monitor renewal reminders and maintain auto-renew to keep ownership.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "whois", "expiry" },
+            Impact = "Low risk of unexpected domain lapse.",
+            Effort = RecommendationEffort.Low,
+            Verify = "WHOIS shows expiration date well into the future."
+        };
     }
 }
 
