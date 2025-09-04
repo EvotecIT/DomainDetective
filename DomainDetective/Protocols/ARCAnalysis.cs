@@ -146,6 +146,8 @@ namespace DomainDetective {
 
             ValidChain = true;
             ChainState = ArcChainState.Valid;
+            logger?.WriteInformationCode(ArcCodes.SealsIntact, "ARC seals include signatures");
+            logger?.WriteInformationCode(ArcCodes.ChainValid, "ARC chain validated");
         }
 
         private static int? ParseInstance(string value) {
