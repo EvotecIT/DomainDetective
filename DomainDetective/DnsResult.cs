@@ -14,11 +14,11 @@ namespace DomainDetective {
     /// </remarks>
     public class DnsResult {
         /// <summary>Gets or sets the queried name.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         /// <summary>Gets or sets the raw data returned.</summary>
-        public string[] Data { get; set; }
+        public string[] Data { get; set; } = Array.Empty<string>();
         /// <summary>Gets or sets the data joined into a single string.</summary>
-        public string DataJoined { get; set; }
+        public string DataJoined { get; set; } = string.Empty;
         /// <summary>Gets or sets the time to live value.</summary>
         public int Ttl { get; set; }
 

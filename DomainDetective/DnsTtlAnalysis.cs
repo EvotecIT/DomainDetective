@@ -41,7 +41,7 @@ namespace DomainDetective {
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Provides DNS query implementation details.</summary>
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         // Per-authoritative-server TTL uniformity results
         public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
@@ -144,7 +144,7 @@ namespace DomainDetective {
         private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct) {
             var q = BuildQuery(name, qtype);
             var buf = await QueryUdp(ip, q, ct);
-            return ParseFirstAnswerTtl(buf, qtype);
+            return buf != null ? ParseFirstAnswerTtl(buf, qtype) : null;
         }
 
         /// <summary>

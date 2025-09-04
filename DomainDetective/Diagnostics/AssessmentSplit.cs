@@ -17,9 +17,10 @@ public static class AssessmentSplit
         var grouped = RecommendationEngine.GroupByCode(assessments);
         foreach (var g in grouped)
         {
-            var title = string.IsNullOrWhiteSpace(g.Advice?.Title) ? (g.Instances.FirstOrDefault()?.Message ?? g.Code) : g.Advice.Title;
-            if (g.MaxSeverity == AssessmentSeverity.Info) positives.Add(title);
-            else remediations.Add(title);
+            var adviceTitle = g.Advice?.Title;
+            var title = string.IsNullOrWhiteSpace(adviceTitle) ? (g.Instances.FirstOrDefault()?.Message ?? g.Code ?? string.Empty) : adviceTitle;
+            if (g.MaxSeverity == AssessmentSeverity.Info) positives.Add(title ?? string.Empty);
+            else remediations.Add(title ?? string.Empty);
         }
         positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

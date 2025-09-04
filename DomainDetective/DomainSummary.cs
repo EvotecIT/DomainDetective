@@ -30,7 +30,7 @@ namespace DomainDetective {
         public bool HasDmarcRecord { get; init; }
 
         /// <summary>Policy configured in the DMARC record.</summary>
-        public string DmarcPolicy { get; init; }
+        public string DmarcPolicy { get; init; } = string.Empty;
 
         /// <summary>True when the DMARC record appears valid.</summary>
         public bool DmarcValid { get; init; }
@@ -53,12 +53,12 @@ namespace DomainDetective {
         /// <summary>
         /// Indicates whether the analyzed domain is itself a public suffix as
         /// defined by <see href="https://datatracker.ietf.org/doc/html/rfc8499"/>
-        /// RFC&nbsp;8499.
+        /// RFC&#160;8499.
         /// </summary>
         public bool IsPublicSuffix { get; init; }
 
         /// <summary>Expiration date reported by WHOIS.</summary>
-        public string ExpiryDate { get; init; }
+        public string ExpiryDate { get; init; } = string.Empty;
 
         /// <summary>Number of days until expiration; negative when already expired.</summary>
         public int? DaysUntilExpiration { get; init; }

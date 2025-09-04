@@ -84,7 +84,14 @@ namespace DomainDetective {
         /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
         /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task Verify(string domainName, HealthCheckType[] healthCheckTypes = null, string[] dkimSelectors = null, ServiceType[] daneServiceType = null, int[] danePorts = null, PortScanProfile[] portScanProfiles = null, CancellationToken cancellationToken = default) {
+        public async Task Verify(
+            string domainName,
+            HealthCheckType[]? healthCheckTypes = null,
+            string[]? dkimSelectors = null,
+            ServiceType[]? daneServiceType = null,
+            int[]? danePorts = null,
+            PortScanProfile[]? portScanProfiles = null,
+            CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
@@ -199,8 +206,7 @@ namespace DomainDetective {
             await DnsHealthAnalysis.Analyze(domainName, _logger, cancellationToken);
         }
 
-        /// Creates a high level summary of key analyses.
-        /// </summary>
+        /// <summary>Creates a high level summary of key analyses.</summary>
         /// <returns>A populated <see cref="DomainSummary"/>.</returns>
         public DomainSummary BuildSummary() {
             var spfValid = SpfAnalysis.SpfRecordExists && SpfAnalysis.StartsCorrectly &&
@@ -280,7 +286,7 @@ namespace DomainDetective {
         /// <para>A JSON representation of the current
         /// <see cref="DomainHealthCheck"/>.</para>
         /// </returns>
-        public string ToJson(JsonSerializerOptions options = null) {
+        public string ToJson(JsonSerializerOptions? options = null) {
             options ??= JsonOptions;
             if (UnicodeOutput && options.Converters.All(c => c is not IdnStringConverter)) {
                 var local = new JsonSerializerOptions(options);

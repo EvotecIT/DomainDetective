@@ -33,7 +33,7 @@ namespace DomainDetective {
             /// <summary>The negotiated TLS protocol.</summary>
             public SslProtocols Protocol { get; init; }
             /// <summary>Captured analysis details.</summary>
-            public CertificateAnalysis Analysis { get; init; }
+            public CertificateAnalysis Analysis { get; init; } = null!;
         }
 
         private PeriodicTimer? _timer;

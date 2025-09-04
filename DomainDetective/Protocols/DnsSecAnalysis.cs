@@ -93,7 +93,7 @@ namespace DomainDetective {
             _client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
         }
 
-        public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration dnsConfiguration = null, CancellationToken ct = default) {
+        public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
             Subject = domainName;
             var client = _client;
@@ -651,7 +651,7 @@ namespace DomainDetective {
         /// <param name="logger">Optional logger for diagnostics.</param>
         /// <returns>List of DS record strings for the root zone.</returns>
         public static async Task<(IReadOnlyList<string> anchors, DateTimeOffset? expiration)> DownloadTrustAnchors(
-            InternalLogger logger = null,
+            InternalLogger? logger = null,
             CancellationToken cancellationToken = default) {
             const string url = "https://data.iana.org/root-anchors/root-anchors.xml";
             string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");

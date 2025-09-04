@@ -278,8 +278,7 @@ namespace DomainDetective {
         /// <value>Information about unresolved CNAME targets.</value>
         public DanglingCnameAnalysis DanglingCnameAnalysis { get; private set; } = new DanglingCnameAnalysis();
 
-        /// Gets DNS TTL analysis.
-        /// </summary>
+        /// <summary>Gets DNS TTL analysis.</summary>
         /// <value>Information about record TTL values.</value>
         public DnsTtlAnalysis DnsTtlAnalysis { get; private set; } = new DnsTtlAnalysis();
 
@@ -362,7 +361,7 @@ namespace DomainDetective {
         /// <param name="internalLogger">
         /// <para>Optional logger for diagnostic output.</para>
         /// </param>
-        public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.System, InternalLogger internalLogger = null) {
+        public DomainHealthCheck(DnsEndpoint dnsEndpoint = DnsEndpoint.System, InternalLogger? internalLogger = null) {
 
             if (internalLogger != null) {
                 _logger = internalLogger;
