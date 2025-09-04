@@ -14,9 +14,8 @@ internal sealed class DnsHealthRecommendations : IRecommendationProvider {
             Tags = new [] { "dns", "soa", "consistency" },
             Impact = "Clients may see inconsistent answers; DNSSEC signatures may not match if records differ.",
             Effort = RecommendationEffort.Medium,
-            Verify = "Query SOA serial from each NS and confirm they match."
+            Verify = "Query SOA serial from each NS and confirm they match.",
         };
-
         map[DnsHealthCodes.ApexInconsistent] = new RecommendationAdvice {
             Code = DnsHealthCodes.ApexInconsistent,
             Title = "A/AAAA answers for apex differ across NS",
@@ -27,7 +26,21 @@ internal sealed class DnsHealthRecommendations : IRecommendationProvider {
             Tags = new [] { "dns", "consistency" },
             Impact = "Resolvers may receive different data depending on which NS they query.",
             Effort = RecommendationEffort.Medium,
-            Verify = "Query A/AAAA for the zone apex via each authoritative server and compare."
+            Verify = "Query A/AAAA for the zone apex via each authoritative server and compare.",
+        };
+        map[DnsHealthCodes.SoaSerialConsistent] = new RecommendationAdvice {
+            Code = DnsHealthCodes.SoaSerialConsistent,
+            Title = "SOA serial numbers consistent across NS",
+            Why = "Matching SOA serials show zone data is synchronized among authoritative servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "soa", "consistency" }
+        };
+        map[DnsHealthCodes.ServersResponsive] = new RecommendationAdvice {
+            Code = DnsHealthCodes.ServersResponsive,
+            Title = "Authoritative name servers responded to queries",
+            Why = "Responsive authoritative servers improve resolver reliability and confidence.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ns", "availability" }
         };
     }
 }

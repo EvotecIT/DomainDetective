@@ -17,12 +17,16 @@ namespace DomainDetective {
         public string? Subject { get; set; }
         public DnsConfiguration DnsConfiguration { get; set; }
 
+        public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
+
         public List<string> NameServers { get; private set; } = new();
         public Dictionary<string, long> SoaSerialByServer { get; } = new();
         public bool SoaSerialConsistent { get; private set; }
 
         public Dictionary<string, List<string>> ApexAddressesByServer { get; } = new();
         public bool ApexAddressesConsistent { get; private set; }
+
+        public bool ServersResponsive { get; private set; }
 
         public List<Assessment> Assessments { get; } = new();
 
@@ -38,6 +42,7 @@ namespace DomainDetective {
             ApexAddressesByServer.Clear();
             SoaSerialConsistent = true;
             ApexAddressesConsistent = true;
+            ServersResponsive = true;
 
             // Discover NS hostnames and their addresses
             var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
@@ -88,6 +93,8 @@ namespace DomainDetective {
 
             if (!SoaSerialConsistent) {
                 logger?.WriteWarningCode(DnsHealthCodes.SoaSerialSkew, "SOA serial numbers differ across authoritative servers");
+            } else {
+                logger?.WriteInformationCode(DnsHealthCodes.SoaSerialConsistent, "SOA serial numbers consistent across authoritative servers");
             }
 
             if (ApexAddressesByServer.Count > 1) {
@@ -106,6 +113,11 @@ namespace DomainDetective {
 
             if (!ApexAddressesConsistent) {
                 logger?.WriteWarningCode(DnsHealthCodes.ApexInconsistent, "A/AAAA answers for zone apex differ across authoritative servers");
+            }
+
+            ServersResponsive = SoaSerialByServer.Count == nsIps.Count && ApexAddressesByServer.Count == nsIps.Count;
+            if (ServersResponsive) {
+                logger?.WriteInformationCode(DnsHealthCodes.ServersResponsive, "All authoritative name servers responded to queries");
             }
         }
 
@@ -165,7 +177,11 @@ namespace DomainDetective {
             offset += 4; return v;
         }
 
-        private static async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token) {
+        private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token) {
+            if (QueryUdpOverride != null) {
+                return await QueryUdpOverride(server, query, token);
+            }
+
             using var udp = new UdpClient(new IPEndPoint(server.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = 4000;
 #if NET6_0_OR_GREATER
