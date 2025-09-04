@@ -10,6 +10,8 @@ internal static class PortScanCodes {
     public const string ElasticOpen = "PORTSCAN.Elasticsearch.Open";
     public const string MemcachedOpen = "PORTSCAN.Memcached.Open";
 
+    public const string ExpectedPortsOnly = "PORTSCAN.Success.ExpectedPortsOnly";
+
     public const string BannerVersionLeaked = "PORTSCAN.Banner.VersionLeaked";
 }
 

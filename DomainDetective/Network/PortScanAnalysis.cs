@@ -102,6 +102,7 @@ public class PortScanAnalysis : IHasAssessments
         Subject = host;
         Results.Clear();
         var list = ports ?? PortScanProfileDefinition.DefaultPorts;
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: host) : null;
         using var semaphore = new SemaphoreSlim(MaxConcurrency);
         var total = list.Count();
         var processed = 0;
@@ -127,6 +128,11 @@ public class PortScanAnalysis : IHasAssessments
             }
         });
         await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        if (!Results.Any(kv => kv.Value.TcpOpen && SensitiveTcpServices.ContainsKey(kv.Key)))
+        {
+            logger?.WriteInformationCode(PortScanCodes.ExpectedPortsOnly, "Only expected ports open on {0}", host);
+        }
     }
 
     /// <summary>Performs a scan using a predefined profile.</summary>

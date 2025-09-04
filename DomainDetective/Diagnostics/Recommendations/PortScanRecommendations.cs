@@ -120,6 +120,19 @@ internal sealed class PortScanRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Reconnect and confirm banners no longer expose versions."
         };
+
+        map[PortScanCodes.ExpectedPortsOnly] = new RecommendationAdvice {
+            Code = PortScanCodes.ExpectedPortsOnly,
+            Title = "Only expected ports are open",
+            Why = "Restricting services to necessary ports minimizes attack surface.",
+            How = "Keep unnecessary services disabled and monitor for unexpected openings.",
+            Links = new [] { "https://nmap.org/book/man-port-scanning-basics.html" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "portscan", "hardening" },
+            Impact = "Reduced exposure from extraneous services.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Regularly scan to ensure only required ports remain open."
+        };
     }
 }
 
