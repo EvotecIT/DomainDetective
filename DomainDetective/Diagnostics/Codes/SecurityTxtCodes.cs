@@ -15,4 +15,8 @@ internal static class SecurityTxtCodes {
     public const string CanonicalNotHttps = "SECURITYTXT.Canonical.NotHttps";
     public const string CanonicalMismatch = "SECURITYTXT.Canonical.Mismatch";
     public const string InvalidFile = "SECURITYTXT.Invalid.File";
+
+    // Positive/posture signals
+    public const string RecordPresent = "SECURITYTXT.Record.Present";
+    public const string RecordValid = "SECURITYTXT.Record.Valid";
 }
