@@ -1,4 +1,5 @@
 using DomainDetective;
+using DomainDetective.Narratives;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,5 +36,13 @@ public static partial class Program {
         Console.WriteLine($"Expired       : {analysis.IsExpired}");
         Console.WriteLine($"Days left     : {analysis.DaysToExpire}");
         Console.WriteLine($"Days valid    : {analysis.DaysValid}");
+    }
+
+    /// <summary>Builds a narrative and lists positive certificate advice.</summary>
+    public static async Task ExampleCertificateNarrative() {
+        var analysis = await CertificateAnalysis.CheckWebsiteCertificate("https://google.com");
+        var sections = CertificateHttpNarrative.Build(analysis, analysis.Assessments);
+        Helpers.ShowPropertiesTable("Certificate Highlights", sections.Highlights);
+        Helpers.ShowPropertiesTable("Certificate Positives", sections.Positives);
     }
 }

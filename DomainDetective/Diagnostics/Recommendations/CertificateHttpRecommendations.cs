@@ -26,6 +26,30 @@ internal sealed class CertificateHttpRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Retry with curl -v --tlsv1.2 and verify successful HTTP 200 over TLS."
         };
+
+        // Positive signals (informational)
+        map[CertificateHttpCodes.ChainValid] = new RecommendationAdvice {
+            Code = CertificateHttpCodes.ChainValid,
+            Title = "Certificate chain valid",
+            Why = "A complete, trusted certificate chain allows clients to verify server identity.",
+            How = "Continue monitoring certificate expiration and intermediate CA trust.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "certificate" },
+            Impact = "Users see no trust warnings when connecting over HTTPS.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Run openssl s_client -showcerts and confirm the chain verifies without errors."
+        };
+        map[CertificateHttpCodes.ContentTypeValid] = new RecommendationAdvice {
+            Code = CertificateHttpCodes.ContentTypeValid,
+            Title = "Serves certificate with correct content type",
+            Why = "Proper Content-Type headers ensure automated tools parse certificate responses reliably.",
+            How = "Keep the endpoint configured to return application/pem-certificate-chain or application/x-pem-file.",
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "https", "content-type" },
+            Impact = "Clients can download certificates programmatically without additional handling.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Fetch the certificate URL and inspect the Content-Type header."
+        };
     }
 }
 
