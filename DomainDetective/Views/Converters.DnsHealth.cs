@@ -19,6 +19,7 @@ public static partial class Converters
             SoaSerialConsistent = analysis.SoaSerialConsistent,
             ApexAddressesByServer = analysis.ApexAddressesByServer,
             ApexAddressesConsistent = analysis.ApexAddressesConsistent,
+            ServersResponsive = analysis.ServersResponsive,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warn,
@@ -42,6 +43,7 @@ public class DnsHealthInfo
     public bool SoaSerialConsistent { get; set; }
     public IReadOnlyDictionary<string, List<string>> ApexAddressesByServer { get; set; }
     public bool ApexAddressesConsistent { get; set; }
+    public bool ServersResponsive { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; }
     public string Status { get; set; }
     public int WarningCount { get; set; }

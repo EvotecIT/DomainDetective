@@ -24,6 +24,8 @@ namespace DomainDetective {
         public Dictionary<string, List<string>> ApexAddressesByServer { get; } = new();
         public bool ApexAddressesConsistent { get; private set; }
 
+        public bool ServersResponsive { get; private set; }
+
         public List<Assessment> Assessments { get; } = new();
 
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
@@ -38,6 +40,7 @@ namespace DomainDetective {
             ApexAddressesByServer.Clear();
             SoaSerialConsistent = true;
             ApexAddressesConsistent = true;
+            ServersResponsive = true;
 
             // Discover NS hostnames and their addresses
             var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
@@ -88,6 +91,8 @@ namespace DomainDetective {
 
             if (!SoaSerialConsistent) {
                 logger?.WriteWarningCode(DnsHealthCodes.SoaSerialSkew, "SOA serial numbers differ across authoritative servers");
+            } else {
+                logger?.WriteInformationCode(DnsHealthCodes.SoaSerialConsistent, "SOA serial numbers consistent across authoritative servers");
             }
 
             if (ApexAddressesByServer.Count > 1) {
@@ -106,6 +111,11 @@ namespace DomainDetective {
 
             if (!ApexAddressesConsistent) {
                 logger?.WriteWarningCode(DnsHealthCodes.ApexInconsistent, "A/AAAA answers for zone apex differ across authoritative servers");
+            }
+
+            ServersResponsive = SoaSerialByServer.Count == nsIps.Count && ApexAddressesByServer.Count == nsIps.Count;
+            if (ServersResponsive) {
+                logger?.WriteInformationCode(DnsHealthCodes.ServersResponsive, "All authoritative name servers responded to queries");
             }
         }
 
