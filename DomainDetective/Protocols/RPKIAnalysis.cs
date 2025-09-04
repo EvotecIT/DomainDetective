@@ -104,6 +104,15 @@ public class RPKIAnalysis : IHasAssessments
                     Valid = valid
                 });
             }
+
+            if (!string.IsNullOrWhiteSpace(prefix))
+            {
+                logger?.WriteInformationCode(RpkiCodes.PrefixCovered, $"IP {ip} covered by {prefix} (AS{asn}).");
+                if (valid)
+                {
+                    logger?.WriteInformationCode(RpkiCodes.ValidRoa, $"ROA valid for {prefix} (AS{asn}).");
+                }
+            }
         });
 
         await Task.WhenAll(tasks);
