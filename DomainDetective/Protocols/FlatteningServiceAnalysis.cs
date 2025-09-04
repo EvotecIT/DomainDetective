@@ -13,6 +13,8 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class FlatteningServiceAnalysis : IHasAssessments
 {
+    /// <summary>Domain under analysis.</summary>
+    public string? Subject { get; private set; }
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
     /// <summary>Override DNS query logic.</summary>
@@ -25,8 +27,14 @@ public class FlatteningServiceAnalysis : IHasAssessments
     /// <summary>True when the CNAME points to a known flattening service.</summary>
     public bool IsFlatteningService { get; private set; }
 
+    /// <summary>Flattened A/AAAA addresses resolved for the apex.</summary>
+    public List<string> Addresses { get; } = new();
+
     /// <summary>Structured assessments captured during flattening service detection.</summary>
     public List<Assessment> Assessments { get; } = new();
+
+    /// <summary>Recommendations derived from assessments.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     private static readonly string[] _flatteningDomains = new[]
     {
@@ -49,9 +57,11 @@ public class FlatteningServiceAnalysis : IHasAssessments
     /// </summary>
     public async Task Analyze(string domainName, InternalLogger logger, CancellationToken ct = default)
     {
+        Subject = domainName;
         CnameRecordExists = false;
         Target = null;
         IsFlatteningService = false;
+        Addresses.Clear();
         ct.ThrowIfCancellationRequested();
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "CNAME", target: domainName) : null;
 
@@ -70,6 +80,23 @@ public class FlatteningServiceAnalysis : IHasAssessments
         if (IsFlatteningService)
         {
             logger?.WriteWarningCode(FlatteningServiceCodes.UsesFlatteningService, "CNAME uses a known flattening service");
+
+            var a = await QueryDns(domainName, DnsRecordType.A, ct);
+            var aaaa = await QueryDns(domainName, DnsRecordType.AAAA, ct);
+
+            foreach (var ans in a.Concat(aaaa))
+            {
+                var addr = ans.Data.TrimEnd('.');
+                if (!string.IsNullOrWhiteSpace(addr))
+                {
+                    Addresses.Add(addr);
+                }
+            }
+
+            if (Addresses.Count > 0)
+            {
+                logger?.WriteInformationCode(FlatteningServiceCodes.ResolvedAddresses, "flattening service resolved addresses");
+            }
         }
     }
 }
