@@ -22,4 +22,5 @@ internal static class DkimCodes {
     public const string SignatureValid = "DKIM.Signature.Valid";
     public const string SelectorAligned = "DKIM.Selector.Aligned";
     public const string AlgorithmRecommended = "DKIM.Algorithm.Recommended";
+    public const string KeyReused = "DKIM.Key.Reused";
 }

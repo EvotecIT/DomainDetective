@@ -40,6 +40,16 @@ internal sealed class DkimRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "dkim", "crypto", "algorithm" }
         };
+
+        map[DkimCodes.KeyReused] = new RecommendationAdvice {
+            Code = DkimCodes.KeyReused,
+            Title = "DKIM key reused across selectors",
+            Why = "Reusing the same DKIM key across selectors/services reduces isolation and complicates key rotation.",
+            How = "Issue unique keys per selector/service and rotate regularly; decommission old keys.",
+            Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376" },
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "keys", "rotation" }
+        };
     }
 }
 
