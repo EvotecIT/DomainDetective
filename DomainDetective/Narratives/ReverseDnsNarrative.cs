@@ -26,9 +26,11 @@ public static class ReverseDnsNarrative
 
         var total = rdns?.Results?.Count ?? 0;
         var withPtr = rdns?.Results?.Count(r => !string.IsNullOrWhiteSpace(r.PtrRecord)) ?? 0;
+        var allValid = rdns?.Results != null && rdns.Results.All(r => r.IsValid);
+        var allFcr = rdns?.Results?.All(r => r.FcrDnsValid) == true;
         hi.Add($"PTR records found: {withPtr}/{total}.");
-        hi.Add(rdns.AllValid ? "PTR names align with MX hosts." : "PTR names do not align with all MX hosts.");
-        hi.Add(rdns.Results?.All(r => r.FcrDnsValid) == true ?
+        hi.Add(allValid ? "PTR names align with MX hosts." : "PTR names do not align with all MX hosts.");
+        hi.Add(allFcr ?
             "PTR hostnames resolve back to their IP addresses." :
             "Some PTR hostnames fail to resolve back to their IP addresses.");
 
@@ -60,7 +62,10 @@ public static class ReverseDnsNarrative
                 }
             }
         }
-        catch { }
+        catch (Exception)
+        {
+            // Intentionally ignore recommendation processing errors to keep narrative generation resilient.
+        }
 
         return new Sections
         {
