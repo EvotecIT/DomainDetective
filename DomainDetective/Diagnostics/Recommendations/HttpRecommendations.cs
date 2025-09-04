@@ -251,6 +251,17 @@ internal sealed class HttpRecommendations : IRecommendationProvider {
         };
 
         // Presence/positive signals
+        map[HttpCodes.SecureRedirect] = new RecommendationAdvice {
+            Code = HttpCodes.SecureRedirect,
+            Title = "Redirects to HTTPS",
+            Why = "Automatic redirects ensure users reach a secure endpoint even when typing http://.",
+            How = "Continue enforcing HTTP to HTTPS redirects for all hosts.",
+            Domain = RecommendationDomain.Http,
+            Tags = new [] { "redirect", "https" },
+            Impact = "Users are protected from insecure transport when omitting https://.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Request http:// URL and confirm redirect to https://."
+        };
         map[HttpCodes.HstsPresent] = new RecommendationAdvice {
             Code = HttpCodes.HstsPresent,
             Title = "HSTS present",

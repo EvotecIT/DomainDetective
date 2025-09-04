@@ -34,6 +34,7 @@ internal static class HttpCodes {
     public const string XFrameOptionsInvalid = "HTTP.XFO.InvalidValue";
     public const string XContentTypeOptionsInvalid = "HTTP.XCTO.InvalidValue";
     // Positive/presence signals to enrich datasets
+    public const string SecureRedirect = "HTTP.Redirect.ToHTTPS";
     public const string HstsPresent = "HTTP.HSTS.Present";
     public const string CspPresent = "HTTP.CSP.Present";
     public const string ReferrerPolicyPresent = "HTTP.Header.Present.ReferrerPolicy";
