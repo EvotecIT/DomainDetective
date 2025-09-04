@@ -75,7 +75,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets a value indicating whether the entry is used during checks.</summary>
         public bool Enabled { get; set; } = true;
         /// <summary>Gets or sets optional descriptive text.</summary>
-        public string Comment { get; set; }
+        public string? Comment { get; set; }
         /// <summary>Gets or sets provider specific reply codes.</summary>
         public Dictionary<string, DnsblReplyCode> ReplyCodes { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -83,7 +83,7 @@ namespace DomainDetective {
         public int Port { get; set; } = 53;
 
         public DnsblEntry() { }
-        public DnsblEntry(string domain, bool enabled = true, string comment = null, int port = 53) {
+        public DnsblEntry(string domain, bool enabled = true, string? comment = null, int port = 53) {
             Domain = domain;
             Enabled = enabled;
             Comment = comment;
@@ -157,7 +157,7 @@ namespace DomainDetective {
         /// </value>
         internal List<DnsblEntry> DnsblEntries { get; } = new();
 
-        public DNSBLAnalysis(DnsConfiguration dnsConfiguration = null) {
+        public DNSBLAnalysis(DnsConfiguration? dnsConfiguration = null) {
             DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
             DnsblEntries.AddRange(_defaultEntries.Select(e => {
                 var entry = new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port);
@@ -472,7 +472,7 @@ namespace DomainDetective {
             return ipAddress.ToPtrFormat();
         }
 
-        private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname, DnsblIpSource? ipSource = null, string sourceHost = null) {
+        private async IAsyncEnumerable<DNSBLRecord> QueryDNSBL(IEnumerable<string> dnsblList, string ipAddressOrHostname, DnsblIpSource? ipSource = null, string? sourceHost = null) {
             // Gracefully handle missing/empty provider lists to avoid crashes when configuration isn't loaded
             if (dnsblList == null)
                 yield break;
@@ -587,7 +587,7 @@ namespace DomainDetective {
         /// <param name="enabled">Whether the entry should be queried.</param>
         /// <param name="comment">Optional descriptive comment.</param>
         /// <param name="port">DNS port used when querying.</param>
-        public void AddDNSBL(string dnsbl, bool enabled = true, string comment = null, int port = 53) {
+        public void AddDNSBL(string dnsbl, bool enabled = true, string? comment = null, int port = 53) {
             if (string.IsNullOrWhiteSpace(dnsbl))
                 return;
 

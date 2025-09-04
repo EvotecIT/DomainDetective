@@ -104,10 +104,10 @@ namespace DomainDetective {
                 var trimmed = new PublicDnsEntry {
                     Country = entry.Country,
                     IPAddress = ip,
-                    HostName = entry.HostName?.Trim(),
+                    HostName = entry.HostName?.Trim() ?? string.Empty,
                     Location = entry.Location,
                     ASN = entry.ASN,
-                    ASNName = entry.ASNName?.Trim(),
+                    ASNName = entry.ASNName?.Trim() ?? string.Empty,
                     Enabled = entry.Enabled
                 };
 
@@ -156,10 +156,10 @@ namespace DomainDetective {
                 var trimmed = new PublicDnsEntry {
                     Country = entry.Country,
                     IPAddress = ip,
-                    HostName = entry.HostName?.Trim(),
-                    Location = entry.Location,
-                    ASN = entry.ASN,
-                    ASNName = entry.ASNName?.Trim(),
+                  HostName = entry.HostName?.Trim() ?? string.Empty,
+                  Location = entry.Location,
+                  ASN = entry.ASN,
+                  ASNName = entry.ASNName?.Trim() ?? string.Empty,
                     Enabled = entry.Enabled
                 };
 

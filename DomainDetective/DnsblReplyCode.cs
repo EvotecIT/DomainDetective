@@ -16,6 +16,6 @@ public class DnsblReplyCode {
         /// <summary>
         /// Human readable explanation of the reply code.
         /// </summary>
-        public string Meaning { get; set; }
+        public string Meaning { get; set; } = string.Empty;
     }
 }
