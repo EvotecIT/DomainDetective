@@ -13,8 +13,7 @@ namespace DomainDetective;
 /// Validates IP prefixes against RPKI data.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class RPKIAnalysis : IHasAssessments
-{
+public class RPKIAnalysis : IHasAssessments {
     /// <summary>DNS configuration for lookups.</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new();
 
@@ -34,31 +33,40 @@ public class RPKIAnalysis : IHasAssessments
     /// <summary>True when all IPs are valid per RPKI.</summary>
     public bool AllValid => Results.All(r => r.Valid);
 
-    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
-    {
-        if (QueryDnsOverride != null)
-        {
+    private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
+        if (QueryDnsOverride != null) {
             return await QueryDnsOverride(name, type);
         }
         return await DnsConfiguration.QueryDNS(name, type);
     }
 
-    private async Task<(string Prefix, int Asn, bool Valid)> QueryRpki(string ip, InternalLogger? logger)
-    {
-        if (QueryRpkiOverride != null)
-        {
+    private async Task<(string Prefix, int Asn, bool Valid)> QueryRpki(string ip, InternalLogger? logger) {
+        if (QueryRpkiOverride != null) {
             return await QueryRpkiOverride(ip);
         }
 
-        try
-        {
+        string? prefix = null;
+        try {
             HttpClient client = SharedHttpClient.Instance;
             using var prefixResp = await client.GetAsync($"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
             prefixResp.EnsureSuccessStatusCode();
             using var prefixStream = await prefixResp.Content.ReadAsStreamAsync();
             var prefixDoc = await JsonDocument.ParseAsync(prefixStream);
-            string? prefix = prefixDoc.RootElement.GetProperty("data").GetProperty("resource").GetString();
-            int asn = prefixDoc.RootElement.GetProperty("data").GetProperty("asns")[0].GetProperty("asn").GetInt32();
+            var data = prefixDoc.RootElement.GetProperty("data");
+            prefix = data.GetProperty("resource").GetString();
+            var asnsElement = data.GetProperty("asns");
+            int asn = 0;
+            if (asnsElement.ValueKind == JsonValueKind.Array && asnsElement.GetArrayLength() > 0) {
+                var asnElement = asnsElement[0];
+                if (asnElement.TryGetProperty("asn", out var asnProperty)) {
+                    asn = asnProperty.GetInt32();
+                } else {
+                    return Fail(prefix, logger, "ASN property missing for {0}.", ip);
+                }
+            } else {
+                return Fail(prefix, logger, "No ASN data for {0}.", ip);
+            }
+
             string rpkiUrl = $"https://stat.ripe.net/data/rpki-validation/data.json?prefix={prefix}&resource=AS{asn}";
             using var rpkiResp = await client.GetAsync(rpkiUrl);
             rpkiResp.EnsureSuccessStatusCode();
@@ -67,19 +75,20 @@ public class RPKIAnalysis : IHasAssessments
             string? status = rpkiDoc.RootElement.GetProperty("data").GetProperty("status").GetString();
             bool valid = !string.Equals(status, "invalid", StringComparison.OrdinalIgnoreCase);
             return (prefix ?? string.Empty, asn, valid);
+        } catch (Exception ex) {
+            return Fail(prefix, logger, "RPKI query failed for {0}: {1}", ip, ex.Message);
         }
-        catch (Exception ex)
-        {
-            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
-            return (string.Empty, 0, true);
-        }
+    }
+
+    private static (string Prefix, int Asn, bool Valid) Fail(string? prefix, InternalLogger? logger, string message, params object[] args) {
+        logger?.WriteErrorCode(RpkiCodes.QueryFailed, message, args);
+        return (prefix ?? string.Empty, 0, false);
     }
 
     /// <summary>
     /// Validates IP addresses of <paramref name="domainName"/> against RPKI repositories.
     /// </summary>
-    public async Task Analyze(string domainName, InternalLogger? logger = null, CancellationToken ct = default)
-    {
+    public async Task Analyze(string domainName, InternalLogger? logger = null, CancellationToken ct = default) {
         Subject = domainName;
         Results = new List<RPKIResult>();
         using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "RPKI", target: domainName) : null;
@@ -90,19 +99,23 @@ public class RPKIAnalysis : IHasAssessments
             .Select(r => r.Data)
             .Distinct(StringComparer.Ordinal);
 
-        var tasks = addresses.Select(async ip =>
-        {
+        var tasks = addresses.Select(async ip => {
             ct.ThrowIfCancellationRequested();
             var (prefix, asn, valid) = await QueryRpki(ip, logger);
-            lock (Results)
-            {
-                Results.Add(new RPKIResult
-                {
+            lock (Results) {
+                Results.Add(new RPKIResult {
                     IpAddress = ip,
                     Prefix = prefix,
                     Asn = asn,
                     Valid = valid
                 });
+            }
+
+            if (!string.IsNullOrWhiteSpace(prefix)) {
+                logger?.WriteInformationCode(RpkiCodes.PrefixCovered, $"IP {ip} covered by {prefix} (AS{asn}).");
+                if (valid) {
+                    logger?.WriteInformationCode(RpkiCodes.ValidRoa, $"ROA valid for {prefix} (AS{asn}).");
+                }
             }
         });
 
@@ -112,8 +125,7 @@ public class RPKIAnalysis : IHasAssessments
 
 /// <summary>Represents RPKI validation for a single IP.</summary>
 /// <para>Part of the DomainDetective project.</para>
-public class RPKIResult
-{
+public class RPKIResult {
     /// <summary>IP address being verified.</summary>
     public string IpAddress { get; init; } = string.Empty;
     /// <summary>Origin prefix as reported by RIPE.</summary>

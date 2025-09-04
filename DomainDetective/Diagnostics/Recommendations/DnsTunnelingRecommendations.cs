@@ -26,6 +26,14 @@ internal sealed class DnsTunnelingRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "Query volumes return to baseline after containment."
         };
+        map[DnsTunnelingCodes.NoIndicators] = new RecommendationAdvice {
+            Code = DnsTunnelingCodes.NoIndicators,
+            Title = "No tunneling indicators detected",
+            Why = "DNS query patterns appear normal without signs of tunneling or exfiltration.",
+            How = "Maintain logging and monitoring to detect future anomalies.",
+            Domain = RecommendationDomain.ThreatIntel,
+            Tags = new [] { "dns", "tunneling", "monitoring" },
+        };
     }
 }
 

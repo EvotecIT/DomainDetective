@@ -15,6 +15,17 @@ internal sealed class ZoneTransferRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "AXFR from untrusted hosts returns REFUSED or FAIL."
         };
+        map[ZoneTransferCodes.Restricted] = new RecommendationAdvice {
+            Code = ZoneTransferCodes.Restricted,
+            Title = "Zone transfers restricted",
+            Why = "All tested servers refused unauthenticated AXFR, limiting exposure of zone data.",
+            How = "Maintain ACLs or TSIG keys to keep zone transfers limited to authorized secondaries.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "axfr", "security" },
+            Impact = "Reduces reconnaissance surface.",
+            Effort = RecommendationEffort.Low,
+            Verify = "AXFR from untrusted hosts returns REFUSED." 
+        };
         map[ZoneTransferCodes.CheckFailed] = new RecommendationAdvice {
             Code = ZoneTransferCodes.CheckFailed,
             Title = "Zone transfer check failed",

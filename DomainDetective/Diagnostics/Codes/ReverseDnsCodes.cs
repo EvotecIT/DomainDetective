@@ -5,4 +5,7 @@ internal static class ReverseDnsCodes {
     public const string MalformedPtr = "RDNS.PTR.Malformed";
     public const string ForwardMismatch = "RDNS.PTR.ForwardMismatch";
     public const string SharedCloudManyToOne = "RDNS.PTR.SharedCloudManyToOne";
+    public const string PtrRecordPresent = "RDNS.Success.PtrPresent";
+    public const string PtrMatchesMx = "RDNS.Success.PtrMatchesMX";
+    public const string ForwardConfirmed = "RDNS.Success.ForwardConfirmed";
 }
