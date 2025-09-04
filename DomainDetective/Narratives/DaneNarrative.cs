@@ -9,21 +9,7 @@ public static class DaneNarrative
 {
     private static string FormatRecord(string domain, object selector, object matching) =>
         $"TLSA record for {domain} uses selector {selector} and matching {matching}.";
-    public sealed class Sections
-    {
-        public string Title { get; init; } = string.Empty;
-        public string Subtitle { get; init; } = string.Empty;
-        public string Category { get; init; } = string.Empty;
-        public string Keywords { get; init; } = string.Empty;
-        public string Creator { get; init; } = string.Empty;
-        public string Introduction { get; init; } = string.Empty;
-        public string WhyItMatters { get; init; } = string.Empty;
-        public List<string> Highlights { get; init; } = new();
-        public List<string> Details { get; init; } = new();
-        public List<string> References { get; init; } = new();
-        public List<string> Positives { get; init; } = new();
-        public List<string> Remediations { get; init; } = new();
-    }
+    public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(DANEAnalysis? dane, IEnumerable<Assessment>? assessments = null)
     {
