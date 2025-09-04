@@ -27,7 +27,7 @@ internal static class Program {
         // If arguments start with options (e.g., --domain), assume the 'wizard' command implicitly
         if (args.Length == 0) {
             args = new[] { "wizard", "--interactive", "--simple-ui", "--pause-exit" };
-        } else if (args.Length > 0 && args[0].StartsWith("-")) {
+        } else if (args.Length > 0 && args[0].StartsWith("-") && args[0] != "-h" && args[0] != "--help") {
             var list = new List<string> { "wizard" };
             list.AddRange(args);
             args = list.ToArray();
