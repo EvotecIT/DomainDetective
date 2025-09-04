@@ -27,7 +27,8 @@ public static partial class Converters
                 GreetingCode = r?.GreetingCode,
                 ServerDomain = r?.ServerDomain,
                 Truncated = r?.Truncated ?? false,
-                ResponseTimeMs = r?.ResponseTimeMs
+                ResponseTimeMs = r?.ResponseTimeMs,
+                TlsAdvertised = r?.TlsAdvertised ?? false
             });
         }
         int hostMatch = 0;
@@ -88,4 +89,5 @@ public class SmtpBannerServerInfo
     public string ServerDomain { get; set; }
     public bool Truncated { get; set; }
     public int? ResponseTimeMs { get; set; }
+    public bool TlsAdvertised { get; set; }
 }
