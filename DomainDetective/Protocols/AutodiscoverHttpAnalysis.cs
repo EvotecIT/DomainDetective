@@ -212,7 +212,7 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
             }
         }
 
-        return new AutodiscoverEndpointResult {
+        var result = new AutodiscoverEndpointResult {
             Method = method,
             Url = url,
             StatusCode = status,
@@ -228,6 +228,12 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
             JsonValid = false,
             JsonEndpointUrl = null
         };
+        if (valid) {
+            var host = result.FinalHost ?? result.FinalUrl ?? url;
+            logger?.WriteInformationCode(AutodiscoverCodes.XmlValid, "Autodiscover endpoint {0} returned valid XML", host);
+            logger?.WriteInformationCode(AutodiscoverCodes.EndpointDiscovered, "Autodiscover endpoint discovered at {0}", host);
+        }
+        return result;
     }
 
     private static string BuildAutodiscoverRequestXml(string email) {
@@ -322,7 +328,7 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
             if (tuple.dispose) client.Dispose();
         }
 
-        return new AutodiscoverEndpointResult {
+        var res = new AutodiscoverEndpointResult {
             Method = method,
             Url = url,
             StatusCode = status,
@@ -338,6 +344,11 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
             JsonValid = !string.IsNullOrWhiteSpace(jsonEndpoint),
             JsonEndpointUrl = jsonEndpoint
         };
+        if (res.JsonValid) {
+            logger?.WriteInformationCode(AutodiscoverCodes.JsonValid, "Autodiscover JSON discovery returned {0}", jsonEndpoint);
+            logger?.WriteInformationCode(AutodiscoverCodes.EndpointDiscovered, "Autodiscover endpoint discovered via JSON: {0}", jsonEndpoint);
+        }
+        return res;
     }
 
     public List<Assessment> Assessments { get; } = new();

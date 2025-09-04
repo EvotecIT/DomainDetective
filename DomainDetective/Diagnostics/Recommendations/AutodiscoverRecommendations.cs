@@ -81,7 +81,6 @@ internal sealed class AutodiscoverRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Target resolves and validates over HTTPS."
         };
-
         map[AutodiscoverCodes.Office365FlowFailed] = new RecommendationAdvice {
             Code = AutodiscoverCodes.Office365FlowFailed,
             Title = "Office 365 Autodiscover redirected but HTTP flow failed",
@@ -92,6 +91,39 @@ internal sealed class AutodiscoverRecommendations : IRecommendationProvider {
             Impact = "Outlook/clients may fail automatic configuration.",
             Effort = RecommendationEffort.Medium,
             Verify = "GET https://autodiscover.<domain>/autodiscover/autodiscover.xml follows redirects and returns Autodiscover XML (200)."
+        };
+        map[AutodiscoverCodes.EndpointDiscovered] = new RecommendationAdvice {
+            Code = AutodiscoverCodes.EndpointDiscovered,
+            Title = "Autodiscover endpoint discovered",
+            Why = "A responsive Autodiscover service allows clients to configure automatically.",
+            How = "Maintain DNS hints and HTTPS availability so clients continue to reach the service.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "autodiscover", "http" },
+            Impact = "Improves user experience through automatic setup.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Repeat Autodiscover check and confirm an endpoint responds successfully."
+        };
+        map[AutodiscoverCodes.XmlValid] = new RecommendationAdvice {
+            Code = AutodiscoverCodes.XmlValid,
+            Title = "Autodiscover XML response valid",
+            Why = "Valid XML ensures clients obtain configuration without errors.",
+            How = "Keep the Autodiscover implementation and TLS configuration up to date.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "autodiscover", "xml" },
+            Impact = "Clients can securely retrieve settings.",
+            Effort = RecommendationEffort.Low,
+            Verify = "GET/POST Autodiscover endpoint returns XML root <Autodiscover> with expected namespace."
+        };
+        map[AutodiscoverCodes.JsonValid] = new RecommendationAdvice {
+            Code = AutodiscoverCodes.JsonValid,
+            Title = "Autodiscover JSON discovery succeeded",
+            Why = "Outlook v2 JSON provided a valid Autodiscover endpoint.",
+            How = "Ensure the Microsoft discovery service remains reachable over HTTPS.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "autodiscover", "json" },
+            Impact = "Outlook clients have a fallback path for automatic configuration.",
+            Effort = RecommendationEffort.Low,
+            Verify = "https://autodiscover-s.outlook.com/autodiscover/autodiscover.json/v1.0/<domain>?Protocol=AutodiscoverV1 returns endpoint URL."
         };
     }
 }
