@@ -42,6 +42,8 @@ namespace DomainDetective {
             public bool Truncated { get; init; }
             /// <summary>Milliseconds between connect and first banner line.</summary>
             public int? ResponseTimeMs { get; init; }
+            /// <summary>True when banner mentions TLS capability.</summary>
+            public bool TlsAdvertised { get; init; }
         }
 
         private static readonly Regex _labelRegex = new(
@@ -167,6 +169,13 @@ namespace DomainDetective {
                 }
                 bool hostMatch = !string.IsNullOrWhiteSpace(ExpectedHostname) && banner?.IndexOf(ExpectedHostname, StringComparison.OrdinalIgnoreCase) >= 0;
                 bool softMatch = !string.IsNullOrWhiteSpace(ExpectedSoftware) && banner?.IndexOf(ExpectedSoftware, StringComparison.OrdinalIgnoreCase) >= 0;
+                bool tlsAdvertised = banner?.IndexOf("TLS", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (hostMatch) {
+                    logger?.WriteInformationCode(SmtpBannerCodes.HostnameMatch, "Banner on {0}:{1} includes expected hostname '{2}'.", host, port, ExpectedHostname);
+                }
+                if (tlsAdvertised) {
+                    logger?.WriteInformationCode(SmtpBannerCodes.TlsAdvertised, "Banner on {0}:{1} advertises TLS support.", host, port);
+                }
                 if (!string.IsNullOrWhiteSpace(ExpectedSoftware) && banner != null && !softMatch) {
                     logger?.WriteWarningCode(SmtpBannerCodes.UnexpectedSoftware, "Banner software on {0}:{1} does not match expectation '{2}': {3}", host, port, ExpectedSoftware, banner);
                 }
@@ -187,7 +196,8 @@ namespace DomainDetective {
                     GreetingCode = code,
                     ServerDomain = domain,
                     Truncated = banner != null && banner.Length >= MaxBannerTextLength,
-                    ResponseTimeMs = (int)sw.ElapsedMilliseconds
+                    ResponseTimeMs = (int)sw.ElapsedMilliseconds,
+                    TlsAdvertised = tlsAdvertised
                 };
             } catch (TaskCanceledException ex) {
                 throw new OperationCanceledException(ex.Message, ex, cancellationToken);
