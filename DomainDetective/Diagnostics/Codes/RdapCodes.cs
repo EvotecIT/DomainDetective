@@ -5,5 +5,7 @@ internal static class RdapCodes {
     public const string NotFound = "RDAP.NotFound";
     public const string StatusHold = "RDAP.Status.Hold";
     public const string ExpirySoon = "RDAP.Expiry.Soon";
+    public const string ExpiryFuture = "RDAP.Expiry.Future";
+    public const string ContactValid = "RDAP.Contact.Valid";
     public const string ParseAnomaly = "RDAP.Parse.Anomaly";
 }
