@@ -2,9 +2,13 @@ using System;
 using System.Collections.Generic;
 namespace DomainDetective.Narratives;
 
+/// <summary>
+/// Builds narrative sections describing DANE TLSA analysis results.
+/// </summary>
 public static class DaneNarrative
 {
-    private const string RecordFormat = "TLSA record for {0} uses selector {1} and matching {2}.";
+    private static string FormatRecord(string domain, object selector, object matching) =>
+        $"TLSA record for {domain} uses selector {selector} and matching {matching}.";
     public sealed class Sections
     {
         public string Title { get; init; } = string.Empty;
@@ -45,7 +49,7 @@ public static class DaneNarrative
         {
             foreach (var r in dane.AnalysisResults)
             {
-                hi.Add(string.Format(RecordFormat, r.DomainName, r.SelectorField, r.MatchingTypeField));
+                hi.Add(FormatRecord(r.DomainName, r.SelectorField, r.MatchingTypeField));
                 hi.Add(r.ValidDANERecord ? "TLSA record fields are valid." : "TLSA record has validation issues.");
                 if (r.ValidCertificateAssociationData && r.CorrectLengthOfCertificateAssociationData)
                 {
@@ -64,7 +68,11 @@ public static class DaneNarrative
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
         }
-        catch (Exception ex)
+        catch (ArgumentException ex)
+        {
+            det.Add($"Assessment processing failed: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
         {
             det.Add($"Assessment processing failed: {ex.Message}");
         }
