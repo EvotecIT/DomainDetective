@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-
 namespace DomainDetective.Narratives;
 
 public static class DaneNarrative
 {
+    private const string RecordFormat = "TLSA record for {0} uses selector {1} and matching {2}.";
     public sealed class Sections
     {
         public string Title { get; init; } = string.Empty;
@@ -22,7 +21,7 @@ public static class DaneNarrative
         public List<string> Remediations { get; init; } = new();
     }
 
-    public static Sections Build(DANEAnalysis dane, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DANEAnalysis? dane, IEnumerable<Assessment>? assessments = null)
     {
         var subject = dane?.Subject ?? "(domain)";
         var title = $"DANE TLSA Records — {subject}";
@@ -46,7 +45,7 @@ public static class DaneNarrative
         {
             foreach (var r in dane.AnalysisResults)
             {
-                hi.Add($"TLSA record for {r.DomainName} uses selector {r.SelectorField} and matching {r.MatchingTypeField}.");
+                hi.Add(string.Format(RecordFormat, r.DomainName, r.SelectorField, r.MatchingTypeField));
                 hi.Add(r.ValidDANERecord ? "TLSA record fields are valid." : "TLSA record has validation issues.");
                 if (r.ValidCertificateAssociationData && r.CorrectLengthOfCertificateAssociationData)
                 {
@@ -65,7 +64,10 @@ public static class DaneNarrative
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            det.Add($"Assessment processing failed: {ex.Message}");
+        }
 
         return new Sections
         {
