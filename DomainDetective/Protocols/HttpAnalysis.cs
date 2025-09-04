@@ -268,6 +268,13 @@ namespace DomainDetective {
 #if !NET6_0_OR_GREATER
                 HstsPreloaded = _hstsPreload.Contains(new Uri(url).Host);
 #endif
+                if (VisitedUrls.Count > 1) {
+                    var first = VisitedUrls.First();
+                    var last = VisitedUrls.Last();
+                    if (first.StartsWith("http://", StringComparison.OrdinalIgnoreCase) && last.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) {
+                        logger?.WriteInformationCode(HttpCodes.SecureRedirect, "Initial HTTP request redirected to HTTPS");
+                    }
+                }
                 sw.Stop();
                 StatusCode = (int)response.StatusCode;
                 ResponseTime = sw.Elapsed;
