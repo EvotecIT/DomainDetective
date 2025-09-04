@@ -37,6 +37,17 @@ internal sealed class RdapRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "RDAP expiration event updated to a future date."
         };
+        map[RdapCodes.ExpiryFuture] = new RecommendationAdvice {
+            Code = RdapCodes.ExpiryFuture,
+            Title = "Domain not near RDAP expiry",
+            Why = "A future expiration date indicates the domain is under current control.",
+            How = "Monitor renewal reminders so the domain stays registered well before expiry.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "rdap", "expiry" },
+            Impact = "Low risk of unexpected domain lapse.",
+            Effort = RecommendationEffort.Low,
+            Verify = "RDAP expiration date remains well into the future."
+        };
         map[RdapCodes.ParseAnomaly] = new RecommendationAdvice {
             Code = RdapCodes.ParseAnomaly,
             Title = "RDAP parse anomaly",
@@ -58,6 +69,17 @@ internal sealed class RdapRecommendations : IRecommendationProvider {
             Impact = "Uncertain registration status.",
             Effort = RecommendationEffort.Low,
             Verify = "RDAP request succeeds with status 200 and valid JSON."
+        };
+        map[RdapCodes.ContactValid] = new RecommendationAdvice {
+            Code = RdapCodes.ContactValid,
+            Title = "RDAP contact details available",
+            Why = "Published contact information helps reach the domain owner for operational or abuse issues.",
+            How = "Ensure registrar and registry contact fields remain accurate and complete.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "rdap", "contact" },
+            Impact = "Improves accountability and facilitates communication.",
+            Effort = RecommendationEffort.Low,
+            Verify = "RDAP entities include reachable email or telephone data."
         };
     }
 }

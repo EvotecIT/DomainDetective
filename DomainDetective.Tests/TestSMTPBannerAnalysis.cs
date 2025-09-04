@@ -178,5 +178,32 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+
+        [Fact]
+        public async Task GeneratesPositiveRecommendations() {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            var serverTask = Task.Run(async () => {
+                using var client = await listener.AcceptTcpClientAsync();
+                using var stream = client.GetStream();
+                using var reader = new System.IO.StreamReader(stream);
+                using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
+                await writer.WriteLineAsync("220 mail.example.com ESMTP Postfix TLS");
+                await reader.ReadLineAsync();
+                await writer.WriteLineAsync("221 bye");
+            });
+
+            try {
+                var analysis = new SMTPBannerAnalysis { ExpectedHostname = "mail.example.com" };
+                await analysis.AnalyzeServer("localhost", port, new InternalLogger());
+                var positives = RecommendationEngine.FromPositives(analysis.Assessments);
+                Assert.Contains(positives, p => p.Code == SmtpBannerCodes.HostnameMatch);
+                Assert.Contains(positives, p => p.Code == SmtpBannerCodes.TlsAdvertised);
+            } finally {
+                listener.Stop();
+                await serverTask;
+            }
+        }
     }
 }

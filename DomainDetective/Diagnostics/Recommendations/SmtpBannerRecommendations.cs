@@ -13,7 +13,7 @@ internal sealed class SmtpBannerRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "smtp", "banner" },
             Effort = RecommendationEffort.Low,
-            Verify = "Reconnect and ensure the greeting includes the correct hostname."
+            Verify = "Reconnect and ensure the greeting includes the correct hostname.",
         };
 
         map[SmtpBannerCodes.Not220] = new RecommendationAdvice {
@@ -25,7 +25,7 @@ internal sealed class SmtpBannerRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "smtp", "banner" },
             Effort = RecommendationEffort.Low,
-            Verify = "Reconnect and confirm a 220 greeting is sent."
+            Verify = "Reconnect and confirm a 220 greeting is sent.",
         };
 
         map[SmtpBannerCodes.VersionLeaked] = new RecommendationAdvice {
@@ -37,7 +37,7 @@ internal sealed class SmtpBannerRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "banner", "information-disclosure" },
             Effort = RecommendationEffort.Low,
-            Verify = "Reconnect and verify version tokens are no longer present."
+            Verify = "Reconnect and verify version tokens are no longer present.",
         };
 
         map[SmtpBannerCodes.UnexpectedSoftware] = new RecommendationAdvice {
@@ -49,7 +49,31 @@ internal sealed class SmtpBannerRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "smtp", "banner" },
             Effort = RecommendationEffort.Medium,
-            Verify = "Confirm banner matches the authorized MTA software."
+            Verify = "Confirm banner matches the authorized MTA software.",
+        };
+
+        map[SmtpBannerCodes.HostnameMatch] = new RecommendationAdvice {
+            Code = SmtpBannerCodes.HostnameMatch,
+            Title = "SMTP banner includes expected hostname",
+            Why = "Correct hostnames improve deliverability and simplify troubleshooting.",
+            How = "No action required; ensure deployments keep the banner aligned with the host.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "banner" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Reconnect and confirm the hostname remains accurate.",
+        };
+
+        map[SmtpBannerCodes.TlsAdvertised] = new RecommendationAdvice {
+            Code = SmtpBannerCodes.TlsAdvertised,
+            Title = "SMTP banner advertises TLS",
+            Why = "Advertising TLS encourages clients to establish encrypted sessions.",
+            How = "No action required; maintain TLS support and advertisement.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc3207" },
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "tls" },
+            Effort = RecommendationEffort.Low,
+            Verify = "Reconnect and verify TLS is still advertised.",
         };
     }
 }

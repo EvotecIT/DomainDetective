@@ -30,7 +30,7 @@ public class TestCliHelp
     {
         var output = await CaptureOutputAsync("--help");
         Assert.Contains("EXAMPLES:", output);
-        Assert.Contains("DomainDetective check example.com", output);
+        Assert.Contains("DomainDetective wizard --domain example.com", output);
     }
 
 }

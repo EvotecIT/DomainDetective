@@ -188,6 +188,8 @@ public class MailTlsAnalysis : IHasAssessments {
                             if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
                             if (weak) {
                                 logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                            } else {
+                                logger?.WriteInformationCode(MailTlsCodes.StrongCipherSuite, "Strong cipher negotiated on {0}:{1}: {2}", host, port, suite);
                             }
                         }
                         if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
@@ -196,6 +198,9 @@ public class MailTlsAnalysis : IHasAssessments {
                     } catch { }
                     using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
                     await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                    if (result.CertificateValid && result.ChainValid && result.HostnameMatch && !result.IsExpired) {
+                        logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
+                    }
                 } catch (AuthenticationException ex) {
                     logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
                 } finally {
@@ -405,6 +410,8 @@ public class MailTlsAnalysis : IHasAssessments {
                         if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
                         if (weak) {
                             logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                        } else {
+                            logger?.WriteInformationCode(MailTlsCodes.StrongCipherSuite, "Strong cipher negotiated on {0}:{1}: {2}", host, port, suite);
                         }
                     }
                     if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
@@ -413,6 +420,9 @@ public class MailTlsAnalysis : IHasAssessments {
                 } catch { }
                 using var secureWriter = new StreamWriter(sslStream) { AutoFlush = true, NewLine = "\r\n" };
                 await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                if (result.CertificateValid && result.ChainValid && result.HostnameMatch && !result.IsExpired) {
+                    logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
+                }
             } catch (AuthenticationException ex) {
                 logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
             } finally {

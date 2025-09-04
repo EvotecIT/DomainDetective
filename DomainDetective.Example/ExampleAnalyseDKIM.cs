@@ -15,6 +15,7 @@ public static partial class Program {
         //    ShowProperties($"DKIM for EXAMPLE1 {dkimRecord} [Selector: {selector}]", healthCheck.DKIMAnalysis.AnalysisResults[selector]);
         //}
         Helpers.ShowPropertiesTable(analysisOf: "DKIM for EXAMPLE by String", objs: healthCheck.DKIMAnalysis.AnalysisResults);
+        Helpers.ShowPropertiesTable(analysisOf: "DKIM recommendations", objs: healthCheck.DKIMAnalysis.Recommendations);
     }
 
     /// <summary>
@@ -28,5 +29,6 @@ public static partial class Program {
         //    ShowProperties($"DKIM for evotec.pl [Selector: {selector}]", healthCheck.DKIMAnalysis.AnalysisResults[selector]);
         //}
         Helpers.ShowPropertiesTable(analysisOf: "DKIM for evotec.pl", objs: healthCheck.DKIMAnalysis.AnalysisResults);
+        Helpers.ShowPropertiesTable(analysisOf: "DKIM recommendations for evotec.pl", objs: healthCheck.DKIMAnalysis.Recommendations);
     }
 }

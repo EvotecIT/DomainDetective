@@ -19,4 +19,7 @@ internal static class DkimCodes {
     public const string CanonicalizationValid = "DKIM.Canonicalization.Valid";
     public const string HashSha256 = "DKIM.Hash.Sha256";
     public const string FlagsValid = "DKIM.Flags.Valid";
+    public const string SignatureValid = "DKIM.Signature.Valid";
+    public const string SelectorAligned = "DKIM.Selector.Aligned";
+    public const string AlgorithmRecommended = "DKIM.Algorithm.Recommended";
 }

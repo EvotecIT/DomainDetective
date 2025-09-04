@@ -26,6 +26,28 @@ internal sealed class OpenRelayRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Re-run the relay test; expect explicit denial codes for unauthenticated relay attempts."
         };
+        map[OpenRelayCodes.Denied] = new RecommendationAdvice {
+            Code = OpenRelayCodes.Denied,
+            Title = "SMTP relay attempt denied",
+            Why = "Server refused unauthenticated mail, preventing abuse.",
+            How = "No action needed; maintain current restrictions.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "relay" },
+            Impact = "Blocks unauthorized use of your mail server.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Unauthenticated RCPT TO returns 550/551/554 or similar."
+        };
+        map[OpenRelayCodes.ConnectionFailed] = new RecommendationAdvice {
+            Code = OpenRelayCodes.ConnectionFailed,
+            Title = "SMTP relay connection failed",
+            Why = "Server did not accept connection or relay, indicating no open relay.",
+            How = "No action required.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "smtp", "relay" },
+            Impact = "Prevents unauthorized relaying from your infrastructure.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Unauthenticated connection attempts are refused or time out."
+        };
     }
 }
 
