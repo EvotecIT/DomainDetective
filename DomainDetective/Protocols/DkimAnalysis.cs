@@ -327,6 +327,28 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.AlgorithmRecommended, "DKIM signature algorithm {0} for selector {1}", analysis.SignatureAlgorithm, selector);
             if (analysis.DkimRecordExists && analysis.StartsCorrectly && analysis.PublicKeyExists && analysis.ValidPublicKey && analysis.ValidKeyType && analysis.ValidRsaKeyLength)
                 logger?.WriteInformationCode(DkimCodes.SignatureValid, "DKIM selector {0} has a valid signature", selector);
+
+            // Provider mapping via CNAME target when available (best-effort)
+            try
+            {
+                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
+                {
+                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
+                    if (cname != null && cname.Length > 0)
+                    {
+                        var target = cname[0].Data?.Trim('.') ?? string.Empty;
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            analysis.CnameTarget = target;
+                            analysis.Provider = DKIMProviders.ProviderForDomain(target);
+                        }
+                    }
+                }
+                // If still unknown, try to infer from record name (rare)
+                analysis.Provider ??= DKIMProviders.ProviderForDomain(analysis.Name);
+            }
+            catch { }
+
             UpdateAdvisory(logger);
         }
 
@@ -347,27 +369,6 @@ namespace DomainDetective {
                 Advisory = "All DKIM selectors appear valid.";
                 logger?.WriteInformationCode(DkimCodes.SelectorAligned, "All DKIM selectors are aligned");
             }
-
-            // Provider mapping via CNAME target when available
-            try
-            {
-                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
-                {
-                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
-                    if (cname != null && cname.Length > 0)
-                    {
-                        var target = cname[0].Data?.Trim('.') ?? string.Empty;
-                        if (!string.IsNullOrEmpty(target))
-                        {
-                            analysis.CnameTarget = target;
-                            analysis.Provider = ProviderForDomain(target);
-                        }
-                    }
-                }
-                // If still unknown, try to infer from record name (rare)
-                analysis.Provider ??= ProviderForDomain(analysis.Name);
-            }
-            catch { }
 
             // Key reuse detection across selectors (same fingerprint)
             try {
