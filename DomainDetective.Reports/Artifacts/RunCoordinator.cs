@@ -45,14 +45,15 @@ public sealed class RunCoordinator : IDisposable
         if (Uri.TryCreate(subject, UriKind.Absolute, out _)) meta.SubjectKind = "Url";
         var safeSubject = FilePathHelper.MakeFileSafe(subject);
         var stamp = meta.GeneratedAt.ToUniversalTime().ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
-        var runDir = Path.Combine(baseDirectory ?? ".", "artifacts", safeSubject, stamp);
+        var baseDir = baseDirectory ?? ".";
+        var runDir = Path.Combine(baseDir, "artifacts", safeSubject, stamp);
         Directory.CreateDirectory(runDir);
 
         var hub = new ProgressHub(logger);
         var jsonl = new JsonlProgressSink(Path.Combine(runDir, "progress.jsonl"));
         hub.AddSink(jsonl);
 
-        var coord = new RunCoordinator(baseDirectory, subject, logger, runDir, meta, hub, jsonl);
+        var coord = new RunCoordinator(baseDir, subject, logger, runDir, meta, hub, jsonl);
         coord._sw.Start();
         return coord;
     }
@@ -67,7 +68,7 @@ public sealed class RunCoordinator : IDisposable
             RecommendationCount = hc.RecommendationViews?.Count ?? 0,
             HostCount = hc.WebStaticScanAnalysis?.Hosts?.Count ?? 0,
             ResourceCount = hc.WebStaticScanAnalysis?.Requests?.Count ?? 0,
-            TransferBytes = hc.WebStaticScanAnalysis?.Requests?.Where(r => r != null && r.ContentLength.HasValue).Sum(r => (long)r.ContentLength.Value) ?? 0,
+            TransferBytes = hc.WebStaticScanAnalysis?.Requests?.Sum(r => r?.ContentLength ?? 0) ?? 0,
             TotalDurationSeconds = _sw.Elapsed.TotalSeconds
         };
 
