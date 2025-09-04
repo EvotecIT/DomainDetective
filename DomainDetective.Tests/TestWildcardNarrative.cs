@@ -20,6 +20,6 @@ public class TestWildcardNarrative
 
         var sections = WildcardNarrative.Build(analysis);
         Assert.Contains(sections.Highlights, h => h.Contains("Wildcard DNS detected"));
-        Assert.Contains("SOA", string.Join(' ', sections.Details));
+        Assert.Contains("SOA", string.Join(" ", sections.Details));
     }
 }
