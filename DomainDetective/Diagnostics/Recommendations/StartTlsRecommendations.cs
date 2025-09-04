@@ -46,5 +46,25 @@ internal sealed class StartTlsRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "smtp", "starttls" }
         };
+
+        map[StartTlsCodes.Enforced] = new RecommendationAdvice {
+            Code = StartTlsCodes.Enforced,
+            Title = "STARTTLS enforced",
+            Why = "Servers requiring TLS upgrades prevent plaintext fallback.",
+            How = "Monitor for downgrade attempts and maintain strong TLS settings.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc3207" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "smtp", "imap", "pop", "starttls" }
+        };
+
+        map[StartTlsCodes.ModernCipher] = new RecommendationAdvice {
+            Code = StartTlsCodes.ModernCipher,
+            Title = "Modern cipher suite negotiated",
+            Why = "Modern TLS ciphers protect against known weaknesses.",
+            How = "Keep TLS libraries and configuration up to date to retain strong cipher support.",
+            Links = new [] { "https://ssl-config.mozilla.org/" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "starttls", "tls" }
+        };
     }
 }
