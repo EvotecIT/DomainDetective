@@ -59,6 +59,18 @@ internal sealed class DirectoryExposureRecommendations : IRecommendationProvider
             Verify = "Requests to *.map return 403/404 and are not deployed."
         };
 
+        map[DirectoryExposureCodes.DirectoryListingDisabled] = new RecommendationAdvice {
+            Code = DirectoryExposureCodes.DirectoryListingDisabled,
+            Title = "Directory browsing disabled",
+            Why = "Disabling directory listing prevents disclosure of file structure and sensitive files.",
+            How = "Keep directory indexes off and ensure new paths return 403/404 or custom pages.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "http", "hardening" },
+            Impact = "Reduces information disclosure exposure.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Request common directories and confirm 403/404 responses."
+        };
+
         // Informational presence signals (coded to appear in datasets consistently)
         map[DirectoryExposureCodes.InfoSitemapPresent] = new RecommendationAdvice {
             Code = DirectoryExposureCodes.InfoSitemapPresent,
