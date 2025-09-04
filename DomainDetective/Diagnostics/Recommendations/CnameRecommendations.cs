@@ -30,6 +30,19 @@ internal sealed class CnameRecommendations : IRecommendationProvider {
             Verify = "Resolve target; if NXDOMAIN, confirm service state and owner."
         };
 
+        map[CnameCodes.TargetDoesNotResolve] = new RecommendationAdvice {
+            Code = CnameCodes.TargetDoesNotResolve,
+            Title = "CNAME target does not resolve",
+            Why = "Targets that do not resolve may be claimable by attackers (subdomain takeover risk).",
+            How = "Either remove the CNAME or recreate/claim the target at the provider.",
+            Links = new [] { "https://owasp.org/www-community/attacks/Subdomain_takeover" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "takeover", "cname" },
+            Impact = "Risk of domain impersonation and data exfiltration.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Resolve target; if NXDOMAIN, confirm service state and owner."
+        };
+
         map[CnameCodes.TargetResolves] = new RecommendationAdvice {
             Code = CnameCodes.TargetResolves,
             Title = "CNAME target resolves",

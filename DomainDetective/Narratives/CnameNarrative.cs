@@ -68,7 +68,11 @@ public static class CnameNarrative
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // Assessments are optional; ignore failures during splitting.
+            _ = ex;
+        }
 
         return new Sections
         {

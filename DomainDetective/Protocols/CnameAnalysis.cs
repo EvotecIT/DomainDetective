@@ -53,7 +53,7 @@ public class CnameAnalysis : IHasAssessments {
             try {
                 cname = await QueryDns(current, DnsRecordType.CNAME);
             } catch (Exception ex) {
-                logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", current, ex.Message);
+                logger?.WriteErrorCode(CnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", current, ex.Message);
                 return;
             }
             if (cname == null || cname.Length == 0) {
@@ -82,14 +82,14 @@ public class CnameAnalysis : IHasAssessments {
             var aaaa = await QueryDns(Target!, DnsRecordType.AAAA);
             TargetResolves = (a != null && a.Any()) || (aaaa != null && aaaa.Any());
         } catch (Exception ex) {
-            logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);
+            logger?.WriteErrorCode(CnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);
             return;
         }
 
         if (TargetResolves) {
             logger?.WriteInformationCode(CnameCodes.TargetResolves, "CNAME target {0} resolves", Target);
         } else {
-            logger?.WriteWarningCode(DanglingCnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
+            logger?.WriteWarningCode(CnameCodes.TargetDoesNotResolve, "CNAME target {0} does not resolve", Target);
         }
     }
 

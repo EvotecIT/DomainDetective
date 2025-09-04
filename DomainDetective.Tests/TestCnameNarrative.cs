@@ -12,13 +12,13 @@ public class TestCnameNarrative {
             DnsConfiguration = new DnsConfiguration(),
             QueryDnsOverride = (name, type) => {
                 if (type == DnsRecordType.CNAME && name == "alias.example.com") {
-                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "target.example.com" } });
+                    return Task.FromResult(new[] { CreateAnswer("target.example.com") });
                 }
                 if (type == DnsRecordType.CNAME && name == "target.example.com") {
                     return Task.FromResult(System.Array.Empty<DnsAnswer>());
                 }
                 if (type == DnsRecordType.A && name == "target.example.com") {
-                    return Task.FromResult(new[] { new DnsAnswer { DataRaw = "192.0.2.1" } });
+                    return Task.FromResult(new[] { CreateAnswer("192.0.2.1") });
                 }
                 if (type == DnsRecordType.AAAA && name == "target.example.com") {
                     return Task.FromResult(System.Array.Empty<DnsAnswer>());
@@ -26,6 +26,19 @@ public class TestCnameNarrative {
                 return Task.FromResult(System.Array.Empty<DnsAnswer>());
             }
         };
+    }
+
+    private static DnsAnswer CreateAnswer(string data) {
+        var answer = new DnsAnswer { DataRaw = data };
+        var prop = typeof(DnsAnswer).GetProperty(
+            "Data",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+        try {
+            prop?.SetValue(answer, data);
+        } catch {
+            // setter may be inaccessible; DataRaw provides the value
+        }
+        return answer;
     }
 
     [Fact]
