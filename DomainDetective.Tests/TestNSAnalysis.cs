@@ -85,6 +85,24 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task EmitsHighDiversityAssessment() {
+            var answers = new List<DnsAnswer> {
+                new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS },
+                new DnsAnswer { DataRaw = "ns2.example.com", Type = DnsRecordType.NS }
+            };
+            var analysis = CreateAnalysis((name, type) => {
+                return (name, type) switch {
+                    ("ns1.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "1.1.1.1" } }),
+                    ("ns2.example.com", DnsRecordType.A) => Task.FromResult(new[] { new DnsAnswer { DataRaw = "2.2.2.2" } }),
+                    _ => Task.FromResult(Array.Empty<DnsAnswer>())
+                };
+            });
+            await analysis.AnalyzeNsRecords(answers, new InternalLogger());
+
+            Assert.Contains(analysis.Assessments, a => a.Code == NSCodes.HighDiversity);
+        }
+
+        [Fact]
         public async Task DetectSingleSubnet() {
             var answers = new List<DnsAnswer> {
                 new DnsAnswer { DataRaw = "ns1.example.com", Type = DnsRecordType.NS },

@@ -72,6 +72,17 @@ internal sealed class NSRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Medium,
             Verify = "NS A/AAAA addresses span distinct subnets/ASNs."
         };
+        map[NSCodes.HighDiversity] = new RecommendationAdvice {
+            Code = NSCodes.HighDiversity,
+            Title = "Authoritative NS are geographically diverse",
+            Why = "Distribution across regions and networks improves resilience and latency.",
+            How = "Maintain NS hosts on separate networks or locations to sustain diversity.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "resilience" },
+            Impact = "Lower risk of correlated outages and better global performance.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Geolocation/ASN checks show NS spread across distinct areas."
+        };
         map[NSCodes.DelegationMismatch] = new RecommendationAdvice {
             Code = NSCodes.DelegationMismatch,
             Title = "Align parent delegation with child NS set",

@@ -183,6 +183,8 @@ namespace DomainDetective {
             }
             if (!HasDiverseLocations) {
                 logger?.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
+            } else {
+                logger?.WriteInformationCode(NSCodes.HighDiversity, "Authoritative NS are geographically diverse");
             }
         }
 
