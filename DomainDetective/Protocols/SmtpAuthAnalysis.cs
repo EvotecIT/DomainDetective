@@ -127,6 +127,10 @@ public class SmtpAuthAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(SmtpAuthCodes.AuthWithout8BitMime, "SMTP server {0}:{1} advertises AUTH but not 8BITMIME.", host, port);
                 }
 
+                if (hasAuth && hasStartTls) {
+                    logger?.WriteInformationCode(SmtpAuthCodes.TlsRequired, "SMTP server {0}:{1} advertises STARTTLS alongside AUTH.", host, port);
+                }
+
                 // AUTH on plaintext (no STARTTLS) on ports expecting STARTTLS (25/587)
                 if (hasAuth && !hasStartTls && (port == 25 || port == 587)) {
                     logger?.WriteWarningCode(SmtpAuthCodes.AuthOverPlaintext, "SMTP server {0}:{1} advertises AUTH without STARTTLS.", host, port);
@@ -137,9 +141,16 @@ public class SmtpAuthAnalysis : IHasAssessments {
                     logger?.WriteWarningCode(SmtpAuthCodes.ObsoleteMechanism, "SMTP server {0}:{1} advertises obsolete AUTH mechanisms: {2}", host, port, string.Join(" ", mechanisms));
                 }
 
-                // Only weak mechanisms present
+                // Assess mechanism strength
                 if (hasAuth && mechanisms.Count > 0) {
-                    var strong = mechanisms.Contains("SCRAM-SHA-256") || mechanisms.Contains("OAUTHBEARER") || mechanisms.Contains("XOAUTH2") || mechanisms.Contains("EXTERNAL");
+                    var strongMechs = mechanisms.Where(m => string.Equals(m, "SCRAM-SHA-256", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(m, "OAUTHBEARER", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(m, "XOAUTH2", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(m, "EXTERNAL", StringComparison.OrdinalIgnoreCase)).ToList();
+                    var strong = strongMechs.Count > 0;
+                    if (strong) {
+                        logger?.WriteInformationCode(SmtpAuthCodes.StrongMechanism, "SMTP server {0}:{1} advertises strong AUTH mechanisms: {2}", host, port, string.Join(" ", strongMechs));
+                    }
                     var weakOnly = !strong && mechanisms.All(m => string.Equals(m, "PLAIN", StringComparison.OrdinalIgnoreCase) || string.Equals(m, "LOGIN", StringComparison.OrdinalIgnoreCase));
                     if (weakOnly && !hasStartTls) {
                         logger?.WriteWarningCode(SmtpAuthCodes.NoStrongMechanism, "SMTP server {0}:{1} only advertises weak mechanisms (PLAIN/LOGIN) without STARTTLS.", host, port);
