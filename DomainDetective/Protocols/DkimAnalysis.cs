@@ -245,6 +245,9 @@ namespace DomainDetective {
                                 logger?.WriteWarningCode(DkimCodes.HashDeprecated, "Deprecated hash algorithm detected: {0}", value);
                             }
                             break;
+                        case "a":
+                            analysis.SignatureAlgorithm = value;
+                            break;
                         case "g":
                             analysis.DeprecatedTags.Add("g");
                             logger?.WriteWarningCode(DkimCodes.TagGDeprecated, "DKIM tag 'g' is deprecated and ignored");
@@ -306,10 +309,16 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.HashSha256, "DKIM hash algorithm includes sha256 for selector {0}", selector);
             if (analysis.ValidFlags)
                 logger?.WriteInformationCode(DkimCodes.FlagsValid, "DKIM flags valid for selector {0}", selector);
-            UpdateAdvisory();
+            if (!string.IsNullOrWhiteSpace(analysis.SignatureAlgorithm) &&
+                (analysis.SignatureAlgorithm.Equals("rsa-sha256", StringComparison.OrdinalIgnoreCase) ||
+                 analysis.SignatureAlgorithm.Equals("ed25519-sha256", StringComparison.OrdinalIgnoreCase)))
+                logger?.WriteInformationCode(DkimCodes.AlgorithmRecommended, "DKIM signature algorithm {0} for selector {1}", analysis.SignatureAlgorithm, selector);
+            if (analysis.DkimRecordExists && analysis.StartsCorrectly && analysis.PublicKeyExists && analysis.ValidPublicKey && analysis.ValidKeyType && analysis.ValidRsaKeyLength)
+                logger?.WriteInformationCode(DkimCodes.SignatureValid, "DKIM selector {0} has a valid signature", selector);
+            UpdateAdvisory(logger);
         }
 
-        private void UpdateAdvisory() {
+        private void UpdateAdvisory(InternalLogger? logger) {
             if (AnalysisResults.Count == 0) {
                 Advisory = "No DKIM selectors analyzed.";
                 return;
@@ -320,9 +329,12 @@ namespace DomainDetective {
                 .Select(kvp => kvp.Key)
                 .ToArray();
 
-            Advisory = issues.Length > 0
-                ? $"Issues detected with selector(s): {string.Join(", ", issues)}."
-                : "All DKIM selectors appear valid.";
+            if (issues.Length > 0) {
+                Advisory = $"Issues detected with selector(s): {string.Join(", ", issues)}.";
+            } else {
+                Advisory = "All DKIM selectors appear valid.";
+                logger?.WriteInformationCode(DkimCodes.SelectorAligned, "All DKIM selectors are aligned");
+            }
         }
 
         /// <summary>
@@ -450,6 +462,8 @@ namespace DomainDetective {
         public string KeyType { get; set; }
         /// <summary>Gets or sets the hash algorithm type.</summary>
         public string HashAlgorithm { get; set; }
+        /// <summary>Gets or sets the signature algorithm.</summary>
+        public string SignatureAlgorithm { get; set; }
         /// <summary>Date the record appears to have been created.</summary>
         public DateTime? CreationDate { get; set; }
         /// <summary>Age of the key in days when <see cref="CreationDate"/> is known.</summary>

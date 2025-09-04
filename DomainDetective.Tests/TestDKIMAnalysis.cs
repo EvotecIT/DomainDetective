@@ -1,5 +1,6 @@
 using System;
 using DnsClientX;
+using System.Collections.Generic;
 
 namespace DomainDetective.Tests {
     public class TestDkimAnalysis {
@@ -335,6 +336,19 @@ namespace DomainDetective.Tests {
 
             var count = warnings.Count(w => w.FullMessage.Contains("deprecated"));
             Assert.Equal(2, count);
+        }
+
+        [Fact]
+        public async Task EmitsPositiveRecommendations() {
+            const string record = "v=DKIM1; a=rsa-sha256; k=rsa; h=sha256; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA21OfspkRgPHhdCgu3kWgBX+xLyw7wRqM+Y4KaX82Pul9ikEDfZCJ35siFzV2WMH9Od/yM2TtMnubRqm9QN6paEB0VhNgNURQMmyTVsBO1usTJS9IvkIt3JtTFEinzVJLEaOC/F3d6bJaW9MMKUTBra9RcUf/E6dWAaJX8lrK8SefL9adNTwED8ZgFBnFcoJJn6e1W2WyIZ/8XAk+5Jwc7JMFZsdjFYdBSDPNyEfhNsKahVdRvdCG+OeDHyLSiNuFE27wtXaUI2TySDcfSSzE8k8z/Td9mMb0DQ2qaJ6xxk/5cwzwYSXr3sdGp++mHpGOJm18OwfsJmFCuSEcFGrHAQIDAQAB;";
+
+            var logger = new InternalLogger();
+            var analysis = new DkimAnalysis();
+            await analysis.AnalyzeDkimRecords("selector", new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } }, logger);
+
+            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.SignatureValid);
+            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.AlgorithmRecommended);
+            Assert.Contains(analysis.Assessments, a => a.Code == DkimCodes.SelectorAligned);
         }
     }
 }
