@@ -219,6 +219,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 return;
             }
 
+            Logger?.WriteInformationCode(MtaStsCodes.HttpsAvailable, "MTA-STS policy host reachable.");
             PolicyPresent = true;
             Policy = content;
             ParsePolicy(content);
@@ -256,12 +257,15 @@ public class MTASTSAnalysis : IHasAssessments {
             } else if (!PolicyValid) {
                 Advisory = "MTA-STS policy invalid.";
                 Logger?.WriteWarningCode(MtaStsCodes.PolicyInvalid, Advisory);
-            } else if (!EnforcesMtaSts) {
-                Advisory = "MTA-STS policy present but not enforcing.";
-                Logger?.WriteWarningCode(MtaStsCodes.NotEnforcing, Advisory);
             } else {
-                Advisory = "MTA-STS policy enforced.";
-                Logger?.WriteInformationCode(MtaStsCodes.Enforced, "{0}", Advisory);
+                Logger?.WriteInformationCode(MtaStsCodes.PolicyValid, "MTA-STS policy valid.");
+                if (!EnforcesMtaSts) {
+                    Advisory = "MTA-STS policy present but not enforcing.";
+                    Logger?.WriteWarningCode(MtaStsCodes.NotEnforcing, Advisory);
+                } else {
+                    Advisory = "MTA-STS policy enforced.";
+                    Logger?.WriteInformationCode(MtaStsCodes.Enforced, "{0}", Advisory);
+                }
             }
         }
 
