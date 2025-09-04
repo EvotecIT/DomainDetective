@@ -289,6 +289,8 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(SpfCodes.AllEnforced, "SPF ends with -all (enforced)");
             if (!ExceedsDnsLookups)
                 logger?.WriteInformationCode(SpfCodes.LookupsWithinLimit, $"DNS lookups within limit: {DnsLookupsCount}/10");
+            if (DnsLookups.Count > 0 && !CycleDetected)
+                logger?.WriteInformationCode(SpfCodes.IncludeChainValid, "SPF include/redirect chain resolves without loops");
         }
 
 
