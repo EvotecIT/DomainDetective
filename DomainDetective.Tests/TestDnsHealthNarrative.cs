@@ -39,9 +39,11 @@ public class TestDnsHealthNarrative
         };
         await analysis.Analyze("example.com", new InternalLogger());
         var sections = DnsHealthNarrative.Build(analysis);
-        Assert.Contains(sections.Highlights, h => h.Contains("SOA serial numbers match", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(sections.Highlights, h => h.Contains("authoritative servers responded", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(sections.Positives, p => p.Contains("SOA serial numbers", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(sections.Positives, p => p.Contains("name servers responded", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(sections.Highlights, h => h.IndexOf("SOA serial numbers match", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(
+            sections.Highlights,
+            h => h.IndexOf("authoritative servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(sections.Positives, p => p.IndexOf("SOA serial numbers", StringComparison.OrdinalIgnoreCase) >= 0);
+        Assert.Contains(sections.Positives, p => p.IndexOf("name servers responded", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 }
