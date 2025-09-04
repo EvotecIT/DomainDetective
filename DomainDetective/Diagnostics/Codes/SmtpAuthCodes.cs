@@ -6,4 +6,6 @@ internal static class SmtpAuthCodes {
     public const string AuthOverPlaintext = "SMTPAUTH.AuthOverPlaintext";
     public const string ObsoleteMechanism = "SMTPAUTH.ObsoleteMechanism";
     public const string NoStrongMechanism = "SMTPAUTH.NoStrongMechanism";
+    public const string TlsRequired = "SMTPAUTH.TlsRequired";
+    public const string StrongMechanism = "SMTPAUTH.StrongMechanism";
 }
