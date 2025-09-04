@@ -12,7 +12,11 @@ public class TestTlsNarrative
         var analysis = new TlsAnalysis { Subject = "example.com" };
         analysis.ServerResults["www.example.com:443"] = new TlsProbe.Result
         {
+#if NET8_0_OR_GREATER
             Protocol = SslProtocols.Tls13,
+#else
+            Protocol = SslProtocols.Tls12,
+#endif
             CipherSuite = "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
             CertificateValid = true,
             HostnameMatch = true

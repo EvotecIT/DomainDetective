@@ -17,20 +17,29 @@ public class TlsAnalysis : IHasAssessments
     public List<Assessment> Assessments { get; } = new();
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
+    private static bool IsStrongProtocol(SslProtocols protocol)
+    {
+#if NET8_0_OR_GREATER
+        return protocol == SslProtocols.Tls12 || protocol == SslProtocols.Tls13;
+#else
+        return protocol == SslProtocols.Tls12;
+#endif
+    }
+
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLS", target: $"{host}:{port}");
         var result = await TlsProbe.ProbeAsync(host, port, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
-        if (result.Protocol == SslProtocols.Tls13 || result.Protocol == SslProtocols.Tls12)
+        if (IsStrongProtocol(result.Protocol))
         {
             logger?.WriteInformationCode(TlsCodes.StrongProtocol, "Strong TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
         }
         var suite = result.CipherSuite ?? string.Empty;
         if (!string.IsNullOrEmpty(suite))
         {
-            var up = suite.ToUpperInvariant();
-            if (up.Contains("ECDHE", StringComparison.Ordinal) || up.Contains("DHE", StringComparison.Ordinal))
+            if (suite.IndexOf("ECDHE", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                suite.IndexOf("DHE", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 logger?.WriteInformationCode(TlsCodes.PfsCipher, "Forward secrecy cipher negotiated on {0}:{1} - {2}", host, port, suite);
             }
