@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,11 +10,12 @@ namespace DomainDetective;
 /// <summary>
 /// Provides TLS metadata for HTTPS endpoints.
 /// </summary>
-public class TlsAnalysis : IHasAssessments
+public class TlsAnalysis : IHasAssessments, IDisposable
 {
     public string? Subject { get; set; }
     public Dictionary<string, TlsProbe.Result> ServerResults { get; } = new();
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+    public int MaxConcurrency { get; set; } = Environment.ProcessorCount;
     public List<Assessment> Assessments { get; } = new();
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
@@ -29,7 +31,7 @@ public class TlsAnalysis : IHasAssessments
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         using var collector = AssessmentCollector.ForAnalysis(logger, this, category: "TLS", target: $"{host}:{port}");
-        var result = await TlsProbe.ProbeAsync(host, port, cancellationToken);
+        var result = await TlsProbe.ProbeAsync(host, port, Timeout, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
         if (IsStrongProtocol(result.Protocol))
         {
@@ -48,10 +50,27 @@ public class TlsAnalysis : IHasAssessments
 
     public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
-        foreach (var host in hosts)
+        using var gate = new SemaphoreSlim(Math.Max(1, MaxConcurrency));
+        var tasks = hosts.Select(async host =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await AnalyzeServer(host, port, logger, cancellationToken);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await AnalyzeServer(host, port, logger, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        foreach (var r in ServerResults.Values)
+        {
+            r.Dispose();
         }
     }
 }

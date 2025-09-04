@@ -9,7 +9,7 @@ public class TestTlsNarrative
     [Fact]
     public void BuildsNarrativeWithPositives()
     {
-        var analysis = new TlsAnalysis { Subject = "example.com" };
+        using var analysis = new TlsAnalysis { Subject = "example.com" };
         analysis.ServerResults["www.example.com:443"] = new TlsProbe.Result
         {
 #if NET8_0_OR_GREATER

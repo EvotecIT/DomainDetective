@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+#if NET5_0_OR_GREATER
+using System.Security.Cryptography;
+#endif
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,7 +18,9 @@ namespace DomainDetective;
 /// <para>Shared by analyses that need basic TLS metadata without duplicating logic.</para>
 public static class TlsProbe
 {
-    public sealed class Result
+    private const string SubjectAlternativeNameOid = "2.5.29.17";
+
+    public sealed class Result : IDisposable
     {
         public SslProtocols Protocol { get; set; }
         public string? CipherSuite { get; set; }
@@ -31,16 +36,34 @@ public static class TlsProbe
         public DateTime? NotBefore { get; set; }
         public DateTime? NotAfter { get; set; }
         public List<string> DnsNames { get; } = new();
+
+        public void Dispose()
+        {
+            Certificate?.Dispose();
+            foreach (var cert in Chain)
+            {
+                cert.Dispose();
+            }
+        }
     }
 
-    public static async Task<Result> ProbeAsync(string host, int port = 443, CancellationToken token = default)
+    public static Task<Result> ProbeAsync(string host, int port = 443, CancellationToken token = default)
+        => ProbeAsync(host, port, null, token);
+
+    public static async Task<Result> ProbeAsync(string host, int port, TimeSpan? timeout, CancellationToken token)
     {
         var result = new Result();
         using var client = new TcpClient();
+        using var timeoutCts = timeout.HasValue ? CancellationTokenSource.CreateLinkedTokenSource(token) : null;
+        if (timeout.HasValue)
+        {
+            timeoutCts!.CancelAfter(timeout.Value);
+        }
+        var ct = timeoutCts?.Token ?? token;
 #if NET6_0_OR_GREATER
-        await client.ConnectAsync(host, port, token);
+        await client.ConnectAsync(host, port, ct);
 #else
-        await client.ConnectAsync(host, port).WaitWithCancellation(token);
+        await client.ConnectAsync(host, port).WaitWithCancellation(ct);
 #endif
         using var ssl = new SslStream(client.GetStream(), false, (sender, certificate, chain, errors) =>
         {
@@ -65,10 +88,20 @@ public static class TlsProbe
                 result.NotAfter = result.Certificate.NotAfter;
                 try
                 {
-                    var san = result.Certificate.Extensions["2.5.29.17"]; // subjectAltName
+#if NET5_0_OR_GREATER
+                    var san = result.Certificate.Extensions[SubjectAlternativeNameOid];
                     if (san != null)
                     {
-                        // very lightweight parse for DNS names
+                        var sanExt = new X509SubjectAlternativeNameExtension(san.RawData, san.Critical);
+                        foreach (var name in sanExt.EnumerateDnsNames())
+                        {
+                            if (!string.IsNullOrWhiteSpace(name)) result.DnsNames.Add(name);
+                        }
+                    }
+#else
+                    var san = result.Certificate.Extensions[SubjectAlternativeNameOid];
+                    if (san != null)
+                    {
                         var raw = san.Format(false);
                         foreach (var part in raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries))
                         {
@@ -81,6 +114,7 @@ public static class TlsProbe
                             }
                         }
                     }
+#endif
                 }
                 catch { }
             }
@@ -89,9 +123,9 @@ public static class TlsProbe
         try
         {
 #if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false);
+            await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false).WaitWithCancellation(ct);
 #else
-            await ssl.AuthenticateAsClientAsync(host);
+            await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(ct);
 #endif
 #if NET6_0_OR_GREATER
             result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
