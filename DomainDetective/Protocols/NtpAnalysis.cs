@@ -11,7 +11,7 @@ namespace DomainDetective;
 /// Queries NTP servers for clock information.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class NtpAnalysis {
+public class NtpAnalysis : IHasAssessments {
     /// <summary>Result of an NTP query.</summary>
     public class NtpResult {
         /// <summary>True when a valid reply was received.</summary>
@@ -26,6 +26,11 @@ public class NtpAnalysis {
     public Dictionary<string, NtpResult> ServerResults { get; } = new();
     /// <summary>Timeout for UDP operations.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>Structured assessments from NTP probing.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    /// <summary>Recommendations derived from assessments.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Queries a single NTP server.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger? logger, CancellationToken cancellationToken = default) {
