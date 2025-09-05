@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Measures connection and banner retrieval latencies of SMTP servers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MailLatencyAnalysis {
+    public class MailLatencyAnalysis : IHasAssessments {
         /// <summary>Results of a latency check.</summary>
         public class LatencyResult {
             /// <summary>True when the connection succeeded.</summary>
@@ -28,10 +28,19 @@ namespace DomainDetective {
         public Dictionary<string, LatencyResult> ServerResults { get; } = new();
         /// <summary>Maximum wait time for connection and banner.</summary>
         public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+        /// <summary>Acceptable connection latency threshold.</summary>
+        public TimeSpan ConnectThreshold { get; set; } = TimeSpan.FromMilliseconds(500);
+        /// <summary>Acceptable banner latency threshold.</summary>
+        public TimeSpan BannerThreshold { get; set; } = TimeSpan.FromMilliseconds(1000);
+        /// <summary>Captured assessments during analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+        /// <summary>Recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>Checks a single host.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MAILLATENCY", target: $"{host}:{port}");
             ServerResults[$"{host}:{port}"] = await MeasureLatency(host, port, logger, cancellationToken);
         }
 
@@ -40,6 +49,7 @@ namespace DomainDetective {
             ServerResults.Clear();
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MAILLATENCY", target: $"{host}:{port}");
                 ServerResults[$"{host}:{port}"] = await MeasureLatency(host, port, logger, cancellationToken);
             }
         }
@@ -72,12 +82,19 @@ namespace DomainDetective {
                     await writer.FlushAsync().WaitWithCancellation(cts.Token);
                     await reader.ReadLineAsync().WaitWithCancellation(cts.Token);
                 } catch (IOException) { }
-                return new LatencyResult {
+                var result = new LatencyResult {
                     ConnectSuccess = true,
                     BannerSuccess = banner != null,
                     ConnectTime = connectElapsed,
                     BannerTime = bannerElapsed - bannerStart
                 };
+                if (result.ConnectSuccess && result.ConnectTime <= ConnectThreshold) {
+                    logger?.WriteInformationCode(MailLatencyCodes.ConnectUnderThreshold, "Connection to {0}:{1} completed in {2} ms", host, port, (int)result.ConnectTime.TotalMilliseconds);
+                }
+                if (result.BannerSuccess && result.BannerTime <= BannerThreshold) {
+                    logger?.WriteInformationCode(MailLatencyCodes.BannerUnderThreshold, "Banner from {0}:{1} received in {2} ms", host, port, (int)result.BannerTime.TotalMilliseconds);
+                }
+                return result;
             } catch (Exception ex) when (ex is SocketException || ex is IOException || ex is OperationCanceledException || ex is TaskCanceledException) {
                 logger?.WriteVerbose("Mail latency check failed for {0}:{1} - {2}", host, port, ex.Message);
                 return new LatencyResult {
