@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,7 +14,7 @@ namespace DomainDetective;
 /// The TXT record format follows draft security.txt guidelines and may include
 /// multiple fields such as contact email addresses or policy links.
 /// </remarks>
-public class ContactInfoAnalysis {
+public class ContactInfoAnalysis : IHasAssessments {
     /// <summary>Domain under analysis.</summary>
     public string? Subject { get; set; }
     /// <summary>Raw contact TXT record.</summary>
@@ -25,10 +26,15 @@ public class ContactInfoAnalysis {
     /// <summary>Parsed key-value fields from the record.</summary>
     public Dictionary<string, string> Fields { get; } = new();
 
+    /// <summary>Collected assessments for this analysis.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
     /// <summary>
     /// Processes TXT records to extract contact information.
     /// </summary>
     public async Task AnalyzeContactRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CONTACT", target: Subject);
         await Task.Yield();
 
         ContactRecord = null;
@@ -47,6 +53,8 @@ public class ContactInfoAnalysis {
             return;
         }
 
+        logger?.WriteInformationCode(ContactCodes.RecordFound, "contact TXT record present");
+
         ContactRecord = string.Join(" ", recordList.Select(r => r.Data));
         logger?.WriteVerbose($"Analyzing contact TXT record {ContactRecord}");
 
@@ -55,6 +63,10 @@ public class ContactInfoAnalysis {
             if (kv.Length == 2) {
                 Fields[kv[0].Trim().ToLowerInvariant()] = kv[1].Trim();
             }
+        }
+
+        if (Fields.Count > 0) {
+            logger?.WriteInformationCode(ContactCodes.FieldsWellFormed, "contact TXT fields well-formed");
         }
     }
 }

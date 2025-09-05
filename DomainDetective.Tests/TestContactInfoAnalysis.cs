@@ -1,4 +1,5 @@
 using DnsClientX;
+using System.Linq;
 
 namespace DomainDetective.Tests {
     public class TestContactInfoAnalysis {
@@ -11,6 +12,8 @@ namespace DomainDetective.Tests {
             Assert.True(healthCheck.ContactInfoAnalysis.RecordExists);
             Assert.Equal("admin@example.com", healthCheck.ContactInfoAnalysis.Fields["email"]);
             Assert.Equal("12345", healthCheck.ContactInfoAnalysis.Fields["phone"]);
+            Assert.Contains(healthCheck.ContactInfoAnalysis.Assessments, a => a.Code == ContactCodes.RecordFound);
+            Assert.Contains(healthCheck.ContactInfoAnalysis.Assessments, a => a.Code == ContactCodes.FieldsWellFormed);
         }
     }
 }
