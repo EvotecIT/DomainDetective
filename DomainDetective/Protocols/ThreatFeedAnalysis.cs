@@ -117,6 +117,11 @@ public class ThreatFeedAnalysis : IHasAssessments {
 
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.VirusTotal, IsListed = vtListed });
         Listings.Add(new ThreatIntelFinding { Source = ThreatIntelSource.AbuseIpDb, IsListed = abuseListed });
+
+        if (!vtListed && !abuseListed)
+        {
+            logger?.WriteInformationCode(ThreatFeedCodes.NoListings, "No threat feed providers reported malicious activity.");
+        }
     }
 
     public List<Assessment> Assessments { get; } = new();
