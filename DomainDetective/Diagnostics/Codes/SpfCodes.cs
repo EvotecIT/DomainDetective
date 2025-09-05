@@ -26,4 +26,5 @@ internal static class SpfCodes {
     public const string AllEnforced = "SPF.All.Enforced";
     public const string LookupsWithinLimit = "SPF.Lookups.WithinLimit";
     public const string IncludeChainValid = "SPF.Include.ChainValid";
+    public const string FlattenedIpSetOptimized = "SPF.Flattened.IpSetOptimized";
 }
