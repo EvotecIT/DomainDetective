@@ -102,6 +102,7 @@ public class PortScanAnalysis : IHasAssessments
         Subject = host;
         Results.Clear();
         var list = ports ?? PortScanProfileDefinition.DefaultPorts;
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: host) : null;
         using var semaphore = new SemaphoreSlim(MaxConcurrency);
         var total = list.Count();
         var processed = 0;
@@ -127,6 +128,11 @@ public class PortScanAnalysis : IHasAssessments
             }
         });
         await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        if (!Results.Any(kv => kv.Value.TcpOpen && SensitiveTcpServices.ContainsKey(kv.Key)))
+        {
+            logger?.WriteInformationCode(PortScanCodes.ExpectedPortsOnly, "Only expected ports open on {0}", host);
+        }
     }
 
     /// <summary>Performs a scan using a predefined profile.</summary>
@@ -310,7 +316,7 @@ public class PortScanAnalysis : IHasAssessments
     private static async Task<string?> DetectSshAsync(NetworkStream stream, CancellationToken token)
     {
         var banner = await DetectBannerAsync(stream, token).ConfigureAwait(false);
-        return banner != null && banner.StartsWith("SSH-", StringComparison.OrdinalIgnoreCase) ? banner : banner;
+        return banner is not null && banner.StartsWith("SSH-", StringComparison.OrdinalIgnoreCase) ? banner : null;
     }
 
     private static async Task<string?> DetectHttpAsync(NetworkStream stream, CancellationToken token)
