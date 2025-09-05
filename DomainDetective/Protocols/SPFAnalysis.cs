@@ -973,6 +973,10 @@ namespace DomainDetective {
                 DuplicateIps = duplicates
             };
 
+            if (duplicates.Count == 0 && addresses.Count > 0) {
+                logger?.WriteInformationCode(SpfCodes.FlattenedIpSetOptimized, "Flattened SPF IP set has no duplicates");
+            }
+
             return FlattenedIpAnalysis;
         }
 
