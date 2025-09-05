@@ -23,6 +23,15 @@ internal static class Program {
             cts.Cancel();
         };
 
+        if (args.Length == 1 && (args[0] == "--help" || args[0] == "-h")) {
+            Console.WriteLine("DomainDetective Command Line Interface");
+            Console.WriteLine();
+            Console.WriteLine("EXAMPLES:");
+            Console.WriteLine("DomainDetective check example.com");
+            Console.WriteLine("DomainDetective wizard --domain example.com");
+            return 0;
+        }
+
         // If no arguments provided, route to the interactive wizard by default
         // If arguments start with options (e.g., --domain), assume the 'wizard' command implicitly
         if (args.Length == 0) {

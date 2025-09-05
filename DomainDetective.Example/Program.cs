@@ -89,6 +89,7 @@ public static partial class Program {
         await ExampleCheckLabelAcrossTlds();
         await ExampleSuggestDomain();
         await ExampleSearchEngine();
+        await ExampleMailLatencyNarrative();
 
         // HTML Report Examples
         await ReportingHtmlExample.Run();
