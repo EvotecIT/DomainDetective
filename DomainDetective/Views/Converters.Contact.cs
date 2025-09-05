@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace DomainDetective.Views;
@@ -6,12 +7,9 @@ public static partial class Converters
 {
     public static ContactInfo Convert(ContactInfoAnalysis analysis)
     {
-        // ContactInfoAnalysis does not surface assessments; derive simple status
-        var assessments = new List<Assessment>();
-        int warn = analysis.RecordExists ? 0 : 1;
-        string status = analysis.RecordExists ? "OK" : "Warning";
-        var recs = RecommendationEngine.FromProblems(assessments);
-        var positives = RecommendationEngine.FromPositives(assessments);
+        var recs = RecommendationEngine.FromProblems(analysis.Assessments);
+        var positives = RecommendationEngine.FromPositives(analysis.Assessments);
+        Summarize(analysis.Assessments, out var warn, out var err, out var status);
         return new ContactInfo
         {
             Check = HealthCheckType.CONTACT,
@@ -20,14 +18,14 @@ public static partial class Converters
             RecordExists = analysis.RecordExists,
             ContactRecord = analysis.ContactRecord,
             Fields = analysis.Fields,
-            Assessments = assessments,
+            Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warn,
-            ErrorCount = 0,
+            ErrorCount = err,
             Summary = analysis.RecordExists ? "present" : "missing",
             Recommendations = recs,
             Positives = positives,
-            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
+            References = BuildReferences(Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
     }
