@@ -39,18 +39,28 @@ namespace DomainDetective {
 
         /// <summary>Checks a single host.</summary>
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-            ServerResults.Clear();
+            lock (ServerResults) {
+                ServerResults.Clear();
+            }
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MAILLATENCY", target: $"{host}:{port}");
-            ServerResults[$"{host}:{port}"] = await MeasureLatency(host, port, logger, cancellationToken);
+            var result = await MeasureLatency(host, port, logger, cancellationToken);
+            lock (ServerResults) {
+                ServerResults[$"{host}:{port}"] = result;
+            }
         }
 
         /// <summary>Checks multiple hosts on the same port.</summary>
         public async Task AnalyzeServers(IEnumerable<string> hosts, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-            ServerResults.Clear();
+            lock (ServerResults) {
+                ServerResults.Clear();
+            }
             foreach (var host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();
                 using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MAILLATENCY", target: $"{host}:{port}");
-                ServerResults[$"{host}:{port}"] = await MeasureLatency(host, port, logger, cancellationToken);
+                var result = await MeasureLatency(host, port, logger, cancellationToken);
+                lock (ServerResults) {
+                    ServerResults[$"{host}:{port}"] = result;
+                }
             }
         }
 

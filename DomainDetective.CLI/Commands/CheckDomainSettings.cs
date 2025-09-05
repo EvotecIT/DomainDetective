@@ -8,7 +8,7 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Domains to analyze.</summary>
-    [CommandArgument(0, "[domains]")]
+    [CommandArgument(0, "<domains>")]
     public string[] Domains { get; set; } = Array.Empty<string>();
 
     /// <summary>Comma separated list of checks.</summary>

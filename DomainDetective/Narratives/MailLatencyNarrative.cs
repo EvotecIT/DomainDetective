@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -34,7 +35,9 @@ public static class MailLatencyNarrative {
             if (assessments != null) {
                 AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
             }
-        } catch { }
+        } catch (Exception ex) {
+            hi.Add($"Assessment processing error: {ex.Message}");
+        }
 
         var refs = new List<string> { "https://www.rfc-editor.org/rfc/rfc5321" };
 
