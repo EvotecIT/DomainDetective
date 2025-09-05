@@ -11,7 +11,7 @@ namespace DomainDetective;
 ///     Attempts TCP connections to common service ports and records latency.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class PortAvailabilityAnalysis
+public class PortAvailabilityAnalysis : IHasAssessments
 {
     /// <summary>Represents the result of a single port check.</summary>
     /// <para>Part of the DomainDetective project.</para>
@@ -23,16 +23,32 @@ public class PortAvailabilityAnalysis
         public TimeSpan Latency { get; init; }
     }
 
+    /// <summary>Structured assessments captured during checks.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    /// <summary>Recommendations derived from <see cref="Assessments"/>.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
     /// <summary>Results for each host and port.</summary>
     public Dictionary<string, PortResult> ServerResults { get; } = new();
     /// <summary>Maximum time to wait for a connection.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(5);
     internal Func<TcpClient> TcpClientFactory { get; set; } = static () => new TcpClient();
 
+    internal static Dictionary<int, (string Code, string Name)> ExpectedPorts { get; } = new()
+    {
+        [25] = (PortAvailabilityCodes.SmtpResponding, "SMTP"),
+        [80] = (PortAvailabilityCodes.HttpResponding, "HTTP"),
+        [443] = (PortAvailabilityCodes.HttpsResponding, "HTTPS"),
+        [465] = (PortAvailabilityCodes.SmtpsResponding, "SMTPS"),
+        [587] = (PortAvailabilityCodes.SubmissionResponding, "SUBMISSION")
+    };
+
     /// <summary>Checks a single host and port.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         ServerResults.Clear();
+        Assessments.Clear();
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "PORTAVAIL", target: $"{host}:{port}");
         ServerResults[$"{host}:{port}"] = await CheckPort(host, port, logger, cancellationToken);
     }
 
@@ -40,6 +56,8 @@ public class PortAvailabilityAnalysis
     public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default)
     {
         ServerResults.Clear();
+        Assessments.Clear();
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "PORTAVAIL");
         foreach (var host in hosts)
         {
             foreach (var port in ports)
@@ -66,6 +84,10 @@ public class PortAvailabilityAnalysis
         await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
 #endif
         sw.Stop();
+        if (ExpectedPorts.TryGetValue(port, out var svc))
+        {
+            logger?.WriteInformationCode(svc.Code, "{0} responded on {1}:{2}", svc.Name, host, port);
+        }
         return new PortResult { Success = true, Latency = sw.Elapsed };
         }
         catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
