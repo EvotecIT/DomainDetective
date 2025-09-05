@@ -79,8 +79,8 @@ namespace DomainDetective {
                 connectElapsed = sw.Elapsed;
                 var bannerStart = sw.Elapsed;
                 using NetworkStream network = client.GetStream();
-                using var reader = new StreamReader(network);
-                using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
+                using var reader = new StreamReader(network, leaveOpen: true);
+                using var writer = new StreamWriter(network, leaveOpen: true) { AutoFlush = true, NewLine = "\r\n" };
 #if NET8_0_OR_GREATER
                 var banner = await reader.ReadLineAsync(cts.Token);
 #else
