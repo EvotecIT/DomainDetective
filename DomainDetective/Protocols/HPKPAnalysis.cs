@@ -9,7 +9,9 @@ namespace DomainDetective {
     /// Analyzes HTTP Public Key Pinning (HPKP) headers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class HPKPAnalysis {
+    public class HPKPAnalysis : IHasAssessments {
+        /// <summary>The analyzed URL or host.</summary>
+        public string? Subject { get; set; }
         /// <summary>Gets a value indicating whether the Public-Key-Pins header was present.</summary>
         public bool HeaderPresent { get; private set; }
         /// <summary>Gets a value indicating whether all retrieved pins were syntactically valid.</summary>
@@ -29,6 +31,12 @@ namespace DomainDetective {
         /// <see cref="PinsValid"/> to be false.
         /// </summary>
         public bool SelfSignedCertificate { get; set; }
+
+        /// <summary>Collected assessments during analysis.</summary>
+        public List<Assessment> Assessments { get; } = new();
+
+        /// <summary>Positive and negative recommendations derived from assessments.</summary>
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         private record CacheEntry(string? Header, DateTimeOffset Expires);
         private static readonly ConcurrentDictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
@@ -89,9 +97,17 @@ namespace DomainDetective {
                 }
             }
             PinsValid = valid && (SelfSignedCertificate ? Pins.Count >= 1 : Pins.Count >= 2);
+            if (PinsValid) {
+                logger?.WriteInformationCode(HpkpCodes.PinsValid, "HPKP pins are valid.");
+            }
+            if (IncludesSubDomains) {
+                logger?.WriteInformationCode(HpkpCodes.IncludeSubDomains, "HPKP includeSubDomains directive present.");
+            }
         }
 
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HPKP", target: url);
+            Subject = url;
             HeaderPresent = false;
             PinsValid = false;
             Pins = new List<string>();
@@ -126,4 +142,5 @@ namespace DomainDetective {
                 logger?.WriteErrorCode(HpkpCodes.CheckFailed, "HPKP check failed for {0}: {1}", url, ex.Message);
             }
         }
-    }}
+    }
+}
