@@ -188,6 +188,21 @@ public sealed class MailDomainClassifier {
         Pull(_health.BimiAnalysis);
         // ApexAddressAnalysis does not implement IHasAssessments; skip
 
+        string? classificationCode = category switch
+        {
+            MailDomainClassificationCategory.SendingAndReceiving => MailClassificationCodes.SendingAndReceiving,
+            MailDomainClassificationCategory.ReceivingOnly => MailClassificationCodes.ReceivingOnly,
+            MailDomainClassificationCategory.SendingOnly => MailClassificationCodes.SendingOnly,
+            MailDomainClassificationCategory.Parked => MailClassificationCodes.Parked,
+            _ => null
+        };
+
+        if (!string.IsNullOrWhiteSpace(classificationCode))
+        {
+            agg.Add(new Assessment { Code = classificationCode, Severity = AssessmentSeverity.Info, Message = reason, Category = "MailClassification" });
+            _logger?.WriteInformationCode(classificationCode, reason);
+        }
+
         return new MailDomainClassificationResult {
             Domain = domain,
             Classification = category,
