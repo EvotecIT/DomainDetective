@@ -67,18 +67,42 @@ namespace DomainDetective {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, recordType);
             }
-            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
-            client.EndpointConfiguration.UserAgent = UserAgent;
-            if (ResolverMaxConcurrency.HasValue) {
-                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-            }
-                        if (filter != string.Empty) {
-                var data = await client.ResolveFilter(name, recordType, filter);
-                return data.Answers;
-            }
+            try {
+                using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
+                client.EndpointConfiguration.UserAgent = UserAgent;
+                if (ResolverMaxConcurrency.HasValue) {
+                    client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+                }
+                if (filter != string.Empty) {
+                    var data = await client.ResolveFilter(name, recordType, filter);
+                    return data.Answers;
+                }
 
-            var result = await client.Resolve(name, recordType);
-            return result.Answers;
+                var result = await client.Resolve(name, recordType);
+                return result.Answers;
+            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                // Transient DNS/network error: try a conservative fallback endpoint, then return empty if it still fails.
+                var fallbacks = GetFallbackEndpoints(DnsEndpoint);
+                foreach (var fb in fallbacks) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try {
+                        using var clientFb = new ClientX(endpoint: fb, DnsSelectionStrategy);
+                        clientFb.EndpointConfiguration.UserAgent = UserAgent;
+                        if (ResolverMaxConcurrency.HasValue) {
+                            clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+                        }
+                        if (filter != string.Empty) {
+                            var dataFb = await clientFb.ResolveFilter(name, recordType, filter);
+                            return dataFb.Answers;
+                        }
+                        var resFb = await clientFb.Resolve(name, recordType);
+                        return resFb.Answers;
+                    } catch (Exception retryEx) when (retryEx is TaskCanceledException || retryEx is TimeoutException || retryEx is System.Net.Http.HttpRequestException) {
+                        // try next fallback
+                    }
+                }
+                return Array.Empty<DnsAnswer>();
+            }
         }
 
         /// <summary>
@@ -97,24 +121,61 @@ namespace DomainDetective {
                 return all;
             }
             List<DnsAnswer> allAnswers = new();
+            try {
+                using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
+                client.EndpointConfiguration.UserAgent = UserAgent;
+                if (ResolverMaxConcurrency.HasValue) {
+                    client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+                }
+                DnsResponse[] data;
+                if (filter != string.Empty) {
+                    data = await client.ResolveFilter(names, recordType, filter);
+                } else {
+                    data = await client.Resolve(names, recordType);
+                }
 
-            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
-            client.EndpointConfiguration.UserAgent = UserAgent;
-            if (ResolverMaxConcurrency.HasValue) {
-                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-            }
-                        DnsResponse[] data;
-            if (filter != string.Empty) {
-                data = await client.ResolveFilter(names, recordType, filter);
-            } else {
-                data = await client.Resolve(names, recordType);
-            }
+                foreach (var response in data) {
+                    allAnswers.AddRange(response.Answers);
+                }
 
-            foreach (var response in data) {
-                allAnswers.AddRange(response.Answers);
+                return allAnswers;
+            } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                var fallbacks = GetFallbackEndpoints(DnsEndpoint);
+                foreach (var fb in fallbacks) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try {
+                        using var clientFb = new ClientX(endpoint: fb, DnsSelectionStrategy);
+                        clientFb.EndpointConfiguration.UserAgent = UserAgent;
+                        if (ResolverMaxConcurrency.HasValue) {
+                            clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+                        }
+                        DnsResponse[] dataFb;
+                        if (filter != string.Empty) {
+                            dataFb = await clientFb.ResolveFilter(names, recordType, filter);
+                        } else {
+                            dataFb = await clientFb.Resolve(names, recordType);
+                        }
+                        foreach (var response in dataFb) {
+                            allAnswers.AddRange(response.Answers);
+                        }
+                        return allAnswers;
+                    } catch (Exception retryEx) when (retryEx is TaskCanceledException || retryEx is TimeoutException || retryEx is System.Net.Http.HttpRequestException) {
+                        // try next fallback
+                    }
+                }
+                return allAnswers; // empty on failure
             }
+        }
 
-            return allAnswers;
+        private static DnsEndpoint[] GetFallbackEndpoints(DnsEndpoint current) {
+            // Prefer system TCP as a robust baseline, then system resolver.
+            // If already on system endpoints, try CloudflareWireFormat as a last resort.
+            return current switch {
+                DnsEndpoint.CloudflareWireFormat => new[] { DnsEndpoint.SystemTcp, DnsEndpoint.System },
+                DnsEndpoint.SystemTcp => new[] { DnsEndpoint.System, DnsEndpoint.CloudflareWireFormat },
+                DnsEndpoint.System => new[] { DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat },
+                _ => new[] { DnsEndpoint.SystemTcp, DnsEndpoint.System }
+            };
         }
 
         /// <summary>

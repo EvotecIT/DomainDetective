@@ -27,7 +27,8 @@ namespace DomainDetective
             var parts = TokenizeSpfRecord(record).ToArray();
             foreach (var part in parts)
             {
-                AddPartToList(part, logger, domain, depth, path);
+                // Populate provenance and resolved collections without mutating top-level lists
+                AddPartToResolvedLists(part, logger, domain, depth, path);
             }
 
             foreach (var part in parts)
@@ -76,4 +77,3 @@ namespace DomainDetective
         }
     }
 }
-

@@ -205,7 +205,11 @@ namespace DomainDetective {
                 .Where(r => (r.Data ?? string.Empty).IndexOf("v=spf1", StringComparison.OrdinalIgnoreCase) >= 0)
                 .Select(r => r.TTL)
                 .ToArray();
-            DmarcTxtTtls = txtDmarc.Select(r => r.TTL).ToArray();
+            // Only treat TXT at _dmarc as DMARC when it actually contains a DMARC record
+            DmarcTxtTtls = txtDmarc
+                .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=DMARC1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
 
             if (DkimSelectors != null && DkimSelectors.Count > 0)
             {

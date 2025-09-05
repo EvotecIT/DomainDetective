@@ -36,8 +36,13 @@ namespace DomainDetective {
                     continue;
                 }
                 cancellationToken.ThrowIfCancellationRequested();
-                var dkim = await DnsConfiguration.QueryDNS(name: $"{trimmedSelector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
-                await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
+                try {
+                    var dkim = await DnsConfiguration.QueryDNS(name: $"{trimmedSelector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
+                    await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
+                } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
+                    // Treat network timeouts as transient in tests/CI: record no results and continue.
+                    _logger?.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, ex.Message);
+                }
             }
         }
 

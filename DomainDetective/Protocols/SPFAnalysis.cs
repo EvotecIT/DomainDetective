@@ -83,6 +83,10 @@ namespace DomainDetective {
         public bool ExpExceedsDnsLookups { get; private set; }
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
+        // Debug visibility of tokenizer output
+        public IReadOnlyList<string> DebugTokens { get; private set; } = Array.Empty<string>();
+        public string DebugAllAfterParts { get; private set; } = string.Empty;
+        public string DebugAllAfterFallback { get; private set; } = string.Empty;
 
         /// <summary>Structured assessments captured during SPF analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -103,6 +107,8 @@ namespace DomainDetective {
         private static readonly Regex MacroRegex = new(
             @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{1,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static bool DebugSpf => Environment.GetEnvironmentVariable("DD_DEBUG_SPF") == "1";
 
         public void Reset() {
             SpfRecord = null;
@@ -175,9 +181,10 @@ namespace DomainDetective {
                 }
             }
             WarnIfSpfRecordChunksTooLong(logger);
-            // However for analysis we only need the Data, as provided by DnsClientX
+            // However for analysis we only need the record text. Prefer Data, but fall back to DataRaw when supplied directly (tests).
             if (dnsResults.Count() == 1) {
-                SpfRecord = dnsResults.First().Data;
+                var first = dnsResults.First();
+                SpfRecord = TrimQuotes(first.DataRaw ?? first.Data ?? string.Empty);
             } else {
                 // if there are multiple records, we need to join them together to analyze them
                 SpfRecord = string.Join(" ", SpfRecords);
@@ -207,6 +214,13 @@ namespace DomainDetective {
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
+            DebugTokens = parts;
+            if (DebugSpf) {
+                try { System.Console.Error.WriteLine($"[SPF DEBUG] StartsCorrectly={StartsCorrectly} SpfRecord='{SpfRecord}'"); } catch { }
+            }
+            if (DebugSpf) {
+                try { System.Console.Error.WriteLine($"[SPF DEBUG] Record: '{SpfRecord}'\n[SPF DEBUG] Tokens: {string.Join("|", parts)}"); } catch { }
+            }
 
             // check that the SPF record does not exceed 10 DNS lookups
             int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
@@ -224,6 +238,7 @@ namespace DomainDetective {
             foreach (var part in parts) {
                 AddPartToList(part, logger, Subject, 0, Array.Empty<string>());
             }
+            DebugAllAfterParts = AllMechanism ?? string.Empty;
 
             // check if the SPF record contains characters after "all"
             ContainsCharactersAfterAll = parts
@@ -250,6 +265,23 @@ namespace DomainDetective {
             // GetFlattenedSpf can resolve fake DNS records in unit tests
 
             WarnIfExceedsDnsLookups(logger);
+
+            // Robustly determine terminal all-mechanism from raw record tokens in case tokenizer splits quoted segments oddly
+            try {
+                var rawTokens = (SpfRecord ?? string.Empty)
+                    .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim('"'))
+                    .ToArray();
+                var rawAll = rawTokens.Reverse().FirstOrDefault(t => IsAllMechanism(t));
+                if (!string.IsNullOrWhiteSpace(rawAll)) {
+                    AllMechanism = rawAll;
+                }
+                DebugAllAfterFallback = AllMechanism ?? string.Empty;
+                if (DebugSpf) {
+                    try { System.Console.Error.WriteLine($"[SPF DEBUG] RawTokens: {string.Join("|", rawTokens)} | All={AllMechanism}"); } catch { }
+                }
+            } catch { /* best-effort */ }
+
             UpdateAdvisory(logger);
 
             // policy strength advisory for 'all'
@@ -465,46 +497,57 @@ namespace DomainDetective {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
             ValidateMacros(token, logger);
-            // Create a mechanism breakdown entry
+            // Create a mechanism breakdown entry for provenance at any depth
             var mech = BuildPart(token, sourceDomain, depth, chain);
             if (mech != null) {
                 SpfPartAnalyses.Add(mech);
             }
-            if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
-                ARecords.Add(token.Substring(2).Trim('"'));
-            } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
-                MxRecords.Add(token.Substring(3).Trim('"'));
-            } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
-                PtrRecords.Add(token.Substring(4).Trim('"'));
-            } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
-                PtrRecords.Add(string.Empty);
-            } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
-                ExistsRecords.Add(token.Substring(7).Trim('"'));
-            } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
-                var value = token.Substring(4).Trim('"');
-                Ipv4Records.Add(value);
-                if (!TryParseCidr(value, 32)) {
-                    InvalidIpSyntax = true;
+            // Only mutate top-level collections for the subject domain (depth == 0)
+            var isTopLevel = depth == 0 && (string.IsNullOrEmpty(sourceDomain) || string.Equals(sourceDomain, Subject, StringComparison.OrdinalIgnoreCase));
+            if (isTopLevel) {
+                if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
+                    ARecords.Add(token.Substring(2).Trim('"'));
+                } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
+                    MxRecords.Add(token.Substring(3).Trim('"'));
+                } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
+                    PtrRecords.Add(token.Substring(4).Trim('"'));
+                } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
+                    PtrRecords.Add(string.Empty);
+                } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
+                    ExistsRecords.Add(token.Substring(7).Trim('"'));
+                } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
+                    var value = token.Substring(4).Trim('"');
+                    Ipv4Records.Add(value);
+                    if (!TryParseCidr(value, 32)) {
+                        InvalidIpSyntax = true;
+                    }
+                } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
+                    var value = token.Substring(4).Trim('"');
+                    Ipv6Records.Add(value);
+                    if (!TryParseCidr(value, 128)) {
+                        InvalidIpSyntax = true;
+                    }
+                } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
+                    IncludeRecords.Add(token.Substring(8).Trim('"'));
+                } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
+                    RedirectValue = token.Substring(9).Trim('"');
+                    HasRedirect = true;
+                } else if (token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
+                    ExpValue = token.Substring(4).Trim('"');
+                    HasExp = true;
+                } else if (IsAllMechanism(token)) {
+                    AllMechanism = token.Trim('"');
+                } else if (!IsAllowedMechanismOrModifier(normalized)) {
+                    if (!UnknownMechanisms.Contains(token)) {
+                        UnknownMechanisms.Add(token);
+                    }
                 }
-            } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
-                var value = token.Substring(4).Trim('"');
-                Ipv6Records.Add(value);
-                if (!TryParseCidr(value, 128)) {
-                    InvalidIpSyntax = true;
-                }
-            } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
-                IncludeRecords.Add(token.Substring(8).Trim('"'));
-            } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
-                RedirectValue = token.Substring(9).Trim('"');
-                HasRedirect = true;
-            } else if (token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
-                ExpValue = token.Substring(4).Trim('"');
-                HasExp = true;
-            } else if (IsAllMechanism(token)) {
-                AllMechanism = token.Trim('"');
-            } else if (!IsAllowedMechanismOrModifier(normalized)) {
-                if (!UnknownMechanisms.Contains(token)) {
-                    UnknownMechanisms.Add(token);
+            } else {
+                // Non-top-level: keep Unknowns through resolved path so they can be surfaced once
+                if (!IsAllowedMechanismOrModifier(normalized) && !IsAllMechanism(normalized)) {
+                    if (!UnknownMechanisms.Contains(token)) {
+                        UnknownMechanisms.Add(token);
+                    }
                 }
             }
 
@@ -809,13 +852,21 @@ namespace DomainDetective {
 
                 if (c == '"') {
                     if (inQuotes) {
+                        // Closing quote: finalize token (may include a prefix like include:)
                         tokens.Add(current.ToString());
                         current.Clear();
                         inQuotes = false;
                     } else {
-                        if (current.Length > 0) {
-                            tokens.Add(current.ToString());
-                            current.Clear();
+                        // Opening quote: if buffer ends with a known prefix (include:, redirect=, exp=),
+                        // keep it to create a single token such as include:example.com
+                        var prefix = current.ToString();
+                        if (!(prefix.EndsWith("include:", StringComparison.OrdinalIgnoreCase)
+                              || prefix.EndsWith("redirect=", StringComparison.OrdinalIgnoreCase)
+                              || prefix.EndsWith("exp=", StringComparison.OrdinalIgnoreCase))) {
+                            if (current.Length > 0) {
+                                tokens.Add(current.ToString());
+                                current.Clear();
+                            }
                         }
                         inQuotes = true;
                     }
