@@ -11,7 +11,7 @@ namespace DomainDetective {
     /// Represents the results from parsing message headers.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class MessageHeaderAnalysis {
+    public class MessageHeaderAnalysis : IHasAssessments {
         /// <summary>Raw headers supplied for parsing.</summary>
         public string? RawHeaders { get; private set; }
         /// <summary>All parsed headers keyed by header name.</summary>
@@ -50,18 +50,23 @@ namespace DomainDetective {
         /// <summary>Collection of detected issues.</summary>
         public List<MessageHeaderIssue> Issues { get; } = new();
 
+        public List<Assessment> Assessments { get; } = new();
+        public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
         /// <summary>
         /// Parses <paramref name="rawHeaders"/> into strongly typed properties.
         /// </summary>
         /// <param name="rawHeaders">Unparsed header text.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
         public void Parse(string rawHeaders, InternalLogger? logger = null) {
+            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "HEADERS") : null;
             RawHeaders = rawHeaders;
             Headers.Clear();
             DuplicateHeaders.Clear();
             ReceivedHops.Clear();
             SpamHeaders.Clear();
             Issues.Clear();
+            Assessments.Clear();
             TotalTransitTime = null;
             MaxHopDelay = null;
             MinHopDelay = null;
@@ -105,6 +110,20 @@ namespace DomainDetective {
             } catch (Exception ex) {
                 logger?.WriteErrorCode(MessageHeaderCodes.ParseFailed, "Failed to parse message headers: {0}", ex.Message);
             }
+
+            if (string.Equals(DkimResult, "pass", StringComparison.OrdinalIgnoreCase)) {
+                logger?.WriteInformationCode(MessageHeaderCodes.DkimPass, "DKIM authentication passed");
+            }
+            if (string.Equals(SpfResult, "pass", StringComparison.OrdinalIgnoreCase)) {
+                logger?.WriteInformationCode(MessageHeaderCodes.SpfPass, "SPF authentication passed");
+            }
+            if (string.Equals(DmarcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
+                logger?.WriteInformationCode(MessageHeaderCodes.DmarcPass, "DMARC authentication passed");
+            }
+            if (string.Equals(ArcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
+                logger?.WriteInformationCode(MessageHeaderCodes.ArcPass, "ARC authentication passed");
+            }
+
             DetermineIssues();
         }
 
