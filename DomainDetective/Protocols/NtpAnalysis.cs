@@ -55,7 +55,9 @@ public class NtpAnalysis : IHasAssessments {
     public Task AnalyzeServers(IEnumerable<NtpServer> servers, int port, InternalLogger? logger, CancellationToken cancellationToken = default) =>
         AnalyzeServers(servers.Select(s => s.ToHost()), port, logger, cancellationToken);
 
-    private static ulong ReadUInt32(byte[] data, int offset) => ((ulong)data[offset] << 24) | ((ulong)data[offset + 1] << 16) | ((ulong)data[offset + 2] << 8) | data[offset + 3];
+    private static uint ReadUInt32(byte[] data, int offset) =>
+        ((uint)data[offset] << 24) | ((uint)data[offset + 1] << 16) |
+        ((uint)data[offset + 2] << 8) | data[offset + 3];
 
     private async Task<NtpResult> QueryServer(string host, int port, InternalLogger? logger, CancellationToken token) {
         using var udp = new UdpClient();
@@ -77,11 +79,11 @@ public class NtpAnalysis : IHasAssessments {
                 return new NtpResult { Success = false };
             }
             byte stratum = resp.Buffer[1];
-            ulong sec = ReadUInt32(resp.Buffer, 40);
-            ulong frac = ReadUInt32(resp.Buffer, 44);
-            const ulong epoch = 2208988800UL;
+            uint sec = ReadUInt32(resp.Buffer, 40);
+            uint frac = ReadUInt32(resp.Buffer, 44);
+            const double epoch = 2208988800.0;
             double seconds = sec - epoch + frac / 4294967296.0;
-            var serverTime = DateTimeOffset.FromUnixTimeSeconds((long)(sec - epoch)).AddSeconds(frac / 4294967296.0);
+            var serverTime = DateTimeOffset.FromUnixTimeMilliseconds((long)(seconds * 1000));
             var offset = serverTime - DateTimeOffset.UtcNow;
             return new NtpResult { Success = true, Stratum = stratum, Offset = offset };
         } catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException) {

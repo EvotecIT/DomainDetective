@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace DomainDetective.Narratives;
@@ -26,7 +27,7 @@ public static class NtpNarrative {
             foreach (var kv in results) {
                 var r = kv.Value;
                 if (r.Success) {
-                    var line = $"{kv.Key} offset {r.Offset.TotalMilliseconds:F0} ms; stratum {r.Stratum}";
+                    var line = $"{kv.Key} offset {FormatOffset(r.Offset)}; stratum {r.Stratum}";
                     hi.Add(line);
                     det.Add(line);
                 } else {
@@ -55,6 +56,26 @@ public static class NtpNarrative {
             Positives = positives,
             Remediations = remediations
         };
+    }
+
+    private static string FormatOffset(TimeSpan offset) {
+        var ms = offset.TotalMilliseconds;
+        var absMs = Math.Abs(ms);
+        if (absMs < 1000) {
+            return $"{ms:F0} ms";
+        }
+
+        var absSec = Math.Abs(offset.TotalSeconds);
+        if (absSec < 60) {
+            return $"{offset.TotalSeconds:F2} s";
+        }
+
+        var absMin = Math.Abs(offset.TotalMinutes);
+        if (absMin < 60) {
+            return $"{offset.TotalMinutes:F2} m";
+        }
+
+        return $"{offset.TotalHours:F2} h";
     }
 }
 

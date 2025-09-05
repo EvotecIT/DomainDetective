@@ -22,5 +22,19 @@ public class TestNtpNarrative {
         Assert.Contains("Clock offset within acceptable range", sections.Positives);
         Assert.Contains("NTP server reports trusted stratum", sections.Positives);
     }
+
+    [Fact]
+    public void FormatsLargeOffsetsInLargerUnits() {
+        var analysis = new NtpAnalysis();
+        analysis.ServerResults["time.example:123"] = new NtpAnalysis.NtpResult {
+            Success = true,
+            Offset = System.TimeSpan.FromSeconds(2),
+            Stratum = 1
+        };
+
+        var sections = NtpNarrative.Build(analysis);
+
+        Assert.Contains(sections.Highlights, h => h.Contains("2.00 s"));
+    }
 }
 
