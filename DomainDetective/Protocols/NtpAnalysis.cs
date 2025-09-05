@@ -11,7 +11,7 @@ namespace DomainDetective;
 /// Queries NTP servers for clock information.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class NtpAnalysis {
+public class NtpAnalysis : IHasAssessments {
     /// <summary>Result of an NTP query.</summary>
     public class NtpResult {
         /// <summary>True when a valid reply was received.</summary>
@@ -26,6 +26,11 @@ public class NtpAnalysis {
     public Dictionary<string, NtpResult> ServerResults { get; } = new();
     /// <summary>Timeout for UDP operations.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(3);
+
+    /// <summary>Structured assessments from NTP probing.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    /// <summary>Recommendations derived from assessments.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
     /// <summary>Queries a single NTP server.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger? logger, CancellationToken cancellationToken = default) {
@@ -50,7 +55,9 @@ public class NtpAnalysis {
     public Task AnalyzeServers(IEnumerable<NtpServer> servers, int port, InternalLogger? logger, CancellationToken cancellationToken = default) =>
         AnalyzeServers(servers.Select(s => s.ToHost()), port, logger, cancellationToken);
 
-    private static ulong ReadUInt32(byte[] data, int offset) => ((ulong)data[offset] << 24) | ((ulong)data[offset + 1] << 16) | ((ulong)data[offset + 2] << 8) | data[offset + 3];
+    private static uint ReadUInt32(byte[] data, int offset) =>
+        ((uint)data[offset] << 24) | ((uint)data[offset + 1] << 16) |
+        ((uint)data[offset + 2] << 8) | data[offset + 3];
 
     private async Task<NtpResult> QueryServer(string host, int port, InternalLogger? logger, CancellationToken token) {
         using var udp = new UdpClient();
@@ -72,11 +79,11 @@ public class NtpAnalysis {
                 return new NtpResult { Success = false };
             }
             byte stratum = resp.Buffer[1];
-            ulong sec = ReadUInt32(resp.Buffer, 40);
-            ulong frac = ReadUInt32(resp.Buffer, 44);
-            const ulong epoch = 2208988800UL;
+            uint sec = ReadUInt32(resp.Buffer, 40);
+            uint frac = ReadUInt32(resp.Buffer, 44);
+            const double epoch = 2208988800.0;
             double seconds = sec - epoch + frac / 4294967296.0;
-            var serverTime = DateTimeOffset.FromUnixTimeSeconds((long)(sec - epoch)).AddSeconds(frac / 4294967296.0);
+            var serverTime = DateTimeOffset.FromUnixTimeMilliseconds((long)(seconds * 1000));
             var offset = serverTime - DateTimeOffset.UtcNow;
             return new NtpResult { Success = true, Stratum = stratum, Offset = offset };
         } catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException) {
