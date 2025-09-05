@@ -3,22 +3,67 @@
 [![codecov](https://codecov.io/gh/EvotecIT/DomainDetective/branch/master/graph/badge.svg)](https://codecov.io/gh/EvotecIT/DomainDetective)
 [![Discord](https://img.shields.io/discord/508328927853281280?style=flat-square&label=discord%20chat)](https://evo.yt/discord)
 
-Domain Detective is a domain, DNS, and email security auditing toolkit. It ships as:
+Domain Detective is a domain, DNS, and email security auditing toolkit.
+
+What we deliver today:
 
 - C# library: compose and automate checks in .NET
 - PowerShell module: fast, scriptable cmdlets with sensible aliases
-- CLI: quick interactive and batch workflows
+- Cross‑platform CLI: quick interactive and batch workflows (Windows/macOS/Linux)
 
-It’s built for automation, reproducibility, and working with sensitive data without depending on web forms.
+Why: enable offline, automatable versions of the tools you usually find on the web — repeatable, script‑friendly and ready for CI/CD or air‑gapped environments.
 
 ## Features Overview
 
-- DNS: NS, SOA, Delegation, MX, PTR/Reverse, FCrDNS, DNSSEC chain and DS validation, TTL analysis, EDNS support, wildcard detection, open resolver, zone transfer, DNS propagation (ad-hoc + background monitor)
-- Email: SPF, DKIM, DMARC (records + aggregate/forensic parsing), BIMI, MTA-STS policy validation, TLS-RPT import, SMTP STARTTLS and TLS posture, SMTP banner, IMAP/POP3 TLS, open relay
-- Web/Certificates: website connectivity, HTTP/2/3, HSTS and security headers, CT/chain details, DANE/TLSA, S/MIMEA
-- Reputation & intel: threat intel lookups
-- Registry & routing: WHOIS, RDAP, RPKI origin validation
-- Reporting & UX: HTML/JSON report generation, interactive CLI wizard
+DNS & Infrastructure
+
+- NS, SOA, Delegation, zone transfer checks
+- MX, PTR/Reverse, FCrDNS
+- DNSSEC: chain and DS validation
+- TTL analysis; wildcard detection; EDNS support; open resolver
+- DNS propagation (ad‑hoc + background monitor)
+
+Email Authentication & Transport
+
+- SPF analysis (chain, lookups, flattening), DKIM (selector quality), DMARC (policy + reports)
+- BIMI
+- MTA‑STS and TLS‑RPT
+- SMTP STARTTLS posture, SMTP banner, IMAP/POP3 TLS, open relay
+
+Web & Certificates
+
+- HTTP/2/3 reachability, security headers, HSTS
+- Certificate chain/CT details; DANE/TLSA; S/MIMEA
+
+Reputation, Registry & Routing
+
+- Threat intel hooks, DNSBL (customizable providers)
+- WHOIS, RDAP, RPKI origin validation
+
+Reporting & UX
+
+- HTML and JSON reports, interactive CLI wizard, PowerShell views
+
+### Project Goals
+
+- Offline‑first: make common online tools available locally, safely and repeatably.
+- Automation‑ready: clean models, stable outputs, designed for scripting and CI/CD.
+- Cross‑platform: consistent experience on Windows, macOS and Linux.
+- Extensible: C# SDK + PowerShell + CLI, with provider hooks.
+
+### Output & Views
+
+- Raw: strongly‑typed analysis models suitable for automation and downstream processing (`view.Raw`).
+- Narrative: persona‑driven, human‑friendly storyline in CLI/PowerShell (without polluting the raw data).
+- Highlights: concise status, counts and key flags for dashboards and at‑a‑glance summaries.
+
+These layers are available both from the CLI and PowerShell; use summaries for quick triage and drill into raw for evidence and provenance.
+
+### Roadmap (short)
+
+- Exports: Word (.docx), Excel (.xlsx), PDF, Markdown summaries.
+- CLI packaging for Windows, macOS and Linux (single‑file and native package feeds).
+- More opinionated presets and batch modes for scheduled audits.
 
 ## Persona (CLI + PowerShell)
 
