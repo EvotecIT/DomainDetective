@@ -25,20 +25,51 @@ DNS & Infrastructure
 
 Email Authentication & Transport
 
-- SPF analysis (chain, lookups, flattening), DKIM (selector quality), DMARC (policy + reports)
-- BIMI
-- MTA‑STS and TLS‑RPT
-- SMTP STARTTLS posture, SMTP banner, IMAP/POP3 TLS, open relay
+- SPF: chain traversal and flattening; DNS‑lookup budget; terminal policy (-all); trailing content; null/exists lookups; macro validation (RFC 7208).
+- DKIM: key presence and length, weak/old keys; canonicalization/hash checks; deprecated tags; per‑selector analysis (RFC 6376/8617 for ARC where applicable).
+- DMARC: policy and alignment, pct/sp modes, rua/ruf parsing, aggregate/forensic import (RFC 7489 / dmarcbis draft).
+- BIMI: record presence and logo/VMC hints (draft spec).
+- MTA‑STS and TLS‑RPT: policy retrieval/validation and reporting posture (RFC 8461 / RFC 8460).
+- Transport posture: SMTP STARTTLS, SMTP banner RFC‑conformance, IMAP/POP3 TLS, open relay checks, mail latency.
 
 Web & Certificates
 
-- HTTP/2/3 reachability, security headers, HSTS
-- Certificate chain/CT details; DANE/TLSA; S/MIMEA
+- HTTPS reachability (HTTP/2/3), enforced HTTPS redirects, forms over HTTPS, mixed‑content flags.
+- Security headers posture: HSTS, CSP, Referrer‑Policy, Permissions‑Policy, X‑Frame‑Options and more.
+- Certificate insights: chain/issuer/CT presence, key algorithm/size, weak/SHA‑1 flags, OCSP stapling; optional DANE/TLSA; S/MIMEA.
+
+Static Website Scan
+
+- Crawl starting URL, follow in‑scope links, and map redirect chains.
+- Detect broken links/resources (first‑party vs third‑party) and mixed content.
+- Surface missing/weak headers (CSP, HSTS, Referrer‑Policy, etc.).
+- Third‑party inventory; top‑by‑bytes/requests; simple tracker/analytics detection.
+- Lightweight technology fingerprinting from headers/body (no headless browser required).
+- Robots.txt and sitemap hints to guide or explain coverage.
 
 Reputation, Registry & Routing
 
-- Threat intel hooks, DNSBL (customizable providers)
-- WHOIS, RDAP, RPKI origin validation
+- Threat intel hooks and feed ingestion (configurable), VirusTotal helpers.
+- DNSBL lookups with customizable provider lists (domain/IP modes).
+- WHOIS and RDAP (RFC 9083) for registration data.
+- RPKI origin validation (route/origin hygiene).
+
+Discovery, Exposure & Identity
+
+- Autodiscover (mail client setup), Security.txt, Contact TXT.
+- Directory exposure checks (well‑known paths/leaks).
+- Identity provider info (OIDC discovery / user realm hints).
+
+Infrastructure Hygiene
+
+- Dangling/Takeover‑prone CNAMEs, flattening service detection.
+- Subdomain enumeration, IP neighbor analysis.
+- Reverse DNS/FCrDNS consistency, wildcard DNS detection.
+
+Network Services
+
+- Port availability and lightweight port scan profiles.
+- SNMP and NTP posture checks.
 
 Reporting & UX
 
@@ -59,42 +90,24 @@ Reporting & UX
 
 These layers are available both from the CLI and PowerShell; use summaries for quick triage and drill into raw for evidence and provenance.
 
+### Standards Coverage (examples)
+
+- SPF: RFC 7208 • DKIM: RFC 6376 • ARC: RFC 8617
+- DMARC: RFC 7489 (plus dmarcbis draft) • BIMI (draft)
+- MTA‑STS: RFC 8461 • TLS‑RPT: RFC 8460
+- DANE/TLSA: RFC 6698 • SMIMEA: RFC 8162
+- HSTS: RFC 6797 • EDNS(0): RFC 6891 • RDAP: RFC 9083
+
 ### Roadmap (short)
 
 - Exports: Word (.docx), Excel (.xlsx), PDF, Markdown summaries.
 - CLI packaging for Windows, macOS and Linux (single‑file and native package feeds).
+- Live persona narration across CLI/PowerShell with per‑section highlights.
 - More opinionated presets and batch modes for scheduled audits.
 
-## Persona (CLI + PowerShell)
+## Narratives & Persona (planned)
 
-DomainDetective supports live persona narration to make CLI and PowerShell output more readable without changing underlying objects.
-
-- CLI flags:
-  - `--persona business|funny|geek|noir|pirate` – choose narration style
-  - `--persona-live` – stream steps live
-  - `--persona-verbose` – include verbose hints and reasons
-
-Examples (CLI):
-
-```
-DomainDetective.CLI.exe WizardScan --domain example.com --persona business --persona-live
-DomainDetective.CLI.exe check example.com --persona geek --persona-verbose
-```
-
-- PowerShell:
-  - `Set-DDPersona -Persona Business -Live -NarrateVerbose` – set persona globally for the session
-
-Examples (PowerShell):
-
-```
-Import-Module ./Module/DomainDetective.PowerShell.psd1
-Set-DDPersona -Persona Business -Live -NarrateVerbose
-Test-DDDomainHealth example.com
-```
-
-Notes:
-- Persona only affects narration/log panels. View objects remain clean, with the full raw analysis on `view.Raw` and summary counts on the top-level view.
-- Use `Select-Object` on `Status`, `WarningCount`, `ErrorCount`, and `Summary` for dashboards; drill into `Raw` for details.
+We’re designing persona‑driven narratives to present findings in different tones (e.g., business, geek) without changing the underlying data. Live streaming of persona output and per‑section summaries are part of the roadmap. The raw objects and reports remain clean and automation‑friendly.
 
 ## Available Cmdlets and Aliases
 
