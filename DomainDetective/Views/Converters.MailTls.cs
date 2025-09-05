@@ -38,7 +38,12 @@ public static partial class Converters
                 DhKeyBits = r.DhKeyBits,
                 CertificateSubject = r.CertificateSubject,
                 CertificateIssuer = r.CertificateIssuer,
-                CertificateNotAfter = r.CertificateNotAfter
+                CertificateNotAfter = r.CertificateNotAfter,
+                // New summary-friendly aliases
+                Issuer = r.CertificateIssuer,
+                ValidFrom = r.CertificateNotBefore,
+                ValidTo = r.CertificateNotAfter,
+                Thumbprint = r.CertificateThumbprint
             });
         }
         int validCount = 0;
@@ -91,24 +96,54 @@ public class MailTlsInfo
 
 public class MailTlsServerInfo
 {
+    /// <summary>Server key in the form host:port.</summary>
     public string Key { get; set; }
+    /// <summary>True when STARTTLS was advertised or implicit TLS used.</summary>
     public bool StartTlsAdvertised { get; set; }
+    /// <summary>Computed letter grade for TLS posture.</summary>
     public GradeLevel Grade { get; set; }
+    /// <summary>True when the leaf certificate is valid (date, host, basic checks).</summary>
     public bool CertificateValid { get; set; }
+    /// <summary>True when chain validates without errors.</summary>
     public bool ChainValid { get; set; }
+    /// <summary>Days until certificate expiration (negative when expired).</summary>
     public int DaysToExpire { get; set; }
+    /// <summary>True when the certificate is expired.</summary>
     public bool IsExpired { get; set; }
+    /// <summary>Negotiated TLS protocol.</summary>
     public string Protocol { get; set; }
+    /// <summary>True when server supports TLS 1.3.</summary>
     public bool SupportsTls13 { get; set; }
+    /// <summary>True when TLS 1.3 was used for the connection.</summary>
     public bool Tls13Used { get; set; }
+    /// <summary>True when certificate hostname matches the server name.</summary>
     public bool HostnameMatch { get; set; }
+    /// <summary>Negotiated cipher algorithm.</summary>
     public string CipherAlgorithm { get; set; }
+    /// <summary>Negotiated cipher strength in bits.</summary>
     public int CipherStrength { get; set; }
+    /// <summary>Negotiated cipher suite identifier.</summary>
     public string CipherSuite { get; set; }
+    /// <summary>Key exchange algorithm.</summary>
     public string KeyExchangeAlgorithm { get; set; }
+    /// <summary>Diffie-Hellman key size (bits) when applicable.</summary>
     public int DhKeyBits { get; set; }
+    /// <summary>Certificate subject (CN/SAN summary).</summary>
     public string CertificateSubject { get; set; }
+    /// <summary>Certificate issuer (legacy field).</summary>
     public string CertificateIssuer { get; set; }
+    /// <summary>Certificate expiration time (legacy field).</summary>
     public System.DateTime? CertificateNotAfter { get; set; }
+    /// <summary>Indicator of OCSP stapling (if detected).</summary>
     public bool? OcspStaplingPresent { get; set; }
+
+    // New summary-friendly aliases for scripting/table exports
+    /// <summary>Certificate issuer (alias of CertificateIssuer).</summary>
+    public string? Issuer { get; set; }
+    /// <summary>Certificate validity start (NotBefore).</summary>
+    public System.DateTime? ValidFrom { get; set; }
+    /// <summary>Certificate validity end (NotAfter).</summary>
+    public System.DateTime? ValidTo { get; set; }
+    /// <summary>Certificate thumbprint.</summary>
+    public string? Thumbprint { get; set; }
 }

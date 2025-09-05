@@ -42,5 +42,45 @@ public static class DmarcAggregateRecordExtensions {
         var failures = records.GetFailureRecords().ToList();
         return failures.GroupBy(r => r.HeaderFrom, r => r.Count, (h, c) => new HeaderFromSummary { HeaderFrom = h, Count = c.Sum() });
     }
+
+    /// <summary>Reporter summary for failed records.</summary>
+    public sealed class ReporterSummary {
+        public string? OrgName { get; set; }
+        public string? Email { get; set; }
+        public int Count { get; set; }
+    }
+
+    /// <summary>Autonomous system summary for failed records.</summary>
+    public sealed class AsnSummary {
+        public int? Asn { get; set; }
+        public int Count { get; set; }
+    }
+
+    /// <summary>Country summary for failed records.</summary>
+    public sealed class CountrySummary {
+        public string? Country { get; set; }
+        public int Count { get; set; }
+    }
+
+    /// <summary>Summarizes failed records by reporting organization.</summary>
+    public static IEnumerable<ReporterSummary> SummarizeFailuresByReporter(this IEnumerable<(DmarcAggregateReport Report, DmarcAggregateRecord Record)> items) {
+        var failures = items.Where(x => !x.Record.IsPass).ToList();
+        return failures
+            .GroupBy(x => (Org: x.Report.ReporterOrgName, Email: x.Report.ReporterEmail))
+            .Select(g => new ReporterSummary { OrgName = g.Key.Org, Email = g.Key.Email, Count = g.Sum(i => i.Record.Count) });
+    }
+
+    /// <summary>Summarizes failed records by ASN (requires enrichment).</summary>
+    public static IEnumerable<AsnSummary> SummarizeFailuresByAsn(this IEnumerable<DmarcAggregateRecord> records) {
+        var failures = records.GetFailureRecords().ToList();
+        return failures.GroupBy(r => r.Asn).Select(g => new AsnSummary { Asn = g.Key, Count = g.Sum(r => r.Count) });
+    }
+
+    /// <summary>Summarizes failed records by country (requires enrichment).</summary>
+    public static IEnumerable<CountrySummary> SummarizeFailuresByCountry(this IEnumerable<DmarcAggregateRecord> records) {
+        var failures = records.GetFailureRecords().ToList();
+        return failures.GroupBy(r => string.IsNullOrWhiteSpace(r.Country) ? "Unknown" : r.Country)
+            .Select(g => new CountrySummary { Country = g.Key, Count = g.Sum(r => r.Count) });
+    }
 }
 

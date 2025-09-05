@@ -43,6 +43,7 @@ public sealed class MailDomainClassifier {
         await _health.VerifyMTASTS(domain, cancellationToken);
         await _health.VerifyTLSRPT(domain, cancellationToken);
         await _health.VerifyBIMI(domain, skipIndicatorDownload: true, cancellationToken);
+        await _health.VerifyIdpInfo(domain, cancellationToken);
         await _health.VerifyDANE(domain, new[] { ServiceType.SMTP }, cancellationToken);
 
         // Apex A/AAAA lookup (SMTP fallback)
@@ -210,7 +211,10 @@ public sealed class MailDomainClassifier {
             Score = totalScore,
             ScoreBreakdown = scoreBreakdown,
             RfcReferences = references,
-            Assessments = agg
+            Assessments = agg,
+            IdpTenantId = _health.IdpInfoAnalysis?.TenantId,
+            IdpNameSpaceType = _health.IdpInfoAnalysis?.NameSpaceType,
+            IdpFederatedAuthUrl = _health.IdpInfoAnalysis?.FederatedAuthUrl
             ,BimiEligible = bimiEligible
             ,BimiEligibilityReason = bimiReason
             ,BimiNotes = bimiNotes

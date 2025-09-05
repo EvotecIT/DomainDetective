@@ -20,6 +20,8 @@ namespace DomainDetective {
     /// are validated. Additional ADSP records are also parsed when present.
     /// </remarks>
     public class DkimAnalysis : IHasAssessments {
+        /// <summary>DNS configuration used for auxiliary lookups (e.g., CNAME for provider mapping).</summary>
+        public DnsConfiguration? DnsConfiguration { get; set; }
         public string? Subject { get; set; }
         /// <summary>Minimum allowed RSA key size in bits.</summary>
         public const int MinimumRsaKeyBits = 1024;
@@ -112,6 +114,11 @@ namespace DomainDetective {
                                 var mod = b64.Length % 4; if (mod > 0) b64 = b64 + new string('=', 4 - mod);
                                 var bytes = Convert.FromBase64String(b64);
                                 try {
+                                    using var sha = System.Security.Cryptography.SHA256.Create();
+                                    var fp = sha.ComputeHash(bytes);
+                                    analysis.KeyFingerprint = System.BitConverter.ToString(fp).Replace("-", string.Empty);
+                                } catch { }
+                                try {
                                     var rsaKey = (RsaKeyParameters)PublicKeyFactory.CreateKey(bytes);
                                     analysis.KeyLength = rsaKey.Modulus.BitLength;
                                     analysis.ValidRsaKeyLength = analysis.KeyLength >= MinimumRsaKeyBits;
@@ -189,6 +196,11 @@ namespace DomainDetective {
                                 try {
                                     var b64 = analysis.PublicKey.Trim(); var m = b64.Length % 4; if (m > 0) b64 = b64 + new string('=', 4 - m);
                                     var b = Convert.FromBase64String(b64);
+                                    try {
+                                        using var sha = System.Security.Cryptography.SHA256.Create();
+                                        var fp = sha.ComputeHash(b);
+                                        analysis.KeyFingerprint = System.BitConverter.ToString(fp).Replace("-", string.Empty);
+                                    } catch { }
                                     var approx = b.Length >= 256 ? 2048 : b.Length * 8;
                                     if (approx >= MinimumRsaKeyBits)
                                     {
@@ -315,6 +327,28 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.AlgorithmRecommended, "DKIM signature algorithm {0} for selector {1}", analysis.SignatureAlgorithm, selector);
             if (analysis.DkimRecordExists && analysis.StartsCorrectly && analysis.PublicKeyExists && analysis.ValidPublicKey && analysis.ValidKeyType && analysis.ValidRsaKeyLength)
                 logger?.WriteInformationCode(DkimCodes.SignatureValid, "DKIM selector {0} has a valid signature", selector);
+
+            // Provider mapping via CNAME target when available (best-effort)
+            try
+            {
+                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
+                {
+                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
+                    if (cname != null && cname.Length > 0)
+                    {
+                        var target = cname[0].Data?.Trim('.') ?? string.Empty;
+                        if (!string.IsNullOrEmpty(target))
+                        {
+                            analysis.CnameTarget = target;
+                            analysis.Provider = DKIMProviders.ProviderForDomain(target);
+                        }
+                    }
+                }
+                // If still unknown, try to infer from record name (rare)
+                analysis.Provider ??= DKIMProviders.ProviderForDomain(analysis.Name);
+            }
+            catch { }
+
             UpdateAdvisory(logger);
         }
 
@@ -335,6 +369,18 @@ namespace DomainDetective {
                 Advisory = "All DKIM selectors appear valid.";
                 logger?.WriteInformationCode(DkimCodes.SelectorAligned, "All DKIM selectors are aligned");
             }
+
+            // Key reuse detection across selectors (same fingerprint)
+            try {
+                var duplicates = AnalysisResults
+                    .Where(kvp => !string.IsNullOrWhiteSpace(kvp.Value?.KeyFingerprint))
+                    .GroupBy(kvp => kvp.Value!.KeyFingerprint!, StringComparer.OrdinalIgnoreCase)
+                    .Where(g => g.Count() > 1);
+                foreach (var g in duplicates) {
+                    var sels = string.Join(", ", g.Select(x => x.Key));
+                    logger?.WriteWarningCode(DkimCodes.KeyReused, "DKIM key reused by selectors: {0}", sels);
+                }
+            } catch { }
         }
 
         /// <summary>
@@ -470,5 +516,43 @@ namespace DomainDetective {
         public int KeyAgeDays { get; set; }
         /// <summary>True when <see cref="CreationDate"/> is over 12 months old.</summary>
         public bool OldKey { get; set; }
+        /// <summary>SHA-256 fingerprint of the DKIM public key (DER bytes).</summary>
+        public string? KeyFingerprint { get; set; }
+        /// <summary>Provider inferred from CNAME target or name suffix (best-effort).</summary>
+        public string? Provider { get; set; }
+        /// <summary>Resolved CNAME target (when present).</summary>
+        public string? CnameTarget { get; set; }
+    }
+
+    internal static partial class DKIMProviders
+    {
+        private static readonly (string Suffix, string Provider)[] _providerSuffixes = new (string, string)[]
+        {
+            ("amazonses.com", "Amazon SES"),
+            ("sendgrid.net", "SendGrid"),
+            ("sparkpostmail.com", "SparkPost"),
+            ("mandrillapp.com", "Mailchimp/Mandrill"),
+            ("mailgun.org", "Mailgun"),
+            ("pphosted.com", "Proofpoint"),
+            ("mimecast.com", "Mimecast"),
+            ("google.com", "Google Workspace"),
+            ("googlemail.com", "Google Workspace"),
+            ("outlook.com", "Microsoft 365"),
+            ("protection.outlook.com", "Microsoft 365"),
+            ("exclaimer.net", "Exclaimer"),
+            ("cust.barracudanetworks.com", "Barracuda"),
+            ("bnc3.mailjet.com", "Mailjet")
+        };
+
+        public static string? ProviderForDomain(string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var d = name.Trim('.');
+            foreach (var (suffix, provider) in _providerSuffixes)
+            {
+                if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return provider;
+            }
+            return null;
+        }
     }
 }

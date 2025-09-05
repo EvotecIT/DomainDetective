@@ -26,11 +26,24 @@ namespace DomainDetective {
                 int success = summary.GetProperty("total-successful-session-count").GetInt32();
                 int failure = summary.GetProperty("total-failure-session-count").GetInt32();
 
-                list.Add(new TlsRptSummary {
+                var entry = new TlsRptSummary {
                     MxHost = mxHost,
                     SuccessfulSessions = success,
-                    FailedSessions = failure
-                });
+                    FailedSessions = failure,
+                    FailureByType = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase)
+                };
+
+                if (policy.TryGetProperty("failure-details", out var details) && details.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var fd in details.EnumerateArray())
+                    {
+                        string resultType = fd.TryGetProperty("result-type", out var rt) ? (rt.GetString() ?? "unknown") : "unknown";
+                        int cnt = fd.TryGetProperty("failed-session-count", out var fc) ? fc.GetInt32() : 0;
+                        entry.FailureByType[resultType] = (entry.FailureByType.TryGetValue(resultType, out var prev) ? prev : 0) + cnt;
+                    }
+                }
+
+                list.Add(entry);
             }
 
             return list;
@@ -76,5 +89,7 @@ namespace DomainDetective {
         public int SuccessfulSessions { get; set; }
         /// <summary>Count of failed TLS sessions.</summary>
         public int FailedSessions { get; set; }
+        /// <summary>Optional breakdown of failures by type (result-type).</summary>
+        public System.Collections.Generic.Dictionary<string,int> FailureByType { get; set; } = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
     }
 }

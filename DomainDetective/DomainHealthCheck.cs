@@ -225,6 +225,12 @@ namespace DomainDetective {
         public BimiAnalysis BimiAnalysis { get; private set; } = new BimiAnalysis();
 
         /// <summary>
+        /// Gets the identity provider information analysis.
+        /// </summary>
+        /// <value>OIDC discovery and GetUserRealm results.</value>
+        public IdpInfoAnalysis IdpInfoAnalysis { get; private set; } = new IdpInfoAnalysis();
+
+        /// <summary>
         /// Gets the apex address (A/AAAA) analysis.
         /// </summary>
         /// <value>Results of apex A/AAAA lookups.</value>
@@ -416,6 +422,9 @@ namespace DomainDetective {
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
             };
+
+            // Ensure DKIM analysis can perform auxiliary DNS lookups (CNAME for provider mapping)
+            DKIMAnalysis.DnsConfiguration = DnsConfiguration;
 
             PortAvailabilityAnalysis = new PortAvailabilityAnalysis();
             PortScanAnalysis = new PortScanAnalysis();

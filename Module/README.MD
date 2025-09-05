@@ -58,6 +58,18 @@ Test-DnsNs -DomainName "example.com" -Verbose
   ```powershell
   Test-DomainSecurityTxt -DomainName "example.com"
   ```
+  
+- `Test-DDDmarcAggregate` – parse DMARC aggregate reports and summarize failures.
+  ```powershell
+  # Summarize by reporter organization/email
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Reporter -Deduplicate
+
+  # Summarize by ASN (network enrichment performed automatically)
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Asn -Deduplicate
+
+  # Summarize by country (GeoIP enrichment performed automatically)
+  Get-ChildItem ./reports/*.xml | Test-DDDmarcAggregate -SummarizeBy Country -Deduplicate
+  ```
 - `Test-EmailStartTls` – verifies SMTP STARTTLS support and reports downgrades via `DowngradeDetected`.
   ```powershell
   Test-EmailStartTls -DomainName "example.com" -Port 587 -Verbose
@@ -116,6 +128,50 @@ To execute the PowerShell test suite run:
 ```powershell
 pwsh ./Module/DomainDetective.Tests.ps1
 ```
+
+### SPF host simulation
+
+```
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -Sender 'postmaster@example.com'
+
+# JSON output
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -AsJson
+```
+Outputs an object with `Verdict`, `MatchedType`, `MatchedToken`, `MatchedDomain`, `Chain`, and `DnsLookups`.
+
+### Shaping output (PowerShell objects)
+
+Use standard PowerShell formatting to render concise tables/lists. The cmdlets return rich objects — no custom renderer is required.
+
+Evaluate host (summary table):
+
+```powershell
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' |
+  Format-Table Subject, IpAddress, Verdict, MatchedType, MatchedDomain, DnsLookups, LookupsExceeded
+```
+
+SPF provenance (mechanism breakdown) with include/redirect chain:
+
+```powershell
+Test-EmailSpf -DomainName 'example.com' |
+  Select-Object -Expand Mechanisms |
+  Sort-Object Depth, SourceDomain |
+  Format-Table Depth, SourceDomain, Type, Prefix, Value, Provider, @{N='Chain';E={$_.Chain -join ' -> '}}
+```
+
+JSON shaping when needed:
+
+```powershell
+Test-DDSpfHost -DomainName 'example.com' -IpAddress '192.0.2.10' -AsJson | Out-File .\spf-eval.json
+```
+
+### Identity (IdP) tenant hints
+
+```powershell
+Get-DDIdpInfo -DomainName 'example.com' |
+  Format-Table Subject, TenantId, NameSpaceType, FederatedAuthUrl
+```
+Returns a view object with OIDC discovery URL, TenantId (if found), NameSpaceType and FederatedAuthUrl from GetUserRealm.
 
 ## Exporting Reports
 

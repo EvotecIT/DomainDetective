@@ -95,6 +95,8 @@ public static class DmarcReportParser {
         if (meta != null)
         {
             report.ReportId = meta.Element(ns + "report_id")?.Value;
+            report.ReporterOrgName = meta.Element(ns + "org_name")?.Value;
+            report.ReporterEmail = meta.Element(ns + "email")?.Value;
             var dr = meta.Element(ns + "date_range");
             if (dr != null)
             {
@@ -129,14 +131,48 @@ public static class DmarcReportParser {
                 count = 1;
             }
 
-            report.Records.Add(new DmarcAggregateRecord {
+            var rec = new DmarcAggregateRecord {
                 SourceIp = sourceIp,
                 HeaderFrom = headerFrom,
                 Count = count,
                 Dkim = dkim,
                 Spf = spf,
                 Disposition = disposition
-            });
+            };
+
+            // Reasons
+            var reasons = row?.Element(ns + "policy_evaluated")?.Elements(ns + "reason");
+            if (reasons != null)
+            {
+                foreach (var r in reasons)
+                {
+                    var t = r.Element(ns + "type")?.Value;
+                    var c = r.Element(ns + "comment")?.Value;
+                    var s = string.IsNullOrWhiteSpace(c) ? t : $"{t}: {c}";
+                    if (!string.IsNullOrWhiteSpace(s)) rec.Reasons.Add(s);
+                }
+            }
+
+            // Auth results
+            var auth = record.Element(ns + "auth_results");
+            if (auth != null)
+            {
+                var spfAuth = auth.Element(ns + "spf");
+                if (spfAuth != null)
+                {
+                    rec.SpfDomain = spfAuth.Element(ns + "domain")?.Value;
+                    rec.SpfResult = spfAuth.Element(ns + "result")?.Value;
+                }
+                var dkimAuth = auth.Element(ns + "dkim");
+                if (dkimAuth != null)
+                {
+                    rec.DkimDomain = dkimAuth.Element(ns + "domain")?.Value;
+                    rec.DkimSelector = dkimAuth.Element(ns + "selector")?.Value;
+                    rec.DkimResult = dkimAuth.Element(ns + "result")?.Value;
+                }
+            }
+
+            report.Records.Add(rec);
         }
 
         return report;

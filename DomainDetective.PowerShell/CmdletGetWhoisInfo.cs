@@ -30,6 +30,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter Diff;
 
+        /// <para>Follow registrar WHOIS referrals when available.</para>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter FollowReferral;
+
+        /// <para>Maximum referral depth when -FollowReferral is used (default 2).</para>
+        [Parameter(Mandatory = false)]
+        public int MaxReferralDepth = 2;
+
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
@@ -58,6 +66,8 @@ namespace DomainDetective.PowerShell {
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Querying WHOIS information for domain: {0}", DomainName);
+            _healthCheck.WhoisAnalysis.FollowReferral = FollowReferral.IsPresent;
+            _healthCheck.WhoisAnalysis.MaxReferralDepth = MaxReferralDepth <= 0 ? 2 : MaxReferralDepth;
             await _healthCheck.CheckWHOIS(DomainName);
             if (!string.IsNullOrEmpty(SnapshotPath)) {
                 _healthCheck.WhoisAnalysis.SnapshotDirectory = SnapshotPath;

@@ -24,4 +24,10 @@ public sealed class DmarcAggregateReport {
 
     /// <summary>End of the reported date range (UTC).</summary>
     public System.DateTimeOffset? RangeEndUtc { get; set; }
+
+    /// <summary>Reporting organization name (report_metadata/org_name).</summary>
+    public string? ReporterOrgName { get; set; }
+
+    /// <summary>Reporter contact email (report_metadata/email).</summary>
+    public string? ReporterEmail { get; set; }
 }

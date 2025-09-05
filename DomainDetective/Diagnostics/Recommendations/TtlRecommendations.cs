@@ -90,6 +90,56 @@ internal sealed class TtlRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "ttl" }
         };
+
+        // TXT categories
+        map[TtlCodes.NonUniformAcrossNS_TXT_SPF] = new RecommendationAdvice {
+            Code = TtlCodes.NonUniformAcrossNS_TXT_SPF,
+            Title = "SPF TXT TTL differs across name servers",
+            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+            How = "Publish consistent TTLs for apex TXT (SPF) across all authoritative name servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "spf" }
+        };
+        map[TtlCodes.UniformAcrossNS_TXT_SPF] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_TXT_SPF,
+            Title = "SPF TXT TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Keep TTLs aligned; target ≥3600s for policy records.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "spf" }
+        };
+        map[TtlCodes.NonUniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
+            Code = TtlCodes.NonUniformAcrossNS_TXT_DMARC,
+            Title = "DMARC TXT TTL differs across name servers",
+            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+            How = "Publish consistent TTLs for _dmarc TXT across all authoritative name servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "dmarc" }
+        };
+        map[TtlCodes.UniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_TXT_DMARC,
+            Title = "DMARC TXT TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Keep TTLs aligned; target ≥3600s for policy records.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "dmarc" }
+        };
+        map[TtlCodes.NonUniformAcrossNS_TXT_DKIM] = new RecommendationAdvice {
+            Code = TtlCodes.NonUniformAcrossNS_TXT_DKIM,
+            Title = "DKIM TXT TTL differs across name servers",
+            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+            How = "Publish consistent TTLs for selector TXT records across all authoritative name servers.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "dkim" }
+        };
+        map[TtlCodes.UniformAcrossNS_TXT_DKIM] = new RecommendationAdvice {
+            Code = TtlCodes.UniformAcrossNS_TXT_DKIM,
+            Title = "DKIM TXT TTL uniform across name servers",
+            Why = "Consistent TTLs simplify caching and diagnostics.",
+            How = "Keep TTLs aligned; target ≥3600s for selector TXT.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "ttl", "dkim" }
+        };
     }
 }
 

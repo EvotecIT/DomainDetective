@@ -25,4 +25,9 @@ public sealed class MailDomainClassificationResult {
 
     // Aggregated assessments from contributing analyses (SPF, DKIM, MX, MTA-STS, TLS-RPT, DANE, BIMI, APEX)
     public IReadOnlyList<Assessment> Assessments { get; init; } = new List<Assessment>();
+
+    // Identity provider hints (OIDC discovery / GetUserRealm)
+    public string? IdpTenantId { get; init; }
+    public string? IdpNameSpaceType { get; init; }
+    public string? IdpFederatedAuthUrl { get; init; }
 }

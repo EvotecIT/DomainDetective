@@ -110,6 +110,10 @@ internal static class Program {
             config.AddCommand<TestRdapNameserverCommand>("TestRDAP-NS")
                 .WithDescription("Query RDAP information for a nameserver")
                 .WithExample(new[] { "TestRDAP-NS", "ns1.example.com" });
+            config.AddCommand<SpfTestHostCommand>("SpfTestHost")
+                .WithDescription("Evaluate an IP/sender/HELO against SPF policy")
+                .WithExample(new[] { "SpfTestHost", "example.com", "--ip", "192.0.2.10" })
+                .WithExample(new[] { "SpfTestHost", "example.com", "--ip", "192.0.2.10", "--sender", "postmaster@example.com", "--json" });
             config.AddCommand<TestOpenResolverCommand>("TestOpenResolver")
                 .WithDescription("Check DNS server for recursion")
                 .WithExample(new[] { "TestOpenResolver", "8.8.8.8" });

@@ -128,6 +128,18 @@ public class EdnsSupportAnalysis : IHasAssessments
         return new EdnsSupportInfo { Supported = false, UdpPayloadSize = 0, DoBit = false, Version = 0 };
     }
 
+    private static async Task<int> ReadExactAsync(System.IO.Stream stream, byte[] buffer, int offset, int count, CancellationToken ct)
+    {
+        int total = 0;
+        while (total < count)
+        {
+            int read = await stream.ReadAsync(buffer, offset + total, count - total, ct);
+            if (read == 0) break;
+            total += read;
+        }
+        return total;
+    }
+
     private static async Task<EdnsSupportInfo> QueryServerAsync(string ip)
     {
         int port = 53;
@@ -142,42 +154,43 @@ public class EdnsSupportAnalysis : IHasAssessments
         using var udp = new UdpClient();
         var id = (ushort)new Random().Next(ushort.MaxValue);
         var query = BuildQuery("example.com", id);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        using var udpCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 #if NET8_0_OR_GREATER
-        await udp.SendAsync(query, host, port, cts.Token);
-        var resp = await udp.ReceiveAsync(cts.Token);
+        await udp.SendAsync(query, host, port, udpCts.Token);
+        var resp = await udp.ReceiveAsync(udpCts.Token);
 #else
-        await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(cts.Token);
-        var resp = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
+        await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(udpCts.Token);
+        var resp = await udp.ReceiveAsync().WaitWithCancellation(udpCts.Token);
 #endif
         var data = resp.Buffer;
         bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;
         if (truncated)
         {
             using var tcp = new TcpClient();
+            using var tcpCts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
 #if NET6_0_OR_GREATER
-            await tcp.ConnectAsync(host, port, cts.Token);
+            await tcp.ConnectAsync(host, port, tcpCts.Token);
 #else
-            await tcp.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
+            await tcp.ConnectAsync(host, port).WaitWithCancellation(tcpCts.Token);
 #endif
             using var stream = tcp.GetStream();
             var len = (ushort)query.Length;
             var prefix = new byte[] { (byte)(len >> 8), (byte)(len & 0xFF) };
 #if NET8_0_OR_GREATER
-            await stream.WriteAsync(prefix, cts.Token);
-            await stream.WriteAsync(query, cts.Token);
-            await stream.FlushAsync(cts.Token);
+            await stream.WriteAsync(prefix, tcpCts.Token);
+            await stream.WriteAsync(query, tcpCts.Token);
+            await stream.FlushAsync(tcpCts.Token);
             var buf = new byte[2];
-            if (await stream.ReadAsync(buf, cts.Token) != 2)
+            if (await stream.ReadAsync(buf, tcpCts.Token) != 2)
             {
                 return new EdnsSupportInfo { Supported = false };
             }
 #else
-            await stream.WriteAsync(prefix, 0, 2, cts.Token);
-            await stream.WriteAsync(query, 0, query.Length, cts.Token);
-            await stream.FlushAsync(cts.Token);
+            await stream.WriteAsync(prefix, 0, 2, tcpCts.Token);
+            await stream.WriteAsync(query, 0, query.Length, tcpCts.Token);
+            await stream.FlushAsync(tcpCts.Token);
             var buf = new byte[2];
-            if (await stream.ReadAsync(buf, 0, 2, cts.Token) != 2)
+            if (await ReadExactAsync(stream, buf, 0, 2, tcpCts.Token) != 2)
             {
                 return new EdnsSupportInfo { Supported = false };
             }
@@ -188,9 +201,9 @@ public class EdnsSupportAnalysis : IHasAssessments
             while (received < respLen)
             {
 #if NET8_0_OR_GREATER
-                var r = await stream.ReadAsync(respData.AsMemory(received, respLen - received), cts.Token);
+                var r = await stream.ReadAsync(respData.AsMemory(received, respLen - received), tcpCts.Token);
 #else
-                var r = await stream.ReadAsync(respData, received, respLen - received, cts.Token);
+                var r = await stream.ReadAsync(respData, received, respLen - received, tcpCts.Token);
 #endif
                 if (r == 0)
                 {

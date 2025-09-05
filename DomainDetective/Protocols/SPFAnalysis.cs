@@ -18,7 +18,7 @@ namespace DomainDetective {
     /// 5.	Each TXT chunk of the SPF record must be 255 bytes or less.
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
-    public class SpfAnalysis : IHasAssessments {
+    public partial class SpfAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         internal DnsConfiguration DnsConfiguration { get; set; }
 
@@ -83,6 +83,10 @@ namespace DomainDetective {
         public bool ExpExceedsDnsLookups { get; private set; }
         private readonly List<string> _warnings = new();
         public IReadOnlyList<string> Warnings => _warnings;
+        // Debug visibility of tokenizer output
+        public IReadOnlyList<string> DebugTokens { get; private set; } = Array.Empty<string>();
+        public string DebugAllAfterParts { get; private set; } = string.Empty;
+        public string DebugAllAfterFallback { get; private set; } = string.Empty;
 
         /// <summary>Structured assessments captured during SPF analysis.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -103,6 +107,8 @@ namespace DomainDetective {
         private static readonly Regex MacroRegex = new(
             @"%\{(?<letter>[slodipvhcrt])(?<digits>\d{1,2})?(?<reverse>r)?(?<delims>[.\-+,/_=]*)\}",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        private static bool DebugSpf => Environment.GetEnvironmentVariable("DD_DEBUG_SPF") == "1";
 
         public void Reset() {
             SpfRecord = null;
@@ -175,9 +181,10 @@ namespace DomainDetective {
                 }
             }
             WarnIfSpfRecordChunksTooLong(logger);
-            // However for analysis we only need the Data, as provided by DnsClientX
+            // However for analysis we only need the record text. Prefer Data, but fall back to DataRaw when supplied directly (tests).
             if (dnsResults.Count() == 1) {
-                SpfRecord = dnsResults.First().Data;
+                var first = dnsResults.First();
+                SpfRecord = TrimQuotes(first.DataRaw ?? first.Data ?? string.Empty);
             } else {
                 // if there are multiple records, we need to join them together to analyze them
                 SpfRecord = string.Join(" ", SpfRecords);
@@ -207,6 +214,13 @@ namespace DomainDetective {
 
             // loop through the parts of the SPF record for remaining checks
             var parts = TokenizeSpfRecord(SpfRecord).ToArray();
+            DebugTokens = parts;
+            if (DebugSpf) {
+                try { System.Console.Error.WriteLine($"[SPF DEBUG] StartsCorrectly={StartsCorrectly} SpfRecord='{SpfRecord}'"); } catch { }
+            }
+            if (DebugSpf) {
+                try { System.Console.Error.WriteLine($"[SPF DEBUG] Record: '{SpfRecord}'\n[SPF DEBUG] Tokens: {string.Join("|", parts)}"); } catch { }
+            }
 
             // check that the SPF record does not exceed 10 DNS lookups
             int dnsLookups = await CountDnsLookups(parts, _visitedDomains, new List<string>(), logger);
@@ -220,10 +234,11 @@ namespace DomainDetective {
                 logger?.WriteWarningCode(SpfCodes.AllMultiple, "SPF contains multiple 'all' mechanisms; only the last is effective.");
             }
 
-            // add the parts to the appropriate lists
+            // add the parts to the appropriate lists with provenance
             foreach (var part in parts) {
-                AddPartToList(part, logger);
+                AddPartToList(part, logger, Subject, 0, Array.Empty<string>());
             }
+            DebugAllAfterParts = AllMechanism ?? string.Empty;
 
             // check if the SPF record contains characters after "all"
             ContainsCharactersAfterAll = parts
@@ -250,6 +265,23 @@ namespace DomainDetective {
             // GetFlattenedSpf can resolve fake DNS records in unit tests
 
             WarnIfExceedsDnsLookups(logger);
+
+            // Robustly determine terminal all-mechanism from raw record tokens in case tokenizer splits quoted segments oddly
+            try {
+                var rawTokens = (SpfRecord ?? string.Empty)
+                    .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(t => t.Trim('"'))
+                    .ToArray();
+                var rawAll = rawTokens.Reverse().FirstOrDefault(t => IsAllMechanism(t));
+                if (!string.IsNullOrWhiteSpace(rawAll)) {
+                    AllMechanism = rawAll;
+                }
+                DebugAllAfterFallback = AllMechanism ?? string.Empty;
+                if (DebugSpf) {
+                    try { System.Console.Error.WriteLine($"[SPF DEBUG] RawTokens: {string.Join("|", rawTokens)} | All={AllMechanism}"); } catch { }
+                }
+            } catch { /* best-effort */ }
+
             UpdateAdvisory(logger);
 
             // policy strength advisory for 'all'
@@ -258,6 +290,9 @@ namespace DomainDetective {
             } else if (!AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase)) {
                 logger?.WriteWarningCode(SpfCodes.AllSoft, $"SPF ends with '{AllMechanism}'. Consider '-all' once senders are validated.");
             }
+
+            // Build provenance tree for mechanisms (top-level + includes/redirects)
+            try { await PopulateProvenanceAsync(Subject ?? string.Empty, logger); } catch { /* best-effort */ }
         }
 
         private void UpdateAdvisory(InternalLogger? logger) {
@@ -313,7 +348,7 @@ namespace DomainDetective {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRecord).ToArray();
                             foreach (var rp in resultParts) {
-                                AddPartToResolvedLists(rp, logger);
+                                AddPartToResolvedLists(rp, logger, domain, path.Count, path);
                             }
                             dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
@@ -328,7 +363,7 @@ namespace DomainDetective {
                                 foreach (var dnsResult in dnsResults) {
                                     var resultParts = TokenizeSpfRecord(dnsResult.Data).ToArray();
                                     foreach (var rp in resultParts) {
-                                        AddPartToResolvedLists(rp, logger);
+                                        AddPartToResolvedLists(rp, logger, domain, path.Count, path);
                                     }
                                     dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                                 }
@@ -353,7 +388,7 @@ namespace DomainDetective {
                             dnsLookups++;
                             var resultParts = TokenizeSpfRecord(fakeRedirect).ToArray();
                             foreach (var rp in resultParts) {
-                                AddPartToResolvedLists(rp, logger);
+                                AddPartToResolvedLists(rp, logger, domain, path.Count, path);
                             }
                             dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                         } else {
@@ -368,7 +403,7 @@ namespace DomainDetective {
                                 foreach (var dnsResult in dnsResults) {
                                     var resultParts = TokenizeSpfRecord(dnsResult.Data).ToArray();
                                     foreach (var rp in resultParts) {
-                                        AddPartToResolvedLists(rp, logger);
+                                        AddPartToResolvedLists(rp, logger, domain, path.Count, path);
                                     }
                                     dnsLookups += await CountDnsLookups(resultParts, visitedDomains, path, logger);
                                 }
@@ -458,61 +493,72 @@ namespace DomainDetective {
             return trimmed;
         }
 
-        private void AddPartToList(string part, InternalLogger? logger) {
+        private void AddPartToList(string part, InternalLogger? logger, string? sourceDomain, int depth, IEnumerable<string>? chain) {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
             ValidateMacros(token, logger);
-            // Create a mechanism breakdown entry
-            var mech = BuildPart(token);
+            // Create a mechanism breakdown entry for provenance at any depth
+            var mech = BuildPart(token, sourceDomain, depth, chain);
             if (mech != null) {
                 SpfPartAnalyses.Add(mech);
             }
-            if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
-                ARecords.Add(token.Substring(2).Trim('"'));
-            } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
-                MxRecords.Add(token.Substring(3).Trim('"'));
-            } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
-                PtrRecords.Add(token.Substring(4).Trim('"'));
-            } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
-                PtrRecords.Add(string.Empty);
-            } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
-                ExistsRecords.Add(token.Substring(7).Trim('"'));
-            } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
-                var value = token.Substring(4).Trim('"');
-                Ipv4Records.Add(value);
-                if (!TryParseCidr(value, 32)) {
-                    InvalidIpSyntax = true;
+            // Only mutate top-level collections for the subject domain (depth == 0)
+            var isTopLevel = depth == 0 && (string.IsNullOrEmpty(sourceDomain) || string.Equals(sourceDomain, Subject, StringComparison.OrdinalIgnoreCase));
+            if (isTopLevel) {
+                if (token.StartsWith("a:", StringComparison.OrdinalIgnoreCase)) {
+                    ARecords.Add(token.Substring(2).Trim('"'));
+                } else if (token.StartsWith("mx:", StringComparison.OrdinalIgnoreCase)) {
+                    MxRecords.Add(token.Substring(3).Trim('"'));
+                } else if (token.StartsWith("ptr:", StringComparison.OrdinalIgnoreCase)) {
+                    PtrRecords.Add(token.Substring(4).Trim('"'));
+                } else if (token.Equals("ptr", StringComparison.OrdinalIgnoreCase)) {
+                    PtrRecords.Add(string.Empty);
+                } else if (token.StartsWith("exists:", StringComparison.OrdinalIgnoreCase)) {
+                    ExistsRecords.Add(token.Substring(7).Trim('"'));
+                } else if (token.StartsWith("ip4:", StringComparison.OrdinalIgnoreCase)) {
+                    var value = token.Substring(4).Trim('"');
+                    Ipv4Records.Add(value);
+                    if (!TryParseCidr(value, 32)) {
+                        InvalidIpSyntax = true;
+                    }
+                } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
+                    var value = token.Substring(4).Trim('"');
+                    Ipv6Records.Add(value);
+                    if (!TryParseCidr(value, 128)) {
+                        InvalidIpSyntax = true;
+                    }
+                } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
+                    IncludeRecords.Add(token.Substring(8).Trim('"'));
+                } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
+                    RedirectValue = token.Substring(9).Trim('"');
+                    HasRedirect = true;
+                } else if (token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
+                    ExpValue = token.Substring(4).Trim('"');
+                    HasExp = true;
+                } else if (IsAllMechanism(token)) {
+                    AllMechanism = token.Trim('"');
+                } else if (!IsAllowedMechanismOrModifier(normalized)) {
+                    if (!UnknownMechanisms.Contains(token)) {
+                        UnknownMechanisms.Add(token);
+                    }
                 }
-            } else if (token.StartsWith("ip6:", StringComparison.OrdinalIgnoreCase)) {
-                var value = token.Substring(4).Trim('"');
-                Ipv6Records.Add(value);
-                if (!TryParseCidr(value, 128)) {
-                    InvalidIpSyntax = true;
-                }
-            } else if (token.StartsWith("include:", StringComparison.OrdinalIgnoreCase)) {
-                IncludeRecords.Add(token.Substring(8).Trim('"'));
-            } else if (token.StartsWith("redirect=", StringComparison.OrdinalIgnoreCase)) {
-                RedirectValue = token.Substring(9).Trim('"');
-                HasRedirect = true;
-            } else if (token.StartsWith("exp=", StringComparison.OrdinalIgnoreCase)) {
-                ExpValue = token.Substring(4).Trim('"');
-                HasExp = true;
-            } else if (IsAllMechanism(token)) {
-                AllMechanism = token.Trim('"');
-            } else if (!IsAllowedMechanismOrModifier(normalized)) {
-                if (!UnknownMechanisms.Contains(token)) {
-                    UnknownMechanisms.Add(token);
+            } else {
+                // Non-top-level: keep Unknowns through resolved path so they can be surfaced once
+                if (!IsAllowedMechanismOrModifier(normalized) && !IsAllMechanism(normalized)) {
+                    if (!UnknownMechanisms.Contains(token)) {
+                        UnknownMechanisms.Add(token);
+                    }
                 }
             }
 
-            AddPartToResolvedLists(part, logger);
+            AddPartToResolvedLists(part, logger, sourceDomain, depth, chain);
         }
 
-        private void AddPartToResolvedLists(string part, InternalLogger? logger) {
+        private void AddPartToResolvedLists(string part, InternalLogger? logger, string? sourceDomain, int depth, IEnumerable<string>? chain) {
             var token = part.Trim('"');
             var normalized = token.TrimStart('+', '-', '~', '?');
             // also ensure mechanism list contains parts encountered through includes/redirects
-            var mech = BuildPart(token);
+            var mech = BuildPart(token, sourceDomain, depth, chain);
             if (mech != null) {
                 SpfPartAnalyses.Add(mech);
             }
@@ -572,7 +618,7 @@ namespace DomainDetective {
             return null;
         }
 
-        private static SpfPartAnalysis? BuildPart(string token)
+        private static SpfPartAnalysis? BuildPart(string token, string? sourceDomain = null, int depth = 0, IEnumerable<string>? chain = null)
         {
             if (string.IsNullOrWhiteSpace(token)) return null;
             // Qualifier
@@ -640,7 +686,10 @@ namespace DomainDetective {
                     "~" => "softfail",
                     "?" => "neutral",
                     _ => string.Empty },
-                Description = type
+                Description = type,
+                SourceDomain = sourceDomain,
+                Depth = depth,
+                Chain = chain?.ToList() ?? new List<string>()
             };
             // Provider annotation for domain-bearing parts
             if (type is "include" or "a" or "mx" or "exists" or "ptr" or "redirect")
@@ -650,6 +699,12 @@ namespace DomainDetective {
             }
             return pa;
         }
+
+        /// <summary>
+        /// Populates <see cref="SpfPartAnalyses"/> with provenance by traversing include/redirect chains.
+        /// </summary>
+        /// <param name="domain">Base domain whose SPF record is being analyzed.</param>
+        /// <param name="logger">Optional logger for diagnostics.</param>
 
         private void ValidateMacros(string token, InternalLogger? logger) {
             var index = token.IndexOf('%');
@@ -797,13 +852,21 @@ namespace DomainDetective {
 
                 if (c == '"') {
                     if (inQuotes) {
+                        // Closing quote: finalize token (may include a prefix like include:)
                         tokens.Add(current.ToString());
                         current.Clear();
                         inQuotes = false;
                     } else {
-                        if (current.Length > 0) {
-                            tokens.Add(current.ToString());
-                            current.Clear();
+                        // Opening quote: if buffer ends with a known prefix (include:, redirect=, exp=),
+                        // keep it to create a single token such as include:example.com
+                        var prefix = current.ToString();
+                        if (!(prefix.EndsWith("include:", StringComparison.OrdinalIgnoreCase)
+                              || prefix.EndsWith("redirect=", StringComparison.OrdinalIgnoreCase)
+                              || prefix.EndsWith("exp=", StringComparison.OrdinalIgnoreCase))) {
+                            if (current.Length > 0) {
+                                tokens.Add(current.ToString());
+                                current.Clear();
+                            }
                         }
                         inQuotes = true;
                     }
@@ -1306,6 +1369,42 @@ namespace DomainDetective {
         public string PrefixDesc { get; set; }
         public string Description { get; set; }
         public string? Provider { get; set; }
+        /// <summary>Domain record where the token was found (top-level or included).</summary>
+        public string? SourceDomain { get; set; }
+        /// <summary>Include/redirect nesting depth starting from the subject domain.</summary>
+        public int Depth { get; set; }
+        /// <summary>Traversal chain of domains that led to this token.</summary>
+        public List<string> Chain { get; set; } = new List<string>();
+    }
+
+    /// <summary>
+    /// Result of evaluating an IP/sender/HELO against an SPF policy.
+    /// </summary>
+    /// <para>Part of the DomainDetective project.</para>
+    public sealed class SpfHostEvaluation
+    {
+        /// <summary>Evaluated domain.</summary>
+        public string Subject { get; set; }
+        /// <summary>Tested IP address.</summary>
+        public string IpAddress { get; set; }
+        /// <summary>Sender used for macro expansion.</summary>
+        public string Sender { get; set; }
+        /// <summary>HELO/EHLO name used for macro expansion.</summary>
+        public string Helo { get; set; }
+        /// <summary>Final result: pass, fail, softfail, neutral, or permerror.</summary>
+        public string Verdict { get; set; }
+        /// <summary>Token from the policy that matched and determined the verdict.</summary>
+        public string? MatchedToken { get; set; }
+        /// <summary>Mechanism/modifier type that matched (ip4, ip6, a, mx, exists, include, all).</summary>
+        public string? MatchedType { get; set; }
+        /// <summary>Domain whose record contained the matching token.</summary>
+        public string? MatchedDomain { get; set; }
+        /// <summary>Traversal chain for includes/redirects that led to the match.</summary>
+        public List<string> Chain { get; set; } = new List<string>();
+        /// <summary>Total DNS lookups used during evaluation.</summary>
+        public int DnsLookups { get; set; }
+        /// <summary>True when the 10‑lookup limit was exceeded.</summary>
+        public bool LookupsExceeded { get; set; }
     }
 
     /// <summary>
