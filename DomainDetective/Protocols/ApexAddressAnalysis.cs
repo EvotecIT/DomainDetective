@@ -154,6 +154,9 @@ public sealed class ApexAddressAnalysis {
                     if (isPublic) PublicAddressCount++;
                 }
             }
+            if (PublicAddressCount > 0) {
+                logger?.WriteInformationCode(ApexAddressCodes.PubliclyRoutable, "Apex addresses are publicly routable");
+            }
             return Task.CompletedTask;
         }
 
@@ -196,6 +199,9 @@ public sealed class ApexAddressAnalysis {
                 }
             }
             AllFcrDnsValid = (PtrByIp.Count > 0) && (FcrDnsValidCount == PtrByIp.Count);
+            if (AllFcrDnsValid) {
+                logger?.WriteInformationCode(ApexAddressCodes.FcrDnsValid, "Apex addresses have forward-confirmed reverse DNS");
+            }
         }
 
         private static int DistinctSubnets(IEnumerable<string> records) {
