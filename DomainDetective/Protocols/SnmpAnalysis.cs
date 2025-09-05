@@ -12,8 +12,11 @@ namespace DomainDetective;
 /// Performs a basic SNMP check against a server.
 /// </summary>
 /// <para>Part of the DomainDetective project.</para>
-public class SnmpAnalysis
+public class SnmpAnalysis : IHasAssessments
 {
+    /// <summary>Target under analysis.</summary>
+    public string? Subject { get; set; }
+
     /// <summary>SNMP query results keyed by host and port.</summary>
     public Dictionary<string, bool> ServerResults { get; private set; } = new();
 
@@ -22,12 +25,26 @@ public class SnmpAnalysis
 
     internal Func<string, int, Task<bool>>? SnmpTestOverride { get; set; }
 
+    /// <summary>Structured assessments captured during SNMP analysis.</summary>
+    public List<Assessment> Assessments { get; } = new();
+    public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
+
     /// <summary>Tests a single server for SNMP responses.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}") : null;
+        Subject ??= $"{host}:{port}";
         ServerResults.Clear();
         var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
+        if (result)
+        {
+            logger?.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
+        }
+        else
+        {
+            logger?.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+        }
     }
 
     /// <summary>Tests multiple servers for SNMP responses.</summary>
@@ -39,8 +56,17 @@ public class SnmpAnalysis
             foreach (var port in ports)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}") : null;
                 var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
                 ServerResults[$"{host}:{port}"] = result;
+                if (result)
+                {
+                    logger?.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
+                }
+                else
+                {
+                    logger?.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+                }
             }
         }
     }

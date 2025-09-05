@@ -17,7 +17,7 @@ namespace DomainDetective.CLI;
 internal sealed class SearchDomainSettings : CommandSettings
 {
     /// <summary>Keywords used to generate domains.</summary>
-    [CommandArgument(0, "[keywords]")]
+    [CommandArgument(0, "<keywords>")]
     public string[] Keywords { get; set; } = Array.Empty<string>();
 
     /// <summary>Optional prefix list.</summary>

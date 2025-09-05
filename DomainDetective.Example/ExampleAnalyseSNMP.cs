@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using DomainDetective.Narratives;
 
 namespace DomainDetective.Example;
 
@@ -15,6 +16,12 @@ public static partial class Program
         foreach (var kvp in analysis.ServerResults)
         {
             Console.WriteLine($"{kvp.Key} responded: {kvp.Value}");
+        }
+        var narrative = SnmpNarrative.Build(analysis);
+        Console.WriteLine($"Highlights: {string.Join(", ", narrative.Highlights)}");
+        foreach (var rec in analysis.Recommendations)
+        {
+            Console.WriteLine($"{rec.Code}: {rec.Title}");
         }
     }
 }
