@@ -2,12 +2,9 @@ using System.Collections.Generic;
 
 namespace DomainDetective.Recommendations;
 
-internal sealed class SnmpRecommendations : IRecommendationProvider
-{
-    public void Register(IDictionary<string, RecommendationAdvice> map)
-    {
-        map[SnmpCodes.Responds] = new RecommendationAdvice
-        {
+internal sealed class SnmpRecommendations : IRecommendationProvider {
+    public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[SnmpCodes.Responds] = new RecommendationAdvice {
             Code = SnmpCodes.Responds,
             Title = "Restrict or disable SNMP access",
             Why = "Unauthenticated SNMP responses can expose network details and enable reflection attacks.",
@@ -18,8 +15,7 @@ internal sealed class SnmpRecommendations : IRecommendationProvider
             Effort = RecommendationEffort.Low,
             Verify = "Probes using default community strings receive no response."
         };
-        map[SnmpCodes.Disabled] = new RecommendationAdvice
-        {
+        map[SnmpCodes.Disabled] = new RecommendationAdvice {
             Code = SnmpCodes.Disabled,
             Title = "SNMP disabled or secured",
             Why = "No response to public probes indicates reduced attack surface.",

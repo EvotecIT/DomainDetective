@@ -10,7 +10,7 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class TestNtpServerSettings : CommandSettings {
     /// <summary>Custom NTP server to query.</summary>
-    [CommandArgument(0, "[server]")]
+    [CommandArgument(0, "server")]
     public string? Server { get; set; }
 
     /// <summary>Built-in server selection.</summary>
