@@ -64,140 +64,10 @@ public static class SpfWordReport
         headings.AddItem("Why this matters", 1);
         doc.AddParagraph(nar.WhyItMatters);
 
-        // 1.1 Summary
-        headings.AddItem("Summary", 1);
-        var summaryTable = doc.AddTable(5, 2, WordTableStyle.TableGrid);
-        summaryTable.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
-        summaryTable.Rows[0].Cells[1].Paragraphs[0].Text = spf.SpfRecordExists ? "Yes" : "No";
-        summaryTable.Rows[1].Cells[0].Paragraphs[0].Text = "Starts Correctly";
-        summaryTable.Rows[1].Cells[1].Paragraphs[0].Text = spf.StartsCorrectly ? "Yes" : "No";
-        summaryTable.Rows[2].Cells[0].Paragraphs[0].Text = "DNS Lookups";
-        summaryTable.Rows[2].Cells[1].Paragraphs[0].Text = spf.DnsLookupsCount.ToString();
-        summaryTable.Rows[3].Cells[0].Paragraphs[0].Text = "Multiple 'all'";
-        summaryTable.Rows[3].Cells[1].Paragraphs[0].Text = spf.MultipleAllMechanisms ? "Yes" : "No";
-        summaryTable.Rows[4].Cells[0].Paragraphs[0].Text = "All Mechanism";
-        summaryTable.Rows[4].Cells[1].Paragraphs[0].Text = spf.AllMechanism ?? string.Empty;
-
-        // Highlights bullets
-        if (nar.Highlights.Count > 0)
-        {
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var h in nar.Highlights) list.AddItem(h);
-        }
-
-        // Good Posture (positives)
-        if (nar.Positives.Count > 0)
-        {
-            headings.AddItem("Good Posture", 1);
-            var plist = doc.AddList(WordListStyle.Bulleted);
-            foreach (var p in nar.Positives) plist.AddItem(p);
-        }
-
-        // 1.2 Findings
-        headings.AddItem("Findings", 1);
-        var assessAll = spf.Assessments?.ToList() ?? new System.Collections.Generic.List<DomainDetective.Assessment>();
-        var assess = showInfoFindings ? assessAll : assessAll.Where(a => a.Severity != AssessmentSeverity.Info).ToList();
-        if (assess.Count > 0)
-        {
-            var table = doc.AddTable(assess.Count + 1, 4, WordTableStyle.TableGrid);
-            table.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
-            table.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
-            table.Rows[0].Cells[2].Paragraphs[0].Text = "Target";
-            table.Rows[0].Cells[3].Paragraphs[0].Text = "Message";
-            for (int i = 0; i < assess.Count; i++)
-            {
-                var a = assess[i];
-                table.Rows[i + 1].Cells[0].Paragraphs[0].Text = a.Severity.ToString();
-                table.Rows[i + 1].Cells[1].Paragraphs[0].Text = a.Code ?? string.Empty;
-                table.Rows[i + 1].Cells[2].Paragraphs[0].Text = a.Target ?? string.Empty;
-                table.Rows[i + 1].Cells[3].Paragraphs[0].Text = a.Message;
-            }
-        }
-        else
-        {
-            doc.AddParagraph("No findings.");
-        }
-
-        // Mechanisms breakdown
-        headings.AddItem("Mechanisms", 1);
-        if (spf.SpfPartAnalyses != null && spf.SpfPartAnalyses.Count > 0)
-        {
-            var mechTable = doc.AddTable(spf.SpfPartAnalyses.Count + 1, 4, WordTableStyle.TableGrid);
-            mechTable.Rows[0].Cells[0].Paragraphs[0].Text = "Qualifier";
-            mechTable.Rows[0].Cells[1].Paragraphs[0].Text = "Type";
-            mechTable.Rows[0].Cells[2].Paragraphs[0].Text = "Value";
-            mechTable.Rows[0].Cells[3].Paragraphs[0].Text = "Provider";
-            for (int i = 0; i < spf.SpfPartAnalyses.Count; i++)
-            {
-                var p = spf.SpfPartAnalyses[i];
-                mechTable.Rows[i + 1].Cells[0].Paragraphs[0].Text = string.IsNullOrEmpty(p.Prefix) ? "+" : p.Prefix;
-                mechTable.Rows[i + 1].Cells[1].Paragraphs[0].Text = p.Type ?? string.Empty;
-                mechTable.Rows[i + 1].Cells[2].Paragraphs[0].Text = p.Value ?? string.Empty;
-                mechTable.Rows[i + 1].Cells[3].Paragraphs[0].Text = p.Provider ?? string.Empty;
-            }
-
-            // Provider summary
-            var providers = spf.SpfPartAnalyses
-                .Where(p => !string.IsNullOrWhiteSpace(p.Provider))
-                .GroupBy(p => p.Provider!)
-                .Select(g => $"{g.Key} ({g.Count()})")
-                .ToList();
-            if (providers.Count > 0)
-            {
-                var provLine = string.Join(", ", providers);
-                var pv = doc.AddParagraph($"Detected providers: {provLine}");
-                pv.Italic = true;
-            }
-
-            // Mechanism explainer (present types)
-            var types = spf.SpfPartAnalyses.Select(p => p.Type).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            if (types.Count > 0)
-            {
-                doc.AddParagraph("Mechanism Explainer");
-                var exp = doc.AddTable(types.Count + 1, 2, WordTableStyle.TableGrid);
-                exp.Rows[0].Cells[0].Paragraphs[0].Text = "Type";
-                exp.Rows[0].Cells[1].Paragraphs[0].Text = "Meaning";
-                int r = 1;
-                foreach (var t in types)
-                {
-                    exp.Rows[r].Cells[0].Paragraphs[0].Text = t!;
-                    exp.Rows[r].Cells[1].Paragraphs[0].Text = MechanismMeaning(t!);
-                    r++;
-                }
-                // Qualifier legend
-                var qTitle = doc.AddParagraph("Qualifier Legend");
-                var ql = doc.AddList(WordListStyle.Bulleted);
-                ql.AddItem("+ (pass): explicitly allow");
-                ql.AddItem("- (fail): explicitly deny");
-                ql.AddItem("~ (softfail): likely deny, often accepted but marked");
-                ql.AddItem("? (neutral): no assertion");
-            }
-        }
-
-        // 1.3 Evidence
-        headings.AddItem("Evidence", 1);
-        var lbl = doc.AddParagraph("SPF Record:");
-        lbl.Bold = true;
-        var rec = doc.AddParagraph(spf.SpfRecord ?? string.Empty);
-        rec.FontSize = 10;
-
-        // Mechanisms list
-        void AddList(string title, System.Collections.Generic.IEnumerable<string> list)
-        {
-            var vals = list?.Distinct().ToList();
-            if (vals == null || vals.Count == 0) return;
-            var t = doc.AddParagraph(title);
-            t.Bold = true;
-            var wordList = doc.AddList(WordListStyle.Bulleted);
-            foreach (var v in vals) wordList.AddItem(v);
-        }
-        AddList("A", spf.ARecords);
-        AddList("MX", spf.MxRecords);
-        AddList("IPv4", spf.Ipv4Records);
-        AddList("IPv6", spf.Ipv6Records);
-        AddList("Include", spf.IncludeRecords);
-        AddList("Exists", spf.ExistsRecords);
-        AddList("PTR", spf.PtrRecords);
+        // 1.1 SPF Section — reuse the section writer
+        headings.AddItem("SPF", 1);
+        var spfView = DomainDetective.Views.Converters.Convert(spf);
+        SpfWordSectionWriter.Write(doc, spfView, domain, Reports.ReportScope.Detailed, showInfoFindings);
 
         // Lookups
         headings.AddItem("DNS Lookups", 1);
@@ -295,22 +165,5 @@ public static class SpfWordReport
         }
 
         doc.Save();
-    }
-    private static string MechanismMeaning(string type)
-    {
-        switch (type.ToLowerInvariant())
-        {
-            case "a": return "Authorize host A/AAAA addresses of the domain (or specified host).";
-            case "mx": return "Authorize hosts listed as MX for the domain (or specified).";
-            case "ip4": return "Authorize IPv4 address or CIDR block.";
-            case "ip6": return "Authorize IPv6 address or CIDR block.";
-            case "include": return "Import another domain's SPF policy and evaluate it here.";
-            case "exists": return "Authorize based on existence of a DNS record (advanced/expensive).";
-            case "ptr": return "Authorize hosts by PTR domain match (discouraged; unreliable).";
-            case "redirect": return "Redirect evaluation to another domain's policy (terminal).";
-            case "all": return "Catch‑all for remaining senders; qualifier (+/~/‑/?) defines action.";
-            case "version": return "SPF version token (v=spf1).";
-            default: return "SPF token present.";
-        }
     }
 }

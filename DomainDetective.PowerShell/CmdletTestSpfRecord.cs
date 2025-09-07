@@ -14,9 +14,9 @@ namespace DomainDetective.PowerShell {
 [Alias("Test-EmailSpf")]
     public sealed class CmdletTestSpfRecord : ExportableAsyncPSCmdlet {
         /// <summary>Domain to query.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string[] DomainName;
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -27,6 +27,8 @@ namespace DomainDetective.PowerShell {
 
         private InternalLogger _logger;
         private DomainHealthCheck healthCheck;
+        private readonly System.Collections.Generic.List<object> _items = new();
+        private readonly System.Collections.Generic.List<string> _subjects = new();
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -42,55 +44,70 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying SPF record for domain: {0}", DomainName);
-            await healthCheck.VerifySPF(DomainName);
-            var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
-            WriteObject(output);
-            if (IsExportRequested()) {
+            foreach (var domain in DomainName) {
+                _logger.WriteVerbose("Querying SPF record for domain: {0}", domain);
+                await healthCheck.VerifySPF(domain);
+                var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
+                WriteObject(output);
+
+                if (!IsExportRequested()) continue;
                 var fmt = ExportFormat ?? ExportDefaults.Format;
-                var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
-                try {
-                    switch (fmt) {
-                        case DomainDetective.Reports.ReportFormat.Html:
-                            DomainDetective.Reports.Html.SpfHtmlReport.Generate(outPath, healthCheck.SpfAnalysis, DomainName, false);
-                            WriteVerbose($"SPF HTML report generated: {outPath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                            break;
-                        case DomainDetective.Reports.ReportFormat.Word:
-                            DomainDetective.Reports.Office.SpfWordReport.Generate(
-                                outPath,
-                                healthCheck.SpfAnalysis,
-                                DomainName,
-                                string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                                string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                                string.IsNullOrWhiteSpace(ExportDefaults.FooterText) ? null : ExportDefaults.FooterText,
-                                string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                                showInfoFindings: true,
-                                companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
-                                companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
-                                companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear
-                            );
-                            WriteVerbose($"SPF Word report generated: {outPath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                            break;
-                        case DomainDetective.Reports.ReportFormat.Json:
-                            {
-                                var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
-                                System.IO.File.WriteAllText(outPath, json);
-                                WriteVerbose($"SPF JSON saved: {outPath}");
-                                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                                break;
-                            }
-                        default:
-                            await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
-                            break;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                    _items.Add(output);
+                    _subjects.Add(domain);
+                } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
+                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, domain, fmt);
+                    try {
+                        var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                        System.IO.File.WriteAllText(outPath, json);
+                        WriteVerbose($"SPF JSON saved: {outPath}");
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                    } catch (System.Exception ex) {
+                        WriteWarning($"SPF export failed: {ex.Message}");
                     }
+                } else {
+                    await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                 }
-                catch (System.Exception ex) {
-                    WriteWarning($"SPF export failed: {ex.Message}");
-                }
-                return;
             }
+        }
+
+        /// <summary>
+        /// Finalizes multi-domain exports for Word/HTML by composing a single file.
+        /// </summary>
+        protected override Task EndProcessingAsync() {
+            if (_items.Count == 0) return Task.CompletedTask;
+            var fmt = ExportFormat ?? ExportDefaults.Format;
+            if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+
+            var label = _subjects.Count switch {
+                0 => "spf",
+                1 => _subjects[0],
+                2 => $"{_subjects[0]}+{_subjects[1]}",
+                _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
+            };
+            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
+            try {
+                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                        outPath,
+                        _items,
+                        DomainDetective.Reports.ReportScope.Detailed,
+                        showInfoFindings: true,
+                        titleOverride: $"SPF Report — {label}",
+                        companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
+                        companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
+                        companyYear: string.IsNullOrWhiteSpace(ExportDefaults.CompanyYear) ? null : ExportDefaults.CompanyYear,
+                        logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
+                        headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                        watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
+                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                } else {
+                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Detailed, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+                }
+            } catch (System.Exception ex) {
+                WriteWarning($"SPF export failed: {ex.Message}");
+            }
+            return Task.CompletedTask;
         }
     }
 }

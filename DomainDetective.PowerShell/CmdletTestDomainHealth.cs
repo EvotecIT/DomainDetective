@@ -91,6 +91,69 @@ namespace DomainDetective.PowerShell {
                 var fmt = ExportFormat ?? ExportDefaults.Format;
                 var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
                 var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
+
+                // If specific HealthCheckType selection is provided and we support writers for it,
+                // use the composition aggregators for Word/HTML to ensure identical section rendering.
+                var canCompose = (HealthCheckType != null && HealthCheckType.Length > 0 && (fmt == ReportFormat.Word || fmt == ReportFormat.Html));
+                if (canCompose) {
+                    var items = new System.Collections.Generic.List<object>();
+                    foreach (var kind in HealthCheckType!) {
+                        switch (kind) {
+                            case DomainDetective.HealthCheckType.SPF:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.SpfAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DKIM:
+                                items.AddRange(DomainDetective.Views.Converters.Convert(_healthCheck.DKIMAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DMARC:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DmarcAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DNSBL:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DNSBLAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.MTASTS:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MTASTSAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.TLSRPT:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.TLSRPTAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.MAILCLASSIFICATION:
+                                {
+                                    var classifier = new MailDomainClassifier(_healthCheck, _logger);
+                                    var mc = await classifier.ClassifyAsync(DomainName);
+                                    items.Add(DomainDetective.Views.Converters.Convert(mc));
+                                    break;
+                                }
+                            default:
+                                break; // unsupported here falls back to default path
+                        }
+                    }
+
+                    try {
+                        if (fmt == ReportFormat.Word) {
+                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                                outPath,
+                                items,
+                                Reports.ReportScope.Normal,
+                                showInfoFindings: true,
+                                titleOverride: $"Security Report — {DomainName}",
+                                companyName: ExportDefaults.CompanyName,
+                                companyAddress: ExportDefaults.CompanyAddress,
+                                companyYear: ExportDefaults.CompanyYear,
+                                logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
+                                headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                                watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(outPath);
+                        } else {
+                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+                        }
+                        return;
+                    } catch (System.Exception ex) {
+                        WriteWarning($"Composition export failed, falling back to default: {ex.Message}");
+                        // fall through to default behavior
+                    }
+                }
+
                 try {
                     if (wantArtifacts) {
                         var artDir = !string.IsNullOrWhiteSpace(this.ArtifactsDirectory)
