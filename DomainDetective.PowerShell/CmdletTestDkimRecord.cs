@@ -94,10 +94,11 @@ namespace DomainDetective.PowerShell {
                         _items,
                         DomainDetective.Reports.ReportScope.Detailed,
                         showInfoFindings: true,
+                        narrativePlacement: ExportDefaults.NarrativePlacement,
                         titleOverride: $"DKIM Report — {label}");
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                 } else {
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Detailed, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Detailed, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"DKIM export failed: {ex.Message}");

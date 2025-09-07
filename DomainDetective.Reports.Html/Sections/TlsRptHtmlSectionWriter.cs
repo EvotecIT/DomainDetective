@@ -21,6 +21,16 @@ public static class TlsRptHtmlSectionWriter
             new { Name = "Invalid URIs", Value = (tlsrpt.InvalidRua?.Count ?? 0).ToString() },
             new { Name = "Status", Value = tlsrpt.Status ?? string.Empty }
         });
+
+        if (scope != Reports.ReportScope.Minimal)
+        {
+            var assessments = (tlsrpt.Assessments ?? Array.Empty<DomainDetective.Assessment>());
+            if (assessments.Count > 0)
+            {
+                html.AddHeading("Findings", 3);
+                var rows = System.Linq.Enumerable.Select(assessments, a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message });
+                html.AddTable(rows);
+            }
+        }
     }
 }
-

@@ -20,7 +20,7 @@ public static class DkimWordSectionWriter
     /// <param name="domain">Domain subject.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="showInfoFindings">Include Info-level findings.</param>
-    public static void Write(WordDocument doc, System.Collections.Generic.IReadOnlyList<DomainDetective.Views.DkimRecordInfo> dkim, string domain, ReportScope scope, bool showInfoFindings)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, System.Collections.Generic.IReadOnlyList<DomainDetective.Views.DkimRecordInfo> dkim, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         if (dkim == null) throw new ArgumentNullException(nameof(dkim));
@@ -31,6 +31,17 @@ public static class DkimWordSectionWriter
             return;
         }
 
+        if (includeNarrative)
+        {
+            var nar = dkim.FirstOrDefault()?.Narrative;
+            if (nar != null)
+            {
+                if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+                if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+            }
+        }
+
+        headings.AddItem("Summary", baseLevel);
         var table = doc.AddTable(dkim.Count + 1, 7, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Record";
@@ -58,6 +69,7 @@ public static class DkimWordSectionWriter
         if (!showInfoFindings) findings = findings.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (findings.Count > 0)
         {
+            headings.AddItem("Findings", baseLevel);
             var ft = doc.AddTable(findings.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -79,6 +91,7 @@ public static class DkimWordSectionWriter
             var hl = dkim.SelectMany(x => x.Highlights ?? Array.Empty<string>()).Distinct().ToList();
             if (hl.Count > 0)
             {
+                headings.AddItem("Highlights", baseLevel);
                 var list = doc.AddList(WordListStyle.Bulleted);
                 foreach (var h in hl) list.AddItem(h);
             }
@@ -88,6 +101,7 @@ public static class DkimWordSectionWriter
             var negative = grouped.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
             if (negative.Count > 0)
             {
+                headings.AddItem("Recommendations", baseLevel);
                 var rt = doc.AddTable(negative.Count + 1, 3, WordTableStyle.TableGrid);
                 rt.Rows[0].Cells[0].Paragraphs[0].Text = "Code";
                 rt.Rows[0].Cells[1].Paragraphs[0].Text = "Title";

@@ -150,6 +150,7 @@ We’re designing persona‑driven narratives to present findings in different t
 | `Test-DDDnsSoaRecord`           | `Test-DnsSoa`                 | Verify SOA                             |
 | `Test-DDDnsSecStatus`           | `Test-DnsSec`                 | Verify DNSSEC                          |
 | `Test-DDDnsBlacklist`           | `Test-DnsBlacklist`           | Check DNSBL (domain + MX IPs)          |
+| `Test-DDMailDomainClassification` |  | Classify sending/receiving/parked + signals |
 | `Test-DDDnsOpenResolver`        | `Test-DnsOpenResolver`        | Detect open resolver                   |
 | `Test-DDDnsDanglingCname`       | `Test-DnsDanglingCname`       | Find dangling CNAME                    |
 | `Test-DDDnsPropagation`         | `Test-DnsPropagation`         | Check global propagation               |
@@ -202,6 +203,26 @@ We’re designing persona‑driven narratives to present findings in different t
 | `Import-DDDmarcReport`      | `Import-DmarcReport`   | DMARC aggregate zip |
 | `Import-DDDmarcForensic`    | `Import-DmarcForensic` | DMARC forensic zip  |
 | `Import-DDEmailTlsRpt`      | `Import-EmailTlsRpt`   | TLS-RPT JSON        |
+
+## Reports / Exporting
+
+- Compose any mix via pipeline:
+
+```
+$spf   = Test-DDEmailSpfRecord -DomainName 'contoso.com'
+$dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress '203.0.113.5'
+($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
+```
+
+- Or inline with a script block:
+
+```
+Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport -Compose {
+  Test-DDEmailSpfRecord   -DomainName 'contoso.com'
+  Test-DDDnsBlacklist     -NameOrIpAddress '203.0.113.5'
+  Test-DDMailDomainClassification -DomainName 'contoso.com'
+}
+```
 
 ## DNSBL Configuration
 DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes with a built-in list, but you can modify it at runtime. Each list entry exposes `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:

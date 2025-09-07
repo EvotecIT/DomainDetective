@@ -13,10 +13,10 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailTlsRptRecord", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailTlsRpt")]
     public sealed class CmdletTestTlsRptRecord : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to query.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <summary>Domain name(s) to query.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string[] DomainName;
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -38,10 +38,12 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying TLSRPT record for domain: {0}", DomainName);
-            await healthCheck.VerifyTLSRPT(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis);
-            WriteObject(view);
+            foreach (var domain in DomainName) {
+                _logger.WriteVerbose("Querying TLSRPT record for domain: {0}", domain);
+                await healthCheck.VerifyTLSRPT(domain);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis);
+                WriteObject(view);
+            }
             if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
         }
     }

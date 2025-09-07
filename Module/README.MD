@@ -175,18 +175,22 @@ Returns a view object with OIDC discovery URL, TenantId (if found), NameSpaceTyp
 
 ## Exporting Reports
 
-All `Test-*` cmdlets support unified export switches. The overall health cmdlet generates HTML/JSON reports today; other formats and cmdlets will emit a clear TODO until their dedicated reports are implemented.
+All `Test-*` cmdlets share unified `-Export*` switches. Reports are composed from reusable sections (SPF, DKIM, DMARC, DNSBL, MTA‑STS, TLS‑RPT, Mail Classification, …) so content is identical across entry points.
 
 ```powershell
-# Per-call export (implemented for overall health)
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports\example.html" -OpenInBrowser
+# Overall Health (HTML)
+Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports\example.html" -OpenReport
 
 # JSON export
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath ".\Reports\example.json"
 
-# Other test cmdlets accept the same switches (report generation: TODO for now)
-Test-DDEmailSpfRecord -DomainName "example.com" -ExportFormat Html   # TODO: report not yet implemented
-Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: report not yet implemented
+# SPF/DKIM/DMARC: multi-domain → single file
+Test-DDEmailSpfRecord   -DomainName @('a.com','b.com') -ExportFormat Html -ExportPath ".\Reports" -OpenReport
+Test-DDEmailDkimRecord  -DomainName @('a.com','b.com') -Selectors s1,s2 -ExportFormat Word -ExportPath ".\Reports" -OpenReport
+Test-DDEmailDmarcRecord -DomainName @('a.com','b.com') -ExportFormat Word -ExportPath ".\Reports" -OpenReport
+
+# Mail Classification (single/multi-domain)
+Test-DDMailDomainClassification -DomainName @('contoso.com','fabrikam.com') -ExportFormat Word -ExportPath ".\Reports" -OpenReport
 ```
 
 Set module-wide export defaults to avoid repeating parameters:
@@ -205,12 +209,22 @@ Notes:
 - `-OpenInBrowser` (alias: `-OpenReport`) opens the generated report using the system shell (browser, Word, Excel, etc.).
 - Artifacts (scan.json, metrics.json, progress.jsonl, index.jsonl) are optional. Use `-Artifacts` per-call or `Set-DDExportOptions -Artifacts` to enable. Default artifacts path is `./artifacts` unless overridden via `-ArtifactsDirectory` on the cmdlet or `Set-DDExportOptions -ArtifactsDirectory`.
 
-Per-call examples:
+### Composer cmdlet (pipeline-first)
+
+Compose any mix and export one file:
 
 ```powershell
-# Report only, no artifacts, open in browser
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports" -OpenReport
+$spf   = Test-DDEmailSpfRecord -DomainName 'contoso.com'
+$dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress '203.0.113.5'
+($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports -OpenReport
+```
 
-# Report + artifacts into a specific artifacts folder for this call
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath ".\Reports" -Artifacts -ArtifactsDirectory ".\Artifacts\domain-health"
+Inline with a script block:
+
+```powershell
+Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports -OpenReport -Compose {
+  Test-DDEmailSpfRecord   -DomainName 'contoso.com'
+  Test-DDDnsBlacklist     -NameOrIpAddress '203.0.113.5'
+  Test-DDMailDomainClassification -DomainName 'contoso.com'
+}
 ```

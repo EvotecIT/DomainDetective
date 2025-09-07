@@ -33,6 +33,7 @@ public static class WordCompositionReport
         IReadOnlyList<object> items,
         ReportScope scope,
         bool showInfoFindings,
+        NarrativePlacement narrativePlacement = NarrativePlacement.Auto,
         string? titleOverride = null,
         string? companyName = null,
         string? companyAddress = null,
@@ -67,29 +68,44 @@ public static class WordCompositionReport
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem("Executive Summary");
 
-        // Executive Summary table
+        // Executive Summary table (defensive build to avoid style-dependent index issues)
         var allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
-        var sum = doc.AddTable(allRows.Count + 1, 7, WordTableStyle.TableGrid);
-        sum.Rows[0].Cells[0].Paragraphs[0].Text = "Domain";
-        sum.Rows[0].Cells[1].Paragraphs[0].Text = "SPF";
-        sum.Rows[0].Cells[2].Paragraphs[0].Text = "DKIM";
-        sum.Rows[0].Cells[3].Paragraphs[0].Text = "DMARC";
-        sum.Rows[0].Cells[4].Paragraphs[0].Text = "MTA-STS";
-        sum.Rows[0].Cells[5].Paragraphs[0].Text = "TLS-RPT";
-        sum.Rows[0].Cells[6].Paragraphs[0].Text = "Findings (W/E)";
-        for (int i = 0; i < allRows.Count; i++)
+        try
         {
-            var (domain, bucket) = (allRows[i].Key, allRows[i].Value);
-            var spf = bucket.Spf; var dmarc = bucket.Dmarc; var dkim = bucket.Dkim;
-            sum.Rows[i + 1].Cells[0].Paragraphs[0].Text = domain;
-            sum.Rows[i + 1].Cells[1].Paragraphs[0].Text = spf?.Status ?? "-";
-            sum.Rows[i + 1].Cells[2].Paragraphs[0].Text = dkim.Count > 0 ? (dkim.Max(x => x.Status) ?? "-") : "-";
-            sum.Rows[i + 1].Cells[3].Paragraphs[0].Text = dmarc?.Status ?? "-";
-            int warns = (spf?.WarningCount ?? 0) + (dmarc?.WarningCount ?? 0) + dkim.Sum(x => x.WarningCount);
-            int errs  = (spf?.ErrorCount   ?? 0) + (dmarc?.ErrorCount   ?? 0) + dkim.Sum(x => x.ErrorCount);
-            sum.Rows[i + 1].Cells[4].Paragraphs[0].Text = bucket.Mtasts?.Status ?? "-";
-            sum.Rows[i + 1].Cells[5].Paragraphs[0].Text = bucket.TlsRpt?.Status ?? "-";
-            sum.Rows[i + 1].Cells[6].Paragraphs[0].Text = $"{warns} / {errs}";
+            string[] hdrs = new[] { "Domain", "MX", "SPF", "DKIM", "DMARC", "MTA-STS", "TLS-RPT", "Findings (W/E)" };
+            var sum = doc.AddTable(allRows.Count + 1, hdrs.Length, WordTableStyle.TableGrid);
+            for (int c = 0; c < hdrs.Length; c++)
+            {
+                // Use AddParagraph defensively to avoid empty Paragraphs collection edge cases
+                sum.Rows[0].Cells[c].AddParagraph(hdrs[c]);
+            }
+            for (int i = 0; i < allRows.Count; i++)
+            {
+                var (domain, bucket) = (allRows[i].Key, allRows[i].Value);
+                var spf = bucket.Spf; var dmarc = bucket.Dmarc; var dkim = bucket.Dkim; var mx = bucket.Mx; var mtasts = bucket.Mtasts; var tlsrpt = bucket.TlsRpt;
+                int warns = (spf?.WarningCount ?? 0) + (dmarc?.WarningCount ?? 0) + dkim.Sum(x => x.WarningCount) + (mtasts?.WarningCount ?? 0) + (tlsrpt?.WarningCount ?? 0) + (mx?.WarningCount ?? 0);
+                int errs  = (spf?.ErrorCount   ?? 0) + (dmarc?.ErrorCount   ?? 0) + dkim.Sum(x => x.ErrorCount)   + (mtasts?.ErrorCount ?? 0) + (tlsrpt?.ErrorCount ?? 0) + (mx?.ErrorCount ?? 0);
+                var cells = sum.Rows[i + 1].Cells;
+                cells[0].AddParagraph(domain);
+                cells[1].AddParagraph(mx?.Status ?? "-");
+                cells[2].AddParagraph(spf?.Status ?? "-");
+                cells[3].AddParagraph(dkim.Count > 0 ? (dkim.Max(x => x.Status) ?? "-") : "-");
+                cells[4].AddParagraph(dmarc?.Status ?? "-");
+                cells[5].AddParagraph(bucket.Mtasts?.Status ?? "-");
+                cells[6].AddParagraph(bucket.TlsRpt?.Status ?? "-");
+                cells[7].AddParagraph($"{warns} / {errs}");
+            }
+        }
+        catch { /* skip summary on edge cases */ }
+
+        // Background narratives (global) when requested
+        bool multiDomain = allRows.Count > 1;
+        bool placeGlobal = narrativePlacement == NarrativePlacement.Global || (narrativePlacement == NarrativePlacement.Auto && multiDomain);
+        bool includeNarrativePerDomain = narrativePlacement == NarrativePlacement.PerDomain || (narrativePlacement == NarrativePlacement.Auto && !multiDomain);
+        bool includeMechanismMeaningsPerDomain = includeNarrativePerDomain; // meanings go with narratives when per-domain
+        if (placeGlobal)
+        {
+            BackgroundWordSectionWriter.Write(doc, headings, 1, items);
         }
 
         // Per-domain sections
@@ -99,22 +115,29 @@ public static class WordCompositionReport
             var bucket = kv.Value;
             headings.AddItem(domain);
 
+            if (bucket.Mx != null)
+            {
+                headings.AddItem("MX", 1);
+                MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }
+
             if (bucket.Spf != null)
             {
                 headings.AddItem("SPF", 1);
-                SpfWordSectionWriter.Write(doc, bucket.Spf, domain, scope, showInfoFindings);
+                // Base level 2 under the 'SPF' node: 0=domain, 1=SPF, 2=subsections
+                SpfWordSectionWriter.Write(doc, headings, 2, bucket.Spf, domain, scope, showInfoFindings, includeNarrativePerDomain, includeMechanismMeaningsPerDomain);
             }
 
             if (bucket.Dkim.Count > 0)
             {
                 headings.AddItem("DKIM", 1);
-                DkimWordSectionWriter.Write(doc, bucket.Dkim, domain, scope, showInfoFindings);
+                DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }
 
             if (bucket.Dmarc != null)
             {
                 headings.AddItem("DMARC", 1);
-                DmarcWordSectionWriter.Write(doc, bucket.Dmarc, domain, scope, showInfoFindings);
+                DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }
 
             if (bucket.Dnsbl != null)
@@ -132,14 +155,53 @@ public static class WordCompositionReport
             if (bucket.Mtasts != null)
             {
                 headings.AddItem("MTA-STS", 1);
-                MtastsWordSectionWriter.Write(doc, bucket.Mtasts, domain, scope, showInfoFindings);
+                MtastsWordSectionWriter.Write(doc, headings, 2, bucket.Mtasts, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }
             if (bucket.TlsRpt != null)
             {
                 headings.AddItem("TLS-RPT", 1);
-                TlsRptWordSectionWriter.Write(doc, bucket.TlsRpt, domain, scope, showInfoFindings);
+                TlsRptWordSectionWriter.Write(doc, headings, 2, bucket.TlsRpt, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }
         }
+
+        // Consolidated Recommendations (grouped across all domains)
+        try
+        {
+            var allAssessments = new System.Collections.Generic.List<DomainDetective.Assessment>();
+            foreach (var kv in allRows)
+            {
+                var b = kv.Value;
+                void PullAssessments(System.Collections.Generic.IReadOnlyList<DomainDetective.Assessment>? a)
+                { if (a != null && a.Count > 0) allAssessments.AddRange(a); }
+                PullAssessments(b.Spf?.Assessments);
+                foreach (var d in b.Dkim) PullAssessments(d.Assessments);
+                PullAssessments(b.Dmarc?.Assessments);
+                PullAssessments(b.Mx?.Assessments);
+                PullAssessments(b.Mtasts?.Assessments);
+                PullAssessments(b.TlsRpt?.Assessments);
+                PullAssessments(b.Dnsbl?.Assessments);
+            }
+            var recGroups = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
+            var negative = recGroups.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
+            if (negative.Count > 0)
+            {
+                headings.AddItem("Consolidated Recommendations");
+                var rt = doc.AddTable(negative.Count + 1, 4, WordTableStyle.TableGrid);
+                rt.Rows[0].Cells[0].AddParagraph("Severity");
+                rt.Rows[0].Cells[1].AddParagraph("Code");
+                rt.Rows[0].Cells[2].AddParagraph("Title");
+                rt.Rows[0].Cells[3].AddParagraph("How");
+                for (int i = 0; i < negative.Count; i++)
+                {
+                    var g = negative[i];
+                    rt.Rows[i + 1].Cells[0].AddParagraph(g.MaxSeverity.ToString());
+                    rt.Rows[i + 1].Cells[1].AddParagraph(g.Code ?? string.Empty);
+                    rt.Rows[i + 1].Cells[2].AddParagraph(g.Advice?.Title ?? string.Empty);
+                    rt.Rows[i + 1].Cells[3].AddParagraph(g.Advice?.How ?? string.Empty);
+                }
+            }
+        }
+        catch { }
 
         doc.Save();
     }
@@ -155,6 +217,7 @@ public static class WordCompositionReport
     private sealed class DomainBucket
     {
         public string Subject { get; set; } = string.Empty;
+        public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
@@ -176,6 +239,8 @@ public static class WordCompositionReport
         {
             switch (it)
             {
+                case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject):
+                    Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject):
                     Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):

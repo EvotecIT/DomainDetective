@@ -63,6 +63,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter Reset { get; set; }
 
+        /// <summary>Default narrative placement for reports.</summary>
+        [Parameter(Mandatory = false)]
+        public NarrativePlacement? NarrativePlacement { get; set; }
+
         protected override void ProcessRecord() {
             if (Reset) {
                 ExportDefaults.Format = ReportFormat.Html;
@@ -70,6 +74,7 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.OutputDirectory = string.Empty;
                 ExportDefaults.EmitArtifacts = false;
                 ExportDefaults.ArtifactsDirectory = string.Empty;
+                ExportDefaults.NarrativePlacement = DomainDetective.Reports.NarrativePlacement.Auto;
                 ExportDefaults.LogoPath = string.Empty;
                 ExportDefaults.HeaderText = string.Empty;
                 ExportDefaults.FooterText = string.Empty;
@@ -98,6 +103,10 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(ArtifactsDirectory)) {
                 ExportDefaults.ArtifactsDirectory = ArtifactsDirectory!;
                 WriteVerbose($"Default artifacts directory set to {ExportDefaults.ArtifactsDirectory}.");
+            }
+            if (NarrativePlacement.HasValue) {
+                ExportDefaults.NarrativePlacement = NarrativePlacement.Value;
+                WriteVerbose($"Default narrative placement set to {ExportDefaults.NarrativePlacement}.");
             }
             if (!string.IsNullOrWhiteSpace(LogoPath)) {
                 ExportDefaults.LogoPath = LogoPath!;

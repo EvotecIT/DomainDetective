@@ -12,11 +12,19 @@ public static class MtastsWordSectionWriter
     /// <summary>
     /// Writes the MTA-STS section.
     /// </summary>
-    public static void Write(WordDocument doc, DomainDetective.Views.MtastsInfo mtasts, string domain, ReportScope scope, bool showInfoFindings)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.MtastsInfo mtasts, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         if (mtasts == null) throw new ArgumentNullException(nameof(mtasts));
 
+        if (includeNarrative)
+        {
+            var nar = DomainDetective.Narratives.MtaStsNarrative.Build(mtasts.Raw, mtasts.Assessments);
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        headings.AddItem("Summary", baseLevel);
         var t = doc.AddTable(7, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "DNS Policy TXT";
         t.Rows[0].Cells[1].Paragraphs[0].Text = mtasts.DnsRecordPresent ? (mtasts.DnsRecordValid ? "Present (valid)" : "Present (invalid)") : "Missing";
@@ -38,6 +46,7 @@ public static class MtastsWordSectionWriter
         var missing = mtasts.MissingMxFromPolicy ?? Array.Empty<string>();
         if (missing.Length > 0)
         {
+            headings.AddItem("Highlights", baseLevel);
             var p = doc.AddParagraph("MX missing from policy:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var s in missing) list.AddItem(s);
@@ -47,6 +56,7 @@ public static class MtastsWordSectionWriter
         if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (assessments.Count > 0)
         {
+            headings.AddItem("Findings", baseLevel);
             var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -63,4 +73,3 @@ public static class MtastsWordSectionWriter
         }
     }
 }
-

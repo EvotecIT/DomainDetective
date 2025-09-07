@@ -108,6 +108,9 @@ namespace DomainDetective.PowerShell {
                             case DomainDetective.HealthCheckType.DMARC:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DmarcAnalysis));
                                 break;
+                            case DomainDetective.HealthCheckType.MX:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MXAnalysis));
+                                break;
                             case DomainDetective.HealthCheckType.DNSBL:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DNSBLAnalysis));
                                 break;
@@ -136,6 +139,7 @@ namespace DomainDetective.PowerShell {
                                 items,
                                 Reports.ReportScope.Normal,
                                 showInfoFindings: true,
+                                narrativePlacement: ExportDefaults.NarrativePlacement,
                                 titleOverride: $"Security Report — {DomainName}",
                                 companyName: ExportDefaults.CompanyName,
                                 companyAddress: ExportDefaults.CompanyAddress,
@@ -145,7 +149,7 @@ namespace DomainDetective.PowerShell {
                                 watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(outPath);
                         } else {
-                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
                         }
                         return;
                     } catch (System.Exception ex) {

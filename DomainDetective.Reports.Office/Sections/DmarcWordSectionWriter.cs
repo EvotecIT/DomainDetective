@@ -17,11 +17,22 @@ public static class DmarcWordSectionWriter
     /// <param name="domain">Domain subject.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="showInfoFindings">Whether to include Info-level findings.</param>
-    public static void Write(WordDocument doc, DomainDetective.Views.DmarcRecordInfo dmarc, string domain, ReportScope scope, bool showInfoFindings)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.DmarcRecordInfo dmarc, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         if (dmarc == null) throw new ArgumentNullException(nameof(dmarc));
 
+        if (includeNarrative)
+        {
+            var nar = dmarc.Narrative;
+            if (nar != null)
+            {
+                if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+                if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+            }
+        }
+
+        headings.AddItem("Summary", baseLevel);
         var t = doc.AddTable(8, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = dmarc.DmarcRecordExists ? "Yes" : "No";
@@ -49,6 +60,7 @@ public static class DmarcWordSectionWriter
         }
         if (assessList.Count > 0)
         {
+            headings.AddItem("Findings", baseLevel);
             var ft = doc.AddTable(assessList.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -70,6 +82,7 @@ public static class DmarcWordSectionWriter
             var hl = dmarc.Highlights ?? Array.Empty<string>();
             if (hl != null && hl.Count > 0)
             {
+                headings.AddItem("Highlights", baseLevel);
                 var list = doc.AddList(WordListStyle.Bulleted);
                 foreach (var h in hl) list.AddItem(h);
             }
@@ -77,6 +90,7 @@ public static class DmarcWordSectionWriter
             var negative = grouped.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
             if (negative.Count > 0)
             {
+                headings.AddItem("Recommendations", baseLevel);
                 var rt = doc.AddTable(negative.Count + 1, 3, WordTableStyle.TableGrid);
                 rt.Rows[0].Cells[0].Paragraphs[0].Text = "Code";
                 rt.Rows[0].Cells[1].Paragraphs[0].Text = "Title";

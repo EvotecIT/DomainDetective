@@ -12,11 +12,19 @@ public static class TlsRptWordSectionWriter
     /// <summary>
     /// Writes the TLS-RPT section.
     /// </summary>
-    public static void Write(WordDocument doc, DomainDetective.Views.TlsRptInfo tlsrpt, string domain, ReportScope scope, bool showInfoFindings)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.TlsRptInfo tlsrpt, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         if (tlsrpt == null) throw new ArgumentNullException(nameof(tlsrpt));
 
+        if (includeNarrative)
+        {
+            var nar = DomainDetective.Narratives.TlsRptNarrative.Build(tlsrpt.Raw);
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        headings.AddItem("Summary", baseLevel);
         var t = doc.AddTable(6, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = tlsrpt.TlsRptRecordExists ? (tlsrpt.StartsCorrectly ? "Yes (v=TLSRPTv1)" : "Yes (invalid start)") : "No";
@@ -37,6 +45,7 @@ public static class TlsRptWordSectionWriter
         if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (assessments.Count > 0)
         {
+            headings.AddItem("Findings", baseLevel);
             var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -53,4 +62,3 @@ public static class TlsRptWordSectionWriter
         }
     }
 }
-

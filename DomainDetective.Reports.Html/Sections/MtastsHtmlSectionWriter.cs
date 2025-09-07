@@ -30,6 +30,13 @@ public static class MtastsHtmlSectionWriter
             html.AddHeading("MX missing from policy", 3);
             html.AddList(mtasts.MissingMxFromPolicy);
         }
+
+        var assessments = (mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
+        if (assessments.Count > 0)
+        {
+            html.AddHeading("Findings", 3);
+            var rows = assessments.Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message });
+            html.AddTable(rows);
+        }
     }
 }
-

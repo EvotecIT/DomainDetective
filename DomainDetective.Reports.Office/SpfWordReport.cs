@@ -67,7 +67,7 @@ public static class SpfWordReport
         // 1.1 SPF Section — reuse the section writer
         headings.AddItem("SPF", 1);
         var spfView = DomainDetective.Views.Converters.Convert(spf);
-        SpfWordSectionWriter.Write(doc, spfView, domain, Reports.ReportScope.Detailed, showInfoFindings);
+        SpfWordSectionWriter.Write(doc, headings, 2, spfView, domain, Reports.ReportScope.Detailed, showInfoFindings);
 
         // Lookups
         headings.AddItem("DNS Lookups", 1);

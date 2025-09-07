@@ -93,6 +93,7 @@ namespace DomainDetective.PowerShell {
                         _items,
                         DomainDetective.Reports.ReportScope.Detailed,
                         showInfoFindings: true,
+                        narrativePlacement: ExportDefaults.NarrativePlacement,
                         titleOverride: $"SPF Report — {label}",
                         companyName: string.IsNullOrWhiteSpace(ExportDefaults.CompanyName) ? null : ExportDefaults.CompanyName,
                         companyAddress: string.IsNullOrWhiteSpace(ExportDefaults.CompanyAddress) ? null : ExportDefaults.CompanyAddress,
@@ -102,7 +103,7 @@ namespace DomainDetective.PowerShell {
                         watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                 } else {
-                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Detailed, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser);
+                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Detailed, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
                 }
             } catch (System.Exception ex) {
                 WriteWarning($"SPF export failed: {ex.Message}");

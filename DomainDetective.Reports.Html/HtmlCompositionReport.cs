@@ -19,7 +19,7 @@ public static class HtmlCompositionReport
     /// <param name="items">View objects grouped by Subject.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="openInBrowser">Open the file after saving.</param>
-    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false)
+    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -36,20 +36,30 @@ public static class HtmlCompositionReport
         var rows = grouped.Select(kv => new
         {
             Domain = kv.Key,
+            MX = kv.Value.Mx?.Status ?? "-",
             SPF = kv.Value.Spf?.Status ?? "-",
             DKIM = kv.Value.Dkim.Count > 0 ? (kv.Value.Dkim.Max(x => x.Status) ?? "-") : "-",
             DMARC = kv.Value.Dmarc?.Status ?? "-",
             MTASTS = kv.Value.Mtasts?.Status ?? "-",
             TLSRPT = kv.Value.TlsRpt?.Status ?? "-",
-            Findings = $"{(kv.Value.Spf?.WarningCount ?? 0) + (kv.Value.Dmarc?.WarningCount ?? 0) + kv.Value.Dkim.Sum(x => x.WarningCount)} / {(kv.Value.Spf?.ErrorCount ?? 0) + (kv.Value.Dmarc?.ErrorCount ?? 0) + kv.Value.Dkim.Sum(x => x.ErrorCount)}"
+            Findings = $"{(kv.Value.Spf?.WarningCount ?? 0) + (kv.Value.Dmarc?.WarningCount ?? 0) + kv.Value.Dkim.Sum(x => x.WarningCount) + (kv.Value.Mtasts?.WarningCount ?? 0) + (kv.Value.TlsRpt?.WarningCount ?? 0) + (kv.Value.Mx?.WarningCount ?? 0)} / {(kv.Value.Spf?.ErrorCount ?? 0) + (kv.Value.Dmarc?.ErrorCount ?? 0) + kv.Value.Dkim.Sum(x => x.ErrorCount) + (kv.Value.Mtasts?.ErrorCount ?? 0) + (kv.Value.TlsRpt?.ErrorCount ?? 0) + (kv.Value.Mx?.ErrorCount ?? 0)}"
         });
         html.AddHeading("Executive Summary", 2);
         html.AddTable(rows);
+
+        bool multiDomain = grouped.Count > 1;
+        bool placeGlobal = narrativePlacement == Reports.NarrativePlacement.Global || (narrativePlacement == Reports.NarrativePlacement.Auto && multiDomain);
+        bool includeNarrativePerDomain = narrativePlacement == Reports.NarrativePlacement.PerDomain || (narrativePlacement == Reports.NarrativePlacement.Auto && !multiDomain);
+        if (placeGlobal)
+        {
+            BackgroundHtmlSectionWriter.Write(html, items);
+        }
 
         foreach (var kv in grouped)
         {
             var domain = kv.Key; var b = kv.Value;
             html.AddHeading(domain, 2);
+            if (b.Mx != null) MxHtmlSectionWriter.Write(html, b.Mx, domain, scope);
             if (b.Spf != null) SpfHtmlSectionWriter.Write(html, b.Spf, domain, scope);
             if (b.Dkim.Count > 0) DkimHtmlSectionWriter.Write(html, b.Dkim, domain, scope);
             if (b.Dmarc != null) DmarcHtmlSectionWriter.Write(html, b.Dmarc, domain, scope);
@@ -57,6 +67,29 @@ public static class HtmlCompositionReport
             if (b.Classification != null) MailClassificationHtmlSectionWriter.Write(html, b.Classification, domain, scope);
             if (b.Mtasts != null) MtastsHtmlSectionWriter.Write(html, b.Mtasts, domain, scope);
             if (b.TlsRpt != null) TlsRptHtmlSectionWriter.Write(html, b.TlsRpt, domain, scope);
+        }
+
+        // Consolidated Recommendations
+        var allAssessments = new List<DomainDetective.Assessment>();
+        foreach (var kv in grouped)
+        {
+            var b = kv.Value;
+            void Pull(IReadOnlyList<DomainDetective.Assessment>? a) { if (a != null && a.Count > 0) allAssessments.AddRange(a); }
+            Pull(b.Spf?.Assessments);
+            foreach (var d in b.Dkim) Pull(d.Assessments);
+            Pull(b.Dmarc?.Assessments);
+            Pull(b.Mx?.Assessments);
+            Pull(b.Mtasts?.Assessments);
+            Pull(b.TlsRpt?.Assessments);
+            Pull(b.Dnsbl?.Assessments);
+        }
+        var groupedRecs = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
+        var negative = groupedRecs.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
+        if (negative.Count > 0)
+        {
+            html.AddHeading("Consolidated Recommendations", 2);
+            var recRows = negative.Select(g => new { Severity = g.MaxSeverity.ToString(), g.Code, Title = g.Advice?.Title ?? string.Empty, How = g.Advice?.How ?? string.Empty });
+            html.AddTable(recRows);
         }
 
         html.Save(path, openInBrowser);
@@ -72,6 +105,7 @@ public static class HtmlCompositionReport
     private sealed class DomainBucket
     {
         public string Subject { get; set; } = string.Empty;
+        public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
@@ -93,6 +127,8 @@ public static class HtmlCompositionReport
         {
             switch (it)
             {
+                case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject):
+                    Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject):
                     Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):

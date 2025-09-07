@@ -22,14 +22,13 @@ public static class MailClassificationWordSectionWriter
         if (info == null) throw new ArgumentNullException(nameof(info));
 
         var t = doc.AddTable(4, 2, WordTableStyle.TableGrid);
-        t.Rows[0].Cells[0].Paragraphs[0].Text = "Classification";
-        t.Rows[0].Cells[1].Paragraphs[0].Text = info.Classification ?? string.Empty;
-        t.Rows[1].Cells[0].Paragraphs[0].Text = "Confidence";
-        t.Rows[1].Cells[1].Paragraphs[0].Text = info.Confidence ?? string.Empty;
-        t.Rows[2].Cells[0].Paragraphs[0].Text = "Score";
-        t.Rows[2].Cells[1].Paragraphs[0].Text = info.Score.ToString("0.##");
-        t.Rows[3].Cells[0].Paragraphs[0].Text = "Status";
-        t.Rows[3].Cells[1].Paragraphs[0].Text = info.Status ?? string.Empty;
+        t.Rows[0].Cells[0].AddParagraph("Classification");
+        t.Rows[0].Cells[1].AddParagraph(info.Classification ?? string.Empty);
+        t.Rows[1].Cells[0].AddParagraph("Confidence");
+        t.Rows[1].Cells[1].AddParagraph(info.Confidence ?? string.Empty);
+        t.Rows[2].Cells[0].AddParagraph("Score");
+        t.Rows[2].Cells[1].AddParagraph(info.Score.ToString("0.##"));
+        t.Rows[3].Cells[0].AddParagraph("Status");
+        t.Rows[3].Cells[1].AddParagraph(info.Status ?? string.Empty);
     }
 }
-

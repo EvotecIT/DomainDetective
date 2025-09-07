@@ -206,7 +206,33 @@ namespace DomainDetective.PowerShell {
                 }
             }
 AfterWrite:
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                try {
+                    var fmt = ExportFormat ?? ExportDefaults.Format;
+                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                        var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
+                        // Ensure a non-empty Subject for grouping when inputs are IP-only
+                        if (string.IsNullOrWhiteSpace(view.Subject)) {
+                            var firstKey = healthCheck.DNSBLAnalysis.Results.Keys.FirstOrDefault();
+                            view.Subject = string.IsNullOrWhiteSpace(firstKey) ? "DNSBL" : firstKey;
+                        }
+                        var items = new System.Collections.Generic.List<object> { view };
+                        var label = view.Subject;
+                        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
+                        if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                            DomainDetective.Reports.Office.WordCompositionReport.Generate(outPath, items, DomainDetective.Reports.ReportScope.Normal, showInfoFindings: true, narrativePlacement: ExportDefaults.NarrativePlacement, titleOverride: $"DNSBL Report — {label}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        } else {
+                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, DomainDetective.Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
+                        }
+                    } else {
+                        await ExportNotImplementedAsync();
+                    }
+                } catch (System.Exception ex) {
+                    WriteWarning($"DNSBL export failed: {ex.Message}");
+                }
+                return;
+            }
         }
     }
 }

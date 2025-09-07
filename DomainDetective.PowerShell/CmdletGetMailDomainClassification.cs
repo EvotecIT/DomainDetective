@@ -13,13 +13,13 @@ namespace DomainDetective.PowerShell;
 ///   <code>Get-DDMailDomainClassification -DomainName example.com</code>
 ///   <para>Returns category, confidence, signals, score, and RFC references.</para>
 /// </example>
-[Cmdlet(VerbsCommon.Get, "DDMailDomainClassification", DefaultParameterSetName = "ByName")]
+[Cmdlet(VerbsDiagnostic.Test, "DDMailDomainClassification", DefaultParameterSetName = "ByName")]
 [OutputType(typeof(MailDomainClassificationResult))]
-public sealed class CmdletGetMailDomainClassification : AsyncPSCmdlet {
-    /// <para>Domain to analyze.</para>
+public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet {
+    /// <para>Domain(s) to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string DomainName;
+    public string[] DomainName;
 
     /// <para>DNS server used for queries.</para>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ByName")]
@@ -27,6 +27,8 @@ public sealed class CmdletGetMailDomainClassification : AsyncPSCmdlet {
 
     private InternalLogger _logger;
     private DomainHealthCheck _healthCheck;
+    private readonly System.Collections.Generic.List<object> _items = new();
+    private readonly System.Collections.Generic.List<string> _subjects = new();
 
     protected override Task BeginProcessingAsync() {
         _logger = new InternalLogger(false);
@@ -44,9 +46,58 @@ public sealed class CmdletGetMailDomainClassification : AsyncPSCmdlet {
     }
 
     protected override async Task ProcessRecordAsync() {
-        var classifier = new MailDomainClassifier(_healthCheck, _logger);
-        var result = await classifier.ClassifyAsync(DomainName);
-        var view = DomainDetective.Views.Converters.Convert(result);
-        WriteObject(view);
+        foreach (var domain in DomainName) {
+            var classifier = new MailDomainClassifier(_healthCheck, _logger);
+            var result = await classifier.ClassifyAsync(domain);
+            var view = DomainDetective.Views.Converters.Convert(result);
+            WriteObject(view);
+
+            // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
+            if (IsExportRequested()) {
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                    // Ensure DMARC is available (not required by classifier but expected in composed reports)
+                    try { await _healthCheck.VerifyDMARC(domain); } catch { }
+
+                    // Compose available views for the same subject
+                    _subjects.Add(domain);
+                    _items.Add(view); // Mail Classification
+                    if (_healthCheck.MXAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MXAnalysis));
+                    if (_healthCheck.SpfAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.SpfAnalysis));
+                    if (_healthCheck.DKIMAnalysis != null) _items.AddRange(DomainDetective.Views.Converters.Convert(_healthCheck.DKIMAnalysis));
+                    if (_healthCheck.DmarcAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DmarcAnalysis));
+                    if (_healthCheck.MTASTSAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MTASTSAnalysis));
+                    if (_healthCheck.TLSRPTAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.TLSRPTAnalysis));
+                } else {
+                    await ExportNotImplementedAsync("Test-DDMailDomainClassification");
+                }
+            }
+        }
+    }
+
+    /// <summary>When export is requested, compose Mail Classification sections into a single file.</summary>
+    protected override Task EndProcessingAsync() {
+        if (_items.Count == 0) return Task.CompletedTask;
+        var fmt = ExportFormat ?? ExportDefaults.Format;
+        if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+
+        var label = _subjects.Count switch {
+            0 => "mail-classification",
+            1 => _subjects[0],
+            2 => $"{_subjects[0]}+{_subjects[1]}",
+            _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
+        };
+        var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
+        try {
+            if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                DomainDetective.Reports.Office.WordCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Normal, showInfoFindings: true, narrativePlacement: ExportDefaults.NarrativePlacement, titleOverride: $"Mail Classification — {label}");
+                if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+            } else {
+                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, narrativePlacement: ExportDefaults.NarrativePlacement);
+            }
+        } catch (System.Exception ex) {
+            WriteWarning($"Mail classification export failed: {ex.Message}");
+        }
+        return Task.CompletedTask;
     }
 }
