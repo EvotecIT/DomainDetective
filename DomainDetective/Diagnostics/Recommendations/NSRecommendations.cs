@@ -74,14 +74,14 @@ internal sealed class NSRecommendations : IRecommendationProvider {
         };
         map[NSCodes.HighDiversity] = new RecommendationAdvice {
             Code = NSCodes.HighDiversity,
-            Title = "Authoritative NS are geographically diverse",
-            Why = "Distribution across regions and networks improves resilience and latency.",
-            How = "Maintain NS hosts on separate networks or locations to sustain diversity.",
+            Title = "Authoritative NS are diverse across networks/ASNs",
+            Why = "Distribution across providers, networks, and regions improves resilience and latency.",
+            How = "Maintain NS hosts on separate networks/providers to sustain diversity.",
             Domain = RecommendationDomain.Infrastructure,
-            Tags = new [] { "dns", "resilience" },
+            Tags = new [] { "dns", "resilience", "asn" },
             Impact = "Lower risk of correlated outages and better global performance.",
             Effort = RecommendationEffort.Low,
-            Verify = "Geolocation/ASN checks show NS spread across distinct areas."
+            Verify = "Geolocation/ASN checks show NS across distinct providers/ASNs."
         };
         map[NSCodes.DelegationMismatch] = new RecommendationAdvice {
             Code = NSCodes.DelegationMismatch,

@@ -196,15 +196,28 @@ public class MailTlsAnalysis : IHasAssessments {
                             logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                         }
                     } catch { }
-                    using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
-                    await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                    try {
+                        using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
+                        await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                    } catch (ObjectDisposedException) {
+                        // Remote closed immediately after handshake; safe to ignore.
+                        logger?.WriteVerbose($"TLS session closed before QUIT on {host}:{port} (direct TLS)");
+                    } catch (IOException ioex) {
+                        // Socket closed/reset while attempting QUIT; treat as benign post-handshake.
+                        logger?.WriteVerbose($"TLS write failed (QUIT) on {host}:{port} - {ioex.Message}");
+                    }
                     if (result.CertificateValid && result.ChainValid && result.HostnameMatch && !result.IsExpired) {
                         logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
                     }
                 } catch (AuthenticationException ex) {
                     logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+                } catch (ObjectDisposedException odex) {
+                    // Some servers tear down the stream aggressively; report as verbose and continue.
+                    logger?.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
+                } catch (IOException ioex) {
+                    logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
-                    result.Protocol = ssl.SslProtocol;
+                    try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
 #if NET8_0_OR_GREATER
                     result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
                     result.Tls13Used = result.SupportsTls13;
@@ -418,15 +431,25 @@ public class MailTlsAnalysis : IHasAssessments {
                         logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                     }
                 } catch { }
-                using var secureWriter = new StreamWriter(sslStream) { AutoFlush = true, NewLine = "\r\n" };
-                await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                try {
+                    using var secureWriter = new StreamWriter(sslStream) { AutoFlush = true, NewLine = "\r\n" };
+                    await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
+                } catch (ObjectDisposedException) {
+                    logger?.WriteVerbose($"TLS session closed before QUIT on {host}:{port} (STARTTLS)");
+                } catch (IOException ioex) {
+                    logger?.WriteVerbose($"TLS write failed (QUIT) on {host}:{port} - {ioex.Message}");
+                }
                 if (result.CertificateValid && result.ChainValid && result.HostnameMatch && !result.IsExpired) {
                     logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
                 }
             } catch (AuthenticationException ex) {
                 logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+            } catch (ObjectDisposedException odex) {
+                logger?.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
+            } catch (IOException ioex) {
+                logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
-                result.Protocol = sslStream.SslProtocol;
+                try { result.Protocol = sslStream.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
 #if NET8_0_OR_GREATER
                 result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
                 result.Tls13Used = result.SupportsTls13;

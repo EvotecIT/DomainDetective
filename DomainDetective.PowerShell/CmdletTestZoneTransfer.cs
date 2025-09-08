@@ -49,7 +49,27 @@ namespace DomainDetective.PowerShell {
             await _healthCheck.VerifyZoneTransfer(DomainName);
             var view = DomainDetective.Views.Converters.Convert(_healthCheck.ZoneTransferAnalysis);
             WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
+                    try {
+                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                            outPath,
+                            new System.Collections.Generic.List<object> { view },
+                            DomainDetective.Reports.ReportScope.Normal,
+                            showInfoFindings: true,
+                            narrativePlacement: ExportDefaults.NarrativePlacement,
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Zone Transfer — {DomainName}" : ExportDefaults.NarrativeTitle);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                    } catch (System.Exception ex) {
+                        WriteWarning($"Zone Transfer export failed: {ex.Message}");
+                    }
+                } else {
+                    await ExportNotImplementedAsync("Test-DDDnsZoneTransfer");
+                }
+                return;
+            }
         }
     }
 }

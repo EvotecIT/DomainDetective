@@ -88,6 +88,12 @@ public static class WordCompositionReport
         bool hasMtasts = grouped.Values.Any(b => b.Mtasts != null);
         bool hasTlsRpt = grouped.Values.Any(b => b.TlsRpt != null);
         bool hasDnsbl = grouped.Values.Any(b => b.Dnsbl != null);
+        bool hasRpki = grouped.Values.Any(b => b.Rpki != null);
+        bool hasNs = grouped.Values.Any(b => b.Ns != null);
+        bool hasSoa = grouped.Values.Any(b => b.Soa != null);
+        bool hasZone = grouped.Values.Any(b => b.ZoneTransfer != null);
+        bool hasWildcard = grouped.Values.Any(b => b.Wildcard != null);
+        bool hasCaa = grouped.Values.Any(b => b.Caa != null);
         bool hasClass = grouped.Values.Any(b => b.Classification != null);
         bool hasMailTls = grouped.Values.Any(b => b.SmtpTls != null || b.ImapTls != null || b.PopTls != null);
         bool hasDnssec = grouped.Values.Any(b => b.Dnssec != null);
@@ -101,10 +107,16 @@ public static class WordCompositionReport
         if (hasMtasts) presentLabels.Add("MTA-STS");
         if (hasTlsRpt) presentLabels.Add("TLS-RPT");
         if (hasDnsbl) presentLabels.Add("DNSBL");
+        if (hasRpki) presentLabels.Add("RPKI");
         if (hasMailTls) presentLabels.Add("MAILTLS");
         if (hasClass) presentLabels.Add("Classification");
         if (hasDnssec) presentLabels.Add("DNSSEC");
         if (hasDane) presentLabels.Add("DANE");
+        if (hasNs) presentLabels.Add("NS");
+        if (hasSoa) presentLabels.Add("SOA");
+        if (hasZone) presentLabels.Add("ZoneXFR");
+        if (hasWildcard) presentLabels.Add("Wildcard");
+        if (hasCaa) presentLabels.Add("CAA");
 
         // Compute totals across domains for only the present sections
         int totalWarns = 0, totalErrs = 0;
@@ -118,6 +130,7 @@ public static class WordCompositionReport
             if (hasTlsRpt){ totalWarns += b.TlsRpt?.WarningCount?? 0; totalErrs += b.TlsRpt?.ErrorCount?? 0; }
             if (hasMx)    { totalWarns += b.Mx?.WarningCount    ?? 0; totalErrs += b.Mx?.ErrorCount    ?? 0; }
             if (hasDnsbl) { totalWarns += b.Dnsbl?.WarningCount ?? 0; totalErrs += b.Dnsbl?.ErrorCount ?? 0; }
+            if (hasRpki)  { totalWarns += b.Rpki?.WarningCount  ?? 0; totalErrs += b.Rpki?.ErrorCount  ?? 0; }
             if (hasMailTls) {
                 totalWarns += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
                 totalErrs  += (b.SmtpTls?.ErrorCount   ?? 0) + (b.ImapTls?.ErrorCount   ?? 0) + (b.PopTls?.ErrorCount   ?? 0);
@@ -125,6 +138,11 @@ public static class WordCompositionReport
             if (hasClass) { totalWarns += b.Classification?.WarningCount ?? 0; totalErrs += b.Classification?.ErrorCount ?? 0; }
             if (hasDnssec) { totalWarns += b.Dnssec?.WarningCount ?? 0; totalErrs += b.Dnssec?.ErrorCount ?? 0; }
             if (hasDane)   { totalWarns += b.Dane?.WarningCount   ?? 0; totalErrs += b.Dane?.ErrorCount   ?? 0; }
+            if (hasNs)     { totalWarns += b.Ns?.WarningCount     ?? 0; totalErrs += b.Ns?.ErrorCount     ?? 0; }
+            if (hasSoa)    { totalWarns += b.Soa?.WarningCount    ?? 0; totalErrs += b.Soa?.ErrorCount    ?? 0; }
+            if (hasZone)   { totalWarns += b.ZoneTransfer?.WarningCount ?? 0; totalErrs += b.ZoneTransfer?.ErrorCount ?? 0; }
+            if (hasWildcard){ totalWarns += b.Wildcard?.WarningCount ?? 0; totalErrs += b.Wildcard?.ErrorCount ?? 0; }
+            if (hasCaa)    { totalWarns += b.Caa?.WarningCount ?? 0; totalErrs += b.Caa?.ErrorCount ?? 0; }
         }
 
         // Executive Summary intro text — dynamic list of controls present
@@ -144,11 +162,18 @@ public static class WordCompositionReport
             if (hasDmarc)  candidates.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0, 8));
             if (hasMx)     candidates.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0, 7));
             if (hasDnsbl)  candidates.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0, 6));
+            if (hasNs)     candidates.Add(("NS",      (cell, b) => cell.AddParagraph(b.Ns?.Status ?? "-"),      b => b.Ns?.WarningCount ?? 0,      b => b.Ns?.ErrorCount ?? 0, 6));
+            if (hasSoa)    candidates.Add(("SOA",     (cell, b) => cell.AddParagraph(b.Soa?.Status ?? "-"),     b => b.Soa?.WarningCount ?? 0,     b => b.Soa?.ErrorCount ?? 0, 5));
+            if (hasZone)   candidates.Add(("ZoneXFR", (cell, b) => cell.AddParagraph(b.ZoneTransfer?.Status ?? "-"), b => b.ZoneTransfer?.WarningCount ?? 0, b => b.ZoneTransfer?.ErrorCount ?? 0, 5));
+            if (hasWildcard) candidates.Add(("Wildcard", (cell, b) => cell.AddParagraph(b.Wildcard?.Status ?? "-"), b => b.Wildcard?.WarningCount ?? 0, b => b.Wildcard?.ErrorCount ?? 0, 4));
+            // CAA tile added below with static mapping
             if (hasDnssec) candidates.Add(("DNSSEC",  (cell, b) => cell.AddParagraph(ComposeDnssecStatus(b)),    b => b.Dnssec?.WarningCount ?? 0,  b => b.Dnssec?.ErrorCount ?? 0, 6));
             if (hasMailTls) candidates.Add(("MAILTLS", (cell, b) => cell.AddParagraph(ComposeMailTlsStatus(b, showMailTlsProtocolHintInSummary)),  b => (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0), b => (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0), 6));
             if (hasMtasts) candidates.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0, 5));
             if (hasTlsRpt) candidates.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0, 4));
             if (hasDane)   candidates.Add(("DANE",    (cell, b) => cell.AddParagraph(b.Dane?.Status ?? "-"),     b => b.Dane?.WarningCount ?? 0,    b => b.Dane?.ErrorCount ?? 0, 4));
+            if (hasRpki)   candidates.Add(("RPKI",    (cell, b) => cell.AddParagraph(ComposeRpkiStatus(b)),      b => b.Rpki?.WarningCount ?? 0,     b => b.Rpki?.ErrorCount ?? 0, 4));
+            if (hasCaa)    candidates.Add(("CAA",     (cell, b) => cell.AddParagraph(b.Caa?.Status ?? "-"),      b => b.Caa?.WarningCount ?? 0,     b => b.Caa?.ErrorCount ?? 0, 4));
             if (hasClass)  candidates.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0, 3));
 
             var selected = candidates
@@ -213,7 +238,7 @@ public static class WordCompositionReport
             // Aggregate any extra checks present in the input items and not covered by the columns above
             // using a reflection-based adapter over view types.
             var coveredChecks = new HashSet<HealthCheckType>();
-            foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null, hasDnssec?HealthCheckType.DNSSEC:null, hasDane?HealthCheckType.DANE:null })
+            foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null, hasDnssec?HealthCheckType.DNSSEC:null, hasDane?HealthCheckType.DANE:null, hasNs?HealthCheckType.NS:null, hasSoa?HealthCheckType.SOA:null, hasZone?HealthCheckType.ZONETRANSFER:null, hasWildcard?HealthCheckType.WILDCARDDNS:null, hasCaa?HealthCheckType.CAA:null, hasRpki?HealthCheckType.RPKI:null })
                 if (h.HasValue) coveredChecks.Add(h.Value);
             if (hasMailTls) { coveredChecks.Add(HealthCheckType.SMTPTLS); coveredChecks.Add(HealthCheckType.IMAPTLS); coveredChecks.Add(HealthCheckType.POP3TLS); }
 
@@ -288,6 +313,36 @@ public static class WordCompositionReport
                 headings.AddItem("DNSBL", 1);
                 DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl, domain, scope, showInfoFindings);
             }
+            if (bucket.Rpki != null)
+            {
+                headings.AddItem("RPKI", 1);
+                RpkiWordSectionWriter.Write(doc, headings, 2, bucket.Rpki, domain, scope, showInfoFindings);
+            }
+            if (bucket.Ns != null)
+            {
+                headings.AddItem("NS", 1);
+                NsWordSectionWriter.Write(doc, headings, 2, bucket.Ns, domain, scope, showInfoFindings);
+            }
+            if (bucket.Soa != null)
+            {
+                headings.AddItem("SOA", 1);
+                SoaWordSectionWriter.Write(doc, headings, 2, bucket.Soa, domain, scope, showInfoFindings);
+            }
+            if (bucket.ZoneTransfer != null)
+            {
+                headings.AddItem("Zone Transfer", 1);
+                ZoneTransferWordSectionWriter.Write(doc, headings, 2, bucket.ZoneTransfer, domain, scope, showInfoFindings);
+            }
+            if (bucket.Wildcard != null)
+            {
+                headings.AddItem("Wildcard DNS", 1);
+                WildcardWordSectionWriter.Write(doc, headings, 2, bucket.Wildcard, domain, scope, showInfoFindings);
+            }
+            if (bucket.Caa != null)
+            {
+                headings.AddItem("CAA", 1);
+                CaaWordSectionWriter.Write(doc, headings, 2, bucket.Caa, domain, scope, showInfoFindings);
+            }
 
             if (bucket.Classification != null)
             {
@@ -333,6 +388,10 @@ public static class WordCompositionReport
                 PullAssessments(b.Mtasts?.Assessments);
                 PullAssessments(b.TlsRpt?.Assessments);
                 PullAssessments(b.Dnsbl?.Assessments);
+                PullAssessments(b.Ns?.Assessments);
+                PullAssessments(b.Soa?.Assessments);
+                PullAssessments(b.ZoneTransfer?.Assessments);
+                PullAssessments(b.Wildcard?.Assessments);
                 PullAssessments(b.Dnssec?.Assessments);
                 PullAssessments(b.Dane?.Assessments);
                 PullAssessments(b.SmtpTls?.Assessments);
@@ -406,8 +465,14 @@ public static class WordCompositionReport
                 PullRefs(b.Mtasts?.References);
                 PullRefs(b.TlsRpt?.References);
                 PullRefs(b.Dnsbl?.References);
+                PullRefs(b.Rpki?.References);
+                PullRefs(b.Ns?.References);
+                PullRefs(b.Soa?.References);
+                PullRefs(b.ZoneTransfer?.References);
+                PullRefs(b.Wildcard?.References);
                 PullRefs(b.Dnssec?.References);
                 PullRefs(b.Dane?.References);
+                PullRefs(b.Caa?.References);
                 PullRefs(b.SmtpTls?.References);
                 PullRefs(b.ImapTls?.References);
                 PullRefs(b.PopTls?.References);
@@ -507,6 +572,12 @@ public static class WordCompositionReport
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
+        public DomainDetective.Views.CaaInfo? Caa { get; set; }
+        public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
+        public DomainDetective.Views.NsInfo? Ns { get; set; }
+        public DomainDetective.Views.SoaInfo? Soa { get; set; }
+        public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
+        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
@@ -568,6 +639,15 @@ public static class WordCompositionReport
         return string.Join("; ", parts);
     }
 
+    private static string ComposeRpkiStatus(DomainBucket b)
+    {
+        var r = b.Rpki;
+        if (r == null) return "-";
+        if (r.TotalChecked <= 0) return "-";
+        var core = (r.ValidCount == r.TotalChecked) ? "All valid" : (r.ValidCount > 0 ? "Partial" : "None valid");
+        return $"{core} ({r.ValidCount}/{r.TotalChecked})";
+    }
+
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
     {
         var map = new Dictionary<string, DomainBucket>(StringComparer.OrdinalIgnoreCase);
@@ -590,6 +670,18 @@ public static class WordCompositionReport
                     Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
                 case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
                     Ensure(dnsbl.Subject); map[dnsbl.Subject].Dnsbl = dnsbl; break;
+                case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
+                    Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
+                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
+                    Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
+                    Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
+                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject):
+                    Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
+                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject):
+                    Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
+                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject):
+                    Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
                 case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
                     Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
                 case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):

@@ -122,6 +122,14 @@ public class RPKIAnalysis : IHasAssessments {
         });
 
         await Task.WhenAll(tasks);
+
+        // Roll-up positive when every checked IP is covered by a valid ROA
+        try {
+            if (Results.Count > 0 && AllValid)
+            {
+                logger?.WriteInformationCode(RpkiCodes.AllValid, "All apex IPs covered by valid ROAs");
+            }
+        } catch { /* best effort */ }
     }
 }
 

@@ -283,6 +283,14 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
             }
 
+            // Positive posture: DS present at parent for the subject
+            try {
+                if (DsRecords != null && DsRecords.Count > 0)
+                {
+                    logger?.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
+                }
+            } catch { /* non-fatal */ }
+
             await MultiResolverAdCheck(domainName, logger, ct).ConfigureAwait(false);
         }
 

@@ -15,4 +15,5 @@ internal static class DnssecCodes {
     public const string SignaturesValid = "DNSSEC.Signatures.Valid";
     public const string ChainValid = "DNSSEC.Chain.Valid";
     public const string AuthenticDataMultiResolver = "DNSSEC.AD.MultiResolver";
+    public const string DsPresent = "DNSSEC.DS.Present";
 }

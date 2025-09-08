@@ -132,5 +132,16 @@ internal sealed class DnssecRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dnssec,
             Tags = new [] { "dnssec", "integrity" }
         };
+
+        map[DnssecCodes.DsPresent] = new RecommendationAdvice {
+            Code = DnssecCodes.DsPresent,
+            Title = "DS record published at parent",
+            Why = "A DS at the parent enables validators to build a trust chain to your zone keys.",
+            How = "Maintain a DS at the registry/parent that matches your current KSK.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc4035" },
+            Domain = RecommendationDomain.Dnssec,
+            Tags = new [] { "dnssec", "ds" },
+            Verify = "dig +dnssec DS <domain>; at least one DS is returned."
+        };
     }
 }

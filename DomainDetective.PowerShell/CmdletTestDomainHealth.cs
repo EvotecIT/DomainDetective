@@ -131,7 +131,8 @@ namespace DomainDetective.PowerShell {
                         DomainDetective.HealthCheckType.DANE,
                         DomainDetective.HealthCheckType.MTASTS,
                         DomainDetective.HealthCheckType.TLSRPT,
-                        DomainDetective.HealthCheckType.DNSBL
+                        DomainDetective.HealthCheckType.DNSBL,
+                        DomainDetective.HealthCheckType.RPKI
                     };
 
                     foreach (var kind in selection) {
@@ -162,6 +163,9 @@ namespace DomainDetective.PowerShell {
                                 break;
                             case DomainDetective.HealthCheckType.TLSRPT:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.TLSRPTAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.RPKI:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.RpkiAnalysis));
                                 break;
                             case DomainDetective.HealthCheckType.MAILCLASSIFICATION:
                                 {

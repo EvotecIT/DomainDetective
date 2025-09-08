@@ -46,7 +46,6 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Allow explicit selector list override in addition to enumeration; roll up worst severity across selectors.
 - SPF advisories
   - Enforce single‑record rule; flag >255‑char segments; count DNS lookups; hint on `-all` vs `~all` vs `?all`.
-  - 
 ## Surpass Moves (Go Beyond Parity)
 - RDAP‑first with WHOIS fallback; structured JSON with IANA/IETF status semantics.
 - Enforcement readiness scores
@@ -123,14 +122,3 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Waterfall charts: generate from static scan (HEAD/GET timings) for first-load; store snapshots. Medium
 - Alerts/integrations: webhook/Slack/email; certificate expiry warnings (reuse CertificateMonitor). Medium
 - Transaction flows (multi-step): optional browser required; model steps, assertions, data entry. Hard
-
----
-
-Validation notes (done elsewhere, removed here)
-- Word Executive Summary intro paragraph — present.
-- Executive Summary is dynamic: controls list and columns reflect requested checks; visual hint for omitted columns.
-- Word: page breaks between domains; TOC headings per domain — present.
-- DNSBL Word: standardized section with Summary/Good posture/Findings/Evidence/References — present.
-- Positives emitted for DMARC (rua/ruf, strict alignment, pct=100) and DKIM (sha256, canonicalization valid, key type valid) — present.
-- Mail TLS view enrichments (Issuer/ValidFrom/ValidTo/Thumbprint) — present in view objects.
-- RPKI external failures downgraded to Warning — present (C# test added).
