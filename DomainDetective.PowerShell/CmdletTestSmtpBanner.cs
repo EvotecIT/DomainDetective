@@ -21,6 +21,7 @@ namespace DomainDetective.PowerShell {
     [Alias("Test-EmailSmtpBanner", "Test-SmtpBanner")]
     [OutputType(typeof(SmtpBannerInfo))]
     public sealed class CmdletTestSmtpBanner : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         private const string ServerSet = "ServerName";

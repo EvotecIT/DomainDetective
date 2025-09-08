@@ -11,6 +11,7 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainCertificate", DefaultParameterSetName = "Url")]
 [Alias("Test-DomainCertificate")]
     public sealed class CmdletTestWebsiteCertificate : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>Website URL.</summary>

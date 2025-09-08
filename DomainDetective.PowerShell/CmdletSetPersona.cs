@@ -3,6 +3,7 @@ using DomainDetective;
 
 namespace DomainDetective.PowerShell {
 
+    /// <summary>Enables, configures, or disables narration personas.</summary>
     [Cmdlet(VerbsCommon.Set, "DDPersona", DefaultParameterSetName = "View")]
     [Alias("Set-DDNarrator")]
     public sealed class CmdletSetPersona : PSCmdlet {
@@ -10,18 +11,23 @@ namespace DomainDetective.PowerShell {
         private const string OffParams = "Off";
         private const string ViewParams = "View";
 
+        /// <summary>Persona style to use.</summary>
         [Parameter(Mandatory = true, ParameterSetName = SetParams)]
         public PersonaKind Persona { get; set; } = PersonaKind.Business;
 
+        /// <summary>Enable live narration.</summary>
         [Parameter(Mandatory = false, ParameterSetName = SetParams)]
         public SwitchParameter Live { get; set; }
 
+        /// <summary>Include verbose narration.</summary>
         [Parameter(Mandatory = false, ParameterSetName = SetParams)]
         public SwitchParameter NarrateVerbose { get; set; }
 
+        /// <summary>Disable persona narration.</summary>
         [Parameter(Mandatory = true, ParameterSetName = OffParams)]
         public SwitchParameter Off { get; set; }
 
+        /// <summary>Executes the persona configuration.</summary>
         protected override void ProcessRecord() {
             switch (ParameterSetName) {
                 case SetParams:

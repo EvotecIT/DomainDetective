@@ -11,6 +11,7 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDNetworkPortAvailability", DefaultParameterSetName = "ServerName")]
 [Alias("Test-NetworkPortAvailability")]
     public sealed class CmdletTestPortAvailability : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>Host to test.</summary>

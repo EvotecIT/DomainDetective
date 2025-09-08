@@ -7,14 +7,17 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDWebsiteStaticScan", DefaultParameterSetName = "Url")]
     [Alias("Test-WebsiteStaticScan", "Test-WebStaticScan", "Test-DDWebStaticScan")]
     public sealed class CmdletTestWebStaticScan : ExportableAsyncPSCmdlet {
+        /// <summary>Starting URL or domain to scan.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
         [ValidateNotNullOrEmpty]
         [Alias("DomainName")]
         public string Url;
 
+        /// <summary>Maximum scan duration in seconds.</summary>
         [Parameter(Mandatory = false)]
         public int MaxSeconds = 30;
 
+        /// <summary>Maximum resources to process.</summary>
         [Parameter(Mandatory = false)]
         public int MaxResources = 300;
 
@@ -70,6 +73,8 @@ namespace DomainDetective.PowerShell {
         private InternalLogger _logger;
         private DomainHealthCheck _healthCheck;
 
+        /// <summary>Initializes logging and helper classes.</summary>
+        /// <returns>A completed task.</returns>
         protected override Task BeginProcessingAsync() {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
@@ -78,6 +83,8 @@ namespace DomainDetective.PowerShell {
             return Task.CompletedTask;
         }
 
+        /// <summary>Executes the static web scan and outputs results.</summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
             _healthCheck.WebStaticScanAnalysis.Timeout = System.TimeSpan.FromSeconds(MaxSeconds);
             _healthCheck.WebStaticScanAnalysis.MaxResources = MaxResources;

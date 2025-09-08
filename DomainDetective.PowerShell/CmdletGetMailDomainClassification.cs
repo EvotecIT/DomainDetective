@@ -30,6 +30,8 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
 
+    /// <summary>Initializes logging and health-check helpers.</summary>
+    /// <returns>A completed task.</returns>
     protected override Task BeginProcessingAsync() {
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(
@@ -45,6 +47,8 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
         return Task.CompletedTask;
     }
 
+    /// <summary>Executes classification for each domain.</summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task ProcessRecordAsync() {
         foreach (var domain in DomainName) {
             var classifier = new MailDomainClassifier(_healthCheck, _logger);

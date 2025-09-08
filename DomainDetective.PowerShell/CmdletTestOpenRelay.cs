@@ -13,6 +13,7 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailOpenRelay", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailOpenRelay")]
     public sealed class CmdletTestOpenRelay : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host name to check.</summary>

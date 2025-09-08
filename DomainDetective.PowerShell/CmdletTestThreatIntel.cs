@@ -12,6 +12,7 @@ namespace DomainDetective.PowerShell;
 [Cmdlet(VerbsDiagnostic.Test, "DDDomainThreatIntel")]
 [Alias("Test-DomainThreatIntel")]
     public sealed class CmdletTestThreatIntel : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
     /// <summary>Domain or IP address to query.</summary>

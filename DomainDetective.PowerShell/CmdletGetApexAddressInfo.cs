@@ -22,6 +22,8 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
     private InternalLogger _logger;
     private DomainHealthCheck _healthCheck;
 
+    /// <summary>Initializes logging and helper classes.</summary>
+    /// <returns>A completed task.</returns>
     protected override Task BeginProcessingAsync() {
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(
@@ -37,6 +39,8 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
         return Task.CompletedTask;
     }
 
+    /// <summary>Runs the apex address analysis.</summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task ProcessRecordAsync() {
         await _healthCheck.VerifyApexAddresses(DomainName);
         var view = DomainDetective.Views.Converters.Convert(_healthCheck.ApexAddressAnalysis);

@@ -46,28 +46,32 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter AsJson;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger;
+    private DomainHealthCheck _healthCheck;
 
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(
-                _logger,
-                this.WriteVerbose,
-                this.WriteWarning,
+    /// <summary>Initializes logging and helper classes.</summary>
+    /// <returns>A completed task.</returns>
+    protected override Task BeginProcessingAsync() {
+        _logger = new InternalLogger(false);
+        var internalLoggerPowerShell = new InternalLoggerPowerShell(
+            _logger,
+            this.WriteVerbose,
+            this.WriteWarning,
                 this.WriteDebug,
                 this.WriteError,
                 this.WriteProgress,
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        return Task.CompletedTask;
+    }
 
-        protected override async Task ProcessRecordAsync() {
-            if (!IPAddress.TryParse(IpAddress, out var ip)) {
-                ThrowTerminatingError(new ErrorRecord(new ArgumentException("Invalid IP address."), "InvalidIp", ErrorCategory.InvalidArgument, IpAddress));
-            }
+    /// <summary>Evaluates the provided host against the domain's SPF policy.</summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    protected override async Task ProcessRecordAsync() {
+        if (!IPAddress.TryParse(IpAddress, out var ip)) {
+            ThrowTerminatingError(new ErrorRecord(new ArgumentException("Invalid IP address."), "InvalidIp", ErrorCategory.InvalidArgument, IpAddress));
+        }
 
             if (!string.IsNullOrWhiteSpace(TestSpfRecord)) {
                 _healthCheck.SpfAnalysis.Subject = DomainName;

@@ -33,6 +33,7 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
 
     private InternalLogger _logger;
     private DomainHealthCheck _healthCheck;
+    /// <summary>DNS server used for queries.</summary>
     [Parameter(Mandatory = false)]
     public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
 
