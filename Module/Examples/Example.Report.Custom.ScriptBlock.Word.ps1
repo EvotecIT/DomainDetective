@@ -13,6 +13,7 @@ Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath "$PSScrip
     Test-DDEmailSpfRecord -DomainName 'evotec.pl', 'evotec.xyz'
     Test-DDEmailDkimRecord -DomainName 'evotec.pl', 'evotec.xyz'
     Test-DDEmailDmarcRecord -DomainName 'evotec.pl', 'evotec.xyz'
-    #Test-DDEmailTlsRptRecord -DomainName 'evotec.pl', 'evotec.xyz'
+    Test-DDEmailTlsRptRecord -DomainName 'evotec.pl', 'evotec.xyz'
+    Test-DDDnsBlacklist -NameOrIpAddress 'evotec.pl', 'evotec.xyz'
     #Test-DDMailDomainClassification -DomainName 'evotec.pl', 'evotec.xyz'
 }

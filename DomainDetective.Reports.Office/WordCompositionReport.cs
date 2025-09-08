@@ -77,53 +77,111 @@ public static class WordCompositionReport
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem("Executive Summary");
         headings.AddItem("Overview", 1);
-        // Compute totals across domains (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT)
+        // Determine which sections are actually present in the composed items
+        // so Executive Summary reflects what the user requested.
+        bool hasMx = grouped.Values.Any(b => b.Mx != null);
+        bool hasSpf = grouped.Values.Any(b => b.Spf != null);
+        bool hasDkim = grouped.Values.Any(b => b.Dkim != null && b.Dkim.Count > 0);
+        bool hasDmarc = grouped.Values.Any(b => b.Dmarc != null);
+        bool hasMtasts = grouped.Values.Any(b => b.Mtasts != null);
+        bool hasTlsRpt = grouped.Values.Any(b => b.TlsRpt != null);
+        bool hasDnsbl = grouped.Values.Any(b => b.Dnsbl != null);
+        bool hasClass = grouped.Values.Any(b => b.Classification != null);
+
+        var presentLabels = new List<string>();
+        if (hasMx) presentLabels.Add("MX");
+        if (hasSpf) presentLabels.Add("SPF");
+        if (hasDkim) presentLabels.Add("DKIM");
+        if (hasDmarc) presentLabels.Add("DMARC");
+        if (hasMtasts) presentLabels.Add("MTA-STS");
+        if (hasTlsRpt) presentLabels.Add("TLS-RPT");
+        if (hasDnsbl) presentLabels.Add("DNSBL");
+        if (hasClass) presentLabels.Add("Classification");
+
+        // Compute totals across domains for only the present sections
         int totalWarns = 0, totalErrs = 0;
         foreach (var kv in grouped)
         {
-            var bucket = kv.Value;
-            totalWarns += (bucket.Spf?.WarningCount ?? 0)
-                        + (bucket.Dmarc?.WarningCount ?? 0)
-                        + (bucket.Dkim?.Sum(x => x.WarningCount) ?? 0)
-                        + (bucket.Mtasts?.WarningCount ?? 0)
-                        + (bucket.TlsRpt?.WarningCount ?? 0)
-                        + (bucket.Mx?.WarningCount ?? 0);
-            totalErrs  += (bucket.Spf?.ErrorCount   ?? 0)
-                        + (bucket.Dmarc?.ErrorCount   ?? 0)
-                        + (bucket.Dkim?.Sum(x => x.ErrorCount) ?? 0)
-                        + (bucket.Mtasts?.ErrorCount ?? 0)
-                        + (bucket.TlsRpt?.ErrorCount ?? 0)
-                        + (bucket.Mx?.ErrorCount ?? 0);
+            var b = kv.Value;
+            if (hasSpf)   { totalWarns += b.Spf?.WarningCount   ?? 0; totalErrs += b.Spf?.ErrorCount   ?? 0; }
+            if (hasDmarc) { totalWarns += b.Dmarc?.WarningCount ?? 0; totalErrs += b.Dmarc?.ErrorCount ?? 0; }
+            if (hasDkim)  { totalWarns += b.Dkim?.Sum(x => x.WarningCount) ?? 0; totalErrs += b.Dkim?.Sum(x => x.ErrorCount) ?? 0; }
+            if (hasMtasts){ totalWarns += b.Mtasts?.WarningCount?? 0; totalErrs += b.Mtasts?.ErrorCount?? 0; }
+            if (hasTlsRpt){ totalWarns += b.TlsRpt?.WarningCount?? 0; totalErrs += b.TlsRpt?.ErrorCount?? 0; }
+            if (hasMx)    { totalWarns += b.Mx?.WarningCount    ?? 0; totalErrs += b.Mx?.ErrorCount    ?? 0; }
+            if (hasDnsbl) { totalWarns += b.Dnsbl?.WarningCount ?? 0; totalErrs += b.Dnsbl?.ErrorCount ?? 0; }
+            if (hasClass) { totalWarns += b.Classification?.WarningCount ?? 0; totalErrs += b.Classification?.ErrorCount ?? 0; }
         }
-        // Executive Summary intro text
-        doc.AddParagraph($"This report summarizes the email security posture for {grouped.Count} domain(s). The table highlights the presence and status of key controls (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT) and the count of warnings/errors detected. Total across all domains: {totalWarns} warning(s), {totalErrs} error(s).");
+
+        // Executive Summary intro text — dynamic list of controls present
+        string controlsText = presentLabels.Count > 0 ? string.Join(", ", presentLabels) : "requested checks";
+        doc.AddParagraph($"This report summarizes the email security posture for {grouped.Count} domain(s). The table highlights the presence and status of key controls ({controlsText}) and the count of warnings/errors detected. Total across all domains: {totalWarns} warning(s), {totalErrs} error(s).");
 
         // Executive Summary table (defensive build to avoid style-dependent index issues)
         var allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
         try
         {
-            string[] hdrs = new[] { "Domain", "MX", "SPF", "DKIM", "DMARC", "MTA-STS", "TLS-RPT", "Findings (W/E)" };
-            var sum = doc.AddTable(allRows.Count + 1, hdrs.Length, WordTableStyle.TableGrid);
-            for (int c = 0; c < hdrs.Length; c++)
+            // Build dynamic header list and writers based on present sections
+            var columns = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs)>();
+            columns.Add(("Domain", (cell, b) => cell.AddParagraph(b.Subject), null, null));
+            if (hasMx)     columns.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0));
+            if (hasSpf)    columns.Add(("SPF",     (cell, b) => cell.AddParagraph(b.Spf?.Status ?? "-"),     b => b.Spf?.WarningCount ?? 0,     b => b.Spf?.ErrorCount ?? 0));
+            if (hasDkim)   columns.Add(("DKIM",    (cell, b) => cell.AddParagraph(b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-"), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0));
+            if (hasDmarc)  columns.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0));
+            if (hasMtasts) columns.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0));
+            if (hasTlsRpt) columns.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0));
+            if (hasDnsbl)  columns.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0));
+            if (hasClass)  columns.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0));
+            columns.Add(("Findings (W/E)", (cell, b) => {
+                int w = 0, e = 0;
+                foreach (var col in columns)
+                {
+                    if (col.Warns != null) w += col.Warns(b);
+                    if (col.Errs  != null) e += col.Errs(b);
+                }
+                cell.AddParagraph($"{w} / {e}");
+            }, null, null));
+
+            var sum = doc.AddTable(allRows.Count + 1, columns.Count, WordTableStyle.TableGrid);
+            for (int c = 0; c < columns.Count; c++)
             {
-                // Use AddParagraph defensively to avoid empty Paragraphs collection edge cases
-                sum.Rows[0].Cells[c].AddParagraph(hdrs[c]);
+                sum.Rows[0].Cells[c].AddParagraph(columns[c].Header);
             }
             for (int i = 0; i < allRows.Count; i++)
             {
                 var (domain, bucket) = (allRows[i].Key, allRows[i].Value);
-                var spf = bucket.Spf; var dmarc = bucket.Dmarc; var dkim = bucket.Dkim; var mx = bucket.Mx; var mtasts = bucket.Mtasts; var tlsrpt = bucket.TlsRpt;
-                int warns = (spf?.WarningCount ?? 0) + (dmarc?.WarningCount ?? 0) + dkim.Sum(x => x.WarningCount) + (mtasts?.WarningCount ?? 0) + (tlsrpt?.WarningCount ?? 0) + (mx?.WarningCount ?? 0);
-                int errs  = (spf?.ErrorCount   ?? 0) + (dmarc?.ErrorCount   ?? 0) + dkim.Sum(x => x.ErrorCount)   + (mtasts?.ErrorCount ?? 0) + (tlsrpt?.ErrorCount ?? 0) + (mx?.ErrorCount ?? 0);
+                bucket.Subject = domain; // ensure subject set for domain cell
                 var cells = sum.Rows[i + 1].Cells;
-                cells[0].AddParagraph(domain);
-                cells[1].AddParagraph(mx?.Status ?? "-");
-                cells[2].AddParagraph(spf?.Status ?? "-");
-                cells[3].AddParagraph(dkim.Count > 0 ? (dkim.Max(x => x.Status) ?? "-") : "-");
-                cells[4].AddParagraph(dmarc?.Status ?? "-");
-                cells[5].AddParagraph(bucket.Mtasts?.Status ?? "-");
-                cells[6].AddParagraph(bucket.TlsRpt?.Status ?? "-");
-                cells[7].AddParagraph($"{warns} / {errs}");
+                for (int c = 0; c < columns.Count; c++)
+                {
+                    columns[c].WriteCell(cells[c], bucket);
+                }
+            }
+
+            // Additional Summary (list) for checks not rendered as columns
+            // Aggregate any extra checks present in the input items and not covered by the columns above
+            // using a reflection-based adapter over view types.
+            var coveredChecks = new HashSet<HealthCheckType>();
+            foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null })
+                if (h.HasValue) coveredChecks.Add(h.Value);
+
+            var extras = AggregateExtras(items, coveredChecks);
+            var allExtraChecks = new HashSet<HealthCheckType>(extras.SelectMany(kv => kv.Value.Keys));
+            if (allExtraChecks.Count > 0)
+            {
+                headings.AddItem("Additional Summary", 1);
+                doc.AddParagraph("Other requested checks summarized per domain (status and counts):");
+                foreach (var row in allRows)
+                {
+                    var domain = row.Key;
+                    if (!extras.TryGetValue(domain, out var map) || map.Count == 0) continue;
+                    var list = doc.AddList(WordListStyle.Bulleted);
+                    foreach (var kv in map.OrderBy(k => k.Key.ToString()))
+                    {
+                        var (status, w, e) = kv.Value;
+                        list.AddItem($"{kv.Key}: {status} ({w} warn / {e} err)");
+                    }
+                }
             }
         }
         catch { /* skip summary on edge cases */ }
@@ -294,6 +352,71 @@ public static class WordCompositionReport
         catch { }
 
         doc.Save();
+    }
+
+    private static Dictionary<string, Dictionary<HealthCheckType, (string Status, int Warn, int Err)>> AggregateExtras(IReadOnlyList<object> items, HashSet<HealthCheckType> covered)
+    {
+        var map = new Dictionary<string, Dictionary<HealthCheckType, (string, int, int)>>(StringComparer.OrdinalIgnoreCase);
+        void Acc(string subject, HealthCheckType check, string status, int warn, int err)
+        {
+            if (!map.TryGetValue(subject ?? string.Empty, out var byCheck))
+            {
+                byCheck = new Dictionary<HealthCheckType, (string, int, int)>();
+                map[subject ?? string.Empty] = byCheck;
+            }
+            if (byCheck.TryGetValue(check, out var cur))
+            {
+                var nextStatus = MaxStatus(cur.Item1, status);
+                byCheck[check] = (nextStatus, cur.Item2 + warn, cur.Item3 + err);
+            }
+            else
+            {
+                byCheck[check] = (status, warn, err);
+            }
+        }
+
+        foreach (var raw in items ?? Array.Empty<object>())
+        {
+            foreach (var it in EnumeratePossiblyNested(raw))
+            {
+                var t = it.GetType();
+                var checkProp = t.GetProperty("Check");
+                var subjProp = t.GetProperty("Subject");
+                var statusProp = t.GetProperty("Status");
+                var warnProp = t.GetProperty("WarningCount");
+                var errProp = t.GetProperty("ErrorCount");
+                if (checkProp == null || subjProp == null || statusProp == null || warnProp == null || errProp == null) continue;
+                if (checkProp.GetValue(it) is not HealthCheckType check) continue;
+                if (covered.Contains(check)) continue;
+                var subject = subjProp.GetValue(it) as string ?? string.Empty;
+                var status = statusProp.GetValue(it) as string ?? "";
+                var warn = warnProp.GetValue(it) as int? ?? 0;
+                var err = errProp.GetValue(it) as int? ?? 0;
+                Acc(subject, check, status, warn, err);
+            }
+        }
+        return map;
+    }
+
+    private static IEnumerable<object> EnumeratePossiblyNested(object o)
+    {
+        if (o is System.Collections.IEnumerable seq && o is not string)
+        {
+            foreach (var e in seq) if (e != null) yield return e;
+        }
+        else
+        {
+            yield return o;
+        }
+    }
+
+    private static string MaxStatus(string a, string b)
+    {
+        int Rank(string s) => string.Equals(s, "Error", StringComparison.OrdinalIgnoreCase) ? 3
+            : string.Equals(s, "Warning", StringComparison.OrdinalIgnoreCase) ? 2
+            : string.Equals(s, "OK", StringComparison.OrdinalIgnoreCase) ? 1
+            : 0;
+        return Rank(a) >= Rank(b) ? a : b;
     }
 
     private static string BuildSubjectTitle(List<string> domains)
