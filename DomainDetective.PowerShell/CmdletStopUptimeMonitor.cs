@@ -16,10 +16,13 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 0)]
         public UptimeMonitor Monitor = null!;
 
+        /// <summary>
+        /// Stops the provided uptime monitor instance.
+        /// </summary>
+        /// <returns>A completed task.</returns>
         protected override Task ProcessRecordAsync() {
             Monitor.Stop();
             return Task.CompletedTask;
         }
     }
 }
-

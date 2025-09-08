@@ -15,7 +15,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -23,8 +23,8 @@ namespace DomainDetective.PowerShell {
 
         // View-by-default: Raw analysis is attached to view.Raw
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
 

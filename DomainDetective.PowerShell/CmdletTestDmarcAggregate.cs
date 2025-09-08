@@ -41,7 +41,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Path to a report file, a directory, or a wildcard pattern (supports .xml|.gz|.zip).</para>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string Path { get; set; }
+        public string Path { get; set; } = string.Empty;
 
         /// <summary>Summarization mode: Domain (default), Ip, or HeaderFrom.</summary>
         [Parameter(Mandatory = false)]
@@ -161,7 +161,7 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     public sealed class DmarcAggregateSummary {
         /// <summary>Domain name the statistics apply to.</summary>
-        public string Domain { get; set; }
+        public string Domain { get; set; } = string.Empty;
 
         /// <summary>Total messages seen for the domain.</summary>
         public int TotalCount { get; set; }

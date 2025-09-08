@@ -16,11 +16,11 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to inspect.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>Log file path.</summary>
         [Parameter(Mandatory = true, Position = 1)]
-        public string Path;
+        public string Path = string.Empty;
 
         private DomainHealthCheck _hc = new();
 

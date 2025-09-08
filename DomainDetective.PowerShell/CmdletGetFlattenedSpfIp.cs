@@ -17,7 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -25,10 +25,10 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Optional SPF record used for testing to avoid DNS lookups.</para>
         [Parameter(Mandatory = false)]
-        public string TestSpfRecord;
+        public string TestSpfRecord = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>
         /// Initializes the SPF analyzer and logging infrastructure.

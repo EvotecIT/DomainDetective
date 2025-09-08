@@ -15,7 +15,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Path to the zipped report.</para>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string Path { get; set; }
+        public string Path { get; set; } = string.Empty;
 
         /// <summary>Parses forensic report archive and outputs each entry.</summary>
         protected override void ProcessRecord() {

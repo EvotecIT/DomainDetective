@@ -22,7 +22,7 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// <summary>
     /// OnRemove is called when the module is removed.
     /// </summary>
-    /// <param name="module"></param>
+    /// <param name="module">The PowerShell module being removed.</param>
     public void OnRemove(PSModuleInfo module) {
         if (IsNetFramework()) {
             AppDomain.CurrentDomain.AssemblyResolve -= MyResolveEventHandler;
@@ -32,9 +32,9 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// <summary>
     /// MyResolveEventHandler is a method that handles the AssemblyResolve event.
     /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="args"></param>
-    /// <returns></returns>
+    /// <param name="sender">Event source.</param>
+    /// <param name="args">Assembly resolution event arguments.</param>
+    /// <returns>The resolved assembly, or <c>null</c> when it cannot be resolved.</returns>
     private static Assembly? MyResolveEventHandler(object? sender, ResolveEventArgs args) {
         var libDirectory = Path.GetDirectoryName(typeof(OnModuleImportAndRemove).Assembly.Location);
         var directoriesToSearch = new List<string>();
@@ -66,7 +66,7 @@ public class OnModuleImportAndRemove : IModuleAssemblyInitializer, IModuleAssemb
     /// <summary>
     /// Determine if the current runtime is .NET Framework
     /// </summary>
-    /// <returns></returns>
+    /// <returns><c>true</c> when running on .NET Framework; otherwise, <c>false</c>.</returns>
     private bool IsNetFramework() {
         return System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.OrdinalIgnoreCase);
     }

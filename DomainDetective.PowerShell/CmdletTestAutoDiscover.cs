@@ -16,7 +16,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -27,8 +27,8 @@ namespace DomainDetective.PowerShell {
         [Parameter]
         public SwitchParameter IncludeEndpoints;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>
         /// Initializes the Autodiscover health checker.

@@ -19,20 +19,20 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain to evaluate.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByDomain")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <para>IPv4/IPv6 address of the host to test.</para>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ByDomain")]
         [ValidateNotNullOrEmpty]
-        public string IpAddress;
+        public string IpAddress = string.Empty;
 
         /// <para>RFC 5322 Sender used for macro expansion (defaults to postmaster@domain).</para>
         [Parameter(Mandatory = false)]
-        public string Sender;
+        public string Sender = string.Empty;
 
         /// <para>HELO/EHLO domain used for macro expansion (defaults to mail.&lt;domain&gt;).</para>
         [Parameter(Mandatory = false)]
-        public string Helo;
+        public string Helo = string.Empty;
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false)]
@@ -40,14 +40,14 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Optional raw SPF record to evaluate instead of querying DNS.</para>
         [Parameter(Mandatory = false)]
-        public string TestSpfRecord;
+        public string TestSpfRecord = string.Empty;
 
         /// <para>Emit JSON instead of an object.</para>
         [Parameter(Mandatory = false)]
         public SwitchParameter AsJson;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
     /// <summary>Initializes logging and helper classes.</summary>
     /// <returns>A completed task.</returns>
@@ -71,6 +71,7 @@ namespace DomainDetective.PowerShell {
     protected override async Task ProcessRecordAsync() {
         if (!IPAddress.TryParse(IpAddress, out var ip)) {
             ThrowTerminatingError(new ErrorRecord(new ArgumentException("Invalid IP address."), "InvalidIp", ErrorCategory.InvalidArgument, IpAddress));
+            return;
         }
 
             if (!string.IsNullOrWhiteSpace(TestSpfRecord)) {

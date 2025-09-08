@@ -18,7 +18,7 @@ namespace DomainDetective.PowerShell {
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
-        public string HostName;
+        public string HostName = string.Empty;
 
         /// <summary>SMTP port number.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -28,8 +28,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowChain;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Return the full analysis object (map of all servers) instead of a single server's details.</summary>
         [Parameter(Mandatory = false)]

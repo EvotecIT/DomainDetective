@@ -25,7 +25,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "File")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Custom")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>DNS record type.</summary>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "File")]

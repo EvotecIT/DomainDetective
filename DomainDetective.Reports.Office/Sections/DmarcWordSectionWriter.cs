@@ -104,9 +104,15 @@ public static class DmarcWordSectionWriter
         {
             var elist = doc.AddList(WordListStyle.Bulleted);
             if (anyRua)
-                elist.AddItem($"Aggregate RUA: {string.Join(", ", dmarc.MailtoRua)}");
+            {
+                var rua = dmarc.MailtoRua?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+                elist.AddItem($"Aggregate RUA: {string.Join(", ", rua)}");
+            }
             if (anyRuf)
-                elist.AddItem($"Forensic RUF: {string.Join(", ", dmarc.MailtoRuf)}");
+            {
+                var ruf = dmarc.MailtoRuf?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+                elist.AddItem($"Forensic RUF: {string.Join(", ", ruf)}");
+            }
         }
         // External report authorization
         if (dmarc.ExternalReportAuthorization != null && dmarc.ExternalReportAuthorization.Count > 0)

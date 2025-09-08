@@ -16,14 +16,14 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain name(s) to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

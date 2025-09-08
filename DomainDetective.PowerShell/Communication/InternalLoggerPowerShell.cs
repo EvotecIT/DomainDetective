@@ -9,12 +9,12 @@ namespace DomainDetective.PowerShell {
     /// <para>Part of the DomainDetective project.</para>
     public class InternalLoggerPowerShell {
         private readonly InternalLogger _logger;
-        private readonly Action<string> _writeVerboseAction;
-        private readonly Action<string> _writeDebugAction;
-        private readonly Action<InformationRecord> _writeInformationAction;
-        private readonly Action<string> _writeWarningAction;
-        private readonly Action<ErrorRecord> _writeErrorAction;
-        private readonly Action<ProgressRecord> _writeProgressAction;
+        private readonly Action<string>? _writeVerboseAction;
+        private readonly Action<string>? _writeDebugAction;
+        private readonly Action<InformationRecord>? _writeInformationAction;
+        private readonly Action<string>? _writeWarningAction;
+        private readonly Action<ErrorRecord>? _writeErrorAction;
+        private readonly Action<ProgressRecord>? _writeProgressAction;
         private int _errorIdCounter;
 
         /// <summary>
@@ -27,7 +27,7 @@ namespace DomainDetective.PowerShell {
         /// <param name="writeErrorAction"></param>
         /// <param name="writeProgressAction"></param>
         /// <param name="writeInformationAction"></param>
-        public InternalLoggerPowerShell(InternalLogger logger, Action<string> writeVerboseAction = null, Action<string> writeWarningAction = null, Action<string> writeDebugAction = null, Action<ErrorRecord> writeErrorAction = null, Action<ProgressRecord> writeProgressAction = null, Action<InformationRecord> writeInformationAction = null) {
+        public InternalLoggerPowerShell(InternalLogger logger, Action<string>? writeVerboseAction = null, Action<string>? writeWarningAction = null, Action<string>? writeDebugAction = null, Action<ErrorRecord>? writeErrorAction = null, Action<ProgressRecord>? writeProgressAction = null, Action<InformationRecord>? writeInformationAction = null) {
             _logger = logger;
 
             if (writeVerboseAction != null) {
@@ -66,7 +66,7 @@ namespace DomainDetective.PowerShell {
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private void Logger_OnVerboseMessage(object sender, LogEventArgs e) {
+        private void Logger_OnVerboseMessage(object? sender, LogEventArgs e) {
             if (e.Args != null && e.Args.Length > 0) {
                 WriteVerbose(e.Message, e.Args);
             } else {
@@ -78,10 +78,10 @@ namespace DomainDetective.PowerShell {
                 _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
             }
         }
-        private void Logger_OnDebugMessage(object sender, LogEventArgs e) {
+        private void Logger_OnDebugMessage(object? sender, LogEventArgs e) {
             WriteDebug(e.Message);
         }
-        private void Logger_OnWarningMessage(object sender, LogEventArgs e) {
+        private void Logger_OnWarningMessage(object? sender, LogEventArgs e) {
             WriteWarning(e.Message);
             var (enabled, persona, live, narrVerbose) = PersonaState.Get();
             if (enabled && live) {
@@ -89,7 +89,7 @@ namespace DomainDetective.PowerShell {
                 _writeInformationAction?.Invoke(new InformationRecord(line, "Narration"));
             }
         }
-        private void Logger_OnErrorMessage(object sender, LogEventArgs e) {
+        private void Logger_OnErrorMessage(object? sender, LogEventArgs e) {
             var errorId = GetNextErrorId();
             ErrorRecord errorRecord = new ErrorRecord(new Exception(e.Message), errorId, ErrorCategory.NotSpecified, null) {
                 ErrorDetails = new ErrorDetails(e.Message)
@@ -122,7 +122,7 @@ namespace DomainDetective.PowerShell {
         private int GetNextActivityId() {
             return ++_activityIdCounter;
         }
-        private void Logger_OnProgressMessage(object sender, LogEventArgs e) {
+        private void Logger_OnProgressMessage(object? sender, LogEventArgs e) {
             if (_isCurrentActivityCompleted) {
                 _currentActivityId = GetNextActivityId();
                 _isCurrentActivityCompleted = false;
@@ -152,7 +152,7 @@ namespace DomainDetective.PowerShell {
             }
             WriteProgress(progressRecord);
         }
-        private void Logger_OnInformationMessage(object sender, LogEventArgs e) {
+        private void Logger_OnInformationMessage(object? sender, LogEventArgs e) {
             WriteInformation(e.Message);
         }
 

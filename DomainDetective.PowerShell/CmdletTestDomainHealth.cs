@@ -21,7 +21,7 @@ namespace DomainDetective.PowerShell {
     public sealed class CmdletTestDomainHealth : ExportableAsyncPSCmdlet {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -62,8 +62,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public PortScanProfile[]? PortScanProfile;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -236,7 +236,7 @@ namespace DomainDetective.PowerShell {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
                         } else {
-                            WriteWarning(reportResult.ErrorMessage);
+                        WriteWarning(reportResult.ErrorMessage ?? "Report generation failed.");
                         }
                     } else {
                         var dispatcher = new ReportDispatcher();
@@ -247,7 +247,7 @@ namespace DomainDetective.PowerShell {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
                         } else {
-                            WriteWarning(reportResult.ErrorMessage);
+                    WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                         }
                     }
                 } catch (System.Exception ex) {

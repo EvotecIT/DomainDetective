@@ -16,7 +16,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain to retrieve WHOIS information for.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -24,7 +24,7 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Directory used to store WHOIS snapshots.</para>
         [Parameter(Mandatory = false)]
-        public string SnapshotPath;
+        public string SnapshotPath = string.Empty;
 
         /// <para>Return changes since last snapshot.</para>
         [Parameter(Mandatory = false)]
@@ -38,8 +38,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int MaxReferralDepth = 2;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>
         /// Sets up logging and initializes WHOIS analysis.

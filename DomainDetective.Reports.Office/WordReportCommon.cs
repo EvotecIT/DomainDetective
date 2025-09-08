@@ -116,7 +116,7 @@ internal static class WordReportCommon
             case float f:
                 return new WordCustomProperty { Value = (double)f };
             default:
-                return new WordCustomProperty(value.ToString());
+                return new WordCustomProperty(value?.ToString() ?? string.Empty);
         }
     }
 
@@ -139,7 +139,7 @@ internal static class WordReportCommon
             case float f:
                 prop.Value = (double)f; break;
             default:
-                prop.Value = value?.ToString(); break;
+                prop.Value = value?.ToString() ?? string.Empty; break;
         }
     }
 

@@ -25,7 +25,7 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
     [ValidateNotNullOrEmpty]
-    public string DomainName;
+    public string DomainName = string.Empty;
 
     /// <summary>SMTP port number.</summary>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]

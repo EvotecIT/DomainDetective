@@ -13,7 +13,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Path to the configuration file.</para>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string Path { get; set; }
+        public string Path { get; set; } = string.Empty;
 
         /// <para>Replace existing providers.</para>
         [Parameter(Mandatory = false)]
@@ -25,7 +25,7 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Analysis object to modify.</para>
         [Parameter(ValueFromPipeline = true)]
-        public DNSBLAnalysis InputObject { get; set; }
+        public DNSBLAnalysis? InputObject { get; set; }
 
         /// <summary>
         /// Loads DNSBL configuration from the specified path.

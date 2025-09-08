@@ -10,7 +10,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+    public string DomainName = string.Empty;
 
         /// <summary>HTTPS port number.</summary>
         [Parameter(Mandatory = false)]
@@ -20,8 +20,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter SkipRevocation;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A completed task.</returns>

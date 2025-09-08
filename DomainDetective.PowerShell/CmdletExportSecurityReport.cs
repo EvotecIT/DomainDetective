@@ -20,7 +20,7 @@ namespace DomainDetective.PowerShell {
     public sealed class CmdletExportSecurityReport : ExportableAsyncPSCmdlet {
         /// <summary>Objects to compose (SPF/DKIM/DMARC/… view objects). Optional when using -Compose.</summary>
         [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 0)]
-        public object InputObject;
+        public object? InputObject;
 
         /// <summary>Detail scope for section writers.</summary>
         [Parameter(Mandatory = false)]
@@ -40,13 +40,18 @@ namespace DomainDetective.PowerShell {
         /// }
         /// </summary>
         [Parameter(Mandatory = false)]
-        public ScriptBlock Compose { get; set; }
+        public ScriptBlock? Compose { get; set; }
 
         // Per-call narrative overrides (optional)
+        /// <summary>Override document title for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Title { get; set; }
+        /// <summary>Override document subject/description for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Subject { get; set; }
+        /// <summary>Override document category for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Category { get; set; }
+        /// <summary>Override document keywords (comma-separated) for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Keywords { get; set; }
+        /// <summary>Override document creator/author for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Creator { get; set; }
 
         private readonly List<object> _items = new();

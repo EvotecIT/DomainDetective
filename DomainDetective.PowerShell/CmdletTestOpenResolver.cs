@@ -17,14 +17,14 @@ namespace DomainDetective.PowerShell {
         /// <summary>DNS server to check.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string Server;
+        public string Server = string.Empty;
 
         /// <summary>DNS port.</summary>
         [Parameter(Mandatory = false, Position = 1)]
         public int Port = 53;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _hc;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _hc = null!;
 
         /// <summary>Initializes helper classes.</summary>
         protected override Task BeginProcessingAsync() {

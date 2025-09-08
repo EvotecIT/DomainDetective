@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
+  <PropertyGroup>
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`Windows`))' ">
             net472;net8.0
         </TargetFrameworks>
@@ -14,8 +14,9 @@
         <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
         <Company>Evotec</Company>
         <Authors>Przemyslaw Klys</Authors>
-        <LangVersion>latest</LangVersion>
-    </PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />

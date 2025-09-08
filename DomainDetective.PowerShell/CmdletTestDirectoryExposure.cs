@@ -25,14 +25,14 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
     [ValidateNotNullOrEmpty]
-    public string DomainName;
+    public string DomainName = string.Empty;
 
     /// <summary>Use HTTPS instead of HTTP.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter UseHttps;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
     /// <summary>DNS server used for queries.</summary>
     [Parameter(Mandatory = false)]
     public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;

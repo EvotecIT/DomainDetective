@@ -30,8 +30,8 @@ namespace DomainDetective.PowerShell {
         [ValidateNotNullOrEmpty]
         public string File { get; set; } = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>
         /// Initializes logging and the ARC health checker.
