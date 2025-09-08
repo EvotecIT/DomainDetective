@@ -94,10 +94,28 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
         var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
         try {
             if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                DomainDetective.Reports.Office.WordCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Normal, showInfoFindings: true, narrativePlacement: ExportDefaults.NarrativePlacement, titleOverride: $"Mail Classification — {label}");
+                DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                    outPath,
+                    _items,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    showInfoFindings: true,
+                    narrativePlacement: ExportDefaults.NarrativePlacement,
+                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Mail Classification — {label}" : ExportDefaults.NarrativeTitle,
+                    subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
+                    categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
+                    keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
+                    creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator);
                 if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
             } else {
-                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, DomainDetective.Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, narrativePlacement: ExportDefaults.NarrativePlacement);
+                DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
+                    outPath,
+                    _items,
+                    DomainDetective.Reports.ReportScope.Normal,
+                    OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                    narrativePlacement: ExportDefaults.NarrativePlacement,
+                    titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
+                    authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                    descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
             }
         } catch (System.Exception ex) {
             WriteWarning($"Mail classification export failed: {ex.Message}");

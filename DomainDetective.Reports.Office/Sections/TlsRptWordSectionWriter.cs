@@ -25,6 +25,7 @@ public static class TlsRptWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("TLS-RPT record presence and configured reporting URIs.");
         var t = doc.AddTable(6, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = tlsrpt.TlsRptRecordExists ? (tlsrpt.StartsCorrectly ? "Yes (v=TLSRPTv1)" : "Yes (invalid start)") : "No";
@@ -41,11 +42,24 @@ public static class TlsRptWordSectionWriter
 
         if (scope == ReportScope.Minimal) return;
 
+        // Good posture
+        if (scope != ReportScope.Minimal && tlsrpt.Positives != null && tlsrpt.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in tlsrpt.Positives)
+            {
+                if (!string.IsNullOrWhiteSpace(p?.Title)) plist.AddItem(p!.Title);
+            }
+        }
+
         var assessments = (tlsrpt.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
         if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (assessments.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -59,6 +73,15 @@ public static class TlsRptWordSectionWriter
                 ft.Rows[i + 1].Cells[2].Paragraphs[0].Text = a.Target ?? string.Empty;
                 ft.Rows[i + 1].Cells[3].Paragraphs[0].Text = a.Message;
             }
+        }
+
+        // References
+        if (tlsrpt.References != null && tlsrpt.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in tlsrpt.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
 }

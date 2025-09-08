@@ -19,5 +19,31 @@ namespace DomainDetective.Tests {
             Assert.Equal(64512, result.Asn);
             Assert.True(result.Valid);
         }
+
+        [Fact]
+        public async Task DowngradesFailuresToWarnings()
+        {
+            var analysis = new RPKIAnalysis
+            {
+                DnsConfiguration = new DnsConfiguration(),
+                // Return an invalid IP-like token so the internal HttpClient URI construction fails
+                // and the code path logs a warning via RpkiCodes.QueryFailed.
+                QueryDnsOverride = (n, t) => t == DnsRecordType.A
+                    ? Task.FromResult(new[] { new DnsAnswer { DataRaw = "%%%" } })
+                    : Task.FromResult(Array.Empty<DnsAnswer>())
+            };
+
+            var logger = new InternalLogger();
+            await analysis.Analyze("example.com", logger);
+
+            // Pipeline should continue and produce a result with Valid = false
+            var res = Assert.Single(analysis.Results);
+            Assert.Equal("%%%", res.IpAddress);
+            Assert.False(res.Valid);
+
+            // Ensure the downgrade to Warning is captured as an assessment with the correct code
+            Assert.Contains(analysis.Assessments, a => a.Code == RpkiCodes.QueryFailed && a.Severity == AssessmentSeverity.Warning);
+            Assert.DoesNotContain(analysis.Assessments, a => a.Code == RpkiCodes.QueryFailed && a.Severity == AssessmentSeverity.Error);
+        }
     }
 }

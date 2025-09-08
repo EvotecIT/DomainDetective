@@ -140,7 +140,11 @@ namespace DomainDetective.PowerShell {
                                 Reports.ReportScope.Normal,
                                 showInfoFindings: true,
                                 narrativePlacement: ExportDefaults.NarrativePlacement,
-                                titleOverride: $"Security Report — {DomainName}",
+                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Security Report — {DomainName}" : ExportDefaults.NarrativeTitle,
+                                subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
+                                categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
+                                keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
+                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
                                 companyName: ExportDefaults.CompanyName,
                                 companyAddress: ExportDefaults.CompanyAddress,
                                 companyYear: ExportDefaults.CompanyYear,
@@ -149,7 +153,15 @@ namespace DomainDetective.PowerShell {
                                 watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(outPath);
                         } else {
-                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
+                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
+                                outPath,
+                                items,
+                                Reports.ReportScope.Normal,
+                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                                ExportDefaults.NarrativePlacement,
+                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
+                                authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                                descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
                         }
                         return;
                     } catch (System.Exception ex) {

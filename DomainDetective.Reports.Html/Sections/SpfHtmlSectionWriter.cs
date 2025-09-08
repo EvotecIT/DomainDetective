@@ -29,6 +29,17 @@ public static class SpfHtmlSectionWriter
                 html.AddHeading("Highlights", 3);
                 html.AddList(spf.Highlights);
             }
+
+            // Good posture (positives)
+            var positives = spf.Positives?.Select(p => p?.Title)
+                                        .Where(t => !string.IsNullOrWhiteSpace(t))
+                                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                                        .ToList() ?? new System.Collections.Generic.List<string>();
+            if (positives.Count > 0)
+            {
+                html.AddHeading("Good posture", 3);
+                html.AddList(positives!);
+            }
         }
     }
 }

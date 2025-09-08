@@ -8,6 +8,7 @@ public static partial class Converters
     public static ApexAddressInfo Convert(ApexAddressAnalysis analysis)
     {
         var assessments = new List<Assessment>();
+        var recs = RecommendationEngine.FromProblems(assessments);
         // ApexAddressAnalysis currently does not implement IHasAssessments; derive status from address quality flags
         int warnCount = 0, errCount = 0;
         string status = (analysis.HasAnyAddress ? "OK" : "Warning");
@@ -48,9 +49,9 @@ public static partial class Converters
             WarningCount = warnCount,
             ErrorCount = errCount,
             Summary = $"A {analysis.IPv4Count}, AAAA {analysis.IPv6Count}; FCrDNS {(analysis.AllFcrDnsValid ? "ok" : "check")}",
-            Recommendations = RecommendationEngine.FromProblems(assessments),
+            Recommendations = recs,
             Positives = RecommendationEngine.FromPositives(assessments),
-            References = BuildReferences(analysis.RfcReferences.ToArray(), RecommendationEngine.FromProblems(assessments)),
+            References = BuildReferences(analysis.RfcReferences.ToArray(), recs),
             Raw = analysis
         };
     }

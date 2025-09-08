@@ -220,10 +220,28 @@ AfterWrite:
                         var label = view.Subject;
                         var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
                         if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                            DomainDetective.Reports.Office.WordCompositionReport.Generate(outPath, items, DomainDetective.Reports.ReportScope.Normal, showInfoFindings: true, narrativePlacement: ExportDefaults.NarrativePlacement, titleOverride: $"DNSBL Report — {label}");
+                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                                outPath,
+                                items,
+                                DomainDetective.Reports.ReportScope.Normal,
+                                showInfoFindings: true,
+                                narrativePlacement: ExportDefaults.NarrativePlacement,
+                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"DNSBL Report — {label}" : ExportDefaults.NarrativeTitle,
+                                subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
+                                categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
+                                keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
+                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator);
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         } else {
-                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, items, DomainDetective.Reports.ReportScope.Normal, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
+                            DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
+                                outPath,
+                                items,
+                                DomainDetective.Reports.ReportScope.Normal,
+                                OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                                ExportDefaults.NarrativePlacement,
+                                titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
+                                authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                                descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
                         }
                     } else {
                         await ExportNotImplementedAsync();

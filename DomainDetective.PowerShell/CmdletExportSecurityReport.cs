@@ -42,6 +42,13 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public ScriptBlock Compose { get; set; }
 
+        // Per-call narrative overrides (optional)
+        [Parameter(Mandatory = false)] public string? Title { get; set; }
+        [Parameter(Mandatory = false)] public string? Subject { get; set; }
+        [Parameter(Mandatory = false)] public string? Category { get; set; }
+        [Parameter(Mandatory = false)] public string? Keywords { get; set; }
+        [Parameter(Mandatory = false)] public string? Creator { get; set; }
+
         private readonly List<object> _items = new();
 
     /// <summary>Collects pipeline inputs for composition.</summary>
@@ -86,7 +93,11 @@ namespace DomainDetective.PowerShell {
                             Scope,
                             ShowInfoFindings.IsPresent,
                             ExportDefaults.NarrativePlacement,
-                            null,
+                            string.IsNullOrWhiteSpace(Title) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle) : Title,
+                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject,
+                            string.IsNullOrWhiteSpace(Category) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory) : Category,
+                            string.IsNullOrWhiteSpace(Keywords) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords) : Keywords,
+                            string.IsNullOrWhiteSpace(Creator) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator) : Creator,
                             ExportDefaults.CompanyName,
                             ExportDefaults.CompanyAddress,
                             ExportDefaults.CompanyYear,
@@ -96,7 +107,15 @@ namespace DomainDetective.PowerShell {
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                     case DomainDetective.Reports.ReportFormat.Html:
-                        DomainDetective.Reports.Html.HtmlCompositionReport.Generate(outPath, _items, Scope, OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser, ExportDefaults.NarrativePlacement);
+                        DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
+                            outPath,
+                            _items,
+                            Scope,
+                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                            ExportDefaults.NarrativePlacement,
+                            string.IsNullOrWhiteSpace(Title) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle) : Title,
+                            string.IsNullOrWhiteSpace(Creator) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator) : Creator,
+                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject);
                         break;
                     default:
                         return ExportNotImplementedAsync("Export-DDSecurityReport");

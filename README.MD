@@ -209,20 +209,34 @@ We’re designing persona‑driven narratives to present findings in different t
 - Compose any mix via pipeline:
 
 ```
-$spf   = Test-DDEmailSpfRecord -DomainName 'contoso.com'
-$dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress '203.0.113.5'
+Import-Module ./Module/DomainDetective.psd1 -Force
+
+$spf   = Test-DDEmailSpfRecord -DomainName 'evotec.pl'
+$dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress 'evotec.pl'
 ($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
 ```
 
 - Or inline with a script block:
 
 ```
+Import-Module ./Module/DomainDetective.psd1 -Force
+
 Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport -Compose {
-  Test-DDEmailSpfRecord   -DomainName 'contoso.com'
-  Test-DDDnsBlacklist     -NameOrIpAddress '203.0.113.5'
-  Test-DDMailDomainClassification -DomainName 'contoso.com'
+  Test-DDEmailSpfRecord              -DomainName 'evotec.pl'
+  Test-DDDnsBlacklist                -NameOrIpAddress 'evotec.xyz'
+  Test-DDMailDomainClassification    -DomainName 'evotec.pl'
 }
 ```
+
+- Metadata overrides (PowerShell):
+  - Set defaults once:
+    - `Set-DDExportOptions -Title "Evotec — Q3 Portfolio Review" -Subject "Executive summary and remediation plan" -Category "Email Security" -Keywords "SPF,DKIM,DMARC" -Creator "Evotec"`
+  - Or per-call:
+    - `Export-DDSecurityReport -ExportFormat Word -Title "Evotec — MX Review" -Subject "MX and transport policies"`
+
+- Notes:
+  - The Word header shows the generated timestamp; company branding can be applied via export options.
+  - Executive Summary → Overview includes the domain count and total warnings/errors across all domains.
 
 ## DNSBL Configuration
 DNSBL lists used for blacklist checks can be customized. `DNSBLAnalysis` comes with a built-in list, but you can modify it at runtime. Each list entry exposes `Domain`, `Enabled`, and `Comment` fields. Use the following methods on `DNSBLAnalysis` to manage the list:

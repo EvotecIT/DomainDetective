@@ -19,6 +19,8 @@ public static partial class Converters
         {
             foreach (var key in analysis.ServerResults.Keys) { subject = key; break; }
         }
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new MailLatencyInfo
         {
             Check = HealthCheckType.MAILLATENCY,
@@ -32,9 +34,9 @@ public static partial class Converters
             WarningCount = warn,
             ErrorCount = 0,
             Summary = $"avg conn { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.ConnectTime.TotalMilliseconds)) } ms; avg banner { (analysis.ServerResults.Count==0?0:(int)analysis.ServerResults.Values.Average(v => v.BannerTime.TotalMilliseconds)) } ms",
-            Recommendations = RecommendationEngine.FromProblems(assessments),
-            Positives = RecommendationEngine.FromPositives(assessments),
-            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.FromProblems(assessments)),
+            Recommendations = recs,
+            Positives = positives,
+            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
     }

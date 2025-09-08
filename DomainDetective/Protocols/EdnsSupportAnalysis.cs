@@ -49,6 +49,11 @@ public class EdnsSupportAnalysis : IHasAssessments
     /// <summary>Allows overriding server queries for testing.</summary>
     public Func<string, Task<EdnsSupportInfo>>? QueryServerOverride { private get; set; }
 
+    /// <summary>Relevant standards for EDNS analysis.</summary>
+    public IReadOnlyList<StandardReference> RfcReferences => new[] {
+        new StandardReference { Title = "Extension Mechanisms for DNS (EDNS(0))", Reference = "RFC 6891", Url = "https://datatracker.ietf.org/doc/html/rfc6891" }
+    };
+
     private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type)
     {
         if (QueryDnsOverride != null)

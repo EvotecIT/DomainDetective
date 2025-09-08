@@ -167,4 +167,33 @@ internal static class WordReportCommon
             doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText);
         }
     }
+
+    public static void AddFooter(WordDocument doc, string? leftText = null, string? rightText = null)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        doc.AddHeadersAndFooters();
+        doc.DifferentFirstPage = false;
+
+        // Fallback left text from custom property 'CompanyLine'
+        if (string.IsNullOrWhiteSpace(leftText))
+        {
+            try
+            {
+                if (doc.CustomDocumentProperties.TryGetValue("CompanyLine", out var prop) && prop?.Value != null)
+                {
+                    leftText = prop.Value.ToString();
+                }
+            }
+            catch { /* ignore */ }
+        }
+        leftText ??= "Confidential";
+
+        var footerTable = doc.Footer.Default.AddTable(1, 2, WordTableStyle.TableNormal);
+        footerTable.WidthType = TableWidthUnitValues.Pct;
+        footerTable.Width = 5000; // 100%
+
+        footerTable.Rows[0].Cells[0].AddParagraph(leftText);
+        var rp = footerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
+        rp.ParagraphAlignment = JustificationValues.Right;
+    }
 }

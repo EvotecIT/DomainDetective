@@ -55,3 +55,54 @@ We will mirror this pattern for DMARC and DKIM (with policy semantics, alignment
 ## Notes
 - Reports should be consumable artifacts, not live UI only; dashboards provide interactive view.
 - Keep JSON artifacts as the canonical data source; reports summarize and narrate.
+
+## Mail Classification Scoring
+
+The Mail Classification section summarizes whether a domain sends and/or receives mail and explains the confidence. The classifier aggregates lightweight signals with simple weights to compute a score and confidence, then assigns a category.
+
+### Signals and Weights
+
+| Signal | Weight |
+|---|---:|
+| HasMX (valid MX, not null/localhost) | +2.0 |
+| HasNullMX | −5.0 |
+| HasAorAAAA (fallback address present) | +0.5 |
+| EffectiveSPFSends | +2.0 |
+| HasDKIM | +2.0 |
+| HasMTASTS | +1.0 |
+| HasTLSRPT | +0.5 |
+| HasDANE (SMTP) | +0.5 |
+| HasBIMI | +1.0 |
+| HasBIMI_VMC (valid VMC) | +0.5 |
+| AsnDiversity (≥3 ASNs → +1.0; 2 ASNs → +0.5) | +1.0 / +0.5 |
+
+Sending score = EffectiveSPFSends + HasDKIM + HasBIMI + HasBIMI_VMC.
+
+Receiving score = HasMX + HasMTASTS + HasTLSRPT + HasDANE + HasAorAAAA + AsnDiversity.
+
+Total score = sum of all signal weights (including Null MX penalty when present).
+
+### Categories and Confidence
+
+- Parked: Null MX present and no sending signals → High confidence.
+- Sending & Receiving: at least one receiving signal and one sending signal.
+  - Confidence High when Receiving score ≥ 2.0 AND Sending score ≥ 3.0; else Medium.
+- Receiving Only: receiving signals present, no sending signals → Medium confidence.
+- Sending Only: sending signals present, no receiving signals →
+  - Confidence High when Null MX present; otherwise Medium.
+
+### Example Breakdown
+
+For a domain with MX, SPF (effective), DKIM, TLS-RPT:
+
+| Key | Points |
+|---|---:|
+| HasMX | 2.0 |
+| EffectiveSPFSends | 2.0 |
+| HasDKIM | 2.0 |
+| HasTLSRPT | 0.5 |
+| Total | 6.5 |
+
+Classification: Sending & Receiving; Confidence: High (receiving ≥ 2.0 and sending ≥ 3.0).
+
+The report includes a brief “Scoring rubric” and a “Signals considered” list. When one list (Sending/Receiving) is empty, it renders as “None”.

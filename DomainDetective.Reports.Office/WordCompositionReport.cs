@@ -35,6 +35,10 @@ public static class WordCompositionReport
         bool showInfoFindings,
         NarrativePlacement narrativePlacement = NarrativePlacement.Auto,
         string? titleOverride = null,
+        string? subjectOverride = null,
+        string? categoryOverride = null,
+        string? keywordsOverride = null,
+        string? creatorOverride = null,
         string? companyName = null,
         string? companyAddress = null,
         string? companyYear = null,
@@ -55,7 +59,11 @@ public static class WordCompositionReport
         doc.Settings.UpdateFieldsOnOpen = true;
 
         // Built-in and custom properties
-        WordReportCommon.ApplyBuiltInProperties(doc, title, "Custom Composition", "Email Security", "Security", "DomainDetective");
+        var subj = string.IsNullOrWhiteSpace(subjectOverride) ? "Custom Composition" : subjectOverride;
+        var keys = string.IsNullOrWhiteSpace(keywordsOverride) ? "Email Security" : keywordsOverride;
+        var cat = string.IsNullOrWhiteSpace(categoryOverride) ? "Security" : categoryOverride;
+        var creator = string.IsNullOrWhiteSpace(creatorOverride) ? "DomainDetective" : creatorOverride;
+        WordReportCommon.ApplyBuiltInProperties(doc, title, subj, keys, cat, creator);
         WordReportCommon.ApplyCompanyBranding(doc, companyName, companyAddress, companyYear);
 
         // Cover/TOC/Header
@@ -64,9 +72,31 @@ public static class WordCompositionReport
         doc.AddPageBreak();
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
             $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText);
+        WordReportCommon.AddFooter(doc); // left defaults to CompanyLine when present
 
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem("Executive Summary");
+        headings.AddItem("Overview", 1);
+        // Compute totals across domains (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT)
+        int totalWarns = 0, totalErrs = 0;
+        foreach (var kv in grouped)
+        {
+            var bucket = kv.Value;
+            totalWarns += (bucket.Spf?.WarningCount ?? 0)
+                        + (bucket.Dmarc?.WarningCount ?? 0)
+                        + (bucket.Dkim?.Sum(x => x.WarningCount) ?? 0)
+                        + (bucket.Mtasts?.WarningCount ?? 0)
+                        + (bucket.TlsRpt?.WarningCount ?? 0)
+                        + (bucket.Mx?.WarningCount ?? 0);
+            totalErrs  += (bucket.Spf?.ErrorCount   ?? 0)
+                        + (bucket.Dmarc?.ErrorCount   ?? 0)
+                        + (bucket.Dkim?.Sum(x => x.ErrorCount) ?? 0)
+                        + (bucket.Mtasts?.ErrorCount ?? 0)
+                        + (bucket.TlsRpt?.ErrorCount ?? 0)
+                        + (bucket.Mx?.ErrorCount ?? 0);
+        }
+        // Executive Summary intro text
+        doc.AddParagraph($"This report summarizes the email security posture for {grouped.Count} domain(s). The table highlights the presence and status of key controls (MX, SPF, DKIM, DMARC, MTA-STS, TLS-RPT) and the count of warnings/errors detected. Total across all domains: {totalWarns} warning(s), {totalErrs} error(s).");
 
         // Executive Summary table (defensive build to avoid style-dependent index issues)
         var allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
@@ -109,10 +139,13 @@ public static class WordCompositionReport
         }
 
         // Per-domain sections
+        bool firstDomain = true;
         foreach (var kv in allRows)
         {
             var domain = kv.Key;
             var bucket = kv.Value;
+            if (!firstDomain) doc.AddPageBreak();
+            firstDomain = false;
             headings.AddItem(domain);
 
             if (bucket.Mx != null)
@@ -143,13 +176,13 @@ public static class WordCompositionReport
             if (bucket.Dnsbl != null)
             {
                 headings.AddItem("DNSBL", 1);
-                DnsblWordSectionWriter.Write(doc, bucket.Dnsbl, domain, scope, showInfoFindings);
+                DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl, domain, scope, showInfoFindings);
             }
 
             if (bucket.Classification != null)
             {
                 headings.AddItem("Mail Classification", 1);
-                MailClassificationWordSectionWriter.Write(doc, bucket.Classification, domain, scope, showInfoFindings);
+                MailClassificationWordSectionWriter.Write(doc, headings, 2, bucket.Classification, domain, scope, showInfoFindings);
             }
 
             if (bucket.Mtasts != null)
@@ -186,11 +219,13 @@ public static class WordCompositionReport
             if (negative.Count > 0)
             {
                 headings.AddItem("Consolidated Recommendations");
-                var rt = doc.AddTable(negative.Count + 1, 4, WordTableStyle.TableGrid);
+                doc.AddParagraph("Actions to improve posture across all analyzed domains. Recommendations are grouped to avoid duplicates.");
+                var rt = doc.AddTable(negative.Count + 1, 5, WordTableStyle.TableGrid);
                 rt.Rows[0].Cells[0].AddParagraph("Severity");
                 rt.Rows[0].Cells[1].AddParagraph("Code");
                 rt.Rows[0].Cells[2].AddParagraph("Title");
                 rt.Rows[0].Cells[3].AddParagraph("How");
+                rt.Rows[0].Cells[4].AddParagraph("Domains");
                 for (int i = 0; i < negative.Count; i++)
                 {
                     var g = negative[i];
@@ -198,7 +233,62 @@ public static class WordCompositionReport
                     rt.Rows[i + 1].Cells[1].AddParagraph(g.Code ?? string.Empty);
                     rt.Rows[i + 1].Cells[2].AddParagraph(g.Advice?.Title ?? string.Empty);
                     rt.Rows[i + 1].Cells[3].AddParagraph(g.Advice?.How ?? string.Empty);
+                    // Domains column: cap to N and append +N more
+                    const int maxDomains = 6;
+                    string domainsText = string.Empty;
+                    if (g.Targets != null && g.Targets.Count > 0)
+                    {
+                        var shown = g.Targets.Take(maxDomains).ToList();
+                        int extra = g.Targets.Count - shown.Count;
+                        domainsText = string.Join(", ", shown);
+                        if (extra > 0) domainsText += $" +{extra} more";
+                    }
+                    rt.Rows[i + 1].Cells[4].AddParagraph(domainsText);
                 }
+            }
+
+            // Consolidated Positives (Info-level)
+            var positives = recGroups.Where(g => g.MaxSeverity == DomainDetective.AssessmentSeverity.Info).ToList();
+            if (positives.Count > 0)
+            {
+                headings.AddItem("Consolidated Positives");
+                doc.AddParagraph("Positive posture signals observed across domains.");
+                var pt = doc.AddTable(positives.Count + 1, 3, WordTableStyle.TableGrid);
+                pt.Rows[0].Cells[0].AddParagraph("Code");
+                pt.Rows[0].Cells[1].AddParagraph("Title");
+                pt.Rows[0].Cells[2].AddParagraph("Targets");
+                for (int i = 0; i < positives.Count; i++)
+                {
+                    var g = positives[i];
+                    pt.Rows[i + 1].Cells[0].AddParagraph(g.Code ?? string.Empty);
+                    pt.Rows[i + 1].Cells[1].AddParagraph(g.Advice?.Title ?? string.Empty);
+                    var targets = (g.Targets != null && g.Targets.Count > 0) ? string.Join(", ", g.Targets) : string.Empty;
+                    pt.Rows[i + 1].Cells[2].AddParagraph(targets);
+                }
+            }
+
+            // Consolidated References (deduped)
+            var allRefs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in allRows)
+            {
+                var b = kv.Value;
+                void PullRefs(System.Collections.Generic.IReadOnlyList<string>? r)
+                { if (r != null) foreach (var x in r) if (!string.IsNullOrWhiteSpace(x)) allRefs.Add(x); }
+                PullRefs(b.Spf?.References);
+                foreach (var d in b.Dkim) PullRefs(d.References);
+                PullRefs(b.Dmarc?.References);
+                PullRefs(b.Mx?.References);
+                PullRefs(b.Mtasts?.References);
+                PullRefs(b.TlsRpt?.References);
+                PullRefs(b.Dnsbl?.References);
+                PullRefs(b.Classification?.References);
+            }
+            if (allRefs.Count > 0)
+            {
+                headings.AddItem("All References");
+                doc.AddParagraph("References cited across all sections. Use these for standards and implementation guidance.");
+                var list = doc.AddList(WordListStyle.Bulleted);
+                foreach (var r in allRefs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)) list.AddItem(r);
             }
         }
         catch { }

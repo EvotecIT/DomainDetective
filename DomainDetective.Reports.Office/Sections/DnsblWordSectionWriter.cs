@@ -10,47 +10,101 @@ namespace DomainDetective.Reports.Office;
 public static class DnsblWordSectionWriter
 {
     /// <summary>
-    /// Writes DNSBL section.
+    /// Writes DNSBL section with standardized headings (Summary, Findings, Evidence, References).
     /// </summary>
     /// <param name="doc">Target document.</param>
+    /// <param name="headings">Headings list (TOC).</param>
+    /// <param name="baseLevel">Base heading level under the DNSBL node.</param>
     /// <param name="dnsbl">DNSBL view model.</param>
     /// <param name="domain">Subject domain.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="showInfoFindings">Include Info-level findings.</param>
-    public static void Write(WordDocument doc, DomainDetective.Views.DnsblInfo dnsbl, string domain, ReportScope scope, bool showInfoFindings)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.DnsblInfo dnsbl, string domain, ReportScope scope, bool showInfoFindings)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
         if (dnsbl == null) throw new ArgumentNullException(nameof(dnsbl));
-
+        // Summary
+        headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("DNSBL posture summary for this domain.");
         var t = doc.AddTable(5, 2, WordTableStyle.TableGrid);
-        t.Rows[0].Cells[0].Paragraphs[0].Text = "Providers";
-        t.Rows[0].Cells[1].Paragraphs[0].Text = dnsbl.ProvidersChecked.ToString();
-        t.Rows[1].Cells[0].Paragraphs[0].Text = "Hosts Checked";
-        t.Rows[1].Cells[1].Paragraphs[0].Text = dnsbl.HostsChecked.ToString();
-        t.Rows[2].Cells[0].Paragraphs[0].Text = "Hosts Listed";
-        t.Rows[2].Cells[1].Paragraphs[0].Text = dnsbl.HostsListed.ToString();
-        t.Rows[3].Cells[0].Paragraphs[0].Text = "Status";
-        t.Rows[3].Cells[1].Paragraphs[0].Text = dnsbl.Status ?? string.Empty;
-        t.Rows[4].Cells[0].Paragraphs[0].Text = "Summary";
-        t.Rows[4].Cells[1].Paragraphs[0].Text = dnsbl.Summary ?? string.Empty;
+        t.Rows[0].Cells[0].AddParagraph("Providers");
+        t.Rows[0].Cells[1].AddParagraph(dnsbl.ProvidersChecked.ToString());
+        t.Rows[1].Cells[0].AddParagraph("Hosts Checked");
+        t.Rows[1].Cells[1].AddParagraph(dnsbl.HostsChecked.ToString());
+        t.Rows[2].Cells[0].AddParagraph("Hosts Listed");
+        t.Rows[2].Cells[1].AddParagraph(dnsbl.HostsListed.ToString());
+        t.Rows[3].Cells[0].AddParagraph("Status");
+        t.Rows[3].Cells[1].AddParagraph(dnsbl.Status ?? string.Empty);
+        t.Rows[4].Cells[0].AddParagraph("Inline Summary");
+        t.Rows[4].Cells[1].AddParagraph(dnsbl.Summary ?? string.Empty);
+
+        // Good posture
+        if (scope != ReportScope.Minimal && dnsbl.Positives != null && dnsbl.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("Positive posture signals observed:");
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in dnsbl.Positives)
+            {
+                if (!string.IsNullOrWhiteSpace(p?.Title)) plist.AddItem(p!.Title);
+            }
+        }
+
+        // Findings
+        var assessments = dnsbl.Assessments?.ToList() ?? new System.Collections.Generic.List<DomainDetective.Assessment>();
+        if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
+        if (assessments.Count > 0)
+        {
+            headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
+            var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
+            ft.Rows[0].Cells[0].AddParagraph("Severity");
+            ft.Rows[0].Cells[1].AddParagraph("Code");
+            ft.Rows[0].Cells[2].AddParagraph("Target");
+            ft.Rows[0].Cells[3].AddParagraph("Message");
+            for (int i = 0; i < assessments.Count; i++)
+            {
+                var a = assessments[i];
+                ft.Rows[i + 1].Cells[0].AddParagraph(a.Severity.ToString());
+                ft.Rows[i + 1].Cells[1].AddParagraph(a.Code ?? string.Empty);
+                ft.Rows[i + 1].Cells[2].AddParagraph(a.Target ?? string.Empty);
+                ft.Rows[i + 1].Cells[3].AddParagraph(a.Message);
+            }
+        }
+        else
+        {
+            doc.AddParagraph("No findings.");
+        }
 
         if (scope == ReportScope.Minimal) return;
 
         // Listed records (if any)
         var listed = dnsbl.ListedRecords?.ToList() ?? new System.Collections.Generic.List<DomainDetective.DNSBLRecord>();
+        headings.AddItem("Evidence", baseLevel);
+        doc.AddParagraph(listed.Count > 0 ? "Hosts reported by DNSBL providers:" : "No DNSBL listings observed.");
         if (listed.Count > 0)
         {
             var lt = doc.AddTable(listed.Count + 1, 3, WordTableStyle.TableGrid);
-            lt.Rows[0].Cells[0].Paragraphs[0].Text = "Host";
-            lt.Rows[0].Cells[1].Paragraphs[0].Text = "Blacklist";
-            lt.Rows[0].Cells[2].Paragraphs[0].Text = "Reason";
+            lt.Rows[0].Cells[0].AddParagraph("Host");
+            lt.Rows[0].Cells[1].AddParagraph("Blacklist");
+            lt.Rows[0].Cells[2].AddParagraph("Reason");
             for (int i = 0; i < listed.Count; i++)
             {
                 var r = listed[i];
-                lt.Rows[i + 1].Cells[0].Paragraphs[0].Text = r.SourceHost ?? r.IpAddress;
-                lt.Rows[i + 1].Cells[1].Paragraphs[0].Text = r.BlackList ?? string.Empty;
-                lt.Rows[i + 1].Cells[2].Paragraphs[0].Text = r.ReplyMeaning ?? string.Empty;
+                lt.Rows[i + 1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress);
+                lt.Rows[i + 1].Cells[1].AddParagraph(r.BlackList ?? string.Empty);
+                lt.Rows[i + 1].Cells[2].AddParagraph(r.ReplyMeaning ?? string.Empty);
             }
+        }
+
+        // References
+        if (dnsbl.References != null && dnsbl.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in dnsbl.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
 }

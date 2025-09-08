@@ -47,6 +47,7 @@ public static class SpfWordSectionWriter
 
         // Summary
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("Key SPF posture indicators for this domain.");
         var summaryTable = doc.AddTable(5, 2, WordTableStyle.TableGrid);
         summaryTable.Rows[0].Cells[0].AddParagraph("Record Present");
         summaryTable.Rows[0].Cells[1].AddParagraph(spf.SpfRecordExists ? "Yes" : "No");
@@ -63,6 +64,7 @@ public static class SpfWordSectionWriter
         if (spf.Highlights != null && spf.Highlights.Count > 0)
         {
             headings.AddItem("Highlights", baseLevel);
+            doc.AddParagraph("Notable observations:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var h in spf.Highlights) list.AddItem(h);
         }
@@ -71,6 +73,7 @@ public static class SpfWordSectionWriter
         if (scope != ReportScope.Minimal && spf.Positives != null && spf.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
             var plist = doc.AddList(WordListStyle.Bulleted);
             foreach (var p in spf.Positives.Select(x => x.Title).Where(x => !string.IsNullOrWhiteSpace(x)))
             {
@@ -84,6 +87,7 @@ public static class SpfWordSectionWriter
         if (assess.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var table = doc.AddTable(assess.Count + 1, 4, WordTableStyle.TableGrid);
             table.Rows[0].Cells[0].AddParagraph("Severity");
             table.Rows[0].Cells[1].AddParagraph("Code");
@@ -113,6 +117,7 @@ public static class SpfWordSectionWriter
         if (spf.Raw?.DnsLookups != null && spf.Raw.DnsLookups.Count > 0)
         {
             headings.AddItem("DNS Lookups", baseLevel);
+            doc.AddParagraph("DNS queries performed while evaluating SPF.");
             var lookList = doc.AddList(WordListStyle.Bulleted);
             foreach (var l in spf.Raw.DnsLookups.Distinct()) lookList.AddItem(l);
         }
@@ -149,6 +154,7 @@ public static class SpfWordSectionWriter
         if (spf.Raw != null)
         {
             headings.AddItem("Policy Checks", baseLevel);
+            doc.AddParagraph("Policy-level validations and advisories.");
             var checks = doc.AddTable(3, 2, WordTableStyle.TableGrid);
             checks.Rows[0].Cells[0].AddParagraph("Cycle Detected");
             checks.Rows[0].Cells[1].AddParagraph(spf.Raw.CycleDetected ? "Yes" : "No");
@@ -162,6 +168,7 @@ public static class SpfWordSectionWriter
         if (spf.Mechanisms != null && spf.Mechanisms.Count > 0)
         {
             headings.AddItem("Mechanisms", baseLevel);
+            doc.AddParagraph("SPF mechanisms present in the evaluated record.");
             var mechTable = doc.AddTable(spf.Mechanisms.Count + 1, 4, WordTableStyle.TableGrid);
             mechTable.Rows[0].Cells[0].AddParagraph("Qualifier");
             mechTable.Rows[0].Cells[1].AddParagraph("Type");
@@ -182,6 +189,7 @@ public static class SpfWordSectionWriter
                 if (types.Count > 0)
                 {
                     headings.AddItem("Mechanism meanings", baseLevel + 1);
+                    doc.AddParagraph("Quick reference for SPF tokens and qualifiers.");
                     var exp = doc.AddTable(types.Count + 1, 2, WordTableStyle.TableGrid);
                     exp.Rows[0].Cells[0].AddParagraph("Type");
                     exp.Rows[0].Cells[1].AddParagraph("Meaning");
@@ -203,10 +211,20 @@ public static class SpfWordSectionWriter
 
         // Evidence (Normal/Detailed)
         headings.AddItem("Evidence", baseLevel);
+        doc.AddParagraph("Raw SPF record values.");
         var lbl = doc.AddParagraph("SPF Record:");
         lbl.Bold = true;
         var rec = doc.AddParagraph(spf.SpfRecord ?? string.Empty);
         rec.FontSize = 10;
+
+        // References
+        if (spf.References != null && spf.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in spf.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+        }
     }
 
     private static string MechanismMeaning(string type)

@@ -42,6 +42,7 @@ public static class DkimWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("DKIM selectors discovered and their key properties.");
         var table = doc.AddTable(dkim.Count + 1, 7, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Record";
@@ -64,12 +65,30 @@ public static class DkimWordSectionWriter
 
         if (scope == ReportScope.Minimal) return;
 
+        // Good posture (positives aggregated)
+        if (scope != ReportScope.Minimal)
+        {
+            var positives = dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                                .Select(p => p.Title)
+                                .Where(t => !string.IsNullOrWhiteSpace(t))
+                                .Distinct()
+                                .ToList();
+            if (positives.Count > 0)
+            {
+                headings.AddItem("Good posture", baseLevel);
+                doc.AddParagraph("This domain demonstrates the following positive posture:");
+                var plist = doc.AddList(WordListStyle.Bulleted);
+                foreach (var t in positives) plist.AddItem(t!);
+            }
+        }
+
         // Findings (summarized)
         var findings = dkim.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
         if (!showInfoFindings) findings = findings.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (findings.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(findings.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -85,6 +104,29 @@ public static class DkimWordSectionWriter
             }
         }
 
+        // Evidence
+        headings.AddItem("Evidence", baseLevel);
+        doc.AddParagraph("Raw DKIM TXT records and key snippets by selector.");
+        foreach (var r in dkim)
+        {
+            if (string.IsNullOrWhiteSpace(r?.Selector)) continue;
+            var sl = doc.AddParagraph($"Selector: {r.Selector}");
+            sl.Bold = true;
+            if (!string.IsNullOrWhiteSpace(r.DkimRecord))
+            {
+                var rl = doc.AddParagraph("Record:"); rl.Bold = true;
+                var rp = doc.AddParagraph(r.DkimRecord);
+                rp.FontSize = 10;
+            }
+            if (!string.IsNullOrWhiteSpace(r.PublicKey))
+            {
+                var kl = doc.AddParagraph("Public Key (snippet):"); kl.Bold = true;
+                var key = r.PublicKey.Length > 120 ? r.PublicKey.Substring(0, 120) + "…" : r.PublicKey;
+                var kp = doc.AddParagraph(key);
+                kp.FontSize = 10;
+            }
+        }
+
         // Highlights / Positives / Recommendations (Detailed only)
         if (scope == ReportScope.Detailed)
         {
@@ -92,6 +134,7 @@ public static class DkimWordSectionWriter
             if (hl.Count > 0)
             {
                 headings.AddItem("Highlights", baseLevel);
+                doc.AddParagraph("Notable observations:");
                 var list = doc.AddList(WordListStyle.Bulleted);
                 foreach (var h in hl) list.AddItem(h);
             }
@@ -114,6 +157,19 @@ public static class DkimWordSectionWriter
                     rt.Rows[i + 1].Cells[2].Paragraphs[0].Text = rv.Advice?.How ?? string.Empty;
                 }
             }
+        }
+
+        // References (union across selectors)
+        var refs = dkim.SelectMany(d => d.References ?? Array.Empty<string>())
+                       .Where(r => !string.IsNullOrWhiteSpace(r))
+                       .Distinct(StringComparer.OrdinalIgnoreCase)
+                       .ToList();
+        if (refs.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in refs) list.AddItem(r);
         }
     }
 }

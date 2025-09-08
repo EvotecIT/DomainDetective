@@ -25,6 +25,7 @@ public static class MtastsWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("MTA-STS DNS and policy file status.");
         var t = doc.AddTable(7, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "DNS Policy TXT";
         t.Rows[0].Cells[1].Paragraphs[0].Text = mtasts.DnsRecordPresent ? (mtasts.DnsRecordValid ? "Present (valid)" : "Present (invalid)") : "Missing";
@@ -52,11 +53,24 @@ public static class MtastsWordSectionWriter
             foreach (var s in missing) list.AddItem(s);
         }
 
+        // Good posture
+        if (scope != ReportScope.Minimal && mtasts.Positives != null && mtasts.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in mtasts.Positives)
+            {
+                if (!string.IsNullOrWhiteSpace(p?.Title)) plist.AddItem(p!.Title);
+            }
+        }
+
         var assessments = (mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
         if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (assessments.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -70,6 +84,15 @@ public static class MtastsWordSectionWriter
                 ft.Rows[i + 1].Cells[2].Paragraphs[0].Text = a.Target ?? string.Empty;
                 ft.Rows[i + 1].Cells[3].Paragraphs[0].Text = a.Message;
             }
+        }
+
+        // References
+        if (mtasts.References != null && mtasts.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in mtasts.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
 }

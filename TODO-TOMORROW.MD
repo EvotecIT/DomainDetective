@@ -2,11 +2,36 @@
 
 This is a short, actionable checklist to pick up work quickly. It reflects the refactors completed today (narrative-driven metadata, positives vs. remediations split, Word header/branding helpers) and focuses on consistency and polish.
 
+## 2025-09-08 (Tomorrow)
+
+Reports (Word)
+- [x] DNSBL section writer: add headings + one‑liners (Summary, Findings, Evidence, References) and align with other sections.
+- [x] Executive Summary → Overview: include total warnings/errors across all domains in the intro sentence.
+- [x] Consolidated Recommendations: for “Domains” column, limit to N items (e.g., 6) then show “+N more”; ensure line wrapping.
+- [x] Mail Classification: add a short “Scoring rubric” blurb and link to docs; ensure “Signals considered” renders even when one list is empty.
+- [x] Ensure every “References” block starts with a one‑liner (done for SPF/DKIM/DMARC/MX/MTA‑STS/TLS‑RPT/All References; add for DNSBL).
+
+PowerShell / CLI
+- [x] Ensure warnings from RPKI do not surface as terminating errors in PS.
+- [x] Add CLI/PS narrative metadata overrides (Title/Subject/Category/Keywords/Creator); wire to Word/HTML composition.
+
+Docs
+- [x] Remove “Report Settings” references from README/docs; note that Generated timestamp is in header and domain count appears in Executive Summary → Overview.
+- [x] Document Mail Classification scoring (ranges, common signals, example breakdown) and link from the report blurb.
+
+Tests & QA
+- [ ] Add Pester test: RPKI 5xx downgraded to Warning; pipeline continues; assessments include `RPKI.Query.Failed` with Warning severity.
+- [ ] Add Pester test: composed Word report contains headings “Executive Summary”, “Overview”, “All References” (with lead text), and Consolidated Recommendations has a “Domains” column.
+- [ ] Golden report pass: single‑domain and multi‑domain; verify all sections show one‑liner intros and References blocks.
+
+Backlog (not tomorrow)
+- [ ] HTML parity follows once HtmlForgeX updates land; keep section structure identical to Word.
+
 ## Reports (Word/HTML)
 - SPF Word: Add small “Good Posture” iconography or subtle styling to Positives list (optional).
-- DMARC/DKIM Word: Implement reports reusing WordReportCommon helpers; include “Good Posture” and actionable Recommendations.
+- DMARC/DKIM Word: Implement reports reusing WordReportCommon helpers; include “Good Posture” and actionable Recommendations. [done]
 - HTML: Surface “Good Posture” cards/section (start with SPF, then DMARC/DKIM) using view.Positions and narrative.Positives.
-- Footer helper: Add WordReportCommon.AddFooter(doc, left, right) with invisible table; left defaults to CompanyLine when present, else Confidential.
+- Footer helper: Add WordReportCommon.AddFooter(doc, left, right) with invisible table; left defaults to CompanyLine when present, else Confidential. [done]
 
 ## Narratives & Metadata
 - Confirm Title/Subtitle/Category/Keywords/Creator for all future narratives (DMARC/DKIM done; extend to others when needed).
@@ -15,8 +40,8 @@ This is a short, actionable checklist to pick up work quickly. It reflects the r
 ## Views (Recommendations vs Positives)
 - Completed: Most converters now use RecommendationEngine.FromProblems(...) and expose Positives = FromPositives(...).
 - Follow‑ups:
-  - EDNS: Assign Positives in EdnsSupportSummary (property added; not yet assigned).
-  - Sweep all converters to ensure BuildReferences uses the filtered `recs` variable (some already updated).
+  - EDNS: Assign Positives in EdnsSupportSummary (property added; not yet assigned). [done]
+  - Sweep all converters to ensure BuildReferences uses the filtered `recs` variable (some already updated). [done: EDNS, Apex, FCrDNS, MailLatency, DMARC]
   - DomainOverall: Consider an aggregated Positives rollup (Info-only view), or leave at RecommendationView for now.
 
 ## PowerShell / CLI Options
@@ -58,9 +83,9 @@ This is a short, actionable checklist to pick up work quickly. It reflects the r
 ---
 
 Pick‑up order (suggested):
-1) Finish EDNS Positives assignment + sweep BuildReferences(recs).
-2) Add Word footer helper; set left = CompanyLine when available.
+1) Finish EDNS Positives assignment + sweep BuildReferences(recs). (EDNS positives done; refs sweep partial)
+2) Add Word footer helper; set left = CompanyLine when available. [done]
 3) DMARC/DKIM Word reports (Good Posture + Recommendations).
-4) HTML “Good Posture” for SPF.
+4) HTML “Good Posture” for SPF. [done]
 5) CLI/PS overrides for narrative metadata; doc updates; quick tests.
 

@@ -20,6 +20,12 @@ public static partial class Converters
         }).ToList() ?? new List<EdnsServerInfo>();
         var largeUdp = entries.Count(e => e.UdpPayloadSize > 1232);
         var truncated = entries.Count(e => e.TruncatedUdp);
+
+        // Normalize assessments → recommendations/positives and counts
+        var assessments = (analysis as IHasAssessments)?.Assessments ?? new List<Assessment>();
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
+        Summarize(assessments, out var warnCount, out var errCount, out var status);
         return new EdnsSupportSummary
         {
             Check = HealthCheckType.EDNSSUPPORT,
@@ -29,13 +35,14 @@ public static partial class Converters
             SupportedCount = supported,
             NotSupportedCount = notSupported,
             Servers = entries,
-            Assessments = (analysis as IHasAssessments)?.Assessments ?? new List<Assessment>(),
-            Status = notSupported > 0 ? "Warning" : "OK",
-            WarningCount = notSupported,
-            ErrorCount = 0,
+            Assessments = assessments,
+            Status = status,
+            WarningCount = warnCount,
+            ErrorCount = errCount,
             Summary = $"{supported}/{total} EDNS; >1232: {largeUdp}; TCP fb: {truncated}; no-edns: {notSupported}",
-            Recommendations = (analysis as IHasAssessments) != null ? RecommendationEngine.FromProblems(((IHasAssessments)analysis).Assessments) : new List<RecommendationAdvice>(),
-            References = new [] { "https://www.rfc-editor.org/rfc/rfc6891" },
+            Recommendations = recs,
+            Positives = positives,
+            References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis
         };
     }

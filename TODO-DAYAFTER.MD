@@ -36,6 +36,14 @@ This single TODO consolidates all open items from previous docs, removes complet
 - [ ] Mail TLS summary fields: Add `Issuer`, `ValidFrom`, `ValidTo`, and `Thumbprint` to the mail TLS view summary to simplify scripting and table exports.
   - [x] Data exposed on MailTlsServerInfo (no UI change).
 
+### Report Polish (Composed Word)
+- [ ] Report Settings panel at the front with `NarrativePlacement`, generated timestamp, and domain count.
+- [ ] Executive Summary intro paragraph before the status table.
+- [ ] Per‑section narrative intros before lists/tables: add a one‑liner before Good Posture and Findings.
+- [ ] References block for SPF, DKIM, DMARC, MX, MTA‑STS, TLS‑RPT, and Mail Classification.
+- [ ] Page breaks between domains; verify TOC anchors update correctly on open.
+- [ ] Tighten recommendation de‑duplication keys (fallback to normalized Title/How when `Code` is empty).
+
 ### New (Data)
 - [x] DKIM provider mapping via CNAME (Provider on DkimRecordAnalysis).
 - [x] TLS-RPT rollups: parse failure-details and expose FailureByType in TlsRptSummary.

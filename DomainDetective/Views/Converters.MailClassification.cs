@@ -16,6 +16,9 @@ public static partial class Converters
         {
             summary += $"; recv {result.ReceivingSignals.Count}; send {result.SendingSignals.Count}";
         }
+        var assessments = result.Assessments ?? new List<Assessment>();
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new MailClassificationInfo
         {
             Check = HealthCheckType.MAILCLASSIFICATION,
@@ -27,14 +30,14 @@ public static partial class Converters
             SendingSignals = result.SendingSignals,
             Score = result.Score,
             ScoreBreakdown = result.ScoreBreakdown,
-            Assessments = result.Assessments ?? new List<Assessment>(),
+            Assessments = assessments,
             Status = status,
             WarningCount = warn,
             ErrorCount = err,
             Summary = summary,
-            Recommendations = RecommendationEngine.FromProblems(result.Assessments ?? new List<Assessment>()),
-            Positives = RecommendationEngine.FromPositives(result.Assessments ?? new List<Assessment>()),
-            References = BuildReferences(result.RfcReferences, new List<RecommendationAdvice>()),
+            Recommendations = recs,
+            Positives = positives,
+            References = BuildReferences(result.RfcReferences, recs),
             Raw = result
         };
     }

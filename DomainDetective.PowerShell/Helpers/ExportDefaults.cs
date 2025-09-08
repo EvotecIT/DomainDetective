@@ -17,6 +17,17 @@ namespace DomainDetective.PowerShell {
         public static string ArtifactsDirectory { get; set; } = string.Empty;
         /// <summary>Narrative text placement for reports.</summary>
         public static NarrativePlacement NarrativePlacement { get; set; } = NarrativePlacement.Auto;
+        // Narrative metadata overrides
+        /// <summary>Override: document title.</summary>
+        public static string NarrativeTitle { get; set; } = string.Empty;
+        /// <summary>Override: document subject/description.</summary>
+        public static string NarrativeSubject { get; set; } = string.Empty;
+        /// <summary>Override: document category.</summary>
+        public static string NarrativeCategory { get; set; } = string.Empty;
+        /// <summary>Override: document keywords (comma-separated).</summary>
+        public static string NarrativeKeywords { get; set; } = string.Empty;
+        /// <summary>Override: document creator/author.</summary>
+        public static string NarrativeCreator { get; set; } = string.Empty;
         // Branding / report cosmetics
         /// <summary>Logo image path.</summary>
         public static string LogoPath { get; set; } = string.Empty;

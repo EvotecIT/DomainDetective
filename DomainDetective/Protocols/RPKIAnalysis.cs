@@ -81,7 +81,9 @@ public class RPKIAnalysis : IHasAssessments {
     }
 
     private static (string Prefix, int Asn, bool Valid) Fail(string? prefix, InternalLogger? logger, string message, params object[] args) {
-        logger?.WriteErrorCode(RpkiCodes.QueryFailed, message, args);
+        // External dependency failures (HTTP 5xx/timeouts) should not surface as hard errors.
+        // Downgrade to a warning so pipelines keep flowing without red error records.
+        logger?.WriteWarningCode(RpkiCodes.QueryFailed, message, args);
         return (prefix ?? string.Empty, 0, false);
     }
 

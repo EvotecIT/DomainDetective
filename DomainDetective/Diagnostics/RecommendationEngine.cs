@@ -58,8 +58,27 @@ public static class RecommendationEngine {
     /// with severity, category and instance targets.
     /// </summary>
     public static IReadOnlyList<RecommendationView> GroupByCode(IEnumerable<Assessment> assessments) {
+        // Group primarily by code; when code is missing, synthesize a stable key
+        // from normalized recommendation title/how so duplicates merge across domains.
+        static string Normalize(string? s) {
+            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            var span = s.Trim().ToLowerInvariant();
+            // Collapse whitespace and strip trivial punctuation for stability
+            span = System.Text.RegularExpressions.Regex.Replace(span, "\n|\r", " ");
+            span = System.Text.RegularExpressions.Regex.Replace(span, @"\s+", " ");
+            // Note: leave uncommon dashes as-is to avoid compile-time escape quirks here
+            span = span.Replace(";", "").Replace(",", "").Replace(":", "").Replace(".", "");
+            return span;
+        }
+
         var groups = assessments
-            .GroupBy(a => a.Code ?? string.Empty, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(a => {
+                var code = a.Code ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(code)) return code;
+                var advice = RecommendationCatalog.For(a);
+                var key = $"{advice.Domain}|{Normalize(advice.Title)}|{Normalize(advice.How)}";
+                return key;
+            }, StringComparer.OrdinalIgnoreCase);
         var result = new List<RecommendationView>();
         foreach (var g in groups) {
             var instances = g.ToList();

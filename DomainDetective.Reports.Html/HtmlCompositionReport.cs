@@ -19,7 +19,7 @@ public static class HtmlCompositionReport
     /// <param name="items">View objects grouped by Subject.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="openInBrowser">Open the file after saving.</param>
-    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto)
+    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -27,7 +27,10 @@ public static class HtmlCompositionReport
         var title = BuildSubjectTitle(grouped.Keys.ToList());
 
         using IHtmlComposer html = new HtmlForgeXComposer();
-        html.SetMetadata($"Security Report — {title}", "DomainDetective", "Custom composition report");
+        var theTitle = string.IsNullOrWhiteSpace(titleOverride) ? $"Security Report — {title}" : titleOverride;
+        var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
+        var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Custom composition report" : descriptionOverride;
+        html.SetMetadata(theTitle, theAuthor, theDesc);
 
         html.AddHeading($"Security Report — {title}", 1);
         html.AddParagraph($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");

@@ -33,6 +33,7 @@ public static class DmarcWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("DMARC record presence, policy, alignment and reporting endpoints.");
         var t = doc.AddTable(8, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = dmarc.DmarcRecordExists ? "Yes" : "No";
@@ -53,6 +54,18 @@ public static class DmarcWordSectionWriter
 
         if (scope == ReportScope.Minimal) return;
 
+        // Good posture
+        if (scope != ReportScope.Minimal && dmarc.Positives != null && dmarc.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in dmarc.Positives)
+            {
+                if (!string.IsNullOrWhiteSpace(p?.Title)) plist.AddItem(p!.Title);
+            }
+        }
+
         var assessList = (dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
         if (!showInfoFindings)
         {
@@ -61,6 +74,7 @@ public static class DmarcWordSectionWriter
         if (assessList.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(assessList.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -76,6 +90,35 @@ public static class DmarcWordSectionWriter
             }
         }
 
+        // Evidence
+        headings.AddItem("Evidence", baseLevel);
+        doc.AddParagraph("Raw DMARC record and reporting endpoints.");
+        var lbl = doc.AddParagraph("DMARC Record:");
+        lbl.Bold = true;
+        var rec = doc.AddParagraph(dmarc.DmarcRecord ?? string.Empty);
+        rec.FontSize = 10;
+        // RUA / RUF endpoints
+        var anyRua = dmarc.MailtoRua != null && dmarc.MailtoRua.Count > 0;
+        var anyRuf = dmarc.MailtoRuf != null && dmarc.MailtoRuf.Count > 0;
+        if (anyRua || anyRuf)
+        {
+            var elist = doc.AddList(WordListStyle.Bulleted);
+            if (anyRua)
+                elist.AddItem($"Aggregate RUA: {string.Join(", ", dmarc.MailtoRua)}");
+            if (anyRuf)
+                elist.AddItem($"Forensic RUF: {string.Join(", ", dmarc.MailtoRuf)}");
+        }
+        // External report authorization
+        if (dmarc.ExternalReportAuthorization != null && dmarc.ExternalReportAuthorization.Count > 0)
+        {
+            doc.AddParagraph("External reporting authorization:");
+            var alist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var kv in dmarc.ExternalReportAuthorization)
+            {
+                alist.AddItem($"{kv.Key}: {(kv.Value ? "authorized" : "denied")}");
+            }
+        }
+
         // Detailed extras: highlights and recommendations
         if (scope == ReportScope.Detailed)
         {
@@ -83,6 +126,7 @@ public static class DmarcWordSectionWriter
             if (hl != null && hl.Count > 0)
             {
                 headings.AddItem("Highlights", baseLevel);
+                doc.AddParagraph("Notable observations:");
                 var list = doc.AddList(WordListStyle.Bulleted);
                 foreach (var h in hl) list.AddItem(h);
             }
@@ -103,6 +147,15 @@ public static class DmarcWordSectionWriter
                     rt.Rows[i + 1].Cells[2].Paragraphs[0].Text = rv.Advice?.How ?? string.Empty;
                 }
             }
+        }
+
+        // References
+        if (dmarc.References != null && dmarc.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in dmarc.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
 }

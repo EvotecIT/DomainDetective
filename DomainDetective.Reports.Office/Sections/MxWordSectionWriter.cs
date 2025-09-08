@@ -23,6 +23,7 @@ public static class MxWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("MX posture and integrity signals.");
         var t = doc.AddTable(9, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "MX Records";
         t.Rows[0].Cells[1].Paragraphs[0].Text = (mx.MxRecords?.Count ?? 0).ToString();
@@ -45,11 +46,24 @@ public static class MxWordSectionWriter
 
         if (scope == ReportScope.Minimal) return;
 
+        // Good posture
+        if (scope != ReportScope.Minimal && mx.Positives != null && mx.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
+            var plist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in mx.Positives)
+            {
+                if (!string.IsNullOrWhiteSpace(p?.Title)) plist.AddItem(p!.Title);
+            }
+        }
+
         var assessments = (mx.Assessments ?? Array.Empty<DomainDetective.Assessment>()).ToList();
         if (!showInfoFindings) assessments = assessments.Where(a => a.Severity != DomainDetective.AssessmentSeverity.Info).ToList();
         if (assessments.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(assessments.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
@@ -69,9 +83,18 @@ public static class MxWordSectionWriter
         if (mx.MxRecords != null && mx.MxRecords.Count > 0)
         {
             headings.AddItem("Evidence", baseLevel);
+            doc.AddParagraph("MX records discovered for this domain:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var rr in mx.MxRecords) list.AddItem(rr);
         }
+
+        // References
+        if (mx.References != null && mx.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            doc.AddParagraph("Further reading and relevant standards.");
+            var rlist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in mx.References) if (!string.IsNullOrWhiteSpace(r)) rlist.AddItem(r);
+        }
     }
 }
-

@@ -14,6 +14,8 @@ public static partial class Converters
         string status = total == valid ? "OK" : (valid > 0 ? "Warning" : "Error");
         int warn = (total > valid && valid > 0) ? 1 : 0;
         int err = (valid == 0 && total > 0) ? 1 : 0;
+        var recs = RecommendationEngine.FromProblems(assessments);
+        var positives = RecommendationEngine.FromPositives(assessments);
         return new FcrDnsInfo
         {
             Check = HealthCheckType.FCRDNS,
@@ -27,9 +29,9 @@ public static partial class Converters
             WarningCount = warn,
             ErrorCount = err,
             Summary = $"{valid}/{total} forward-confirmed",
-            Recommendations = RecommendationEngine.FromProblems(assessments),
-            Positives = RecommendationEngine.FromPositives(assessments),
-            References = BuildReferences(System.Array.Empty<StandardReference>(), RecommendationEngine.FromProblems(assessments)),
+            Recommendations = recs,
+            Positives = positives,
+            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis
         };
     }

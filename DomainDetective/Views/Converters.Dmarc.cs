@@ -43,7 +43,7 @@ public static partial class Converters
             Summary = $"p={analysis.Policy ?? "?"}; rua {analysis.MailtoRua?.Count ?? 0}; align dkim={analysis.DkimAlignment ?? "?"}/spf={analysis.SpfAlignment ?? "?"}",
             Recommendations = recs,
             Positives = positives,
-            References = BuildReferences(System.Array.Empty<StandardReference>(), analysis.Recommendations),
+            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
             Raw = analysis,
             Narrative = narrative,
             Highlights = narrative.Highlights

@@ -116,8 +116,9 @@ public class IPNeighborAnalysis : IHasAssessments
         }
         catch (Exception ex)
         {
-            logger?.WriteErrorCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
-            return true;
+            // Downgrade external dependency failures to warnings to avoid terminating error records in PowerShell.
+            logger?.WriteWarningCode(RpkiCodes.QueryFailed, "RPKI query failed for {0}: {1}", ip, ex.Message);
+            return true; // assume valid to avoid false negatives on transient failures
         }
     }
 

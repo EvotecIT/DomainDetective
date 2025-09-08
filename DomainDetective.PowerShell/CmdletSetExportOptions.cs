@@ -46,6 +46,23 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? CompanyYear { get; set; }
 
+        // Narrative metadata overrides
+        /// <summary>Override the report Title.</summary>
+        [Parameter(Mandatory = false)]
+        public string? Title { get; set; }
+        /// <summary>Override the report Subject/Description.</summary>
+        [Parameter(Mandatory = false)]
+        public string? Subject { get; set; }
+        /// <summary>Override the report Category.</summary>
+        [Parameter(Mandatory = false)]
+        public string? Category { get; set; }
+        /// <summary>Override the report Keywords (comma-separated).</summary>
+        [Parameter(Mandatory = false)]
+        public string? Keywords { get; set; }
+        /// <summary>Override the report Creator/Author.</summary>
+        [Parameter(Mandatory = false)]
+        public string? Creator { get; set; }
+
         /// <summary>Open reports after generation (HTML in browser, others via shell).</summary>
         [Parameter(Mandatory = false)]
         [Alias("OpenReport")]
@@ -83,6 +100,11 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.CompanyName = string.Empty;
                 ExportDefaults.CompanyAddress = string.Empty;
                 ExportDefaults.CompanyYear = string.Empty;
+                ExportDefaults.NarrativeTitle = string.Empty;
+                ExportDefaults.NarrativeSubject = string.Empty;
+                ExportDefaults.NarrativeCategory = string.Empty;
+                ExportDefaults.NarrativeKeywords = string.Empty;
+                ExportDefaults.NarrativeCreator = string.Empty;
                 WriteVerbose("Export defaults reset to built-in values.");
                 return;
             }
@@ -136,6 +158,28 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(CompanyYear)) {
                 ExportDefaults.CompanyYear = CompanyYear!;
                 WriteVerbose($"CompanyYear set to {ExportDefaults.CompanyYear}.");
+            }
+
+            // Narrative overrides
+            if (!string.IsNullOrWhiteSpace(Title)) {
+                ExportDefaults.NarrativeTitle = Title!;
+                WriteVerbose($"Narrative Title set to '{ExportDefaults.NarrativeTitle}'.");
+            }
+            if (!string.IsNullOrWhiteSpace(Subject)) {
+                ExportDefaults.NarrativeSubject = Subject!;
+                WriteVerbose($"Narrative Subject set to '{ExportDefaults.NarrativeSubject}'.");
+            }
+            if (!string.IsNullOrWhiteSpace(Category)) {
+                ExportDefaults.NarrativeCategory = Category!;
+                WriteVerbose($"Narrative Category set to '{ExportDefaults.NarrativeCategory}'.");
+            }
+            if (!string.IsNullOrWhiteSpace(Keywords)) {
+                ExportDefaults.NarrativeKeywords = Keywords!;
+                WriteVerbose($"Narrative Keywords set.");
+            }
+            if (!string.IsNullOrWhiteSpace(Creator)) {
+                ExportDefaults.NarrativeCreator = Creator!;
+                WriteVerbose($"Narrative Creator set to '{ExportDefaults.NarrativeCreator}'.");
             }
 
             if (this.MyInvocation.BoundParameters.ContainsKey(nameof(Artifacts))) {
