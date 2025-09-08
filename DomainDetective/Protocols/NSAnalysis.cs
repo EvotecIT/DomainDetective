@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Text.Json;
 
 namespace DomainDetective {
@@ -218,8 +219,13 @@ namespace DomainDetective {
                 using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
                 using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
+#if NET5_0_OR_GREATER
                 var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
                 using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+#else
+                var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
+#endif
                 if (!doc.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty("asns", out var asns)) return null;
                 if (asns.ValueKind != JsonValueKind.Array || asns.GetArrayLength() == 0) return null;
                 var first = asns[0];
