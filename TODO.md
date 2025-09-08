@@ -17,6 +17,46 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 ## Reports — HTML
 - Parity with Word: add Good Posture for DMARC/DKIM (SPF already done) and align section structure.
 
+## Competitive Parity (External Feature Gaps)
+- DMARC Aggregate (RUA) ingestion and analysis
+  - Ingest `.xml`, `.xml.gz`, and `.zip` aggregate reports from a folder and/or mailbox.
+  - Parse v1 and v2 formats; normalize into internal JSON snapshots.
+  - Rollups: by source IP, by header-from, by result (pass/fail/alignment), and by enforcement mode.
+  - Trends: daily/weekly pass rate, top failing sources, alignment gaps; export time series.
+  - Reports: Word/HTML sections for Aggregate Reports with posture one‑liners and remediation hints.
+- Mail transport security posture
+  - MTA‑STS: check TXT record, fetch `https://mta-sts.<domain>/.well-known/mta-sts.txt`, validate syntax and fields (version, mode, `max_age`, `mx`).
+  - Verify declared MX list matches DNS MX and that MX hosts present STARTTLS with acceptable TLS versions/ciphers.
+  - TLS‑RPT: check `_smtp._tls` TXT presence; capture `rua` endpoints and basic sanity of mailto/https URIs.
+  - Surface in Good Posture/Findings; include references.
+- DNSSEC presence and resolver‑based validation
+  - Detect DS/DNSKEY presence; attempt AD‑bit verification using multiple resolvers.
+  - Summarize as Good Posture tile; include warnings when chain/validation missing.
+- Registration snapshot (WHOIS/RDAP)
+  - Query WHOIS (port 43) with server/port override; RDAP fallback when available.
+  - Snapshot registrar, creation/update/expiry, domain status codes, nameservers.
+  - Compute `DaysUntilExpiration`; warn at configurable thresholds (e.g., <60 days).
+  - Track drift across runs (registrar/nameserver changes).
+- Resolver override everywhere
+  - Expose `-Server`/`-DnsServer` and multi‑resolver lists across CLI/PS; pipe through to DNS layer.
+- Bulk input and CSV export
+  - Add `-InputFile` to CLI/PS to process domain lists.
+  - Add `-CsvPath` for first‑class CSV export without requiring downstream piping.
+- DKIM selector targeting
+  - Allow explicit selector list override in addition to enumeration; roll up worst severity across selectors.
+- SPF advisories
+  - Enforce single‑record rule; flag >255‑char segments; count DNS lookups; hint on `-all` vs `~all` vs `?all`.
+  - 
+## Surpass Moves (Go Beyond Parity)
+- RDAP‑first with WHOIS fallback; structured JSON with IANA/IETF status semantics.
+- Enforcement readiness scores
+  - DMARC: compute readiness to move to `p=reject` (alignment, pass rate trends, authenticated percentage).
+  - MTA‑STS/TLS‑RPT: readiness to move to `mode=enforce` (MX coverage, TLS grades, report coverage).
+- Portfolio drift detection across runs (registrar, NS, MX, TLS posture) with concise diff in reports.
+- MX TLS coverage matrix per domain (each MX host: STARTTLS, min TLS version, cert validity, SNI behavior) summarized in Word/HTML.
+- PS/CLI: `-Server` multi‑resolver strategies exposed (FirstSuccess/FastestWins/SequentialAll) with timeouts and IPv6 preference.
+- HTML report polish: sticky TOC, anchors, and expandable “+N more” lists consistent with Word summary behavior.
+
 ## CLI / PowerShell
 - CLI: expose company branding options (CompanyName/Address/Year/Logo/Header/Watermark) and pass to composition.
 - PS: `-ShowPositives` switch for table views to list posture signals quickly.
