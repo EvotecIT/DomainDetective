@@ -53,13 +53,6 @@ namespace DomainDetective {
         /// </summary>
         public static void ClearCache() => _cache.Clear();
 
-        /// <summary>
-        /// Performs an HTTP request to retrieve the Public-Key-Pins header and
-        /// verifies that any advertised pins are valid base64-encoded SHA-256
-        /// hashes.
-        /// </summary>
-        /// <param name="url">The URL to request.</param>
-        /// <param name="logger">Logger used for error reporting.</param>
         private static readonly HttpClient _client;
 
         static HPKPAnalysis()
@@ -105,6 +98,12 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>
+        /// Performs an HTTP request to retrieve the Public-Key-Pins header and verifies
+        /// that any advertised pins are valid base64-encoded SHA-256 hashes.
+        /// </summary>
+        /// <param name="url">The URL to request.</param>
+        /// <param name="logger">Logger used for error reporting.</param>
         public async Task AnalyzeUrl(string url, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HPKP", target: url);
             Subject = url;

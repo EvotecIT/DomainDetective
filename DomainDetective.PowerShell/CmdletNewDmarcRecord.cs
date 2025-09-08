@@ -129,7 +129,7 @@ namespace DomainDetective.PowerShell {
             try {
                 var client = SharedHttpClient.Instance;
                 var data = new Dictionary<string, string> {
-                    ["domain"] = DomainName,
+                    ["domain"] = DomainName!,
                     ["record"] = record
                 };
                 using var response = await client.PostAsync(DnsApiUrl, new FormUrlEncodedContent(data)).ConfigureAwait(false);

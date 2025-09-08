@@ -131,7 +131,7 @@ namespace DomainDetective.PowerShell {
             try {
                 var (enabled, persona, live, narrVerbose) = PersonaState.Get();
                 if (enabled && live && !string.IsNullOrWhiteSpace(e.ProgressCurrentOperation)) {
-                    var verb = PersonaLexicon.StepVerb(persona, e.ProgressCurrentOperation);
+                    var verb = PersonaLexicon.StepVerb(persona, e.ProgressCurrentOperation!);
                     progressMessage = $"{verb} {e.ProgressCurrentOperation}";
                 }
             } catch { /* best-effort persona on progress */ }

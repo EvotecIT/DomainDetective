@@ -709,6 +709,7 @@ namespace DomainDetective {
         /// <param name="checkHsts">Whether to check for HSTS.</param>
         /// <param name="collectHeaders">Whether to collect common security headers.</param>
         /// <param name="captureBody">Whether to capture the response body.</param>
+        /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
         /// <returns>A populated <see cref="HttpAnalysis"/> instance.</returns>
         public static async Task<HttpAnalysis> CheckUrl(string url, bool checkHsts = false, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
             var analysis = new HttpAnalysis();

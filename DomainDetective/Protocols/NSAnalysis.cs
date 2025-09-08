@@ -238,6 +238,7 @@ namespace DomainDetective {
         /// Analyzes delegation information from the parent zone.
         /// </summary>
         /// <param name="domainName">Domain being checked.</param>
+        /// <param name="logger">Logger used for diagnostics.</param>
         public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName) : null;
             ParentNsRecords = new List<string>();

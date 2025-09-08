@@ -85,12 +85,6 @@ namespace DomainDetective {
         public List<Assessment> Assessments { get; } = new();
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
-        /// <summary>
-        /// Performs DNSSEC validation for the specified domain.
-        /// </summary>
-        /// <param name="domainName">Domain to validate.</param>
-        /// <param name="logger">Optional logger used for diagnostics.</param>
-        /// <param name="dnsConfiguration">Optional DNS configuration.</param>
         private static readonly HttpClient _client;
 
         static DnsSecAnalysis()
@@ -100,6 +94,13 @@ namespace DomainDetective {
             // _client is used for non-DNS HTTP fetches (e.g., trust anchors)
         }
 
+        /// <summary>
+        /// Performs DNSSEC validation for the specified domain.
+        /// </summary>
+        /// <param name="domainName">Domain to validate.</param>
+        /// <param name="logger">Logger used for diagnostics.</param>
+        /// <param name="dnsConfiguration">Optional DNS configuration.</param>
+        /// <param name="ct">Cancellation token.</param>
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
             Subject = domainName;
@@ -736,6 +737,7 @@ namespace DomainDetective {
         /// Downloads the current trust anchors published by IANA.
         /// </summary>
         /// <param name="logger">Optional logger for diagnostics.</param>
+        /// <param name="cancellationToken">Propagation token for the HTTP request.</param>
         /// <returns>List of DS record strings for the root zone.</returns>
         public static async Task<(IReadOnlyList<string> anchors, DateTimeOffset? expiration)> DownloadTrustAnchors(
             InternalLogger? logger = null,
@@ -830,6 +832,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domain">Domain name to query.</param>
         /// <param name="type">Record type to validate.</param>
+        /// <param name="ct">Cancellation token.</param>
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type, CancellationToken ct = default) {
             using var c = new ClientX(endpoint: DnsEndpoint.System);

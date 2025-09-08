@@ -125,6 +125,7 @@ namespace DomainDetective {
         /// <param name="port">Port used for HTTPS.</param>
         /// <param name="logger">Logger instance for diagnostics.</param>
         /// <param name="cancellationToken">Optional cancellation token.</param>
+        /// <param name="showProgress">When true, writes progress via the logger.</param>
         public async Task Analyze(IEnumerable<string> hosts, int port = 443, InternalLogger? logger = null, CancellationToken cancellationToken = default, bool showProgress = true) {
             logger ??= new InternalLogger();
             Results.Clear();

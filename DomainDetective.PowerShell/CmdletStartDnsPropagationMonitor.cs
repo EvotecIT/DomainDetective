@@ -102,7 +102,8 @@ namespace DomainDetective.PowerShell {
                 }
             }
             if (!string.IsNullOrWhiteSpace(WebhookUrl)) {
-                _monitor.Notifier = NotificationSenderFactory.CreateWebhook(WebhookUrl);
+                var url = WebhookUrl!; // guarded by IsNullOrWhiteSpace
+                _monitor.Notifier = NotificationSenderFactory.CreateWebhook(url);
             }
             _monitor.Start();
             WriteObject(_monitor);

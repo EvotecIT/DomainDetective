@@ -49,7 +49,7 @@ public static class SpfWordReport
         var footerTable = doc.Footer.Default.AddTable(1, 2, WordTableStyle.TableNormal);
         footerTable.WidthType = TableWidthUnitValues.Pct; // 5000 = 100%
         footerTable.Width = 5000;
-        footerTable.Rows[0].Cells[0].AddParagraph(string.IsNullOrWhiteSpace(footerText) ? "Confidential" : footerText);
+        footerTable.Rows[0].Cells[0].AddParagraph(string.IsNullOrWhiteSpace(footerText) ? "Confidential" : footerText!);
         var footerRight = footerTable.Rows[0].Cells[1].AddParagraph();
         footerRight.ParagraphAlignment = JustificationValues.Right;
         footerRight.AddPageNumber(includeTotalPages: true, separator: " / ");
@@ -60,9 +60,9 @@ public static class SpfWordReport
 
         // Introduction & Why it matters (business facing)
         headings.AddItem("Introduction", 1);
-        doc.AddParagraph(nar.Introduction);
+        doc.AddParagraph(nar.Introduction ?? string.Empty);
         headings.AddItem("Why this matters", 1);
-        doc.AddParagraph(nar.WhyItMatters);
+        doc.AddParagraph(nar.WhyItMatters ?? string.Empty);
 
         // 1.1 SPF Section — reuse the section writer
         headings.AddItem("SPF", 1);

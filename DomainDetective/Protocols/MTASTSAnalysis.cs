@@ -269,11 +269,6 @@ public class MTASTSAnalysis : IHasAssessments {
             }
         }
 
-        /// <summary>
-        /// Retrieves the policy contents from the specified URL.
-        /// </summary>
-        /// <param name="url">The policy URL.</param>
-        /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
         private static readonly HttpClient _client;
 
         static MTASTSAnalysis()
@@ -283,6 +278,11 @@ public class MTASTSAnalysis : IHasAssessments {
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
         }
 
+        /// <summary>
+        /// Retrieves the policy contents from the specified URL.
+        /// </summary>
+        /// <param name="url">The policy URL.</param>
+        /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
         private async Task<string> GetPolicy(string url) {
             try {
                 var response = await _client.GetAsync(url);

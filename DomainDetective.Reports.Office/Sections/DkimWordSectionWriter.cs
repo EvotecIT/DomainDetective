@@ -121,7 +121,7 @@ public static class DkimWordSectionWriter
             if (!string.IsNullOrWhiteSpace(r.PublicKey))
             {
                 var kl = doc.AddParagraph("Public Key (snippet):"); kl.Bold = true;
-                var key = r.PublicKey.Length > 120 ? r.PublicKey.Substring(0, 120) + "…" : r.PublicKey;
+                var key = r.PublicKey!.Length > 120 ? r.PublicKey.Substring(0, 120) + "…" : r.PublicKey;
                 var kp = doc.AddParagraph(key);
                 kp.FontSize = 10;
             }

@@ -157,14 +157,14 @@ internal static class WordReportCommon
         var leftP = headerTable.Rows[0].Cells[0].AddParagraph(leftText ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
         {
-            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath, 48, 48);
+            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath!, 48, 48);
         }
         var rightP = headerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
         rightP.ParagraphAlignment = JustificationValues.Right;
 
         if (!string.IsNullOrWhiteSpace(watermarkText))
         {
-            doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText);
+            doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText!);
         }
     }
 

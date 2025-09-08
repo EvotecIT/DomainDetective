@@ -701,11 +701,10 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Populates <see cref="SpfPartAnalyses"/> with provenance by traversing include/redirect chains.
+        /// Validates SPF macro syntax within a token and records warnings.
         /// </summary>
-        /// <param name="domain">Base domain whose SPF record is being analyzed.</param>
+        /// <param name="token">SPF token that may contain macros.</param>
         /// <param name="logger">Optional logger for diagnostics.</param>
-
         private void ValidateMacros(string token, InternalLogger? logger) {
             var index = token.IndexOf('%');
             while (index >= 0 && index < token.Length) {
@@ -918,6 +917,7 @@ namespace DomainDetective {
         /// Generates a detailed analysis of flattened SPF IP addresses.
         /// </summary>
         /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
+        /// <param name="logger">Optional logger for diagnostics.</param>
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
@@ -984,6 +984,7 @@ namespace DomainDetective {
         /// Returns all IP addresses referenced by the SPF record after resolving includes and redirects.
         /// </summary>
         /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
+        /// <param name="logger">Optional logger for diagnostics.</param>
         public async Task<List<string>> GetFlattenedIpAddresses(string domainName, InternalLogger? logger = null) {
             var analysis = await GetFlattenedIpAnalysis(domainName, logger);
             return analysis.UniqueIps;
