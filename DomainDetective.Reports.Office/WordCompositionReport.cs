@@ -121,17 +121,30 @@ public static class WordCompositionReport
         var allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
         try
         {
-            // Build dynamic header list and writers based on present sections
+            // Build dynamic header list and writers; cap content columns to keep layout tidy in Word.
+            // Max total columns ≈ 6 (including Domain + Findings) → content columns cap = 4.
+            const int maxContentColumns = 4;
+            var candidates = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs, int Priority)>();
+            if (hasSpf)    candidates.Add(("SPF",     (cell, b) => cell.AddParagraph(b.Spf?.Status ?? "-"),     b => b.Spf?.WarningCount ?? 0,     b => b.Spf?.ErrorCount ?? 0, 10));
+            if (hasDkim)   candidates.Add(("DKIM",    (cell, b) => cell.AddParagraph(b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-"), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0, 9));
+            if (hasDmarc)  candidates.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0, 8));
+            if (hasMx)     candidates.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0, 7));
+            if (hasDnsbl)  candidates.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0, 6));
+            if (hasMtasts) candidates.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0, 5));
+            if (hasTlsRpt) candidates.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0, 4));
+            if (hasClass)  candidates.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0, 3));
+
+            var selected = candidates
+                .OrderByDescending(c => c.Priority)
+                .ThenBy(c => c.Header, StringComparer.OrdinalIgnoreCase)
+                .Take(maxContentColumns)
+                .ToList();
+            int omitted = candidates.Count - selected.Count;
+
             var columns = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs)>();
             columns.Add(("Domain", (cell, b) => cell.AddParagraph(b.Subject), null, null));
-            if (hasMx)     columns.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0));
-            if (hasSpf)    columns.Add(("SPF",     (cell, b) => cell.AddParagraph(b.Spf?.Status ?? "-"),     b => b.Spf?.WarningCount ?? 0,     b => b.Spf?.ErrorCount ?? 0));
-            if (hasDkim)   columns.Add(("DKIM",    (cell, b) => cell.AddParagraph(b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-"), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0));
-            if (hasDmarc)  columns.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0));
-            if (hasMtasts) columns.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0));
-            if (hasTlsRpt) columns.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0));
-            if (hasDnsbl)  columns.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0));
-            if (hasClass)  columns.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0));
+            foreach (var s in selected)
+                columns.Add((s.Header, s.WriteCell, s.Warns, s.Errs));
             columns.Add(("Findings (W/E)", (cell, b) => {
                 int w = 0, e = 0;
                 foreach (var col in columns)
@@ -156,6 +169,12 @@ public static class WordCompositionReport
                 {
                     columns[c].WriteCell(cells[c], bucket);
                 }
+            }
+
+            if (omitted > 0)
+            {
+                doc.AddParagraph($"Note: showing top {selected.Count} controls; {omitted} additional check(s) summarized below.")
+                   .SetItalic(true);
             }
 
             // Additional Summary (list) for checks not rendered as columns
