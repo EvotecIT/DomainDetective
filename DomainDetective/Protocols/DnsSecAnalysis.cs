@@ -25,6 +25,13 @@ namespace DomainDetective {
     /// </remarks>
     public class DnsSecAnalysis : IHasAssessments {
         public string? Subject { get; set; }
+        /// <summary>When true, DnsClientX performs local DNSSEC validation.</summary>
+        public bool UseLocalDnssecValidation { get; set; }
+        /// <summary>
+        /// Optional override for multi-resolver AD probing used in tests.
+        /// Returns (ok: response success, ad: AD bit set for DS and DNSKEY).
+        /// </summary>
+        internal Func<DnsClientX.DnsEndpoint, string, System.Threading.CancellationToken, Task<(bool ok, bool ad)>>? AdProbeOverride { get; set; }
         private readonly List<string> _mismatchSummary = new();
         private readonly List<string> _warnings = new();
 
@@ -90,13 +97,15 @@ namespace DomainDetective {
         {
             var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
             _client = new HttpClient(handler, disposeHandler: false);
-            _client.DefaultRequestHeaders.Add("Accept", "application/dns-json");
+            // _client is used for non-DNS HTTP fetches (e.g., trust anchors)
         }
 
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
             Subject = domainName;
-            var client = _client;
+            // Use DnsClientX for all DNS queries
+            var resolver = new ClientX(endpoint: (dnsConfiguration?.DnsEndpoint) ?? DnsEndpoint.System,
+                                       (dnsConfiguration?.DnsSelectionStrategy) ?? DnsSelectionStrategy.First);
 
             _mismatchSummary.Clear();
             _warnings.Clear();
@@ -112,34 +121,28 @@ namespace DomainDetective {
             int rootKeyTag = 0;
 
             while (true) {
-                var dnskeyUri = $"https://cloudflare-dns.com/dns-query?name={current}&type=DNSKEY&do=1";
-                using var dnskeyResponse = await client.GetAsync(dnskeyUri, ct).ConfigureAwait(false);
-                dnskeyResponse.EnsureSuccessStatusCode();
-                var dnskeyJson = await dnskeyResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-                var dnskeyDoc = JsonDocument.Parse(dnskeyJson);
-                bool keyAd = dnskeyDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+                // Query DNSKEY with DO=1 to retrieve keys and signatures
+                var dnskeyResp = await resolver.Resolve(current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, cancellationToken: ct).ConfigureAwait(false);
+                bool keyAd = dnskeyResp.AuthenticData;
 
                 List<string> zoneKeys = new();
                 List<string> zoneSigs = new();
                 List<RrsigInfo> zoneSigInfos = new();
-                if (dnskeyDoc.RootElement.TryGetProperty("Answer", out var ansElem)) {
-                    foreach (var answer in ansElem.EnumerateArray()) {
-                        var type = answer.GetProperty("type").GetInt32();
-                        var data = answer.GetProperty("data").GetString();
-                        if (type == 48) {
-                            zoneKeys.Add(data);
-                        } else if (type == 46) {
+                foreach (var answer in dnskeyResp.Answers ?? Array.Empty<DnsAnswer>()) {
+                    if (answer.Type == DnsRecordType.DNSKEY) {
+                        var data = answer.Data ?? answer.DataRaw;
+                        if (!string.IsNullOrWhiteSpace(data)) zoneKeys.Add(data);
+                    } else if (answer.Type == DnsRecordType.RRSIG) {
+                        var data = answer.Data ?? answer.DataRaw;
+                        if (!string.IsNullOrWhiteSpace(data)) {
                             zoneSigs.Add(data);
-                            RrsigInfo sig = ParseRrsig(data);
+                            var sig = ParseRrsig(data);
                             zoneSigInfos.Add(sig);
                             if (sig.Expiration != DateTimeOffset.MinValue &&
                                 sig.Expiration - DateTimeOffset.UtcNow <= KeyExpirationWarningThreshold) {
                                 double days = (sig.Expiration - DateTimeOffset.UtcNow).TotalDays;
-                                string message = string.Format(
-                                    CultureInfo.InvariantCulture,
-                                    "RRSIG for {0} expires in {1:F0} days",
-                                    current,
-                                    Math.Ceiling(days));
+                                string message = string.Format(CultureInfo.InvariantCulture,
+                                    "RRSIG for {0} expires in {1:F0} days", current, Math.Ceiling(days));
                                 logger?.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
                                 _warnings.Add(message);
                                 KeyExpiresSoon = true;
@@ -148,7 +151,7 @@ namespace DomainDetective {
                     }
                 }
 
-                var dsResult = await FetchDsRecords(current, client, ct);
+                var dsResult = await FetchDsRecords(current, resolver, ct);
                 dsTtls.Add(dsResult.ttl);
 
                 List<string> currentDsRecords = dsResult.records ?? new List<string>();
@@ -262,7 +265,7 @@ namespace DomainDetective {
 
             // Check NSEC3/NSEC3PARAM for Opt-Out usage (risk advisory)
             try {
-                if (await HasNsec3OptOutAsync(domainName, ct).ConfigureAwait(false)) {
+                if (await HasNsec3OptOutAsync(domainName, resolver, UseLocalDnssecValidation, ct).ConfigureAwait(false)) {
                     logger?.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
                 }
             } catch (Exception ex) {
@@ -274,18 +277,31 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
             }
 
-            // Attempt AD-bit verification using multiple resolvers via DnsClientX (best-effort)
+            await MultiResolverAdCheck(domainName, logger, ct).ConfigureAwait(false);
+        }
+
+        internal async Task MultiResolverAdCheck(string domainName, InternalLogger logger, CancellationToken ct)
+        {
             try {
                 int confirmed = 0;
                 int total = 0;
                 var endpoints = new[] { DnsClientX.DnsEndpoint.Cloudflare, DnsClientX.DnsEndpoint.Google, DnsClientX.DnsEndpoint.Quad9 };
                 foreach (var ep in endpoints) {
                     ct.ThrowIfCancellationRequested();
-                    using var c = new DnsClientX.ClientX(endpoint: ep);
-                    var ds = await c.Resolve(domainName, DnsClientX.DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
-                    var dk = await c.Resolve(domainName, DnsClientX.DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
-                    total++;
-                    if (ds.AuthenticData && dk.AuthenticData) confirmed++;
+                    (bool ok, bool ad) result;
+                    if (AdProbeOverride != null)
+                    {
+                        result = await AdProbeOverride(ep, domainName, ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        using var c = new DnsClientX.ClientX(endpoint: ep);
+                        var ds = await c.Resolve(domainName, DnsClientX.DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+                        var dk = await c.Resolve(domainName, DnsClientX.DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+                        result = (ok: ds.Status == DnsClientX.DnsResponseCode.NoError && dk.Status == DnsClientX.DnsResponseCode.NoError,
+                                  ad: ds.AuthenticData && dk.AuthenticData);
+                    }
+                    if (result.ok) { total++; if (result.ad) confirmed++; }
                 }
                 if (confirmed >= 2) {
                     logger?.WriteInformationCode(DnssecCodes.AuthenticDataMultiResolver, "AD bit set for DS/DNSKEY via {0} resolvers", confirmed);
@@ -295,39 +311,29 @@ namespace DomainDetective {
             }
         }
 
-        private static async Task<bool> HasNsec3OptOutAsync(string domain, CancellationToken ct) {
-            using var respParam = await _client.GetAsync($"https://cloudflare-dns.com/dns-query?name={domain}&type=51&do=1", ct).ConfigureAwait(false);
-            if (respParam.IsSuccessStatusCode) {
-                var json = await respParam.Content.ReadAsStringAsync().ConfigureAwait(false);
-                using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("Answer", out var answers)) {
-                    foreach (var ans in answers.EnumerateArray()) {
-                        if (ans.GetProperty("type").GetInt32() == 51) {
-                            var data = ans.GetProperty("data").GetString(); // NSEC3PARAM: Hash Flags Iterations Salt
-                            if (!string.IsNullOrWhiteSpace(data)) {
-                                var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                                    return true;
-                                }
-                            }
+        private static async Task<bool> HasNsec3OptOutAsync(string domain, ClientX resolver, bool validateLocally, CancellationToken ct) {
+            // Check NSEC3PARAM (51) first
+            var nsec3param = await resolver.Resolve(domain, (DnsRecordType)51, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: ct).ConfigureAwait(false);
+            foreach (var ans in nsec3param.Answers ?? Array.Empty<DnsAnswer>()) {
+                if ((int)ans.Type == 51) {
+                    var data = ans.Data ?? ans.DataRaw; // Hash Flags Iterations Salt
+                    if (!string.IsNullOrWhiteSpace(data)) {
+                        var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                            return true;
                         }
                     }
                 }
             }
-            // Fallback: check NSEC3 record flags
-            using var resp = await _client.GetAsync($"https://cloudflare-dns.com/dns-query?name={domain}&type=50&do=1", ct).ConfigureAwait(false);
-            if (!resp.IsSuccessStatusCode) return false;
-            var json3 = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
-            using var doc3 = JsonDocument.Parse(json3);
-            if (doc3.RootElement.TryGetProperty("Answer", out var ans3)) {
-                foreach (var ans in ans3.EnumerateArray()) {
-                    if (ans.GetProperty("type").GetInt32() == 50) {
-                        var data = ans.GetProperty("data").GetString(); // NSEC3: Hash Flags Iterations Salt Next TypeBitMaps
-                        if (!string.IsNullOrWhiteSpace(data)) {
-                            var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
-                                return true;
-                            }
+            // Fallback: inspect NSEC3 (50) flags field
+            var nsec3 = await resolver.Resolve(domain, (DnsRecordType)50, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: ct).ConfigureAwait(false);
+            foreach (var ans in nsec3.Answers ?? Array.Empty<DnsAnswer>()) {
+                if ((int)ans.Type == 50) {
+                    var data = ans.Data ?? ans.DataRaw; // Hash Flags Iterations Salt Next TypeBitMaps
+                    if (!string.IsNullOrWhiteSpace(data)) {
+                        var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2 && int.TryParse(parts[1], out var flags) && (flags & 0x01) != 0) {
+                            return true;
                         }
                     }
                 }
@@ -335,24 +341,18 @@ namespace DomainDetective {
             return false;
         }
 
-        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, HttpClient client, CancellationToken ct) {
-            var dsUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type=DS&do=1";
-            using var dsResponse = await client.GetAsync(dsUri, ct).ConfigureAwait(false);
-            dsResponse.EnsureSuccessStatusCode();
-            var dsJson = await dsResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-            var dsDoc = JsonDocument.Parse(dsJson);
-            bool ad = dsDoc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
+        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, ClientX resolver, CancellationToken ct) {
+            var resp = await resolver.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+            bool ad = resp.AuthenticData;
             List<string> records = new();
             int ttl = 0;
-            if (dsDoc.RootElement.TryGetProperty("Answer", out var dsAnswers)) {
-                foreach (var ans in dsAnswers.EnumerateArray()) {
-                    if (ans.GetProperty("type").GetInt32() == 43) {
-                        records.Add(ans.GetProperty("data").GetString());
-                        ttl = ans.GetProperty("TTL").GetInt32();
-                    }
+            foreach (var ans in resp.Answers ?? Array.Empty<DnsAnswer>()) {
+                if (ans.Type == DnsRecordType.DS) {
+                    var data = ans.Data ?? ans.DataRaw;
+                    if (!string.IsNullOrWhiteSpace(data)) records.Add(data);
+                    if (ttl == 0) ttl = ans.TTL;
                 }
             }
-
             return (records, ttl, ad);
         }
 
@@ -770,25 +770,10 @@ namespace DomainDetective {
         /// <param name="type">Record type to validate.</param>
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type, CancellationToken ct = default) {
-            var client = _client;
-
-            var queryUri = $"https://cloudflare-dns.com/dns-query?name={domain}&type={(int)type}&do=1";
-            using var response = await client.GetAsync(queryUri, ct).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var body = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-            using var doc = JsonDocument.Parse(body);
-            bool ad = doc.RootElement.TryGetProperty("AD", out var adElem) && adElem.GetBoolean();
-
-            bool hasSig = false;
-            if (doc.RootElement.TryGetProperty("Answer", out var answerElem)) {
-                foreach (var ans in answerElem.EnumerateArray()) {
-                    if (ans.GetProperty("type").GetInt32() == 46) {
-                        hasSig = true;
-                        break;
-                    }
-                }
-            }
-
+            using var c = new ClientX(endpoint: DnsEndpoint.System);
+            var resp = await c.Resolve(domain, type, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+            bool ad = resp.AuthenticData;
+            bool hasSig = (resp.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
             return ad && hasSig;
         }
     }}

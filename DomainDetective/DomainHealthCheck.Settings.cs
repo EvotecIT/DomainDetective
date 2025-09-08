@@ -105,5 +105,10 @@ namespace DomainDetective {
 
         /// <summary>Protected brand keywords for typosquatting detection.</summary>
         public List<string> TyposquattingBrandKeywords { get; } = new();
+
+        /// <summary>
+        /// When true, DNSSEC queries use local validation (validateDnsSec: true) in DnsClientX.
+        /// </summary>
+        public bool DnsSecValidateLocally { get; set; }
     }
 }

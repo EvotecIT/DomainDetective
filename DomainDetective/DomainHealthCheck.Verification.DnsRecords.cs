@@ -22,7 +22,9 @@ namespace DomainDetective {
             if (IsPublicSuffix) {
                 return;
             }
-            DnsSecAnalysis = new DnsSecAnalysis();
+            DnsSecAnalysis = new DnsSecAnalysis {
+                UseLocalDnssecValidation = this.DnsSecValidateLocally
+            };
             await DnsSecAnalysis.Analyze(domainName, _logger, DnsConfiguration, cancellationToken);
         }
 

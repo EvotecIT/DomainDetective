@@ -52,6 +52,7 @@ public class TestMtaStsCorrelation
     [Fact]
     public async Task AllMxModernTls_YieldsModernAllPositive()
     {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         var domain = "example.com";
         var mx = new[] { "mx1.example.com", "mx2.example.com" };
         var policy = "version: STSv1\nmode: enforce\nmax_age: 86400\nmx: mx1.example.com\nmx: mx2.example.com\n";
@@ -89,6 +90,7 @@ public class TestMtaStsCorrelation
     [Fact]
     public async Task MissingStartTls_YieldsWarning()
     {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         var domain = "example.com";
         var mx = new[] { "mx1.example.com", "mx2.example.com" };
         var policy = "version: STSv1\nmode: enforce\nmax_age: 86400\nmx: mx1.example.com\nmx: mx2.example.com\n";
@@ -128,6 +130,7 @@ public class TestMtaStsCorrelation
     [Fact]
     public async Task WeakTls_YieldsWarning()
     {
+        Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
         var domain = "example.com";
         var mx = new[] { "mx1.example.com", "mx2.example.com" };
         var policy = "version: STSv1\nmode: enforce\nmax_age: 86400\nmx: mx1.example.com\nmx: mx2.example.com\n";
@@ -165,4 +168,3 @@ public class TestMtaStsCorrelation
         }
     }
 }
-
