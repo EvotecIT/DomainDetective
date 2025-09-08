@@ -122,7 +122,13 @@ namespace DomainDetective {
 
             while (true) {
                 // Query DNSKEY with DO=1 to retrieve keys and signatures
-                var dnskeyResp = await resolver.Resolve(current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, cancellationToken: ct).ConfigureAwait(false);
+                DnsResponse dnskeyResp;
+                using (var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+                {
+                    rCts.CancelAfter(TimeSpan.FromSeconds(6));
+                    dnskeyResp = await resolver.Resolve(current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, cancellationToken: rCts.Token).ConfigureAwait(false);
+                }
+
                 bool keyAd = dnskeyResp.AuthenticData;
 
                 List<string> zoneKeys = new();
@@ -296,8 +302,10 @@ namespace DomainDetective {
                     else
                     {
                         using var c = new DnsClientX.ClientX(endpoint: ep);
-                        var ds = await c.Resolve(domainName, DnsClientX.DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
-                        var dk = await c.Resolve(domainName, DnsClientX.DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+                        using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        rCts.CancelAfter(TimeSpan.FromSeconds(5));
+                        var ds = await c.Resolve(domainName, DnsClientX.DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
+                        var dk = await c.Resolve(domainName, DnsClientX.DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
                         result = (ok: ds.Status == DnsClientX.DnsResponseCode.NoError && dk.Status == DnsClientX.DnsResponseCode.NoError,
                                   ad: ds.AuthenticData && dk.AuthenticData);
                     }
@@ -305,6 +313,13 @@ namespace DomainDetective {
                 }
                 if (confirmed >= 2) {
                     logger?.WriteInformationCode(DnssecCodes.AuthenticDataMultiResolver, "AD bit set for DS/DNSKEY via {0} resolvers", confirmed);
+                    Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Info,
+                        Category = "DNSSEC",
+                        Code = DnssecCodes.AuthenticDataMultiResolver,
+                        Target = domainName,
+                        Message = $"AD bit confirmed by {confirmed} resolvers (DS/DNSKEY)."
+                    });
                 }
             } catch (Exception ex) {
                 logger?.WriteDebug("DNSSEC multi-resolver AD check skipped: {0}", ex.Message);
@@ -313,7 +328,9 @@ namespace DomainDetective {
 
         private static async Task<bool> HasNsec3OptOutAsync(string domain, ClientX resolver, bool validateLocally, CancellationToken ct) {
             // Check NSEC3PARAM (51) first
-            var nsec3param = await resolver.Resolve(domain, (DnsRecordType)51, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: ct).ConfigureAwait(false);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            var nsec3param = await resolver.Resolve(domain, (DnsRecordType)51, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: cts.Token).ConfigureAwait(false);
             foreach (var ans in nsec3param.Answers ?? Array.Empty<DnsAnswer>()) {
                 if ((int)ans.Type == 51) {
                     var data = ans.Data ?? ans.DataRaw; // Hash Flags Iterations Salt
@@ -326,7 +343,9 @@ namespace DomainDetective {
                 }
             }
             // Fallback: inspect NSEC3 (50) flags field
-            var nsec3 = await resolver.Resolve(domain, (DnsRecordType)50, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: ct).ConfigureAwait(false);
+            using var cts2 = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts2.CancelAfter(TimeSpan.FromSeconds(5));
+            var nsec3 = await resolver.Resolve(domain, (DnsRecordType)50, requestDnsSec: true, validateDnsSec: validateLocally, cancellationToken: cts2.Token).ConfigureAwait(false);
             foreach (var ans in nsec3.Answers ?? Array.Empty<DnsAnswer>()) {
                 if ((int)ans.Type == 50) {
                     var data = ans.Data ?? ans.DataRaw; // Hash Flags Iterations Salt Next TypeBitMaps
@@ -342,7 +361,9 @@ namespace DomainDetective {
         }
 
         private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, ClientX resolver, CancellationToken ct) {
-            var resp = await resolver.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(6));
+            var resp = await resolver.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: cts.Token).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             List<string> records = new();
             int ttl = 0;

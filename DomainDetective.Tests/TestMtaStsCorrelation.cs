@@ -4,6 +4,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Security.Authentication;
+using DnsClientX;
 
 namespace DomainDetective.Tests;
 

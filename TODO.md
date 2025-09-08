@@ -25,20 +25,20 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Trends: daily/weekly pass rate, top failing sources, alignment gaps; export time series.
   - Reports: Word/HTML sections for Aggregate Reports with posture one‑liners and remediation hints.
 - Mail transport security posture
-  - MTA‑STS: check TXT record, fetch `https://mta-sts.<domain>/.well-known/mta-sts.txt`, validate syntax and fields (version, mode, `max_age`, `mx`).
-  - Verify declared MX list matches DNS MX and that MX hosts present STARTTLS with acceptable TLS versions/ciphers.
-  - TLS‑RPT: check `_smtp._tls` TXT presence; capture `rua` endpoints and basic sanity of mailto/https URIs.
-  - Surface in Good Posture/Findings; include references.
+  - MTA‑STS: check TXT record, fetch policy, validate fields (version, mode, max_age, mx). (done)
+  - Verify declared MX list matches DNS MX and that MX hosts present STARTTLS with acceptable TLS versions/ciphers. (done)
+  - TLS‑RPT: check `_smtp._tls` TXT presence; capture `rua` endpoints and basic sanity of mailto/https URIs. (done)
+  - Surface in Good Posture/Findings; include references. (Word done; HTML pending)
 - DNSSEC presence and resolver‑based validation
-  - Detect DS/DNSKEY presence; attempt AD‑bit verification using multiple resolvers.
-  - Summarize as Good Posture tile; include warnings when chain/validation missing.
+  - Detect DS/DNSKEY presence; attempt AD‑bit verification using multiple resolvers. (done)
+  - Summarize as Good Posture tile; include warnings when chain/validation missing. (HTML pending)
 - Registration snapshot (WHOIS/RDAP)
   - Query WHOIS (port 43) with server/port override; RDAP fallback when available.
   - Snapshot registrar, creation/update/expiry, domain status codes, nameservers.
   - Compute `DaysUntilExpiration`; warn at configurable thresholds (e.g., <60 days).
   - Track drift across runs (registrar/nameserver changes).
 - Resolver override everywhere
-  - Expose `-Server`/`-DnsServer` and multi‑resolver lists across CLI/PS; pipe through to DNS layer.
+  - Expose multi‑resolver lists across CLI/PS; pipe through to DNS layer. (partially done: Test-DDDomainOverallHealth supports -DnsEndpoints, strategy, parallelism)
 - Bulk input and CSV export
   - Add `-InputFile` to CLI/PS to process domain lists.
   - Add `-CsvPath` for first‑class CSV export without requiring downstream piping.
@@ -66,22 +66,23 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 
 ## Networking / Resolvers
 - DNS Resolver Override (PS + Core)
-  - Integrate DnsClientX multi‑resolver APIs in `DnsConfiguration`.
-    - Wire `IDnsMultiResolver` (FirstSuccess as default) for `QueryDNS`/`QueryFullDNS`.
-    - Support `MultiResolverOptions` (Strategy: FirstSuccess|FastestWins|SequentialAll; MaxParallelism; PreferIPv6; AllowTcpFallback).
-    - Accept resolver list as `DnsResolverEndpoint[]` and parse strings: `1.1.1.1:53`, `[2606:4700:4700::1111]:53`, `dns.google:53`, `https://dns.google/dns-query`.
-    - Adopt `QueryBatchAsync` for batch lookups while preserving input order.
+  - Integrate DnsClientX multi‑resolver in `DnsConfiguration`. (done)
+    - FirstSuccess/FastestWins/SequentialAll strategies. (done)
+    - MaxParallelism support. (done)
+    - Accept resolver list as `DnsEndpoint[]`. (done)
+    - String parsing of resolver URIs. (skipped – not needed)
+    - Batch API preserving order. (pending)
   - Endpoint validation and toggles
-    - Validate IPv4/IPv6 endpoints; friendly errors when invalid/blocked.
-    - Global per‑query timeout + per‑endpoint timeout; propagate cancellation tokens.
-    - TTL passthrough (min/avg) when available on responses (surface on views where useful).
+    - Friendly errors for invalid endpoints. (pending)
+    - Global per‑query/per‑endpoint timeouts. (pending)
+    - TTL passthrough surfaced where useful. (pending)
+  - PowerShell/CLI surface
+    - Overall health cmdlet supports `-DnsEndpoints`, strategy, parallelism. (done)
+    - Extend to other testing cmdlets. (pending)
   - Tests
-    - Override honored; graceful fallback on unreachable resolvers.
-    - IPv6‑only and IPv4‑only scenarios; mixed family selection.
-    - Batch preserves order and isolates failures.
+    - Unit tests for multi‑resolver behavior. (pending)
   - Docs
-    - Vendor preset examples (Cloudflare/Google/Quad9/DoH) and resolver string formats.
-    - Strategy guidance (FirstSuccess vs FastestWins vs SequentialAll).
+    - Examples in README and Examples project. (done)
 
 ## Providers / Positives
 - Add Info-level positives where meaningful:
@@ -94,13 +95,16 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - DKIM: auto-detect tests for new selectors (assert advisory/key parsing).
 - Integration tests: assessments stamped with correct Subject scopes (e.g., per-server).
 - Pester smoke: adapt deep asserts to view.Raw across cmdlets.
+- xUnit: MTA‑STS ↔ MX TLS correlation (modern/missing/weak). (done)
+- xUnit: DNSSEC multi‑resolver AD‑bit info code. (done)
 
 ## Docs & Examples
 - Document the narrative metadata contract so PS/CLI and Word/HTML remain in sync.
 - Update examples for company branding, Good Posture sections, and dynamic Executive Summary behavior.
-- Extend XML examples for enums/classes (TLS enums, DnsEndpoint usage, resolver strings).
+- Extend XML examples for enums/classes (TLS enums, DnsEndpoint usage). (done)
 - Cmdlet XML remarks: outputs a view object with `.Raw` and `.Narrative` when available.
 - Add dashboard usage examples showing `Select-Object` over views and `.Raw` for deep data.
+- Add README + .ps1 examples for multi-resolver (C#/PowerShell). (done)
 
 ## PowerShell Output Conventions
 - DomainOverallHealth: return View with `.Raw` (done; `-Raw`/`-Summary` removed).

@@ -90,6 +90,8 @@ public static class WordCompositionReport
         bool hasDnsbl = grouped.Values.Any(b => b.Dnsbl != null);
         bool hasClass = grouped.Values.Any(b => b.Classification != null);
         bool hasMailTls = grouped.Values.Any(b => b.SmtpTls != null || b.ImapTls != null || b.PopTls != null);
+        bool hasDnssec = grouped.Values.Any(b => b.Dnssec != null);
+        bool hasDane = grouped.Values.Any(b => b.Dane != null);
 
         var presentLabels = new List<string>();
         if (hasMx) presentLabels.Add("MX");
@@ -101,6 +103,8 @@ public static class WordCompositionReport
         if (hasDnsbl) presentLabels.Add("DNSBL");
         if (hasMailTls) presentLabels.Add("MAILTLS");
         if (hasClass) presentLabels.Add("Classification");
+        if (hasDnssec) presentLabels.Add("DNSSEC");
+        if (hasDane) presentLabels.Add("DANE");
 
         // Compute totals across domains for only the present sections
         int totalWarns = 0, totalErrs = 0;
@@ -119,6 +123,8 @@ public static class WordCompositionReport
                 totalErrs  += (b.SmtpTls?.ErrorCount   ?? 0) + (b.ImapTls?.ErrorCount   ?? 0) + (b.PopTls?.ErrorCount   ?? 0);
             }
             if (hasClass) { totalWarns += b.Classification?.WarningCount ?? 0; totalErrs += b.Classification?.ErrorCount ?? 0; }
+            if (hasDnssec) { totalWarns += b.Dnssec?.WarningCount ?? 0; totalErrs += b.Dnssec?.ErrorCount ?? 0; }
+            if (hasDane)   { totalWarns += b.Dane?.WarningCount   ?? 0; totalErrs += b.Dane?.ErrorCount   ?? 0; }
         }
 
         // Executive Summary intro text — dynamic list of controls present
@@ -138,9 +144,11 @@ public static class WordCompositionReport
             if (hasDmarc)  candidates.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0, 8));
             if (hasMx)     candidates.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0, 7));
             if (hasDnsbl)  candidates.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0, 6));
+            if (hasDnssec) candidates.Add(("DNSSEC",  (cell, b) => cell.AddParagraph(ComposeDnssecStatus(b)),    b => b.Dnssec?.WarningCount ?? 0,  b => b.Dnssec?.ErrorCount ?? 0, 6));
             if (hasMailTls) candidates.Add(("MAILTLS", (cell, b) => cell.AddParagraph(ComposeMailTlsStatus(b, showMailTlsProtocolHintInSummary)),  b => (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0), b => (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0), 6));
             if (hasMtasts) candidates.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0, 5));
             if (hasTlsRpt) candidates.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0, 4));
+            if (hasDane)   candidates.Add(("DANE",    (cell, b) => cell.AddParagraph(b.Dane?.Status ?? "-"),     b => b.Dane?.WarningCount ?? 0,    b => b.Dane?.ErrorCount ?? 0, 4));
             if (hasClass)  candidates.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0, 3));
 
             var selected = candidates
@@ -205,7 +213,7 @@ public static class WordCompositionReport
             // Aggregate any extra checks present in the input items and not covered by the columns above
             // using a reflection-based adapter over view types.
             var coveredChecks = new HashSet<HealthCheckType>();
-            foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null })
+            foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null, hasDnssec?HealthCheckType.DNSSEC:null, hasDane?HealthCheckType.DANE:null })
                 if (h.HasValue) coveredChecks.Add(h.Value);
             if (hasMailTls) { coveredChecks.Add(HealthCheckType.SMTPTLS); coveredChecks.Add(HealthCheckType.IMAPTLS); coveredChecks.Add(HealthCheckType.POP3TLS); }
 
@@ -297,6 +305,16 @@ public static class WordCompositionReport
                 headings.AddItem("TLS-RPT", 1);
                 TlsRptWordSectionWriter.Write(doc, headings, 2, bucket.TlsRpt, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }
+            if (bucket.Dnssec != null)
+            {
+                headings.AddItem("DNSSEC", 1);
+                DnssecWordSectionWriter.Write(doc, headings, 2, bucket.Dnssec, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }
+            if (bucket.Dane != null)
+            {
+                headings.AddItem("DANE", 1);
+                DaneWordSectionWriter.Write(doc, headings, 2, bucket.Dane, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }
         }
 
         // Consolidated Recommendations (grouped across all domains)
@@ -315,6 +333,8 @@ public static class WordCompositionReport
                 PullAssessments(b.Mtasts?.Assessments);
                 PullAssessments(b.TlsRpt?.Assessments);
                 PullAssessments(b.Dnsbl?.Assessments);
+                PullAssessments(b.Dnssec?.Assessments);
+                PullAssessments(b.Dane?.Assessments);
             }
             var recGroups = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
             var negative = recGroups.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
@@ -383,6 +403,8 @@ public static class WordCompositionReport
                 PullRefs(b.Mtasts?.References);
                 PullRefs(b.TlsRpt?.References);
                 PullRefs(b.Dnsbl?.References);
+                PullRefs(b.Dnssec?.References);
+                PullRefs(b.Dane?.References);
                 PullRefs(b.Classification?.References);
             }
             if (allRefs.Count > 0)
@@ -482,6 +504,8 @@ public static class WordCompositionReport
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
+        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
+        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
         // Mail TLS (per protocol) for rollup column
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
@@ -523,6 +547,21 @@ public static class WordCompositionReport
         return "-";
     }
 
+    private static string ComposeDnssecStatus(DomainBucket b)
+    {
+        var ds = b.Dnssec;
+        if (ds == null) return "-";
+        var parts = new List<string>();
+        parts.Add(ds.ChainValid ? "chain=valid" : "chain=invalid");
+        parts.Add(ds.DsMatch ? "ds=match" : "ds=check");
+        if (ds.RootAnchorExpiration.HasValue)
+        {
+            var days = (int)Math.Ceiling((ds.RootAnchorExpiration.Value - DateTimeOffset.UtcNow).TotalDays);
+            parts.Add(days > 0 ? $"root={days}d" : "root=expired");
+        }
+        return string.Join("; ", parts);
+    }
+
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
     {
         var map = new Dictionary<string, DomainBucket>(StringComparer.OrdinalIgnoreCase);
@@ -551,6 +590,10 @@ public static class WordCompositionReport
                     Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                 case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
                     Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
+                case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
+                    Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
+                case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
+                    Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
                 case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
                     Ensure(mt.Subject);
                     switch (mt.Check)

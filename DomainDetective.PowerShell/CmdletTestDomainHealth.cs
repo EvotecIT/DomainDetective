@@ -27,6 +27,18 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <summary>Optional list of DNS endpoints to use (multi-resolver).</summary>
+        [Parameter(Mandatory = false)]
+        public DnsEndpoint[]? DnsEndpoints { get; set; }
+
+        /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
+        [Parameter(Mandatory = false)]
+        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
+
+        /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
+        [Parameter(Mandatory = false)]
+        public int? MultiResolverMaxParallelism { get; set; }
+
         /// <summary>Specific tests to run.</summary>
         [Parameter(Mandatory = false)]
         public HealthCheckType[]? HealthCheckType;
@@ -67,6 +79,12 @@ namespace DomainDetective.PowerShell {
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            if (DnsEndpoints != null && DnsEndpoints.Length > 0)
+            {
+                _healthCheck.DnsEndpoints.AddRange(DnsEndpoints);
+                _healthCheck.MultiResolverStrategy = MultiResolverStrategy;
+                _healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism;
+            }
             if (BrandKeyword != null)
             {
                 _healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
@@ -94,10 +112,29 @@ namespace DomainDetective.PowerShell {
 
                 // If specific HealthCheckType selection is provided and we support writers for it,
                 // use the composition aggregators for Word/HTML to ensure identical section rendering.
-                var canCompose = (HealthCheckType != null && HealthCheckType.Length > 0 && (fmt == ReportFormat.Word || fmt == ReportFormat.Html));
-                if (canCompose) {
+                var wantsComposition = (fmt == ReportFormat.Word || fmt == ReportFormat.Html);
+                if (wantsComposition) {
+                    // Enrich with transport policies when user didn't specify a subset
+                    if (HealthCheckType == null || HealthCheckType.Length == 0)
+                    {
+                        try { await _healthCheck.VerifyMTASTS(DomainName); } catch { }
+                        try { await _healthCheck.VerifyTLSRPT(DomainName); } catch { }
+                    }
+
                     var items = new System.Collections.Generic.List<object>();
-                    foreach (var kind in HealthCheckType!) {
+                    var selection = HealthCheckType ?? new[] {
+                        DomainDetective.HealthCheckType.SPF,
+                        DomainDetective.HealthCheckType.DKIM,
+                        DomainDetective.HealthCheckType.DMARC,
+                        DomainDetective.HealthCheckType.MX,
+                        DomainDetective.HealthCheckType.DNSSEC,
+                        DomainDetective.HealthCheckType.DANE,
+                        DomainDetective.HealthCheckType.MTASTS,
+                        DomainDetective.HealthCheckType.TLSRPT,
+                        DomainDetective.HealthCheckType.DNSBL
+                    };
+
+                    foreach (var kind in selection) {
                         switch (kind) {
                             case DomainDetective.HealthCheckType.SPF:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.SpfAnalysis));
@@ -110,6 +147,12 @@ namespace DomainDetective.PowerShell {
                                 break;
                             case DomainDetective.HealthCheckType.MX:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MXAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DNSSEC:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DnsSecAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DANE:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DaneAnalysis));
                                 break;
                             case DomainDetective.HealthCheckType.DNSBL:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DNSBLAnalysis));
