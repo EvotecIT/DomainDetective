@@ -273,6 +273,26 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DnssecCodes.SignaturesValid, "DNSSEC signatures validated");
                 logger?.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
             }
+
+            // Attempt AD-bit verification using multiple resolvers via DnsClientX (best-effort)
+            try {
+                int confirmed = 0;
+                int total = 0;
+                var endpoints = new[] { DnsClientX.DnsEndpoint.Cloudflare, DnsClientX.DnsEndpoint.Google, DnsClientX.DnsEndpoint.Quad9 };
+                foreach (var ep in endpoints) {
+                    ct.ThrowIfCancellationRequested();
+                    using var c = new DnsClientX.ClientX(endpoint: ep);
+                    var ds = await c.Resolve(domainName, DnsClientX.DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+                    var dk = await c.Resolve(domainName, DnsClientX.DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+                    total++;
+                    if (ds.AuthenticData && dk.AuthenticData) confirmed++;
+                }
+                if (confirmed >= 2) {
+                    logger?.WriteInformationCode(DnssecCodes.AuthenticDataMultiResolver, "AD bit set for DS/DNSKEY via {0} resolvers", confirmed);
+                }
+            } catch (Exception ex) {
+                logger?.WriteDebug("DNSSEC multi-resolver AD check skipped: {0}", ex.Message);
+            }
         }
 
         private static async Task<bool> HasNsec3OptOutAsync(string domain, CancellationToken ct) {

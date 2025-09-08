@@ -76,5 +76,44 @@ internal sealed class MtaStsRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "GET https://mta-sts.<domain>/.well-known/mta-sts.txt returns 200."
         };
+
+        map[MtaStsCodes.MxStartTlsMissing] = new RecommendationAdvice {
+            Code = MtaStsCodes.MxStartTlsMissing,
+            Title = "Some MX hosts do not advertise STARTTLS",
+            Why = "MTA-STS relies on STARTTLS support; hosts without STARTTLS will prevent secure delivery.",
+            How = "Enable STARTTLS on all MX servers and ensure EHLO advertises STARTTLS.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc3207", "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "starttls", "mta-sts" },
+            Impact = "Mail may fall back to plaintext or be deferred under enforcement.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "EHLO lists STARTTLS on each MX; STARTTLS negotiation succeeds."
+        };
+
+        map[MtaStsCodes.MxTlsWeak] = new RecommendationAdvice {
+            Code = MtaStsCodes.MxTlsWeak,
+            Title = "Weak TLS negotiated on some MX hosts",
+            Why = "Legacy TLS or weak cipher suites reduce confidentiality and integrity of SMTP sessions.",
+            How = "Disable TLS 1.0/1.1, prefer TLS 1.2+ and modern ciphers; update libraries as needed.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8996" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls", "cipher" },
+            Impact = "Susceptible to downgrade or cryptographic attacks.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "All MX negotiate TLS 1.2+ with forward secrecy; no legacy protocols offered."
+        };
+
+        map[MtaStsCodes.MxTlsModernAll] = new RecommendationAdvice {
+            Code = MtaStsCodes.MxTlsModernAll,
+            Title = "All MX hosts negotiate modern TLS",
+            Why = "Modern TLS versions and ciphers ensure strong transport security end-to-end.",
+            How = "Maintain TLS 1.2/1.3 and modern cipher suites; renew certificates in time.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8996" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tls" },
+            Impact = "Improves confidentiality and prevents downgrade.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Each MX grades at B or better; TLS 1.2+ negotiated."
+        };
     }
 }
