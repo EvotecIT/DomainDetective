@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace DomainDetective {
     /// <summary>
@@ -37,6 +38,13 @@ namespace DomainDetective {
 
         public Dictionary<string, bool> RootServerResponses { get; private set; } = new();
         public Dictionary<string, bool> RecursionEnabled { get; private set; } = new();
+
+        // ASN diversity (provider diversity)
+        public Dictionary<string, int> AsnByIp { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public int AsnDistinctCount { get; private set; }
+
+        /// <summary>Override for ASN lookup in tests.</summary>
+        public Func<string, Task<int?>>? LookupAsnOverride { private get; set; }
 
         public List<Assessment> Assessments { get; } = new();
 
@@ -136,6 +144,7 @@ namespace DomainDetective {
 
             HashSet<string> subnets = new(StringComparer.OrdinalIgnoreCase);
 
+            var allIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var ns in NsRecords) {
                 var cname = await QueryDns(ns, DnsRecordType.CNAME);
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
@@ -150,17 +159,32 @@ namespace DomainDetective {
                 foreach (var answer in a ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
                         subnets.Add(ip.GetSubnetKey());
+                        allIps.Add(ip.ToString());
                     }
                 }
 
                 foreach (var answer in aaaa ?? Array.Empty<DnsAnswer>()) {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
                         subnets.Add(ip.GetSubnetKey());
+                        allIps.Add(ip.ToString());
                     }
                 }
             }
 
-            HasDiverseLocations = subnets.Count >= 2;
+            // ASN lookups (best-effort)
+            AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ip in allIps)
+            {
+                try {
+                    int? asn = LookupAsnOverride != null
+                        ? await LookupAsnOverride(ip)
+                        : await LookupAsnAsync(ip, CancellationToken.None);
+                    if (asn.HasValue) AsnByIp[ip] = asn.Value;
+                } catch { /* ignore lookup failures */ }
+            }
+            AsnDistinctCount = AsnByIp.Values.Distinct().Count();
+
+            HasDiverseLocations = subnets.Count >= 2 || AsnDistinctCount >= 2;
 
             // Emit assessments for common NS issues
             if (!NsRecordExists) {
@@ -186,6 +210,22 @@ namespace DomainDetective {
             } else {
                 logger?.WriteInformationCode(NSCodes.HighDiversity, "Authoritative NS are geographically diverse");
             }
+        }
+
+        private static async Task<int?> LookupAsnAsync(string ip, CancellationToken ct)
+        {
+            try {
+                using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
+                using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+                using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
+                if (!doc.RootElement.TryGetProperty("data", out var data) || !data.TryGetProperty("asns", out var asns)) return null;
+                if (asns.ValueKind != JsonValueKind.Array || asns.GetArrayLength() == 0) return null;
+                var first = asns[0];
+                if (first.TryGetProperty("asn", out var asnProp)) return asnProp.GetInt32();
+                return null;
+            } catch { return null; }
         }
 
         /// <summary>

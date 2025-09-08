@@ -14,7 +14,7 @@ public static class NsWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("Name server configuration and delegation status.");
-        var t = doc.AddTable(8, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(9, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].AddParagraph("NS Present");
         t.Rows[0].Cells[1].AddParagraph(ns.NsRecordExists ? "Yes" : "No");
         t.Rows[1].Cells[0].AddParagraph("At least two NS");
@@ -29,8 +29,10 @@ public static class NsWordSectionWriter
         t.Rows[5].Cells[1].AddParagraph(ns.GlueRecordsComplete ? "Yes" : "No");
         t.Rows[6].Cells[0].AddParagraph("Glue consistent");
         t.Rows[6].Cells[1].AddParagraph(ns.GlueRecordsConsistent ? "Yes" : "No");
-        t.Rows[7].Cells[0].AddParagraph("Status");
-        t.Rows[7].Cells[1].AddParagraph(ns.Status ?? string.Empty);
+        t.Rows[7].Cells[0].AddParagraph("Distinct ASNs");
+        t.Rows[7].Cells[1].AddParagraph(ns.AsnDistinctCount.ToString());
+        t.Rows[8].Cells[0].AddParagraph("Status");
+        t.Rows[8].Cells[1].AddParagraph(ns.Status ?? string.Empty);
 
         // NS list
         if (ns.NsRecords != null && ns.NsRecords.Count > 0)
@@ -77,4 +79,3 @@ public static class NsWordSectionWriter
         }
     }
 }
-

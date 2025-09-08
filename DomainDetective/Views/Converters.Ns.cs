@@ -21,6 +21,7 @@ public static partial class Converters
             AllHaveAOrAaaa = analysis.AllHaveAOrAaaa,
             PointsToCname = analysis.PointsToCname,
             HasDiverseLocations = analysis.HasDiverseLocations,
+            AsnDistinctCount = analysis.AsnDistinctCount,
             ParentNsRecords = analysis.ParentNsRecords,
             DelegationMatches = analysis.DelegationMatches,
             GlueRecordsComplete = analysis.GlueRecordsComplete,
@@ -31,7 +32,7 @@ public static partial class Converters
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.NsRecords?.Count ?? 0} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(analysis.GlueRecordsConsistent ? "consistent" : "mixed")}",
+            Summary = $"{analysis.NsRecords?.Count ?? 0} NS; glue {(analysis.GlueRecordsComplete ? "complete" : "incomplete")}/{(analysis.GlueRecordsConsistent ? "consistent" : "mixed")}; ASNs {analysis.AsnDistinctCount}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc1912" },
@@ -52,6 +53,7 @@ public class NsInfo
     public bool AllHaveAOrAaaa { get; set; }
     public bool PointsToCname { get; set; }
     public bool HasDiverseLocations { get; set; }
+    public int AsnDistinctCount { get; set; }
     public IReadOnlyList<string> ParentNsRecords { get; set; }
     public bool DelegationMatches { get; set; }
     public bool GlueRecordsComplete { get; set; }
