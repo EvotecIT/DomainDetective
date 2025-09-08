@@ -44,7 +44,9 @@ public static class WordCompositionReport
         string? companyYear = null,
         string? logoPath = null,
         string? headerText = null,
-        string? watermarkText = null)
+        string? watermarkText = null,
+        bool showDkimSelectorCountInSummary = true,
+        bool showMailTlsProtocolHintInSummary = true)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -87,6 +89,7 @@ public static class WordCompositionReport
         bool hasTlsRpt = grouped.Values.Any(b => b.TlsRpt != null);
         bool hasDnsbl = grouped.Values.Any(b => b.Dnsbl != null);
         bool hasClass = grouped.Values.Any(b => b.Classification != null);
+        bool hasMailTls = grouped.Values.Any(b => b.SmtpTls != null || b.ImapTls != null || b.PopTls != null);
 
         var presentLabels = new List<string>();
         if (hasMx) presentLabels.Add("MX");
@@ -96,6 +99,7 @@ public static class WordCompositionReport
         if (hasMtasts) presentLabels.Add("MTA-STS");
         if (hasTlsRpt) presentLabels.Add("TLS-RPT");
         if (hasDnsbl) presentLabels.Add("DNSBL");
+        if (hasMailTls) presentLabels.Add("MAILTLS");
         if (hasClass) presentLabels.Add("Classification");
 
         // Compute totals across domains for only the present sections
@@ -110,6 +114,10 @@ public static class WordCompositionReport
             if (hasTlsRpt){ totalWarns += b.TlsRpt?.WarningCount?? 0; totalErrs += b.TlsRpt?.ErrorCount?? 0; }
             if (hasMx)    { totalWarns += b.Mx?.WarningCount    ?? 0; totalErrs += b.Mx?.ErrorCount    ?? 0; }
             if (hasDnsbl) { totalWarns += b.Dnsbl?.WarningCount ?? 0; totalErrs += b.Dnsbl?.ErrorCount ?? 0; }
+            if (hasMailTls) {
+                totalWarns += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
+                totalErrs  += (b.SmtpTls?.ErrorCount   ?? 0) + (b.ImapTls?.ErrorCount   ?? 0) + (b.PopTls?.ErrorCount   ?? 0);
+            }
             if (hasClass) { totalWarns += b.Classification?.WarningCount ?? 0; totalErrs += b.Classification?.ErrorCount ?? 0; }
         }
 
@@ -126,10 +134,11 @@ public static class WordCompositionReport
             const int maxContentColumns = 4;
             var candidates = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs, int Priority)>();
             if (hasSpf)    candidates.Add(("SPF",     (cell, b) => cell.AddParagraph(b.Spf?.Status ?? "-"),     b => b.Spf?.WarningCount ?? 0,     b => b.Spf?.ErrorCount ?? 0, 10));
-            if (hasDkim)   candidates.Add(("DKIM",    (cell, b) => cell.AddParagraph(b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-"), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0, 9));
+            if (hasDkim)   candidates.Add(("DKIM",    (cell, b) => cell.AddParagraph(ComposeDkimStatus(b.Dkim, showDkimSelectorCountInSummary)), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0, 9));
             if (hasDmarc)  candidates.Add(("DMARC",   (cell, b) => cell.AddParagraph(b.Dmarc?.Status ?? "-"),   b => b.Dmarc?.WarningCount ?? 0,   b => b.Dmarc?.ErrorCount ?? 0, 8));
             if (hasMx)     candidates.Add(("MX",      (cell, b) => cell.AddParagraph(b.Mx?.Status ?? "-"),      b => b.Mx?.WarningCount ?? 0,      b => b.Mx?.ErrorCount ?? 0, 7));
             if (hasDnsbl)  candidates.Add(("DNSBL",   (cell, b) => cell.AddParagraph(b.Dnsbl?.Status ?? "-"),   b => b.Dnsbl?.WarningCount ?? 0,   b => b.Dnsbl?.ErrorCount ?? 0, 6));
+            if (hasMailTls) candidates.Add(("MAILTLS", (cell, b) => cell.AddParagraph(ComposeMailTlsStatus(b, showMailTlsProtocolHintInSummary)),  b => (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0), b => (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0), 6));
             if (hasMtasts) candidates.Add(("MTA-STS", (cell, b) => cell.AddParagraph(b.Mtasts?.Status ?? "-"),  b => b.Mtasts?.WarningCount ?? 0,  b => b.Mtasts?.ErrorCount ?? 0, 5));
             if (hasTlsRpt) candidates.Add(("TLS-RPT", (cell, b) => cell.AddParagraph(b.TlsRpt?.Status ?? "-"),  b => b.TlsRpt?.WarningCount ?? 0,  b => b.TlsRpt?.ErrorCount ?? 0, 4));
             if (hasClass)  candidates.Add(("Classification", (cell, b) => cell.AddParagraph(b.Classification?.Status ?? "-"), b => b.Classification?.WarningCount ?? 0, b => b.Classification?.ErrorCount ?? 0, 3));
@@ -177,12 +186,28 @@ public static class WordCompositionReport
                    .SetItalic(true);
             }
 
+            // Footnote for MAILTLS rollup sources
+            if (hasMailTls && selected.Any(s => string.Equals(s.Header, "MAILTLS", StringComparison.OrdinalIgnoreCase)))
+            {
+                var list = doc.AddList(WordListStyle.Bulleted);
+                foreach (var row in allRows)
+                {
+                    var b = row.Value;
+                    if (b.SmtpTls == null && b.ImapTls == null && b.PopTls == null) continue;
+                    string smtp = b.SmtpTls != null ? b.SmtpTls.Status : "-";
+                    string imap = b.ImapTls != null ? b.ImapTls.Status : "-";
+                    string pop  = b.PopTls  != null ? b.PopTls.Status  : "-";
+                    list.AddItem($"MailTLS sources for {row.Key}: SMTP={smtp}, IMAP={imap}, POP={pop}");
+                }
+            }
+
             // Additional Summary (list) for checks not rendered as columns
             // Aggregate any extra checks present in the input items and not covered by the columns above
             // using a reflection-based adapter over view types.
             var coveredChecks = new HashSet<HealthCheckType>();
             foreach (var h in new[]{ hasMx?(HealthCheckType?)HealthCheckType.MX:null, hasSpf?HealthCheckType.SPF:null, hasDkim?HealthCheckType.DKIM:null, hasDmarc?HealthCheckType.DMARC:null, hasMtasts?HealthCheckType.MTASTS:null, hasTlsRpt?HealthCheckType.TLSRPT:null, hasDnsbl?HealthCheckType.DNSBL:null, hasClass?HealthCheckType.MAILCLASSIFICATION:null })
                 if (h.HasValue) coveredChecks.Add(h.Value);
+            if (hasMailTls) { coveredChecks.Add(HealthCheckType.SMTPTLS); coveredChecks.Add(HealthCheckType.IMAPTLS); coveredChecks.Add(HealthCheckType.POP3TLS); }
 
             var extras = AggregateExtras(items, coveredChecks);
             var allExtraChecks = new HashSet<HealthCheckType>(extras.SelectMany(kv => kv.Value.Keys));
@@ -457,6 +482,45 @@ public static class WordCompositionReport
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
+        // Mail TLS (per protocol) for rollup column
+        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+    }
+
+    private static string ComposeDkimStatus(List<DomainDetective.Views.DkimRecordInfo> dkim, bool showCount)
+    {
+        if (dkim == null || dkim.Count == 0) return "-";
+        int err = dkim.Sum(x => x?.ErrorCount ?? 0);
+        int warn = dkim.Sum(x => x?.WarningCount ?? 0);
+        string core = err > 0 ? "Error" : (warn > 0 ? "Warning" : "OK");
+        if (showCount)
+        {
+            int n = dkim.Count;
+            core += $" ({n} selector{(n == 1 ? string.Empty : "s")})";
+        }
+        return core;
+    }
+
+    private static string ComposeMailTlsStatus(DomainBucket b, bool showProto)
+    {
+        // Prefer SMTP, else IMAP, else POP. If none present, "-".
+        if (b.SmtpTls != null)
+        {
+            var s = b.SmtpTls.Status ?? "-";
+            return showProto && s != "-" ? $"{s} (SMTP)" : s;
+        }
+        if (b.ImapTls != null)
+        {
+            var s = b.ImapTls.Status ?? "-";
+            return showProto && s != "-" ? $"{s} (IMAP)" : s;
+        }
+        if (b.PopTls  != null)
+        {
+            var s = b.PopTls.Status ?? "-";
+            return showProto && s != "-" ? $"{s} (POP)" : s;
+        }
+        return "-";
     }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
@@ -487,6 +551,16 @@ public static class WordCompositionReport
                     Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                 case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
                     Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
+                case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
+                    Ensure(mt.Subject);
+                    switch (mt.Check)
+                    {
+                        case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
+                        case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
+                        case HealthCheckType.POP3TLS: map[mt.Subject].PopTls  = mt; break;
+                        default: break;
+                    }
+                    break;
                 default:
                     break;
             }

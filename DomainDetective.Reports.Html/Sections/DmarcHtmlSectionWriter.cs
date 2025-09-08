@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace DomainDetective.Reports.Html;
 
@@ -24,13 +25,25 @@ public static class DmarcHtmlSectionWriter
             new { Name = "Status", Value = dmarc.Status ?? string.Empty }
         });
 
-        if (scope == Reports.ReportScope.Detailed)
+        if (scope != Reports.ReportScope.Minimal)
         {
             var hl = dmarc.Highlights ?? Array.Empty<string>();
             if (hl != null && hl.Count > 0)
             {
                 html.AddHeading("Highlights", 3);
                 html.AddList(hl);
+            }
+
+            // Good posture (positives)
+            var positives = (dmarc.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                ?.Select(p => p?.Title)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new System.Collections.Generic.List<string>();
+            if (positives.Count > 0)
+            {
+                html.AddHeading("Good posture", 3);
+                html.AddList(positives);
             }
         }
     }

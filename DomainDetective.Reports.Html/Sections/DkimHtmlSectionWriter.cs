@@ -23,13 +23,26 @@ public static class DkimHtmlSectionWriter
         var rows = dkim.Select(x => new { x.Selector, Record = x.DkimRecordExists ? "Present" : "Missing", Bits = x.PublicKeyExists ? x.KeyLength.ToString() : "-", Alg = x.HashAlgorithm ?? "", AgeDays = x.KeyAgeDays, Status = x.Status });
         html.AddTable(rows);
 
-        if (scope == Reports.ReportScope.Detailed)
+        if (scope != Reports.ReportScope.Minimal)
         {
             var highlights = dkim.SelectMany(x => x.Highlights ?? Array.Empty<string>()).Distinct().ToList();
             if (highlights.Count > 0)
             {
                 html.AddHeading("Highlights", 3);
                 html.AddList(highlights);
+            }
+
+            // Good posture (positives) merged across selectors
+            var positives = dkim
+                .SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                .Select(p => p?.Title)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (positives.Count > 0)
+            {
+                html.AddHeading("Good posture", 3);
+                html.AddList(positives);
             }
         }
     }
