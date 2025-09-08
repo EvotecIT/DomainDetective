@@ -50,6 +50,7 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking SMTP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckSmtpTlsHost(HostName, Port);
+            _healthCheck.SmtpTlsAnalysis.Subject = HostName;
             var analysis = _healthCheck.SmtpTlsAnalysis;
             var view = DomainDetective.Views.Converters.Convert(analysis);
             // View-by-default design: exposes full Raw analysis on view.Raw
@@ -59,7 +60,28 @@ namespace DomainDetective.PowerShell {
                     WriteObject(tls.Chain, true);
                 }
             }
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                    var key = $"{HostName}-{Port}";
+                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
+                    try {
+                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                            outPath,
+                            new System.Collections.Generic.List<object> { view },
+                            DomainDetective.Reports.ReportScope.Normal,
+                            showInfoFindings: true,
+                            narrativePlacement: ExportDefaults.NarrativePlacement,
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SMTP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                    } catch (System.Exception ex) {
+                        WriteWarning($"SMTP TLS export failed: {ex.Message}");
+                    }
+                } else {
+                    await ExportNotImplementedAsync("Test-DDEmailSmtpTls");
+                }
+                return;
+            }
         }
     }
 }

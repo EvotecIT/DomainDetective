@@ -335,6 +335,9 @@ public static class WordCompositionReport
                 PullAssessments(b.Dnsbl?.Assessments);
                 PullAssessments(b.Dnssec?.Assessments);
                 PullAssessments(b.Dane?.Assessments);
+                PullAssessments(b.SmtpTls?.Assessments);
+                PullAssessments(b.ImapTls?.Assessments);
+                PullAssessments(b.PopTls?.Assessments);
             }
             var recGroups = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
             var negative = recGroups.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
@@ -405,6 +408,9 @@ public static class WordCompositionReport
                 PullRefs(b.Dnsbl?.References);
                 PullRefs(b.Dnssec?.References);
                 PullRefs(b.Dane?.References);
+                PullRefs(b.SmtpTls?.References);
+                PullRefs(b.ImapTls?.References);
+                PullRefs(b.PopTls?.References);
                 PullRefs(b.Classification?.References);
             }
             if (allRefs.Count > 0)

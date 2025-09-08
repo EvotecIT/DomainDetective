@@ -38,13 +38,40 @@ namespace DomainDetective.PowerShell {
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
+            var items = new System.Collections.Generic.List<object>();
             foreach (var domain in DomainName) {
                 _logger.WriteVerbose("Querying TLSRPT record for domain: {0}", domain);
                 await healthCheck.VerifyTLSRPT(domain);
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis);
                 WriteObject(view);
+                if (IsExportRequested()) items.Add(view);
             }
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                var fmt = ExportFormat ?? ExportDefaults.Format;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                    var key = DomainName.Length switch { 0 => "tlsrpt", 1 => DomainName[0], 2 => $"{DomainName[0]}+{DomainName[1]}", _ => $"{DomainName[0]}+{DomainName[1]}(+{DomainName.Length-2})" };
+                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
+                    try {
+                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                            outPath,
+                            items,
+                            DomainDetective.Reports.ReportScope.Normal,
+                            showInfoFindings: true,
+                            narrativePlacement: ExportDefaults.NarrativePlacement,
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"TLS-RPT Report — {key}" : ExportDefaults.NarrativeTitle,
+                            subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
+                            categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
+                            keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
+                            creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                    } catch (System.Exception ex) {
+                        WriteWarning($"TLS-RPT export failed: {ex.Message}");
+                    }
+                } else {
+                    await ExportNotImplementedAsync("Test-DDEmailTlsRptRecord");
+                }
+                return;
+            }
         }
     }
 }
