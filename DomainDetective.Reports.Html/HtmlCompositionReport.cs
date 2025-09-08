@@ -19,6 +19,10 @@ public static class HtmlCompositionReport
     /// <param name="items">View objects grouped by Subject.</param>
     /// <param name="scope">Detail level.</param>
     /// <param name="openInBrowser">Open the file after saving.</param>
+    /// <param name="narrativePlacement">Where to render background narrative (global or per-domain).</param>
+    /// <param name="titleOverride">Optional document title override.</param>
+    /// <param name="authorOverride">Optional author override.</param>
+    /// <param name="descriptionOverride">Optional description/summary override.</param>
     public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));

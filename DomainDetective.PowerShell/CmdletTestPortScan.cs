@@ -31,22 +31,22 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
     /// <summary>Host to scan.</summary>
     [Parameter(Mandatory = true, Position = 0)]
     [ValidateNotNullOrEmpty]
-    public string HostName;
+    public string HostName = string.Empty;
 
     /// <summary>Port list to scan.</summary>
     [Parameter(Mandatory = false)]
-    public int[] Ports;
+    public int[] Ports = System.Array.Empty<int>();
 
     /// <summary>Predefined profiles.</summary>
     [Parameter(Mandatory = false)]
-    public PortScanProfile[] Profile;
+    public PortScanProfile[] Profile = System.Array.Empty<PortScanProfile>();
 
     /// <summary>Show progress updates.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ShowProgress;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
     /// <summary>DNS server used for queries.</summary>
     [Parameter(Mandatory = false)]
     public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;

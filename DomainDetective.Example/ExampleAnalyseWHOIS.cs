@@ -32,5 +32,6 @@ public static partial class Program {
         ////    ShowProperties($"DKIM for evotec.pl [Selector: {selector}]", healthCheck.DKIMAnalysis.AnalysisResults[selector]);
         ////}
         //Helpers.ShowPropertiesTable(analysisOf: "DKIM for evotec.pl", objs: healthCheck.DKIMAnalysis.AnalysisResults);
+        await Task.CompletedTask;
     }
 }

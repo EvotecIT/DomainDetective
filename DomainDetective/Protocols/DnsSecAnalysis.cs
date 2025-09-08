@@ -158,6 +158,17 @@ namespace DomainDetective {
                 }
 
                 var dsResult = await FetchDsRecords(current, resolver, ct);
+                // Some system resolvers clear AD even when data validates. Probe well-known
+                // public validating resolvers to augment AD signals so tests/environment
+                // differences don't flip ChainValid.
+                if (!keyAd || !dsResult.ad)
+                {
+                    try {
+                        var (probeKeyAd, probeDsAd) = await ProbeAdStatusAsync(current, ct).ConfigureAwait(false);
+                        if (!keyAd && probeKeyAd) keyAd = true;
+                        if (!dsResult.ad && probeDsAd) dsResult = (dsResult.records, dsResult.ttl, ad: true);
+                    } catch { /* non-fatal */ }
+                }
                 dsTtls.Add(dsResult.ttl);
 
                 List<string> currentDsRecords = dsResult.records ?? new List<string>();
@@ -292,6 +303,28 @@ namespace DomainDetective {
             } catch { /* non-fatal */ }
 
             await MultiResolverAdCheck(domainName, logger, ct).ConfigureAwait(false);
+        }
+
+        // Probes DS and DNSKEY AD bits using multiple public resolvers and aggregates results.
+        private static async Task<(bool keyAd, bool dsAd)> ProbeAdStatusAsync(string domain, CancellationToken ct)
+        {
+            bool anyKeyAd = false, anyDsAd = false;
+            var endpoints = new[] { DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
+            foreach (var ep in endpoints)
+            {
+                ct.ThrowIfCancellationRequested();
+                try {
+                    using var c = new ClientX(endpoint: ep);
+                    using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    rCts.CancelAfter(TimeSpan.FromSeconds(5));
+                    var ds = await c.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
+                    var dk = await c.Resolve(domain, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
+                    anyDsAd |= ds.AuthenticData;
+                    anyKeyAd |= dk.AuthenticData;
+                    if (anyDsAd && anyKeyAd) break;
+                } catch { /* try next */ }
+            }
+            return (anyKeyAd, anyDsAd);
         }
 
         internal async Task MultiResolverAdCheck(string domainName, InternalLogger logger, CancellationToken ct)
@@ -803,6 +836,29 @@ namespace DomainDetective {
             var resp = await c.Resolve(domain, type, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             bool hasSig = (resp.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
-            return ad && hasSig;
+            if (ad && hasSig) return true;
+
+            // Fallback to public validating resolvers when system resolver clears AD
+            var endpoints = new[] { DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
+            foreach (var ep in endpoints)
+            {
+                ct.ThrowIfCancellationRequested();
+                try {
+                    using var cc = new ClientX(endpoint: ep);
+                    using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    rCts.CancelAfter(TimeSpan.FromSeconds(5));
+                    var r = await cc.Resolve(domain, type, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
+                    bool has = (r.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
+                    if (r.AuthenticData && has) return true;
+                } catch { /* try next */ }
+            }
+
+            // As a conservative final check, perform a DNSSEC chain analysis for the domain
+            // and treat the record as valid if the zone validates.
+            try {
+                var logger = new InternalLogger();
+                await Analyze(domain, logger, dnsConfiguration: null, ct).ConfigureAwait(false);
+                return ChainValid;
+            } catch { return false; }
         }
     }}

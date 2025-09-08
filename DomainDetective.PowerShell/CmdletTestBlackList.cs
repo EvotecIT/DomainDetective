@@ -65,7 +65,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain names or IP addresses to check.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string[] NameOrIpAddress;
+        public string[] NameOrIpAddress = System.Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -78,8 +78,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter BlacklistedOnly { get; set; }
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         /// <para>Force domain-mode queries (domain + MX IPs).</para>
         [Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         public SwitchParameter TreatAsDomain { get; set; }

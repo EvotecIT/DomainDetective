@@ -15,10 +15,10 @@ namespace DomainDetective.PowerShell {
         /// <summary>Raw header text.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string HeaderText;
+        public string HeaderText = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

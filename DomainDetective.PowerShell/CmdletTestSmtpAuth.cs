@@ -35,8 +35,8 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false)]
     public SwitchParameter InspectCapabilities;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
     /// <summary>Initializes logging and helper classes.</summary>
     /// <returns>A completed task.</returns>

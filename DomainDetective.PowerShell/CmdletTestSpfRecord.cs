@@ -1,3 +1,4 @@
+using System;
 using DnsClientX;
 using System.Linq;
 using System.Management.Automation;
@@ -16,7 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -25,8 +26,8 @@ namespace DomainDetective.PowerShell {
         //[Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         //public SwitchParameter FullResponse;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
 

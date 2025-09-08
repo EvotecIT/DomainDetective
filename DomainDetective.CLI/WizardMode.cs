@@ -355,7 +355,7 @@ internal static class WizardMode {
         return 0;
     }
 
-    private static async Task<int> RunDmarcBuilder(CancellationToken cancellationToken) {
+    private static Task<int> RunDmarcBuilder(CancellationToken cancellationToken) {
         AnsiConsole.MarkupLine("[green]Interactive DMARC Record Builder[/]");
         
         var policy = AnsiConsole.Prompt(
@@ -391,7 +391,7 @@ internal static class WizardMode {
         
         AnsiConsole.MarkupLine($"[dim]Add this TXT record to: _dmarc.yourdomain.com[/]");
         
-        return 0;
+        return Task.FromResult(0);
     }
 
     private static string PromptForDomain() {

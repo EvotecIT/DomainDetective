@@ -19,14 +19,14 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     /// <para>Domain(s) to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string[] DomainName;
+    public string[] DomainName = System.Array.Empty<string>();
 
     /// <para>DNS server used for queries.</para>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ByName")]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
 

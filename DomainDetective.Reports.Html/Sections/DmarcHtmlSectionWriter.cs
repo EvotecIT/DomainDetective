@@ -28,7 +28,7 @@ public static class DmarcHtmlSectionWriter
         if (scope != Reports.ReportScope.Minimal)
         {
             var hl = dmarc.Highlights ?? Array.Empty<string>();
-            if (hl != null && hl.Count > 0)
+            if (hl.Count > 0)
             {
                 html.AddHeading("Highlights", 3);
                 html.AddList(hl);
@@ -36,10 +36,11 @@ public static class DmarcHtmlSectionWriter
 
             // Good posture (positives)
             var positives = (dmarc.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
-                ?.Select(p => p?.Title)
+                .Select(p => p?.Title)
                 .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList() ?? new System.Collections.Generic.List<string>();
+                .ToList();
             if (positives.Count > 0)
             {
                 html.AddHeading("Good posture", 3);

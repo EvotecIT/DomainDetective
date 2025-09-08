@@ -74,7 +74,7 @@ internal sealed class NSRecommendations : IRecommendationProvider {
         };
         map[NSCodes.HighDiversity] = new RecommendationAdvice {
             Code = NSCodes.HighDiversity,
-            Title = "Authoritative NS are diverse across networks/ASNs",
+            Title = "Authoritative NS are geographically diverse across networks/ASNs",
             Why = "Distribution across providers, networks, and regions improves resilience and latency.",
             How = "Maintain NS hosts on separate networks/providers to sustain diversity.",
             Domain = RecommendationDomain.Infrastructure,
