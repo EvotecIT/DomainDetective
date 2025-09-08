@@ -47,9 +47,12 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
 
     private InternalLogger _logger;
     private DomainHealthCheck _healthCheck;
+    /// <summary>DNS server used for queries.</summary>
     [Parameter(Mandatory = false)]
     public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
 
+    /// <summary>Initializes logging and helper classes.</summary>
+    /// <returns>A completed task.</returns>
     protected override Task BeginProcessingAsync()
     {
         _logger = new InternalLogger(false);
@@ -59,6 +62,8 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
         return Task.CompletedTask;
     }
 
+    /// <summary>Runs the port scan and writes results.</summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task ProcessRecordAsync()
     {
         await _healthCheck.ScanPorts(HostName, Ports, Profile, default, ShowProgress.IsPresent);

@@ -12,6 +12,7 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailLatency", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailLatency")]
     public sealed class CmdletTestMailLatency : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host to check.</summary>

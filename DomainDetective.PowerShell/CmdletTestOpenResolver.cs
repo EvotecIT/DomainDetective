@@ -11,6 +11,7 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsOpenResolver")]
     [Alias("Test-DnsOpenResolver", "Test-OpenResolver")]
     public sealed class CmdletTestOpenResolver : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>DNS server to check.</summary>

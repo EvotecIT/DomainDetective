@@ -13,6 +13,7 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpTls", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSmtpTls")]
     public sealed class CmdletTestSmtpTls : ExportableAsyncPSCmdlet {
+        /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false)]
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>SMTP host to check.</summary>

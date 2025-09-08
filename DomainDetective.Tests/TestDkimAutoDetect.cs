@@ -12,6 +12,7 @@ namespace DomainDetective.Tests
             var dns = new DomainDetective.DnsConfiguration();
             dns.QueryDnsOverride = async (name, type) =>
             {
+                await Task.CompletedTask;
                 if (type != DnsClientX.DnsRecordType.TXT) return System.Array.Empty<DnsClientX.DnsAnswer>();
                 if (name == "selector1._domainkey.example.com")
                 {
@@ -46,6 +47,7 @@ namespace DomainDetective.Tests
             var dns = new DomainDetective.DnsConfiguration();
             dns.QueryDnsOverride = async (name, type) =>
             {
+                await Task.CompletedTask;
                 if (type != DnsClientX.DnsRecordType.TXT) return System.Array.Empty<DnsClientX.DnsAnswer>();
                 string rec = "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A"; // same key for both selectors
                 if (name == "s1._domainkey.example.com" || name == "s2._domainkey.example.com")

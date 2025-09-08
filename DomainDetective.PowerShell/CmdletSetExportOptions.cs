@@ -67,6 +67,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public NarrativePlacement? NarrativePlacement { get; set; }
 
+        /// <summary>Applies the specified export option changes.</summary>
         protected override void ProcessRecord() {
             if (Reset) {
                 ExportDefaults.Format = ReportFormat.Html;

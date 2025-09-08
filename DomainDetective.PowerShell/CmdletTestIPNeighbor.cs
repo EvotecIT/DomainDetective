@@ -27,6 +27,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
+        /// <summary>Include MX host neighbor analysis.</summary>
         [Parameter(Mandatory = false)]
         public SwitchParameter IncludeMX;
 

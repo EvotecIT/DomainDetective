@@ -30,6 +30,8 @@ namespace DomainDetective.PowerShell {
         [Alias("ArtifactsPath")]
         public string? ArtifactsDirectory { get; set; }
 
+        /// <summary>Attempts to open the specified report file.</summary>
+        /// <param name="path">Path to the report.</param>
         protected void TryOpenReport(string? path)
         {
             if (string.IsNullOrWhiteSpace(path)) return;
@@ -39,11 +41,16 @@ namespace DomainDetective.PowerShell {
             } catch { }
         }
 
+        /// <summary>Determines whether an export was requested.</summary>
+        /// <returns><c>true</c> if export options were specified; otherwise, <c>false</c>.</returns>
         protected bool IsExportRequested()
             => ExportFormat.HasValue
                || !string.IsNullOrWhiteSpace(ExportPath)
                || OpenInBrowser.IsPresent;
 
+        /// <summary>Emits a warning indicating export is not implemented.</summary>
+        /// <param name="cmdletName">Name of the cmdlet requesting export.</param>
+        /// <returns>A completed task.</returns>
         protected Task ExportNotImplementedAsync(string? cmdletName = null) {
             var name = cmdletName ?? GetCmdletName();
             WriteWarning($"Export for {name} is not yet implemented (TODO). Use Test-DDDomainOverallHealth for full reports.");

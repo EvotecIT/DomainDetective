@@ -58,7 +58,7 @@ public class TestAutodiscoverHttpListenerResults {
             Assert.Equal($"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml", result.Url);
             Assert.Equal(200, result.StatusCode);
             Assert.True(result.XmlValid);
-            Assert.Equal(new[] { result.Url }, result.RedirectChain);
+            Assert.Equal(new[] { result.Url! }, result.RedirectChain);
         } finally {
             listener.Stop();
             await serverTask;
@@ -113,7 +113,7 @@ public class TestAutodiscoverHttpListenerResults {
         };
         await analysis.Analyze($"localhost:{port}", new InternalLogger());
         Assert.Equal(5, analysis.Endpoints.Count);
-        string?[] expectedUrls = {
+        string[] expectedUrls = {
             $"https://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
             $"https://localhost:{port}/autodiscover/autodiscover.xml",
             $"http://autodiscover.localhost:{port}/autodiscover/autodiscover.xml",
