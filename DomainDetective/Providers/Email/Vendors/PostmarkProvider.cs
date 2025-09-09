@@ -18,10 +18,42 @@ public sealed class PostmarkProvider : IMailProvider
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://postmarkapp.com/support/article/1207-dmarc";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://postmarkapp.com/support/article/892-what-is-dmarc",
+            Title = "What is DMARC?",
+            Summary = "DMARC tags and rollout guidance.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://postmarkapp.com/support/article/1092-how-do-i-set-up-spf-for-postmark",
+            Title = "How do I set up SPF for Postmark?",
+            Summary = "SPF passes by default; custom Return‑Path for alignment.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://postmarkapp.com/support/article/1091-how-do-i-set-up-dkim-for-postmark",
+            Title = "How do I set up DKIM for Postmark?",
+            Summary = "Publish pm._domainkey TXT; 1024‑bit RSA.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://postmarkapp.com/guides/how-to-improve-domain-reputation-for-better-email-deliverability",
+            Title = "Improve domain reputation",
+            Summary = "Warm-up, consistent volume, Postmaster tools.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

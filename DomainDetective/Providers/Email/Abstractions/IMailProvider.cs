@@ -24,17 +24,6 @@ public interface IMailProvider
     // Optional DMARC subdomain policy guidance
     DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation { get; }
 
-    // Optional: official DMARC guidance/help page from the provider
-    string? DmarcHelpUrl { get; }
-
-    // Optional: official SPF guidance/help page
-    string? SpfHelpUrl { get; }
-    // Optional: official DKIM guidance/help page
-    string? DkimHelpUrl { get; }
-    // Optional: official MTA-STS guidance/help page
-    string? MtaStsHelpUrl { get; }
-    // Optional: official TLSRPT guidance/help page
-    string? TlsRptHelpUrl { get; }
-    // Optional: deliverability/postmaster/best practices page
-    string? DeliverabilityHelpUrl { get; }
+    // Rich documentation metadata (source of truth for links)
+    ProviderDocumentation Docs { get; }
 }

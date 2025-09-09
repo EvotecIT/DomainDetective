@@ -31,16 +31,24 @@ public static partial class Converters
             if (providerMatch?.Primary != null)
             {
                 var p = providerMatch.Primary;
-                // Include only topics that have links to avoid empty noise
                 var ph = new ProviderHelpLinks
                 {
                     ProviderName = p.DisplayName,
-                    Dmarc = p.DmarcHelpUrl,
-                    Spf = p.SpfHelpUrl,
-                    Dkim = p.DkimHelpUrl,
-                    MtaSts = p.MtaStsHelpUrl,
-                    TlsRpt = p.TlsRptHelpUrl,
-                    Deliverability = p.DeliverabilityHelpUrl
+                    Dmarc = p.Docs?.Dmarc?.Url,
+                    Spf = p.Docs?.Spf?.Url,
+                    Dkim = p.Docs?.Dkim?.Url,
+                    MtaSts = p.Docs?.MtaSts?.Url,
+                    TlsRpt = p.Docs?.TlsRpt?.Url,
+                    Deliverability = p.Docs?.Deliverability?.Url,
+                    Topics = BuildHelpTopics(p.DisplayName, p.Docs, new []
+                    {
+                        ("DMARC", p.Docs?.Dmarc?.Url),
+                        ("SPF", p.Docs?.Spf?.Url),
+                        ("DKIM", p.Docs?.Dkim?.Url),
+                        ("MTA-STS", p.Docs?.MtaSts?.Url),
+                        ("TLS-RPT", p.Docs?.TlsRpt?.Url),
+                        ("Deliverability", p.Docs?.Deliverability?.Url)
+                    })
                 };
                 if (ph.HasAny)
                 {
@@ -53,12 +61,21 @@ public static partial class Converters
                 var gh = new ProviderHelpLinks
                 {
                     ProviderName = g.DisplayName,
-                    Dmarc = g.DmarcHelpUrl,
-                    Spf = g.SpfHelpUrl,
-                    Dkim = g.DkimHelpUrl,
-                    MtaSts = g.MtaStsHelpUrl,
-                    TlsRpt = g.TlsRptHelpUrl,
-                    Deliverability = g.DeliverabilityHelpUrl
+                    Dmarc = g.Docs?.Dmarc?.Url,
+                    Spf = g.Docs?.Spf?.Url,
+                    Dkim = g.Docs?.Dkim?.Url,
+                    MtaSts = g.Docs?.MtaSts?.Url,
+                    TlsRpt = g.Docs?.TlsRpt?.Url,
+                    Deliverability = g.Docs?.Deliverability?.Url,
+                    Topics = BuildHelpTopics(g.DisplayName, g.Docs, new []
+                    {
+                        ("DMARC", g.Docs?.Dmarc?.Url),
+                        ("SPF", g.Docs?.Spf?.Url),
+                        ("DKIM", g.Docs?.Dkim?.Url),
+                        ("MTA-STS", g.Docs?.MtaSts?.Url),
+                        ("TLS-RPT", g.Docs?.TlsRpt?.Url),
+                        ("Deliverability", g.Docs?.Deliverability?.Url)
+                    })
                 };
                 if (gh.HasAny)
                 {
@@ -102,6 +119,29 @@ public static partial class Converters
             ProviderGateways = gateways,
             ProviderHelp = providerHelps
         };
+    }
+
+    private static List<ProviderHelpTopic> BuildHelpTopics(string providerName, DomainDetective.Providers.Email.ProviderDocumentation? docs, IEnumerable<(string Topic, string? Url)> pairs)
+    {
+        var list = new List<ProviderHelpTopic>();
+        foreach (var (topic, url) in pairs)
+        {
+            var meta = docs?.Get(topic);
+            var effectiveUrl = string.IsNullOrWhiteSpace(url) ? meta?.Url : url;
+            if (string.IsNullOrWhiteSpace(effectiveUrl)) continue;
+            list.Add(new ProviderHelpTopic
+            {
+                Topic = topic,
+                Url = effectiveUrl,
+                Title = meta?.Title ?? ($"{providerName} — {topic}"),
+                Summary = meta?.Summary,
+                Notes = meta?.Notes,
+                IsPublic = meta?.IsPublic ?? true,
+                IsThirdParty = meta?.IsThirdParty ?? false,
+                LastVerified = meta?.LastVerified
+            });
+        }
+        return list;
     }
 }
 
@@ -148,5 +188,7 @@ public sealed class ProviderHelpLinks
     public string? MtaSts { get; set; }
     public string? TlsRpt { get; set; }
     public string? Deliverability { get; set; }
-    public bool HasAny => !string.IsNullOrWhiteSpace(Dmarc) || !string.IsNullOrWhiteSpace(Spf) || !string.IsNullOrWhiteSpace(Dkim) || !string.IsNullOrWhiteSpace(MtaSts) || !string.IsNullOrWhiteSpace(TlsRpt) || !string.IsNullOrWhiteSpace(Deliverability);
+    public List<ProviderHelpTopic> Topics { get; set; } = new();
+    public bool HasAny => Topics?.Any(t => !string.IsNullOrWhiteSpace(t?.Url)) == true ||
+                          !string.IsNullOrWhiteSpace(Dmarc) || !string.IsNullOrWhiteSpace(Spf) || !string.IsNullOrWhiteSpace(Dkim) || !string.IsNullOrWhiteSpace(MtaSts) || !string.IsNullOrWhiteSpace(TlsRpt) || !string.IsNullOrWhiteSpace(Deliverability);
 }

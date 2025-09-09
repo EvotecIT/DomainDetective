@@ -28,10 +28,42 @@ public sealed class ZohoMailProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://www.zoho.com/mail/help/adminconsole/dmarc.html";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://help.zoho.com/portal/en/kb/zoho-mail/zoho-mail-administrator-guide/domain-management/articles/dmarc-policy",
+            Title = "DMARC policy – Secure email protocol",
+            Summary = "Phased DMARC rollout guidance.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://help.zoho.com/portal/en/kb/zoho-mail/zoho-mail-administrator-guide/domain-management/articles/spf-record",
+            Title = "SPF – Sender Policy Framework",
+            Summary = "Use include:zohomail.com or include:one.zoho.com.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://help.zoho.com/portal/en/kb/zoho-mail/zoho-mail-administrator-guide/domain-management/articles/domainkeys-identified-mail-dkim",
+            Title = "DKIM configuration to prevent email spoofing",
+            Summary = "Create selector TXT at <selector>._domainkey.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://help.zoho.com/portal/en/kb/zoho-campaigns/campaign-management/deliverability/articles/email-deliverability",
+            Title = "Email Deliverability",
+            Summary = "General deliverability practices.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

@@ -29,10 +29,57 @@ public sealed class GoogleWorkspaceProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://support.google.com/a/answer/2466563";
-    public string? SpfHelpUrl => "https://support.google.com/a/answer/33786";
-    public string? DkimHelpUrl => "https://support.google.com/a/answer/174124";
-    public string? MtaStsHelpUrl => "https://support.google.com/a/answer/10032415";
-    public string? TlsRptHelpUrl => "https://support.google.com/a/answer/10032415";
-    public string? DeliverabilityHelpUrl => "https://support.google.com/a/topic/2683820";
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/answer/2466563",
+            Title = "Set up DMARC",
+            Summary = "Add _dmarc TXT; phased rollout.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/answer/33786",
+            Title = "Set up SPF",
+            Summary = "Publish v=spf1 include:_spf.google.com",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/answer/174124",
+            Title = "Set up DKIM",
+            Summary = "Generate keys; default selector google.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        MtaSts = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/answer/9261504",
+            Title = "About MTA‑STS and TLS reporting",
+            Summary = "Overview and reasons to enable.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        TlsRpt = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/answer/9276512",
+            Title = "Turn on MTA‑STS and TLS reporting",
+            Summary = "Add _smtp._tls and _mta-sts TXT; policy id usage.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://support.google.com/a/topic/2683820",
+            Title = "Top 10 Gmail sender issues",
+            Summary = "Best practices and Postmaster Tools.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

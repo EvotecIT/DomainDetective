@@ -46,7 +46,8 @@ public static class WordCompositionReport
         string? headerText = null,
         string? watermarkText = null,
         bool showDkimSelectorCountInSummary = true,
-        bool showMailTlsProtocolHintInSummary = true)
+        bool showMailTlsProtocolHintInSummary = true,
+        ProviderHelpRenderOptions? providerHelp = null)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -286,7 +287,7 @@ public static class WordCompositionReport
             if (bucket.Mx != null)
             {
                 headings.AddItem("MX", 1);
-                MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain);
+                MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
             }
 
             if (bucket.Spf != null)
@@ -294,43 +295,21 @@ public static class WordCompositionReport
                 headings.AddItem("SPF", 1);
                 // Base level 2 under the 'SPF' node: 0=domain, 1=SPF, 2=subsections
                 SpfWordSectionWriter.Write(doc, headings, 2, bucket.Spf, domain, scope, showInfoFindings, includeNarrativePerDomain, includeMechanismMeaningsPerDomain);
-                try
-                {
-                    // Surface provider help under SPF as well (prefer MX provider links when present)
-                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                    if (help != null && help.Count > 0)
-                    {
-                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
-                    }
-                } catch { }
+                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderSpf) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
             }
 
             if (bucket.Dkim.Count > 0)
             {
                 headings.AddItem("DKIM", 1);
                 DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try
-                {
-                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                    if (help != null && help.Count > 0)
-                    {
-                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
-                    }
-                } catch { }
+                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDkim) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
             }
 
             if (bucket.Dmarc != null)
             {
                 headings.AddItem("DMARC", 1);
                 DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try
-                {
-                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                    if (help != null && help.Count > 0)
-                    {
-                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
-                    }
-                } catch { }
+                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDmarc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
             }
 
             if (bucket.Dnsbl != null)

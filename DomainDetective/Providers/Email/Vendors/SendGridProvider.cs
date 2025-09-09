@@ -22,10 +22,42 @@ public sealed class SendGridProvider : IMailProvider
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://docs.sendgrid.com/ui/sending-email/sender-authentication#dmarc";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://support.sendgrid.com/hc/en-us/articles/203663556-What-is-SPF-and-DMARC-",
+            Title = "Internet standards (SPF & DMARC)",
+            Summary = "DMARC defaults and SPF sanity limits.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://support.sendgrid.com/hc/en-us/articles/203365330-How-to-Set-Up-Domain-Authentication",
+            Title = "How to Set Up Domain Authentication",
+            Summary = "CNAME selectors s1/s2; optional TXT SPF.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://support.sendgrid.com/hc/en-us/articles/203033398-DKIM-Records-Explained",
+            Title = "DKIM Records Explained",
+            Summary = "Automated security uses CNAME DKIM.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://sendgrid.com/blog/guide-to-email-deliverability/",
+            Title = "Guide to email deliverability",
+            Summary = "Consent, list hygiene, segmentation.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

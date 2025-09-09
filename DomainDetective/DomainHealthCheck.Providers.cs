@@ -119,7 +119,8 @@ public partial class DomainHealthCheck
                             if (string.IsNullOrWhiteSpace(policy) || policy == "none")
                             {
                                 var prov = EmailProviderMatch?.Primary ?? outbound.FirstOrDefault();
-                                var help = prov?.DmarcHelpUrl;
+                                string? help = null;
+                                try { var meta = prov?.Docs?.Get("DMARC"); if (!string.IsNullOrWhiteSpace(meta?.Url)) help = meta.Url; } catch { }
                                 var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
                                 DmarcAnalysis.Assessments.Add(new Assessment
                                 {
@@ -171,7 +172,8 @@ public partial class DomainHealthCheck
                                     Providers.Email.DmarcSubdomainPolicyRecommendation.Reject => "Use sp=reject.",
                                     _ => "Use sp= to match the organizational policy (quarantine/reject)."
                                 };
-                                var help = EmailProviderMatch?.Primary?.DmarcHelpUrl;
+                                string? help = null;
+                                try { var meta = EmailProviderMatch?.Primary?.Docs?.Get("DMARC"); if (!string.IsNullOrWhiteSpace(meta?.Url)) help = meta.Url; } catch { }
                                 var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
                                 DmarcAnalysis.Assessments.Add(new Assessment
                                 {

@@ -31,6 +31,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowInfoFindings { get; set; } = true;
 
+        // Provider Help controls
+        [Parameter(Mandatory = false)]
+        [ValidateSet("Off","Minimal","Standard","Detailed")]
+        public string ProviderHelpPreset { get; set; } = "Standard";
+
+        [Parameter(Mandatory = false)]
+        public Hashtable? ProviderHelpOptions { get; set; }
+
         /// <summary>
         /// Optional script block to run and capture its output for composition.
         /// Enables inline scenarios:
@@ -92,6 +100,7 @@ namespace DomainDetective.PowerShell {
             try {
                 switch (fmt) {
                     case DomainDetective.Reports.ReportFormat.Word:
+                        var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
                         DomainDetective.Reports.Office.WordCompositionReport.Generate(
                             outPath,
                             _items,
@@ -108,7 +117,10 @@ namespace DomainDetective.PowerShell {
                             ExportDefaults.CompanyYear,
                             string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
                             string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                            string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
+                            string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
+                            true,
+                            true,
+                            helpOpts);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                     case DomainDetective.Reports.ReportFormat.Html:
@@ -146,6 +158,70 @@ namespace DomainDetective.PowerShell {
                 }
             }
             return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        private static DomainDetective.Reports.Office.ProviderHelpRenderOptions BuildProviderHelpOptions(string preset, Hashtable? overrides)
+        {
+            var o = new DomainDetective.Reports.Office.ProviderHelpRenderOptions();
+            switch ((preset ?? "Standard").Trim())
+            {
+                case "Off":
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = false; break;
+                case "Minimal":
+                    o.ShowUnderMx = true; o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = false;
+                    o.ShowSummaries = false; o.ShowNotes = false; o.ShowVerified = false; o.ShowBadges = false;
+                    break;
+                case "Detailed":
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = true;
+                    o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
+                    break;
+                default: // Standard
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = true;
+                    o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
+                    break;
+            }
+            if (overrides != null)
+            {
+                foreach (DictionaryEntry de in overrides)
+                {
+                    var key = (de.Key?.ToString() ?? string.Empty).Trim();
+                    var val = de.Value;
+                    if (string.Equals(key, "Under", StringComparison.OrdinalIgnoreCase) && val is System.Collections.IEnumerable en)
+                    {
+                        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var v in en) if (v != null) set.Add(v.ToString()!);
+                        o.ShowUnderMx = set.Contains("MX");
+                        o.ShowUnderSpf = set.Contains("SPF");
+                        o.ShowUnderDkim = set.Contains("DKIM");
+                        o.ShowUnderDmarc = set.Contains("DMARC");
+                        continue;
+                    }
+                    if (string.Equals(key, "Topics", StringComparison.OrdinalIgnoreCase) && val is System.Collections.IEnumerable en2)
+                    {
+                        var list = new List<string>();
+                        foreach (var v in en2) if (v != null) list.Add(v.ToString()!.ToUpperInvariant());
+                        if (list.Count > 0) o.TopicOrder = list.ToArray();
+                        continue;
+                    }
+                    void setBool(ref bool field)
+                    {
+                        if (val is bool b) field = b;
+                        else if (val is SwitchParameter sp) field = sp.IsPresent;
+                        else if (val != null && bool.TryParse(val.ToString(), out var bb)) field = bb;
+                    }
+                    switch (key.ToLowerInvariant())
+                    {
+                        case "showsummaries": setBool(ref o.ShowSummaries); break;
+                        case "shownotes": setBool(ref o.ShowNotes); break;
+                        case "showbadges": setBool(ref o.ShowBadges); break;
+                        case "showverified": setBool(ref o.ShowVerified); break;
+                        case "includerestricted": setBool(ref o.IncludeRestricted); break;
+                        case "includethirdparty": setBool(ref o.IncludeThirdParty); break;
+                        case "maxproviders": if (val != null && int.TryParse(val.ToString(), out var m)) o.MaxProviders = m; break;
+                    }
+                }
+            }
+            return o;
         }
     }
 }

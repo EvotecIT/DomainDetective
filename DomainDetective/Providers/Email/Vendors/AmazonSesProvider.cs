@@ -18,10 +18,34 @@ public sealed class AmazonSesProvider : IMailProvider
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://docs.aws.amazon.com/ses/latest/dg/send-email-authentication-dmarc.html";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://repost.aws/knowledge-center/ses-dmarc-spf-dkim-alignment",
+            Title = "DMARC alignment for SPF and DKIM",
+            Summary = "Alignment requirements and recommendations.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://repost.aws/knowledge-center/ses-send-dkim-verification-fail",
+            Title = "SES Easy DKIM & BYO DKIM",
+            Summary = "Easy DKIM; 2048‑bit keys; BYODKIM.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://repost.aws/knowledge-center/ses-migrate-improve-deliverability",
+            Title = "Migrate email and improve deliverability",
+            Summary = "Verification, production access, warming.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

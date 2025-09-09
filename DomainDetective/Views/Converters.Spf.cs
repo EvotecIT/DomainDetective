@@ -39,15 +39,25 @@ public static partial class Converters
         {
             if (match?.Primary != null)
             {
+                var p = match.Primary;
                 var ph = new ProviderHelpLinks
                 {
-                    ProviderName = match.Primary.DisplayName,
-                    Dmarc = match.Primary.DmarcHelpUrl,
-                    Spf = match.Primary.SpfHelpUrl,
-                    Dkim = match.Primary.DkimHelpUrl,
-                    MtaSts = match.Primary.MtaStsHelpUrl,
-                    TlsRpt = match.Primary.TlsRptHelpUrl,
-                    Deliverability = match.Primary.DeliverabilityHelpUrl
+                    ProviderName = p.DisplayName,
+                    Dmarc = p.Docs?.Dmarc?.Url,
+                    Spf = p.Docs?.Spf?.Url,
+                    Dkim = p.Docs?.Dkim?.Url,
+                    MtaSts = p.Docs?.MtaSts?.Url,
+                    TlsRpt = p.Docs?.TlsRpt?.Url,
+                    Deliverability = p.Docs?.Deliverability?.Url,
+                    Topics = Converters_MakeTopics(p.DisplayName, p.Docs, new []
+                    {
+                        ("DMARC", p.Docs?.Dmarc?.Url),
+                        ("SPF", p.Docs?.Spf?.Url),
+                        ("DKIM", p.Docs?.Dkim?.Url),
+                        ("MTA-STS", p.Docs?.MtaSts?.Url),
+                        ("TLS-RPT", p.Docs?.TlsRpt?.Url),
+                        ("Deliverability", p.Docs?.Deliverability?.Url)
+                    })
                 };
                 if (ph.HasAny) helpList.Add(ph);
             }
@@ -56,12 +66,21 @@ public static partial class Converters
                 var ph = new ProviderHelpLinks
                 {
                     ProviderName = o.DisplayName,
-                    Dmarc = o.DmarcHelpUrl,
-                    Spf = o.SpfHelpUrl,
-                    Dkim = o.DkimHelpUrl,
-                    MtaSts = o.MtaStsHelpUrl,
-                    TlsRpt = o.TlsRptHelpUrl,
-                    Deliverability = o.DeliverabilityHelpUrl
+                    Dmarc = o.Docs?.Dmarc?.Url,
+                    Spf = o.Docs?.Spf?.Url,
+                    Dkim = o.Docs?.Dkim?.Url,
+                    MtaSts = o.Docs?.MtaSts?.Url,
+                    TlsRpt = o.Docs?.TlsRpt?.Url,
+                    Deliverability = o.Docs?.Deliverability?.Url,
+                    Topics = Converters_MakeTopics(o.DisplayName, o.Docs, new []
+                    {
+                        ("DMARC", o.Docs?.Dmarc?.Url),
+                        ("SPF", o.Docs?.Spf?.Url),
+                        ("DKIM", o.Docs?.Dkim?.Url),
+                        ("MTA-STS", o.Docs?.MtaSts?.Url),
+                        ("TLS-RPT", o.Docs?.TlsRpt?.Url),
+                        ("Deliverability", o.Docs?.Deliverability?.Url)
+                    })
                 };
                 if (ph.HasAny) helpList.Add(ph);
             }
@@ -99,6 +118,29 @@ public static partial class Converters
             Highlights = narrative.Highlights,
             ProviderHelp = helpList
         };
+    }
+
+    private static List<ProviderHelpTopic> Converters_MakeTopics(string providerName, DomainDetective.Providers.Email.ProviderDocumentation? docs, IEnumerable<(string Topic, string? Url)> pairs)
+    {
+        var list = new List<ProviderHelpTopic>();
+        foreach (var (topic, url) in pairs)
+        {
+            var meta = docs?.Get(topic);
+            var effectiveUrl = string.IsNullOrWhiteSpace(url) ? meta?.Url : url;
+            if (string.IsNullOrWhiteSpace(effectiveUrl)) continue;
+            list.Add(new ProviderHelpTopic
+            {
+                Topic = topic,
+                Url = effectiveUrl,
+                Title = meta?.Title ?? ($"{providerName} — {topic}"),
+                Summary = meta?.Summary,
+                Notes = meta?.Notes,
+                IsPublic = meta?.IsPublic ?? true,
+                IsThirdParty = meta?.IsThirdParty ?? false,
+                LastVerified = meta?.LastVerified
+            });
+        }
+        return list;
     }
 }
 

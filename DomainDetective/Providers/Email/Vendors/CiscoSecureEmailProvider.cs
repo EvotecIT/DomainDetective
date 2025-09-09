@@ -24,10 +24,19 @@ public sealed class CiscoSecureEmailProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => null; // Removed pending replacement with public, stable URL
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://dmarcian.com/cisco-esa/",
+            Title = "Cisco ESA DMARC Configuration Guide (dmarcian)",
+            Summary = "DMARC enforcement behavior and reporting.",
+            IsPublic = true,
+            IsThirdParty = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

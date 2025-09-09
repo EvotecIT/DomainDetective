@@ -9,8 +9,9 @@ namespace DomainDetective.Reports.Office;
 /// </summary>
 public static class MxWordSectionWriter
 {
-    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.MxInfo mx, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
+    public static void Write(WordDocument doc, WordList headings, int baseLevel, DomainDetective.Views.MxInfo mx, string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true, ProviderHelpRenderOptions? providerHelp = null)
     {
+        providerHelp ??= new ProviderHelpRenderOptions();
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         if (mx == null) throw new ArgumentNullException(nameof(mx));
 
@@ -95,7 +96,7 @@ public static class MxWordSectionWriter
         }
 
         // Provider Help: official docs for detected provider(s)
-        try { ProviderHelpWordSectionWriter.Write(doc, headings, baseLevel, mx.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>()); } catch { }
+        try { if (providerHelp.ShowUnderMx) ProviderHelpWordSectionWriter.Write(doc, headings, baseLevel, mx.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>(), providerHelp); } catch { }
 
         // References
         if (mx.References != null && mx.References.Count > 0)

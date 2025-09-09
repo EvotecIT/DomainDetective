@@ -22,10 +22,34 @@ public sealed class ProtonMailProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://proton.me/support/dmarc";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://proton.me/support/anti-spoofing-custom-domain",
+            Title = "Anti‑spoofing for custom domains (DMARC)",
+            Summary = "Start with p=none; enforce later.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://proton.me/support/anti-spoofing-custom-domain",
+            Title = "Anti‑spoofing (SPF)",
+            Summary = "include:_spf.protonmail.ch mx ~all.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://proton.me/support/anti-spoofing-custom-domain",
+            Title = "Anti‑spoofing (DKIM)",
+            Summary = "Three CNAMEs; 2048‑bit; rotation.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }

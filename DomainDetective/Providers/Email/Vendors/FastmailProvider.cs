@@ -22,10 +22,42 @@ public sealed class FastmailProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://www.fastmail.help/hc/en-us/articles/360060591273-DMARC";
-    public string? SpfHelpUrl => null;
-    public string? DkimHelpUrl => null;
-    public string? MtaStsHelpUrl => null;
-    public string? TlsRptHelpUrl => null;
-    public string? DeliverabilityHelpUrl => null;
+    // Documentation (source of truth)
+
+    public ProviderDocumentation Docs => new ProviderDocumentation
+    {
+        Provider = DisplayName,
+        Dmarc = new ProviderDocLink
+        {
+            Url = "https://www.fastmail.help/hc/en-us/articles/360058752434-DMARC",
+            Title = "DMARC",
+            Summary = "Default p=none; publish custom DMARC for enforcement.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Spf = new ProviderDocLink
+        {
+            Url = "https://www.fastmail.help/hc/en-us/articles/360060121214-Manual-DNS-configuration",
+            Title = "Manual DNS configuration (SPF)",
+            Summary = "SPF uses include:spf.messagingengine.com.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Dkim = new ProviderDocLink
+        {
+            Url = "https://www.fastmail.help/hc/en-us/articles/360060121214-Manual-DNS-configuration",
+            Title = "Manual DNS configuration (DKIM)",
+            Summary = "Selectors fm1/fm2/fm3 via CNAME.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        },
+        Deliverability = new ProviderDocLink
+        {
+            Url = "https://www.fastmail.help/hc/en-us/articles/360060066154-Bounce-messages",
+            Title = "Bounce messages",
+            Summary = "Troubleshooting delivery failures.",
+            IsPublic = true,
+            LastVerified = new System.DateTime(2025, 9, 9)
+        }
+    };
 }
