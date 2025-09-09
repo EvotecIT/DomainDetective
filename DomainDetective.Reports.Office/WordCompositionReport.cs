@@ -46,7 +46,10 @@ public static class WordCompositionReport {
         string? watermarkText = null,
         bool showDkimSelectorCountInSummary = true,
         bool showMailTlsProtocolHintInSummary = true,
-        ProviderHelpRenderOptions? providerHelp = null) {
+        ProviderHelpRenderOptions? providerHelp = null,
+        DomainOrder domainOrder = DomainOrder.Alphabetical,
+        SectionOrderMode sectionOrderMode = SectionOrderMode.Canonical,
+        string[]? sectionOrder = null) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
         // Group items by domain/subject
@@ -154,7 +157,19 @@ public static class WordCompositionReport {
         doc.AddParagraph($"This report summarizes the email security posture for {grouped.Count} domain(s). The table highlights the presence and status of key controls ({controlsText}) and the count of warnings/errors detected. Total across all domains: {totalWarns} warning(s), {totalErrs} error(s).");
 
         // Executive Summary table (defensive build to avoid style-dependent index issues)
-        var allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        List<KeyValuePair<string, DomainBucket>> allRows;
+        if (domainOrder == DomainOrder.Input) {
+            var inputOrder = DetermineDomainOrder(items);
+            var tmp = new List<KeyValuePair<string, DomainBucket>>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in inputOrder) {
+                if (grouped.TryGetValue(d, out var b)) { tmp.Add(new KeyValuePair<string, DomainBucket>(d, b)); seen.Add(d); }
+            }
+            foreach (var kv in grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase)) if (!seen.Contains(kv.Key)) tmp.Add(new KeyValuePair<string, DomainBucket>(kv.Key, kv.Value));
+            allRows = tmp;
+        } else {
+            allRows = grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
+        }
         try {
             // Build dynamic header list and writers; cap content columns to keep layout tidy in Word.
             // Max total columns ≈ 6 (including Domain + Findings) → content columns cap = 4.
@@ -349,6 +364,9 @@ public static class WordCompositionReport {
 
         // Per-domain sections
         bool firstDomain = true;
+        // Precompute input-driven section order if requested
+        var inputSectionOrder = (sectionOrderMode == SectionOrderMode.Input) ? DetermineSectionOrderByDomain(items) : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var normalizedCustom = (sectionOrderMode == SectionOrderMode.Custom && sectionOrder != null) ? NormalizeSectionList(sectionOrder) : Array.Empty<string>();
         foreach (var kv in allRows) {
             var domain = kv.Key;
             var bucket = kv.Value;
@@ -356,92 +374,41 @@ public static class WordCompositionReport {
             firstDomain = false;
             headings.AddItem(domain);
 
-            if (bucket.Mx != null) {
-                headings.AddItem("MX", 1);
-                MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
+            var writers = new System.Collections.Generic.Dictionary<string, System.Action>(System.StringComparer.OrdinalIgnoreCase);
+            var present = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            void add(string key, System.Action action, bool isPresent) { if (isPresent) present.Add(key); writers[key] = action; }
+            add("MX", () => { headings.AddItem("MX", 1); MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx!, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions()); }, bucket.Mx != null);
+            add("SPF", () => { headings.AddItem("SPF", 1); SpfWordSectionWriter.Write(doc, headings, 2, bucket.Spf!, domain, scope, showInfoFindings, includeNarrativePerDomain, includeMechanismMeaningsPerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderSpf) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Spf != null);
+            add("DKIM", () => { headings.AddItem("DKIM", 1); DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDkim) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Dkim.Count > 0);
+            add("DMARC", () => { headings.AddItem("DMARC", 1); DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDmarc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Dmarc != null);
+            add("ARC", () => { headings.AddItem("ARC", 1); ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Arc != null);
+            add("BIMI", () => { headings.AddItem("BIMI", 1); BimiWordSectionWriter.Write(doc, headings, 2, bucket.Bimi!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderBimi) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Bimi != null);
+            add("DNSBL", () => { headings.AddItem("DNSBL", 1); DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl!, domain, scope, showInfoFindings); }, bucket.Dnsbl != null);
+            add("RPKI", () => { headings.AddItem("RPKI", 1); RpkiWordSectionWriter.Write(doc, headings, 2, bucket.Rpki!, domain, scope, showInfoFindings); }, bucket.Rpki != null);
+            add("NS", () => { headings.AddItem("NS", 1); NsWordSectionWriter.Write(doc, headings, 2, bucket.Ns!, domain, scope, showInfoFindings); }, bucket.Ns != null);
+            add("SOA", () => { headings.AddItem("SOA", 1); SoaWordSectionWriter.Write(doc, headings, 2, bucket.Soa!, domain, scope, showInfoFindings); }, bucket.Soa != null);
+            add("ZoneTransfer", () => { headings.AddItem("Zone Transfer", 1); ZoneTransferWordSectionWriter.Write(doc, headings, 2, bucket.ZoneTransfer!, domain, scope, showInfoFindings); }, bucket.ZoneTransfer != null);
+            add("Wildcard", () => { headings.AddItem("Wildcard DNS", 1); WildcardWordSectionWriter.Write(doc, headings, 2, bucket.Wildcard!, domain, scope, showInfoFindings); }, bucket.Wildcard != null);
+            add("CAA", () => { headings.AddItem("CAA", 1); CaaWordSectionWriter.Write(doc, headings, 2, bucket.Caa!, domain, scope, showInfoFindings); }, bucket.Caa != null);
+            add("Classification", () => { headings.AddItem("Mail Classification", 1); MailClassificationWordSectionWriter.Write(doc, headings, 2, bucket.Classification!, domain, scope, showInfoFindings); }, bucket.Classification != null);
+            add("MTA-STS", () => { headings.AddItem("MTA-STS", 1); MtastsWordSectionWriter.Write(doc, headings, 2, bucket.Mtasts!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Mtasts != null);
+            add("TLS-RPT", () => { headings.AddItem("TLS-RPT", 1); TlsRptWordSectionWriter.Write(doc, headings, 2, bucket.TlsRpt!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.TlsRpt != null);
+            add("DNSSEC", () => { headings.AddItem("DNSSEC", 1); DnssecWordSectionWriter.Write(doc, headings, 2, bucket.Dnssec!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Dnssec != null);
+            add("DANE", () => { headings.AddItem("DANE", 1); DaneWordSectionWriter.Write(doc, headings, 2, bucket.Dane!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Dane != null);
+
+            var canonical = CanonicalSections;
+            var finalOrder = new System.Collections.Generic.List<string>();
+            if (sectionOrderMode == SectionOrderMode.Custom && normalizedCustom.Length > 0) {
+                foreach (var s in normalizedCustom) if (present.Contains(s)) finalOrder.Add(s);
+                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, System.StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
+            } else if (sectionOrderMode == SectionOrderMode.Input && inputSectionOrder.TryGetValue(domain, out var seenOrder) && seenOrder.Count > 0) {
+                foreach (var s in seenOrder) if (present.Contains(s)) finalOrder.Add(s);
+                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, System.StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
+            } else {
+                foreach (var s in canonical) if (present.Contains(s)) finalOrder.Add(s);
             }
 
-            if (bucket.Spf != null) {
-                headings.AddItem("SPF", 1);
-                // Base level 2 under the 'SPF' node: 0=domain, 1=SPF, 2=subsections
-                SpfWordSectionWriter.Write(doc, headings, 2, bucket.Spf, domain, scope, showInfoFindings, includeNarrativePerDomain, includeMechanismMeaningsPerDomain);
-                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderSpf) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
-            }
-
-            if (bucket.Dkim.Count > 0) {
-                headings.AddItem("DKIM", 1);
-                DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDkim) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
-            }
-
-            if (bucket.Dmarc != null) {
-                headings.AddItem("DMARC", 1);
-                DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDmarc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
-            }
-
-            if (bucket.Arc != null) {
-                headings.AddItem("ARC", 1);
-                ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
-            }
-
-            if (bucket.Bimi != null) {
-                headings.AddItem("BIMI", 1);
-                BimiWordSectionWriter.Write(doc, headings, 2, bucket.Bimi, domain, scope, showInfoFindings, includeNarrativePerDomain);
-                try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderBimi) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
-            }
-
-            if (bucket.Dnsbl != null) {
-                headings.AddItem("DNSBL", 1);
-                DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl, domain, scope, showInfoFindings);
-            }
-            if (bucket.Rpki != null) {
-                headings.AddItem("RPKI", 1);
-                RpkiWordSectionWriter.Write(doc, headings, 2, bucket.Rpki, domain, scope, showInfoFindings);
-            }
-            if (bucket.Ns != null) {
-                headings.AddItem("NS", 1);
-                NsWordSectionWriter.Write(doc, headings, 2, bucket.Ns, domain, scope, showInfoFindings);
-            }
-            if (bucket.Soa != null) {
-                headings.AddItem("SOA", 1);
-                SoaWordSectionWriter.Write(doc, headings, 2, bucket.Soa, domain, scope, showInfoFindings);
-            }
-            if (bucket.ZoneTransfer != null) {
-                headings.AddItem("Zone Transfer", 1);
-                ZoneTransferWordSectionWriter.Write(doc, headings, 2, bucket.ZoneTransfer, domain, scope, showInfoFindings);
-            }
-            if (bucket.Wildcard != null) {
-                headings.AddItem("Wildcard DNS", 1);
-                WildcardWordSectionWriter.Write(doc, headings, 2, bucket.Wildcard, domain, scope, showInfoFindings);
-            }
-            if (bucket.Caa != null) {
-                headings.AddItem("CAA", 1);
-                CaaWordSectionWriter.Write(doc, headings, 2, bucket.Caa, domain, scope, showInfoFindings);
-            }
-
-            if (bucket.Classification != null) {
-                headings.AddItem("Mail Classification", 1);
-                MailClassificationWordSectionWriter.Write(doc, headings, 2, bucket.Classification, domain, scope, showInfoFindings);
-            }
-
-            if (bucket.Mtasts != null) {
-                headings.AddItem("MTA-STS", 1);
-                MtastsWordSectionWriter.Write(doc, headings, 2, bucket.Mtasts, domain, scope, showInfoFindings, includeNarrativePerDomain);
-            }
-            if (bucket.TlsRpt != null) {
-                headings.AddItem("TLS-RPT", 1);
-                TlsRptWordSectionWriter.Write(doc, headings, 2, bucket.TlsRpt, domain, scope, showInfoFindings, includeNarrativePerDomain);
-            }
-            if (bucket.Dnssec != null) {
-                headings.AddItem("DNSSEC", 1);
-                DnssecWordSectionWriter.Write(doc, headings, 2, bucket.Dnssec, domain, scope, showInfoFindings, includeNarrativePerDomain);
-            }
-            if (bucket.Dane != null) {
-                headings.AddItem("DANE", 1);
-                DaneWordSectionWriter.Write(doc, headings, 2, bucket.Dane, domain, scope, showInfoFindings, includeNarrativePerDomain);
-            }
+            foreach (var key in finalOrder) { try { writers[key](); } catch { } }
         }
 
         // Consolidated Recommendations (grouped across all domains)
@@ -601,6 +568,89 @@ public static class WordCompositionReport {
         }
     }
 
+    private static List<string> DetermineDomainOrder(IReadOnlyList<object> items) {
+        var list = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in items ?? Array.Empty<object>()) {
+            foreach (var it in EnumeratePossiblyNested(raw)) {
+                var subj = TryGetSubject(it);
+                if (!string.IsNullOrWhiteSpace(subj) && seen.Add(subj!)) list.Add(subj!);
+            }
+        }
+        return list;
+    }
+
+    private static Dictionary<string, List<string>> DetermineSectionOrderByDomain(IReadOnlyList<object> items) {
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in items ?? Array.Empty<object>()) {
+            foreach (var it in EnumeratePossiblyNested(raw)) {
+                string? subject = TryGetSubject(it);
+                if (string.IsNullOrWhiteSpace(subject)) continue;
+                string? key = TryGetSectionKey(it);
+                if (string.IsNullOrWhiteSpace(key)) continue;
+                if (!map.TryGetValue(subject!, out var list)) { list = new List<string>(); map[subject!] = list; }
+                if (!list.Contains(key!, StringComparer.OrdinalIgnoreCase)) list.Add(key!);
+            }
+        }
+        return map;
+    }
+
+    private static string? TryGetSubject(object it) {
+        try { var p = it.GetType().GetProperty("Subject"); return p?.GetValue(it) as string; } catch { return null; }
+    }
+
+    private static string? TryGetSectionKey(object it) {
+        try {
+            var p = it.GetType().GetProperty("Check");
+            if (p == null) return null;
+            if (p.GetValue(it) is not HealthCheckType h) return null;
+            return SectionKeyFor(h);
+        } catch { return null; }
+    }
+
+    private static string SectionKeyFor(HealthCheckType h) => h switch {
+        HealthCheckType.MX => "MX",
+        HealthCheckType.SPF => "SPF",
+        HealthCheckType.DKIM => "DKIM",
+        HealthCheckType.DMARC => "DMARC",
+        HealthCheckType.ARC => "ARC",
+        HealthCheckType.BIMI => "BIMI",
+        HealthCheckType.DNSBL => "DNSBL",
+        HealthCheckType.RPKI => "RPKI",
+        HealthCheckType.NS => "NS",
+        HealthCheckType.SOA => "SOA",
+        HealthCheckType.ZONETRANSFER => "ZoneTransfer",
+        HealthCheckType.WILDCARDDNS => "Wildcard",
+        HealthCheckType.CAA => "CAA",
+        HealthCheckType.MAILCLASSIFICATION => "Classification",
+        HealthCheckType.MTASTS => "MTA-STS",
+        HealthCheckType.TLSRPT => "TLS-RPT",
+        HealthCheckType.DNSSEC => "DNSSEC",
+        HealthCheckType.DANE => "DANE",
+        _ => null
+    };
+
+    private static string[] CanonicalSections => new[] { "MX","SPF","DKIM","DMARC","ARC","BIMI","DNSBL","RPKI","NS","SOA","ZoneTransfer","Wildcard","CAA","Classification","MTA-STS","TLS-RPT","DNSSEC","DANE" };
+
+    private static string NormalizeSection(string s) {
+        if (string.IsNullOrWhiteSpace(s)) return s;
+        var t = s.Trim();
+        var u = t.ToUpperInvariant().Replace(" ", "");
+        return u switch {
+            "TLSRPT" => "TLS-RPT",
+            "MTASTS" => "MTA-STS",
+            "ZONEXFR" => "ZoneTransfer",
+            "ZONETRANSFER" => "ZoneTransfer",
+            "WILDCARDDNS" => "Wildcard",
+            "MAILCLASSIFICATION" => "Classification",
+            _ => (u == "NS" || u == "SOA" || u == "MX" || u == "SPF" || u == "DKIM" || u == "DMARC" || u == "ARC" || u == "BIMI" || u == "DNSBL" || u == "RPKI" || u == "CAA" || u == "DANE" || u == "DNSSEC") ? u : t
+        };
+    }
+
+    private static string[] NormalizeSectionList(IEnumerable<string> list) {
+        return list?.Select(NormalizeSection).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+    }
+
     private static string MaxStatus(string a, string b) {
         int Rank(string s) => string.Equals(s, "Error", StringComparison.OrdinalIgnoreCase) ? 3
             : string.Equals(s, "Warning", StringComparison.OrdinalIgnoreCase) ? 2
@@ -756,3 +806,5 @@ public static class WordCompositionReport {
         return map;
     }
 }
+public enum DomainOrder { Alphabetical, Input }
+public enum SectionOrderMode { Canonical, Input, Custom }

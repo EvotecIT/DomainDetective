@@ -23,7 +23,7 @@ public static class HtmlCompositionReport
     /// <param name="titleOverride">Optional document title override.</param>
     /// <param name="authorOverride">Optional author override.</param>
     /// <param name="descriptionOverride">Optional description/summary override.</param>
-    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null)
+    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null, DomainOrder domainOrder = DomainOrder.Alphabetical, SectionOrderMode sectionOrderMode = SectionOrderMode.Canonical, string[]? sectionOrder = null)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -40,7 +40,12 @@ public static class HtmlCompositionReport
         html.AddParagraph($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
 
         // Executive Summary
-        var rows = grouped.Select(kv => new
+        // Domain ordering
+        var ordered = (domainOrder == DomainOrder.Input)
+            ? OrderDomainsByInput(items, grouped)
+            : grouped.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();
+
+        var rows = ordered.Select(kv => new
         {
             Domain = kv.Key,
             MX = kv.Value.Mx?.Status ?? "-",
@@ -62,18 +67,39 @@ public static class HtmlCompositionReport
             BackgroundHtmlSectionWriter.Write(html, items);
         }
 
-        foreach (var kv in grouped)
+        // Section ordering helpers
+        var inputSectionOrder = (sectionOrderMode == SectionOrderMode.Input) ? DetermineSectionOrderByDomain(items) : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var normalizedCustom = (sectionOrderMode == SectionOrderMode.Custom && sectionOrder != null) ? NormalizeSectionList(sectionOrder) : Array.Empty<string>();
+
+        foreach (var kv in ordered)
         {
             var domain = kv.Key; var b = kv.Value;
             html.AddHeading(domain, 2);
-            if (b.Mx != null) MxHtmlSectionWriter.Write(html, b.Mx, domain, scope);
-            if (b.Spf != null) SpfHtmlSectionWriter.Write(html, b.Spf, domain, scope);
-            if (b.Dkim.Count > 0) DkimHtmlSectionWriter.Write(html, b.Dkim, domain, scope);
-            if (b.Dmarc != null) DmarcHtmlSectionWriter.Write(html, b.Dmarc, domain, scope);
-            if (b.Dnsbl != null) DnsblHtmlSectionWriter.Write(html, b.Dnsbl, domain, scope);
-            if (b.Classification != null) MailClassificationHtmlSectionWriter.Write(html, b.Classification, domain, scope);
-            if (b.Mtasts != null) MtastsHtmlSectionWriter.Write(html, b.Mtasts, domain, scope);
-            if (b.TlsRpt != null) TlsRptHtmlSectionWriter.Write(html, b.TlsRpt, domain, scope);
+            var writers = new Dictionary<string, Action>(StringComparer.OrdinalIgnoreCase);
+            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void add(string key, Action a, bool isPresent) { if (isPresent) present.Add(key); writers[key] = a; }
+            add("MX", () => MxHtmlSectionWriter.Write(html, b.Mx!, domain, scope), b.Mx != null);
+            add("SPF", () => SpfHtmlSectionWriter.Write(html, b.Spf!, domain, scope), b.Spf != null);
+            add("DKIM", () => DkimHtmlSectionWriter.Write(html, b.Dkim, domain, scope), b.Dkim.Count > 0);
+            add("DMARC", () => DmarcHtmlSectionWriter.Write(html, b.Dmarc!, domain, scope), b.Dmarc != null);
+            add("DNSBL", () => DnsblHtmlSectionWriter.Write(html, b.Dnsbl!, domain, scope), b.Dnsbl != null);
+            add("Classification", () => MailClassificationHtmlSectionWriter.Write(html, b.Classification!, domain, scope), b.Classification != null);
+            add("MTA-STS", () => MtastsHtmlSectionWriter.Write(html, b.Mtasts!, domain, scope), b.Mtasts != null);
+            add("TLS-RPT", () => TlsRptHtmlSectionWriter.Write(html, b.TlsRpt!, domain, scope), b.TlsRpt != null);
+
+            var canonical = CanonicalSections;
+            var finalOrder = new List<string>();
+            if (sectionOrderMode == SectionOrderMode.Custom && normalizedCustom.Length > 0) {
+                foreach (var s in normalizedCustom) if (present.Contains(s)) finalOrder.Add(s);
+                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
+            } else if (sectionOrderMode == SectionOrderMode.Input && inputSectionOrder.TryGetValue(domain, out var seenOrder) && seenOrder.Count > 0) {
+                foreach (var s in seenOrder) if (present.Contains(s)) finalOrder.Add(s);
+                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
+            } else {
+                foreach (var s in canonical) if (present.Contains(s)) finalOrder.Add(s);
+            }
+
+            foreach (var key in finalOrder) { try { writers[key](); } catch { } }
         }
 
         // Consolidated Recommendations
@@ -104,6 +130,7 @@ public static class HtmlCompositionReport
 
     private static string BuildSubjectTitle(List<string> domains)
     {
+        if (domains.Count == 0) return "Custom Composition";
         if (domains.Count == 1) return domains[0];
         if (domains.Count == 2) return $"{domains[0]}+{domains[1]}";
         return $"{domains[0]}+{domains[1]}(+{domains.Count - 2})";
@@ -156,4 +183,86 @@ public static class HtmlCompositionReport
         }
         return map;
     }
+
+    private static List<KeyValuePair<string, DomainBucket>> OrderDomainsByInput(IReadOnlyList<object> items, Dictionary<string, DomainBucket> grouped)
+    {
+        var ordered = new List<KeyValuePair<string, DomainBucket>>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var it in items ?? Array.Empty<object>())
+        {
+            var subject = TryGetSubject(it);
+            if (string.IsNullOrWhiteSpace(subject)) continue;
+            if (seen.Contains(subject!)) continue;
+            if (grouped.TryGetValue(subject!, out var bucket))
+            {
+                ordered.Add(new KeyValuePair<string, DomainBucket>(subject!, bucket));
+                seen.Add(subject!);
+            }
+        }
+        foreach (var kv in grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase)) if (!seen.Contains(kv.Key)) ordered.Add(new KeyValuePair<string, DomainBucket>(kv.Key, kv.Value));
+        return ordered;
+    }
+
+    private static string? TryGetSubject(object item)
+    {
+        try { var p = item.GetType().GetProperty("Subject"); return p?.GetValue(item) as string; } catch { return null; }
+    }
+
+    private static Dictionary<string, List<string>> DetermineSectionOrderByDomain(IReadOnlyList<object> items)
+    {
+        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var it in items ?? Array.Empty<object>())
+        {
+            var subject = TryGetSubject(it);
+            if (string.IsNullOrWhiteSpace(subject)) continue;
+            var key = TryGetSectionKey(it);
+            if (string.IsNullOrWhiteSpace(key)) continue;
+            if (!map.TryGetValue(subject!, out var list)) { list = new List<string>(); map[subject!] = list; }
+            if (!list.Contains(key!, StringComparer.OrdinalIgnoreCase)) list.Add(key!);
+        }
+        return map;
+    }
+
+    private static string? TryGetSectionKey(object it)
+    {
+        try {
+            var p = it.GetType().GetProperty("Check");
+            if (p == null) return null;
+            if (p.GetValue(it) is not DomainDetective.HealthCheckType h) return null;
+            return SectionKeyFor(h);
+        } catch { return null; }
+    }
+
+    private static string SectionKeyFor(DomainDetective.HealthCheckType h) => h switch {
+        DomainDetective.HealthCheckType.MX => "MX",
+        DomainDetective.HealthCheckType.SPF => "SPF",
+        DomainDetective.HealthCheckType.DKIM => "DKIM",
+        DomainDetective.HealthCheckType.DMARC => "DMARC",
+        DomainDetective.HealthCheckType.DNSBL => "DNSBL",
+        DomainDetective.HealthCheckType.MAILCLASSIFICATION => "Classification",
+        DomainDetective.HealthCheckType.MTASTS => "MTA-STS",
+        DomainDetective.HealthCheckType.TLSRPT => "TLS-RPT",
+        _ => null
+    };
+
+    private static string[] CanonicalSections => new[] { "MX","SPF","DKIM","DMARC","DNSBL","Classification","MTA-STS","TLS-RPT" };
+
+    private static string[] NormalizeSectionList(IEnumerable<string> list)
+    {
+        return list?.Select(s => NormalizeSection(s)).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+    }
+    private static string NormalizeSection(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return s;
+        var t = s.Trim();
+        var u = t.ToUpperInvariant().Replace(" ", "");
+        return u switch {
+            "TLSRPT" => "TLS-RPT",
+            "MTASTS" => "MTA-STS",
+            _ => (u == "MX" || u == "SPF" || u == "DKIM" || u == "DMARC" || u == "DNSBL" || u == "CLASSIFICATION" || u == "MTA-STS" || u == "TLS-RPT") ? (u == "CLASSIFICATION" ? "Classification" : (u == "MTA-STS" ? "MTA-STS" : u)) : t
+        };
+    }
 }
+
+public enum DomainOrder { Alphabetical, Input }
+public enum SectionOrderMode { Canonical, Input, Custom }

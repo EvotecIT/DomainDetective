@@ -27,3 +27,5 @@ $dmarc = Test-DDEmailDmarcRecord -DomainName $Domain
 $mx = Test-DDDnsMxRecord -DomainName $Domain
 
 $spf, $dmarc, $mx | Export-DDSecurityReport -Scope Normal -ExportFormat Word -ExportPath (Join-Path $PSScriptRoot 'Reports') -OpenReport
+
+$spf, $dmarc, $mx | Export-DDSecurityReport -Scope Normal -ExportFormat Word -ExportPath (Join-Path $PSScriptRoot 'Reports') -OpenReport -DomainOrder Input -SectionOrderMode Input

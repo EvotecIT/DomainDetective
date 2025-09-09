@@ -63,6 +63,18 @@ namespace DomainDetective.PowerShell {
         /// <summary>Override document creator/author for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Creator { get; set; }
 
+        // Ordering controls
+        [Parameter(Mandatory = false)]
+        [ValidateSet("Alphabetical","Input")]
+        public string DomainOrder { get; set; } = "Alphabetical";
+
+        [Parameter(Mandatory = false)]
+        [ValidateSet("Canonical","Input","Custom")]
+        public string SectionOrderMode { get; set; } = "Canonical";
+
+        [Parameter(Mandatory = false)]
+        public string[]? SectionOrder { get; set; }
+
         private readonly List<object> _items = new();
 
     /// <summary>Collects pipeline inputs for composition.</summary>
@@ -142,7 +154,10 @@ namespace DomainDetective.PowerShell {
                             string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
                             true,
                             true,
-                            helpOpts);
+                            helpOpts,
+                            (DomainDetective.Reports.Office.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.Office.DomainOrder), DomainOrder, ignoreCase: true),
+                            (DomainDetective.Reports.Office.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.Office.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                            SectionOrder);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                     case DomainDetective.Reports.ReportFormat.Html:
@@ -154,7 +169,10 @@ namespace DomainDetective.PowerShell {
                             ExportDefaults.NarrativePlacement,
                             string.IsNullOrWhiteSpace(Title) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle) : Title,
                             string.IsNullOrWhiteSpace(Creator) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator) : Creator,
-                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject);
+                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject,
+                            (DomainDetective.Reports.Html.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.Html.DomainOrder), DomainOrder, ignoreCase: true),
+                            (DomainDetective.Reports.Html.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.Html.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                            SectionOrder);
                         break;
                     default:
                         return ExportNotImplementedAsync("Export-DDSecurityReport");
