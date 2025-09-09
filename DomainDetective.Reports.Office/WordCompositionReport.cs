@@ -220,6 +220,72 @@ public static class WordCompositionReport
                    .SetItalic(true);
             }
 
+            // Provider chain + quick links (Executive Summary)
+            try
+            {
+                var helpOpts = providerHelp ?? new ProviderHelpRenderOptions();
+                headings.AddItem("Mail Providers", 1);
+                foreach (var row in allRows)
+                {
+                    var domain = row.Key;
+                    var bucket = row.Value;
+                    var primary = bucket.Mx?.ProviderPrimary ?? string.Empty;
+                    var gateways = bucket.Mx?.ProviderGateways ?? new List<string>();
+                    var outbound = new List<string>();
+                    try
+                    {
+                        // Infer outbound from SPF provider help names excluding primary/gateways
+                        var names = (bucket.Spf?.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>())
+                            .Select(p => p?.ProviderName)
+                            .Where(n => !string.IsNullOrWhiteSpace(n))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        foreach (var n in names)
+                        {
+                            if (string.IsNullOrWhiteSpace(n)) continue;
+                            if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
+                            if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
+                            outbound.Add(n);
+                        }
+                    }
+                    catch { }
+
+                    var chain = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(primary)) chain.Add($"Primary: {primary}");
+                    if (gateways.Count > 0) chain.Add($"Gateways: {string.Join(", ", gateways)}");
+                    if (outbound.Count > 0) chain.Add($"Outbound: {string.Join(", ", outbound)}");
+                    doc.AddParagraph($"{domain}: {(chain.Count > 0 ? string.Join("; ", chain) : "(no provider detected)")}");
+
+                    // Quick links for primary provider (DMARC/SPF/DKIM), if available
+                    try
+                    {
+                        var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
+                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                                          ?? links?.FirstOrDefault();
+                        if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
+                        {
+                            var ordered = (helpOpts.TopicOrder?.Length > 0)
+                                ? primaryHelp.Topics.OrderBy(t => Array.IndexOf(helpOpts.TopicOrder, (t?.Topic ?? string.Empty).ToUpperInvariant())).ToList()
+                                : primaryHelp.Topics.ToList();
+                            var top = ordered.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
+                            if (top.Count > 0)
+                            {
+                                var l = doc.AddList(WordListStyle.Bulleted);
+                                foreach (var t in top)
+                                {
+                                    var p = l.AddItem(string.Empty);
+                                    var text = string.IsNullOrWhiteSpace(t.Title) ? ($"{primaryHelp.ProviderName} — {t.Topic}") : t.Title!;
+                                    try { p.AddHyperLink(text, new Uri(t.Url!), addStyle: true); }
+                                    catch { p.AddText(text + ": " + t.Url); }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
             // Footnote for MAILTLS rollup sources
             if (hasMailTls && selected.Any(s => string.Equals(s.Header, "MAILTLS", StringComparison.OrdinalIgnoreCase)))
             {
