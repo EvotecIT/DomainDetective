@@ -67,7 +67,15 @@ namespace DomainDetective.PowerShell {
 
     /// <summary>Collects pipeline inputs for composition.</summary>
     protected override Task ProcessRecordAsync() {
-        if (InputObject != null) _items.Add(InputObject);
+        if (InputObject != null) {
+            // Unwrap PSObject and flatten early to avoid nested arrays reaching the composer
+            object Unwrap(object o) => (o is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : o;
+            if (InputObject is System.Collections.IEnumerable en && InputObject is not string) {
+                foreach (var e in en) if (e != null) _items.Add(Unwrap(e));
+            } else {
+                _items.Add(Unwrap(InputObject));
+            }
+        }
         return Task.CompletedTask;
     }
 
@@ -88,8 +96,21 @@ namespace DomainDetective.PowerShell {
             if (_items.Count == 0) return Task.CompletedTask;
 
             var fmt = ExportFormat ?? ExportDefaults.Format;
+            // Flatten nested arrays/lists from pipeline variables ($spf, $dmarc, $mx)
+            var flat = new List<object>();
+            IEnumerable<object> Flatten(object o) {
+                object Unwrap(object x) => (x is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : x;
+                if (o is System.Collections.IEnumerable en && o is not string) {
+                    foreach (var e in en) if (e != null) yield return Unwrap(e);
+                } else {
+                    yield return Unwrap(o);
+                }
+            }
+            foreach (var raw in _items) foreach (var it in Flatten(raw)) flat.Add(it);
+
             // Build label from first two domains we can detect
-            var subjects = ExtractSubjects(_items);
+            var subjects = ExtractSubjects(flat);
+            WriteVerbose($"Export-DDSecurityReport: composing {flat.Count} item(s) across {subjects.Count} domain(s).");
             var label = subjects.Count switch {
                 0 => "report",
                 1 => subjects[0],
@@ -104,7 +125,7 @@ namespace DomainDetective.PowerShell {
                         var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
                         DomainDetective.Reports.Office.WordCompositionReport.Generate(
                             outPath,
-                            _items,
+                            flat,
                             Scope,
                             ShowInfoFindings.IsPresent,
                             ExportDefaults.NarrativePlacement,
@@ -127,7 +148,7 @@ namespace DomainDetective.PowerShell {
                     case DomainDetective.Reports.ReportFormat.Html:
                         DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
                             outPath,
-                            _items,
+                            flat,
                             Scope,
                             OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
                             ExportDefaults.NarrativePlacement,
@@ -147,17 +168,28 @@ namespace DomainDetective.PowerShell {
 
             private static List<string> ExtractSubjects(IEnumerable<object> items) {
                 var list = new List<string>();
-                foreach (var it in items) {
-                    switch (it) {
-                        case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): list.Add(spf.Subject); break;
-                        case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): list.Add(dmarc.Subject); break;
-                    case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): list.Add(dkim.Subject); break;
-                    case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): list.Add(arc.Subject); break;
-                        case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): list.Add(bimi.Subject); break;
-                        case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): list.Add(mc.Subject); break;
-                        case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): list.Add(ms.Subject); break;
-                        case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): list.Add(tr.Subject); break;
-                        case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): list.Add(db.Subject); break;
+                IEnumerable<object> Flatten(object o) {
+                    object Unwrap(object x) => (x is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : x;
+                    if (o is System.Collections.IEnumerable en && o is not string) {
+                        foreach (var e in en) if (e != null) yield return Unwrap(e);
+                    } else {
+                        yield return Unwrap(o);
+                    }
+                }
+                foreach (var raw in items ?? Array.Empty<object>()) {
+                    foreach (var it in Flatten(raw)) {
+                        switch (it) {
+                            case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): list.Add(mx.Subject); break;
+                            case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): list.Add(spf.Subject); break;
+                            case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): list.Add(dmarc.Subject); break;
+                            case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): list.Add(dkim.Subject); break;
+                            case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): list.Add(arc.Subject); break;
+                            case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): list.Add(bimi.Subject); break;
+                            case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): list.Add(mc.Subject); break;
+                            case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): list.Add(ms.Subject); break;
+                            case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): list.Add(tr.Subject); break;
+                            case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): list.Add(db.Subject); break;
+                        }
                     }
                 }
                 return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();

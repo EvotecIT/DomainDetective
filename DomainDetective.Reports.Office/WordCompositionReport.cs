@@ -479,7 +479,8 @@ public static class WordCompositionReport {
                 if (hc > 2) rc0[2].AddParagraph("Title");
                 if (hc > 3) rc0[3].AddParagraph("How");
                 if (hc > 4) rc0[4].AddParagraph("Domains");
-                for (int i = 0; i < negative.Count; i++) {
+                int negRows = Math.Min(negative.Count, Math.Max(0, rt.Rows.Count - 1));
+                for (int i = 0; i < negRows; i++) {
                     var g = negative[i];
                     var rc = rt.Rows[i + 1].Cells; int cc = Math.Min(5, rc.Count);
                     if (cc > 0) rc[0].AddParagraph(g.MaxSeverity.ToString());
@@ -509,7 +510,8 @@ public static class WordCompositionReport {
                 if (phc > 0) p0[0].AddParagraph("Code");
                 if (phc > 1) p0[1].AddParagraph("Title");
                 if (phc > 2) p0[2].AddParagraph("Targets");
-                for (int i = 0; i < positives.Count; i++) {
+                int posRows = Math.Min(positives.Count, Math.Max(0, pt.Rows.Count - 1));
+                for (int i = 0; i < posRows; i++) {
                     var g = positives[i];
                     var rc = pt.Rows[i + 1].Cells; int cc = Math.Min(3, rc.Count);
                     if (cc > 0) rc[0].AddParagraph(g.Code ?? string.Empty);
@@ -608,6 +610,7 @@ public static class WordCompositionReport {
     }
 
     private static string BuildSubjectTitle(List<string> domains) {
+        if (domains == null || domains.Count == 0) return "Custom Composition";
         if (domains.Count == 1) return domains[0];
         if (domains.Count == 2) return $"{domains[0]}+{domains[1]}";
         return $"{domains[0]}+{domains[1]}(+{domains.Count - 2})";
@@ -696,55 +699,58 @@ public static class WordCompositionReport {
             if (!map.ContainsKey(subject)) map[subject] = new DomainBucket { Subject = subject };
         }
 
-        foreach (var it in items) {
-            switch (it) {
-                case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject):
-                    Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
-                case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject):
-                    Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
-                case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):
-                    Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
-                case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject):
-                    Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
-                case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject):
-                    Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
-                case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject):
-                    Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
-                case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
-                    Ensure(dnsbl.Subject); map[dnsbl.Subject].Dnsbl = dnsbl; break;
-                case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
-                    Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
-                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
-                    Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
-                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
-                    Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
-                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject):
-                    Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
-                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject):
-                    Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
-                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject):
-                    Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
-                case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
-                    Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
-                case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
-                    Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
-                case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
-                    Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
-                case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
-                    Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
-                case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
-                    Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
-                case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
-                    Ensure(mt.Subject);
-                    switch (mt.Check) {
-                        case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
-                        case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
-                        case HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
-                        default: break;
-                    }
-                    break;
-                default:
-                    break;
+        // Flatten one level so arrays/lists piped in are handled correctly
+        foreach (var raw in items ?? Array.Empty<object>()) {
+            foreach (var it in EnumeratePossiblyNested(raw)) {
+                switch (it) {
+                    case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject):
+                        Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
+                    case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject):
+                        Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
+                    case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):
+                        Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
+                    case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject):
+                        Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
+                    case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject):
+                        Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
+                    case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject):
+                        Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
+                    case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
+                        Ensure(dnsbl.Subject); map[dnsbl.Subject].Dnsbl = dnsbl; break;
+                    case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
+                        Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
+                    case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
+                        Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                    case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
+                        Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
+                    case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject):
+                        Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
+                    case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject):
+                        Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
+                    case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject):
+                        Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
+                    case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
+                        Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
+                    case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
+                        Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
+                    case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
+                        Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
+                    case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
+                        Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
+                    case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
+                        Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
+                    case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
+                        Ensure(mt.Subject);
+                        switch (mt.Check) {
+                            case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
+                            case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
+                            case HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
+                            default: break;
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
         }
         return map;
