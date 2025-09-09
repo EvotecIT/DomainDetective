@@ -27,5 +27,10 @@ public sealed class Microsoft365Provider : IMailProvider
     public int RecommendedMinMxRecords => 1;
     public int MinimumDkimSelectorsToPass => 1;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://learn.microsoft.com/microsoft-365/security/office-365-security/use-dmarc-to-validate-email";
+    public string? DmarcHelpUrl => "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/use-dmarc-to-validate-email";
+    public string? SpfHelpUrl => "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/set-up-spf-in-office-365-to-help-prevent-spoofing";
+    public string? DkimHelpUrl => "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/use-dkim-to-validate-outbound-email";
+    public string? MtaStsHelpUrl => "https://learn.microsoft.com/en-us/microsoft-365/exchange/enhancing-mail-flow-security-mta-sts";
+    public string? TlsRptHelpUrl => "https://learn.microsoft.com/en-us/microsoft-365/security/office-365-security/dane-for-smtp?view=o365-worldwide#smtp-tls-reporting";
+    public string? DeliverabilityHelpUrl => "https://sendersupport.olc.protection.outlook.com/pm/services.aspx";
 }

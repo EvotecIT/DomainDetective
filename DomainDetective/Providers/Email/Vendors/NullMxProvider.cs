@@ -19,4 +19,9 @@ public sealed class NullMxProvider : IMailProvider
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.None;
     public string? DmarcHelpUrl => null;
+    public string? SpfHelpUrl => null;
+    public string? DkimHelpUrl => null;
+    public string? MtaStsHelpUrl => null;
+    public string? TlsRptHelpUrl => null;
+    public string? DeliverabilityHelpUrl => null;
 }

@@ -24,5 +24,10 @@ public sealed class CiscoSecureEmailProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://www.cisco.com/c/en/us/support/docs/security/email-security-appliance/118796-configure-dmarc-00.html";
+    public string? DmarcHelpUrl => null; // Removed pending replacement with public, stable URL
+    public string? SpfHelpUrl => null;
+    public string? DkimHelpUrl => null;
+    public string? MtaStsHelpUrl => null;
+    public string? TlsRptHelpUrl => null;
+    public string? DeliverabilityHelpUrl => null;
 }

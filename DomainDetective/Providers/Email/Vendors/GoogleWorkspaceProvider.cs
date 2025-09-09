@@ -30,4 +30,9 @@ public sealed class GoogleWorkspaceProvider : IMailProvider
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     public string? DmarcHelpUrl => "https://support.google.com/a/answer/2466563";
+    public string? SpfHelpUrl => "https://support.google.com/a/answer/33786";
+    public string? DkimHelpUrl => "https://support.google.com/a/answer/174124";
+    public string? MtaStsHelpUrl => "https://support.google.com/a/answer/10032415";
+    public string? TlsRptHelpUrl => "https://support.google.com/a/answer/10032415";
+    public string? DeliverabilityHelpUrl => "https://support.google.com/a/topic/2683820";
 }

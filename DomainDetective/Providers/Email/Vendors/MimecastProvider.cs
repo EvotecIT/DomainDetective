@@ -26,5 +26,10 @@ public sealed class MimecastProvider : IMailProvider
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
-    public string? DmarcHelpUrl => "https://community.mimecast.com/s/article/Implementing-DMARC-Policies";
+    public string? DmarcHelpUrl => null; // Removed pending replacement with public, stable URL
+    public string? SpfHelpUrl => null;
+    public string? DkimHelpUrl => null;
+    public string? MtaStsHelpUrl => null;
+    public string? TlsRptHelpUrl => null;
+    public string? DeliverabilityHelpUrl => null;
 }

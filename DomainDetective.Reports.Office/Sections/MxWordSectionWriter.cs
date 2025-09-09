@@ -94,6 +94,9 @@ public static class MxWordSectionWriter
             foreach (var rr in mx.MxRecords) list.AddItem(rr);
         }
 
+        // Provider Help: official docs for detected provider(s)
+        try { ProviderHelpWordSectionWriter.Write(doc, headings, baseLevel, mx.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>()); } catch { }
+
         // References
         if (mx.References != null && mx.References.Count > 0)
         {

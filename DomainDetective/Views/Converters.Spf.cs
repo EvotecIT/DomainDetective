@@ -24,6 +24,50 @@ public static partial class Converters
             }
         }
         var policy = string.IsNullOrWhiteSpace(analysis.AllMechanism) ? "none" : analysis.AllMechanism.ToLowerInvariant();
+        // Provider help (from SPF tokens)
+        var spfTokens = new List<string>();
+        try
+        {
+            if (analysis.IncludeRecords != null) spfTokens.AddRange(analysis.IncludeRecords);
+            if (analysis.ResolvedIncludeRecords != null) spfTokens.AddRange(analysis.ResolvedIncludeRecords);
+            if (!string.IsNullOrWhiteSpace(analysis.SpfRecord)) spfTokens.Add(analysis.SpfRecord);
+        }
+        catch { }
+        var match = DomainDetective.Providers.Email.EmailProviderDetector.Detect(mxHosts: Array.Empty<string>(), spfTokens: spfTokens, dkimTargets: Array.Empty<string>());
+        var helpList = new List<ProviderHelpLinks>();
+        try
+        {
+            if (match?.Primary != null)
+            {
+                var ph = new ProviderHelpLinks
+                {
+                    ProviderName = match.Primary.DisplayName,
+                    Dmarc = match.Primary.DmarcHelpUrl,
+                    Spf = match.Primary.SpfHelpUrl,
+                    Dkim = match.Primary.DkimHelpUrl,
+                    MtaSts = match.Primary.MtaStsHelpUrl,
+                    TlsRpt = match.Primary.TlsRptHelpUrl,
+                    Deliverability = match.Primary.DeliverabilityHelpUrl
+                };
+                if (ph.HasAny) helpList.Add(ph);
+            }
+            foreach (var o in match?.OutboundSenders ?? Array.Empty<DomainDetective.Providers.Email.IMailProvider>())
+            {
+                var ph = new ProviderHelpLinks
+                {
+                    ProviderName = o.DisplayName,
+                    Dmarc = o.DmarcHelpUrl,
+                    Spf = o.SpfHelpUrl,
+                    Dkim = o.DkimHelpUrl,
+                    MtaSts = o.MtaStsHelpUrl,
+                    TlsRpt = o.TlsRptHelpUrl,
+                    Deliverability = o.DeliverabilityHelpUrl
+                };
+                if (ph.HasAny) helpList.Add(ph);
+            }
+        }
+        catch { }
+
         return new SpfRecordInfo
         {
             Check = HealthCheckType.SPF,
@@ -52,7 +96,8 @@ public static partial class Converters
             References = BuildReferences(analysis.RfcReferences, recs),
             Raw = analysis,
             Narrative = narrative,
-            Highlights = narrative.Highlights
+            Highlights = narrative.Highlights,
+            ProviderHelp = helpList
         };
     }
 }
@@ -86,4 +131,5 @@ public class SpfRecordInfo
     public SpfAnalysis Raw { get; set; }
     public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; }
     public IReadOnlyList<string> Highlights { get; set; }
+    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; }
 }

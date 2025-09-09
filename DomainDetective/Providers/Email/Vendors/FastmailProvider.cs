@@ -23,4 +23,9 @@ public sealed class FastmailProvider : IMailProvider
     public int MinimumDkimSelectorsToPass => 0;
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     public string? DmarcHelpUrl => "https://www.fastmail.help/hc/en-us/articles/360060591273-DMARC";
+    public string? SpfHelpUrl => null;
+    public string? DkimHelpUrl => null;
+    public string? MtaStsHelpUrl => null;
+    public string? TlsRptHelpUrl => null;
+    public string? DeliverabilityHelpUrl => null;
 }

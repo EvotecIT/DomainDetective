@@ -294,18 +294,43 @@ public static class WordCompositionReport
                 headings.AddItem("SPF", 1);
                 // Base level 2 under the 'SPF' node: 0=domain, 1=SPF, 2=subsections
                 SpfWordSectionWriter.Write(doc, headings, 2, bucket.Spf, domain, scope, showInfoFindings, includeNarrativePerDomain, includeMechanismMeaningsPerDomain);
+                try
+                {
+                    // Surface provider help under SPF as well (prefer MX provider links when present)
+                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
+                    if (help != null && help.Count > 0)
+                    {
+                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
+                    }
+                } catch { }
             }
 
             if (bucket.Dkim.Count > 0)
             {
                 headings.AddItem("DKIM", 1);
                 DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
+                try
+                {
+                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
+                    if (help != null && help.Count > 0)
+                    {
+                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
+                    }
+                } catch { }
             }
 
             if (bucket.Dmarc != null)
             {
                 headings.AddItem("DMARC", 1);
                 DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc, domain, scope, showInfoFindings, includeNarrativePerDomain);
+                try
+                {
+                    var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
+                    if (help != null && help.Count > 0)
+                    {
+                        ProviderHelpWordSectionWriter.Write(doc, headings, 2, help);
+                    }
+                } catch { }
             }
 
             if (bucket.Dnsbl != null)

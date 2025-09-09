@@ -25,6 +25,48 @@ public static partial class Converters
         }
         catch { }
         var providerMatch = DomainDetective.Providers.Email.EmailProviderDetector.Detect(hosts);
+        var providerHelps = new List<ProviderHelpLinks>();
+        try
+        {
+            if (providerMatch?.Primary != null)
+            {
+                var p = providerMatch.Primary;
+                // Include only topics that have links to avoid empty noise
+                var ph = new ProviderHelpLinks
+                {
+                    ProviderName = p.DisplayName,
+                    Dmarc = p.DmarcHelpUrl,
+                    Spf = p.SpfHelpUrl,
+                    Dkim = p.DkimHelpUrl,
+                    MtaSts = p.MtaStsHelpUrl,
+                    TlsRpt = p.TlsRptHelpUrl,
+                    Deliverability = p.DeliverabilityHelpUrl
+                };
+                if (ph.HasAny)
+                {
+                    providerHelps.Add(ph);
+                }
+            }
+            // Gateways may have useful docs too
+            foreach (var g in providerMatch.Gateways ?? new List<DomainDetective.Providers.Email.IMailProvider>())
+            {
+                var gh = new ProviderHelpLinks
+                {
+                    ProviderName = g.DisplayName,
+                    Dmarc = g.DmarcHelpUrl,
+                    Spf = g.SpfHelpUrl,
+                    Dkim = g.DkimHelpUrl,
+                    MtaSts = g.MtaStsHelpUrl,
+                    TlsRpt = g.TlsRptHelpUrl,
+                    Deliverability = g.DeliverabilityHelpUrl
+                };
+                if (gh.HasAny)
+                {
+                    providerHelps.Add(gh);
+                }
+            }
+        }
+        catch { }
         var gateways = providerMatch.Gateways?.Select(g => g.DisplayName).Distinct().ToList() ?? new List<string>();
 
         return new MxInfo
@@ -57,7 +99,8 @@ public static partial class Converters
             Raw = analysis,
             ProviderPrimary = providerMatch.Primary?.DisplayName,
             ProviderPrimaryScore = providerMatch.PrimaryScore,
-            ProviderGateways = gateways
+            ProviderGateways = gateways,
+            ProviderHelp = providerHelps
         };
     }
 }
@@ -93,4 +136,17 @@ public class MxInfo
     public string? ProviderPrimary { get; set; }
     public double ProviderPrimaryScore { get; set; }
     public IReadOnlyList<string> ProviderGateways { get; set; }
+    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; }
+}
+
+public sealed class ProviderHelpLinks
+{
+    public string ProviderName { get; set; } = string.Empty;
+    public string? Dmarc { get; set; }
+    public string? Spf { get; set; }
+    public string? Dkim { get; set; }
+    public string? MtaSts { get; set; }
+    public string? TlsRpt { get; set; }
+    public string? Deliverability { get; set; }
+    public bool HasAny => !string.IsNullOrWhiteSpace(Dmarc) || !string.IsNullOrWhiteSpace(Spf) || !string.IsNullOrWhiteSpace(Dkim) || !string.IsNullOrWhiteSpace(MtaSts) || !string.IsNullOrWhiteSpace(TlsRpt) || !string.IsNullOrWhiteSpace(Deliverability);
 }
