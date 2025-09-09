@@ -288,6 +288,24 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             // Save domain to recent list
             RecentDomains.Add(s.Domain);
 
+            // Console summary: provider chain (primary, gateways, outbound)
+            try
+            {
+                var pm = hc?.EmailProviderMatch;
+                if (pm != null)
+                {
+                    var primary = pm.Primary?.DisplayName ?? "(unknown)";
+                    var gateways = (pm.Gateways != null && pm.Gateways.Count > 0) ? string.Join(", ", pm.Gateways.Select(g => g.DisplayName).Distinct()) : "none";
+                    var outbound = (pm.OutboundSenders != null && pm.OutboundSenders.Count > 0) ? string.Join(", ", pm.OutboundSenders.Select(o => o.DisplayName).Distinct()) : "none";
+                    var panel = new Panel($"[bold]Primary:[/] {primary}\n[bold]Gateways:[/] {gateways}\n[bold]Outbound:[/] {outbound}")
+                    {
+                        Border = BoxBorder.Rounded,
+                        Header = new PanelHeader("Mail Provider Chain", Justify.Center)
+                    };
+                    AnsiConsole.Write(panel);
+                }
+            } catch { }
+
             switch (wizard.Options.Output)
             {
                 case "json":

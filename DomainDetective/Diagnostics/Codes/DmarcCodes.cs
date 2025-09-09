@@ -43,4 +43,6 @@ internal static class DmarcCodes {
 
     /// <summary>DMARC policy applies to 100% of mail (pct=100).</summary>
     public const string Percent100 = "DMARC.Percent.100";
+    public const string ProviderEnforcementRecommended = "DMARC.Provider.EnforcementRecommended";
+    public const string SubdomainPolicyRecommended = "DMARC.SubdomainPolicy.Recommended";
 }

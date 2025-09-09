@@ -21,5 +21,6 @@ public sealed class FastmailProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://www.fastmail.help/hc/en-us/articles/360060591273-DMARC";
 }
-

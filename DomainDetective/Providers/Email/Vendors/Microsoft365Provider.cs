@@ -26,4 +26,6 @@ public sealed class Microsoft365Provider : IMailProvider
     public bool SingleMxOk => true;
     public int RecommendedMinMxRecords => 1;
     public int MinimumDkimSelectorsToPass => 1;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://learn.microsoft.com/microsoft-365/security/office-365-security/use-dmarc-to-validate-email";
 }

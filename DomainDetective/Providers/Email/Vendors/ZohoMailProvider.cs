@@ -27,4 +27,6 @@ public sealed class ZohoMailProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://www.zoho.com/mail/help/adminconsole/dmarc.html";
 }

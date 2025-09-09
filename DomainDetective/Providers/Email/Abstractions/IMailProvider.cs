@@ -20,4 +20,10 @@ public interface IMailProvider
 
     // Optional DKIM policy hints for narratives/rules
     int MinimumDkimSelectorsToPass { get; }
+
+    // Optional DMARC subdomain policy guidance
+    DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation { get; }
+
+    // Optional: official DMARC guidance/help page from the provider
+    string? DmarcHelpUrl { get; }
 }

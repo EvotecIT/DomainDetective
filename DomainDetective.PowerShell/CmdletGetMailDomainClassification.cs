@@ -56,6 +56,17 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
             var view = DomainDetective.Views.Converters.Convert(result);
             WriteObject(view);
 
+            // Short provider chain formatter for console output
+            try
+            {
+                var primary = string.IsNullOrWhiteSpace(view.ProviderPrimary) ? "(unknown)" : view.ProviderPrimary;
+                var gateways = (view.ProviderGateways != null && view.ProviderGateways.Count > 0) ? string.Join(", ", view.ProviderGateways) : "none";
+                var outbound = (view.ProviderOutbound != null && view.ProviderOutbound.Count > 0) ? string.Join(", ", view.ProviderOutbound) : "none";
+                var msg = $"Provider: {primary}; Gateways: {gateways}; Outbound: {outbound}";
+                WriteInformation(msg, new string[] { "DomainDetective", "Mail", "Provider" });
+            }
+            catch { }
+
             // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
             if (IsExportRequested()) {
                 var fmt = ExportFormat ?? ExportDefaults.Format;

@@ -21,4 +21,6 @@ public sealed class SendGridProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://docs.sendgrid.com/ui/sending-email/sender-authentication#dmarc";
 }

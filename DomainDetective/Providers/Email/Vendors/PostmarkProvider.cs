@@ -17,5 +17,6 @@ public sealed class PostmarkProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://postmarkapp.com/support/article/1207-dmarc";
 }
-

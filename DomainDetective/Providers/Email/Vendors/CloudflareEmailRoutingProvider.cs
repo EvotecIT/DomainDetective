@@ -10,6 +10,7 @@ public sealed class CloudflareEmailRoutingProvider : IMailProvider
 
     public IEnumerable<string> MxHostPatterns => new[]
     {
+        "route*.mx.cloudflare.net",
         "*.mx.cloudflare.net",
         "*.mailchannels.net"
     };
@@ -21,5 +22,6 @@ public sealed class CloudflareEmailRoutingProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://developers.cloudflare.com/email-security/dmarc/";
 }
-

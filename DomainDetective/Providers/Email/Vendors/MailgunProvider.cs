@@ -17,5 +17,6 @@ public sealed class MailgunProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://help.mailgun.com/hc/en-us/articles/202052074-How-do-I-set-up-DMARC";
 }
-

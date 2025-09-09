@@ -109,6 +109,29 @@ public partial class DomainHealthCheck
                 bool hasProvider = (EmailProviderMatch?.Primary != null) || (EmailProviderMatch?.Gateways?.Count > 0);
                 if (hasProvider)
                 {
+                    // Encourage DMARC enforcement for domains with outbound providers and weak/no enforcement
+                    try
+                    {
+                        var outbound = EmailProviderMatch?.OutboundSenders ?? new List<Providers.Email.IMailProvider>();
+                        if (outbound.Count > 0 && DmarcAnalysis != null)
+                        {
+                            var policy = (DmarcAnalysis.Policy ?? string.Empty).Trim().ToLowerInvariant();
+                            if (string.IsNullOrWhiteSpace(policy) || policy == "none")
+                            {
+                                var prov = EmailProviderMatch?.Primary ?? outbound.FirstOrDefault();
+                                var help = prov?.DmarcHelpUrl;
+                                var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
+                                DmarcAnalysis.Assessments.Add(new Assessment
+                                {
+                                    Code = DmarcCodes.ProviderEnforcementRecommended,
+                                    Severity = AssessmentSeverity.Warning,
+                                    Message = $"Detected outbound provider; recommend moving DMARC to quarantine/reject after monitoring.{extra}",
+                                    Target = DmarcAnalysis.Subject
+                                });
+                            }
+                        }
+                    } catch { }
+
                     if (MTASTSAnalysis != null && !MTASTSAnalysis.PolicyValid)
                     {
                         MTASTSAnalysis.Assessments.Add(new Assessment
@@ -129,6 +152,37 @@ public partial class DomainHealthCheck
                             Target = TLSRPTAnalysis.Subject
                         });
                     }
+
+                    // DMARC subdomain policy hint: suggest sp= when providers present and sp is not specified explicitly
+                    try
+                    {
+                        if (DmarcAnalysis != null && DmarcAnalysis.DmarcRecordExists)
+                        {
+                            // Heuristic: If outbound or gateways present and 'sp' not present, suggest adding sp=
+                            bool hasOutboundOrGateway = (EmailProviderMatch?.OutboundSenders?.Count ?? 0) > 0 || (EmailProviderMatch?.Gateways?.Count ?? 0) > 0;
+                            var hasSpExplicit = !(string.IsNullOrWhiteSpace((string?)typeof(DmarcAnalysis).GetField("SubPolicyShort", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(DmarcAnalysis)));
+                            if (hasOutboundOrGateway && !hasSpExplicit)
+                            {
+                                var providerName = EmailProviderMatch?.Primary?.DisplayName ?? (EmailProviderMatch?.Gateways?.FirstOrDefault()?.DisplayName ?? "provider");
+                                var rec = EmailProviderMatch?.Primary?.SubdomainPolicyRecommendation ?? Providers.Email.DmarcSubdomainPolicyRecommendation.MatchParent;
+                                string hint = rec switch
+                                {
+                                    Providers.Email.DmarcSubdomainPolicyRecommendation.Quarantine => "Use sp=quarantine.",
+                                    Providers.Email.DmarcSubdomainPolicyRecommendation.Reject => "Use sp=reject.",
+                                    _ => "Use sp= to match the organizational policy (quarantine/reject)."
+                                };
+                                var help = EmailProviderMatch?.Primary?.DmarcHelpUrl;
+                                var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
+                                DmarcAnalysis.Assessments.Add(new Assessment
+                                {
+                                    Code = DmarcCodes.SubdomainPolicyRecommended,
+                                    Severity = AssessmentSeverity.Info,
+                                    Message = $"Consider adding sp= to DMARC to enforce policy for subdomains used with {providerName}. {hint}{extra}",
+                                    Target = DmarcAnalysis.Subject
+                                });
+                            }
+                        }
+                    } catch { }
                 }
             } catch { }
         }

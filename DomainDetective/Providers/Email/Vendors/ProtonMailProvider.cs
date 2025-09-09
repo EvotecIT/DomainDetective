@@ -21,5 +21,6 @@ public sealed class ProtonMailProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://proton.me/support/dmarc";
 }
-

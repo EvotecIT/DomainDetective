@@ -278,5 +278,29 @@ internal sealed class DmarcRecommendations : IRecommendationProvider {
             Links = new [] { "https://dmarc.org/resources/" },
             Verify = "DMARC record contains pct=100 or omits pct (default 100)."
         };
+
+        map[DmarcCodes.ProviderEnforcementRecommended] = new RecommendationAdvice {
+            Code = DmarcCodes.ProviderEnforcementRecommended,
+            Title = "Move DMARC policy to enforcement for detected provider",
+            Why = "With authorized outbound providers configured, an enforcing policy reduces spoofing and improves reputation.",
+            How = "After monitoring, migrate from p=none to p=quarantine or p=reject (and consider sp= for subdomains).",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "provider", "policy" },
+            Impact = "Stronger spoof resistance and better receiver trust.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "DMARC record shows p=quarantine or p=reject; legitimate mail passes alignment."
+        };
+
+        map[DmarcCodes.SubdomainPolicyRecommended] = new RecommendationAdvice {
+            Code = DmarcCodes.SubdomainPolicyRecommended,
+            Title = "Consider setting DMARC sp= for subdomains",
+            Why = "Without sp=, subdomains inherit p=. Explicit sp= clarifies policy for subdomain mail (often used with providers).",
+            How = "Add sp=quarantine or sp=reject to mirror the organizational policy, if subdomains send mail.",
+            Domain = RecommendationDomain.Dmarc,
+            Tags = new [] { "dmarc", "subdomain", "policy" },
+            Impact = "Ensures consistent DMARC enforcement across subdomains.",
+            Effort = RecommendationEffort.Low,
+            Verify = "_dmarc.example.com contains sp=; test mail from subdomains aligns and is enforced."
+        };
     }
 }

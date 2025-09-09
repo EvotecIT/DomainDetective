@@ -17,5 +17,6 @@ public sealed class AmazonSesProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 0;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://docs.aws.amazon.com/ses/latest/dg/send-email-authentication-dmarc.html";
 }
-

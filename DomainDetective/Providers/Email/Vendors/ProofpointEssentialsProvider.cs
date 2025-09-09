@@ -26,4 +26,6 @@ public sealed class ProofpointEssentialsProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://help.proofpoint.com/Email_Protection/Administrator_Guide/Email_Authentication_DMARC";
 }

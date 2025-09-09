@@ -10,6 +10,7 @@ public sealed class CiscoSecureEmailProvider : IMailProvider
 
     public IEnumerable<string> MxHostPatterns => new[]
     {
+        "*.iphmx.com",
         "*.secure.ironport.com",
         "*.emailsecurity.cisco.com",
         "*.esa.cisco.com"
@@ -22,5 +23,6 @@ public sealed class CiscoSecureEmailProvider : IMailProvider
     public bool SingleMxOk => false;
     public int RecommendedMinMxRecords => 2;
     public int MinimumDkimSelectorsToPass => 0;
+    public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
+    public string? DmarcHelpUrl => "https://www.cisco.com/c/en/us/support/docs/security/email-security-appliance/118796-configure-dmarc-00.html";
 }
-
