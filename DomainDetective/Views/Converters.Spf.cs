@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace DomainDetective.Views;
@@ -54,6 +55,8 @@ public static partial class Converters
                         ("DMARC", p.Docs?.Dmarc?.Url),
                         ("SPF", p.Docs?.Spf?.Url),
                         ("DKIM", p.Docs?.Dkim?.Url),
+                        ("ARC", p.Docs?.Arc?.Url),
+                        ("BIMI", p.Docs?.Bimi?.Url),
                         ("MTA-STS", p.Docs?.MtaSts?.Url),
                         ("TLS-RPT", p.Docs?.TlsRpt?.Url),
                         ("Deliverability", p.Docs?.Deliverability?.Url)
@@ -61,7 +64,7 @@ public static partial class Converters
                 };
                 if (ph.HasAny) helpList.Add(ph);
             }
-            foreach (var o in match?.OutboundSenders ?? Array.Empty<DomainDetective.Providers.Email.IMailProvider>())
+            foreach (var o in (match?.OutboundSenders ?? new List<DomainDetective.Providers.Email.IMailProvider>()))
             {
                 var ph = new ProviderHelpLinks
                 {
@@ -77,6 +80,8 @@ public static partial class Converters
                         ("DMARC", o.Docs?.Dmarc?.Url),
                         ("SPF", o.Docs?.Spf?.Url),
                         ("DKIM", o.Docs?.Dkim?.Url),
+                        ("ARC", o.Docs?.Arc?.Url),
+                        ("BIMI", o.Docs?.Bimi?.Url),
                         ("MTA-STS", o.Docs?.MtaSts?.Url),
                         ("TLS-RPT", o.Docs?.TlsRpt?.Url),
                         ("Deliverability", o.Docs?.Deliverability?.Url)

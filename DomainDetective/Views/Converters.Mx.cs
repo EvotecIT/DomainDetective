@@ -45,6 +45,8 @@ public static partial class Converters
                         ("DMARC", p.Docs?.Dmarc?.Url),
                         ("SPF", p.Docs?.Spf?.Url),
                         ("DKIM", p.Docs?.Dkim?.Url),
+                        ("ARC", p.Docs?.Arc?.Url),
+                        ("BIMI", p.Docs?.Bimi?.Url),
                         ("MTA-STS", p.Docs?.MtaSts?.Url),
                         ("TLS-RPT", p.Docs?.TlsRpt?.Url),
                         ("Deliverability", p.Docs?.Deliverability?.Url)
@@ -72,6 +74,8 @@ public static partial class Converters
                         ("DMARC", g.Docs?.Dmarc?.Url),
                         ("SPF", g.Docs?.Spf?.Url),
                         ("DKIM", g.Docs?.Dkim?.Url),
+                        ("ARC", g.Docs?.Arc?.Url),
+                        ("BIMI", g.Docs?.Bimi?.Url),
                         ("MTA-STS", g.Docs?.MtaSts?.Url),
                         ("TLS-RPT", g.Docs?.TlsRpt?.Url),
                         ("Deliverability", g.Docs?.Deliverability?.Url)

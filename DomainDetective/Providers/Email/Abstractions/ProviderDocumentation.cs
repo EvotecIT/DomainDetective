@@ -16,9 +16,12 @@ public sealed class ProviderDocLink
 public sealed class ProviderDocumentation
 {
     public string? Provider { get; set; }
+    // Core outbound/inbound authentication & transport
     public ProviderDocLink? Dmarc { get; set; }
     public ProviderDocLink? Spf { get; set; }
     public ProviderDocLink? Dkim { get; set; }
+    public ProviderDocLink? Arc { get; set; }
+    public ProviderDocLink? Bimi { get; set; }
     public ProviderDocLink? MtaSts { get; set; }
     public ProviderDocLink? TlsRpt { get; set; }
     public ProviderDocLink? Deliverability { get; set; }
@@ -31,6 +34,8 @@ public sealed class ProviderDocumentation
             case "DMARC": return Dmarc;
             case "SPF": return Spf;
             case "DKIM": return Dkim;
+            case "ARC": return Arc;
+            case "BIMI": return Bimi;
             case "MTA-STS": return MtaSts;
             case "TLS-RPT": return TlsRpt;
             case "DELIVERABILITY": return Deliverability;
@@ -38,4 +43,3 @@ public sealed class ProviderDocumentation
         }
     }
 }
-

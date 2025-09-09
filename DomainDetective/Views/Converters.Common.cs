@@ -45,6 +45,7 @@ public static partial class Converters
             case HealthCheckType.OPENRELAY:
             case HealthCheckType.SPFFLATTENED:
             case HealthCheckType.MAILCLASSIFICATION:
+            case HealthCheckType.ARC:
                 return AnalysisArea.Mail;
 
             // Web group

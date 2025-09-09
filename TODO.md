@@ -105,6 +105,16 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Add dashboard usage examples showing `Select-Object` over views and `.Raw` for deep data.
 - Add README + .ps1 examples for multi-resolver (C#/PowerShell). (done)
 
+## Internal Tooling (Optional)
+- Provider Docs Verifier (dev-only)
+  - Walk `ProviderRegistry.All` → `p.Docs` topics; skip `Url = null`.
+  - Check only on a whitelist of vendor domains; third‑party links are warnings.
+  - Age gate: recheck when `LastVerified` older than 180 days.
+  - HEAD with fallback GET; allow ≤3 redirects; accept 2xx/3xx; flag 4xx/5xx.
+  - Capture final same‑domain redirect as suggested replacement; cross‑domain redirects are flagged only.
+  - Output single JSON artifact + short console summary; no user‑facing cmdlet.
+  - Optional CI (weekly) to upload artifact and open an issue on repeated failures; never runs during end‑user commands.
+
 ## PowerShell Output Conventions
 - DomainOverallHealth: return View with `.Raw` (done; `-Raw`/`-Summary` removed).
 - Convert remaining Test-* cmdlets to View outputs exposing `.Raw`.

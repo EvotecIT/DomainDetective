@@ -5,7 +5,7 @@ namespace DomainDetective.Views;
 
 public sealed class ProviderHelpTopic
 {
-    public string Topic { get; set; } = string.Empty; // e.g., DMARC, SPF, DKIM, MTA-STS, TLS-RPT, Deliverability
+    public string Topic { get; set; } = string.Empty; // e.g., DMARC, SPF, DKIM, ARC, BIMI, MTA-STS, TLS-RPT, Deliverability
     public string? Url { get; set; }
     public string? Title { get; set; }
     public string? Summary { get; set; }
@@ -14,4 +14,3 @@ public sealed class ProviderHelpTopic
     public bool IsThirdParty { get; set; } = false; // true => non-vendor source
     public DateTime? LastVerified { get; set; }
 }
-

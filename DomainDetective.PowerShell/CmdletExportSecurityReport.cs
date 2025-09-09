@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -144,21 +145,23 @@ namespace DomainDetective.PowerShell {
             return Task.CompletedTask;
         }
 
-        private static List<string> ExtractSubjects(IEnumerable<object> items) {
-            var list = new List<string>();
-            foreach (var it in items) {
-                switch (it) {
-                    case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): list.Add(spf.Subject); break;
-                    case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): list.Add(dmarc.Subject); break;
+            private static List<string> ExtractSubjects(IEnumerable<object> items) {
+                var list = new List<string>();
+                foreach (var it in items) {
+                    switch (it) {
+                        case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): list.Add(spf.Subject); break;
+                        case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): list.Add(dmarc.Subject); break;
                     case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): list.Add(dkim.Subject); break;
-                    case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): list.Add(mc.Subject); break;
-                    case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): list.Add(ms.Subject); break;
-                    case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): list.Add(tr.Subject); break;
-                    case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): list.Add(db.Subject); break;
+                    case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): list.Add(arc.Subject); break;
+                        case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): list.Add(bimi.Subject); break;
+                        case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): list.Add(mc.Subject); break;
+                        case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): list.Add(ms.Subject); break;
+                        case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): list.Add(tr.Subject); break;
+                        case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): list.Add(db.Subject); break;
+                    }
                 }
+                return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             }
-            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        }
 
         private static DomainDetective.Reports.Office.ProviderHelpRenderOptions BuildProviderHelpOptions(string preset, Hashtable? overrides)
         {
@@ -166,17 +169,17 @@ namespace DomainDetective.PowerShell {
             switch ((preset ?? "Standard").Trim())
             {
                 case "Off":
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = false; break;
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = false; break;
                 case "Minimal":
-                    o.ShowUnderMx = true; o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = false;
+                    o.ShowUnderMx = true; o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = false;
                     o.ShowSummaries = false; o.ShowNotes = false; o.ShowVerified = false; o.ShowBadges = false;
                     break;
                 case "Detailed":
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = true;
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = true;
                     o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
                     break;
                 default: // Standard
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = true;
+                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = true;
                     o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
                     break;
             }
@@ -194,6 +197,9 @@ namespace DomainDetective.PowerShell {
                         o.ShowUnderSpf = set.Contains("SPF");
                         o.ShowUnderDkim = set.Contains("DKIM");
                         o.ShowUnderDmarc = set.Contains("DMARC");
+                        // Optional new sections
+                        try { o.ShowUnderBimi = set.Contains("BIMI"); } catch {}
+                        try { o.ShowUnderArc  = set.Contains("ARC"); } catch {}
                         continue;
                     }
                     if (string.Equals(key, "Topics", StringComparison.OrdinalIgnoreCase) && val is System.Collections.IEnumerable en2)
@@ -203,20 +209,20 @@ namespace DomainDetective.PowerShell {
                         if (list.Count > 0) o.TopicOrder = list.ToArray();
                         continue;
                     }
-                    void setBool(ref bool field)
+                    void setBool(System.Action<bool> assign)
                     {
-                        if (val is bool b) field = b;
-                        else if (val is SwitchParameter sp) field = sp.IsPresent;
-                        else if (val != null && bool.TryParse(val.ToString(), out var bb)) field = bb;
+                        if (val is bool b) assign(b);
+                        else if (val is SwitchParameter sp) assign(sp.IsPresent);
+                        else if (val != null && bool.TryParse(val.ToString(), out var bb)) assign(bb);
                     }
                     switch (key.ToLowerInvariant())
                     {
-                        case "showsummaries": setBool(ref o.ShowSummaries); break;
-                        case "shownotes": setBool(ref o.ShowNotes); break;
-                        case "showbadges": setBool(ref o.ShowBadges); break;
-                        case "showverified": setBool(ref o.ShowVerified); break;
-                        case "includerestricted": setBool(ref o.IncludeRestricted); break;
-                        case "includethirdparty": setBool(ref o.IncludeThirdParty); break;
+                        case "showsummaries": setBool(v => o.ShowSummaries = v); break;
+                        case "shownotes": setBool(v => o.ShowNotes = v); break;
+                        case "showbadges": setBool(v => o.ShowBadges = v); break;
+                        case "showverified": setBool(v => o.ShowVerified = v); break;
+                        case "includerestricted": setBool(v => o.IncludeRestricted = v); break;
+                        case "includethirdparty": setBool(v => o.IncludeThirdParty = v); break;
                         case "maxproviders": if (val != null && int.TryParse(val.ToString(), out var m)) o.MaxProviders = m; break;
                     }
                 }

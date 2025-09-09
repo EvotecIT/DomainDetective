@@ -7,6 +7,8 @@ public sealed class ProviderHelpRenderOptions
     public bool ShowUnderSpf { get; set; } = true;
     public bool ShowUnderDkim { get; set; } = true;
     public bool ShowUnderDmarc { get; set; } = true;
+    public bool ShowUnderBimi { get; set; } = true;
+    public bool ShowUnderArc { get; set; } = true;
 
     // Content controls
     public bool ShowSummaries { get; set; } = true;
@@ -18,6 +20,5 @@ public sealed class ProviderHelpRenderOptions
 
     public int MaxProviders { get; set; } = 6;
 
-    public string[] TopicOrder { get; set; } = new[] { "DMARC", "SPF", "DKIM", "MTA-STS", "TLS-RPT", "Deliverability" };
+    public string[] TopicOrder { get; set; } = new[] { "DMARC", "SPF", "DKIM", "ARC", "BIMI", "MTA-STS", "TLS-RPT", "Deliverability" };
 }
-

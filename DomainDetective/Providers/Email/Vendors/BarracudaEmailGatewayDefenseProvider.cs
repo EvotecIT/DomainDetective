@@ -30,16 +30,15 @@ public sealed class BarracudaEmailGatewayDefenseProvider : IMailProvider
     public DmarcSubdomainPolicyRecommendation SubdomainPolicyRecommendation => DmarcSubdomainPolicyRecommendation.MatchParent;
     // Documentation (source of truth)
 
-    public ProviderDocumentation Docs => new ProviderDocumentation
-    {
+    public ProviderDocumentation Docs => new ProviderDocumentation {
         Provider = DisplayName,
-        Dmarc = new ProviderDocLink
-        {
-            Url = "https://www.barracuda.com/glossary/dmarc",
-            Title = "What is DMARC authentication?",
-            Summary = "DMARC overview; enforcement modes.",
-            IsPublic = true,
-            LastVerified = new System.DateTime(2025, 9, 9)
-        }
+        Arc = new ProviderDocLink { Url = null, Title = "ARC", Summary = "No specific ARC feature doc located.", Notes = "Gateway verifies SPF/DKIM/DMARC; ARC pass-through depends on policies/version.", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },
+        Bimi = new ProviderDocLink { Url = null, Title = "BIMI", Summary = "Gateway doesn’t control BIMI display.", Notes = "Ensure headers preserved; BIMI is sender DNS + receiver feature.", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },
+        Dmarc = new ProviderDocLink { Url = "https://campus.barracuda.com/product/emailsecuritygateway/doc/171806726/dmarc-verification/", Title = "DMARC verification", Summary = "DMARC verification behavior for ESG/CPL.", Notes = "Feature available via Cloud Protection Layer; may require support enablement.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) },
+        Spf   = new ProviderDocLink { Url = "https://campus.barracuda.com/product/emailgatewaydefense/doc/96023038/sender-policy-framework-for-outbound-mail/", Title = "SPF for outbound mail (regional includes)", Summary = "Region-specific SPF include tokens for EGD.", Notes = "Select correct region include (US/EU/UK/DE/CA/AU/IN); keep lookups ≤ 10.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) },
+        Dkim  = new ProviderDocLink { Url = "https://campus.barracuda.com/product/emailsecuritygateway/doc/3866643/sender-authentication/", Title = "Sender authentication (DKIM handling)", Summary = "How Barracuda evaluates DKIM on inbound mail.", Notes = "Outbound DKIM features vary by product/plan; verify in current UI/docs.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) },
+        MtaSts = new ProviderDocLink { Url = null, Title = "MTA-STS", Summary = "No Barracuda-specific MTA-STS admin doc.", Notes = "Implement at your domain; pair with TLS-RPT before enforce.", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },
+        TlsRpt = new ProviderDocLink { Url = null, Title = "TLS-RPT", Summary = "No Barracuda-specific TLS-RPT page.", Notes = "Publish _smtp._tls TXT; parse reports with tooling.", IsPublic = true, IsThirdParty = true, LastVerified = new System.DateTime(2025, 9, 9) },
+        Deliverability = new ProviderDocLink { Url = "https://assets.barracuda.com/assets/docs/dms/ebook-dmarc-us.pdf", Title = "DMARC — understanding and adoption", Summary = "Barracuda program guidance for DMARC adoption.", Notes = "Covers policy rollout and reporting to improve deliverability and reduce spoofing.", IsPublic = true, IsThirdParty = false, LastVerified = new System.DateTime(2025, 9, 9) }
     };
 }
