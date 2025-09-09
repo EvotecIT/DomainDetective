@@ -17,6 +17,38 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 ## Reports — HTML
 - Parity with Word: add Good Posture for DMARC/DKIM (SPF already done) and align section structure.
 
+## Composition Parity (Next Day)
+- Word/HTML ordering polish
+  - Verify new ordering controls end-to-end: `-DomainOrder`, `-SectionOrderMode`, `-SectionOrder`.
+  - Executive Summary remains canonical; document behavior in README/Module docs.
+  - Add verbose trace when `-Verbose` is set: item count, domain count, and per-domain section order.
+- HTML parity with Word
+  - Add ARC and BIMI HTML section writers; wire into HtmlCompositionReport.
+  - Provider Help under ARC/BIMI/MX/SPF/DMARC with topic ordering and badges; include legend line.
+  - DKIM selector-count hint and MAILTLS footnote parity (where applicable for HTML).
+- Markdown (new)
+  - Add MarkdownCompositionReport using OrderingOptions; implement sections: MX, SPF, DKIM, DMARC, DNSBL, Classification, MTA-STS, TLS-RPT.
+  - Executive Summary table + per-domain subsections; Good Posture/Findings/References blocks.
+  - Hook into PS `Export-DDSecurityReport -ExportFormat Markdown` via ReportDispatcher generator (new IReportGenerator if needed).
+- Excel (new)
+  - Add ExcelCompositionReport (ClosedXML):
+    - Sheet1: Executive Summary (canonical columns; warnings/errors rollup; provider chain line optional).
+    - Per-domain sheets in chosen order; per-section tables; auto-fit; basic styling.
+  - Hook into PS `Export-DDSecurityReport -ExportFormat Excel` via ReportDispatcher generator (new IReportGenerator if needed).
+- PowerShell surface
+  - Ensure `Export-DDSecurityReport` help includes ordering params; update examples to demonstrate Input/Custom ordering.
+  - Add example scripts for HTML/Markdown/Excel under `Module/Examples` mirroring Word examples.
+- Tests
+  - Pester: verify ordering (domain and section) for Word/HTML; assert Executive Summary non-empty.
+  - Pester: flattening works for piped arrays ($spf,$dmarc,$mx) — domains detected > 0 and sections rendered.
+  - xUnit: composition utilities (NormalizeSection, SectionKeyFor) map synonyms correctly.
+- Branding controls (optional)
+  - `Set-DDExportOptions`: add `-HeaderLogoSizePx`/`-FooterLogoSizePx`; update WordReportCommon to honor.
+- Provider docs (dev-only)
+  - Provider Docs Verifier task tracked; no public cmdlet.
+- Docs
+  - README/Module README: ordering options, section canonical order, per-format parity, and examples.
+
 ## Competitive Parity (External Feature Gaps)
 - DMARC Aggregate (RUA) ingestion and analysis
   - Ingest `.xml`, `.xml.gz`, and `.zip` aggregate reports from a folder and/or mailbox.
