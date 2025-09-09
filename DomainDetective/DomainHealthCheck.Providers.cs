@@ -102,6 +102,35 @@ public partial class DomainHealthCheck
                     }
                 }
             } catch { }
+
+            // Provider-aware MTA-STS/TLSRPT guidance when a primary or gateway was inferred
+            try
+            {
+                bool hasProvider = (EmailProviderMatch?.Primary != null) || (EmailProviderMatch?.Gateways?.Count > 0);
+                if (hasProvider)
+                {
+                    if (MTASTSAnalysis != null && !MTASTSAnalysis.PolicyValid)
+                    {
+                        MTASTSAnalysis.Assessments.Add(new Assessment
+                        {
+                            Code = MtaStsCodes.ProviderRecommended,
+                            Severity = AssessmentSeverity.Warning,
+                            Message = "Enable MTA-STS ('enforce' when ready) for the detected mail provider(s).",
+                            Target = MTASTSAnalysis.Domain
+                        });
+                    }
+                    if (TLSRPTAnalysis != null && !TLSRPTAnalysis.PolicyValid)
+                    {
+                        TLSRPTAnalysis.Assessments.Add(new Assessment
+                        {
+                            Code = TlsRptCodes.ProviderRecommended,
+                            Severity = AssessmentSeverity.Warning,
+                            Message = "Publish TLSRPT to receive TLS failure reports for the detected provider(s).",
+                            Target = TLSRPTAnalysis.Subject
+                        });
+                    }
+                }
+            } catch { }
         }
         catch { EmailProviderMatch = null; }
     }

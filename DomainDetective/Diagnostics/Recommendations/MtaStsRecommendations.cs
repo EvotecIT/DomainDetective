@@ -115,5 +115,15 @@ internal sealed class MtaStsRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Each MX grades at B or better; TLS 1.2+ negotiated."
         };
+
+        map[MtaStsCodes.ProviderRecommended] = new RecommendationAdvice {
+            Code = MtaStsCodes.ProviderRecommended,
+            Title = "Enable MTA-STS for detected provider",
+            Why = "Gateway/primary providers benefit from MTA-STS to prevent TLS downgrade and improve delivery reliability.",
+            How = "Publish _mta-sts TXT and host an 'enforce' policy when ready. Keep MX patterns aligned.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8461" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "mta-sts", "provider" }
+        };
     }
 }

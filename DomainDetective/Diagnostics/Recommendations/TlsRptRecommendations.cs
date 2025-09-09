@@ -84,6 +84,16 @@ internal sealed class TlsRptRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Tls,
             Tags = new [] { "tlsrpt", "reporting" }
         };
+
+        map[TlsRptCodes.ProviderRecommended] = new RecommendationAdvice {
+            Code = TlsRptCodes.ProviderRecommended,
+            Title = "Publish TLSRPT for detected provider",
+            Why = "Gateway/primary providers benefit from TLS reporting to detect TLS delivery issues quickly.",
+            How = "Publish _smtp._tls TXT with v=TLSRPTv1; rua=mailto:reports@<domain> and monitor reports.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc8460" },
+            Domain = RecommendationDomain.Tls,
+            Tags = new [] { "tlsrpt", "provider" }
+        };
     }
 }
 

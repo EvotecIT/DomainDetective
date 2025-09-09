@@ -13,4 +13,5 @@ internal static class MtaStsCodes {
     public const string MxStartTlsMissing = "MTASTS.MX.STARTTLS.Missing";
     public const string MxTlsWeak = "MTASTS.MX.TLS.Weak";
     public const string MxTlsModernAll = "MTASTS.MX.TLS.ModernAll";
+    public const string ProviderRecommended = "MTASTS.Provider.Recommended";
 }

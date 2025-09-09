@@ -9,5 +9,6 @@ internal static class TlsRptCodes {
     public const string RuaMailtoPresent = "TLSRPT.RUA.Mailto.Present";
     public const string RuaHttpPresent = "TLSRPT.RUA.Http.Present";
     public const string PolicyValid = "TLSRPT.Policy.Valid";
+    public const string ProviderRecommended = "TLSRPT.Provider.Recommended";
 }
 
