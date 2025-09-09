@@ -195,6 +195,9 @@ namespace DomainDetective {
                     processedChecks,
                     totalChecks);
         }
+
+            // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
+            try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
     }
 
         private async Task VerifyDnsHealth(string domainName, CancellationToken cancellationToken) {

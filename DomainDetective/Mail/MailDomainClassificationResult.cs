@@ -18,6 +18,11 @@ public sealed class MailDomainClassificationResult {
     public IReadOnlyDictionary<string, double> ScoreBreakdown { get; init; } = new Dictionary<string, double>();
     public IReadOnlyList<StandardReference> RfcReferences { get; init; } = new List<StandardReference>();
 
+    // Provider chain (best-effort inference)
+    public string? ProviderPrimary { get; init; }
+    public IReadOnlyList<string> ProviderGateways { get; init; } = new List<string>();
+    public IReadOnlyList<string> ProviderOutbound { get; init; } = new List<string>();
+
     // BIMI eligibility hints (best-effort; actual display depends on receivers)
     public bool? BimiEligible { get; init; }
     public string? BimiEligibilityReason { get; init; }

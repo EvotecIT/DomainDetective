@@ -104,9 +104,11 @@ namespace DomainDetective {
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
             Subject = domainName;
-            // Use DnsClientX for all DNS queries
-            var resolver = new ClientX(endpoint: (dnsConfiguration?.DnsEndpoint) ?? DnsEndpoint.System,
-                                       (dnsConfiguration?.DnsSelectionStrategy) ?? DnsSelectionStrategy.First);
+            // Prepare a short list of fallback endpoints for robust DNSSEC queries
+            var epPrimary = (dnsConfiguration?.DnsEndpoint) ?? DnsEndpoint.System;
+            var endpoints = new List<DnsEndpoint> { epPrimary, DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat, DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 }
+                .Distinct()
+                .ToArray();
 
             _mismatchSummary.Clear();
             _warnings.Clear();
@@ -123,12 +125,7 @@ namespace DomainDetective {
 
             while (true) {
                 // Query DNSKEY with DO=1 to retrieve keys and signatures
-                DnsResponse dnskeyResp;
-                using (var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
-                {
-                    rCts.CancelAfter(TimeSpan.FromSeconds(6));
-                    dnskeyResp = await resolver.Resolve(current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, cancellationToken: rCts.Token).ConfigureAwait(false);
-                }
+                DnsResponse dnskeyResp = await ResolveWithFallback(endpoints, current, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: UseLocalDnssecValidation, ct).ConfigureAwait(false);
 
                 bool keyAd = dnskeyResp.AuthenticData;
 
@@ -158,7 +155,7 @@ namespace DomainDetective {
                     }
                 }
 
-                var dsResult = await FetchDsRecords(current, resolver, ct);
+                var dsResult = await FetchDsRecordsWithFallback(current, endpoints, ct).ConfigureAwait(false);
                 // Some system resolvers clear AD even when data validates. Probe well-known
                 // public validating resolvers to augment AD signals so tests/environment
                 // differences don't flip ChainValid.
@@ -283,7 +280,9 @@ namespace DomainDetective {
 
             // Check NSEC3/NSEC3PARAM for Opt-Out usage (risk advisory)
             try {
-                if (await HasNsec3OptOutAsync(domainName, resolver, UseLocalDnssecValidation, ct).ConfigureAwait(false)) {
+                // Use System endpoint for feature check, but tolerate failure
+                using var featureResolver = new ClientX(endpoint: DnsEndpoint.System);
+                if (await HasNsec3OptOutAsync(domainName, featureResolver, UseLocalDnssecValidation, ct).ConfigureAwait(false)) {
                     logger?.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
                 }
             } catch (Exception ex) {
@@ -402,10 +401,9 @@ namespace DomainDetective {
             return false;
         }
 
-        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecords(string domain, ClientX resolver, CancellationToken ct) {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(6));
-            var resp = await resolver.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: cts.Token).ConfigureAwait(false);
+        private static async Task<(List<string> records, int ttl, bool ad)> FetchDsRecordsWithFallback(string domain, DnsEndpoint[] endpoints, CancellationToken ct)
+        {
+            var resp = await ResolveWithFallback(endpoints, domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             List<string> records = new();
             int ttl = 0;
@@ -417,6 +415,30 @@ namespace DomainDetective {
                 }
             }
             return (records, ttl, ad);
+        }
+
+        private static async Task<DnsResponse> ResolveWithFallback(DnsEndpoint[] endpoints, string name, DnsRecordType type, bool requestDnsSec, bool validateDnsSec, CancellationToken ct)
+        {
+            foreach (var ep in endpoints)
+            {
+                try {
+                    using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    rCts.CancelAfter(TimeSpan.FromSeconds(5));
+                    using var c = new ClientX(endpoint: ep);
+                    var resp = await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: rCts.Token).ConfigureAwait(false);
+                    if (resp != null && (resp.Answers?.Length ?? 0) > 0) return resp;
+                } catch (OperationCanceledException) {
+                    // try next
+                } catch {
+                    // try next
+                }
+            }
+            // Last attempt with system (may be empty)
+            using (var c = new ClientX(endpoint: DnsEndpoint.System))
+            {
+                try { return await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: ct).ConfigureAwait(false); }
+                catch { return new DnsResponse { Answers = Array.Empty<DnsAnswer>() }; }
+            }
         }
 
         private static bool IsDsDigestLengthValid(string record) {
@@ -835,26 +857,11 @@ namespace DomainDetective {
         /// <param name="ct">Cancellation token.</param>
         /// <returns><c>true</c> when the record is signed and validated; otherwise <c>false</c>.</returns>
         public async Task<bool> ValidateRecord(string domain, DnsRecordType type, CancellationToken ct = default) {
-            using var c = new ClientX(endpoint: DnsEndpoint.System);
-            var resp = await c.Resolve(domain, type, requestDnsSec: true, validateDnsSec: false, cancellationToken: ct).ConfigureAwait(false);
+            var endpoints = new[] { DnsEndpoint.System, DnsEndpoint.SystemTcp, DnsEndpoint.CloudflareWireFormat, DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
+            var resp = await ResolveWithFallback(endpoints, domain, type, requestDnsSec: true, validateDnsSec: false, ct).ConfigureAwait(false);
             bool ad = resp.AuthenticData;
             bool hasSig = (resp.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
             if (ad && hasSig) return true;
-
-            // Fallback to public validating resolvers when system resolver clears AD
-            var endpoints = new[] { DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
-            foreach (var ep in endpoints)
-            {
-                ct.ThrowIfCancellationRequested();
-                try {
-                    using var cc = new ClientX(endpoint: ep);
-                    using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    rCts.CancelAfter(TimeSpan.FromSeconds(5));
-                    var r = await cc.Resolve(domain, type, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
-                    bool has = (r.Answers ?? Array.Empty<DnsAnswer>()).Any(a => a.Type == DnsRecordType.RRSIG);
-                    if (r.AuthenticData && has) return true;
-                } catch { /* try next */ }
-            }
 
             // As a conservative final check, perform a DNSSEC chain analysis for the domain
             // and treat the record as valid if the zone validates.

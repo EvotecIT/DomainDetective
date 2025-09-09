@@ -24,7 +24,7 @@ public static class MxWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("MX posture and integrity signals.");
-        var t = doc.AddTable(9, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(11, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "MX Records";
         t.Rows[0].Cells[1].Paragraphs[0].Text = (mx.MxRecords?.Count ?? 0).ToString();
         t.Rows[1].Cells[0].Paragraphs[0].Text = "Priorities In Order";
@@ -43,6 +43,12 @@ public static class MxWordSectionWriter
         t.Rows[7].Cells[1].Paragraphs[0].Text = mx.HasNullMx ? "Yes" : "No";
         t.Rows[8].Cells[0].Paragraphs[0].Text = "Status";
         t.Rows[8].Cells[1].Paragraphs[0].Text = mx.Status ?? string.Empty;
+        t.Rows[9].Cells[0].Paragraphs[0].Text = "Primary Provider";
+        t.Rows[9].Cells[1].Paragraphs[0].Text = mx.ProviderPrimary ?? string.Empty;
+        t.Rows[10].Cells[0].Paragraphs[0].Text = "Gateways";
+        t.Rows[10].Cells[1].Paragraphs[0].Text = (mx.ProviderGateways != null && mx.ProviderGateways.Count > 0)
+            ? string.Join(", ", mx.ProviderGateways)
+            : string.Empty;
 
         if (scope == ReportScope.Minimal) return;
 

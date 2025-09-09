@@ -18,6 +18,8 @@ public static class MxHtmlSectionWriter
             new { Name = "TTL Uniform", Value = mx.MxTtlUniform ? "Yes" : "No" },
             new { Name = "NS RRset Consistent", Value = mx.MxRrsetConsistentAcrossNs ? "Yes" : "No" },
             new { Name = "Status", Value = mx.Status ?? string.Empty },
+            new { Name = "Primary Provider", Value = mx.ProviderPrimary ?? string.Empty },
+            new { Name = "Gateways", Value = (mx.ProviderGateways != null && mx.ProviderGateways.Count > 0) ? string.Join(", ", mx.ProviderGateways) : string.Empty },
         });
 
         if (scope == Reports.ReportScope.Detailed && mx.MxRecords != null && mx.MxRecords.Count > 0)
@@ -27,4 +29,3 @@ public static class MxHtmlSectionWriter
         }
     }
 }
-

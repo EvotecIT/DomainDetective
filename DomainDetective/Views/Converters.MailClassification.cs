@@ -12,6 +12,16 @@ public static partial class Converters
             Summarize(result.Assessments, out warn, out err, out status);
         }
         var summary = $"{result.Classification} ({result.Confidence})";
+        if (!string.IsNullOrWhiteSpace(result.ProviderPrimary))
+        {
+            var gw = (result.ProviderGateways != null && result.ProviderGateways.Count > 0)
+                ? $", via {string.Join(", ", result.ProviderGateways)}"
+                : string.Empty;
+            var ob = (result.ProviderOutbound != null && result.ProviderOutbound.Count > 0)
+                ? $"; outbound: {string.Join(", ", result.ProviderOutbound)}"
+                : string.Empty;
+            summary += $" — provider: {result.ProviderPrimary}{gw}{ob}";
+        }
         if (result.ReceivingSignals != null && result.SendingSignals != null)
         {
             summary += $"; recv {result.ReceivingSignals.Count}; send {result.SendingSignals.Count}";
@@ -38,7 +48,10 @@ public static partial class Converters
             Recommendations = recs,
             Positives = positives,
             References = BuildReferences(result.RfcReferences, recs),
-            Raw = result
+            Raw = result,
+            ProviderPrimary = result.ProviderPrimary,
+            ProviderGateways = result.ProviderGateways,
+            ProviderOutbound = result.ProviderOutbound
         };
     }
 }
@@ -63,5 +76,8 @@ public sealed class MailClassificationInfo
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MailDomainClassificationResult Raw { get; set; }
+    public string? ProviderPrimary { get; set; }
+    public IReadOnlyList<string> ProviderGateways { get; set; }
+    public IReadOnlyList<string> ProviderOutbound { get; set; }
 }
 

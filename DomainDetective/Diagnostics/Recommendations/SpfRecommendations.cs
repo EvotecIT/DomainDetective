@@ -252,6 +252,23 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Verify = "DNS lookups remain under 10."
         };
 
+        map[SpfCodes.ProviderIncludePresent] = new RecommendationAdvice {
+            Code = SpfCodes.ProviderIncludePresent,
+            Title = "Required provider include present",
+            Why = "Third-party sender requires a specific include token to authorize its infrastructure.",
+            How = "Maintain the provider's include per documentation and monitor for updates.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "provider" }
+        };
+        map[SpfCodes.ProviderIncludeMissing] = new RecommendationAdvice {
+            Code = SpfCodes.ProviderIncludeMissing,
+            Title = "Add required provider include",
+            Why = "Detected outbound provider is missing its required SPF include; messages may fail SPF at receivers.",
+            How = "Add the provider's documented include (e.g., include:sendgrid.net, include:amazonses.com) and re-test SPF lookups ≤10.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "provider" }
+        };
+
         map[SpfCodes.AllEnforced] = new RecommendationAdvice {
             Code = SpfCodes.AllEnforced,
             Title = "SPF policy aligned and enforced",

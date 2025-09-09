@@ -54,7 +54,13 @@ namespace DomainDetective {
         /// </summary>
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
             if (QueryDnsOverride != null) {
-                return await QueryDnsOverride(name, type);
+                // Try exact first
+                var res = await QueryDnsOverride(name, type);
+                if (res != null && res.Length > 0) return res;
+                // Fallback to toggling trailing dot to accommodate tests and mixed data
+                string alt = name.EndsWith(".", StringComparison.Ordinal) ? name.TrimEnd('.') : name + ".";
+                try { res = await QueryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
+                return res ?? Array.Empty<DnsAnswer>();
             }
 
             return await DnsConfiguration.QueryDNS(name, type);

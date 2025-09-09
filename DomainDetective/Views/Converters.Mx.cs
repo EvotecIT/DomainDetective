@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DomainDetective.Views;
 
@@ -10,6 +12,21 @@ public static partial class Converters
         Summarize(analysis is IHasAssessments has ? has.Assessments : new List<Assessment>(), out var warnCount, out var errCount, out var status);
         var recs = analysis is IHasAssessments h2 ? RecommendationEngine.FromProblems(h2.Assessments) : new List<RecommendationAdvice>();
         var positives = analysis is IHasAssessments h3 ? RecommendationEngine.FromPositives(h3.Assessments) : new List<RecommendationAdvice>();
+        // Best-effort provider inference from MX only
+        var hosts = new List<string>();
+        try
+        {
+            foreach (var rr in analysis.MxRecords ?? new List<string>())
+            {
+                var parts = rr?.Split(new[] { ' ', '\t' }, 2, System.StringSplitOptions.RemoveEmptyEntries) ?? Array.Empty<string>();
+                var host = parts.Length == 2 ? parts[1] : parts.FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(host)) hosts.Add(host.Trim('.'));
+            }
+        }
+        catch { }
+        var providerMatch = DomainDetective.Providers.Email.EmailProviderDetector.Detect(hosts);
+        var gateways = providerMatch.Gateways?.Select(g => g.DisplayName).Distinct().ToList() ?? new List<string>();
+
         return new MxInfo
         {
             Check = HealthCheckType.MX,
@@ -37,7 +54,10 @@ public static partial class Converters
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
-            Raw = analysis
+            Raw = analysis,
+            ProviderPrimary = providerMatch.Primary?.DisplayName,
+            ProviderPrimaryScore = providerMatch.PrimaryScore,
+            ProviderGateways = gateways
         };
     }
 }
@@ -70,4 +90,7 @@ public class MxInfo
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
     public IReadOnlyList<string> References { get; set; }
     public MXAnalysis Raw { get; set; }
+    public string? ProviderPrimary { get; set; }
+    public double ProviderPrimaryScore { get; set; }
+    public IReadOnlyList<string> ProviderGateways { get; set; }
 }
