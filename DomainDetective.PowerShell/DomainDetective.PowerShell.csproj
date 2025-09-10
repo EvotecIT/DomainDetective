@@ -43,7 +43,7 @@
     </Target>
 
     <ItemGroup>
-        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.6.0">
+        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
@@ -56,6 +56,6 @@
 
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
-        <PackageReference Include="Spectre.Console" Version="0.50.0" />
+        <PackageReference Include="Spectre.Console" Version="0.51.1" />
     </ItemGroup>
 </Project>
