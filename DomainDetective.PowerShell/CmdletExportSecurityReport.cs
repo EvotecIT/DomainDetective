@@ -174,6 +174,42 @@ namespace DomainDetective.PowerShell {
                             (DomainDetective.Reports.Html.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.Html.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                             SectionOrder);
                         break;
+                    case DomainDetective.Reports.ReportFormat.Excel:
+                        DomainDetective.Reports.Office.ExcelCompositionReport.Generate(
+                            outPath,
+                            flat,
+                            Scope,
+                            new DomainDetective.Reports.OrderingOptions {
+                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                                SectionOrder = SectionOrder
+                            });
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        break;
+                    case DomainDetective.Reports.ReportFormat.Markdown:
+                        DomainDetective.Reports.Markdown.MarkdownCompositionReport.Generate(
+                            outPath,
+                            flat,
+                            Scope,
+                            new DomainDetective.Reports.OrderingOptions {
+                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                                SectionOrder = SectionOrder
+                            });
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        break;
+                    case DomainDetective.Reports.ReportFormat.HtmlAsMarkdown:
+                        DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateHtmlAsMarkdown(
+                            outPath,
+                            flat,
+                            Scope,
+                            new DomainDetective.Reports.OrderingOptions {
+                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                                SectionOrder = SectionOrder
+                            });
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        break;
                     default:
                         return ExportNotImplementedAsync("Export-DDSecurityReport");
                 }

@@ -64,6 +64,18 @@ public sealed class ReportDispatcher
                 if (gen != null) return gen;
                 break;
             }
+            case ReportFormat.Markdown:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Markdown.MarkdownReportGenerator, DomainDetective.Reports.Markdown");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.HtmlAsMarkdown:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Markdown.HtmlAsMarkdownReportGenerator, DomainDetective.Reports.Markdown");
+                if (gen != null) return gen;
+                break;
+            }
             case ReportFormat.Pdf:
             {
                 var gen = TryCreate("DomainDetective.Reports.Pdf.PdfReportGenerator, DomainDetective.Reports.Pdf");

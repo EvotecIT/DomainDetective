@@ -9,6 +9,8 @@ namespace DomainDetective.PowerShell {
     public abstract class ExportableAsyncPSCmdlet : AsyncPSCmdlet {
         /// <summary>Desired export format.</summary>
         [Parameter(Mandatory = false)]
+        [Alias("Report")]
+        [ValidateSet("Html","Json","Pdf","Word","Excel","Markdown","HtmlAsMarkdown", IgnoreCase = true)]
         public ReportFormat? ExportFormat { get; set; }
 
         /// <summary>Output file path for export.</summary>

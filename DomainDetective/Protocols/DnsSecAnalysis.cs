@@ -483,7 +483,9 @@ namespace DomainDetective {
                 var publicKeyBytes = Convert.FromBase64String(keyParts[3]);
 
                 var rdata = new List<byte>();
-                rdata.AddRange(BitConverter.GetBytes((ushort)flags).Reverse());
+                var flagBytes = BitConverter.GetBytes((ushort)flags);
+                Array.Reverse(flagBytes);
+                rdata.AddRange(flagBytes);
                 rdata.Add(protocol);
                 rdata.Add((byte)algorithm);
                 rdata.AddRange(publicKeyBytes);
@@ -570,7 +572,9 @@ namespace DomainDetective {
 
             byte[] publicKeyBytes = Convert.FromBase64String(parts[3]);
             List<byte> rdata = new();
-            rdata.AddRange(BitConverter.GetBytes(flags).Reverse());
+            var flagBytes = BitConverter.GetBytes(flags);
+            Array.Reverse(flagBytes);
+            rdata.AddRange(flagBytes);
             rdata.Add(protocol);
             rdata.Add((byte)algorithm);
             rdata.AddRange(publicKeyBytes);

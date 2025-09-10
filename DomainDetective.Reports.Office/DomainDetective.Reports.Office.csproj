@@ -7,8 +7,11 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="ClosedXML" Version="0.105.0" />
         <PackageReference Include="OfficeIMO.Word" Version="1.0.8" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="OfficeIMO.Excel" Version="0.1.0" />
     </ItemGroup>
 
     <ItemGroup>

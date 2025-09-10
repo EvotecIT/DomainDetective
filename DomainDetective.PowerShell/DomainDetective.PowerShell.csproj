@@ -24,6 +24,7 @@
         <ProjectReference Include="..\DomainDetective.Reports.Html\DomainDetective.Reports.Html.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Pdf\DomainDetective.Reports.Pdf.csproj" />
+        <ProjectReference Include="..\DomainDetective.Reports.Markdown\DomainDetective.Reports.Markdown.csproj" />
     </ItemGroup>
 
     <PropertyGroup>

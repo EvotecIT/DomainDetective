@@ -45,6 +45,8 @@ public static class ReportPathHelper
             ReportFormat.Excel => "xlsx",
             ReportFormat.Pdf => "pdf",
             ReportFormat.Json => "json",
+            ReportFormat.Markdown => "md",
+            ReportFormat.HtmlAsMarkdown => "html",
             _ => "html"
         };
         var file = $"{safe}_{ts}.{ext}";

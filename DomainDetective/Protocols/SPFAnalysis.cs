@@ -272,7 +272,8 @@ namespace DomainDetective {
                     .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(t => t.Trim('"'))
                     .ToArray();
-                var rawAll = rawTokens.Reverse().FirstOrDefault(t => IsAllMechanism(t));
+                // Find the last occurrence of an all-mechanism token without relying on Reverse()
+                var rawAll = rawTokens.LastOrDefault(t => IsAllMechanism(t));
                 if (!string.IsNullOrWhiteSpace(rawAll)) {
                     AllMechanism = rawAll;
                 }
