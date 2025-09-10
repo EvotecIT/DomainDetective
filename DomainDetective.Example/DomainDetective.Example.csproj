@@ -17,6 +17,7 @@
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports.Html\DomainDetective.Reports.Html.csproj" />
+    <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />
   </ItemGroup>
 
   <ItemGroup>

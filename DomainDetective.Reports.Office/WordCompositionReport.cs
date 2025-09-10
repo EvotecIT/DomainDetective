@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using OfficeIMO.Word;
 using DocumentFormat.OpenXml.Wordprocessing;
+using DomainDetective.Reports;
 
 namespace DomainDetective.Reports.Office;
 
@@ -47,8 +48,8 @@ public static class WordCompositionReport {
         bool showDkimSelectorCountInSummary = true,
         bool showMailTlsProtocolHintInSummary = true,
         ProviderHelpRenderOptions? providerHelp = null,
-        DomainOrder domainOrder = DomainOrder.Alphabetical,
-        SectionOrderMode sectionOrderMode = SectionOrderMode.Canonical,
+        DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical,
+        DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical,
         string[]? sectionOrder = null) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
@@ -806,5 +807,4 @@ public static class WordCompositionReport {
         return map;
     }
 }
-public enum DomainOrder { Alphabetical, Input }
-public enum SectionOrderMode { Canonical, Input, Custom }
+ 

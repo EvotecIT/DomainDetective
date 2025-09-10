@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Reports;
+using System.IO;
 #if NET8_0
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
@@ -42,7 +43,7 @@ public static class ExcelCompositionReport
         overview.Title("Security Overview", $"Generated {DateTime.Now:yyyy-MM-dd HH:mm}");
 
         // Build summary rows
-        var sumRows = new List<(string Domain, string MX, string SPF, string DKIM, string DMARC, string MTASTS, string TLSRPT, string Findings)>();
+        var sumRows = new List<object>();
         int totalWarn = 0, totalErr = 0;
         foreach (var kv in domains)
         {
@@ -52,7 +53,16 @@ public static class ExcelCompositionReport
             totalWarn += warn; totalErr += err;
             string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
             string dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-            sumRows.Add((kv.Key, status(b.Mx?.Status), status(b.Spf?.Status), dkimStatus, status(b.Dmarc?.Status), status(b.Mtasts?.Status), status(b.TlsRpt?.Status), $"{warn} / {err}"));
+            sumRows.Add(new {
+                Domain = kv.Key,
+                MX = status(b.Mx?.Status),
+                SPF = status(b.Spf?.Status),
+                DKIM = dkimStatus,
+                DMARC = status(b.Dmarc?.Status),
+                MTASTS = status(b.Mtasts?.Status),
+                TLSRPT = status(b.TlsRpt?.Status),
+                Findings = $"{warn} / {err}"
+            });
         }
 
         // KPI row
@@ -112,6 +122,18 @@ public static class ExcelCompositionReport
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
 
         doc.Save();
+#if NET8_0
+        try
+        {
+            var errs = doc.ValidateDocument();
+            if (errs.Count > 0)
+            {
+                var report = string.Join(Environment.NewLine, errs.Select(e => $"{e.ErrorType}: {e.Description} at {e.Path?.XPath}"));
+                File.WriteAllText(Path.ChangeExtension(path, ".xlsx.validation.txt"), report);
+            }
+        }
+        catch { }
+#endif
 #endif
     }
 

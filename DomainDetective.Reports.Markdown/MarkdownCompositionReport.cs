@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using OfficeIMO.Markdown;
+using DomainDetective.Reports;
 
 namespace DomainDetective.Reports.Markdown;
 
@@ -110,6 +111,63 @@ public static class MarkdownCompositionReport
             .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","Classification","Findings (W/E)")
             .Rows(summary.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.MX, r.SPF, r.DKIM, r.DMARC, r.MTASTS, r.TLSRPT, r.Classification, r.Findings }))
             .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7).AlignRight(8));
+
+        // Provider chain + quick links (Word parity, condensed)
+        md.H2("Mail Providers");
+        foreach (var kv in domains)
+        {
+            var domain = kv.Key; var b = kv.Value;
+            var primary = b.Mx?.ProviderPrimary ?? string.Empty;
+            var gateways = b.Mx?.ProviderGateways ?? new List<string>();
+            var outbound = new List<string>();
+            try
+            {
+                var names = (b.Spf?.ProviderHelp ?? new List<DomainDetective.Views.ProviderHelpLinks>())
+                    .Select(p => p?.ProviderName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                foreach (var n in names)
+                {
+                    if (string.IsNullOrWhiteSpace(n)) continue;
+                    if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
+                    outbound.Add(n);
+                }
+            }
+            catch { }
+
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(primary)) parts.Add($"Primary: {primary}");
+            if (gateways.Count > 0) parts.Add($"Gateways: {string.Join(", ", gateways)}");
+            if (outbound.Count > 0) parts.Add($"Outbound: {string.Join(", ", outbound)}");
+            var line = parts.Count > 0 ? string.Join("; ", parts) : "(no provider detected)";
+
+            md.P(p => p.Bold(domain + ": ").Text(line));
+
+            // Top provider links (DMARC/SPF/DKIM) for the primary provider if available
+            try
+            {
+                var links = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                                  ?? links?.FirstOrDefault();
+                if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
+                {
+                    var top = primaryHelp.Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
+                    if (top.Count > 0)
+                    {
+                        md.Ul(ul => {
+                            foreach (var t in top)
+                            {
+                                var titleSafe = string.IsNullOrWhiteSpace(t?.Title) ? t!.Topic : t!.Title;
+                                ul.ItemLink(titleSafe!, t!.Url!);
+                            }
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
 
         // Per-domain sections (compact, Word-like)
         foreach (var kv in domains)
