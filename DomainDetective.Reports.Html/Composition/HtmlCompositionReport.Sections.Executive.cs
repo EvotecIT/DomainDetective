@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderExecutiveSummary(TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderExecutiveSummary(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
     {
         // Header banner card
         page.Row(r => {
@@ -82,4 +82,3 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
-

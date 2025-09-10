@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderDomainsTabbed(TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderDomainsTabbed(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
     {
         page.Divider("Domains");
         page.Row(rr => rr.Column(TablerColumnNumber.Twelve, c => {
@@ -120,30 +120,11 @@ public static partial class HtmlCompositionReport
                                                     r.Column(TablerColumnNumber.Twelve, c2 => {
                                                         c2.DataGrid(g => {
                                                             g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles();
-                                                            g.AddItem("Record Present", b.Dmarc.RecordExists ? "Yes" : "No").AsPanel();
+                                                            g.AddItem("Record Present", b.Dmarc.DmarcRecordExists ? "Yes" : "No").AsPanel();
                                                             g.AddItem("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy).AsPanel();
-                                                            g.AddItem("Aggregate Mailboxes", (b.Dmarc.AggregateMailboxes?.Count ?? 0).ToString()).AsPanel();
-                                                            g.AddItem("Forensic Mailboxes", (b.Dmarc.ForensicMailboxes?.Count ?? 0).ToString()).AsPanel();
+                                                            g.AddItem("mailto RUA", (b.Dmarc.MailtoRua?.Count ?? 0).ToString()).AsPanel();
+                                                            g.AddItem("mailto RUF", (b.Dmarc.MailtoRuf?.Count ?? 0).ToString()).AsPanel();
                                                         });
-
-                                                        // Provider help badges (if available on DMARC)
-                                                        try {
-                                                            var links = b.Dmarc.ProviderHelp;
-                                                            if (links != null && links.Count > 0) {
-                                                                c2.Row(rr => {
-                                                                    rr.Gap(2);
-                                                                    foreach (var provider in links) {
-                                                                        if (!string.IsNullOrWhiteSpace(provider?.Dmarc))
-                                                                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(provider!.ProviderName, TablerBadgeColor.Secondary, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: provider.Dmarc));
-                                                                        foreach (var topic in (provider?.Topics ?? new System.Collections.Generic.List<DomainDetective.Views.ProviderHelpTopic>())) {
-                                                                            if (!string.IsNullOrWhiteSpace(topic?.Url))
-                                                                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(topic!.Title ?? topic.Topic, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: topic.Url));
-                                                                        }
-                                                                    }
-                                                                });
-                                                            }
-                                                        } catch { }
-
                                                         if ((b.Dmarc.Highlights?.Count ?? 0) > 0) { c2.Divider("Highlights"); foreach (var t in b.Dmarc.Highlights) c2.Text("• " + t); }
                                                         if ((b.Dmarc.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var p in b.Dmarc.Positives) if (!string.IsNullOrWhiteSpace(p?.Title)) c2.Text("• " + p!.Title!); }
                                                     });

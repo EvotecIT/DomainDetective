@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderSingleDomain(TablerPage page, string d, DomainBucket b)
+    private static void RenderSingleDomain(HtmlForgeX.TablerPage page, string d, DomainBucket b)
     {
         page.Divider(d);
         page.Row(row => {
