@@ -46,7 +46,7 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
         var view = DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis);
         WriteObject(view);
         if (IsExportRequested()) {
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt == DomainDetective.Reports.ReportFormat.Word) {
                 var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
                 try {

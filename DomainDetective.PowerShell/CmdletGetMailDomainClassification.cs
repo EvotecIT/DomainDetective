@@ -69,7 +69,7 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
 
             // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                     // Ensure DMARC is available (not required by classifier but expected in composed reports)
                     try { await _healthCheck.VerifyDMARC(domain); } catch { }
@@ -93,7 +93,7 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     /// <summary>When export is requested, compose Mail Classification sections into a single file.</summary>
     protected override Task EndProcessingAsync() {
         if (_items.Count == 0) return Task.CompletedTask;
-        var fmt = ExportFormat ?? ExportDefaults.Format;
+        var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
         if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
         var label = _subjects.Count switch {

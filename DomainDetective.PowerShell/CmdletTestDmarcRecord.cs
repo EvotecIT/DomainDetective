@@ -48,7 +48,7 @@ namespace DomainDetective.PowerShell {
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
                 if (IsExportRequested()) {
-                    var fmt = ExportFormat ?? ExportDefaults.Format;
+                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                         _items.Add(output);
                         _subjects.Add(domain);
@@ -62,7 +62,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Composes DMARC sections into one document for Word/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
             var label = _subjects.Count switch {

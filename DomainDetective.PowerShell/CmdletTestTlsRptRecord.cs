@@ -47,7 +47,7 @@ namespace DomainDetective.PowerShell {
                 if (IsExportRequested()) items.Add(view);
             }
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 if (fmt == DomainDetective.Reports.ReportFormat.Word) {
                     var key = DomainName.Length switch { 0 => "tlsrpt", 1 => DomainName[0], 2 => $"{DomainName[0]}+{DomainName[1]}", _ => $"{DomainName[0]}+{DomainName[1]}(+{DomainName.Length-2})" };
                     var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);

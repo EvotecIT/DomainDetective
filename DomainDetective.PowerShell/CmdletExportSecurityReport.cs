@@ -107,7 +107,9 @@ namespace DomainDetective.PowerShell {
 
             if (_items.Count == 0) return Task.CompletedTask;
 
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmts = (ExportFormat != null && ExportFormat.Length > 0)
+                ? ExportFormat
+                : new[] { ExportDefaults.Format };
             // Flatten nested arrays/lists from pipeline variables ($spf, $dmarc, $mx)
             var flat = new List<object>();
             IEnumerable<object> Flatten(object o) {
@@ -129,15 +131,53 @@ namespace DomainDetective.PowerShell {
                 2 => $"{subjects[0]}+{subjects[1]}",
                 _ => $"{subjects[0]}+{subjects[1]}(+{subjects.Count - 2})"
             };
-            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
+            // Helper to compute per-format output path when multiple formats were requested
+            string ResolveOutPathForFormat(DomainDetective.Reports.ReportFormat f)
+            {
+                if (!string.IsNullOrWhiteSpace(ExportPath))
+                {
+                    try
+                    {
+                        var p = ExportPath!;
+                        var looksLikeDirectory = false;
+                        if (System.IO.Directory.Exists(p)) looksLikeDirectory = true;
+                        else if (p.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) || p.EndsWith(System.IO.Path.AltDirectorySeparatorChar.ToString())) looksLikeDirectory = true;
+                        else if (!System.IO.Path.HasExtension(p)) looksLikeDirectory = true;
+
+                        if (!looksLikeDirectory && fmts.Length > 1)
+                        {
+                            // User provided a file path but asked for multiple formats; derive unique paths by replacing extension
+                            var dir = System.IO.Path.GetDirectoryName(p) ?? string.Empty;
+                            var name = System.IO.Path.GetFileNameWithoutExtension(p);
+                            var ext = f switch {
+                                DomainDetective.Reports.ReportFormat.Html => ".html",
+                                DomainDetective.Reports.ReportFormat.Word => ".docx",
+                                DomainDetective.Reports.ReportFormat.Excel => ".xlsx",
+                                DomainDetective.Reports.ReportFormat.Pdf => ".pdf",
+                                DomainDetective.Reports.ReportFormat.Json => ".json",
+                                DomainDetective.Reports.ReportFormat.Markdown => ".md",
+                                DomainDetective.Reports.ReportFormat.HtmlAsMarkdown => ".html",
+                                _ => ".html"
+                            };
+                            var combined = System.IO.Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);
+                            try { System.IO.Directory.CreateDirectory(string.IsNullOrEmpty(dir) ? "." : dir); } catch { }
+                            return combined;
+                        }
+                    }
+                    catch { /* fall through to helper */ }
+                }
+                return DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, f);
+            }
 
             try {
-                switch (fmt) {
-                    case DomainDetective.Reports.ReportFormat.Word:
-                        var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
-                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                            outPath,
-                            flat,
+                foreach (var fmt in fmts) {
+                    var outPath = ResolveOutPathForFormat(fmt);
+                    switch (fmt) {
+                        case DomainDetective.Reports.ReportFormat.Word:
+                            var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
+                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                                outPath,
+                                flat,
                             Scope,
                             ShowInfoFindings.IsPresent,
                             ExportDefaults.NarrativePlacement,
@@ -160,7 +200,7 @@ namespace DomainDetective.PowerShell {
                             SectionOrder);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
-                    case DomainDetective.Reports.ReportFormat.Html:
+                        case DomainDetective.Reports.ReportFormat.Html:
                         DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
                             outPath,
                             flat,
@@ -174,11 +214,11 @@ namespace DomainDetective.PowerShell {
                             (DomainDetective.Reports.Html.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.Html.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                             SectionOrder);
                         break;
-                    case DomainDetective.Reports.ReportFormat.Excel:
-                        DomainDetective.Reports.Office.ExcelCompositionReport.Generate(
-                            outPath,
-                            flat,
-                            Scope,
+                        case DomainDetective.Reports.ReportFormat.Excel:
+                            DomainDetective.Reports.Office.ExcelCompositionReport.Generate(
+                                outPath,
+                                flat,
+                                Scope,
                             new DomainDetective.Reports.OrderingOptions {
                                 DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
                                 SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
@@ -186,32 +226,33 @@ namespace DomainDetective.PowerShell {
                             });
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
-                    case DomainDetective.Reports.ReportFormat.Markdown:
-                        DomainDetective.Reports.Markdown.MarkdownCompositionReport.Generate(
-                            outPath,
-                            flat,
-                            Scope,
-                            new DomainDetective.Reports.OrderingOptions {
-                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                                SectionOrder = SectionOrder
-                            });
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        case DomainDetective.Reports.ReportFormat.Markdown:
+                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.Generate(
+                                outPath,
+                                flat,
+                                Scope,
+                                new DomainDetective.Reports.OrderingOptions {
+                                    DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                                    SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                                    SectionOrder = SectionOrder
+                                });
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
-                    case DomainDetective.Reports.ReportFormat.HtmlAsMarkdown:
-                        DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateHtmlAsMarkdown(
-                            outPath,
-                            flat,
-                            Scope,
-                            new DomainDetective.Reports.OrderingOptions {
-                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                                SectionOrder = SectionOrder
-                            });
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        case DomainDetective.Reports.ReportFormat.HtmlAsMarkdown:
+                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateHtmlAsMarkdown(
+                                outPath,
+                                flat,
+                                Scope,
+                                new DomainDetective.Reports.OrderingOptions {
+                                    DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                                    SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                                    SectionOrder = SectionOrder
+                                });
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
-                    default:
-                        return ExportNotImplementedAsync("Export-DDSecurityReport");
+                        default:
+                            return ExportNotImplementedAsync("Export-DDSecurityReport");
+                    }
                 }
             } catch (Exception ex) {
                 WriteWarning($"Export failed: {ex.Message}");

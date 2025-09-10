@@ -67,7 +67,7 @@ namespace DomainDetective.PowerShell {
             // Prefer consistent view output across cmdlets
             WriteObject(view);
             if (!IsExportRequested()) return;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                 _items.Add(view);
                 var label = ParameterSetName == "File" && !string.IsNullOrWhiteSpace(File) ? System.IO.Path.GetFileName(File) : "Message";
@@ -93,7 +93,7 @@ namespace DomainDetective.PowerShell {
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
             var label = _subjects.Count switch {

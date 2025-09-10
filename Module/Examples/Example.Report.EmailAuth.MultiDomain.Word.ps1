@@ -9,5 +9,5 @@ $spf = Test-DDEmailSpfRecord -DomainName $domains
 #($spf + $dmarc + $dkim) |    Export-DDSecurityReport -Scope Normal -ExportFormat Word -ExportPath "$PSScriptRoot\Reports" -OpenReport
 
 ($spf) | Export-DDSecurityReport -Scope Normal -ExportFormat Word, Excel, Html -ExportPath "$PSScriptRoot\Reports" -OpenReport
-($spf) | Export-DDSecurityReport -Scope Normal -ExportFormat Html -ExportPath "$PSScriptRoot\Reports" -OpenReport
-($spf) | Export-DDSecurityReport -Scope Normal -ExportFormat Excel -ExportPath "$PSScriptRoot\Reports" -OpenReport
+#($spf) | Export-DDSecurityReport -Scope Normal -ExportFormat Html -ExportPath "$PSScriptRoot\Reports" -OpenReport
+#($spf) | Export-DDSecurityReport -Scope Normal -ExportFormat Excel -ExportPath "$PSScriptRoot\Reports" -OpenReport

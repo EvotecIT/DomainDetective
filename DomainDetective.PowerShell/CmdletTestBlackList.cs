@@ -208,7 +208,7 @@ namespace DomainDetective.PowerShell {
 AfterWrite:
             if (IsExportRequested()) {
                 try {
-                    var fmt = ExportFormat ?? ExportDefaults.Format;
+                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                         var view = DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis);
                         // Ensure a non-empty Subject for grouping when inputs are IP-only

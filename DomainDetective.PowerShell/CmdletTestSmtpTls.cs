@@ -61,7 +61,7 @@ namespace DomainDetective.PowerShell {
                 }
             }
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 if (fmt == DomainDetective.Reports.ReportFormat.Word) {
                     var key = $"{HostName}-{Port}";
                     var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);

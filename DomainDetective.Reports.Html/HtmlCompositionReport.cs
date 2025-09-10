@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using HtmlForgeX;
 
 namespace DomainDetective.Reports.Html;
 
@@ -28,104 +29,137 @@ public static class HtmlCompositionReport
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
         var grouped = GroupBySubject(items);
-        var title = BuildSubjectTitle(grouped.Keys.ToList());
-
-        using IHtmlComposer html = new HtmlForgeXComposer();
-        var theTitle = string.IsNullOrWhiteSpace(titleOverride) ? $"Security Report — {title}" : titleOverride;
-        var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
-        var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Custom composition report" : descriptionOverride;
-        html.SetMetadata(theTitle, theAuthor, theDesc);
-
-        html.AddHeading($"Security Report — {title}", 1);
-        html.AddParagraph($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-
-        // Executive Summary
-        // Domain ordering
         var ordered = (domainOrder == DomainOrder.Input)
             ? OrderDomainsByInput(items, grouped)
             : grouped.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();
 
-        var rows = ordered.Select(kv => new
-        {
-            Domain = kv.Key,
-            MX = kv.Value.Mx?.Status ?? "-",
-            SPF = kv.Value.Spf?.Status ?? "-",
-            DKIM = kv.Value.Dkim.Count > 0 ? (kv.Value.Dkim.Max(x => x.Status) ?? "-") : "-",
-            DMARC = kv.Value.Dmarc?.Status ?? "-",
-            MTASTS = kv.Value.Mtasts?.Status ?? "-",
-            TLSRPT = kv.Value.TlsRpt?.Status ?? "-",
-            Findings = $"{(kv.Value.Spf?.WarningCount ?? 0) + (kv.Value.Dmarc?.WarningCount ?? 0) + kv.Value.Dkim.Sum(x => x.WarningCount) + (kv.Value.Mtasts?.WarningCount ?? 0) + (kv.Value.TlsRpt?.WarningCount ?? 0) + (kv.Value.Mx?.WarningCount ?? 0)} / {(kv.Value.Spf?.ErrorCount ?? 0) + (kv.Value.Dmarc?.ErrorCount ?? 0) + kv.Value.Dkim.Sum(x => x.ErrorCount) + (kv.Value.Mtasts?.ErrorCount ?? 0) + (kv.Value.TlsRpt?.ErrorCount ?? 0) + (kv.Value.Mx?.ErrorCount ?? 0)}"
-        });
-        html.AddHeading("Executive Summary", 2);
-        html.AddTable(rows);
+        var title = BuildSubjectTitle(grouped.Keys.ToList());
+        var theTitle = string.IsNullOrWhiteSpace(titleOverride) ? $"Domain Security Compliance Report — {title}" : titleOverride;
+        var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
+        var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Security posture overview for domains" : descriptionOverride;
 
-        bool multiDomain = grouped.Count > 1;
-        bool placeGlobal = narrativePlacement == Reports.NarrativePlacement.Global || (narrativePlacement == Reports.NarrativePlacement.Auto && multiDomain);
-        bool includeNarrativePerDomain = narrativePlacement == Reports.NarrativePlacement.PerDomain || (narrativePlacement == Reports.NarrativePlacement.Auto && !multiDomain);
-        if (placeGlobal)
-        {
-            BackgroundHtmlSectionWriter.Write(html, items);
-        }
+        using var document = new Document {
+            Head = {
+                Title = theTitle,
+                Author = theAuthor,
+                Description = theDesc,
+                Revised = DateTime.Now
+            },
+            LibraryMode = LibraryMode.Online,
+            ThemeMode = ThemeMode.Light
+        };
 
-        // Section ordering helpers
-        var inputSectionOrder = (sectionOrderMode == SectionOrderMode.Input) ? DetermineSectionOrderByDomain(items) : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var normalizedCustom = (sectionOrderMode == SectionOrderMode.Custom && sectionOrder != null) ? NormalizeSectionList(sectionOrder) : Array.Empty<string>();
+        document.Body.Page(page => {
+            page.Layout = TablerLayout.Combo;
 
-        foreach (var kv in ordered)
-        {
-            var domain = kv.Key; var b = kv.Value;
-            html.AddHeading(domain, 2);
-            var writers = new Dictionary<string, Action>(StringComparer.OrdinalIgnoreCase);
-            var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            void add(string key, Action a, bool isPresent) { if (isPresent) present.Add(key); writers[key] = a; }
-            add("MX", () => MxHtmlSectionWriter.Write(html, b.Mx!, domain, scope), b.Mx != null);
-            add("SPF", () => SpfHtmlSectionWriter.Write(html, b.Spf!, domain, scope), b.Spf != null);
-            add("DKIM", () => DkimHtmlSectionWriter.Write(html, b.Dkim, domain, scope), b.Dkim.Count > 0);
-            add("DMARC", () => DmarcHtmlSectionWriter.Write(html, b.Dmarc!, domain, scope), b.Dmarc != null);
-            add("DNSBL", () => DnsblHtmlSectionWriter.Write(html, b.Dnsbl!, domain, scope), b.Dnsbl != null);
-            add("Classification", () => MailClassificationHtmlSectionWriter.Write(html, b.Classification!, domain, scope), b.Classification != null);
-            add("MTA-STS", () => MtastsHtmlSectionWriter.Write(html, b.Mtasts!, domain, scope), b.Mtasts != null);
-            add("TLS-RPT", () => TlsRptHtmlSectionWriter.Write(html, b.TlsRpt!, domain, scope), b.TlsRpt != null);
+            // Header banner card
+            page.Row(r => {
+                r.Column(TablerColumnNumber.Twelve, c => {
+                    c.Card(card => {
+                        card.Background(TablerColor.Blue, isLight: true)
+                            .Header(h => {
+                                h.WithHeaderTitleLevel(HeaderLevelTag.H1).TitleDisplay(TablerTextSize.Display3);
+                                h.Title("Domain Security Compliance Report");
+                                h.Subtitle($"Generated on: {DateTime.Now:MMMM d, yyyy, h:mm tt zzz}").SubtitleAsHeader(HeaderLevelTag.H5);
+                            });
+                    });
+                });
+            });
 
-            var canonical = CanonicalSections;
-            var finalOrder = new List<string>();
-            if (sectionOrderMode == SectionOrderMode.Custom && normalizedCustom.Length > 0) {
-                foreach (var s in normalizedCustom) if (present.Contains(s)) finalOrder.Add(s);
-                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
-            } else if (sectionOrderMode == SectionOrderMode.Input && inputSectionOrder.TryGetValue(domain, out var seenOrder) && seenOrder.Count > 0) {
-                foreach (var s in seenOrder) if (present.Contains(s)) finalOrder.Add(s);
-                foreach (var s in canonical) if (present.Contains(s) && !finalOrder.Contains(s, StringComparer.OrdinalIgnoreCase)) finalOrder.Add(s);
-            } else {
-                foreach (var s in canonical) if (present.Contains(s)) finalOrder.Add(s);
+            // KPI cards: Domains / Warnings / Errors
+            var totals = ordered.Select(kv => CountFindings(kv.Value)).Aggregate((0,0), (acc, cur) => (acc.Item1 + cur.warn, acc.Item2 + cur.err));
+            page.Row(row => {
+                row.WithBottomSpacing(TablerSpacing.Medium);
+
+                row.Column(TablerColumnNumber.Four, col => {
+                    col.Card(card => {
+                        card.Background(TablerColor.Success, isLight: true)
+                            .Header(h => { h.Title("Domains").Subtitle("Analyzed"); h.Avatar(a => a.Icon(TablerIconType.Globe) .BackgroundColor(TablerColor.Success).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
+                            .Body(b => { b.H2(ordered.Count.ToString()); b.Text("Total").Style(TablerTextStyle.Muted); });
+                    });
+                });
+                row.Column(TablerColumnNumber.Four, col => {
+                    col.Card(card => {
+                        card.Background(TablerColor.Warning, isLight: true)
+                            .Header(h => { h.Title("Warnings").Subtitle("Attention"); h.Avatar(a => a.Icon(TablerIconType.AlertCircle).BackgroundColor(TablerColor.Orange).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
+                            .Body(b => { b.H2(totals.Item1.ToString()); b.Text("Across all domains").Style(TablerTextStyle.Muted); });
+                    });
+                });
+                row.Column(TablerColumnNumber.Four, col => {
+                    col.Card(card => {
+                        card.Background(TablerColor.Danger, isLight: true)
+                            .Header(h => { h.Title("Errors").Subtitle("Critical"); h.Avatar(a => a.Icon(TablerIconType.AlertTriangle).BackgroundColor(TablerColor.Danger).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
+                            .Body(b => { b.H2(totals.Item2.ToString()); b.Text("Across all domains").Style(TablerTextStyle.Muted); });
+                    });
+                });
+            });
+
+            // Executive summary table (DataTables) with highlighters
+            page.Divider("Executive Summary");
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
+                var rows = ordered.Select(kv => new {
+                    Domain = kv.Key,
+                    MX = kv.Value.Mx?.Status ?? "-",
+                    SPF = kv.Value.Spf?.Status ?? "-",
+                    DKIM = kv.Value.Dkim.Count > 0 ? (kv.Value.Dkim.Max(x => x.Status) ?? "-") : "-",
+                    DMARC = kv.Value.Dmarc?.Status ?? "-",
+                    MTASTS = kv.Value.Mtasts?.Status ?? "-",
+                    TLSRPT = kv.Value.TlsRpt?.Status ?? "-",
+                    Findings = $"{CountFindings(kv.Value).warn} / {CountFindings(kv.Value).err}"
+                }).ToList();
+                c.Card(card => {
+                    card.Header(h => h.Title("Domains"));
+                    card.Body(body => {
+                        var table = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                        table.EnablePaging(10, new[] {10, 25, 50}).EnableSearching().EnableOrdering();
+                        // Danger when value indicates failure
+                        foreach (var col in new[]{"MX","SPF","DKIM","DMARC","MTASTS","TLSRPT"})
+                            table.HighlightWhen(g => g.And(x => x.StringContains(col, "error", false)).Or(x => x.StringContains(col, "fail", false)).Or(x => x.StringContains(col, "✗")), t => t.Column(col).Danger());
+                        // Warning when value indicates warning
+                        foreach (var col in new[]{"MX","SPF","DKIM","DMARC","MTASTS","TLSRPT"})
+                            table.HighlightWhen(g => g.Or(x => x.StringContains(col, "warn", false)).Or(x => x.StringContains(col, "⚠")), t => t.Column(col).Warning());
+                    });
+                });
+            }));
+
+            // Optional global background/narrative placeholder (can be enhanced)
+            var multiDomain = grouped.Count > 1;
+            var placeGlobal = narrativePlacement == Reports.NarrativePlacement.Global || (narrativePlacement == Reports.NarrativePlacement.Auto && multiDomain);
+            if (placeGlobal)
+            {
+                page.Divider("Background");
+                page.Row(rr => rr.Column(TablerColumnNumber.Twelve, cc => {
+                    cc.Card(cd => { cd.Body(b => b.Text("Background narrative omitted in this version.")); });
+                }));
             }
 
-            foreach (var key in finalOrder) { try { writers[key](); } catch { } }
-        }
+            // Per-domain overview cards
+            foreach (var kv in ordered)
+            {
+                var d = kv.Key; var b = kv.Value;
+                page.Divider(d);
+                page.Row(row => {
+                    row.Column(TablerColumnNumber.Twelve, col => {
+                        col.Card(card => {
+                            card.Header(h => h.Title($"Mail & DNS — {d}"));
+                            card.Body(body => {
+                                body.DataGrid(grid => {
+                                    grid.AsCompact();
+                                    grid.AddItem("MX", b.Mx?.Status ?? "-");
+                                    grid.AddItem("SPF", b.Spf?.Status ?? "-");
+                                    grid.AddItem("DKIM", b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-");
+                                    grid.AddItem("DMARC", b.Dmarc?.Status ?? "-");
+                                    grid.AddItem("MTA-STS", b.Mtasts?.Status ?? "-");
+                                    grid.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-");
+                                });
+                            });
+                        });
+                    });
+                });
+            }
+        });
 
-        // Consolidated Recommendations
-        var allAssessments = new List<DomainDetective.Assessment>();
-        foreach (var kv in grouped)
-        {
-            var b = kv.Value;
-            void Pull(IReadOnlyList<DomainDetective.Assessment>? a) { if (a != null && a.Count > 0) allAssessments.AddRange(a); }
-            Pull(b.Spf?.Assessments);
-            foreach (var d in b.Dkim) Pull(d.Assessments);
-            Pull(b.Dmarc?.Assessments);
-            Pull(b.Mx?.Assessments);
-            Pull(b.Mtasts?.Assessments);
-            Pull(b.TlsRpt?.Assessments);
-            Pull(b.Dnsbl?.Assessments);
-        }
-        var groupedRecs = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
-        var negative = groupedRecs.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
-        if (negative.Count > 0)
-        {
-            html.AddHeading("Consolidated Recommendations", 2);
-            var recRows = negative.Select(g => new { Severity = g.MaxSeverity.ToString(), g.Code, Title = g.Advice?.Title ?? string.Empty, How = g.Advice?.How ?? string.Empty });
-            html.AddTable(recRows);
-        }
-
-        html.Save(path, openInBrowser);
+        document.Save(path, openInBrowser);
     }
 
     private static string BuildSubjectTitle(List<string> domains)
@@ -134,6 +168,13 @@ public static class HtmlCompositionReport
         if (domains.Count == 1) return domains[0];
         if (domains.Count == 2) return $"{domains[0]}+{domains[1]}";
         return $"{domains[0]}+{domains[1]}(+{domains.Count - 2})";
+    }
+
+    private static (int warn, int err) CountFindings(DomainBucket b)
+    {
+        int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
+        int err  = (b.Mx?.ErrorCount ?? 0)   + (b.Spf?.ErrorCount ?? 0)   + (b.Dmarc?.ErrorCount ?? 0)   + (b.Mtasts?.ErrorCount ?? 0)   + (b.TlsRpt?.ErrorCount ?? 0)   + b.Dkim.Sum(x => x.ErrorCount);
+        return (warn, err);
     }
 
     private sealed class DomainBucket

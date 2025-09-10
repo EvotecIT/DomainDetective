@@ -106,7 +106,7 @@ namespace DomainDetective.PowerShell {
 
             // 2) Export (post-run) if requested, after emitting data
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
                 var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
 

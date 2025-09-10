@@ -64,7 +64,7 @@ public class ExcelReportGenerator : IReportGenerator {
             });
 
             // Domain sheet with some details
-            var s = new SheetComposer(doc, domain);
+            var s = new SheetComposer(doc, SanitizeSheetName(domain));
             s.Title($"Mail Classification — {domain}", "Summary of key mail signals");
 
             // Try to build MailClassification view for nicer content
@@ -110,7 +110,7 @@ public class ExcelReportGenerator : IReportGenerator {
                 // Non-blocking; record in metadata
             }
 
-            doc.Save(false);
+            doc.Save();
             return Task.FromResult(new ReportResult {
                 Success = true,
                 FilePath = outputPath,
@@ -124,6 +124,16 @@ public class ExcelReportGenerator : IReportGenerator {
                 ErrorMessage = ex.Message
             });
         }
+    }
+
+    private static string SanitizeSheetName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "Sheet";
+        var invalid = new char[] { ':', '\\', '/', '?', '*', '[', ']' };
+        var cleaned = new string(name.Where(ch => !invalid.Contains(ch)).ToArray());
+        if (cleaned.Length > 31) cleaned = cleaned.Substring(0, 31);
+        if (string.IsNullOrWhiteSpace(cleaned)) cleaned = "Sheet";
+        return cleaned;
     }
 }
 #endif

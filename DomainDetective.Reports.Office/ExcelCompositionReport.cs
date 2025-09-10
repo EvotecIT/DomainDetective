@@ -69,9 +69,10 @@ public static class ExcelCompositionReport
         overview.Finish(autoFitColumns: true);
 
         // Per-domain sheets
+        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var kv in domains)
         {
-            var name = kv.Key; var b = kv.Value;
+            var name = MakeUniqueSheetName(kv.Key, usedNames); var b = kv.Value;
             var s = new SheetComposer(doc, name);
             s.Title($"Mail & DNS — {name}");
             s.SectionWithAnchor("Overview");
@@ -110,7 +111,7 @@ public static class ExcelCompositionReport
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
 
-        doc.Save(false);
+        doc.Save();
 #endif
     }
 
@@ -165,5 +166,32 @@ public static class ExcelCompositionReport
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
+    }
+
+    private static string MakeUniqueSheetName(string domain, HashSet<string> used)
+    {
+        string Sanitize(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return "Sheet";
+            var invalid = new char[] { ':', '\\', '/', '?', '*', '[', ']' };
+            var cleaned = new string(input.Where(ch => !invalid.Contains(ch)).ToArray());
+            if (cleaned.Length > 31) cleaned = cleaned.Substring(0, 31);
+            if (string.IsNullOrWhiteSpace(cleaned)) cleaned = "Sheet";
+            return cleaned;
+        }
+        var baseName = Sanitize(domain);
+        var name = baseName;
+        int counter = 2;
+        while (used.Contains(name))
+        {
+            var suffix = $" ({counter})";
+            var trimmed = baseName;
+            if (baseName.Length + suffix.Length > 31)
+                trimmed = baseName.Substring(0, Math.Max(1, 31 - suffix.Length));
+            name = trimmed + suffix;
+            counter++;
+        }
+        used.Add(name);
+        return name;
     }
 }
