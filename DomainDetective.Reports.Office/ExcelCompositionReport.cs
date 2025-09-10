@@ -227,6 +227,229 @@ public static class ExcelCompositionReport
                 if (tp.Count > 0) s.PropertiesGrid(tp.ToArray(), columns: 3);
             }
 
+            // MX details
+            if (b.Mx != null)
+            {
+                var mx = b.Mx;
+                s.SectionWithAnchor("MX");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Record Present", mx.MxRecordExists ? "Yes" : "No"),
+                    ("IPv6 Supported", mx.Ipv6Supported ? "Yes" : "No"),
+                    ("Has Backup Servers", mx.HasBackupServers ? "Yes" : "No"),
+                    ("Null MX", mx.HasNullMx ? "Yes" : "No"),
+                    ("Priorities In Order", mx.PrioritiesInOrder ? "Yes" : "No"),
+                    ("Points to CNAME", mx.PointsToCname ? "Yes" : "No"),
+                    ("Points to IP", mx.PointsToIpAddress ? "Yes" : "No"),
+                    ("Target Consistent Across NS", mx.TargetAddressConsistentAcrossNs ? "Yes" : "No")
+                }, columns: 3);
+                if ((mx.MxRecords?.Count ?? 0) > 0)
+                {
+                    var mxRows = mx.MxRecords.Select(r => new { Host = r }).ToList();
+                    s.TableFrom(mxRows, title: "MX Records", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
+                }
+                if ((mx.Recommendations?.Count ?? 0) > 0) { s.Section("Recommendations"); s.BulletedListWithFill(mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray(), fillHex: "#FFF4CE"); }
+                if ((mx.Positives?.Count ?? 0) > 0) { s.Section("Positives"); s.BulletedList(mx.Positives.Select(p => p.Title ?? p.Code).ToArray()); }
+            }
+
+            // DNSBL details
+            if (b.Dnsbl != null)
+            {
+                var db = b.Dnsbl;
+                s.SectionWithAnchor("DNSBL");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Providers Checked", db.ProvidersChecked),
+                    ("Hosts Checked", db.HostsChecked),
+                    ("Hosts Listed", db.HostsListed)
+                }, columns: 3);
+                if (db.HostSummaries != null && db.HostSummaries.Count > 0)
+                {
+                    var hostRows = db.HostSummaries.Select(h => new { Host = h.Key, Listed = h.Listed, Total = h.Total, Blacklists = string.Join(", ", h.Blacklists ?? new List<string>()) }).ToList();
+                    s.TableFrom(hostRows, title: "Host Summaries", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
+                        v.NumericColumnFormats["Listed"] = "0"; v.NumericColumnFormats["Total"] = "0"; v.FreezeHeaderRow = true;
+                    });
+                }
+            }
+
+            // NS details
+            if (b.Ns != null)
+            {
+                var ns = b.Ns;
+                s.SectionWithAnchor("NS");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Record Present", ns.NsRecordExists ? "Yes" : "No"),
+                    ("At Least Two", ns.AtLeastTwoRecords ? "Yes" : "No"),
+                    ("All Have A/AAAA", ns.AllHaveAOrAaaa ? "Yes" : "No"),
+                    ("Glue Complete", ns.GlueRecordsComplete ? "Yes" : "No"),
+                    ("Glue Consistent", ns.GlueRecordsConsistent ? "Yes" : "No"),
+                    ("Delegation Matches", ns.DelegationMatches ? "Yes" : "No"),
+                    ("Distinct ASNs", ns.AsnDistinctCount)
+                }, columns: 3);
+                if ((ns.NsRecords?.Count ?? 0) > 0)
+                {
+                    s.TableFrom(ns.NsRecords.Select(x => new { NS = x }).ToList(), title: "NS Records", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+                if ((ns.ParentNsRecords?.Count ?? 0) > 0)
+                {
+                    s.TableFrom(ns.ParentNsRecords.Select(x => new { ParentNS = x }).ToList(), title: "Parent NS Records", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+            }
+
+            // SOA details
+            if (b.Soa != null)
+            {
+                var soa = b.Soa;
+                s.SectionWithAnchor("SOA");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Primary NS", soa.PrimaryNameServer),
+                    ("Responsible", soa.ResponsibleMailbox),
+                    ("Serial", soa.SerialNumber),
+                    ("Serial Format", soa.SerialFormatValid ? "Valid" : "Check"),
+                    ("Refresh", soa.Refresh), ("Retry", soa.Retry), ("Expire", soa.Expire),
+                    ("Minimum", soa.Minimum), ("Neg Cache TTL", soa.NegativeCacheTtl)
+                }, columns: 3);
+            }
+
+            // CAA details
+            if (b.Caa != null)
+            {
+                var caa = b.Caa;
+                s.SectionWithAnchor("CAA");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Valid Records", caa.ValidRecords),
+                    ("Invalid Records", caa.InvalidRecords),
+                    ("Conflicting", caa.Conflicting ? "Yes" : "No"),
+                    ("Duplicate Issuers", caa.HasDuplicateIssuers ? "Yes" : "No")
+                }, columns: 3);
+                if ((caa.CanIssueCertificatesForDomain?.Count ?? 0) > 0)
+                { s.Section("Allowed CAs"); s.BulletedList(caa.CanIssueCertificatesForDomain); }
+                if ((caa.CanIssueWildcardCertificatesForDomain?.Count ?? 0) > 0)
+                { s.Section("Allowed Wildcard CAs"); s.BulletedList(caa.CanIssueWildcardCertificatesForDomain); }
+                if ((caa.CanIssueMail?.Count ?? 0) > 0)
+                { s.Section("Mail CAA Values"); s.BulletedList(caa.CanIssueMail); }
+                if ((caa.ReportViolationEmail?.Count ?? 0) > 0)
+                { s.Section("Report-To Emails"); s.BulletedList(caa.ReportViolationEmail); }
+            }
+
+            // RPKI details
+            if (b.Rpki != null)
+            {
+                var rp = b.Rpki;
+                s.SectionWithAnchor("RPKI");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Total Checked", rp.TotalChecked), ("Valid", rp.ValidCount), ("All Valid", rp.AllValid ? "Yes" : "No")
+                }, columns: 3);
+                if ((rp.Results?.Count ?? 0) > 0)
+                {
+                    var rpRows = rp.Results.Select(r => new { r.IpAddress, r.Prefix, r.Asn, Valid = r.Valid ? "Yes" : "No" }).ToList();
+                    s.TableFrom(rpRows, title: "RPKI Results", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.NumericColumnFormats["Asn"] = "0"; v.FreezeHeaderRow = true; });
+                }
+            }
+
+            // Zone Transfer / Wildcard
+            if (b.ZoneTransfer != null)
+            {
+                var zt = b.ZoneTransfer;
+                s.SectionWithAnchor("Zone Transfer");
+                s.PropertiesGrid(new (string, object?)[] { ("Open", $"{zt.OpenCount}/{zt.TotalChecked}") }, columns: 3);
+                if ((zt.ServerResults?.Count ?? 0) > 0)
+                {
+                    var zRows = zt.ServerResults.Select(kv2 => new { Server = kv2.Key, Open = kv2.Value ? "Yes" : "No" }).ToList();
+                    s.TableFrom(zRows, title: "Servers", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+            }
+            if (b.Wildcard != null)
+            {
+                var wc = b.Wildcard;
+                s.SectionWithAnchor("Wildcard DNS");
+                s.PropertiesGrid(new (string, object?)[] { ("Catch-All", wc.CatchAll ? "Yes" : "No") }, columns: 3);
+                if ((wc.TestedNames?.Count ?? 0) > 0)
+                { s.Section("Tested Names"); s.BulletedList(wc.TestedNames); }
+                if ((wc.ResolvedNames?.Count ?? 0) > 0)
+                { s.Section("Resolved Names"); s.BulletedList(wc.ResolvedNames); }
+            }
+            // DNSSEC / DANE summaries
+            if (b.Dnssec != null || b.Dane != null)
+            {
+                s.SectionWithAnchor("DNSSEC/DANE");
+                var rows = new List<(string, object?)>();
+                if (b.Dnssec != null)
+                {
+                    rows.Add(("DNSSEC", b.Dnssec.Status ?? "-"));
+                }
+                if (b.Dane != null)
+                {
+                    rows.Add(("DANE", b.Dane.Status ?? "-"));
+                }
+                if (rows.Count > 0) s.PropertiesGrid(rows.ToArray(), columns: 3);
+            }
+
+            // Mail TLS (SMTP/IMAP/POP3)
+            if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null)
+            {
+                s.SectionWithAnchor("Mail TLS");
+                void RenderTls(string label, DomainDetective.Views.MailTlsInfo info)
+                {
+                    if (info == null) return;
+                    s.Section(label);
+                    if (info.Servers != null && info.Servers.Count > 0)
+                    {
+                        var rows = info.Servers.Select(v => new {
+                            Server = v.Key,
+                            Grade = v.Grade.ToString(),
+                            CertValid = v.CertificateValid ? "Yes" : "No",
+                            Chain = v.ChainValid ? "Yes" : "No",
+                            DaysToExp = v.DaysToExpire,
+                            Expired = v.IsExpired ? "Yes" : "No",
+                            Proto = v.Protocol,
+                            TLS13 = v.Tls13Used ? "Yes" : (v.SupportsTls13 ? "Supported" : "No"),
+                            Cipher = v.CipherSuite,
+                            Issuer = v.Issuer,
+                            ValidTo = v.ValidTo?.ToString("yyyy-MM-dd") ?? ""
+                        }).ToList();
+                        s.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
+                            v.NumericColumnFormats["DaysToExp"] = "0"; v.FreezeHeaderRow = true;
+                            v.TextBackgrounds["Grade"] = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase) {
+                                { "A", "#D1E7DD" }, { "B", "#E2E3FF" }, { "C", "#FFF4CE" }, { "D", "#F8D7DA" }, { "F", "#F8D7DA" }
+                            };
+                        });
+                    }
+                }
+                if (b.SmtpTls != null) RenderTls("SMTP", b.SmtpTls);
+                if (b.ImapTls != null) RenderTls("IMAP", b.ImapTls);
+                if (b.PopTls != null) RenderTls("POP3", b.PopTls);
+            }
+
+            // ARC (Authenticated Received Chain)
+            if (b.Arc != null)
+            {
+                var arc = b.Arc;
+                s.SectionWithAnchor("ARC");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("ARC Headers Present", arc.ArcHeadersFound ? "Yes" : "No"),
+                    ("Seal Count", arc.SealCount),
+                    ("AAR Count", arc.AarCount),
+                    ("Valid Chain", arc.ValidChain ? "Yes" : "No"),
+                    ("Chain State", arc.ChainState)
+                }, columns: 3);
+                if ((arc.Highlights?.Count ?? 0) > 0) { s.Section("Highlights"); s.BulletedList(arc.Highlights); }
+                if ((arc.Recommendations?.Count ?? 0) > 0) { s.Section("Recommendations"); s.BulletedListWithFill(arc.Recommendations.Select(r => r.Title ?? r.Code).ToArray(), fillHex: "#FFF4CE"); }
+            }
+
+            // BIMI details
+            if (b.Bimi != null)
+            {
+                var bi = b.Bimi;
+                s.SectionWithAnchor("BIMI");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Record Present", bi.BimiRecordExists ? "Yes" : "No"),
+                    ("Starts Correctly", bi.StartsCorrectly ? "Yes" : "No"),
+                    ("Location", string.IsNullOrWhiteSpace(bi.Location) ? "-" : bi.Location),
+                    ("Authority", string.IsNullOrWhiteSpace(bi.Authority) ? "-" : bi.Authority),
+                    ("SVG Valid", bi.SvgValid ? "Yes" : (string.IsNullOrWhiteSpace(bi.SvgInvalidReason) ? "No" : $"No: {bi.SvgInvalidReason}")),
+                    ("VMC Present", bi.ValidVmc ? "Yes" : "No")
+                }, columns: 3);
+            }
+
             // SPF details
             if (b.Spf != null)
             {
@@ -365,6 +588,132 @@ public static class ExcelCompositionReport
             s.Finish(autoFitColumns: true);
         }
 
+        // Summary sheet (counts by control)
+        try
+        {
+            var sum = new SheetComposer(doc, "Summary");
+            sum.Title("Control Summary");
+            var controls = new[]{"MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT"};
+            var rows = new List<object>();
+            foreach (var c in controls)
+            {
+                int ok=0, warn=0, err=0, unk=0;
+                foreach (var kv in domains)
+                {
+                    string status = c switch {
+                        "MX" => kv.Value.Mx?.Status,
+                        "SPF" => kv.Value.Spf?.Status,
+                        "DKIM" => (kv.Value.Dkim.Count>0 ? (kv.Value.Dkim.Max(x=>x.Status) ?? "-") : "-"),
+                        "DMARC" => kv.Value.Dmarc?.Status,
+                        "MTA-STS" => kv.Value.Mtasts?.Status,
+                        _ => kv.Value.TlsRpt?.Status
+                    } ?? "-";
+                    var s = status.Trim().ToLowerInvariant();
+                    if (s.Contains("error") || s.Contains("fail")) err++;
+                    else if (s.Contains("warn")) warn++;
+                    else if (s=="-" || s.Contains("none") || s.Contains("missing")) unk++;
+                    else ok++;
+                }
+                rows.Add(new { Control = c, OK = ok, Warning = warn, Error = err, Unknown = unk });
+            }
+            sum.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
+                v.NumericColumnFormats["OK"] = "0"; v.NumericColumnFormats["Warning"] = "0"; v.NumericColumnFormats["Error"] = "0"; v.NumericColumnFormats["Unknown"] = "0"; v.FreezeHeaderRow = true;
+            });
+            sum.Finish(autoFitColumns: true);
+        }
+        catch { }
+
+        // Status Matrix sheet (Domain x Control)
+        try
+        {
+            var mx = new SheetComposer(doc, "Matrix");
+            mx.Title("Status Matrix");
+            var matrix = new List<object>();
+            foreach (var kv in domains)
+            {
+                var b = kv.Value; string dom = kv.Key;
+                string dkim = b.Dkim.Count>0 ? (b.Dkim.Max(x=>x.Status) ?? "-") : "-";
+                matrix.Add(new {
+                    Domain = dom,
+                    MX = b.Mx?.Status ?? "-",
+                    SPF = b.Spf?.Status ?? "-",
+                    DKIM = dkim,
+                    DMARC = b.Dmarc?.Status ?? "-",
+                    MTASTS = b.Mtasts?.Status ?? "-",
+                    TLSRPT = b.TlsRpt?.Status ?? "-",
+                    DNSBL = b.Dnsbl?.Status ?? "-",
+                    NS = b.Ns?.Status ?? "-",
+                    SOA = b.Soa?.Status ?? "-",
+                    CAA = b.Caa?.Status ?? "-",
+                    RPKI = b.Rpki?.Status ?? "-"
+                });
+            }
+            mx.TableFrom(matrix, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
+                var ok = "#D1E7DD"; var warn = "#FFF4CE"; var err = "#F8D7DA"; var none = "#E9ECEF";
+                foreach (var col in new[]{"MX","SPF","DKIM","DMARC","MTASTS","TLSRPT","DNSBL","NS","SOA","CAA","RPKI"})
+                {
+                    v.TextBackgrounds[col] = new System.Collections.Generic.Dictionary<string,string>(System.StringComparer.OrdinalIgnoreCase) {
+                        {"OK", ok},{"Pass", ok},{"Valid", ok},{"Warning", warn},{"Warn", warn},{"Error", err},{"Fail", err},{"-", none},{"None", none},{"Missing", none}
+                    };
+                }
+                v.FreezeHeaderRow = true;
+            });
+            mx.Finish(autoFitColumns: true);
+        }
+        catch { }
+
+        // SPF Providers summary sheet
+        try
+        {
+            var sp = new SheetComposer(doc, "SPF Providers");
+            sp.Title("SPF Providers");
+            var agg = new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in domains)
+            {
+                var pc = kv.Value.Spf?.ProviderCounts;
+                if (pc == null) continue;
+                foreach (var p in pc) agg[p.Key] = (agg.TryGetValue(p.Key, out var c) ? c : 0) + p.Value;
+            }
+            var rows = agg.OrderByDescending(kv2 => kv2.Value).Select(kv2 => new { Provider = kv2.Key, Tokens = kv2.Value }).ToList();
+            sp.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.NumericColumnFormats["Tokens"] = "0"; v.FreezeHeaderRow = true; });
+            sp.Finish(autoFitColumns: true);
+        }
+        catch { }
+
+        // All Recommendations sheet
+        try
+        {
+            var recSheet = new SheetComposer(doc, "Recommendations");
+            recSheet.Title("All Recommendations");
+            var recRows = new List<object>();
+            foreach (var kv in domains)
+            {
+                string d = kv.Key; var b = kv.Value;
+                void AddRecs(string section, IEnumerable<DomainDetective.RecommendationAdvice>? list)
+                {
+                    if (list == null) return;
+                    foreach (var r in list) recRows.Add(new { Domain = d, Section = section, Title = r.Title ?? r.Code });
+                }
+                AddRecs("MX", b.Mx?.Recommendations);
+                AddRecs("SPF", b.Spf?.Recommendations);
+                if (b.Dkim.Count>0) AddRecs("DKIM", b.Dkim.SelectMany(x => x.Recommendations ?? new List<DomainDetective.RecommendationAdvice>()));
+                AddRecs("DMARC", b.Dmarc?.Recommendations);
+                AddRecs("MTA-STS", b.Mtasts?.Recommendations);
+                AddRecs("TLS-RPT", b.TlsRpt?.Recommendations);
+                AddRecs("DNSBL", b.Dnsbl?.Recommendations);
+                AddRecs("NS", b.Ns?.Recommendations);
+                AddRecs("SOA", b.Soa?.Recommendations);
+                AddRecs("CAA", b.Caa?.Recommendations);
+                AddRecs("RPKI", b.Rpki?.Recommendations);
+                AddRecs("ZoneTransfer", b.ZoneTransfer?.Recommendations);
+                AddRecs("Wildcard", b.Wildcard?.Recommendations);
+            }
+            if (recRows.Count == 0) recRows.Add(new { Domain = "—", Section = "—", Title = "No recommendations" });
+            recSheet.TableFrom(recRows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
+            recSheet.Finish(autoFitColumns: true);
+        }
+        catch { }
+
         // Index
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
@@ -415,7 +764,13 @@ public static class ExcelCompositionReport
                 case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                 case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
                 case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): Ensure(db.Subject); map[db.Subject].Dnsbl = db; break;
-                case DomainDetective.Views.ArcInfo arc when arc != null: Ensure(map.Keys.FirstOrDefault() ?? (TryGetSubject(it) ?? Global)); var keyArc = map.Keys.First(); map[keyArc].Arc = arc; break;
+                case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
+                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject): Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
+                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject): Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
+                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject): Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
+                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
+                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
                 case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
                 case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject): Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                 case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject): Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
@@ -449,6 +804,20 @@ public static class ExcelCompositionReport
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
+        public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
+        public DomainDetective.Views.ArcInfo? Arc { get; set; }
+        public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
+        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
+        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+        public DomainDetective.Views.NsInfo? Ns { get; set; }
+        public DomainDetective.Views.SoaInfo? Soa { get; set; }
+        public DomainDetective.Views.CaaInfo? Caa { get; set; }
+        public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
+        public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
+        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
     }
 
