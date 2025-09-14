@@ -46,6 +46,7 @@ public static class TyposquattingNarrative
         };
 
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
         try
         {
@@ -61,6 +62,7 @@ public static class TyposquattingNarrative
                 }
                 else
                 {
+                    negatives.Add(msg);
                     remediations.Add(msg);
                 }
             }
@@ -80,6 +82,7 @@ public static class TyposquattingNarrative
             Details = det,
             References = refs,
             Positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
     }

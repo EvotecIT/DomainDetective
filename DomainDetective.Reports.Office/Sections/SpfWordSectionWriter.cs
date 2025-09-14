@@ -26,22 +26,19 @@ public static class SpfWordSectionWriter
         if (headings == null) throw new ArgumentNullException(nameof(headings));
         if (spf == null) throw new ArgumentNullException(nameof(spf));
 
+        var nar = spf.Narrative;
         // Narrative-backed sections
-        if (includeNarrative)
+        if (includeNarrative && nar != null)
         {
-            var nar = spf.Narrative;
-            if (nar != null)
+            if (!string.IsNullOrWhiteSpace(nar.Introduction))
             {
-                if (!string.IsNullOrWhiteSpace(nar.Introduction))
-                {
-                    headings.AddItem("Introduction", baseLevel);
-                    doc.AddParagraph(nar.Introduction);
-                }
-                if (!string.IsNullOrWhiteSpace(nar.WhyItMatters))
-                {
-                    headings.AddItem("Why this matters", baseLevel);
-                    doc.AddParagraph(nar.WhyItMatters);
-                }
+                headings.AddItem("Introduction", baseLevel);
+                doc.AddParagraph(nar.Introduction);
+            }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters))
+            {
+                headings.AddItem("Why this matters", baseLevel);
+                doc.AddParagraph(nar.WhyItMatters);
             }
         }
 
@@ -67,6 +64,15 @@ public static class SpfWordSectionWriter
             doc.AddParagraph("Notable observations:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var h in spf.Highlights) list.AddItem(h);
+        }
+
+        // Negatives from narrative
+        if (nar?.Negatives != null && nar.Negatives.Count > 0)
+        {
+            headings.AddItem("Negatives", baseLevel);
+            doc.AddParagraph("Areas needing improvement:");
+            var nlist = doc.AddList(WordListStyle.Bulleted);
+            foreach (var n in nar.Negatives) nlist.AddItem(n);
         }
 
         // Good posture (positives)

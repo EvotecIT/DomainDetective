@@ -22,6 +22,7 @@ public static class TlsRptNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add(analysis.TlsRptRecordExists ? "TLS-RPT record is published." : "No TLS-RPT record is published.");
@@ -59,7 +60,7 @@ public static class TlsRptNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
         }
         catch (Exception ex)
         {
@@ -81,6 +82,7 @@ public static class TlsRptNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

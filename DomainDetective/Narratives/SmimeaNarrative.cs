@@ -45,14 +45,16 @@ public static class SmimeaNarrative
         var refs = new List<string> { "https://www.rfc-editor.org/rfc/rfc8162" };
 
         List<string> positives;
+        List<string> negatives;
         List<string> remediations;
         try
         {
-            AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
         }
         catch (Exception)
         {
             positives = new List<string>();
+            negatives = new List<string>();
             remediations = new List<string>();
         }
 
@@ -69,6 +71,7 @@ public static class SmimeaNarrative
             Details = details,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

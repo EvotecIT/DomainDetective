@@ -22,6 +22,7 @@ namespace DomainDetective.Narratives
             var hi = new List<string>();
             var det = new List<string>();
             var positives = new List<string>();
+        var negatives = new List<string>();
             var remediations = new List<string>();
 
             if (soa?.RecordExists == true)
@@ -74,6 +75,7 @@ namespace DomainDetective.Narratives
                     }
                     else
                     {
+                        negatives.Add(msg);
                         remediations.Add(msg);
                     }
                 }
@@ -95,6 +97,7 @@ namespace DomainDetective.Narratives
                 Details = det,
                 References = refs,
                 Positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                Negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 Remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
             };
         }

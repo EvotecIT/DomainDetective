@@ -23,6 +23,7 @@ public static class CaaNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add(caa.AnalysisResults.Count > 0 ? "CAA record is published." : "No CAA record is published.");
@@ -43,7 +44,7 @@ public static class CaaNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
         }
         catch (Exception ex)
         {
@@ -64,6 +65,7 @@ public static class CaaNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

@@ -23,6 +23,7 @@ public static class DnsblNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -55,7 +56,7 @@ public static class DnsblNarrative
             var ass = assessments ?? analysis.Assessments;
             if (ass != null)
             {
-                AssessmentSplit.SplitTitles(ass, out positives, out remediations);
+                AssessmentSplit.SplitTitles(ass, out positives, out negatives, out remediations);
             }
         }
         catch { }
@@ -73,6 +74,7 @@ public static class DnsblNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

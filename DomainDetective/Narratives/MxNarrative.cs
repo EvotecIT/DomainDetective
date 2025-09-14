@@ -23,6 +23,7 @@ public static class MxNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add($"MX records: {mx.MxRecords?.Count ?? 0}");
@@ -62,9 +63,14 @@ public static class MxNarrative
                     ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
                     : g.Advice.Title;
                 if (g.MaxSeverity == AssessmentSeverity.Info)
+                {
                     positives.Add(msg);
+                }
                 else
+                {
+                    negatives.Add(msg);
                     remediations.Add(msg);
+                }
             }
         }
         catch { }
@@ -82,6 +88,7 @@ public static class MxNarrative
             Details = det,
             References = refs,
             Positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
     }

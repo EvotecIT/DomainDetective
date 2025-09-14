@@ -38,6 +38,9 @@ public class NarrativeSections
     /// <summary>Gets the list of positive notes.</summary>
     public List<string> Positives { get; init; } = new();
 
+    /// <summary>Gets the list of negative notes.</summary>
+    public List<string> Negatives { get; init; } = new();
+
     /// <summary>Gets the list of remediation steps.</summary>
     public List<string> Remediations { get; init; } = new();
 }

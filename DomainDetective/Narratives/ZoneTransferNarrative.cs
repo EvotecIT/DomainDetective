@@ -23,6 +23,7 @@ public static class ZoneTransferNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var results = analysis?.ServerResults ?? new Dictionary<string, bool>();
@@ -49,7 +50,7 @@ public static class ZoneTransferNarrative
         try
         {
             var assess = assessments ?? analysis?.Assessments ?? new List<Assessment>();
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            AssessmentSplit.SplitTitles(assess, out positives, out negatives, out remediations);
         }
         catch (Exception ex)
         {
@@ -69,6 +70,7 @@ public static class ZoneTransferNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }
