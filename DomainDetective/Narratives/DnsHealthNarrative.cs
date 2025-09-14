@@ -50,7 +50,7 @@ public static class DnsHealthNarrative
                 det.Add($"Apex answers from {kv.Key}: {string.Join(", ", kv.Value)}");
             }
 
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
         }
         else
         {

@@ -97,7 +97,7 @@ public static class DmarcNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(dmarc.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(dmarc.Assessments ?? new List<Assessment>());
         }
         catch { }
 

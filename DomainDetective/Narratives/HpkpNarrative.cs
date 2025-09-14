@@ -35,7 +35,7 @@ namespace DomainDetective.Narratives {
                 } else {
                     hi.Add("No Public-Key-Pins header found.");
                 }
-                AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
             } else {
                 hi.Add("No HPKP data available.");
             }

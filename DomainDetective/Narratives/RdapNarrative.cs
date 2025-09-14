@@ -44,7 +44,7 @@ public static class RdapNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(rdap.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(rdap.Assessments ?? new List<Assessment>());
         }
         catch (Exception)
         {

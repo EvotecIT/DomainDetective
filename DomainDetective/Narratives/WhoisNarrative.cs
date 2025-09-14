@@ -69,7 +69,7 @@ public static class WhoisNarrative
             "https://datatracker.ietf.org/doc/html/rfc3912"
         };
 
-        AssessmentSplit.SplitTitles(whois?.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+        (positives, negatives, remediations) = AssessmentSplit.SplitTitles(whois?.Assessments ?? new List<Assessment>());
 
         return new Sections
         {

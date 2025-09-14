@@ -44,7 +44,7 @@ public static class CaaNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>());
         }
         catch (Exception ex)
         {

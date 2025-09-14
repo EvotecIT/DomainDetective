@@ -53,7 +53,7 @@ public static class WildcardNarrative
         try
         {
             var assess = assessments ?? analysis.Assessments;
-            AssessmentSplit.SplitTitles(assess, out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
         catch
         {

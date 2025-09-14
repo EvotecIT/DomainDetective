@@ -37,7 +37,7 @@ public static class TlsNarrative
                     det.Add($"{kv.Key} certificate: {r.CertificateSubject} issued by {r.CertificateIssuer}");
                 }
             }
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
         }
         else
         {

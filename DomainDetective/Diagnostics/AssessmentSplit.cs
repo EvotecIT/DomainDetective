@@ -7,19 +7,18 @@ namespace DomainDetective;
 public static class AssessmentSplit
 {
     /// <summary>
-    /// Splits assessments into positives (Info) and negatives (Warning/Error) titles, grouped by code.
-    /// Negatives are also added to the remediation list for backward compatibility.
+    /// Splits assessments into positives (Info), negatives (Warning), and remediations (Error) titles, grouped by code.
     /// </summary>
-    public static void SplitTitles(
-        IEnumerable<Assessment> assessments,
-        out List<string> positives,
-        out List<string> negatives,
-        out List<string> remediations)
+    public static (List<string> positives, List<string> negatives, List<string> remediations) SplitTitles(
+        IEnumerable<Assessment>? assessments)
     {
-        positives = new List<string>();
-        negatives = new List<string>();
-        remediations = new List<string>();
-        if (assessments == null) return;
+        var positives = new List<string>();
+        var negatives = new List<string>();
+        var remediations = new List<string>();
+        if (assessments == null)
+        {
+            return (positives, negatives, remediations);
+        }
         var grouped = RecommendationEngine.GroupByCode(assessments);
         foreach (var g in grouped)
         {
@@ -31,15 +30,19 @@ public static class AssessmentSplit
             {
                 positives.Add(title ?? string.Empty);
             }
-            else
+            else if (g.MaxSeverity == AssessmentSeverity.Warning)
             {
                 negatives.Add(title ?? string.Empty);
+            }
+            else if (g.MaxSeverity == AssessmentSeverity.Error)
+            {
                 remediations.Add(title ?? string.Empty);
             }
         }
         positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return (positives, negatives, remediations);
     }
 }
 

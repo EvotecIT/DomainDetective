@@ -43,7 +43,7 @@ public static class StartTlsNarrative
                 hi.Add($"{kv.Key} [{proto}] {status} and {upgrade}{downgrade}.");
                 det.Add($"{kv.Key} downgrade detected: {r.DowngradeDetected}");
             }
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
         }
         else
         {
