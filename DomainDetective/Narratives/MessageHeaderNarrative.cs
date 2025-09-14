@@ -21,6 +21,7 @@ public static class MessageHeaderNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null || string.IsNullOrWhiteSpace(analysis.RawHeaders))
@@ -89,7 +90,7 @@ public static class MessageHeaderNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                AssessmentSplit.SplitTitles(assessments, out positives, out negatives, out remediations);
             }
         }
         catch
@@ -109,6 +110,7 @@ public static class MessageHeaderNarrative
             Details = det,
             References = DefaultRefs(),
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

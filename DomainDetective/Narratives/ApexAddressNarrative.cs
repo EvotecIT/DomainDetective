@@ -22,6 +22,7 @@ public static class ApexAddressNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add($"A records: {analysis.IPv4Count}");
@@ -44,7 +45,7 @@ public static class ApexAddressNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                AssessmentSplit.SplitTitles(assessments, out positives, out negatives, out remediations);
             }
         }
         catch
@@ -64,6 +65,7 @@ public static class ApexAddressNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

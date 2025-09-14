@@ -22,6 +22,7 @@ public static class StartTlsNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis != null && analysis.ServerDetails.Count > 0)
@@ -42,7 +43,7 @@ public static class StartTlsNarrative
                 hi.Add($"{kv.Key} [{proto}] {status} and {upgrade}{downgrade}.");
                 det.Add($"{kv.Key} downgrade detected: {r.DowngradeDetected}");
             }
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
         }
         else
         {
@@ -69,6 +70,7 @@ public static class StartTlsNarrative
             Details = det,
             References = refs,
             Positives = positives.Distinct().ToList(),
+            Negatives = negatives,
             Remediations = remediations.Distinct().ToList()
         };
     }

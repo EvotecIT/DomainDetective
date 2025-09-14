@@ -22,6 +22,7 @@ namespace DomainDetective.Narratives
             var hi = new List<string>();
             var det = new List<string>();
             var positives = new List<string>();
+        var negatives = new List<string>();
             var remediations = new List<string>();
 
             if (http != null)
@@ -70,7 +71,7 @@ namespace DomainDetective.Narratives
             var allAssessments = new List<Assessment>();
             if (http?.Assessments != null) allAssessments.AddRange(http.Assessments);
             if (tls?.Assessments != null) allAssessments.AddRange(tls.Assessments);
-            AssessmentSplit.SplitTitles(allAssessments, out positives, out remediations);
+            AssessmentSplit.SplitTitles(allAssessments, out positives, out negatives, out remediations);
 
             var refs = new List<string>
             {
@@ -91,7 +92,8 @@ namespace DomainDetective.Narratives
                 Details = det,
                 References = refs,
                 Positives = positives.Distinct().ToList(),
-                Remediations = remediations.Distinct().ToList()
+                Negatives = negatives,
+            Remediations = remediations.Distinct().ToList()
             };
         }
     }

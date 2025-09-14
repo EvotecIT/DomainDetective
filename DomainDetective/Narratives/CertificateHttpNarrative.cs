@@ -30,6 +30,7 @@ public static class CertificateHttpNarrative {
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add(analysis.IsReachable
@@ -48,7 +49,7 @@ public static class CertificateHttpNarrative {
 
         try {
             if (assessments != null) {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                AssessmentSplit.SplitTitles(assessments, out positives, out negatives, out remediations);
             }
         } catch (Exception ex) {
             System.Diagnostics.Debug.WriteLine(ex);
@@ -66,6 +67,7 @@ public static class CertificateHttpNarrative {
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }
