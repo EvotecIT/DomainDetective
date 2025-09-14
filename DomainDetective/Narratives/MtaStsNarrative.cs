@@ -31,6 +31,7 @@ public static class MtaStsNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -79,7 +80,7 @@ public static class MtaStsNarrative
             var ass = assessments ?? analysis.Assessments;
             if (ass != null)
             {
-                AssessmentSplit.SplitTitles(ass, out positives, out remediations);
+                AssessmentSplit.SplitTitles(ass, out positives, out negatives, out remediations);
             }
         }
         catch (Exception ex)
@@ -100,6 +101,7 @@ public static class MtaStsNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

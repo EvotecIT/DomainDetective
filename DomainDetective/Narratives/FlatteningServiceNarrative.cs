@@ -21,6 +21,7 @@ public static class FlatteningServiceNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -52,7 +53,7 @@ public static class FlatteningServiceNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                AssessmentSplit.SplitTitles(assessments, out positives, out negatives, out remediations);
             }
         }
         catch (Exception ex)
@@ -73,6 +74,7 @@ public static class FlatteningServiceNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

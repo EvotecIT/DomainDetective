@@ -17,6 +17,7 @@ namespace DomainDetective.Narratives {
             var hi = new List<string>();
             var det = new List<string>();
             var positives = new List<string>();
+            var negatives = new List<string>();
             var remediations = new List<string>();
 
             if (analysis != null) {
@@ -34,7 +35,7 @@ namespace DomainDetective.Narratives {
                 } else {
                     hi.Add("No Public-Key-Pins header found.");
                 }
-                AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
+                AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
             } else {
                 hi.Add("No HPKP data available.");
             }
@@ -56,6 +57,7 @@ namespace DomainDetective.Narratives {
                 Details = det,
                 References = refs,
                 Positives = positives,
+            Negatives = negatives,
                 Remediations = remediations
             };
         }

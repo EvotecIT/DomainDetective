@@ -22,6 +22,7 @@ public static class MailLatencyNarrative {
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var results = analysis?.ServerResults ?? new Dictionary<string, MailLatencyAnalysis.LatencyResult>();
@@ -38,7 +39,7 @@ public static class MailLatencyNarrative {
             }
         }
 
-        AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out remediations);
+        AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
 
         var refs = new List<string> {
             "https://www.rfc-editor.org/rfc/rfc5321"
@@ -56,6 +57,7 @@ public static class MailLatencyNarrative {
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

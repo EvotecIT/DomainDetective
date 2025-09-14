@@ -23,6 +23,7 @@ public static class OpenResolverNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var details = analysis?.ServerDetails ?? new Dictionary<string, OpenResolverResult>();
@@ -55,7 +56,7 @@ public static class OpenResolverNarrative
         try
         {
             var assess = assessments ?? analysis?.Assessments ?? new List<Assessment>();
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            AssessmentSplit.SplitTitles(assess, out positives, out negatives, out remediations);
         }
         catch
         {
@@ -74,6 +75,7 @@ public static class OpenResolverNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }
