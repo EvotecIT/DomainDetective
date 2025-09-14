@@ -42,7 +42,7 @@ namespace DomainDetective.Narratives
                     hi.Add($"{kv.Key} negotiated {r.Protocol} ({cipher}) — {certStatus}.");
                     det.Add($"{kv.Key} expires in {r.DaysToExpire} days");
                 }
-                AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
             }
             else
             {

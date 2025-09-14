@@ -59,7 +59,7 @@ public static class DnsTunnelingNarrative
             var ass = assessments ?? analysis.Assessments;
             if (ass != null)
             {
-                AssessmentSplit.SplitTitles(ass, out positives, out negatives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ass);
             }
         }
         catch (Exception ex)

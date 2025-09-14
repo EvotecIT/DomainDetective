@@ -53,7 +53,7 @@ public static class ArcNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(arc.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(arc.Assessments ?? new List<Assessment>());
         }
         catch (Exception)
         {

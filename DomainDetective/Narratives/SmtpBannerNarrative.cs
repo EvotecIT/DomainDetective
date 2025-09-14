@@ -54,7 +54,7 @@ public static class SmtpBannerNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out negatives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assessments);
             }
         }
         catch { }

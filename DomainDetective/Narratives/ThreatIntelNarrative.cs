@@ -56,7 +56,7 @@ public static class ThreatIntelNarrative {
         };
 
         try {
-            AssessmentSplit.SplitTitles(ti?.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ti?.Assessments ?? new List<Assessment>());
         } catch {
         }
 

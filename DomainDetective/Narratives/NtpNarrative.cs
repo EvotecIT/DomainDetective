@@ -37,7 +37,7 @@ public static class NtpNarrative {
             }
         }
 
-        AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+        (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>());
 
         var refs = new List<string> {
             "https://datatracker.ietf.org/doc/html/rfc5905"

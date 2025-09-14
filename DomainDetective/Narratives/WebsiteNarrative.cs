@@ -71,7 +71,7 @@ namespace DomainDetective.Narratives
             var allAssessments = new List<Assessment>();
             if (http?.Assessments != null) allAssessments.AddRange(http.Assessments);
             if (tls?.Assessments != null) allAssessments.AddRange(tls.Assessments);
-            AssessmentSplit.SplitTitles(allAssessments, out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(allAssessments);
 
             var refs = new List<string>
             {

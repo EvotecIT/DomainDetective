@@ -50,7 +50,7 @@ namespace DomainDetective.Narratives {
             var refs = new List<string> { "https://securitytxt.org/" };
 
             try {
-                AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
             } catch { }
 
             return new Sections {

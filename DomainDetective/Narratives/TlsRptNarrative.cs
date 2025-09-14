@@ -60,7 +60,7 @@ public static class TlsRptNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out negatives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
         }
         catch (Exception ex)
         {
