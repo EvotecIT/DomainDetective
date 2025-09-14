@@ -115,11 +115,7 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Docs
     - Examples in README and Examples project. (done)
 
-## Providers / Positives
-- Add Info-level positives where meaningful:
-  - DNSSEC: DS present/chain valid.
-  - NS: diverse authoritative NS (AS/vendor diversity).
-  - RPKI: “all ROAs valid” per domain rollup (RPKI per-IP positives exist).
+<!-- Providers / Positives completed: Info-level positives are emitted for DNSSEC (DS present/chain valid), NS diversity (AS/vendor), and RPKI all-valid rollups. -->
 
 ## Tests & QA
 - Snapshot tests for Views: verify Recommendations exclude Info; Positives include only Info (autodiscover/subject policies/etc.).
@@ -147,10 +143,7 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Output single JSON artifact + short console summary; no user‑facing cmdlet.
   - Optional CI (weekly) to upload artifact and open an issue on repeated failures; never runs during end‑user commands.
 
-## PowerShell Output Conventions
-- DomainOverallHealth: return View with `.Raw` (done; `-Raw`/`-Summary` removed).
-- Convert remaining Test-* cmdlets to View outputs exposing `.Raw`.
-- Ensure exports run after pipeline output across cmdlets.
+<!-- PowerShell Output Conventions completed: DomainOverallHealth returns a View with .Raw; Test-* cmdlets return Views with .Raw; exports execute after pipeline output. -->
 
 ## Reporting (Consolidated Roadmap)
 - Narratives in core for all areas; views surface `.Narrative`.

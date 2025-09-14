@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Markdown;
 
 /// <summary>
 /// Markdown composition across mixed view items (SPF/DKIM/DMARC/MX/Classification...).
-/// Mirrors Word layout at a high level and supports HtmlAsMarkdown export.
+/// Mirrors Word layout at a high level and supports MarkdownHtml export.
 /// </summary>
 public static class MarkdownCompositionReport
 {
@@ -45,7 +45,7 @@ public static class MarkdownCompositionReport
         File.WriteAllText(path, text, Encoding.UTF8);
     }
 
-    public static void GenerateHtmlAsMarkdown(
+    public static void GenerateMarkdownHtml(
         string htmlPath,
         IReadOnlyList<object> items,
         ReportScope scope,
@@ -198,6 +198,241 @@ public static class MarkdownCompositionReport
                 md.H2("References");
                 md.Ul(ul => { foreach (var u in b.Classification.References) ul.ItemLink(u, u); });
             }
+
+            // Per‑section details (core parity with Word)
+            // SPF
+            if (b.Spf != null)
+            {
+                md.H2("SPF")
+                  .Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Spf.Status ?? "-")
+                    .Row("DNS Lookups", b.Spf.DnsLookupsCount.ToString())
+                    .Row("Record Present", b.Spf.SpfRecordExists ? "Yes" : "No")
+                    .AlignLeft(0,1));
+                if ((b.Spf.Recommendations?.Count ?? 0) > 0)
+                    md.H3("Recommendations").Ul(b.Spf.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                if ((b.Spf.Positives?.Count ?? 0) > 0)
+                    md.H3("Positives").Ul(b.Spf.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                var spfFind = (b.Spf.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                                .Select(a => new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty })
+                                .ToList();
+                if (spfFind.Count > 0)
+                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind.Select(r => (IReadOnlyList<string>)r)).AlignLeft(0,1,2,3));
+                if ((b.Spf.References?.Count ?? 0) > 0)
+                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Spf.References) ul.ItemLink(u, u); }); }
+            }
+
+            // DMARC
+            if (b.Dmarc != null)
+            {
+                md.H2("DMARC")
+                  .Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Dmarc.Status ?? "-")
+                    .Row("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy)
+                    .Row("rua", (b.Dmarc.MailtoRua?.Count ?? 0).ToString())
+                    .Row("ruf", (b.Dmarc.MailtoRuf?.Count ?? 0).ToString())
+                    .AlignLeft(0,1));
+                if ((b.Dmarc.Recommendations?.Count ?? 0) > 0)
+                    md.H3("Recommendations").Ul(b.Dmarc.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                if ((b.Dmarc.Positives?.Count ?? 0) > 0)
+                    md.H3("Positives").Ul(b.Dmarc.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                var dmFind = (b.Dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                                .Select(a => new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty })
+                                .ToList();
+                if (dmFind.Count > 0)
+                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind.Select(r => (IReadOnlyList<string>)r)).AlignLeft(0,1,2,3));
+                if ((b.Dmarc.References?.Count ?? 0) > 0)
+                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Dmarc.References) ul.ItemLink(u, u); }); }
+            }
+
+            // DKIM
+            if (b.Dkim.Count > 0)
+            {
+                md.H2("DKIM");
+                var rows = b.Dkim.Select(k => (IReadOnlyList<string>)new [] {
+                    k.Selector ?? string.Empty,
+                    k.Status ?? "-",
+                    k.PublicKeyExists ? k.KeyLength.ToString() : "-",
+                    string.IsNullOrWhiteSpace(k.HashAlgorithm) ? "-" : k.HashAlgorithm
+                }).ToList();
+                md.Table(t => t.Headers("Selector","Status","KeyBits","Hash").Rows(rows).AlignLeft(0,1).AlignRight(2).AlignLeft(3));
+                var dkPos = b.Dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToArray();
+                if (dkPos.Length > 0) md.H3("Positives").Ul(dkPos);
+                var dkFind = b.Dkim.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
+                var dkRefs = b.Dkim.SelectMany(x => x.References ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToArray();
+                if (dkRefs.Length > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in dkRefs) ul.ItemLink(u, u); }); }
+            }
+
+            // MX
+            if (b.Mx != null)
+            {
+                md.H2("MX")
+                  .Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Mx.Status ?? "-")
+                    .Row("MX Records", (b.Mx.MxRecords?.Count ?? 0).ToString())
+                    .Row("Backup Servers", b.Mx.HasBackupServers ? "Yes" : "No")
+                    .Row("IPv6 Supported", b.Mx.Ipv6Supported ? "Yes" : "No")
+                    .Row("Priorities In Order", b.Mx.PrioritiesInOrder ? "Yes" : "No")
+                    .AlignLeft(0,1));
+                if ((b.Mx.Recommendations?.Count ?? 0) > 0)
+                    md.H3("Recommendations").Ul(b.Mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                if ((b.Mx.Positives?.Count ?? 0) > 0)
+                    md.H3("Positives").Ul(b.Mx.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                var mxFind = (b.Mx.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                                .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                if (mxFind.Count > 0)
+                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
+                if ((b.Mx.References?.Count ?? 0) > 0)
+                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Mx.References) ul.ItemLink(u, u); }); }
+            }
+
+            // MTA-STS
+            if (b.Mtasts != null)
+            {
+                md.H2("MTA-STS").Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Mtasts.Status ?? "-")
+                    .Row("Mode", b.Mtasts.Mode ?? "-")
+                    .Row("DNS TXT", b.Mtasts.DnsRecordPresent ? (b.Mtasts.DnsRecordValid?"Present (valid)":"Present (invalid)") : "Missing")
+                    .Row("Policy", b.Mtasts.PolicyPresent ? (b.Mtasts.PolicyValid?"Present (valid)":"Present (invalid)") : "Missing")
+                    .AlignLeft(0,1));
+                var mtFind = (b.Mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
+                if ((b.Mtasts.References?.Count ?? 0) > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in b.Mtasts.References) ul.ItemLink(u, u); }); }
+            }
+
+            // TLS-RPT
+            if (b.TlsRpt != null)
+            {
+                md.H2("TLS-RPT").Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.TlsRpt.Status ?? "-")
+                    .Row("Record Exists", b.TlsRpt.TlsRptRecordExists ? "Yes" : "No")
+                    .AlignLeft(0,1));
+                var trFind = (b.TlsRpt.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
+                if ((b.TlsRpt.References?.Count ?? 0) > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in b.TlsRpt.References) ul.ItemLink(u, u); }); }
+            }
+
+            // DNSBL
+            if (b.Dnsbl != null)
+            {
+                md.H2("DNSBL").Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Dnsbl.Status ?? "-")
+                    .Row("Providers Checked", b.Dnsbl.ProvidersChecked.ToString())
+                    .Row("Hosts Listed", b.Dnsbl.HostsListed.ToString())
+                    .AlignLeft(0,1));
+                var listed = b.Dnsbl.ListedRecords?.Select(r => (IReadOnlyList<string>)new[]{ r.SourceHost ?? r.IpAddress ?? "", r.BlackList ?? "", r.ReplyMeaning ?? "" }).ToList() ?? new List<IReadOnlyList<string>>();
+                if (listed.Count > 0) md.H3("Listed Records").Table(t => t.Headers("Host","Blacklist","Reason").Rows(listed).AlignLeft(0,1,2));
+            }
+
+            // NS
+            if (b.Ns != null)
+            {
+                md.H2("NS").Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Ns.Status ?? "-")
+                    .Row("At Least Two", b.Ns.AtLeastTwoRecords ? "Yes" : "No")
+                    .Row("All Have A/AAAA", b.Ns.AllHaveAOrAaaa ? "Yes" : "No")
+                    .Row("Glue Complete", b.Ns.GlueRecordsComplete ? "Yes" : "No")
+                    .Row("Glue Consistent", b.Ns.GlueRecordsConsistent ? "Yes" : "No")
+                    .Row("Delegation Matches", b.Ns.DelegationMatches ? "Yes" : "No")
+                    .Row("Distinct ASNs", b.Ns.AsnDistinctCount.ToString())
+                    .AlignLeft(0,1));
+                if ((b.Ns.Recommendations?.Count ?? 0) > 0) md.H3("Recommendations").Ul(b.Ns.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                if ((b.Ns.Positives?.Count ?? 0) > 0) md.H3("Positives").Ul(b.Ns.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                var nsFind = (b.Ns.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
+            }
+
+            // SOA
+            if (b.Soa != null)
+            {
+                md.H2("SOA").Table(t => t.Headers("Key","Value")
+                    .Row("Primary NS", b.Soa.PrimaryNameServer ?? "")
+                    .Row("Responsible", b.Soa.ResponsibleMailbox ?? "")
+                    .Row("Serial", b.Soa.SerialNumber.ToString())
+                    .Row("Serial Format", b.Soa.SerialFormatValid ? "Valid" : "Check")
+                    .AlignLeft(0,1));
+            }
+
+            // CAA
+            if (b.Caa != null)
+            {
+                md.H2("CAA").Table(t => t.Headers("Key","Value")
+                    .Row("Valid Records", b.Caa.ValidRecords.ToString())
+                    .Row("Invalid Records", b.Caa.InvalidRecords.ToString())
+                    .Row("Conflicting", b.Caa.Conflicting ? "Yes" : "No")
+                    .AlignLeft(0,1));
+                if ((b.Caa.Recommendations?.Count ?? 0) > 0) md.H3("Recommendations").Ul(b.Caa.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                if ((b.Caa.Positives?.Count ?? 0) > 0) md.H3("Positives").Ul(b.Caa.Positives.Select(p => p.Title ?? p.Code).ToArray());
+            }
+
+            // DNSSEC / DANE
+            if (b.Dnssec != null || b.Dane != null)
+            {
+                md.H2("DNSSEC/DANE");
+                if (b.Dnssec != null)
+                {
+                    md.H3("DNSSEC").Table(t => t.Headers("Key","Value").Row("Status", b.Dnssec.Status ?? "-").Row("Chain", b.Dnssec.ChainValid ? "Valid" : "Invalid").AlignLeft(0,1));
+                    var dnssecPos = (b.Dnssec.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
+                    if (dnssecPos.Length > 0) md.H4("Positives").Ul(dnssecPos);
+                    var dnsFind = (b.Dnssec.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                    if (dnsFind.Count > 0) md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsFind));
+                }
+                if (b.Dane != null)
+                {
+                    md.H3("DANE").Table(t => t.Headers("Key","Value").Row("Status", b.Dane.Status ?? "-").Row("Records", b.Dane.NumberOfRecords.ToString()).AlignLeft(0,1));
+                }
+            }
+
+            // Mail TLS
+            if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null)
+            {
+                md.H2("Mail TLS");
+                void RenderTls(string label, DomainDetective.Views.MailTlsInfo info)
+                {
+                    if (info == null) return;
+                    md.H3(label).Table(t => t.Headers("Key","Value")
+                        .Row("Status", info.Status ?? "-")
+                        .Row("Servers", (info.Servers?.Count ?? 0).ToString())
+                        .AlignLeft(0,1));
+                    var tlsFind = (info.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
+                    if (tlsFind.Count > 0) md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(tlsFind));
+                }
+                if (b.SmtpTls != null) RenderTls("SMTP", b.SmtpTls);
+                if (b.ImapTls != null) RenderTls("IMAP", b.ImapTls);
+                if (b.PopTls != null) RenderTls("POP3", b.PopTls);
+            }
+
+            // RPKI
+            if (b.Rpki != null)
+            {
+                md.H2("RPKI").Table(t => t.Headers("Key","Value")
+                    .Row("Status", b.Rpki.Status ?? "-")
+                    .Row("Valid", b.Rpki.ValidCount.ToString())
+                    .Row("Total Checked", b.Rpki.TotalChecked.ToString())
+                    .AlignLeft(0,1));
+            }
+
+            // Zone Transfer
+            if (b.ZoneTransfer != null)
+            {
+                md.H2("Zone Transfer").Table(t => t.Headers("Key","Value").Row("Open", $"{b.ZoneTransfer.OpenCount}/{b.ZoneTransfer.TotalChecked}").AlignLeft(0,1));
+                var zRows = b.ZoneTransfer.ServerResults?.Select(kv2 => (IReadOnlyList<string>)new[]{ kv2.Key, kv2.Value ? "Yes" : "No" }).ToList() ?? new List<IReadOnlyList<string>>();
+                if (zRows.Count > 0) md.Table(t => t.Headers("Server","Open").Rows(zRows));
+            }
+
+            // Wildcard DNS
+            if (b.Wildcard != null)
+            {
+                md.H2("Wildcard DNS").Table(t => t.Headers("Key","Value").Row("Catch-All", b.Wildcard.CatchAll ? "Yes" : "No").AlignLeft(0,1));
+            }
         }
 
         return md;
@@ -243,6 +478,23 @@ public static class MarkdownCompositionReport
                 case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                 case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
                 case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
+                case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): Ensure(db.Subject); map[db.Subject].Dnsbl = db; break;
+                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject): Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
+                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject): Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
+                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                case DomainDetective.Views.DnssecStatusInfo dn when !string.IsNullOrWhiteSpace(dn.Subject): Ensure(dn.Subject); map[dn.Subject].Dnssec = dn; break;
+                case DomainDetective.Views.DaneRecordInfo da when !string.IsNullOrWhiteSpace(da.Subject): Ensure(da.Subject); map[da.Subject].Dane = da; break;
+                case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject): Ensure(mt.Subject);
+                    switch (mt.Check) {
+                        case DomainDetective.HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
+                        case DomainDetective.HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
+                        case DomainDetective.HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
+                        default: break;
+                    }
+                    break;
+                case DomainDetective.Views.RpkiInfo rp when !string.IsNullOrWhiteSpace(rp.Subject): Ensure(rp.Subject); map[rp.Subject].Rpki = rp; break;
+                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
+                case DomainDetective.Views.WildcardDnsInfo wc: Ensure(map.Keys.FirstOrDefault() ?? ""); /* subject may be null; attach to first */ break;
                 default: break;
             }
         }
@@ -264,5 +516,17 @@ public static class MarkdownCompositionReport
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
+        public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
+        public DomainDetective.Views.NsInfo? Ns { get; set; }
+        public DomainDetective.Views.SoaInfo? Soa { get; set; }
+        public DomainDetective.Views.CaaInfo? Caa { get; set; }
+        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
+        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+        public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
+        public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
+        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
     }
 }

@@ -55,6 +55,38 @@ public static partial class HtmlCompositionReport
             });
         });
 
+        // Good Posture (aggregated top positives across domains)
+        try {
+            var positiveCounts = new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+            void AddPos(IEnumerable<string> items) { foreach (var t in items ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(t)) positiveCounts[t] = (positiveCounts.TryGetValue(t, out var c)? c:0) + 1; }
+            foreach (var kv in ordered) {
+                var b = kv.Value;
+                AddPos((b.Spf?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Dmarc?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos(b.Dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Mx?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Mtasts?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.TlsRpt?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Ns?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Dnssec?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+                AddPos((b.Caa?.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title ?? p?.Code).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!));
+            }
+            var top = positiveCounts.OrderByDescending(kv2 => kv2.Value).ThenBy(kv2 => kv2.Key, StringComparer.OrdinalIgnoreCase).Take(10).ToList();
+            if (top.Count > 0) {
+                page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
+                    c.Card(card => {
+                        card.Header(h => h.Title("Good Posture").Subtitle("Top positive signals across all domains"));
+                        card.Body(b => {
+                            b.Row(rr => {
+                                rr.Gap(2);
+                                foreach (var kv2 in top) rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(kv2.Key, TablerBadgeColor.Success, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                            });
+                        });
+                    });
+                }));
+            }
+        } catch { }
+
         // Executive summary table (DataTables) with highlighters
         page.Divider("Executive Summary");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {

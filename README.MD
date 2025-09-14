@@ -228,6 +228,20 @@ Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Report
 }
 ```
 
+- Or inline using positional ScriptBlock (no `-Compose`):
+
+```
+Import-Module ./Module/DomainDetective.psd1 -Force
+
+Export-DDSecurityReport -Scope Detailed -ExportFormat Markdown -ExportPath .\\Reports {
+  Test-DDEmailSpfRecord  -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDEmailDkimRecord -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDEmailDmarcRecord -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDDnsNsRecord     -DomainName 'evotec.pl'
+  Test-DDDnsSecStatus    -DomainName 'evotec.pl'
+}
+```
+
 - Metadata overrides (PowerShell):
   - Set defaults once:
     - `Set-DDExportOptions -Title "Evotec — Q3 Portfolio Review" -Subject "Executive summary and remediation plan" -Category "Email Security" -Keywords "SPF,DKIM,DMARC" -Creator "Evotec"`

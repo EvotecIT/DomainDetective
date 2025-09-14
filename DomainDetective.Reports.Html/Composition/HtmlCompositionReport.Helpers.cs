@@ -33,6 +33,17 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
+        public DomainDetective.Views.NsInfo? Ns { get; set; }
+        public DomainDetective.Views.SoaInfo? Soa { get; set; }
+        public DomainDetective.Views.CaaInfo? Caa { get; set; }
+        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
+        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+        public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
+        public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
+        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
     }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items) {
@@ -59,6 +70,32 @@ public static partial class HtmlCompositionReport {
                     Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                 case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
                     Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
+                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
+                    Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
+                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject):
+                    Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
+                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
+                    Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                case DomainDetective.Views.DnssecStatusInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
+                    Ensure(dn.Subject); map[dn.Subject].Dnssec = dn; break;
+                case DomainDetective.Views.DaneRecordInfo da when !string.IsNullOrWhiteSpace(da.Subject):
+                    Ensure(da.Subject); map[da.Subject].Dane = da; break;
+                case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
+                    Ensure(mt.Subject);
+                    switch (mt.Check) {
+                        case DomainDetective.HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
+                        case DomainDetective.HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
+                        case DomainDetective.HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
+                        default: break;
+                    }
+                    break;
+                case DomainDetective.Views.RpkiInfo rp when !string.IsNullOrWhiteSpace(rp.Subject):
+                    Ensure(rp.Subject); map[rp.Subject].Rpki = rp; break;
+                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject):
+                    Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
+                case DomainDetective.Views.WildcardDnsInfo wc:
+                    // Wildcard subject may be null; attach if domain is known already
+                    var first = map.Keys.FirstOrDefault(); if (!string.IsNullOrWhiteSpace(first)) map[first].Wildcard = wc; break;
                 default:
                     break;
             }

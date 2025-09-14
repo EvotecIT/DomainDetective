@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using HtmlForgeX;
+// HtmlForgeX types (Tabler*, DataTables*, etc.)
 using HtmlForgeX.Containers.Tabler;
 
 namespace DomainDetective.Reports.Html;
@@ -80,21 +81,64 @@ public static partial class HtmlCompositionReport
                             // Email Auth tab with accordion
                             tabs.AddTab("Email Auth", TablerIconType.ShieldLock, panel => {
                                 panel.Accordion(a => {
-                                    if (b.Spf != null) a.AddItem("SPF", it => it.Content(c => c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Spf.Status ?? "-"); g.AddItem("DNS Lookups", b.Spf.DnsLookupsCount.ToString()); })));
-                                    if (b.Dmarc != null) a.AddItem("DMARC", it => it.Content(c => c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Dmarc.Status ?? "-"); g.AddItem("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy); })));
-                                    if (b.Dkim.Count > 0) a.AddItem("DKIM", it => it.Content(c => c.DataGrid(g => { g.AsCompact(); g.AddItem("Selectors", b.Dkim.Count.ToString()); g.AddItem("Any Weak", b.Dkim.Any(x => x.WeakKey).ToString()); })));
+                                    if (b.Spf != null) a.AddItem("SPF", it => it.Content(c => {
+                                        c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Spf.Status ?? "-"); g.AddItem("DNS Lookups", b.Spf.DnsLookupsCount.ToString()); });
+                                        if ((b.Spf.Positives?.Count ?? 0) > 0) { c.Divider("Good Posture"); foreach (var p in b.Spf.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title; if (!string.IsNullOrWhiteSpace(t)) c.Text("• " + t); } }
+                                        var spfFindings = (b.Spf.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(x => x != null && x.Severity != DomainDetective.AssessmentSeverity.Info).Select(x => new { Severity = x.Severity.ToString(), x.Code, x.Target, x.Message }).ToList();
+                                        if (spfFindings.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(spfFindings, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        var spfRefs = b.Spf.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                                        if ((spfRefs?.Count ?? 0) > 0) { c.Divider("References"); foreach (var url in spfRefs!) c.Text("• " + url); }
+                                    }));
+
+                                    if (b.Dmarc != null) a.AddItem("DMARC", it => it.Content(c => {
+                                        c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Dmarc.Status ?? "-"); g.AddItem("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy); });
+                                        if ((b.Dmarc.Positives?.Count ?? 0) > 0) { c.Divider("Good Posture"); foreach (var p in b.Dmarc.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title; if (!string.IsNullOrWhiteSpace(t)) c.Text("• " + t); } }
+                                        var dmarcFindings = (b.Dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(x => x != null && x.Severity != DomainDetective.AssessmentSeverity.Info).Select(x => new { Severity = x.Severity.ToString(), x.Code, x.Target, x.Message }).ToList();
+                                        if (dmarcFindings.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(dmarcFindings, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        var dmarcRefs = b.Dmarc.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                                        if ((dmarcRefs?.Count ?? 0) > 0) { c.Divider("References"); foreach (var url in dmarcRefs!) c.Text("• " + url); }
+                                    }));
+
+                                    if (b.Dkim.Count > 0) a.AddItem("DKIM", it => it.Content(c => {
+                                        c.DataGrid(g => { g.AsCompact(); g.AddItem("Selectors", b.Dkim.Count.ToString()); g.AddItem("Any Weak", b.Dkim.Any(x => x.WeakKey).ToString()); });
+                                        var dkPos = b.Dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Where(p => !string.IsNullOrWhiteSpace(p?.Title)).Select(p => p!.Title!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                                        if (dkPos.Count > 0) { c.Divider("Good Posture"); foreach (var t in dkPos) c.Text("• " + t); }
+                                        var dkFind = b.Dkim.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
+                                        if (dkFind.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(dkFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        var dkRefs = b.Dkim.SelectMany(x => x.References ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                                        if (dkRefs.Count > 0) { c.Divider("References"); foreach (var url in dkRefs) c.Text("• " + url); }
+                                    }));
                                 });
                             });
 
                             // Transport tab
                             tabs.AddTab("Transport", TablerIconType.TruckDelivery, panel => {
                                 panel.DataGrid(g => { g.AsCompact(); g.AddItem("MTA-STS", b.Mtasts?.Status ?? "-"); g.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-"); });
+                                if (b.Mtasts != null)
+                                {
+                                    var mtFind = (b.Mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
+                                    if (mtFind.Count > 0) { panel.Divider("MTA-STS Findings"); var t = (TablerTable)panel.Table(mtFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                    var mtRefs = b.Mtasts.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                                    if ((mtRefs?.Count ?? 0) > 0) { panel.Divider("MTA-STS References"); panel.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => { foreach (var url in mtRefs!) c2.Text("• " + url); })); }
+                                }
+                                if (b.TlsRpt != null)
+                                {
+                                    var trFind = (b.TlsRpt.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
+                                    if (trFind.Count > 0) { panel.Divider("TLS-RPT Findings"); var t = (TablerTable)panel.Table(trFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                    var trRefs = b.TlsRpt.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                                    if ((trRefs?.Count ?? 0) > 0) { panel.Divider("TLS-RPT References"); panel.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => { foreach (var url in trRefs!) c2.Text("• " + url); })); }
+                                }
                             });
 
                             // Reputation tab (DNSBL)
                             if (b.Dnsbl != null)
                             {
-                                tabs.AddTab("Reputation", TablerIconType.ShieldCheck, panel => { panel.Text("DNSBL summary available"); });
+                                tabs.AddTab("Reputation", TablerIconType.ShieldCheck, panel => {
+                                    var db = b.Dnsbl;
+                                    panel.DataGrid(g => { g.AsCompact(); g.AddItem("Providers Checked", db.ProvidersChecked.ToString()); g.AddItem("Hosts Checked", db.HostsChecked.ToString()); g.AddItem("Hosts Listed", db.HostsListed.ToString()); });
+                                    var listed = db.ListedRecords?.Select(r => new { Host = r.SourceHost ?? r.IpAddress, Blacklist = r.BlackList, Reason = r.ReplyMeaning }).ToList();
+                                    if (listed != null && listed.Count > 0) { panel.Divider("Listed Records"); var t = (TablerTable)panel.Table(listed, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                });
                             }
                         });
                     });

@@ -215,7 +215,8 @@ namespace DomainDetective {
             if (!HasDiverseLocations) {
                 logger?.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
             } else {
-                logger?.WriteInformationCode(NSCodes.HighDiversity, "Authoritative NS are geographically diverse");
+                // Surface a clear positive that highlights ASN/vendor diversity explicitly
+                logger?.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
             }
         }
 

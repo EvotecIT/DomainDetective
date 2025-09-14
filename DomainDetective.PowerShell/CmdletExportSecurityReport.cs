@@ -16,11 +16,33 @@ namespace DomainDetective.PowerShell {
     ///   Export-DDSecurityReport -ExportFormat Word -ExportPath ".\\Reports" -OpenReport
     ///   </code>
     /// </example>
+    /// <example>
+    ///   <summary>Inline, positional ScriptBlock (no -Compose switch).</summary>
+    ///   <code>
+    ///   Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports" {
+    ///     Test-DDEmailSpfRecord  -DomainName contoso.com,fabrikam.com
+    ///     Test-DDEmailDkimRecord -DomainName contoso.com,fabrikam.com
+    ///     Test-DDEmailDmarcRecord -DomainName contoso.com,fabrikam.com
+    ///   }
+    ///   </code>
+    /// </example>
+    /// <example>
+    ///   <summary>Pipeline + inline together (pipeline binds to InputObject, block binds to Compose).</summary>
+    ///   <code>
+    ///   $views = Test-DDEmailSpfRecord -DomainName contoso.com,fabrikam.com
+    ///   $views | Export-DDSecurityReport -ExportFormat Markdown -ExportPath ".\\Reports" {
+    ///     Test-DDEmailDmarcRecord -DomainName contoso.com,fabrikam.com
+    ///   }
+    ///   </code>
+    /// </example>
     [Cmdlet(VerbsData.Export, "DDSecurityReport", DefaultParameterSetName = "Default")]
     [Alias("New-DDSecurityReport")]
     public sealed class CmdletExportSecurityReport : ExportableAsyncPSCmdlet {
         /// <summary>Objects to compose (SPF/DKIM/DMARC/… view objects). Optional when using -Compose.</summary>
-        [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 0)]
+        // Default set: keep positional 0 for backward compatibility when no -Compose is used
+        [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 0, ParameterSetName = "Default")]
+        // Inline set: accept pipeline as well, but place after the scriptblock
+        [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 1, ParameterSetName = "Inline")]
         public object? InputObject;
 
         /// <summary>Detail scope for section writers.</summary>
@@ -48,7 +70,9 @@ namespace DomainDetective.PowerShell {
         ///     Test-DDDnsBlacklist -NameOrIpAddress 203.0.113.5
         /// }
         /// </summary>
-        [Parameter(Mandatory = false)]
+        // Make Compose the first positional parameter in the Inline parameter set, so users can write:
+        // Export-DDSecurityReport { Test-DDEmailSpfRecord -DomainName example.com }
+        [Parameter(Mandatory = false, Position = 0, ParameterSetName = "Inline")]
         public ScriptBlock? Compose { get; set; }
 
         // Per-call narrative overrides (optional)
@@ -77,17 +101,44 @@ namespace DomainDetective.PowerShell {
 
         private readonly List<object> _items = new();
 
+        // Recursively append objects, executing ScriptBlocks when provided via InputObject
+        private void AppendObject(object obj)
+        {
+            if (obj == null) return;
+            object Unwrap(object o) => (o is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : o;
+            var o2 = Unwrap(obj);
+
+            // If caller passed a ScriptBlock as InputObject (positional or via pipeline), execute it and append its results
+            if (o2 is ScriptBlock sb)
+            {
+                try
+                {
+                    var results = sb.Invoke();
+                    if (results != null)
+                    {
+                        foreach (var r in results) if (r != null) AppendObject(Unwrap(r));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    WriteWarning($"InputObject ScriptBlock failed: {ex.Message}");
+                }
+                return;
+            }
+
+            // Flatten enumerables (excluding strings) and process items recursively
+            if (o2 is System.Collections.IEnumerable en && o2 is not string)
+            {
+                foreach (var e in en) if (e != null) AppendObject(Unwrap(e));
+                return;
+            }
+
+            _items.Add(o2);
+        }
+
     /// <summary>Collects pipeline inputs for composition.</summary>
     protected override Task ProcessRecordAsync() {
-        if (InputObject != null) {
-            // Unwrap PSObject and flatten early to avoid nested arrays reaching the composer
-            object Unwrap(object o) => (o is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : o;
-            if (InputObject is System.Collections.IEnumerable en && InputObject is not string) {
-                foreach (var e in en) if (e != null) _items.Add(Unwrap(e));
-            } else {
-                _items.Add(Unwrap(InputObject));
-            }
-        }
+        if (InputObject != null) AppendObject(InputObject);
         return Task.CompletedTask;
     }
 
@@ -156,7 +207,7 @@ namespace DomainDetective.PowerShell {
                                 DomainDetective.Reports.ReportFormat.Pdf => ".pdf",
                                 DomainDetective.Reports.ReportFormat.Json => ".json",
                                 DomainDetective.Reports.ReportFormat.Markdown => ".md",
-                                DomainDetective.Reports.ReportFormat.HtmlAsMarkdown => ".html",
+                                DomainDetective.Reports.ReportFormat.MarkdownHtml => ".html",
                                 _ => ".html"
                             };
                             var combined = System.IO.Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);
@@ -238,8 +289,8 @@ namespace DomainDetective.PowerShell {
                                 });
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
-                        case DomainDetective.Reports.ReportFormat.HtmlAsMarkdown:
-                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateHtmlAsMarkdown(
+                        case DomainDetective.Reports.ReportFormat.MarkdownHtml:
+                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateMarkdownHtml(
                                 outPath,
                                 flat,
                                 Scope,

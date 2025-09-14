@@ -35,7 +35,7 @@ public enum ReportFormat {
     Markdown,
 
     /// <summary>
-    /// HTML generated from Markdown layout (saves .md alongside .html)
+    /// HTML generated from Markdown layout (also saves .md alongside .html)
     /// </summary>
-    HtmlAsMarkdown
+    MarkdownHtml
 }

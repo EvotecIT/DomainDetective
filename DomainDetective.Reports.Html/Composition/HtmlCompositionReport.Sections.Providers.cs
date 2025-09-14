@@ -53,7 +53,8 @@ public static partial class HtmlCompositionReport {
                             var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
                                               ?? links?.FirstOrDefault();
                             if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0) {
-                                var top = primaryHelp.Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
+                                var topics = primaryHelp.Topics ?? new List<DomainDetective.Views.ProviderHelpTopic>();
+                                var top = topics.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
                                 if (top.Count > 0) {
                                     b.Row(rr => {
                                         rr.Gap(2);

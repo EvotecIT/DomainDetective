@@ -87,7 +87,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         "excel" => ReportFormat.Excel,
                         "pdf" => ReportFormat.Pdf,
                         "markdown" => ReportFormat.Markdown,
-                        "htmlasmarkdown" => ReportFormat.HtmlAsMarkdown,
+                        "markdownhtml" => ReportFormat.MarkdownHtml,
                         _ => ReportFormat.Html
                     };
                     var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);

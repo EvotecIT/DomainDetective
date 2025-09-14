@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Desired export format(s). Accepts one or many values.</summary>
         [Parameter(Mandatory = false)]
         [Alias("Report")]
-        [ValidateSet("Html","Json","Pdf","Word","Excel","Markdown","HtmlAsMarkdown", IgnoreCase = true)]
+        [ValidateSet("Html","Json","Pdf","Word","Excel","Markdown","MarkdownHtml", IgnoreCase = true)]
         public ReportFormat[]? ExportFormat { get; set; }
 
         /// <summary>Output file path for export.</summary>
@@ -105,7 +105,7 @@ namespace DomainDetective.PowerShell {
                             ReportFormat.Pdf => ".pdf",
                             ReportFormat.Json => ".json",
                             ReportFormat.Markdown => ".md",
-                            ReportFormat.HtmlAsMarkdown => ".html",
+                            ReportFormat.MarkdownHtml => ".html",
                             _ => ".html"
                         };
                         var combined = System.IO.Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);

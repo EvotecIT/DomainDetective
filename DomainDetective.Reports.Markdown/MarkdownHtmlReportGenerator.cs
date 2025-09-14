@@ -12,10 +12,10 @@ namespace DomainDetective.Reports.Markdown;
 /// Generates HTML by first producing Markdown that mirrors the Word layout, then saving an HTML rendition.
 /// Also saves the .md alongside the .html.
 /// </summary>
-public sealed class HtmlAsMarkdownReportGenerator : IReportGenerator {
-    public ReportFormat Format => ReportFormat.HtmlAsMarkdown;
+public sealed class MarkdownHtmlReportGenerator : IReportGenerator {
+    public ReportFormat Format => ReportFormat.MarkdownHtml;
 
-    public bool CanGenerate(ReportOptions options) => options.Format == ReportFormat.HtmlAsMarkdown;
+    public bool CanGenerate(ReportOptions options) => options.Format == ReportFormat.MarkdownHtml;
 
     public Task<ReportResult> GenerateAsync(DomainHealthCheck healthCheck, ReportOptions options) {
         var domain = options.CustomProperties?.ContainsKey("Domain") == true
@@ -25,7 +25,7 @@ public sealed class HtmlAsMarkdownReportGenerator : IReportGenerator {
         // Determine HTML output path (primary)
         var htmlPath = options.OutputPath;
         if (string.IsNullOrWhiteSpace(htmlPath)) {
-            htmlPath = ReportPathHelper.GenerateDefaultPath(domain, ReportFormat.HtmlAsMarkdown, null);
+            htmlPath = ReportPathHelper.GenerateDefaultPath(domain, ReportFormat.MarkdownHtml, null);
         }
         if (!string.Equals(Path.GetExtension(htmlPath), ".html", StringComparison.OrdinalIgnoreCase)) {
             htmlPath = Path.ChangeExtension(htmlPath, ".html");
@@ -68,7 +68,7 @@ public sealed class HtmlAsMarkdownReportGenerator : IReportGenerator {
             return Task.FromResult(new ReportResult {
                 Success = true,
                 FilePath = htmlPath,
-                Format = ReportFormat.HtmlAsMarkdown,
+                Format = ReportFormat.MarkdownHtml,
                 Metadata = meta
             });
         }
@@ -76,10 +76,9 @@ public sealed class HtmlAsMarkdownReportGenerator : IReportGenerator {
             return Task.FromResult(new ReportResult {
                 Success = false,
                 FilePath = htmlPath!,
-                Format = ReportFormat.HtmlAsMarkdown,
+                Format = ReportFormat.MarkdownHtml,
                 ErrorMessage = ex.Message
             });
         }
     }
 }
-
