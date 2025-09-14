@@ -204,194 +204,195 @@ public static class MarkdownCompositionReport
             }
 
             // Per‑section details (core parity with Word)
-            // SPF
+            // SPF (SectionProjectors)
             if (b.Spf != null)
             {
-                md.H2("SPF")
-                  .Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Spf.Status ?? "-")
-                    .Row("DNS Lookups", b.Spf.DnsLookupsCount.ToString())
-                    .Row("Record Present", b.Spf.SpfRecordExists ? "Yes" : "No")
-                    .AlignLeft(0,1));
-                if ((b.Spf.Recommendations?.Count ?? 0) > 0)
-                    md.H3("Recommendations").Ul(b.Spf.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if ((b.Spf.Positives?.Count ?? 0) > 0)
-                    md.H3("Positives").Ul(b.Spf.Positives.Select(p => p.Title ?? p.Code).ToArray());
-                var spfFind = (b.Spf.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                                .Select(a => new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty })
-                                .ToList();
-                if (spfFind.Count > 0)
-                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind.Select(r => (IReadOnlyList<string>)r)).AlignLeft(0,1,2,3));
-                if ((b.Spf.References?.Count ?? 0) > 0)
-                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Spf.References) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildSpf(b.Spf);
+                md.H2("SPF");
+                if (sec != null)
+                {
+                    md.Table(t => {
+                        t.Headers("Key","Value");
+                        foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value);
+                        t.AlignLeft(0,1);
+                    });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var spfFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (spfFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // DMARC
+            // DMARC (SectionProjectors)
             if (b.Dmarc != null)
             {
-                md.H2("DMARC")
-                  .Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Dmarc.Status ?? "-")
-                    .Row("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy)
-                    .Row("rua", (b.Dmarc.MailtoRua?.Count ?? 0).ToString())
-                    .Row("ruf", (b.Dmarc.MailtoRuf?.Count ?? 0).ToString())
-                    .AlignLeft(0,1));
-                if ((b.Dmarc.Recommendations?.Count ?? 0) > 0)
-                    md.H3("Recommendations").Ul(b.Dmarc.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if ((b.Dmarc.Positives?.Count ?? 0) > 0)
-                    md.H3("Positives").Ul(b.Dmarc.Positives.Select(p => p.Title ?? p.Code).ToArray());
-                var dmFind = (b.Dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                                .Select(a => new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty })
-                                .ToList();
-                if (dmFind.Count > 0)
-                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind.Select(r => (IReadOnlyList<string>)r)).AlignLeft(0,1,2,3));
-                if ((b.Dmarc.References?.Count ?? 0) > 0)
-                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Dmarc.References) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildDmarc(b.Dmarc);
+                md.H2("DMARC");
+                if (sec != null)
+                {
+                    md.Table(t => {
+                        t.Headers("Key","Value");
+                        foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value);
+                        t.AlignLeft(0,1);
+                    });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var dmFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (dmFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // DKIM
+            // DKIM (SectionProjectors)
             if (b.Dkim.Count > 0)
             {
                 md.H2("DKIM");
-                var rows = b.Dkim.Select(k => (IReadOnlyList<string>)new [] {
-                    k.Selector ?? string.Empty,
-                    k.Status ?? "-",
-                    k.PublicKeyExists ? k.KeyLength.ToString() : "-",
-                    string.IsNullOrWhiteSpace(k.HashAlgorithm) ? "-" : k.HashAlgorithm
-                }).ToList();
-                md.Table(t => t.Headers("Selector","Status","KeyBits","Hash").Rows(rows).AlignLeft(0,1).AlignRight(2).AlignLeft(3));
-                var dkPos = b.Dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).Distinct().ToArray();
-                if (dkPos.Length > 0) md.H3("Positives").Ul(dkPos);
-                var dkFind = b.Dkim.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
-                var dkRefs = b.Dkim.SelectMany(x => x.References ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToArray();
-                if (dkRefs.Length > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in dkRefs) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim);
+                if (sec != null)
+                {
+                    if (sec.Rows.Count > 0)
+                    {
+                        var rows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash }).ToList();
+                        md.Table(t => t.Headers("Selector","Status","Key Bits","Alg").Rows(rows).AlignLeft(0,1,2,3));
+                    }
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var dkFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
-
-            // MX
+            // MX (SectionProjectors)
             if (b.Mx != null)
             {
-                md.H2("MX")
-                  .Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Mx.Status ?? "-")
-                    .Row("MX Records", (b.Mx.MxRecords?.Count ?? 0).ToString())
-                    .Row("Backup Servers", b.Mx.HasBackupServers ? "Yes" : "No")
-                    .Row("IPv6 Supported", b.Mx.Ipv6Supported ? "Yes" : "No")
-                    .Row("Priorities In Order", b.Mx.PrioritiesInOrder ? "Yes" : "No")
-                    .AlignLeft(0,1));
-                if ((b.Mx.Recommendations?.Count ?? 0) > 0)
-                    md.H3("Recommendations").Ul(b.Mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if ((b.Mx.Positives?.Count ?? 0) > 0)
-                    md.H3("Positives").Ul(b.Mx.Positives.Select(p => p.Title ?? p.Code).ToArray());
-                var mxFind = (b.Mx.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                                .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                                .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                if (mxFind.Count > 0)
-                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
-                if ((b.Mx.References?.Count ?? 0) > 0)
-                { md.H3("References"); md.Ul(ul => { foreach (var u in b.Mx.References) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildMx(b.Mx);
+                md.H2("MX");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var mxFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (mxFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // MTA-STS
+            // MTA-STS (SectionProjectors)
             if (b.Mtasts != null)
             {
-                md.H2("MTA-STS").Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Mtasts.Status ?? "-")
-                    .Row("Mode", b.Mtasts.Mode ?? "-")
-                    .Row("DNS TXT", b.Mtasts.DnsRecordPresent ? (b.Mtasts.DnsRecordValid?"Present (valid)":"Present (invalid)") : "Missing")
-                    .Row("Policy", b.Mtasts.PolicyPresent ? (b.Mtasts.PolicyValid?"Present (valid)":"Present (invalid)") : "Missing")
-                    .AlignLeft(0,1));
-                var mtFind = (b.Mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                    .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
-                if ((b.Mtasts.References?.Count ?? 0) > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in b.Mtasts.References) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildMtasts(b.Mtasts);
+                md.H2("MTA-STS");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // TLS-RPT
+            // TLS-RPT (SectionProjectors)
             if (b.TlsRpt != null)
             {
-                md.H2("TLS-RPT").Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.TlsRpt.Status ?? "-")
-                    .Row("Record Exists", b.TlsRpt.TlsRptRecordExists ? "Yes" : "No")
-                    .AlignLeft(0,1));
-                var trFind = (b.TlsRpt.Assessments ?? Array.Empty<DomainDetective.Assessment>())
-                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                    .Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
-                if ((b.TlsRpt.References?.Count ?? 0) > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in b.TlsRpt.References) ul.ItemLink(u, u); }); }
+                var sec = DomainDetective.Reports.SectionProjectors.BuildTlsRpt(b.TlsRpt);
+                md.H2("TLS-RPT");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    var trFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // DNSBL
+            // DNSBL (SectionProjectors)
             if (b.Dnsbl != null)
             {
-                md.H2("DNSBL").Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Dnsbl.Status ?? "-")
-                    .Row("Providers Checked", b.Dnsbl.ProvidersChecked.ToString())
-                    .Row("Hosts Listed", b.Dnsbl.HostsListed.ToString())
-                    .AlignLeft(0,1));
-                var listed = b.Dnsbl.ListedRecords?.Select(r => (IReadOnlyList<string>)new[]{ r.SourceHost ?? r.IpAddress ?? "", r.BlackList ?? "", r.ReplyMeaning ?? "" }).ToList() ?? new List<IReadOnlyList<string>>();
-                if (listed.Count > 0) md.H3("Listed Records").Table(t => t.Headers("Host","Blacklist","Reason").Rows(listed).AlignLeft(0,1,2));
+                var sec = DomainDetective.Reports.SectionProjectors.BuildDnsbl(b.Dnsbl);
+                md.H2("DNSBL");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Findings.Count > 0)
+                    {
+                        var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(rows).AlignLeft(0,1,2,3));
+                    }
+                    // Evidence from original
+                    var listed = b.Dnsbl.ListedRecords?.Select(r => (IReadOnlyList<string>)new[]{ r.SourceHost ?? r.IpAddress ?? "", r.BlackList ?? "", r.ReplyMeaning ?? "" }).ToList() ?? new List<IReadOnlyList<string>>();
+                    if (listed.Count > 0) md.H3("Listed Records").Table(t => t.Headers("Host","Blacklist","Reason").Rows(listed).AlignLeft(0,1,2));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // NS
+            // NS (SectionProjectors)
             if (b.Ns != null)
             {
-                md.H2("NS").Table(t => t.Headers("Key","Value")
-                    .Row("Status", b.Ns.Status ?? "-")
-                    .Row("At Least Two", b.Ns.AtLeastTwoRecords ? "Yes" : "No")
-                    .Row("All Have A/AAAA", b.Ns.AllHaveAOrAaaa ? "Yes" : "No")
-                    .Row("Glue Complete", b.Ns.GlueRecordsComplete ? "Yes" : "No")
-                    .Row("Glue Consistent", b.Ns.GlueRecordsConsistent ? "Yes" : "No")
-                    .Row("Delegation Matches", b.Ns.DelegationMatches ? "Yes" : "No")
-                    .Row("Distinct ASNs", b.Ns.AsnDistinctCount.ToString())
-                    .AlignLeft(0,1));
-                if ((b.Ns.Recommendations?.Count ?? 0) > 0) md.H3("Recommendations").Ul(b.Ns.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if ((b.Ns.Positives?.Count ?? 0) > 0) md.H3("Positives").Ul(b.Ns.Positives.Select(p => p.Title ?? p.Code).ToArray());
-                var nsFind = (b.Ns.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
+                var sec = DomainDetective.Reports.SectionProjectors.BuildNs(b.Ns);
+                md.H2("NS");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var nsFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // SOA
+            // SOA (SectionProjectors)
             if (b.Soa != null)
             {
-                md.H2("SOA").Table(t => t.Headers("Key","Value")
-                    .Row("Primary NS", b.Soa.PrimaryNameServer ?? "")
-                    .Row("Responsible", b.Soa.ResponsibleMailbox ?? "")
-                    .Row("Serial", b.Soa.SerialNumber.ToString())
-                    .Row("Serial Format", b.Soa.SerialFormatValid ? "Valid" : "Check")
-                    .AlignLeft(0,1));
+                var sec = DomainDetective.Reports.SectionProjectors.BuildSoa(b.Soa);
+                md.H2("SOA");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    var soaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (soaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(soaFind));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // CAA
+            // CAA (SectionProjectors)
             if (b.Caa != null)
             {
-                md.H2("CAA").Table(t => t.Headers("Key","Value")
-                    .Row("Valid Records", b.Caa.ValidRecords.ToString())
-                    .Row("Invalid Records", b.Caa.InvalidRecords.ToString())
-                    .Row("Conflicting", b.Caa.Conflicting ? "Yes" : "No")
-                    .AlignLeft(0,1));
-                if ((b.Caa.Recommendations?.Count ?? 0) > 0) md.H3("Recommendations").Ul(b.Caa.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
-                if ((b.Caa.Positives?.Count ?? 0) > 0) md.H3("Positives").Ul(b.Caa.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                var sec = DomainDetective.Reports.SectionProjectors.BuildCaa(b.Caa);
+                md.H2("CAA");
+                if (sec != null)
+                {
+                    md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var caaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (caaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(caaFind));
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                }
             }
 
-            // DNSSEC / DANE
+            // DNSSEC / DANE (SectionProjectors)
             if (b.Dnssec != null || b.Dane != null)
             {
                 md.H2("DNSSEC/DANE");
                 if (b.Dnssec != null)
                 {
-                    md.H3("DNSSEC").Table(t => t.Headers("Key","Value").Row("Status", b.Dnssec.Status ?? "-").Row("Chain", b.Dnssec.ChainValid ? "Valid" : "Invalid").AlignLeft(0,1));
-                    var dnssecPos = (b.Dnssec.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title).Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s!).ToArray();
-                    if (dnssecPos.Length > 0) md.H4("Positives").Ul(dnssecPos);
-                    var dnsFind = (b.Dnssec.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => (IReadOnlyList<string>)new[]{ a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty }).ToList();
-                    if (dnsFind.Count > 0) md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsFind));
+                    var dsec = DomainDetective.Reports.SectionProjectors.BuildDnssec(b.Dnssec);
+                    if (dsec != null)
+                    {
+                        md.H3("DNSSEC");
+                        md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in dsec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                        if (dsec.Positives.Count > 0) md.H4("Positives").Ul(dsec.Positives.ToArray());
+                        var dnsFind = dsec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        if (dnsFind.Count > 0) md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsFind));
+                    }
                 }
                 if (b.Dane != null)
                 {
-                    md.H3("DANE").Table(t => t.Headers("Key","Value").Row("Status", b.Dane.Status ?? "-").Row("Records", b.Dane.NumberOfRecords.ToString()).AlignLeft(0,1));
+                    var dasec = DomainDetective.Reports.SectionProjectors.BuildDane(b.Dane);
+                    if (dasec != null)
+                    {
+                        md.H3("DANE");
+                        md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in dasec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                        var daFind = dasec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        if (daFind.Count > 0) md.H4("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(daFind));
+                    }
                 }
             }
 

@@ -241,50 +241,56 @@ public static partial class HtmlCompositionReport
                                         });
                                     }
 
-                                    // CAA
+                                    // CAA — via SectionProjectors
                                     if (b.Caa != null)
                                     {
                                         acc.AddItem("CAA", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildCaa(b.Caa);
                                             item.HeaderRight(c => c.Badge(b.Caa.Status ?? "-", TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => {
-                                                        g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles();
-                                                        g.AddItem("Valid Records", b.Caa.ValidRecords.ToString()).AsPanel();
-                                                        g.AddItem("Invalid Records", b.Caa.InvalidRecords.ToString()).AsPanel();
-                                                        g.AddItem("Conflicting", b.Caa.Conflicting ? "Yes" : "No").AsPanel();
-                                                    });
+                                                    if (sec != null && sec.Summary.Count > 0)
+                                                    {
+                                                        c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); });
+                                                    }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });
                                     }
 
-                                    // DNSSEC
+                                    // DNSSEC — via SectionProjectors
                                     if (b.Dnssec != null)
                                     {
-                                        acc.AddItem("DNSSEC", item => {
-                                            item.HeaderRight(c => c.Badge(b.Dnssec.Status ?? "-", ColorForStatus(b.Dnssec.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
-                                            item.Content(content => {
-                                                content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Chain", b.Dnssec.ChainValid ? "Valid" : "Invalid").AsPanel(); g.AddItem("DS Match", b.Dnssec.DsMatch ? "Yes" : "Check").AsPanel(); });
-                                                    var dsPos = (b.Dnssec.Positives ?? System.Array.Empty<DomainDetective.RecommendationAdvice>()).Select(p => p?.Title).Where(t => !string.IsNullOrWhiteSpace(t)).Select(t => t!).Distinct(System.StringComparer.OrdinalIgnoreCase).ToList();
-                                                    if (dsPos.Count > 0) { c2.Divider("Good Posture"); foreach (var t in dsPos) c2.Text("• " + t); }
-                                                    var dsFind = (b.Dnssec.Assessments ?? System.Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                                    if (dsFind.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(dsFind, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
-                                                    if ((b.Dnssec.References?.Count ?? 0) > 0) { c2.Divider("References"); var refs = b.Dnssec.References!.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(); if (refs.Count > 0) { foreach (var url in refs) c2.Text("• " + url); } }
-                                                }));
-                                            });
-                                        });
-                                    }
+        acc.AddItem("DNSSEC", item => {
+            var sec = DomainDetective.Reports.SectionProjectors.BuildDnssec(b.Dnssec);
+            item.HeaderRight(c => c.Badge(b.Dnssec.Status ?? "-", ColorForStatus(b.Dnssec.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.Content(content => {
+                content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
+                    if (sec != null && sec.Summary.Count > 0)
+                    {
+                        c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); });
+                    }
+                    if (sec != null && sec.Positives.Count > 0) { c2.Divider("Good Posture"); foreach (var t in sec.Positives) c2.Text("• " + t); }
+                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
+                }));
+            });
+        });
+    }
 
-                                    // DANE
+                                    // DANE — via SectionProjectors
                                     if (b.Dane != null)
                                     {
                                         acc.AddItem("DANE", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildDane(b.Dane);
                                             item.HeaderRight(c => c.Badge(b.Dane.Status ?? "-", ColorForStatus(b.Dane.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Records", b.Dane.NumberOfRecords.ToString()).AsPanel(); g.AddItem("Invalid", b.Dane.HasInvalidRecords ? "Yes" : "No").AsPanel(); });
+                                                    if (sec != null && sec.Summary.Count > 0) { c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); }); }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });
@@ -294,58 +300,73 @@ public static partial class HtmlCompositionReport
                                     if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null)
                                     {
                                         acc.AddItem("Mail TLS", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildMailTls(b.SmtpTls, b.ImapTls, b.PopTls);
                                             item.Content(content => {
-                                                void RenderTls(string label, DomainDetective.Views.MailTlsInfo info)
-                                                {
-                                                    if (info == null) return;
-                                                    content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                        c2.H4(label);
-                                                        c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Status", info.Status ?? "-").AsPanel(); g.AddItem("Servers", (info.Servers?.Count ?? 0).ToString()).AsPanel(); });
-                                                        var tf = (info.Assessments ?? System.Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                                        if (tf.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(tf, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
-                                                    }));
-                                                }
-                                                if (b.SmtpTls != null) RenderTls("SMTP", b.SmtpTls);
-                                                if (b.ImapTls != null) RenderTls("IMAP", b.ImapTls);
-                                                if (b.PopTls != null) RenderTls("POP3", b.PopTls);
+                                                content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
+                                                    if (sec != null && sec.Rows.Count > 0)
+                                                    {
+                                                        var rows = sec.Rows.Select(v => new { v.Service, v.Status, Protocol = string.IsNullOrWhiteSpace(v.Protocol) ? "-" : v.Protocol }).ToList();
+                                                        var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                    }
+                                                    if (sec != null && sec.Findings.Count > 0)
+                                                    {
+                                                        c2.Divider("Findings");
+                                                        var fr = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                                                        var tf = (DataTablesTable)c2.Table(fr, TableType.DataTables);
+                                                        tf.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering();
+                                                    }
+                                                    if (sec != null && sec.References.Count > 0)
+                                                    { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
+                                                }));
                                             });
                                         });
                                     }
 
-                                    // RPKI
+                                    // RPKI — via SectionProjectors
                                     if (b.Rpki != null)
                                     {
                                         acc.AddItem("RPKI", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildRpki(b.Rpki);
                                             item.HeaderRight(c => c.Badge(b.Rpki.Status ?? "-", ColorForStatus(b.Rpki.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Valid", b.Rpki.ValidCount.ToString()).AsPanel(); g.AddItem("Total", b.Rpki.TotalChecked.ToString()).AsPanel(); });
+                                                    if (sec != null && sec.Summary.Count > 0)
+                                                    { c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); }); }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (b.Rpki.Results != null && b.Rpki.Results.Count > 0) { c2.Divider("Per-IP Results"); var rpRows = b.Rpki.Results.Select(rp => new { rp.IpAddress, rp.Prefix, rp.Asn, Valid = rp.Valid ? "Yes" : "No" }).ToList(); var tx = (DataTablesTable)c2.Table(rpRows, TableType.DataTables); tx.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });
                                     }
 
-                                    // Zone Transfer
+                                    // Zone Transfer — via SectionProjectors
                                     if (b.ZoneTransfer != null)
                                     {
                                         acc.AddItem("Zone Transfer", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildZoneTransfer(b.ZoneTransfer);
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Open", $"{b.ZoneTransfer.OpenCount}/{b.ZoneTransfer.TotalChecked}").AsPanel(); });
+                                                    if (sec != null && sec.Summary.Count > 0) { c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); }); }
                                                     var zRows = b.ZoneTransfer.ServerResults?.Select(kv2 => new { Server = kv2.Key, Open = kv2.Value ? "Yes" : "No" }).ToList();
                                                     if (zRows != null && zRows.Count > 0) { var t = (DataTablesTable)c2.Table(zRows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t2 = (DataTablesTable)c2.Table(rows, TableType.DataTables); t2.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
                                                 }));
                                             });
                                         });
                                     }
 
-                                    // Wildcard DNS
+                                    // Wildcard DNS — via SectionProjectors
                                     if (b.Wildcard != null)
                                     {
                                         acc.AddItem("Wildcard DNS", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildWildcard(b.Wildcard);
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); g.AddItem("Catch-All", b.Wildcard.CatchAll ? "Yes" : "No").AsPanel(); });
+                                                    if (sec != null && sec.Summary.Count > 0) { c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); }); }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });

@@ -108,22 +108,22 @@ public static partial class HtmlCompositionReport
                                 });
                             });
 
-                            // Transport tab
+                            // Transport tab — via SectionProjectors
                             tabs.AddTab("Transport", TablerIconType.TruckDelivery, panel => {
+                                var mt = b.Mtasts != null ? DomainDetective.Reports.SectionProjectors.BuildMtasts(b.Mtasts) : null;
+                                var tr = b.TlsRpt != null ? DomainDetective.Reports.SectionProjectors.BuildTlsRpt(b.TlsRpt) : null;
                                 panel.DataGrid(g => { g.AsCompact(); g.AddItem("MTA-STS", b.Mtasts?.Status ?? "-"); g.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-"); });
-                                if (b.Mtasts != null)
+                                if (mt != null)
                                 {
-                                    var mtFind = (b.Mtasts.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                    if (mtFind.Count > 0) { panel.Divider("MTA-STS Findings"); var t = (TablerTable)panel.Table(mtFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                    var mtRefs = b.Mtasts.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                                    if ((mtRefs?.Count ?? 0) > 0) { panel.Divider("MTA-STS References"); panel.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => { foreach (var url in mtRefs!) c2.Text("• " + url); })); }
+                                    if (mt.Summary.Count > 0) { panel.Divider("MTA-STS Summary"); panel.DataGrid(g => { g.AsCompact(); foreach (var kv2 in mt.Summary) g.AddItem(kv2.Key, kv2.Value); }); }
+                                    if (mt.Findings.Count > 0) { panel.Divider("MTA-STS Findings"); var rows = mt.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (TablerTable)panel.Table(rows, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                    if (mt.References.Count > 0) { panel.Divider("MTA-STS References"); foreach (var url in mt.References) panel.Text("• " + url); }
                                 }
-                                if (b.TlsRpt != null)
+                                if (tr != null)
                                 {
-                                    var trFind = (b.TlsRpt.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                    if (trFind.Count > 0) { panel.Divider("TLS-RPT Findings"); var t = (TablerTable)panel.Table(trFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                    var trRefs = b.TlsRpt.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                                    if ((trRefs?.Count ?? 0) > 0) { panel.Divider("TLS-RPT References"); panel.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => { foreach (var url in trRefs!) c2.Text("• " + url); })); }
+                                    if (tr.Summary.Count > 0) { panel.Divider("TLS-RPT Summary"); panel.DataGrid(g => { g.AsCompact(); foreach (var kv2 in tr.Summary) g.AddItem(kv2.Key, kv2.Value); }); }
+                                    if (tr.Findings.Count > 0) { panel.Divider("TLS-RPT Findings"); var rows = tr.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (TablerTable)panel.Table(rows, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                    if (tr.References.Count > 0) { panel.Divider("TLS-RPT References"); foreach (var url in tr.References) panel.Text("• " + url); }
                                 }
                             });
 

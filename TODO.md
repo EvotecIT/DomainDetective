@@ -151,6 +151,54 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - HTML (HtmlForgeX): anchors + sticky TOC, info cards, provider summaries, explainers; charts later.
 - Multi-domain aggregate: portfolio matrix + per-domain sections.
 
+## Composition Unification — End-to-End Checklist (Added 2025-09-14)
+- Shared Data Model (SectionProjectors)
+  - Ensure projectors exist and are stable for all sections (MX, SPF, DKIM, DMARC, DNSBL, NS, SOA, CAA, DNSSEC, DANE, MTA‑STS, TLS‑RPT, Mail TLS, RPKI, Zone Transfer, Wildcard). [done]
+  - Keep DTO surface minimal and consistent: Summary (KV), Positives, Findings (non‑Info), References (+ Rows where applicable e.g., DKIM selectors). [ongoing refinement]
+
+- Word
+  - Section writers use projector-aware overloads for all sections, preserving narrative/evidence and provider help. [done]
+  - Remove legacy view‑only code paths once HTML/Markdown/Excel parity is validated. [pending]
+  - Add a one‑shot “parity mode” toggle (internal) to compare DTO vs. legacy output counts (Findings/Positives/References) for test runs. [pending]
+
+- HTML
+  - Migrate all remaining sections to DTOs; maintain existing visuals; keep high‑value evidence (e.g., RPKI per‑IP, DNSBL listed records). [done]
+  - Dashboard profile renders KPIs/tables only; Document profile renders full sections. [done]
+
+- Markdown/MarkdownHtml
+  - Migrate SPF/DMARC/DKIM + NS/SOA/DNSBL + MTA‑STS/TLS‑RPT/CAA/DNSSEC/DANE/Mail TLS/RPKI/Zone/Wildcard to DTOs. [done]
+  - Keep concise “evidence” tables where they materially help (e.g., DNSBL listed, Zone server results). [done]
+
+- Excel
+  - Switch per‑section panes to DTOs (Transport: MTA‑STS/TLS‑RPT; DNS: NS/SOA/DNSSEC; Security: CAA/DANE/RPKI; Reputation: DNSBL; Auth: SPF/DKIM/DMARC). [pending]
+  - Preserve evidence tables where useful (RPKI, Zone Transfer). [pending]
+  - Honor `ExcelProfile` (Workbook|Dashboard) across panes with shared DTOs. [done at shell, content pending]
+
+- PowerShell/CLI Surface
+  - Expose `-HtmlProfile Document|Dashboard` and `-ExcelProfile Workbook|Dashboard`. [done]
+  - Update Get‑Help and README usage examples for profiles, inline `ScriptBlock` composition, and the MarkdownHtml rename. [pending]
+  - CLI: ensure `--format markdownhtml` is documented and tested. [done]
+
+- Tests & Parity
+  - Pester: Validate that Word/HTML/Markdown/Excel share consistent per‑section counts (Findings/Positives/References) for a known domain set. [pending]
+  - Add a small CSV “parity snapshot” generator in tests (section → status + W/E counts) to compare across formats. [pending]
+  - Pester: Verify `Export-DDSecurityReport` `-HtmlProfile`/`-ExcelProfile` wiring and that outputs differ as expected. [pending]
+
+- Docs & Samples
+  - README: “Single Composition Layer” section describing CompositionBuilder + SectionProjectors and how all formats consume it. [pending]
+  - Update examples for HTML/Markdown/Excel parity; add before/after screenshots for Dashboard vs Document profiles. [pending]
+  - Module help: add profile parameters, inline block examples, and notes on evidence tables retained per format. [pending]
+
+- Clean‑up
+  - After parity green: remove deprecated view‑only rendering branches in HTML/Markdown/Excel and any unused helpers. [pending]
+  - Reduce nullable warnings in migrated code paths (target: zero warnings in Reports.*). [pending]
+  - Tighten provider‑help rendering null‑checks (Word/HTML). [pending]
+
+Acceptance Criteria (for closing unification)
+- For a curated domain set, all four formats show matching per‑section status strings and Findings/Positives/References counts (± UI differences) sourced from SectionProjectors.
+- Profiles switch presentation only; underlying data remains identical.
+- Legacy code paths removed or guarded behind dev‑only flags; CI parity tests pass.
+
 ## Synthetic Monitoring (Future)
 - Uptime checks: scheduled HTTP(S) probe with TLS posture + header checks; trend charts and alert thresholds. Easy
 - Latency metrics: TTFB/total per probe; regional vantage points; aggregation. Medium
