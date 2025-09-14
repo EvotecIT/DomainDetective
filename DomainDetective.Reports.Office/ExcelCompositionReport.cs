@@ -22,15 +22,17 @@ public static class ExcelCompositionReport
         string path,
         IReadOnlyList<object> items,
         ReportScope scope,
-        OrderingOptions? ordering = null)
+        OrderingOptions? ordering = null,
+        ExcelProfile profile = ExcelProfile.Workbook)
     {
 #if !NET8_0
         throw new NotSupportedException("Excel composition requires .NET 8.0");
 #else
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
-        var groups = GroupBySubject(items);
-        var order = (ordering != null) ? ordering.DomainOrder : DomainDetective.Reports.DomainOrder.Alphabetical;
-        var domains = OrderDomains(items, groups, order);
+        var compGroups = CompositionBuilder.GroupBySubject(items);
+        var order = (ordering != null) ? ordering.DomainOrder : DomainOrder.Alphabetical;
+        var orderedComp = CompositionBuilder.OrderDomains(items, compGroups, order);
+        var domains = orderedComp.Select(kv => new KeyValuePair<string, DomainBucket>(kv.Key, Map(kv.Value))).ToList();
 
         using var doc = ExcelDocument.Create(path);
         doc.AsFluent().Info(i => i
@@ -132,13 +134,15 @@ public static class ExcelCompositionReport
         catch { }
         overview.Finish(autoFitColumns: true);
 
-        // Per-domain sheets
-        var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var kv in domains)
+        // Per-domain sheets (skip in Dashboard profile)
+        if (profile != ExcelProfile.Dashboard)
         {
-            var name = MakeUniqueSheetName(kv.Key, usedNames); var b = kv.Value;
-            var s = new SheetComposer(doc, name);
-            s.Title($"Mail & DNS — {name}");
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in domains)
+            {
+                var name = MakeUniqueSheetName(kv.Key, usedNames); var b = kv.Value;
+                var s = new SheetComposer(doc, name);
+                s.Title($"Mail & DNS — {name}");
             s.SectionWithAnchor("Overview");
             s.DefinitionList(new (string, object?)[] {
                 ("MX", b.Mx?.Status ?? "-"),
@@ -714,6 +718,8 @@ public static class ExcelCompositionReport
         }
         catch { }
 
+        } // end if (profile != ExcelProfile.Dashboard)
+
         // Index
         SheetIndex.Add(doc, sheetName: "Index", placeFirst: true, includeNamedRanges: false);
         SheetIndex.AddBackLinks(doc, tocSheetName: "Index", row: 2, col: 1, text: "← Index");
@@ -734,60 +740,32 @@ public static class ExcelCompositionReport
 #endif
     }
 
-    private static List<KeyValuePair<string, DomainBucket>> OrderDomains(IReadOnlyList<object> items, Dictionary<string, DomainBucket> grouped, DomainDetective.Reports.DomainOrder order)
+    // Adapter: map shared DomainBucket to local Excel DomainBucket structure
+    private static DomainBucket Map(CompositionBuilder.DomainBucket s)
     {
-        if (order == DomainDetective.Reports.DomainOrder.Alphabetical)
-            return grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase).ToList();
-        var list = new List<KeyValuePair<string, DomainBucket>>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var it in items)
-        {
-            var s = TryGetSubject(it); if (string.IsNullOrWhiteSpace(s) || seen.Contains(s!)) continue;
-            if (grouped.TryGetValue(s!, out var b)) { list.Add(new KeyValuePair<string, DomainBucket>(s!, b)); seen.Add(s!); }
-        }
-        foreach (var kv in grouped.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase)) if (!seen.Contains(kv.Key)) list.Add(new KeyValuePair<string, DomainBucket>(kv.Key, kv.Value));
-        return list;
-    }
-
-    private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
-    {
-        var map = new Dictionary<string, DomainBucket>(StringComparer.OrdinalIgnoreCase);
-        void Ensure(string s) { if (!map.ContainsKey(s)) map[s] = new DomainBucket { Subject = s }; }
-        foreach (var it in items)
-        {
-            switch (it)
-            {
-                case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
-                case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
-                case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
-                case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
-                case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
-                case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
-                case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): Ensure(db.Subject); map[db.Subject].Dnsbl = db; break;
-                case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
-                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject): Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
-                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject): Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
-                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
-                case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject): Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
-                case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
-                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
-                case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
-                case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject): Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
-                case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject): Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
-                case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
-                    Ensure(mt.Subject);
-                    switch (mt.Check) {
-                        case DomainDetective.HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
-                        case DomainDetective.HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
-                        case DomainDetective.HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
-                        default: break;
-                    }
-                    break;
-                case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
-                default: break;
-            }
-        }
-        return map;
+        var b = new DomainBucket {
+            Subject = s.Subject,
+            Mx = s.Mx,
+            Spf = s.Spf,
+            Dmarc = s.Dmarc,
+            Mtasts = s.Mtasts,
+            TlsRpt = s.TlsRpt,
+            Dnsbl = s.Dnsbl,
+            Dnssec = s.Dnssec,
+            Dane = s.Dane,
+            SmtpTls = s.SmtpTls,
+            ImapTls = s.ImapTls,
+            PopTls = s.PopTls,
+            Ns = s.Ns,
+            Soa = s.Soa,
+            Caa = s.Caa,
+            Rpki = s.Rpki,
+            ZoneTransfer = s.ZoneTransfer,
+            Wildcard = s.Wildcard,
+            Classification = s.Classification
+        };
+        if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
+        return b;
     }
 
     private static string? TryGetSubject(object item)

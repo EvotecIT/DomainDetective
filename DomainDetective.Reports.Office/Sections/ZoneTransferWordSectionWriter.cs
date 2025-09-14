@@ -60,5 +60,34 @@ public static class ZoneTransferWordSectionWriter
             }
         }
     }
-}
 
+    /// <summary>
+    /// Projector-aware overload using SectionProjectors.ZoneTransferSection.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.ZoneTransferSection sec,
+        DomainDetective.Views.ZoneTransferInfo? original,
+        string domain, ReportScope scope, bool showInfoFindings)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        headings.AddItem("Summary", baseLevel);
+        var t = doc.AddTable(sec.Summary.Count, 2, WordTableStyle.TableGrid);
+        for (int i=0;i<sec.Summary.Count;i++){ var kv = sec.Summary[i]; t.Rows[i].Cells[0].AddParagraph(kv.Key); t.Rows[i].Cells[1].AddParagraph(kv.Value); }
+
+        if (original != null && (original.ServerResults?.Count ?? 0) > 0)
+        {
+            headings.AddItem("Servers", baseLevel);
+            var srv = original.ServerResults.ToList();
+            var table = doc.AddTable(srv.Count + 1, 2, WordTableStyle.TableGrid);
+            table.Rows[0].Cells[0].AddParagraph("Server"); table.Rows[0].Cells[1].AddParagraph("Open");
+            for (int i=0;i<srv.Count;i++){ table.Rows[i+1].Cells[0].AddParagraph(srv[i].Key); table.Rows[i+1].Cells[1].AddParagraph(srv[i].Value ? "Yes" : "No"); }
+        }
+
+        var f = sec.Findings; if (!showInfoFindings) f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        { headings.AddItem("Findings", baseLevel); var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid); ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message"); for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);} }
+    }
+}

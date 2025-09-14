@@ -104,10 +104,10 @@ public static partial class HtmlCompositionReport
                                                         } catch { }
 
                                                     if ((b.Spf.Highlights?.Count ?? 0) > 0) { c2.Divider("Highlights"); foreach (var t in b.Spf.Highlights) c2.Text("• " + t); }
-                                                    if ((b.Spf.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var p in b.Spf.Positives) if (!string.IsNullOrWhiteSpace(p?.Title)) c2.Text("• " + p!.Title!); }
-                                                    var spfFind = (b.Spf.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                                    if (spfFind.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(spfFind, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
-                                                if ((b.Spf.References?.Count ?? 0) > 0) { c2.Divider("References"); var refs = b.Spf.References!.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(); if (refs.Count > 0) { foreach (var url in refs) c2.Text("• " + url); } }
+                                                    var spfSec = DomainDetective.Reports.SectionProjectors.BuildSpf(b.Spf);
+                                                    if ((spfSec?.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var t in spfSec!.Positives) c2.Text("• " + t); }
+                                                    if ((spfSec?.Findings?.Count ?? 0) > 0) { c2.Divider("Findings"); var rows = spfSec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if ((spfSec?.References?.Count ?? 0) > 0) { c2.Divider("References"); foreach (var url in spfSec!.References) c2.Text("• " + url); }
                                                     });
                                                 });
                                             });
@@ -129,10 +129,10 @@ public static partial class HtmlCompositionReport
                                                             g.AddItem("mailto RUF", (b.Dmarc.MailtoRuf?.Count ?? 0).ToString()).AsPanel();
                                                         });
                                                         if ((b.Dmarc.Highlights?.Count ?? 0) > 0) { c2.Divider("Highlights"); foreach (var t in b.Dmarc.Highlights) c2.Text("• " + t); }
-                                                        if ((b.Dmarc.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var p in b.Dmarc.Positives) if (!string.IsNullOrWhiteSpace(p?.Title)) c2.Text("• " + p!.Title!); }
-                                                        var dmFind = (b.Dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                                        if (dmFind.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(dmFind, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
-                                                        if ((b.Dmarc.References?.Count ?? 0) > 0) { c2.Divider("References"); var refs = b.Dmarc.References!.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(); if (refs.Count > 0) { foreach (var url in refs) c2.Text("• " + url); } }
+                                                        var dmSec = DomainDetective.Reports.SectionProjectors.BuildDmarc(b.Dmarc);
+                                                        if ((dmSec?.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var t in dmSec!.Positives) c2.Text("• " + t); }
+                                                        if ((dmSec?.Findings?.Count ?? 0) > 0) { c2.Divider("Findings"); var rows = dmSec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                        if ((dmSec?.References?.Count ?? 0) > 0) { c2.Divider("References"); foreach (var url in dmSec!.References) c2.Text("• " + url); }
                                                     });
                                                 });
                                             });
@@ -150,7 +150,8 @@ public static partial class HtmlCompositionReport
                                             item.Content(content => {
                                                 content.Row(r => {
                                                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                        var rows = b.Dkim.Select(k => new { Selector = k.Selector, Key = k.PublicKeyExists ? (k.KeyLength.ToString() + " bits") : "no key", Alg = k.HashAlgorithm ?? "?", Status = k.Status ?? "-" }).ToList();
+                                                        var dkSec = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim);
+                                                        var rows = dkSec!.Rows.Select(k => new { Selector = k.Selector, Key = string.IsNullOrEmpty(k.KeyBits) ? "-" : (k.KeyBits + " bits"), Alg = string.IsNullOrEmpty(k.Hash) ? "?" : k.Hash, Status = k.Status }).ToList();
                                                         var table = (DataTablesTable)c2.Table(rows, TableType.DataTables);
                                                         table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                                                         table.HighlightWhen(
@@ -161,18 +162,11 @@ public static partial class HtmlCompositionReport
                                                             then: t => t.Column("Status").Warning());
 
                                                         // Positives / Findings / References
-                                                        var dPos = b.Dkim.SelectMany(x => x.Positives ?? System.Array.Empty<DomainDetective.RecommendationAdvice>())
-                                                                         .Select(p => p?.Title)
-                                                                         .Where(t => !string.IsNullOrWhiteSpace(t))
-                                                                         .Select(t => t!)
-                                                                         .Distinct(System.StringComparer.OrdinalIgnoreCase)
-                                                                         .ToList();
+                                                        var dPos = dkSec!.Positives.Distinct(System.StringComparer.OrdinalIgnoreCase).ToList();
                                                         if (dPos.Count > 0) { c2.Divider("Good Posture"); foreach (var t in dPos) c2.Text("• " + t); }
-                                                        var dFind = b.Dkim.SelectMany(x => x.Assessments ?? System.Array.Empty<DomainDetective.Assessment>())
-                                                                          .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
-                                                                          .Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
+                                                        var dFind = dkSec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
                                                         if (dFind.Count > 0) { c2.Divider("Findings"); var tf = (DataTablesTable)c2.Table(dFind, TableType.DataTables); tf.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
-                                                        var dRefs = b.Dkim.SelectMany(x => x.References ?? System.Array.Empty<string>()).Where(u => !string.IsNullOrWhiteSpace(u)).Distinct(System.StringComparer.OrdinalIgnoreCase).ToList();
+                                                        var dRefs = dkSec!.References;
                                                         if (dRefs.Count > 0) { c2.Divider("References"); foreach (var url in dRefs) c2.Text("• " + url); }
                                                     });
                                                 });
@@ -201,44 +195,47 @@ public static partial class HtmlCompositionReport
                                         });
                                     }
 
-                                    // NS (Authoritative Name Servers)
+                                    // NS (Authoritative Name Servers) — via SectionProjectors
                                     if (b.Ns != null)
                                     {
                                         acc.AddItem("NS (Authoritative)", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildNs(b.Ns);
                                             item.HeaderRight(c => c.Badge(b.Ns.Status ?? "-", TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => {
-                                                        g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles();
-                                                        g.AddItem("At Least Two", b.Ns.AtLeastTwoRecords ? "Yes" : "No").AsPanel();
-                                                        g.AddItem("All Have A/AAAA", b.Ns.AllHaveAOrAaaa ? "Yes" : "No").AsPanel();
-                                                        g.AddItem("Glue Complete", b.Ns.GlueRecordsComplete ? "Yes" : "No").AsPanel();
-                                                        g.AddItem("Glue Consistent", b.Ns.GlueRecordsConsistent ? "Yes" : "No").AsPanel();
-                                                        g.AddItem("Delegation Matches", b.Ns.DelegationMatches ? "Yes" : "No").AsPanel();
-                                                        g.AddItem("Distinct ASNs", b.Ns.AsnDistinctCount.ToString()).AsPanel();
-                                                    });
-                                                    if ((b.Ns.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var p in b.Ns.Positives ?? System.Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title; if (!string.IsNullOrWhiteSpace(t)) c2.Text("• " + t); } }
-                                                    var nsFind = (b.Ns.Assessments ?? System.Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                                    if (nsFind.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(nsFind, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    // Summary
+                                                    if (sec != null && sec.Summary.Count > 0)
+                                                    {
+                                                        c2.DataGrid(g => {
+                                                            g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles();
+                                                            foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel();
+                                                        });
+                                                    }
+                                                    // Positives
+                                                    if (sec != null && sec.Positives.Count > 0) { c2.Divider("Good Posture"); foreach (var t in sec.Positives) c2.Text("• " + t); }
+                                                    // Findings
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    // References
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });
                                     }
 
-                                    // SOA
+                                    // SOA — via SectionProjectors
                                     if (b.Soa != null)
                                     {
                                         acc.AddItem("SOA", item => {
+                                            var sec = DomainDetective.Reports.SectionProjectors.BuildSoa(b.Soa);
                                             item.HeaderRight(c => c.Badge(b.Soa.Status ?? "-", TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
                                             item.Content(content => {
                                                 content.Row(r => r.Column(TablerColumnNumber.Twelve, c2 => {
-                                                    c2.DataGrid(g => {
-                                                        g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles();
-                                                        g.AddItem("Primary NS", b.Soa.PrimaryNameServer ?? "").AsPanel();
-                                                        g.AddItem("Responsible", b.Soa.ResponsibleMailbox ?? "").AsPanel();
-                                                        g.AddItem("Serial", b.Soa.SerialNumber.ToString()).AsPanel();
-                                                        g.AddItem("Serial Format", b.Soa.SerialFormatValid ? "Valid" : "Check").AsPanel();
-                                                    });
+                                                    if (sec != null && sec.Summary.Count > 0)
+                                                    {
+                                                        c2.DataGrid(g => { g.WithLayout(TablerDataGridLayout.Compact).WithSpacing(TablerDataGridSpacing.Small).WithNarrowTitles(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value).AsPanel(); });
+                                                    }
+                                                    if (sec != null && sec.Findings.Count > 0) { c2.Divider("Findings"); var rows = sec.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
+                                                    if (sec != null && sec.References.Count > 0) { c2.Divider("References"); foreach (var url in sec.References) c2.Text("• " + url); }
                                                 }));
                                             });
                                         });

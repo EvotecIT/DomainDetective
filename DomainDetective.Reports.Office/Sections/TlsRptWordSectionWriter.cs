@@ -84,4 +84,57 @@ public static class TlsRptWordSectionWriter
             foreach (var r in tlsrpt.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
+
+    /// <summary>
+    /// Projector-aware overload using SectionProjectors.TlsRptSection.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.TlsRptSection sec,
+        DomainDetective.Views.TlsRptInfo? original,
+        string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        if (includeNarrative && original != null)
+        {
+            var nar = DomainDetective.Narratives.TlsRptNarrative.Build(original.Raw);
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        headings.AddItem("Summary", baseLevel);
+        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string Key,string Value)>() { ("Status", sec.Status), ("rua", sec.RuaCount.ToString()) };
+        var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
+        for (int i=0;i<rows.Count;i++){ t.Rows[i].Cells[0].Paragraphs[0].Text = rows[i].Key; t.Rows[i].Cells[1].Paragraphs[0].Text = rows[i].Value; }
+
+        if (sec.Positives.Count > 0)
+        { headings.AddItem("Good posture", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var p in sec.Positives) list.AddItem(p); }
+
+        var f = sec.Findings; if (!showInfoFindings) f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        {
+            headings.AddItem("Findings", baseLevel);
+            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
+            ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message");
+            for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);}        
+        }
+
+        if (original != null)
+        {
+            // Evidence: show URIs if present
+            var any = (original.MailtoRua?.Count ?? 0) + (original.HttpRua?.Count ?? 0);
+            if (any > 0)
+            {
+                headings.AddItem("Evidence", baseLevel);
+                var list = doc.AddList(WordListStyle.Bulleted);
+                if ((original.MailtoRua?.Count ?? 0) > 0) list.AddItem($"mailto: {string.Join(", ", original.MailtoRua)}");
+                if ((original.HttpRua?.Count ?? 0) > 0) list.AddItem($"http: {string.Join(", ", original.HttpRua)}");
+            }
+        }
+
+        if (sec.References.Count > 0)
+        { headings.AddItem("References", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var r in sec.References) list.AddItem(r); }
+    }
 }

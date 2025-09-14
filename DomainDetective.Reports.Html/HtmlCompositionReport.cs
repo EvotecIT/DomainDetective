@@ -25,7 +25,7 @@ public static partial class HtmlCompositionReport {
     /// <param name="titleOverride">Optional document title override.</param>
     /// <param name="authorOverride">Optional author override.</param>
     /// <param name="descriptionOverride">Optional description/summary override.</param>
-    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null, DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical, DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical, string[]? sectionOrder = null) {
+    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null, DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical, DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical, string[]? sectionOrder = null, HtmlProfile profile = HtmlProfile.Document) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
         var grouped = GroupBySubject(items);
@@ -55,8 +55,13 @@ public static partial class HtmlCompositionReport {
             // Executive banner, KPIs, and summary table
             RenderExecutiveSummary(page, ordered);
 
-            // Mail Providers — rendered via a dedicated partial to keep file small
-            try { RenderProvidersSection(page, ordered); } catch { }
+            // Dashboard profile: focus on KPIs/summary only
+            var isDashboard = profile == HtmlProfile.Dashboard;
+            if (!isDashboard)
+            {
+                // Mail Providers — rendered via a dedicated partial to keep file small
+                try { RenderProvidersSection(page, ordered); } catch { }
+            }
 
             // Optional global background/narrative placeholder (can be enhanced)
             var multiDomain = grouped.Count > 1;
@@ -70,8 +75,11 @@ public static partial class HtmlCompositionReport {
 
             // Per-domain overview cards + accordion details (SPF/DMARC/DKIM/MX)
 
-            if (multiDomain) { RenderDomainsTabbed(page, ordered); }
-            else { foreach (var kv in ordered) RenderSingleDomain(page, kv.Key, kv.Value); }
+            if (!isDashboard)
+            {
+                if (multiDomain) { RenderDomainsTabbed(page, ordered); }
+                else { foreach (var kv in ordered) RenderSingleDomain(page, kv.Key, kv.Value); }
+            }
             // Ensure page block closes cleanly
         });
 

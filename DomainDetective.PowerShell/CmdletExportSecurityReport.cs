@@ -87,6 +87,15 @@ namespace DomainDetective.PowerShell {
         /// <summary>Override document creator/author for this export run.</summary>
         [Parameter(Mandatory = false)] public string? Creator { get; set; }
 
+        // Presentation profiles (optional)
+        [Parameter(Mandatory = false)]
+        [ValidateSet("Document","Dashboard")]
+        public string HtmlProfile { get; set; } = "Document";
+
+        [Parameter(Mandatory = false)]
+        [ValidateSet("Workbook","Dashboard")]
+        public string ExcelProfile { get; set; } = "Workbook";
+
         // Ordering controls
         [Parameter(Mandatory = false)]
         [ValidateSet("Alphabetical","Input")]
@@ -263,7 +272,8 @@ namespace DomainDetective.PowerShell {
                             string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject,
                             (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
                             (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                            SectionOrder);
+                            SectionOrder,
+                            (DomainDetective.Reports.Html.HtmlProfile)Enum.Parse(typeof(DomainDetective.Reports.Html.HtmlProfile), HtmlProfile, ignoreCase: true));
                         break;
                         case DomainDetective.Reports.ReportFormat.Excel:
                             DomainDetective.Reports.Office.ExcelCompositionReport.Generate(
@@ -274,7 +284,8 @@ namespace DomainDetective.PowerShell {
                                 DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
                                 SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                                 SectionOrder = SectionOrder
-                            });
+                            },
+                            (DomainDetective.Reports.Office.ExcelProfile)Enum.Parse(typeof(DomainDetective.Reports.Office.ExcelProfile), ExcelProfile, ignoreCase: true));
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                         case DomainDetective.Reports.ReportFormat.Markdown:

@@ -250,4 +250,112 @@ public static class SpfWordSectionWriter
             default: return "SPF token present.";
         }
     }
+
+    /// <summary>
+    /// Projector-aware overload: renders common data from <see cref="DomainDetective.Reports.SectionProjectors.SpfSection"/>,
+    /// while preserving Word-only narrative and evidence from the original view when provided.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.SpfSection sec,
+        DomainDetective.Views.SpfRecordInfo? original,
+        string domain, ReportScope scope, bool showInfoFindings,
+        bool includeNarrative = true, bool includeMechanismMeanings = true)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        // Narrative (from original view)
+        if (includeNarrative && original?.Narrative != null)
+        {
+            var nar = original.Narrative;
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        // Summary from DTO
+        headings.AddItem("Summary", baseLevel);
+        doc.AddParagraph("Key SPF posture indicators for this domain.");
+        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string Key, string Value)>() { ("Status", sec.Status), ("DNS Lookups", sec.DnsLookupsCount.ToString()), ("Record Present", (original?.SpfRecordExists ?? false) ? "Yes" : "No") };
+        var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
+        for (int i = 0; i < rows.Count; i++) { t.Rows[i].Cells[0].AddParagraph(rows[i].Key); t.Rows[i].Cells[1].AddParagraph(rows[i].Value); }
+
+        // Positives
+        if (sec.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in sec.Positives) list.AddItem(p);
+        }
+
+        // Findings
+        var f = sec.Findings;
+        if (!showInfoFindings)
+            f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        {
+            headings.AddItem("Findings", baseLevel);
+            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
+            ft.Rows[0].Cells[0].AddParagraph("Severity");
+            ft.Rows[0].Cells[1].AddParagraph("Code");
+            ft.Rows[0].Cells[2].AddParagraph("Target");
+            ft.Rows[0].Cells[3].AddParagraph("Message");
+            for (int i = 0; i < f.Count; i++)
+            {
+                var a = f[i];
+                ft.Rows[i + 1].Cells[0].AddParagraph(a.Severity);
+                ft.Rows[i + 1].Cells[1].AddParagraph(a.Code);
+                ft.Rows[i + 1].Cells[2].AddParagraph(a.Target);
+                ft.Rows[i + 1].Cells[3].AddParagraph(a.Message);
+            }
+        }
+
+        // References
+        if (sec.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in sec.References) list.AddItem(r);
+        }
+
+        // Preserve Word-only details from original view (evidence, flattened IP, mechanisms)
+        if (original != null)
+        {
+            // Evidence
+            headings.AddItem("Evidence", baseLevel);
+            doc.AddParagraph("Raw SPF record values.");
+            var lbl = doc.AddParagraph("SPF Record:"); lbl.Bold = true;
+            var rec = doc.AddParagraph(original.SpfRecord ?? string.Empty); rec.FontSize = 10;
+
+            // Mechanisms (normal/detailed)
+            if (original.Mechanisms != null && original.Mechanisms.Count > 0)
+            {
+                headings.AddItem("Mechanisms", baseLevel);
+                var mech = doc.AddTable(original.Mechanisms.Count + 1, 4, WordTableStyle.TableGrid);
+                mech.Rows[0].Cells[0].AddParagraph("Qualifier");
+                mech.Rows[0].Cells[1].AddParagraph("Type");
+                mech.Rows[0].Cells[2].AddParagraph("Value");
+                mech.Rows[0].Cells[3].AddParagraph("Provider");
+                for (int i = 0; i < original.Mechanisms.Count; i++)
+                {
+                    var p = original.Mechanisms[i];
+                    mech.Rows[i + 1].Cells[0].AddParagraph(string.IsNullOrEmpty(p.Prefix) ? "+" : p.Prefix);
+                    mech.Rows[i + 1].Cells[1].AddParagraph(p.Type ?? string.Empty);
+                    mech.Rows[i + 1].Cells[2].AddParagraph(p.Value ?? string.Empty);
+                    mech.Rows[i + 1].Cells[3].AddParagraph(p.Provider ?? string.Empty);
+                }
+            }
+
+            // Flattened IP Analysis
+            var flat = original.Raw?.FlattenedIpAnalysis;
+            if (flat != null)
+            {
+                headings.AddItem("Flattened IP Analysis", baseLevel);
+                var flatTable = doc.AddTable(3, 2, WordTableStyle.TableGrid);
+                flatTable.Rows[0].Cells[0].AddParagraph("Unique IPs"); flatTable.Rows[0].Cells[1].AddParagraph((flat?.UniqueIps?.Count ?? 0).ToString());
+                flatTable.Rows[1].Cells[0].AddParagraph("Duplicate IPs"); flatTable.Rows[1].Cells[1].AddParagraph((flat?.DuplicateIps?.Count ?? 0).ToString());
+                flatTable.Rows[2].Cells[0].AddParagraph("Tokens Resolved"); flatTable.Rows[2].Cells[1].AddParagraph((flat?.TokenIpMap?.Count ?? 0).ToString());
+            }
+        }
+    }
 }

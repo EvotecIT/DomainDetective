@@ -17,7 +17,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Report output (html, json, word, excel, pdf, markdown, htmlAsMarkdown)")]
+        [Description("Report output (html, json, word, excel, pdf, markdown, markdownhtml)")]
         [CommandOption("-f|--format|--report")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";

@@ -82,31 +82,28 @@ public static partial class HtmlCompositionReport
                             tabs.AddTab("Email Auth", TablerIconType.ShieldLock, panel => {
                                 panel.Accordion(a => {
                                     if (b.Spf != null) a.AddItem("SPF", it => it.Content(c => {
-                                        c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Spf.Status ?? "-"); g.AddItem("DNS Lookups", b.Spf.DnsLookupsCount.ToString()); });
-                                        if ((b.Spf.Positives?.Count ?? 0) > 0) { c.Divider("Good Posture"); foreach (var p in b.Spf.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title; if (!string.IsNullOrWhiteSpace(t)) c.Text("• " + t); } }
-                                        var spfFindings = (b.Spf.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(x => x != null && x.Severity != DomainDetective.AssessmentSeverity.Info).Select(x => new { Severity = x.Severity.ToString(), x.Code, x.Target, x.Message }).ToList();
-                                        if (spfFindings.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(spfFindings, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        var spfRefs = b.Spf.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                                        if ((spfRefs?.Count ?? 0) > 0) { c.Divider("References"); foreach (var url in spfRefs!) c.Text("• " + url); }
+                                        var sec = DomainDetective.Reports.SectionProjectors.BuildSpf(b.Spf);
+                                        c.DataGrid(g => { g.AsCompact(); foreach (var kvp in sec!.Summary) g.AddItem(kvp.Key, kvp.Value); });
+                                        if (sec!.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
+                                        if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
                                     }));
 
                                     if (b.Dmarc != null) a.AddItem("DMARC", it => it.Content(c => {
-                                        c.DataGrid(g => { g.AsCompact(); g.AddItem("Status", b.Dmarc.Status ?? "-"); g.AddItem("Policy", string.IsNullOrWhiteSpace(b.Dmarc.Policy) ? "-" : b.Dmarc.Policy); });
-                                        if ((b.Dmarc.Positives?.Count ?? 0) > 0) { c.Divider("Good Posture"); foreach (var p in b.Dmarc.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title; if (!string.IsNullOrWhiteSpace(t)) c.Text("• " + t); } }
-                                        var dmarcFindings = (b.Dmarc.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(x => x != null && x.Severity != DomainDetective.AssessmentSeverity.Info).Select(x => new { Severity = x.Severity.ToString(), x.Code, x.Target, x.Message }).ToList();
-                                        if (dmarcFindings.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(dmarcFindings, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        var dmarcRefs = b.Dmarc.References?.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                                        if ((dmarcRefs?.Count ?? 0) > 0) { c.Divider("References"); foreach (var url in dmarcRefs!) c.Text("• " + url); }
+                                        var sec = DomainDetective.Reports.SectionProjectors.BuildDmarc(b.Dmarc);
+                                        c.DataGrid(g => { g.AsCompact(); foreach (var kvp in sec!.Summary) g.AddItem(kvp.Key, kvp.Value); });
+                                        if (sec!.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
+                                        if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
                                     }));
 
                                     if (b.Dkim.Count > 0) a.AddItem("DKIM", it => it.Content(c => {
+                                        var sec = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim);
                                         c.DataGrid(g => { g.AsCompact(); g.AddItem("Selectors", b.Dkim.Count.ToString()); g.AddItem("Any Weak", b.Dkim.Any(x => x.WeakKey).ToString()); });
-                                        var dkPos = b.Dkim.SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()).Where(p => !string.IsNullOrWhiteSpace(p?.Title)).Select(p => p!.Title!).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                                        if (dkPos.Count > 0) { c.Divider("Good Posture"); foreach (var t in dkPos) c.Text("• " + t); }
-                                        var dkFind = b.Dkim.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
-                                        if (dkFind.Count > 0) { c.Divider("Findings"); var t = (TablerTable)c.Table(dkFind, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        var dkRefs = b.Dkim.SelectMany(x => x.References ?? Array.Empty<string>()).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-                                        if (dkRefs.Count > 0) { c.Divider("References"); foreach (var url in dkRefs) c.Text("• " + url); }
+                                        if (sec!.Rows.Count > 0) { var rows = sec.Rows.Select(r => new { r.Selector, r.Status, KeyBits = r.KeyBits, Hash = r.Hash }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
+                                        if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows2 = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt2 = (TablerTable)c.Table(rows2, TableType.Tabler); tt2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
                                     }));
                                 });
                             });
@@ -130,14 +127,34 @@ public static partial class HtmlCompositionReport
                                 }
                             });
 
-                            // Reputation tab (DNSBL)
+                            // Reputation tab (DNSBL) — via SectionProjectors
                             if (b.Dnsbl != null)
                             {
                                 tabs.AddTab("Reputation", TablerIconType.ShieldCheck, panel => {
-                                    var db = b.Dnsbl;
-                                    panel.DataGrid(g => { g.AsCompact(); g.AddItem("Providers Checked", db.ProvidersChecked.ToString()); g.AddItem("Hosts Checked", db.HostsChecked.ToString()); g.AddItem("Hosts Listed", db.HostsListed.ToString()); });
-                                    var listed = db.ListedRecords?.Select(r => new { Host = r.SourceHost ?? r.IpAddress, Blacklist = r.BlackList, Reason = r.ReplyMeaning }).ToList();
-                                    if (listed != null && listed.Count > 0) { panel.Divider("Listed Records"); var t = (TablerTable)panel.Table(listed, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                    var sec = DomainDetective.Reports.SectionProjectors.BuildDnsbl(b.Dnsbl);
+                                    if (sec != null && sec.Summary.Count > 0)
+                                    {
+                                        panel.DataGrid(g => { g.AsCompact(); foreach (var kv2 in sec.Summary) g.AddItem(kv2.Key, kv2.Value); });
+                                    }
+                                    if (sec != null && sec.Findings.Count > 0)
+                                    {
+                                        panel.Divider("Findings");
+                                        var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList();
+                                        var t = (TablerTable)panel.Table(rows, TableType.Tabler);
+                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                    }
+                                    if (b.Dnsbl.ListedRecords != null && b.Dnsbl.ListedRecords.Count > 0)
+                                    {
+                                        panel.Divider("Listed Records");
+                                        var listed = b.Dnsbl.ListedRecords.Select(r => new { Host = r.SourceHost ?? r.IpAddress, Blacklist = r.BlackList, Reason = r.ReplyMeaning }).ToList();
+                                        var t = (TablerTable)panel.Table(listed, TableType.Tabler);
+                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                    }
+                                    if (sec != null && sec.References.Count > 0)
+                                    {
+                                        panel.Divider("References");
+                                        foreach (var url in sec.References) panel.Text("• " + url);
+                                    }
                                 });
                             }
                         });

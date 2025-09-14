@@ -172,4 +172,82 @@ public static class DkimWordSectionWriter
             foreach (var r in refs) list.AddItem(r);
         }
     }
+
+    /// <summary>
+    /// Projector-aware overload using SectionProjectors.DkimSection for common data, preserving Word-only extras.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.DkimSection sec,
+        System.Collections.Generic.IReadOnlyList<DomainDetective.Views.DkimRecordInfo>? original,
+        string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        var first = original?.FirstOrDefault();
+        if (includeNarrative && first?.Narrative != null)
+        {
+            var nar = first.Narrative;
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        headings.AddItem("Summary", baseLevel);
+        var table = doc.AddTable(Math.Max(sec.Rows.Count, 0) + 1, 4, WordTableStyle.TableGrid);
+        table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
+        table.Rows[0].Cells[1].Paragraphs[0].Text = "Key Bits";
+        table.Rows[0].Cells[2].Paragraphs[0].Text = "Alg";
+        table.Rows[0].Cells[3].Paragraphs[0].Text = "Status";
+        for (int i = 0; i < sec.Rows.Count; i++)
+        {
+            var r = sec.Rows[i];
+            table.Rows[i + 1].Cells[0].Paragraphs[0].Text = r.Selector;
+            table.Rows[i + 1].Cells[1].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.KeyBits) ? "-" : r.KeyBits;
+            table.Rows[i + 1].Cells[2].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Hash) ? "-" : r.Hash;
+            table.Rows[i + 1].Cells[3].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
+        }
+
+        var f = sec.Findings;
+        if (!showInfoFindings)
+            f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        {
+            headings.AddItem("Findings", baseLevel);
+            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
+            ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
+            ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
+            ft.Rows[0].Cells[2].Paragraphs[0].Text = "Target";
+            ft.Rows[0].Cells[3].Paragraphs[0].Text = "Message";
+            for (int i = 0; i < f.Count; i++)
+            {
+                var a = f[i];
+                ft.Rows[i + 1].Cells[0].Paragraphs[0].Text = a.Severity;
+                ft.Rows[i + 1].Cells[1].Paragraphs[0].Text = a.Code;
+                ft.Rows[i + 1].Cells[2].Paragraphs[0].Text = a.Target;
+                ft.Rows[i + 1].Cells[3].Paragraphs[0].Text = a.Message;
+            }
+        }
+
+        // Evidence from original
+        if (original != null && original.Count > 0)
+        {
+            headings.AddItem("Evidence", baseLevel);
+            foreach (var r in original)
+            {
+                if (string.IsNullOrWhiteSpace(r?.Selector)) continue;
+                var sl = doc.AddParagraph($"Selector: {r.Selector}"); sl.Bold = true;
+                if (!string.IsNullOrWhiteSpace(r.DkimRecord)) { var rl = doc.AddParagraph("Record:"); rl.Bold = true; var rp = doc.AddParagraph(r.DkimRecord); rp.FontSize = 10; }
+                if (!string.IsNullOrWhiteSpace(r.PublicKey)) { var kl = doc.AddParagraph("Public Key (snippet):"); kl.Bold = true; var key = r.PublicKey!.Length > 120 ? r.PublicKey.Substring(0, 120) + "…" : r.PublicKey; var kp = doc.AddParagraph(key); kp.FontSize = 10; }
+            }
+        }
+
+        var refs = sec.References;
+        if (refs.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var r in refs) list.AddItem(r);
+        }
+    }
 }

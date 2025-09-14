@@ -22,9 +22,11 @@ public static class MarkdownCompositionReport
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
-        var groups = GroupBySubject(items);
-        var domains = OrderDomains(items, groups, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
-        var title = BuildTitle(domains.Select(x => x.Key).ToList());
+        var groups = CompositionBuilder.GroupBySubject(items);
+        var domains = CompositionBuilder.OrderDomains(items, groups, ordering?.DomainOrder ?? DomainOrder.Alphabetical)
+            .Select(kv => new KeyValuePair<string, DomainBucket>(kv.Key, Map(kv.Value)))
+            .ToList();
+        var title = CompositionBuilder.BuildSubjectTitle(domains.Select(x => x.Key).ToList());
 
         int totalWarn = 0, totalErr = 0;
         var summary = new List<(string Domain, string MX, string SPF, string DKIM, string DMARC, string MTASTS, string TLSRPT, string Classification, string Findings)>();
@@ -52,9 +54,11 @@ public static class MarkdownCompositionReport
         OrderingOptions? ordering = null)
     {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
-        var groups = GroupBySubject(items);
-        var domains = OrderDomains(items, groups, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
-        var title = BuildTitle(domains.Select(x => x.Key).ToList());
+        var groups = CompositionBuilder.GroupBySubject(items);
+        var domains = CompositionBuilder.OrderDomains(items, groups, ordering?.DomainOrder ?? DomainOrder.Alphabetical)
+            .Select(kv => new KeyValuePair<string, DomainBucket>(kv.Key, Map(kv.Value)))
+            .ToList();
+        var title = CompositionBuilder.BuildSubjectTitle(domains.Select(x => x.Key).ToList());
 
         var md = BuildDoc(domains, title);
         var mdPath = Path.ChangeExtension(htmlPath, ".md");
@@ -436,6 +440,35 @@ public static class MarkdownCompositionReport
         }
 
         return md;
+    }
+
+    // Adapter: map shared CompositionBuilder.DomainBucket into local Markdown DomainBucket type used below
+    private static DomainBucket Map(CompositionBuilder.DomainBucket s)
+    {
+        var b = new DomainBucket
+        {
+            Subject = s.Subject,
+            Mx = s.Mx,
+            Spf = s.Spf,
+            Dmarc = s.Dmarc,
+            Dnsbl = s.Dnsbl,
+            Classification = s.Classification,
+            Mtasts = s.Mtasts,
+            TlsRpt = s.TlsRpt,
+            Ns = s.Ns,
+            Soa = s.Soa,
+            Caa = s.Caa,
+            Dnssec = s.Dnssec,
+            Dane = s.Dane,
+            SmtpTls = s.SmtpTls,
+            ImapTls = s.ImapTls,
+            PopTls = s.PopTls,
+            Rpki = s.Rpki,
+            ZoneTransfer = s.ZoneTransfer,
+            Wildcard = s.Wildcard
+        };
+        if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
+        return b;
     }
 
     private static string ComputeStatus(DomainBucket b)

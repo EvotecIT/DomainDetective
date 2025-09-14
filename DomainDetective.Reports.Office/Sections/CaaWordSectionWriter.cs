@@ -77,5 +77,39 @@ public static class CaaWordSectionWriter
             foreach (var r in caa.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
         }
     }
-}
 
+    /// <summary>
+    /// Projector-aware overload using SectionProjectors.CaaSection.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.CaaSection sec,
+        DomainDetective.Views.CaaInfo? original,
+        string domain, ReportScope scope, bool showInfoFindings)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        headings.AddItem("Summary", baseLevel);
+        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string,string)>() { ("Status", sec.Status) };
+        var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
+        for (int i=0;i<rows.Count;i++){ t.Rows[i].Cells[0].AddParagraph(rows[i].Item1); t.Rows[i].Cells[1].AddParagraph(rows[i].Item2); }
+
+        if (original != null)
+        {
+            if ((original.CanIssueCertificatesForDomain?.Count ?? 0) > 0)
+            { headings.AddItem("Authorized Issuers", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var v in original.CanIssueCertificatesForDomain!) if (!string.IsNullOrWhiteSpace(v)) list.AddItem(v); }
+            if ((original.CanIssueWildcardCertificatesForDomain?.Count ?? 0) > 0)
+            { headings.AddItem("Wildcard Issuers", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var v in original.CanIssueWildcardCertificatesForDomain!) if (!string.IsNullOrWhiteSpace(v)) list.AddItem(v); }
+            if ((original.ReportViolationEmail?.Count ?? 0) > 0)
+            { headings.AddItem("Report-Only Email", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var v in original.ReportViolationEmail!) if (!string.IsNullOrWhiteSpace(v)) list.AddItem(v); }
+        }
+
+        var f = sec.Findings; if (!showInfoFindings) f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        { headings.AddItem("Findings", baseLevel); var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid); ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message"); for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);} }
+
+        if (sec.References.Count > 0)
+        { headings.AddItem("References", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var r in sec.References) list.AddItem(r); }
+    }
+}
