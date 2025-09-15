@@ -94,6 +94,24 @@ public static partial class HtmlCompositionReport
             }
         } catch { }
 
+        // Legend (status meanings) — parity with Markdown
+        try {
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
+                c.Card(card => {
+                    card.Header(h => h.Title("Legend").Subtitle("Status meanings"));
+                    card.Body(b => {
+                        var rows = new[] {
+                            new { Status = "🟢 OK", Meaning = "All checks passed or acceptable" },
+                            new { Status = "🟠 Warning", Meaning = "Requires attention; not blocking" },
+                            new { Status = "🔴 Error", Meaning = "Blocking or invalid configuration" }
+                        };
+                        var t = (TablerTable)b.Table(rows, TableType.Tabler);
+                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                    });
+                });
+            }));
+        } catch { }
+
         // Executive summary table (DataTables) with highlighters
         page.Divider("Executive Summary");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {

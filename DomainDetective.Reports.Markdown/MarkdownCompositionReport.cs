@@ -94,6 +94,8 @@ public static partial class MarkdownCompositionReport
 
         // Provider chain + quick links (Word parity, condensed)
         md.H2("Mail Providers");
+        // Legend for provider hints (parity with Word/HTML)
+        md.P("Legend: Confidence = detection certainty; Single‑MX OK = vendor supports single MX; Gateway = inbound security gateway; Outbound = separate sender platform.");
         foreach (var kv in domains)
         {
             var domain = kv.Key; var b = kv.Value;

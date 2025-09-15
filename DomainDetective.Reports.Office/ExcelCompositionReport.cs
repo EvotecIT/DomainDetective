@@ -84,6 +84,8 @@ public static partial class ExcelCompositionReport
                 {
                     s.SectionWithAnchor("Providers");
                     s.PropertiesGrid(providerKvp.ToArray(), columns: 3);
+                    // Legend line for provider hints (parity with Word/HTML)
+                    try { s.BulletedList(new [] { "Legend: Confidence = detection certainty; Single‑MX OK = vendor supports single MX; Gateway = inbound security gateway; Outbound = separate sender platform." }); } catch { }
 
                     // Top links (take 3 from primary provider help if available)
                     try
@@ -299,6 +301,45 @@ public static partial class ExcelCompositionReport
                         }
                     }
                     catch { }
+                }
+            }
+
+            // DKIM details (selectors, TTL, evidence)
+            if (b.Dkim != null && b.Dkim.Count > 0)
+            {
+                var dk = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim, b.Ttl);
+                s.SectionWithAnchor("DKIM");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("Selectors", b.Dkim.Count),
+                    ("Any Weak", b.Dkim.Any(x => x.WeakKey) ? "Yes" : "No")
+                }, columns: 3);
+
+                if (dk != null && dk.Rows.Count > 0)
+                {
+                    var rows = dk.Rows.Select(r => new {
+                        Selector = r.Selector,
+                        Status = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status,
+                        KeyBits = string.IsNullOrWhiteSpace(r.KeyBits) ? "-" : r.KeyBits,
+                        Alg = string.IsNullOrWhiteSpace(r.Hash) ? "-" : r.Hash,
+                        Weak = r.Weak ? "Yes" : "No",
+                        Flags = string.IsNullOrWhiteSpace(r.Flags) ? string.Empty : r.Flags,
+                        TTL = r.TtlSeconds.HasValue ? r.TtlSeconds.Value.ToString() : "-"
+                    }).ToList();
+                    s.TableFrom(rows, title: "Selectors", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+                if (dk != null && dk.Positives.Count > 0) { s.Section("Positives"); s.BulletedList(dk.Positives); }
+                if (dk != null && dk.Findings.Count > 0)
+                {
+                    var rows = dk.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    s.TableFrom(rows, title: "Findings", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+                if (dk != null && dk.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record)))
+                {
+                    var recRows = dk.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record))
+                        .Select(r => new { r.Selector, Record = r.Record })
+                        .ToList();
+                    s.Section("Evidence");
+                    s.TableFrom(recRows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
                 }
             }
 

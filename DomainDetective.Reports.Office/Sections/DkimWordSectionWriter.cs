@@ -194,18 +194,21 @@ public static class DkimWordSectionWriter
         }
 
         headings.AddItem("Summary", baseLevel);
-        var table = doc.AddTable(Math.Max(sec.Rows.Count, 0) + 1, 4, WordTableStyle.TableGrid);
+        // Include TTL for selectors when available (parity with Markdown/HTML/Excel)
+        var table = doc.AddTable(Math.Max(sec.Rows.Count, 0) + 1, 5, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Key Bits";
         table.Rows[0].Cells[2].Paragraphs[0].Text = "Alg";
-        table.Rows[0].Cells[3].Paragraphs[0].Text = "Status";
+        table.Rows[0].Cells[3].Paragraphs[0].Text = "TTL (s)";
+        table.Rows[0].Cells[4].Paragraphs[0].Text = "Status";
         for (int i = 0; i < sec.Rows.Count; i++)
         {
             var r = sec.Rows[i];
             table.Rows[i + 1].Cells[0].Paragraphs[0].Text = r.Selector;
             table.Rows[i + 1].Cells[1].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.KeyBits) ? "-" : r.KeyBits;
             table.Rows[i + 1].Cells[2].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Hash) ? "-" : r.Hash;
-            table.Rows[i + 1].Cells[3].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
+            table.Rows[i + 1].Cells[3].Paragraphs[0].Text = r.TtlSeconds.HasValue ? r.TtlSeconds.Value.ToString() : "-";
+            table.Rows[i + 1].Cells[4].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
         }
 
         var f = sec.Findings;

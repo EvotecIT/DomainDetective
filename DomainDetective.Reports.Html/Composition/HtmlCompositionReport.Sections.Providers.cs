@@ -69,6 +69,11 @@ public static partial class HtmlCompositionReport {
 
                         b.Divider();
                     }
+                    // Legend explaining badges and hints (parity with Word)
+                    try {
+                        b.Text("Legend: Confidence = detection certainty; Single‑MX OK = vendor supports single MX; Gateway = inbound security gateway; Outbound = separate sender platform.")
+                         .Style(TablerTextStyle.Muted);
+                    } catch { }
                 });
             });
         }));

@@ -22,6 +22,7 @@ public static partial class ExcelCompositionReport
             Dnsbl = s.Dnsbl,
             Dnssec = s.Dnssec,
             Dane = s.Dane,
+            Ttl = s.Ttl,
             SmtpTls = s.SmtpTls,
             ImapTls = s.ImapTls,
             PopTls = s.PopTls,
@@ -51,6 +52,7 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
         public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
         public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }

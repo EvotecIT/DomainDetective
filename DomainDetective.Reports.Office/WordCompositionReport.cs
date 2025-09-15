@@ -374,7 +374,7 @@ public static class WordCompositionReport {
             }, bucket.Spf != null);
             add("DKIM", () => {
                 headings.AddItem("DKIM", 1);
-                var dto = DomainDetective.Reports.SectionProjectors.BuildDkim(bucket.Dkim);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDkim(bucket.Dkim, bucket.Ttl);
                 if (dto != null) DkimWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
                 else DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
                 try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDkim) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
@@ -665,6 +665,7 @@ public static class WordCompositionReport {
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
+        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.ArcInfo? Arc { get; set; }
         public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
         public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
@@ -781,6 +782,8 @@ public static class WordCompositionReport {
                         Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                     case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
                         Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
+                    case DomainDetective.Views.TtlInfo ttl when !string.IsNullOrWhiteSpace(ttl.Subject):
+                        Ensure(ttl.Subject); map[ttl.Subject].Ttl = ttl; break;
                     case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
                         Ensure(mt.Subject);
                         switch (mt.Check) {
