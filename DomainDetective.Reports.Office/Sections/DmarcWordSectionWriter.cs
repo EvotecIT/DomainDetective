@@ -160,8 +160,7 @@ public static class DmarcWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in dmarc.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, dmarc.References);
         }
     }
 
@@ -239,8 +238,7 @@ public static class DmarcWordSectionWriter
         if (sec.References.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in sec.References) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, sec.References);
         }
     }
 }

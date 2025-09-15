@@ -85,8 +85,7 @@ public static class BimiWordSectionWriter
         if (bimi.References != null && bimi.References.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var rlist = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in bimi.References) if (!string.IsNullOrWhiteSpace(r)) rlist.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, bimi.References);
         }
     }
 }

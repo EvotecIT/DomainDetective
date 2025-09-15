@@ -66,13 +66,13 @@ Export-DDSecurityReport -ExportFormat Markdown, MarkdownHtml, Word, Excel -Expor
     Test-DDEmailSpfRecord -DomainName $domains
     Test-DDEmailDkimRecord -DomainName $domains
     Test-DDEmailDmarcRecord -DomainName $domains
-    Test-DDDnsNsRecord -DomainName 'evotec.pl'
-    Test-DDDnsSecStatus -DomainName 'evotec.pl'
+    # Test-DDDnsNsRecord -DomainName 'evotec.pl'
+    # Test-DDDnsSecStatus -DomainName 'evotec.pl'
 
-    foreach ($name in $d) {
-        Test-DDDnsSoaRecord -DomainName $name
-        Test-DDDnsCaaRecord -DomainName $name
-        Test-DDDnsZoneTransfer -DomainName $name
-        Test-DDDnsWildcard -DomainName $name
-    }
+    # foreach ($name in $d) {
+    #     Test-DDDnsSoaRecord -DomainName $name
+    #     Test-DDDnsCaaRecord -DomainName $name
+    #     Test-DDDnsZoneTransfer -DomainName $name
+    #     Test-DDDnsWildcard -DomainName $name
+    # }
 }

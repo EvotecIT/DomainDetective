@@ -168,8 +168,7 @@ public static class DkimWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in refs) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, refs);
         }
     }
 
@@ -249,8 +248,7 @@ public static class DkimWordSectionWriter
         if (refs.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in refs) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, refs);
         }
     }
 }

@@ -103,8 +103,7 @@ public static class DnsblWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in dnsbl.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, dnsbl.References);
         }
     }
 
@@ -137,6 +136,6 @@ public static class DnsblWordSectionWriter
         { headings.AddItem("Evidence", baseLevel); var lt = doc.AddTable(original.ListedRecords.Count + 1, 3, WordTableStyle.TableGrid); lt.Rows[0].Cells[0].AddParagraph("Host"); lt.Rows[0].Cells[1].AddParagraph("Blacklist"); lt.Rows[0].Cells[2].AddParagraph("Reason"); for (int i=0;i<original.ListedRecords.Count;i++){ var r = original.ListedRecords[i]; lt.Rows[i+1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress); lt.Rows[i+1].Cells[1].AddParagraph(r.BlackList ?? string.Empty); lt.Rows[i+1].Cells[2].AddParagraph(r.ReplyMeaning ?? string.Empty);} }
 
         if (sec.References.Count > 0)
-        { headings.AddItem("References", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var r in sec.References) list.AddItem(r); }
+        { headings.AddItem("References", baseLevel); WordLinkHelpers.AddReferencesList(doc, sec.References); }
     }
 }

@@ -79,8 +79,7 @@ public static class RpkiWordSectionWriter
         if (rpki.References != null && rpki.References.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in rpki.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, rpki.References);
         }
     }
 

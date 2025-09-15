@@ -80,8 +80,7 @@ public static class TlsRptWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in tlsrpt.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, tlsrpt.References);
         }
     }
 
@@ -135,6 +134,6 @@ public static class TlsRptWordSectionWriter
         }
 
         if (sec.References.Count > 0)
-        { headings.AddItem("References", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var r in sec.References) list.AddItem(r); }
+        { headings.AddItem("References", baseLevel); WordLinkHelpers.AddReferencesList(doc, sec.References); }
     }
 }

@@ -10,9 +10,8 @@
         <PackageReference Include="OfficeIMO.Word" Version="1.0.8" />
     </ItemGroup>
 
-    <!-- Use published OfficeIMO.Excel package for net8.0 builds -->
-    <ItemGroup Condition=" '$(TargetFramework)' == 'net8.0' ">
-        <PackageReference Include="OfficeIMO.Excel" Version="0.3.0" />
+    <ItemGroup>
+        <ProjectReference Include="..\..\Projects\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" />
     </ItemGroup>
 
     <ItemGroup>

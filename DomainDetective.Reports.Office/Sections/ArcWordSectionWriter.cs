@@ -81,8 +81,7 @@ public static class ArcWordSectionWriter
         if (arc.References != null && arc.References.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var rlist = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in arc.References) if (!string.IsNullOrWhiteSpace(r)) rlist.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, arc.References);
         }
     }
 }

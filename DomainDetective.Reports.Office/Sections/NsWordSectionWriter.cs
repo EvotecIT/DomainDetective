@@ -74,8 +74,7 @@ public static class NsWordSectionWriter
         if (ns.References != null && ns.References.Count > 0)
         {
             headings.AddItem("References", baseLevel);
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in ns.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, ns.References);
         }
     }
 
@@ -107,6 +106,6 @@ public static class NsWordSectionWriter
         { headings.AddItem("Findings", baseLevel); var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid); ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message"); for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);} }
 
         if (sec.References.Count > 0)
-        { headings.AddItem("References", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var r in sec.References) list.AddItem(r); }
+        { headings.AddItem("References", baseLevel); WordLinkHelpers.AddReferencesList(doc, sec.References); }
     }
 }
