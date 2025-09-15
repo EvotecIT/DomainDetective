@@ -28,20 +28,9 @@ public static class MarkdownCompositionReport
             .ToList();
         var title = CompositionBuilder.BuildSubjectTitle(domains.Select(x => x.Key).ToList());
 
-        int totalWarn = 0, totalErr = 0;
-        var summary = new List<(string Domain, string MX, string SPF, string DKIM, string DMARC, string MTASTS, string TLSRPT, string Classification, string Findings)>();
-        foreach (var kv in domains)
-        {
-            var b = kv.Value;
-            int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
-            int err  = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-            totalWarn += warn; totalErr += err;
-            string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
-            string dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-            summary.Add((kv.Key, status(b.Mx?.Status), status(b.Spf?.Status), dkimStatus, status(b.Dmarc?.Status), status(b.Mtasts?.Status), status(b.TlsRpt?.Status), status(b.Classification?.Classification), $"{warn} / {err}"));
-        }
-
-        var md = BuildDoc(domains, title);
+        var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
+        var overview = OverviewWording.ComposeFromItems(items);
+        var md = BuildDoc(domains, title, rows, overview);
         var text = md.ToMarkdown();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
         File.WriteAllText(path, text, Encoding.UTF8);
@@ -60,7 +49,9 @@ public static class MarkdownCompositionReport
             .ToList();
         var title = CompositionBuilder.BuildSubjectTitle(domains.Select(x => x.Key).ToList());
 
-        var md = BuildDoc(domains, title);
+        var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
+        var overview = OverviewWording.ComposeFromItems(items);
+        var md = BuildDoc(domains, title, rows, overview);
         var mdPath = Path.ChangeExtension(htmlPath, ".md");
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(mdPath)) ?? ".");
         File.WriteAllText(mdPath, md.ToMarkdown(), Encoding.UTF8);
@@ -81,28 +72,14 @@ public static class MarkdownCompositionReport
         md.SaveHtml(htmlPath, htmlOptions);
     }
 
-    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title)
+    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine)
     {
-        int totalWarn = 0, totalErr = 0;
-        var summary = new List<(string Domain, string MX, string SPF, string DKIM, string DMARC, string MTASTS, string TLSRPT, string Classification, string Findings)>();
-        foreach (var kv in domains)
-        {
-            var b = kv.Value;
-            int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
-            int err  = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-            totalWarn += warn; totalErr += err;
-            string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
-            string dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-            summary.Add((kv.Key, status(b.Mx?.Status), status(b.Spf?.Status), dkimStatus, status(b.Dmarc?.Status), status(b.Mtasts?.Status), status(b.TlsRpt?.Status), status(b.Classification?.Classification), $"{warn} / {err}"));
-        }
-
         var md = MarkdownDoc.Create()
             .FrontMatter(new { title = $"Security Report — {title}", date = DateTimeOffset.Now.ToString("u") })
             .H1("Executive Summary")
             .Toc(opts => { opts.MinLevel = 1; opts.MaxLevel = 3; opts.IncludeTitle = false; opts.Collapsible = true; }, placeAtTop: true)
             .H2("Overview")
-            .P(p => p.Text("This report summarizes email and DNS security signals for ")
-                    .Bold(domains.Count.ToString()).Text(" domain(s). Totals: ").Underline($"{totalWarn} warning(s), {totalErr} error(s)").Text("."))
+            .P(overviewLine)
             .H2("Legend")
             .Table(t => t.Headers("Status","Meaning")
                            .Row("🟢 OK","All checks passed or acceptable")
@@ -112,48 +89,39 @@ public static class MarkdownCompositionReport
             .H2("Domains");
 
         md.Table(t => t
-            .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","Classification","Findings (W/E)")
-            .Rows(summary.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.MX, r.SPF, r.DKIM, r.DMARC, r.MTASTS, r.TLSRPT, r.Classification, r.Findings }))
-            .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7).AlignRight(8));
+            .Headers("Domain","MX","SPF","DKIM","DMARC","MTA-STS","TLS-RPT","DNSSEC","RPKI","Classification","Findings (W/E)")
+            .Rows(rows.Select(r => (IReadOnlyList<string>)new []{ r.Domain, r.Mx, r.Spf, r.Dkim, r.Dmarc, r.Mtasts, r.TlsRpt, r.Dnssec, r.Rpki, r.Classification, $"{r.Warnings} / {r.Errors}" }))
+            .AlignLeft(0).AlignCenter(1,2,3,4,5,6,7,8,9).AlignRight(10));
 
-        // Provider chain + quick links (Word parity, condensed)
+        // Provider chain + quick links (Word parity, condensed) — single source via ProviderChainBuilder
         md.H2("Mail Providers");
         foreach (var kv in domains)
         {
             var domain = kv.Key; var b = kv.Value;
-            var primary = b.Mx?.ProviderPrimary ?? string.Empty;
-            var gateways = b.Mx?.ProviderGateways ?? new List<string>();
-            var outbound = new List<string>();
-            try
-            {
-                var names = (b.Spf?.ProviderHelp ?? new List<DomainDetective.Views.ProviderHelpLinks>())
-                    .Select(p => p?.ProviderName)
-                    .Where(n => !string.IsNullOrWhiteSpace(n))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-                foreach (var n in names)
-                {
-                    if (string.IsNullOrWhiteSpace(n)) continue;
-                    if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
-                    outbound.Add(n);
-                }
-            }
-            catch { }
-
+            var chain = DomainDetective.Reports.ProviderChainBuilder.Build(b.Mx, b.Spf);
             var parts = new List<string>();
-            if (!string.IsNullOrWhiteSpace(primary)) parts.Add($"Primary: {primary}");
-            if (gateways.Count > 0) parts.Add($"Gateways: {string.Join(", ", gateways)}");
-            if (outbound.Count > 0) parts.Add($"Outbound: {string.Join(", ", outbound)}");
+            if (!string.IsNullOrWhiteSpace(chain.Primary)) parts.Add($"Primary: {chain.Primary}");
+            if (chain.Gateways.Count > 0) parts.Add($"Gateways: {string.Join(", ", chain.Gateways)}");
+            if (chain.Outbound.Count > 0) parts.Add($"Outbound: {string.Join(", ", chain.Outbound)}");
             var line = parts.Count > 0 ? string.Join("; ", parts) : "(no provider detected)";
 
-            md.P(p => p.Bold(domain + ": ").Text(line));
+            // Append hints similar to Word (confidence, Single‑MX OK)
+            try
+            {
+                var hints = DomainDetective.Reports.ProviderHintsBuilder.Build(b.Mx, chain.Primary);
+                var hintParts = new List<string>();
+                if (hints.ConfidencePercent > 0) hintParts.Add($"Confidence {hints.ConfidencePercent}%");
+                if (hints.SingleMxOk) hintParts.Add("Single‑MX OK");
+                var hintText = hintParts.Count > 0 ? $" — {string.Join(" · ", hintParts)}" : string.Empty;
+                md.P(p => p.Bold(domain + ": ").Text(line + hintText));
+            }
+            catch { md.P(p => p.Bold(domain + ": ").Text(line)); }
 
             // Top provider links (DMARC/SPF/DKIM) for the primary provider if available
             try
             {
                 var links = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
                                   ?? links?.FirstOrDefault();
                 if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
                 {
@@ -200,7 +168,7 @@ public static class MarkdownCompositionReport
             if (b.Classification?.References?.Count > 0)
             {
                 md.H2("References");
-                md.Ul(ul => { foreach (var u in b.Classification.References) ul.ItemLink(u, u); });
+                md.Ul(ul => { foreach (var u in b.Classification.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } });
             }
 
             // Per‑section details (core parity with Word)
@@ -216,10 +184,30 @@ public static class MarkdownCompositionReport
                         foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value);
                         t.AlignLeft(0,1);
                     });
+                    if (sec.Highlights.Count > 0) { md.H3("Highlights").Ul(sec.Highlights.ToArray()); }
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var spfFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (spfFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    // Evidence
+                    if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { md.H3("Evidence").P("SPF Record:"); md.Code("", sec.SpfRecord!); }
+                    // Mechanisms
+                    if (sec.Mechanisms.Count > 0) {
+                        md.H3("Mechanisms");
+                        var mechRows = sec.Mechanisms.Select(m => (IReadOnlyList<string>)new[]{ m.Qualifier, m.Type, m.Value, m.Provider }).ToList();
+                        md.Table(t => t.Headers("Qualifier","Type","Value","Provider").Rows(mechRows).AlignLeft(0,1,2,3));
+                    }
+                    // Flattened IP Analysis
+                    if (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0) {
+                        md.H3("Flattened IP Analysis");
+                        md.Table(t => t.Headers("Metric","Value")
+                            .Row("Unique IPs", sec.FlattenedUniqueIpCount.ToString())
+                            .Row("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString())
+                            .Row("Tokens Resolved", sec.FlattenedTokenCount.ToString())
+                            .AlignLeft(0,1));
+                    }
+                    // Provider Help (SPF)
+                    if (sec.ProviderHelp.Count > 0) { md.H3("Provider Help"); md.Ul(ul => { foreach (var (title, url) in sec.ProviderHelp.Take(5)) ul.ItemLink(title, url); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -238,7 +226,7 @@ public static class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var dmFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dmFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -251,13 +239,13 @@ public static class MarkdownCompositionReport
                 {
                     if (sec.Rows.Count > 0)
                     {
-                        var rows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash }).ToList();
-                        md.Table(t => t.Headers("Selector","Status","Key Bits","Alg").Rows(rows).AlignLeft(0,1,2,3));
+                        var dkimRows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash }).ToList();
+                        md.Table(t => t.Headers("Selector","Status","Key Bits","Alg").Rows(dkimRows).AlignLeft(0,1,2,3));
                     }
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var dkFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
             // MX (SectionProjectors)
@@ -271,7 +259,7 @@ public static class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var mxFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mxFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -285,7 +273,7 @@ public static class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -299,7 +287,7 @@ public static class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     var trFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -313,13 +301,13 @@ public static class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     if (sec.Findings.Count > 0)
                     {
-                        var rows = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
-                        md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(rows).AlignLeft(0,1,2,3));
+                        var dnsblRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                        md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsblRows).AlignLeft(0,1,2,3));
                     }
                     // Evidence from original
                     var listed = b.Dnsbl.ListedRecords?.Select(r => (IReadOnlyList<string>)new[]{ r.SourceHost ?? r.IpAddress ?? "", r.BlackList ?? "", r.ReplyMeaning ?? "" }).ToList() ?? new List<IReadOnlyList<string>>();
                     if (listed.Count > 0) md.H3("Listed Records").Table(t => t.Headers("Host","Blacklist","Reason").Rows(listed).AlignLeft(0,1,2));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -334,7 +322,7 @@ public static class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var nsFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -348,7 +336,7 @@ public static class MarkdownCompositionReport
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     var soaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (soaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(soaFind));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) ul.ItemLink(u, u); }); }
+                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
                 }
             }
 
@@ -439,6 +427,45 @@ public static class MarkdownCompositionReport
                 md.H2("Wildcard DNS").Table(t => t.Headers("Key","Value").Row("Catch-All", b.Wildcard.CatchAll ? "Yes" : "No").AlignLeft(0,1));
             }
         }
+
+        // All References parity with Word
+        try
+        {
+            var comp = DomainDetective.Reports.CompositionBuilder.GroupBySubject(domains.Select(kv => (object)kv.Value).ToList());
+            // The above GroupBySubject expects raw view items, not DomainBucket; so fall back to collecting from our DomainBucket list
+            var refs = new List<string>();
+            void Pull(IEnumerable<string>? urls) { if (urls == null) return; foreach (var u in urls) if (!string.IsNullOrWhiteSpace(u)) refs.Add(u); }
+            foreach (var kv in domains)
+            {
+                var b = kv.Value;
+                Pull(b.Spf?.References);
+                foreach (var d in b.Dkim) Pull(d.References);
+                Pull(b.Dmarc?.References);
+                Pull(b.Mx?.References);
+                Pull(b.Mtasts?.References);
+                Pull(b.TlsRpt?.References);
+                Pull(b.Dnsbl?.References);
+                Pull(b.Rpki?.References);
+                Pull(b.Ns?.References);
+                Pull(b.Soa?.References);
+                Pull(b.ZoneTransfer?.References);
+                Pull(b.Wildcard?.References);
+                Pull(b.Dnssec?.References);
+                Pull(b.Dane?.References);
+                Pull(b.Caa?.References);
+                Pull(b.SmtpTls?.References);
+                Pull(b.ImapTls?.References);
+                Pull(b.PopTls?.References);
+                Pull(b.Classification?.References);
+            }
+            var uniq = refs.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            if (uniq.Count > 0)
+            {
+                md.H1("All References");
+                md.Ul(ul => { foreach (var u in uniq) { var f = DomainDetective.Reports.LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } });
+            }
+        }
+        catch { }
 
         return md;
     }

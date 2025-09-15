@@ -52,15 +52,25 @@ public static partial class HtmlCompositionReport {
         document.Body.Page(page => {
             page.Layout = TablerLayout.Combo;
 
-            // Executive banner, KPIs, and summary table
-            RenderExecutiveSummary(page, ordered);
+            // Executive banner, KPIs, and summary table (built from a single source of truth)
+            var execRows = ExecutiveSummaryBuilder.Build(items, domainOrder);
+            var overviewLine = OverviewWording.ComposeFromItems(items);
+            RenderExecutiveSummary(page, ordered, execRows, overviewLine);
 
-            // Dashboard profile: focus on KPIs/summary only
+            // Dashboard profile: KPIs/summary plus compact SPF details
             var isDashboard = profile == HtmlProfile.Dashboard;
             if (!isDashboard)
             {
                 // Mail Providers — rendered via a dedicated partial to keep file small
                 try { RenderProvidersSection(page, ordered); } catch { }
+                // MailTLS footnote parity with Word
+                try { RenderMailTlsFootnote(page, ordered); } catch { }
+                // All References parity with Word
+                try { RenderAllReferencesSection(page, items); } catch { }
+            }
+            else
+            {
+                try { RenderDashboardSpf(page, ordered); } catch { }
             }
 
             // Optional global background/narrative placeholder (can be enhanced)

@@ -35,6 +35,7 @@
         <ProjectReference Include="..\DomainDetective.PowerShell\DomainDetective.PowerShell.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />
+        <ProjectReference Include="..\DomainDetective.Reports.Markdown\DomainDetective.Reports.Markdown.csproj" />
     </ItemGroup>
 
     <ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">

@@ -24,6 +24,14 @@ public static class SectionProjectors
         public List<SimpleFinding> Findings { get; } = new();
         public List<string> Positives { get; } = new();
         public List<string> References { get; } = new();
+        // Extras for parity with Word and richer Excel/HTML
+        public string? SpfRecord { get; set; }
+        public List<(string Qualifier, string Type, string Value, string Provider)> Mechanisms { get; } = new();
+        public int FlattenedUniqueIpCount { get; set; }
+        public int FlattenedDuplicateIpCount { get; set; }
+        public int FlattenedTokenCount { get; set; }
+        public List<(string Title, string Url)> ProviderHelp { get; } = new();
+        public List<string> Highlights { get; } = new();
     }
 
     public sealed class DmarcSection
@@ -130,13 +138,12 @@ public static class SectionProjectors
     public static SpfSection? BuildSpf(DomainDetective.Views.SpfRecordInfo spf)
     {
         if (spf == null) return null;
-        var sec = new SpfSection
-        {
-            DnsLookupsCount = spf.DnsLookupsCount,
-        };
+        var sec = new SpfSection { DnsLookupsCount = spf.DnsLookupsCount };
         sec.Summary.Add(("Status", spf.Status ?? "-"));
         sec.Summary.Add(("DNS Lookups", spf.DnsLookupsCount.ToString()));
         sec.Summary.Add(("Record Present", spf.SpfRecordExists ? "Yes" : "No"));
+        if (spf.StartsCorrectly) sec.Summary.Add(("Starts Correctly", "Yes")); else sec.Summary.Add(("Starts Correctly", "No"));
+        if (!string.IsNullOrWhiteSpace(spf.Raw?.AllMechanism)) sec.Summary.Add(("All Mechanism", spf.Raw!.AllMechanism!));
         // Findings (exclude Info)
         foreach (var a in (spf.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info))
             sec.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
@@ -147,6 +154,41 @@ public static class SectionProjectors
         }
         // References
         foreach (var r in spf.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(r)) sec.References.Add(r);
+        // Evidence
+        sec.SpfRecord = spf.SpfRecord;
+        // Mechanisms
+        try {
+            foreach (var m in spf.Mechanisms ?? Array.Empty<DomainDetective.SpfPartAnalysis>())
+            {
+                string q = string.IsNullOrEmpty(m?.Prefix) ? "+" : m!.Prefix!;
+                sec.Mechanisms.Add((q, m?.Type ?? string.Empty, m?.Value ?? string.Empty, m?.Provider ?? string.Empty));
+            }
+        } catch { }
+        // Flattened IP analysis summary
+        try {
+            var flat = spf.Raw?.FlattenedIpAnalysis;
+            if (flat != null)
+            {
+                sec.FlattenedUniqueIpCount = flat.UniqueIps?.Count ?? 0;
+                sec.FlattenedDuplicateIpCount = flat.DuplicateIps?.Count ?? 0;
+                sec.FlattenedTokenCount = flat.TokenIpMap?.Count ?? 0;
+            }
+        } catch { }
+        // Provider Help topics (title+url)
+        try {
+            foreach (var ph in spf.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>())
+            {
+                foreach (var t in ph.Topics ?? Array.Empty<DomainDetective.Views.ProviderHelpTopic>())
+                {
+                    if (string.IsNullOrWhiteSpace(t?.Url)) continue;
+                    var f = LinkFormatter.Format(t!.Url!);
+                    string title = string.IsNullOrWhiteSpace(t!.Title) ? f.Title : t!.Title!;
+                    sec.ProviderHelp.Add((title, f.Url));
+                }
+            }
+        } catch { }
+        // Highlights
+        try { foreach (var h in spf.Highlights ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(h)) sec.Highlights.Add(h!); } catch { }
         return sec;
     }
 

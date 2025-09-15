@@ -11,7 +11,7 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderExecutiveSummary(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderExecutiveSummary(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
     {
         // Header banner card
         page.Row(r => {
@@ -28,7 +28,7 @@ public static partial class HtmlCompositionReport
         });
 
         // KPI cards: Domains / Warnings / Errors
-        var totals = ordered.Select(kv => CountFindings(kv.Value)).Aggregate((0, 0), (acc, cur) => (acc.Item1 + cur.warn, acc.Item2 + cur.err));
+        var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
 
@@ -36,7 +36,7 @@ public static partial class HtmlCompositionReport
                 col.Card(card => {
                     card.Background(TablerColor.Success, isLight: true)
                         .Header(h => { h.Title("Domains").Subtitle("Analyzed"); h.Avatar(a => a.Icon(TablerIconType.Globe).BackgroundColor(TablerColor.Success).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
-                        .Body(b => { b.H2(ordered.Count.ToString()); b.Text("Total").Style(TablerTextStyle.Muted); });
+                        .Body(b => { b.H2(rows.Count.ToString()); b.Text("Total").Style(TablerTextStyle.Muted); });
                 });
             });
             row.Column(TablerColumnNumber.Four, col => {
@@ -54,6 +54,13 @@ public static partial class HtmlCompositionReport
                 });
             });
         });
+
+        // Identical wording with Word: overview paragraph (single source)
+        try {
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
+                c.Card(card => card.Body(b => b.Text(overviewLine)));
+            }));
+        } catch { }
 
         // Good Posture (aggregated top positives across domains)
         try {
@@ -90,24 +97,26 @@ public static partial class HtmlCompositionReport
         // Executive summary table (DataTables) with highlighters
         page.Divider("Executive Summary");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
-            var rows = ordered.Select(kv => new {
-                Domain = kv.Key,
-                MX = kv.Value.Mx?.Status ?? "-",
-                SPF = kv.Value.Spf?.Status ?? "-",
-                DKIM = kv.Value.Dkim.Count > 0 ? (kv.Value.Dkim.Max(x => x.Status) ?? "-") : "-",
-                DMARC = kv.Value.Dmarc?.Status ?? "-",
-                MTASTS = kv.Value.Mtasts?.Status ?? "-",
-                TLSRPT = kv.Value.TlsRpt?.Status ?? "-",
-                Findings = $"{CountFindings(kv.Value).warn} / {CountFindings(kv.Value).err}"
+            var tableRows = rows.Select(rw => new {
+                Domain = rw.Domain,
+                MX = rw.Mx,
+                SPF = rw.Spf,
+                DKIM = rw.Dkim,
+                DMARC = rw.Dmarc,
+                MTASTS = rw.Mtasts,
+                TLSRPT = rw.TlsRpt,
+                DNSSEC = rw.Dnssec,
+                RPKI = rw.Rpki,
+                Findings = $"{rw.Warnings} / {rw.Errors}"
             }).ToList();
             c.Card(card => {
                 card.Header(h => h.Title("Domains"));
                 card.Body(body => {
-                    var table = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                    var table = (DataTablesTable)body.Table(tableRows, TableType.DataTables);
                     table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
-                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT" })
+                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
                         table.HighlightWhen(g => g.And(x => x.StringContains(col, "error", false)).Or(x => x.StringContains(col, "fail", false)), t => t.Column(col).Danger());
-                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT" })
+                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
                         table.HighlightWhen(g => g.Or(x => x.StringContains(col, "warn", false)), t => t.Column(col).Warning());
                 });
             });

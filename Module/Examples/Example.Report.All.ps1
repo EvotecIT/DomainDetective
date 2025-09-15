@@ -60,11 +60,19 @@ Below are concise PowerShell examples for evotec.xyz, evotec.pl, and evo.yt that
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
 $domains = @('evotec.pl', 'evotec.xyz')
+$d = @('evotec.pl', 'evotec.xyz')
 
-Export-DDSecurityReport -ExportFormat Markdown, MarkdownHtml, Word -ExportPath "$PSScriptRoot\Reports" -Scope Detailed {
+Export-DDSecurityReport -ExportFormat Markdown, MarkdownHtml, Word, Excel -ExportPath "$PSScriptRoot\Reports" -Scope Detailed {
     Test-DDEmailSpfRecord -DomainName $domains
     Test-DDEmailDkimRecord -DomainName $domains
     Test-DDEmailDmarcRecord -DomainName $domains
     Test-DDDnsNsRecord -DomainName 'evotec.pl'
     Test-DDDnsSecStatus -DomainName 'evotec.pl'
+
+    foreach ($name in $d) {
+        Test-DDDnsSoaRecord -DomainName $name
+        Test-DDDnsCaaRecord -DomainName $name
+        Test-DDDnsZoneTransfer -DomainName $name
+        Test-DDDnsWildcard -DomainName $name
+    }
 }

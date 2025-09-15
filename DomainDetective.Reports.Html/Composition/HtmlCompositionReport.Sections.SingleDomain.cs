@@ -35,16 +35,22 @@ public static partial class HtmlCompositionReport
                                  a.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount>1?"s":"") : "0 Warning", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                  a.Badge($"MX: {b.Mx?.Status ?? "-"}", ColorForStatus(b.Mx?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                  a.Badge($"SPF: {b.Spf?.Status ?? "-"}", ColorForStatus(b.Spf?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
-                                 var dk = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-                                 a.Badge($"DKIM: {dk}", ColorForStatus(dk), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
+                                var dkDisp = DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
+                                a.Badge($"DKIM: {dkDisp}", ColorForStatus(dkDisp), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                  a.Badge($"DMARC: {b.Dmarc?.Status ?? "-"}", ColorForStatus(b.Dmarc?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                  a.Badge($"MTA-STS: {b.Mtasts?.Status ?? "-"}", ColorForStatus(b.Mtasts?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
-                                 a.Badge($"TLS-RPT: {b.TlsRpt?.Status ?? "-"}", ColorForStatus(b.TlsRpt?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
-                             });
+                                a.Badge($"TLS-RPT: {b.TlsRpt?.Status ?? "-"}", ColorForStatus(b.TlsRpt?.Status), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
+                                var dnssecDisp = DomainDetective.Reports.DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
+                                a.Badge($"DNSSEC: {dnssecDisp}", ColorForStatus(dnssecDisp), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
+                                var rpkiDisp = DomainDetective.Reports.DisplayFormatting.ComposeRpkiSummary(b.Rpki);
+                                a.Badge($"RPKI: {rpkiDisp}", ColorForStatus(rpkiDisp), HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
+                            });
                         });
                     card.Body(body => {
-                        var dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-                        body.Text($"SPF {b.Spf?.Status ?? "-"}, DMARC {b.Dmarc?.Status ?? "-"}, DKIM {dkimStatus}, MX {b.Mx?.Status ?? "-"}, MTA-STS {b.Mtasts?.Status ?? "-"}, TLS-RPT {b.TlsRpt?.Status ?? "-"}").Style(TablerTextStyle.Muted);
+                        var dkimStatus = DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
+                        var dnssecStatus = DomainDetective.Reports.DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
+                        var rpkiStatus = DomainDetective.Reports.DisplayFormatting.ComposeRpkiSummary(b.Rpki);
+                        body.Text($"SPF {b.Spf?.Status ?? "-"}, DMARC {b.Dmarc?.Status ?? "-"}, DKIM {dkimStatus}, MX {b.Mx?.Status ?? "-"}, MTA-STS {b.Mtasts?.Status ?? "-"}, TLS-RPT {b.TlsRpt?.Status ?? "-"}, DNSSEC {dnssecStatus}, RPKI {rpkiStatus}").Style(TablerTextStyle.Muted);
                     });
                 });
 
@@ -62,7 +68,7 @@ public static partial class HtmlCompositionReport
 
                             // Overview tab (row of chips, no DataGrid)
                             tabs.AddTab("Overview", TablerIconType.InfoCircle, panel => {
-                                var dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
+                                var dkimStatus = DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
                                 var w = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
                                 var e = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
                                 panel.Row(r => {
@@ -84,9 +90,14 @@ public static partial class HtmlCompositionReport
                                     if (b.Spf != null) a.AddItem("SPF", it => it.Content(c => {
                                         var sec = DomainDetective.Reports.SectionProjectors.BuildSpf(b.Spf);
                                         c.DataGrid(g => { g.AsCompact(); foreach (var kvp in sec!.Summary) g.AddItem(kvp.Key, kvp.Value); });
-                                        if (sec!.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
+                                        if (sec!.Highlights.Count > 0) { c.Divider("Highlights"); foreach (var t in sec.Highlights) c.Text("• " + t); }
+                                        if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
+                                        if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { c.Divider("Evidence"); c.Text("SPF Record:").Style(TablerTextStyle.Muted); c.Code(sec.SpfRecord!); }
+                                        if (sec.Mechanisms.Count > 0) { c.Divider("Mechanisms"); var mech = sec.Mechanisms.Select(m => new { Qualifier = m.Qualifier, Type = m.Type, Value = m.Value, Provider = m.Provider }).ToList(); var tme = (TablerTable)c.Table(mech, TableType.Tabler); tme.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0) { c.Divider("Flattened IP Analysis"); c.DataGrid(g => { g.AsCompact(); g.AddItem("Unique IPs", sec.FlattenedUniqueIpCount.ToString()); g.AddItem("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString()); g.AddItem("Tokens Resolved", sec.FlattenedTokenCount.ToString()); }); }
+                                        if (sec.ProviderHelp.Count > 0) { c.Divider("Provider Help"); c.Row(rr => { rr.Gap(2); foreach (var (title, url) in sec.ProviderHelp.Take(6)) rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title, TablerBadgeColor.Azure, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: url)); }); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); c.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                     }));
 
                                     if (b.Dmarc != null) a.AddItem("DMARC", it => it.Content(c => {
@@ -94,7 +105,7 @@ public static partial class HtmlCompositionReport
                                         c.DataGrid(g => { g.AsCompact(); foreach (var kvp in sec!.Summary) g.AddItem(kvp.Key, kvp.Value); });
                                         if (sec!.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); c.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                     }));
 
                                     if (b.Dkim.Count > 0) a.AddItem("DKIM", it => it.Content(c => {
@@ -103,7 +114,7 @@ public static partial class HtmlCompositionReport
                                         if (sec!.Rows.Count > 0) { var rows = sec.Rows.Select(r => new { r.Selector, r.Status, KeyBits = r.KeyBits, Hash = r.Hash }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
                                         if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows2 = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt2 = (TablerTable)c.Table(rows2, TableType.Tabler); tt2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        if (sec.References.Count > 0) { c.Divider("References"); foreach (var url in sec.References) c.Text("• " + url); }
+                                        if (sec.References.Count > 0) { c.Divider("References"); c.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                     }));
                                 });
                             });
@@ -117,13 +128,13 @@ public static partial class HtmlCompositionReport
                                 {
                                     if (mt.Summary.Count > 0) { panel.Divider("MTA-STS Summary"); panel.DataGrid(g => { g.AsCompact(); foreach (var kv2 in mt.Summary) g.AddItem(kv2.Key, kv2.Value); }); }
                                     if (mt.Findings.Count > 0) { panel.Divider("MTA-STS Findings"); var rows = mt.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (TablerTable)panel.Table(rows, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                    if (mt.References.Count > 0) { panel.Divider("MTA-STS References"); foreach (var url in mt.References) panel.Text("• " + url); }
+                                    if (mt.References.Count > 0) { panel.Divider("MTA-STS References"); panel.Row(rr => { rr.Gap(2); foreach (var u in mt.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                 }
                                 if (tr != null)
                                 {
                                     if (tr.Summary.Count > 0) { panel.Divider("TLS-RPT Summary"); panel.DataGrid(g => { g.AsCompact(); foreach (var kv2 in tr.Summary) g.AddItem(kv2.Key, kv2.Value); }); }
                                     if (tr.Findings.Count > 0) { panel.Divider("TLS-RPT Findings"); var rows = tr.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (TablerTable)panel.Table(rows, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                    if (tr.References.Count > 0) { panel.Divider("TLS-RPT References"); foreach (var url in tr.References) panel.Text("• " + url); }
+                                    if (tr.References.Count > 0) { panel.Divider("TLS-RPT References"); panel.Row(rr => { rr.Gap(2); foreach (var u in tr.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                 }
                             });
 
@@ -153,7 +164,7 @@ public static partial class HtmlCompositionReport
                                     if (sec != null && sec.References.Count > 0)
                                     {
                                         panel.Divider("References");
-                                        foreach (var url in sec.References) panel.Text("• " + url);
+                                        panel.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } });
                                     }
                                 });
                             }

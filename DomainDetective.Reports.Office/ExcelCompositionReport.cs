@@ -46,27 +46,25 @@ public static class ExcelCompositionReport
         var overview = new SheetComposer(doc, "Overview");
         overview.Title("Security Overview", $"Generated {DateTime.Now:yyyy-MM-dd HH:mm}");
 
-        // Build summary rows
-        var sumRows = new List<object>();
-        int totalWarn = 0, totalErr = 0;
-        foreach (var kv in domains)
+        // Build summary rows once via the shared builder
+        var execRows = ExecutiveSummaryBuilder.Build(items, order);
+        int totalWarn = execRows.Sum(r => r.Warnings);
+        int totalErr = execRows.Sum(r => r.Errors);
+        var sumRows = new List<object>(execRows.Count + 1);
+        foreach (var r in execRows)
         {
-            var b = kv.Value;
-            int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
-            int err  = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
-            totalWarn += warn; totalErr += err;
-            string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
-            string dkimStatus = b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
             sumRows.Add(new {
-                Domain = kv.Key,
-                MX = status(b.Mx?.Status),
-                SPF = status(b.Spf?.Status),
-                DKIM = dkimStatus,
-                DMARC = status(b.Dmarc?.Status),
-                MTASTS = status(b.Mtasts?.Status),
-                TLSRPT = status(b.TlsRpt?.Status),
-                Warnings = warn,
-                Errors = err
+                Domain = r.Domain,
+                MX = r.Mx,
+                SPF = r.Spf,
+                DKIM = r.Dkim,
+                DMARC = r.Dmarc,
+                MTASTS = r.Mtasts,
+                TLSRPT = r.TlsRpt,
+                DNSSEC = r.Dnssec,
+                RPKI = r.Rpki,
+                Warnings = r.Warnings,
+                Errors = r.Errors
             });
         }
         // Totals row at the end of the overview table
@@ -78,6 +76,8 @@ public static class ExcelCompositionReport
             DMARC = string.Empty,
             MTASTS = string.Empty,
             TLSRPT = string.Empty,
+            DNSSEC = string.Empty,
+            RPKI = string.Empty,
             Warnings = totalWarn,
             Errors = totalErr
         });
@@ -88,6 +88,15 @@ public static class ExcelCompositionReport
             ("Warnings", totalWarn),
             ("Errors", totalErr)
         }, perRow: 3);
+
+        // Identical wording to Word/Markdown/HTML via shared helper
+        try
+        {
+            var overviewLine = OverviewWording.ComposeFromItems(items);
+            overview.Section("Overview");
+            overview.PropertiesGrid(new (string, object?)[] { ("Summary", overviewLine) }, columns: 1);
+        }
+        catch { }
 
         // Summary table with conditional visuals
         var range = overview.TableFrom(sumRows, title: "Domains", configure: o => {
@@ -104,7 +113,7 @@ public static class ExcelCompositionReport
             var warn = "#FFF4CE";    // light yellow
             var err = "#F8D7DA";     // light red
             var none = "#E9ECEF";    // light gray
-            foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT" })
+            foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
             {
                 v.TextBackgrounds[col] = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase) {
                     { "OK", ok }, { "Pass", ok }, { "Valid", ok },
@@ -123,8 +132,8 @@ public static class ExcelCompositionReport
             var coords = ParseRange(range ?? string.Empty);
             if (coords.startCol != 0)
             {
-                // Errors is the 9th column of our table definition
-                int errorsCol = coords.startCol + 9 - 1;
+                // Errors is now the 11th column (after DNSSEC, RPKI)
+                int errorsCol = coords.startCol + 11 - 1;
                 string colLetter = IndexToCol(errorsCol);
                 // Exclude header row
                 string errRange = $"{colLetter}{coords.startRow + 1}:{colLetter}{coords.endRow}";
@@ -147,39 +156,29 @@ public static class ExcelCompositionReport
             s.DefinitionList(new (string, object?)[] {
                 ("MX", b.Mx?.Status ?? "-"),
                 ("SPF", b.Spf?.Status ?? "-"),
-                ("DKIM", b.Dkim.Count > 0 ? (b.Dkim.Max(x => x.Status) ?? "-") : "-"),
+                ("DKIM", DomainDetective.Reports.DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true)),
                 ("DMARC", b.Dmarc?.Status ?? "-"),
                 ("MTA-STS", b.Mtasts?.Status ?? "-"),
-                ("TLS-RPT", b.TlsRpt?.Status ?? "-")
+                ("TLS-RPT", b.TlsRpt?.Status ?? "-"),
+                ("DNSSEC", DomainDetective.Reports.DisplayFormatting.ComposeDnssecSummary(b.Dnssec)),
+                ("RPKI", DomainDetective.Reports.DisplayFormatting.ComposeRpkiSummary(b.Rpki))
             }, columns: 3);
 
             // Providers (Primary · Gateways · Outbound) + quick top links
             try
             {
-                var primary = b.Mx?.ProviderPrimary ?? string.Empty;
-                var gateways = b.Mx?.ProviderGateways ?? new List<string>();
-                var outbound = new List<string>();
-                try
-                {
-                    var names = (b.Spf?.ProviderHelp ?? new List<DomainDetective.Views.ProviderHelpLinks>())
-                        .Select(p => p?.ProviderName)
-                        .Where(n => !string.IsNullOrWhiteSpace(n))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-                    foreach (var n in names)
-                    {
-                        if (string.IsNullOrWhiteSpace(n)) continue;
-                        if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
-                        if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
-                        outbound.Add(n);
-                    }
-                }
-                catch { }
-
+                var chain = ProviderChainBuilder.Build(b.Mx, b.Spf);
                 var providerKvp = new List<(string, object?)>();
-                if (!string.IsNullOrWhiteSpace(primary)) providerKvp.Add(("Primary", primary));
-                if ((gateways?.Count ?? 0) > 0) providerKvp.Add(("Gateways", string.Join(", ", gateways!)));
-                if (outbound.Count > 0) providerKvp.Add(("Outbound", string.Join(", ", outbound)));
+                if (!string.IsNullOrWhiteSpace(chain.Primary)) providerKvp.Add(("Primary", chain.Primary));
+                if ((chain.Gateways?.Count ?? 0) > 0) providerKvp.Add(("Gateways", string.Join(", ", chain.Gateways!)));
+                if (chain.Outbound.Count > 0) providerKvp.Add(("Outbound", string.Join(", ", chain.Outbound)));
+                try {
+                    var hints = ProviderHintsBuilder.Build(b.Mx, chain.Primary);
+                    if (hints.ConfidencePercent > 0) providerKvp.Add(("Confidence", $"{hints.ConfidencePercent}%"));
+                    if (hints.SingleMxOk) providerKvp.Add(("Single-MX OK", "Yes"));
+                    if (hints.MinDkimSelectorsToPass > 0) providerKvp.Add(("Min DKIM Selectors", hints.MinDkimSelectorsToPass));
+                    if (hints.RecommendedMinMxRecords > 0) providerKvp.Add(("Recommended Min MX", hints.RecommendedMinMxRecords));
+                } catch { }
                 if (providerKvp.Count > 0)
                 {
                     s.SectionWithAnchor("Providers");
@@ -189,7 +188,7 @@ public static class ExcelCompositionReport
                     try
                     {
                         var links = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
                                           ?? links?.FirstOrDefault();
                         if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
                         {
@@ -197,7 +196,27 @@ public static class ExcelCompositionReport
                             if (top.Count > 0)
                             {
                                 s.Section("Top Links");
-                                s.BulletedList(top.Select(t => $"{(string.IsNullOrWhiteSpace(t?.Title) ? t!.Topic : t!.Title)}: {t!.Url}").ToArray());
+                                var linkRows = top.Select(t => {
+                                    var title = string.IsNullOrWhiteSpace(t?.Title) ? t!.Topic : t!.Title;
+                                    var fmt = LinkFormatter.Format(t!.Url ?? string.Empty);
+                                    return new { Title = string.IsNullOrWhiteSpace(title) ? fmt.Title : title!, Url = fmt.Url };
+                                }).ToList();
+                                var linksRange = s.TableFrom(linkRows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                                try
+                                {
+                                    // Convert Title to clickable HYPERLINK(Url, Title)
+                                    foreach (var row in s.Sheet.RowsObjects(linksRange))
+                                    {
+                                        // Skip header row is not included in RowsObjects (it starts from second row already)
+                                        var titleCell = row.CellByHeader("Title");
+                                        var urlCell = row.CellByHeader("Url");
+                                        string urlRef = IndexToCol(urlCell.ColumnIndex) + titleCell.RowIndex.ToString();
+                                        var safeTitle = row.GetOrDefault<string>("Title", string.Empty) ?? string.Empty;
+                                        safeTitle = safeTitle.Replace("\"", "\"\""); // Excel formula escaping: double the quotes
+                                        row.SetFormula("Title", $"=HYPERLINK({urlRef},\"{safeTitle}\")");
+                                    }
+                                }
+                                catch { }
                             }
                         }
                     }
@@ -231,6 +250,17 @@ public static class ExcelCompositionReport
                 if (tp.Count > 0) s.PropertiesGrid(tp.ToArray(), columns: 3);
             }
 
+            // MailTLS Sources (Word parity)
+            if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null)
+            {
+                s.SectionWithAnchor("MailTLS Sources");
+                s.PropertiesGrid(new (string, object?)[] {
+                    ("SMTP", b.SmtpTls?.Status ?? "-"),
+                    ("IMAP", b.ImapTls?.Status ?? "-"),
+                    ("POP",  b.PopTls?.Status ?? "-")
+                }, columns: 3);
+            }
+
             // MX details
             if (b.Mx != null)
             {
@@ -253,6 +283,77 @@ public static class ExcelCompositionReport
                 }
                 if ((mx.Recommendations?.Count ?? 0) > 0) { s.Section("Recommendations"); s.BulletedListWithFill(mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray(), fillHex: "#FFF4CE"); }
                 if ((mx.Positives?.Count ?? 0) > 0) { s.Section("Positives"); s.BulletedList(mx.Positives.Select(p => p.Title ?? p.Code).ToArray()); }
+            }
+
+            // SPF details (rich)
+            if (b.Spf != null)
+            {
+                var spf = b.Spf;
+                var sec = DomainDetective.Reports.SectionProjectors.BuildSpf(spf);
+                s.SectionWithAnchor("SPF");
+                var props = new System.Collections.Generic.List<(string, object?)> {
+                    ("Status", spf.Status ?? "-"),
+                    ("Record Present", spf.SpfRecordExists ? "Yes" : "No"),
+                    ("Starts Correctly", spf.StartsCorrectly ? "Yes" : "No"),
+                    ("DNS Lookups", sec?.DnsLookupsCount ?? spf.DnsLookupsCount),
+                };
+                if (!string.IsNullOrWhiteSpace(spf.Raw?.AllMechanism)) props.Add(("All Mechanism", spf.Raw!.AllMechanism!));
+                s.PropertiesGrid(props.ToArray(), columns: 3);
+
+                // Positives
+                if ((sec?.Positives.Count ?? 0) > 0) { s.Section("Positives"); s.BulletedList(sec!.Positives.ToArray()); }
+
+                // Findings
+                if ((sec?.Findings.Count ?? 0) > 0)
+                {
+                    var rows = sec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    s.TableFrom(rows, title: "Findings", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+
+                // Evidence (SPF record)
+                if (!string.IsNullOrWhiteSpace(sec?.SpfRecord))
+                {
+                    s.Section("Evidence");
+                    s.PropertiesGrid(new (string, object?)[] { ("SPF Record", sec!.SpfRecord) }, columns: 1);
+                }
+
+                // Mechanisms table
+                if ((sec?.Mechanisms.Count ?? 0) > 0)
+                {
+                    var mech = sec!.Mechanisms.Select(m => new { Qualifier = m.Qualifier, Type = m.Type, Value = m.Value, Provider = m.Provider }).ToList();
+                    s.TableFrom(mech, title: "Mechanisms", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+
+                // Flattened IP Analysis
+                if ((sec?.FlattenedUniqueIpCount ?? 0) + (sec?.FlattenedDuplicateIpCount ?? 0) + (sec?.FlattenedTokenCount ?? 0) > 0)
+                {
+                    s.Section("Flattened IP Analysis");
+                    s.PropertiesGrid(new (string, object?)[] {
+                        ("Unique IPs", sec!.FlattenedUniqueIpCount),
+                        ("Duplicate IPs", sec!.FlattenedDuplicateIpCount),
+                        ("Tokens Resolved", sec!.FlattenedTokenCount),
+                    }, columns: 3);
+                }
+
+                // Provider Help (SPF)
+                if ((sec?.ProviderHelp.Count ?? 0) > 0)
+                {
+                    s.Section("Provider Help");
+                    var links = sec!.ProviderHelp.Take(8).Select(t => new { Title = t.Title, Url = t.Url }).ToList();
+                    var a1 = s.TableFrom(links, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                    try
+                    {
+                        foreach (var row in s.Sheet.RowsObjects(a1))
+                        {
+                            var titleCell = row.CellByHeader("Title");
+                            var urlCell = row.CellByHeader("Url");
+                            string urlRef = IndexToCol(urlCell.ColumnIndex) + titleCell.RowIndex.ToString();
+                            string safeTitle = (row.GetOrDefault<string>("Title", string.Empty) ?? string.Empty).Replace("\"", "\"\"");
+                            row.SetFormula("Title", $"=HYPERLINK({urlRef},\"{safeTitle}\")");
+                        }
+                    }
+                    catch { }
+                }
             }
 
             // DNSBL details
@@ -715,6 +816,38 @@ public static class ExcelCompositionReport
             if (recRows.Count == 0) recRows.Add(new { Domain = "—", Section = "—", Title = "No recommendations" });
             recSheet.TableFrom(recRows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
             recSheet.Finish(autoFitColumns: true);
+        }
+        catch { }
+
+        // References sheet (Word parity)
+        try
+        {
+            var comp = CompositionBuilder.GroupBySubject(items);
+            var refs = ReferencesCollector.CollectAll(comp.Values);
+            var refSheet = new SheetComposer(doc, "References");
+            refSheet.Title("All References");
+            if (refs.Count == 0) { refSheet.BulletedList(new[] { "No references" }); }
+            else
+            {
+                var rows = refs.Select(u => {
+                    var f = LinkFormatter.Format(u);
+                    return new { Title = f.Title, Url = f.Url };
+                }).ToList();
+                var refRange = refSheet.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                try
+                {
+                    foreach (var row in refSheet.Sheet.RowsObjects(refRange))
+                    {
+                        var titleCell = row.CellByHeader("Title");
+                        var urlCell = row.CellByHeader("Url");
+                        string urlRef = IndexToCol(urlCell.ColumnIndex) + titleCell.RowIndex.ToString();
+                        string safeTitle = (row.GetOrDefault<string>("Title", string.Empty) ?? string.Empty).Replace("\"", "\"\"");
+                        row.SetFormula("Title", $"=HYPERLINK({urlRef},\"{safeTitle}\")");
+                    }
+                }
+                catch { }
+            }
+            refSheet.Finish(autoFitColumns: true);
         }
         catch { }
 

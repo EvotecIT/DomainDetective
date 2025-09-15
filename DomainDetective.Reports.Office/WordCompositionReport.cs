@@ -125,37 +125,9 @@ public static class WordCompositionReport {
         if (hasWildcard) presentLabels.Add("Wildcard");
         if (hasCaa) presentLabels.Add("CAA");
 
-        // Compute totals across domains for only the present sections
-        int totalWarns = 0, totalErrs = 0;
-        foreach (var kv in grouped) {
-            var b = kv.Value;
-            if (hasSpf) { totalWarns += b.Spf?.WarningCount ?? 0; totalErrs += b.Spf?.ErrorCount ?? 0; }
-            if (hasDmarc) { totalWarns += b.Dmarc?.WarningCount ?? 0; totalErrs += b.Dmarc?.ErrorCount ?? 0; }
-            if (hasArc) { totalWarns += b.Arc?.WarningCount ?? 0; totalErrs += b.Arc?.ErrorCount ?? 0; }
-            if (hasDkim) { totalWarns += b.Dkim?.Sum(x => x.WarningCount) ?? 0; totalErrs += b.Dkim?.Sum(x => x.ErrorCount) ?? 0; }
-            if (hasBimi) { totalWarns += b.Bimi?.WarningCount ?? 0; totalErrs += b.Bimi?.ErrorCount ?? 0; }
-            if (hasMtasts) { totalWarns += b.Mtasts?.WarningCount ?? 0; totalErrs += b.Mtasts?.ErrorCount ?? 0; }
-            if (hasTlsRpt) { totalWarns += b.TlsRpt?.WarningCount ?? 0; totalErrs += b.TlsRpt?.ErrorCount ?? 0; }
-            if (hasMx) { totalWarns += b.Mx?.WarningCount ?? 0; totalErrs += b.Mx?.ErrorCount ?? 0; }
-            if (hasDnsbl) { totalWarns += b.Dnsbl?.WarningCount ?? 0; totalErrs += b.Dnsbl?.ErrorCount ?? 0; }
-            if (hasRpki) { totalWarns += b.Rpki?.WarningCount ?? 0; totalErrs += b.Rpki?.ErrorCount ?? 0; }
-            if (hasMailTls) {
-                totalWarns += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
-                totalErrs += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);
-            }
-            if (hasClass) { totalWarns += b.Classification?.WarningCount ?? 0; totalErrs += b.Classification?.ErrorCount ?? 0; }
-            if (hasDnssec) { totalWarns += b.Dnssec?.WarningCount ?? 0; totalErrs += b.Dnssec?.ErrorCount ?? 0; }
-            if (hasDane) { totalWarns += b.Dane?.WarningCount ?? 0; totalErrs += b.Dane?.ErrorCount ?? 0; }
-            if (hasNs) { totalWarns += b.Ns?.WarningCount ?? 0; totalErrs += b.Ns?.ErrorCount ?? 0; }
-            if (hasSoa) { totalWarns += b.Soa?.WarningCount ?? 0; totalErrs += b.Soa?.ErrorCount ?? 0; }
-            if (hasZone) { totalWarns += b.ZoneTransfer?.WarningCount ?? 0; totalErrs += b.ZoneTransfer?.ErrorCount ?? 0; }
-            if (hasWildcard) { totalWarns += b.Wildcard?.WarningCount ?? 0; totalErrs += b.Wildcard?.ErrorCount ?? 0; }
-            if (hasCaa) { totalWarns += b.Caa?.WarningCount ?? 0; totalErrs += b.Caa?.ErrorCount ?? 0; }
-        }
-
-        // Executive Summary intro text — dynamic list of controls present
-        string controlsText = presentLabels.Count > 0 ? string.Join(", ", presentLabels) : "requested checks";
-        doc.AddParagraph($"This report summarizes the email security posture for {grouped.Count} domain(s). The table highlights the presence and status of key controls ({controlsText}) and the count of warnings/errors detected. Total across all domains: {totalWarns} warning(s), {totalErrs} error(s).");
+        // Executive Summary intro text — single source of truth for wording
+        string overviewLine = OverviewWording.ComposeFromItems(items);
+        doc.AddParagraph(overviewLine);
 
         // Executive Summary table (defensive build to avoid style-dependent index issues)
         List<KeyValuePair<string, DomainBucket>> allRows;
@@ -203,17 +175,42 @@ public static class WordCompositionReport {
                 .ToList();
             int omitted = candidates.Count - selected.Count;
 
+            // Use shared ExecutiveSummaryBuilder for core statuses where possible
+            var execRows = ExecutiveSummaryBuilder.Build(items, domainOrder);
+            var execMap = execRows.ToDictionary(r => r.Domain, StringComparer.OrdinalIgnoreCase);
+
             var columns = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs)>();
             columns.Add(("Domain", (cell, b) => cell.AddParagraph(b.Subject), null, null));
             foreach (var s in selected)
-                columns.Add((s.Header, s.WriteCell, s.Warns, s.Errs));
-            columns.Add(("Findings (W/E)", (cell, b) => {
-                int w = 0, e = 0;
-                foreach (var col in columns) {
-                    if (col.Warns != null) w += col.Warns(b);
-                    if (col.Errs != null) e += col.Errs(b);
+            {
+                Action<WordTableCell, DomainBucket> writer = s.WriteCell;
+                switch (s.Header.ToUpperInvariant())
+                {
+                    case "MX":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Mx); else s.WriteCell(cell, b); };
+                        break;
+                    case "SPF":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Spf); else s.WriteCell(cell, b); };
+                        break;
+                    case "DMARC":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Dmarc); else s.WriteCell(cell, b); };
+                        break;
+                    case "MTA-STS":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Mtasts); else s.WriteCell(cell, b); };
+                        break;
+                    case "TLS-RPT":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.TlsRpt); else s.WriteCell(cell, b); };
+                        break;
+                    case "CLASSIFICATION":
+                        writer = (cell, b) => { if (execMap.TryGetValue(b.Subject ?? string.Empty, out var r)) cell.AddParagraph(r.Classification); else s.WriteCell(cell, b); };
+                        break;
+                    // DKIM: keep Word extras (selector count), so keep original writer
                 }
-                cell.AddParagraph($"{w} / {e}");
+                columns.Add((s.Header, writer, s.Warns, s.Errs));
+            }
+            columns.Add(("Findings (W/E)", (cell, b) => {
+                if (execMap.TryGetValue(b.Subject ?? string.Empty, out var ex)) cell.AddParagraph($"{ex.Warnings} / {ex.Errors}");
+                else cell.AddParagraph("- / -");
             }, null, null));
 
             var sum = doc.AddTable(allRows.Count + 1, columns.Count, WordTableStyle.TableGrid);
@@ -241,23 +238,7 @@ public static class WordCompositionReport {
                 foreach (var row in allRows) {
                     var domain = row.Key;
                     var bucket = row.Value;
-                    var primary = bucket.Mx?.ProviderPrimary ?? string.Empty;
-                    var gateways = bucket.Mx?.ProviderGateways ?? new List<string>();
-                    var outbound = new List<string>();
-                    try {
-                        // Infer outbound from SPF provider help names excluding primary/gateways
-                        var names = (bucket.Spf?.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>())
-                            .Select(p => p?.ProviderName)
-                            .Where(n => !string.IsNullOrWhiteSpace(n))
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-                        foreach (var n in names) {
-                            if (string.IsNullOrWhiteSpace(n)) continue;
-                            if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
-                            if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
-                            outbound.Add(n);
-                        }
-                    } catch { }
+                    var chain = ProviderChainBuilder.Build(bucket.Mx, bucket.Spf);
 
                     // Build badges and confidence
                     var badges = new List<string>();
@@ -265,19 +246,19 @@ public static class WordCompositionReport {
                     try { confidencePct = (int)Math.Round(Math.Max(0.0, Math.Min(1.0, (bucket.Mx?.ProviderPrimaryScore ?? 0.0) / 1.2)) * 100.0); } catch { }
                     // Resolve provider metadata for hints
                     DomainDetective.Providers.Email.IMailProvider? providerMeta = null;
-                    if (!string.IsNullOrWhiteSpace(primary)) {
-                        providerMeta = DomainDetective.Providers.Email.ProviderRegistry.All.FirstOrDefault(p => string.Equals(p?.DisplayName, primary, StringComparison.OrdinalIgnoreCase));
+                    if (!string.IsNullOrWhiteSpace(chain.Primary)) {
+                        providerMeta = DomainDetective.Providers.Email.ProviderRegistry.All.FirstOrDefault(p => string.Equals(p?.DisplayName, chain.Primary, StringComparison.OrdinalIgnoreCase));
                         if (providerMeta?.SingleMxOk == true) badges.Add("[Single‑MX OK]");
                     }
-                    if (gateways.Count > 0) badges.Add("[Gateway]");
-                    if (outbound.Count > 0) badges.Add("[Outbound]");
+                    if (chain.Gateways.Count > 0) badges.Add("[Gateway]");
+                    if (chain.Outbound.Count > 0) badges.Add("[Outbound]");
 
                     // Compose provider chain text with confidence and hints
-                    var chain = new List<string>();
-                    if (!string.IsNullOrWhiteSpace(primary)) chain.Add($"Primary: {primary}");
-                    if (gateways.Count > 0) chain.Add($"Gateways: {string.Join(", ", gateways)}");
-                    if (outbound.Count > 0) chain.Add($"Outbound: {string.Join(", ", outbound)}");
-                    var baseLine = chain.Count > 0 ? string.Join("; ", chain) : "(no provider detected)";
+                    var chainParts = new List<string>();
+                    if (!string.IsNullOrWhiteSpace(chain.Primary)) chainParts.Add($"Primary: {chain.Primary}");
+                    if (chain.Gateways.Count > 0) chainParts.Add($"Gateways: {string.Join(", ", chain.Gateways)}");
+                    if (chain.Outbound.Count > 0) chainParts.Add($"Outbound: {string.Join(", ", chain.Outbound)}");
+                    var baseLine = chainParts.Count > 0 ? string.Join("; ", chainParts) : "(no provider detected)";
                     var hintParts = new List<string>();
                     if (confidencePct > 0) hintParts.Add($"Confidence {confidencePct}%");
                     if (providerMeta != null) {
@@ -291,7 +272,7 @@ public static class WordCompositionReport {
                     // Quick links for primary provider (DMARC/SPF/DKIM), if available
                     try {
                         var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                        var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
                                           ?? links?.FirstOrDefault();
                         if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0) {
                             var ordered = (helpOpts.TopicOrder?.Length > 0)
@@ -512,36 +493,19 @@ public static class WordCompositionReport {
                 }
             }
 
-            // Consolidated References (deduped)
-            var allRefs = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kv in allRows) {
-                var b = kv.Value;
-                void PullRefs(System.Collections.Generic.IReadOnlyList<string>? r) { if (r != null) foreach (var x in r) if (!string.IsNullOrWhiteSpace(x)) allRefs.Add(x); }
-                PullRefs(b.Spf?.References);
-                foreach (var d in b.Dkim) PullRefs(d.References);
-                PullRefs(b.Dmarc?.References);
-                PullRefs(b.Mx?.References);
-                PullRefs(b.Mtasts?.References);
-                PullRefs(b.TlsRpt?.References);
-                PullRefs(b.Dnsbl?.References);
-                PullRefs(b.Rpki?.References);
-                PullRefs(b.Ns?.References);
-                PullRefs(b.Soa?.References);
-                PullRefs(b.ZoneTransfer?.References);
-                PullRefs(b.Wildcard?.References);
-                PullRefs(b.Dnssec?.References);
-                PullRefs(b.Dane?.References);
-                PullRefs(b.Caa?.References);
-                PullRefs(b.SmtpTls?.References);
-                PullRefs(b.ImapTls?.References);
-                PullRefs(b.PopTls?.References);
-                PullRefs(b.Classification?.References);
-            }
-            if (allRefs.Count > 0) {
+            // Consolidated References (shared collector)
+            var compMap = CompositionBuilder.GroupBySubject(items);
+            var refs = ReferencesCollector.CollectAll(compMap.Values);
+            if (refs.Count > 0) {
                 headings.AddItem("All References");
                 doc.AddParagraph("References cited across all sections. Use these for standards and implementation guidance.");
                 var list = doc.AddList(WordListStyle.Bulleted);
-                foreach (var r in allRefs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase)) list.AddItem(r);
+                foreach (var r in refs) {
+                    var fmt = LinkFormatter.Format(r);
+                    var item = list.AddItem(string.Empty);
+                    try { item.AddHyperLink(fmt.Title, new Uri(fmt.Url), addStyle: true); }
+                    catch { item.AddText(fmt.Title + ": " + fmt.Url); }
+                }
             }
         } catch { }
 

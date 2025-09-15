@@ -164,15 +164,22 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - HTML
   - Migrate all remaining sections to DTOs; maintain existing visuals; keep high‑value evidence (e.g., RPKI per‑IP, DNSBL listed records). [done]
   - Dashboard profile renders KPIs/tables only; Document profile renders full sections. [done]
+  - DKIM selector-count hint and MAILTLS footnote parity (where applicable for HTML). [done]
+  - Add DNSSEC/RPKI badges using shared DisplayFormatting in single-domain header and overview. [done]
+  - Executive Summary table includes DNSSEC and RPKI columns (with highlighting). [done]
 
 - Markdown/MarkdownHtml
   - Migrate SPF/DMARC/DKIM + NS/SOA/DNSBL + MTA‑STS/TLS‑RPT/CAA/DNSSEC/DANE/Mail TLS/RPKI/Zone/Wildcard to DTOs. [done]
   - Keep concise “evidence” tables where they materially help (e.g., DNSBL listed, Zone server results). [done]
+  - Add “All References” section mirroring Word’s consolidated references. [done]
 
 - Excel
   - Switch per‑section panes to DTOs (Transport: MTA‑STS/TLS‑RPT; DNS: NS/SOA/DNSSEC; Security: CAA/DANE/RPKI; Reputation: DNSBL; Auth: SPF/DKIM/DMARC). [pending]
   - Preserve evidence tables where useful (RPKI, Zone Transfer). [pending]
   - Honor `ExcelProfile` (Workbook|Dashboard) across panes with shared DTOs. [done at shell, content pending]
+  - Providers block shows Confidence/Single‑MX OK hints; “MailTLS Sources” section; “References” sheet. [done]
+  - Per‑domain Overview shows DNSSEC/RPKI summaries (DisplayFormatting). [done]
+  - Overview (Domains) table includes DNSSEC and RPKI columns with conditional backgrounds; icon set adjusted. [done]
 
 - PowerShell/CLI Surface
   - Expose `-HtmlProfile Document|Dashboard` and `-ExcelProfile Workbook|Dashboard`. [done]
@@ -181,7 +188,7 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 
 - Tests & Parity
   - Pester: Validate that Word/HTML/Markdown/Excel share consistent per‑section counts (Findings/Positives/References) for a known domain set. [pending]
-  - Add a small CSV “parity snapshot” generator in tests (section → status + W/E counts) to compare across formats. [pending]
+  - In‑memory parity assertions with a readable diff printed to test output on mismatch (no CSV/JSON files). [pending]
   - Pester: Verify `Export-DDSecurityReport` `-HtmlProfile`/`-ExcelProfile` wiring and that outputs differ as expected. [pending]
 
 - Docs & Samples
@@ -198,6 +205,57 @@ Acceptance Criteria (for closing unification)
 - For a curated domain set, all four formats show matching per‑section status strings and Findings/Positives/References counts (± UI differences) sourced from SectionProjectors.
 - Profiles switch presentation only; underlying data remains identical.
 - Legacy code paths removed or guarded behind dev‑only flags; CI parity tests pass.
+
+### Unified Document + Dashboard Profiles (2025-09-15)
+
+- Canonical Structure (Document profile)
+  - Apply the same top‑to‑bottom outline for Word, Markdown, MarkdownHtml: Cover/Front‑Matter (as applicable), TOC, Executive Summary, Legend, Mail Providers, Per‑Domain sections (Overview → per‑section blocks), References. [pending]
+  - Normalize heading levels: H1/H2/H3 mapping consistent across all three; verify TOC min/max levels. [pending]
+  - Executive Summary table columns canonicalized: Domain | MX | SPF | DKIM | DMARC | MTA‑STS | TLS‑RPT | Classification | Findings (W/E). Share builder across formats. [pending]
+  - Severity mapping canonicalized: Error > Warning > OK; DKIM roll‑up is max severity across selectors. Shared util used by all formats. [pending]
+  - Provider chain line (Primary; Gateways; Outbound) and top provider links rendered with the same data contract. [pending]
+
+- Dashboard Structure (HTML/Excel profiles)
+  - HTML (HtmlForgeX) uses Dashboard profile for KPIs + Summary grid inspired by Projects/HtmlForgeX/HtmlForgeX.Examples/Reports/DomainComplianceReport.cs; wire to CompositionBuilder + SectionProjectors (no fake data). [pending]
+  - Excel uses Workbook (document) and Dashboard profiles; Dashboard mirrors HTML KPIs + compact summary; Workbook mirrors Word/Markdown per‑domain sheets. Base all visuals on the same DTOs. [pending]
+  - Add Demo snapshots (PNG) regenerated from new HTML Dashboard + Excel Dashboard to Demo/ for parity gallery. [pending]
+
+- Shared Data Contract (ReportSchema v1)
+  - Introduce a small immutable schema for top‑level composition: ReportHeader (Title, GeneratedOn, SubjectCount, Profiles), ExecutiveSummaryRow, ProviderChain, and PerDomain (Overview, Sections[]). [pending]
+  - Implement ExecutiveSummaryBuilder that produces the canonical rows once; consumers map to Word/Markdown/HTML/Excel widgets. [done]
+  - Add StatusPalette service (text → status category) used by HTML/Excel conditional visuals and by emoji status in Markdown. [pending]
+
+- Output Adapters
+  - Word: ensure all section writers accept projector DTOs; remove legacy view‑only branches after parity green. [pending]
+  - Markdown/MarkdownHtml: reuse ExecutiveSummaryBuilder; unify H2/H3 names with Word; maintain same tables for Positives/Findings/References. [done]
+  - HTML (HtmlForgeX): create Dashboard composer that maps ExecutiveSummaryRow to KPI cards + summary Tabler table; retain optional Document profile that renders per‑domain accordions. [pending]
+  - Excel: align `DomainDetective.Reports.Office.ExcelCompositionReport` with Projects/OfficeIMO/OfficeIMO.Examples/Excel/DomainDetective.Report.Sheets.cs visuals while sourcing data from ExecutiveSummaryBuilder/SectionProjectors (no duplicate aggregation). [done]
+
+- Ordering & TOC
+  - Single source of truth for CanonicalSectionOrder used by all renderers; respect `-SectionOrderMode` and `-SectionOrder`. [pending]
+  - Ensure TOC/anchors exist and match headings for Word (built‑in TOC), Markdown (generated ToC), HTML (Tabler anchors). [pending]
+
+- Tests (Parity Pack)
+  - Add “Parity Fixtures” test that runs the same domain set through Word, Markdown, MarkdownHtml, HTML‑Document, HTML‑Dashboard, Excel‑Workbook, Excel‑Dashboard and compares in memory (domain, section, status, warnings, errors). On failure, print a short diff to the test output. [pending]
+  - Pester: validate Mail Providers (Primary/Gateways/Outbound) string equality across formats. [pending]
+  - xUnit: ExecutiveSummaryBuilder computes identical totals for W/E across formats; DKIM roll‑up obeys worst‑selector rule. [pending]
+
+- Docs & Samples
+  - README and Module docs: “Profiles and Parity” with a small matrix of features and links to Word/Markdown/HTML/Excel examples. Include paths to Projects/HtmlForgeX/HtmlForgeX.Examples/Reports/DomainComplianceReport.cs and Projects/OfficeIMO/OfficeIMO.Examples/Excel/DomainDetective.Report.Sheets.cs. [pending]
+  - Add Module/Examples scripts that generate all formats for the same input and save side‑by‑side artifacts. [pending]
+  - HTML component guidance: accordions/tabs/KPI cards/data grids reference demos under Projects/HtmlForgeX/HtmlForgeX.Examples/Containers — ComponentHtmlContainer03.cs, ComponentHtmlContainer04.cs, AccordionStepsShowcase.cs, SmartTabDemo.cs, DataGridShowcase.cs, TablerDashboardDemo.cs. [pending]
+
+Format/Profile Matrix (target parity)
+
+| Format            | Profile    | TOC | Exec. Summary | Providers | Per‑Domain Sections | Notes |
+|-------------------|------------|-----|---------------|-----------|---------------------|-------|
+| Word              | Document   | Yes | Yes           | Yes       | Yes                 | Canonical reference |
+| Markdown          | Document   | Yes | Yes           | Yes       | Yes                 | Mirrors Word layout |
+| MarkdownHtml      | Document   | Yes | Yes           | Yes       | Yes                 | Markdown → HTML bridge |
+| HTML (HtmlForgeX) | Dashboard  | N/A | KPIs + Grid   | Optional  | Optional (accordion)| Mirrors DomainComplianceReport.cs |
+| HTML (HtmlForgeX) | Document   | Yes | Yes           | Yes       | Yes                 | Optional full doc mode |
+| Excel             | Dashboard  | N/A | KPIs + Grid   | Optional  | No                  | Mirrors DomainDetective.Report.Sheets.cs |
+| Excel             | Workbook   | Index | Yes         | Yes       | Yes                 | Per‑sheet details |
 
 ## Synthetic Monitoring (Future)
 - Uptime checks: scheduled HTTP(S) probe with TLS posture + header checks; trend charts and alert thresholds. Easy

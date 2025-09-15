@@ -18,39 +18,39 @@ public static partial class HtmlCompositionReport {
                 card.Body(b => {
                     foreach (var kv in ordered) {
                         var domain = kv.Key; var bucket = kv.Value;
-                        var primary = bucket.Mx?.ProviderPrimary ?? string.Empty;
-                        var gateways = bucket.Mx?.ProviderGateways ?? new List<string>();
-                        var outbound = new List<string>();
-                        try {
-                            var names = (bucket.Spf?.ProviderHelp ?? new List<DomainDetective.Views.ProviderHelpLinks>())
-                                .Select(p => p?.ProviderName)
-                                .Where(n => !string.IsNullOrWhiteSpace(n))
-                                .Distinct(StringComparer.OrdinalIgnoreCase)
-                                .ToList();
-                            foreach (var n in names) {
-                                if (string.IsNullOrWhiteSpace(n)) continue;
-                                if (string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
-                                if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
-                                outbound.Add(n);
-                            }
-                        } catch { }
-
+                        var prov = DomainDetective.Reports.ProviderChainBuilder.Build(bucket.Mx, bucket.Spf);
                         var chainParts = new List<string>();
-                        if (!string.IsNullOrWhiteSpace(primary)) chainParts.Add($"Primary: {primary}");
-                        if (gateways.Count > 0) chainParts.Add($"Gateways: {string.Join(", ", gateways)}");
-                        if (outbound.Count > 0) chainParts.Add($"Outbound: {string.Join(", ", outbound)}");
-                        var chain = chainParts.Count > 0 ? string.Join("; ", chainParts) : "(no provider detected)";
+                        if (!string.IsNullOrWhiteSpace(prov.Primary)) chainParts.Add($"Primary: {prov.Primary}");
+                        if (prov.Gateways.Count > 0) chainParts.Add($"Gateways: {string.Join(", ", prov.Gateways)}");
+                        if (prov.Outbound.Count > 0) chainParts.Add($"Outbound: {string.Join(", ", prov.Outbound)}");
+                        var chainText = chainParts.Count > 0 ? string.Join("; ", chainParts) : "(no provider detected)";
 
                         b.Row(rr => {
                             rr.Gap(2);
                             rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(domain, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Text(chain));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Text(chainText));
                         });
+
+                        // Badges/hints (Word parity)
+                        try {
+                            var hints = DomainDetective.Reports.ProviderHintsBuilder.Build(bucket.Mx, prov.Primary);
+                            b.Row(rr => {
+                                rr.Gap(2);
+                                if (hints.ConfidencePercent > 0)
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Confidence {hints.ConfidencePercent}%", TablerBadgeColor.Info, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                if (hints.SingleMxOk)
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Single-MX OK", TablerBadgeColor.Success, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                if (prov.Gateways.Count > 0)
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Gateway", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                if (prov.Outbound.Count > 0)
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Outbound", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                            });
+                        } catch { }
 
                         // Quick links for primary provider
                         try {
                             var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
-                            var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, primary, StringComparison.OrdinalIgnoreCase))
+                            var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, prov.Primary, StringComparison.OrdinalIgnoreCase))
                                               ?? links?.FirstOrDefault();
                             if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0) {
                                 var topics = primaryHelp.Topics ?? new List<DomainDetective.Views.ProviderHelpTopic>();
