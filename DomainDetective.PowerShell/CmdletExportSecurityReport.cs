@@ -182,6 +182,52 @@ namespace DomainDetective.PowerShell {
             }
             foreach (var raw in _items) foreach (var it in Flatten(raw)) flat.Add(it);
 
+            // Auto-collect TTL data when DKIM is present and no TTL views supplied for that domain
+            try
+            {
+                var dkimSubjects = new HashSet<string>(flat.OfType<DomainDetective.Views.DkimRecordInfo>()
+                    .Select(x => x?.Subject)
+                    .Where(s => !string.IsNullOrWhiteSpace(s))!
+                    .Select(s => s!), StringComparer.OrdinalIgnoreCase);
+                if (dkimSubjects.Count > 0)
+                {
+                    var ttlPresent = new HashSet<string>(flat.OfType<DomainDetective.Views.TtlInfo>()
+                        .Select(x => x?.Subject)
+                        .Where(s => !string.IsNullOrWhiteSpace(s))!
+                        .Select(s => s!), StringComparer.OrdinalIgnoreCase);
+                    var need = dkimSubjects.Except(ttlPresent, StringComparer.OrdinalIgnoreCase).ToList();
+                    if (need.Count > 0)
+                    {
+                        WriteVerbose($"Export-DDSecurityReport: adding TTL analysis for {need.Count} domain(s) to populate DKIM TTLs.");
+                        foreach (var domain in need)
+                        {
+                            try
+                            {
+                                var ana = new DomainDetective.DnsTtlAnalysis();
+                                // Provide known selectors to speed up TXT lookup
+                                var sels = flat.OfType<DomainDetective.Views.DkimRecordInfo>()
+                                               .Where(r => string.Equals(r?.Subject, domain, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(r?.Selector))
+                                               .Select(r => r!.Selector!)
+                                               .Distinct(StringComparer.OrdinalIgnoreCase)
+                                               .ToList();
+                                if (sels.Count > 0) ana.DkimSelectors = sels;
+                                ana.Analyze(domain, new DomainDetective.InternalLogger()).GetAwaiter().GetResult();
+                                var ttlView = DomainDetective.Views.Converters.Convert(ana);
+                                if (ttlView != null) flat.Add(ttlView);
+                            }
+                            catch (Exception ex)
+                            {
+                                WriteVerbose($"TTL analysis for '{domain}' failed: {ex.Message}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteVerbose($"TTL auto-collection skipped due to error: {ex.Message}");
+            }
+
             // Build label from first two domains we can detect
             var subjects = ExtractSubjects(flat);
             WriteVerbose($"Export-DDSecurityReport: composing {flat.Count} item(s) across {subjects.Count} domain(s).");

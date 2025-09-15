@@ -27,6 +27,7 @@ public static class CompositionBuilder
         public DomainDetective.Views.CaaInfo? Caa { get; set; }
         public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
         public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
@@ -57,6 +58,7 @@ public static class CompositionBuilder
                 case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
                 case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject): Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                 case DomainDetective.Views.DaneRecordInfo dr when !string.IsNullOrWhiteSpace(dr.Subject): Ensure(dr.Subject); map[dr.Subject].Dane = dr; break;
+                case DomainDetective.Views.TtlInfo ttl when !string.IsNullOrWhiteSpace(ttl.Subject): Ensure(ttl.Subject); map[ttl.Subject].Ttl = ttl; break;
                 case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
                     Ensure(mt.Subject);
                     switch (mt.Check)

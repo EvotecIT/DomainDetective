@@ -44,6 +44,15 @@ public static class SectionProjectors
         public List<SimpleFinding> Findings { get; } = new();
         public List<string> Positives { get; } = new();
         public List<string> References { get; } = new();
+        // Extras
+        public string? DmarcRecord { get; set; }
+        public string? DkimAlignment { get; set; }
+        public string? SpfAlignment { get; set; }
+        public List<string> MailtoRua { get; } = new();
+        public List<string> HttpRua { get; } = new();
+        public List<string> MailtoRuf { get; } = new();
+        public List<string> HttpRuf { get; } = new();
+        public List<string> Highlights { get; } = new();
     }
 
     public sealed class DkimSection
@@ -54,11 +63,16 @@ public static class SectionProjectors
             public string Status { get; set; } = "-";
             public string KeyBits { get; set; } = string.Empty;
             public string Hash { get; set; } = string.Empty;
+            public bool Weak { get; set; }
+            public string Flags { get; set; } = string.Empty;
+            public int? TtlSeconds { get; set; }
+            public string Record { get; set; } = string.Empty;
         }
         public List<Row> Rows { get; } = new List<Row>();
         public List<SimpleFinding> Findings { get; } = new();
         public List<string> Positives { get; } = new();
         public List<string> References { get; } = new();
+        public List<string> Highlights { get; } = new();
     }
 
     // MX (Mail Exchanger) — compact DTO
@@ -72,6 +86,10 @@ public static class SectionProjectors
         public List<SimpleFinding> Findings { get; } = new();
         public List<string> Positives { get; } = new();
         public List<string> References { get; } = new();
+        public List<string> Records { get; } = new();
+        public string? MailTlsSmtp { get; set; }
+        public string? MailTlsImap { get; set; }
+        public string? MailTlsPop { get; set; }
     }
 
     // Transport: MTA‑STS
@@ -178,7 +196,8 @@ public static class SectionProjectors
         try {
             foreach (var ph in spf.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>())
             {
-                foreach (var t in ph.Topics ?? Array.Empty<DomainDetective.Views.ProviderHelpTopic>())
+                var topics = ph.Topics ?? new List<DomainDetective.Views.ProviderHelpTopic>();
+                foreach (var t in topics)
                 {
                     if (string.IsNullOrWhiteSpace(t?.Url)) continue;
                     var f = LinkFormatter.Format(t!.Url!);
@@ -206,11 +225,21 @@ public static class SectionProjectors
         sec.Summary.Add(("Policy", sec.Policy));
         sec.Summary.Add(("rua", sec.RuaCount.ToString()));
         sec.Summary.Add(("ruf", sec.RufCount.ToString()));
+        if (!string.IsNullOrWhiteSpace(d.DkimAlignment)) sec.Summary.Add(("adkim", d.DkimAlignment));
+        if (!string.IsNullOrWhiteSpace(d.SpfAlignment)) sec.Summary.Add(("aspf", d.SpfAlignment));
         foreach (var a in (d.Assessments ?? Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info))
             sec.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         foreach (var p in d.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
         { var t = p?.Title ?? p?.Code; if (!string.IsNullOrWhiteSpace(t)) sec.Positives.Add(t!); }
         foreach (var r in d.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(r)) sec.References.Add(r);
+        // Extras
+        sec.DmarcRecord = d.DmarcRecord;
+        sec.DkimAlignment = d.DkimAlignment; sec.SpfAlignment = d.SpfAlignment;
+        try { if (d.MailtoRua != null) foreach (var u in d.MailtoRua) if (!string.IsNullOrWhiteSpace(u)) sec.MailtoRua.Add(u); } catch { }
+        try { if (d.HttpRua != null) foreach (var u in d.HttpRua) if (!string.IsNullOrWhiteSpace(u)) sec.HttpRua.Add(u); } catch { }
+        try { if (d.MailtoRuf != null) foreach (var u in d.MailtoRuf) if (!string.IsNullOrWhiteSpace(u)) sec.MailtoRuf.Add(u); } catch { }
+        try { if (d.HttpRuf != null) foreach (var u in d.HttpRuf) if (!string.IsNullOrWhiteSpace(u)) sec.HttpRuf.Add(u); } catch { }
+        try { foreach (var h in d.Highlights ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(h)) sec.Highlights.Add(h); } catch { }
         return sec;
     }
 
@@ -224,7 +253,10 @@ public static class SectionProjectors
                 Selector = k.Selector ?? string.Empty,
                 Status = k.Status ?? "-",
                 KeyBits = k.PublicKeyExists ? k.KeyLength.ToString() : "-",
-                Hash = string.IsNullOrWhiteSpace(k.HashAlgorithm) ? "-" : k.HashAlgorithm!
+                Hash = string.IsNullOrWhiteSpace(k.HashAlgorithm) ? "-" : k.HashAlgorithm!,
+                Weak = k.WeakKey,
+                Flags = k.Flags ?? string.Empty,
+                Record = k.DkimRecord ?? string.Empty
             });
         }
         var findings = dkimList.SelectMany(x => x.Assessments ?? Array.Empty<DomainDetective.Assessment>())
@@ -241,10 +273,43 @@ public static class SectionProjectors
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Distinct(StringComparer.OrdinalIgnoreCase);
         sec.References.AddRange(refs);
+        try { foreach (var d in dkimList.SelectMany(x => x.Highlights ?? Array.Empty<string>())) if (!string.IsNullOrWhiteSpace(d)) sec.Highlights.Add(d); } catch { }
         return sec;
     }
 
-    public static MxSection? BuildMx(DomainDetective.Views.MxInfo mx)
+    // Overload with TTL support (maps TTLs from TtlInfo to per-selector rows)
+    public static DkimSection? BuildDkim(IReadOnlyList<DomainDetective.Views.DkimRecordInfo> dkimList, DomainDetective.Views.TtlInfo? ttl)
+    {
+        var sec = BuildDkim(dkimList);
+        if (sec == null) return null;
+        try
+        {
+            if (ttl?.DkimTxtTtls != null && ttl.DkimTxtTtls.Count > 0)
+            {
+                foreach (var row in sec.Rows)
+                {
+                    // Prefer exact FQDN if available via Name; else compose from selector and subject
+                    string? fqdn = null;
+                    var src = dkimList.FirstOrDefault(x => string.Equals(x.Selector, row.Selector, StringComparison.OrdinalIgnoreCase));
+                    if (src != null)
+                    {
+                        fqdn = src.Name;
+                        if (string.IsNullOrWhiteSpace(fqdn) && !string.IsNullOrWhiteSpace(src.Subject) && !string.IsNullOrWhiteSpace(src.Selector))
+                            fqdn = $"{src.Selector}._domainkey.{src.Subject}";
+                    }
+                    if (!string.IsNullOrWhiteSpace(fqdn) && ttl.DkimTxtTtls.TryGetValue(fqdn!, out var ttls) && ttls != null && ttls.Count > 0)
+                    {
+                        // Use minimum TTL observed across authoritative servers as conservative value
+                        row.TtlSeconds = ttls.Min();
+                    }
+                }
+            }
+        }
+        catch { /* best effort TTL mapping */ }
+        return sec;
+    }
+
+    public static MxSection? BuildMx(DomainDetective.Views.MxInfo mx, DomainDetective.Views.MailTlsInfo? smtp = null, DomainDetective.Views.MailTlsInfo? imap = null, DomainDetective.Views.MailTlsInfo? pop = null)
     {
         if (mx == null) return null;
         var s = new MxSection { Status = mx.Status ?? "-", HasBackup = mx.HasBackupServers, Ipv6 = mx.Ipv6Supported, NullMx = mx.HasNullMx };
@@ -252,6 +317,8 @@ public static class SectionProjectors
         s.Summary.Add(("Has Backup Servers", mx.HasBackupServers ? "Yes" : "No"));
         s.Summary.Add(("IPv6 Supported", mx.Ipv6Supported ? "Yes" : "No"));
         s.Summary.Add(("Null MX", mx.HasNullMx ? "Yes" : "No"));
+        try { foreach (var rec in mx.MxRecords ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rec)) s.Records.Add(rec); } catch { }
+        try { s.MailTlsSmtp = smtp?.Status; s.MailTlsImap = imap?.Status; s.MailTlsPop = pop?.Status; } catch { }
         foreach (var a in mx.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         foreach (var p in mx.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var t = p?.Title ?? p?.Code; if (!string.IsNullOrWhiteSpace(t)) s.Positives.Add(t!); }
         foreach (var r in mx.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(r)) s.References.Add(r);

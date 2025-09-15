@@ -71,6 +71,9 @@ public static partial class HtmlCompositionReport {
             else
             {
                 try { RenderDashboardSpf(page, ordered); } catch { }
+                try { RenderDashboardDmarc(page, ordered); } catch { }
+                try { RenderDashboardDkim(page, ordered); } catch { }
+                try { RenderDashboardMailTls(page, ordered); } catch { }
             }
 
             // Optional global background/narrative placeholder (can be enhanced)

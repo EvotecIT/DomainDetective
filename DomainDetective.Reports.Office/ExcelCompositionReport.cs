@@ -259,6 +259,29 @@ public static class ExcelCompositionReport
                     ("IMAP", b.ImapTls?.Status ?? "-"),
                     ("POP",  b.PopTls?.Status ?? "-")
                 }, columns: 3);
+
+                // Detailed per-server tables per service
+                void AddTlsServers(string title, DomainDetective.Views.MailTlsInfo? info)
+                {
+                    if (info == null || (info.Servers?.Count ?? 0) == 0) return;
+                    s.Section($"{title} Servers");
+                    var rows = info.Servers.Select(x => new {
+                        Host = x.Key,
+                        Status = info.Status ?? "-",
+                        StartTLS = x.StartTlsAdvertised ? "Yes" : "No",
+                        Grade = x.Grade.ToString(),
+                        Protocol = x.Protocol,
+                        TLS13 = x.Tls13Used ? "Yes" : (x.SupportsTls13 ? "Supported" : "No"),
+                        CertValid = x.CertificateValid ? "Yes" : "No",
+                        ChainValid = x.ChainValid ? "Yes" : "No",
+                        HostnameMatch = x.HostnameMatch ? "Yes" : "No",
+                        DaysToExpire = x.DaysToExpire
+                    }).ToList();
+                    s.TableFrom(rows, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                }
+                AddTlsServers("SMTP", b.SmtpTls);
+                AddTlsServers("IMAP", b.ImapTls);
+                AddTlsServers("POP3", b.PopTls);
             }
 
             // MX details
@@ -280,6 +303,15 @@ public static class ExcelCompositionReport
                 {
                     var mxRows = mx.MxRecords.Select(r => new { Host = r }).ToList();
                     s.TableFrom(mxRows, title: "MX Records", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
+                }
+                if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null)
+                {
+                    s.Section("MailTLS");
+                    s.TableFrom(new [] {
+                        new { Service = "SMTP", Status = b.SmtpTls?.Status ?? "-", Summary = b.SmtpTls?.Summary ?? string.Empty },
+                        new { Service = "IMAP", Status = b.ImapTls?.Status ?? "-", Summary = b.ImapTls?.Summary ?? string.Empty },
+                        new { Service = "POP3", Status = b.PopTls?.Status ?? "-", Summary = b.PopTls?.Summary ?? string.Empty },
+                    }, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
                 }
                 if ((mx.Recommendations?.Count ?? 0) > 0) { s.Section("Recommendations"); s.BulletedListWithFill(mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray(), fillHex: "#FFF4CE"); }
                 if ((mx.Positives?.Count ?? 0) > 0) { s.Section("Positives"); s.BulletedList(mx.Positives.Select(p => p.Title ?? p.Code).ToArray()); }
@@ -321,7 +353,20 @@ public static class ExcelCompositionReport
                 if ((sec?.Mechanisms.Count ?? 0) > 0)
                 {
                     var mech = sec!.Mechanisms.Select(m => new { Qualifier = m.Qualifier, Type = m.Type, Value = m.Value, Provider = m.Provider }).ToList();
-                    s.TableFrom(mech, title: "Mechanisms", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                    if (mech.Count > 200)
+                    {
+                        var sheetName = MakeUniqueSheetName($"{b.Subject}.SPF.Mechanisms", usedNames);
+                        var mechSheet = new SheetComposer(doc, sheetName);
+                        mechSheet.Title($"SPF Mechanisms — {b.Subject}");
+                        mechSheet.TableFrom(mech, title: null, configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                        mechSheet.Finish(autoFitColumns: true);
+                        s.Section("Mechanisms");
+                        s.PropertiesGrid(new (string, object?)[] { ("Rows", mech.Count), ("Sheet", sheetName) }, columns: 2);
+                    }
+                    else
+                    {
+                        s.TableFrom(mech, title: "Mechanisms", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => v.FreezeHeaderRow = true);
+                    }
                 }
 
                 // Flattened IP Analysis
@@ -356,11 +401,11 @@ public static class ExcelCompositionReport
                 }
             }
 
-            // DNSBL details
-            if (b.Dnsbl != null)
-            {
-                var db = b.Dnsbl;
-                s.SectionWithAnchor("DNSBL");
+        // DNSBL details
+        if (b.Dnsbl != null)
+        {
+            var db = b.Dnsbl;
+            s.SectionWithAnchor("DNSBL");
                 s.PropertiesGrid(new (string, object?)[] {
                     ("Providers Checked", db.ProvidersChecked),
                     ("Hosts Checked", db.HostsChecked),
@@ -639,37 +684,7 @@ public static class ExcelCompositionReport
                 { s.Section("Highlights"); s.BulletedList(d.Highlights); }
             }
 
-            // DKIM details
-            if (b.Dkim.Count > 0)
-            {
-                s.SectionWithAnchor("DKIM");
-                var rows = b.Dkim.Select(k => new {
-                    Selector = k.Selector,
-                    Status = k.Status ?? "-",
-                    KeyBits = k.PublicKeyExists ? k.KeyLength : 0,
-                    WeakKey = k.WeakKey ? "Yes" : "No",
-                    Hash = k.HashAlgorithm ?? "-",
-                    PublicKey = k.PublicKeyExists ? "Yes" : "No",
-                    Flags = string.IsNullOrWhiteSpace(k.Flags) ? "-" : k.Flags,
-                    Canon = string.IsNullOrWhiteSpace(k.Canonicalization) ? "-" : k.Canonicalization,
-                    Created = k.CreationDate?.ToString("yyyy-MM-dd") ?? "",
-                    AgeDays = k.KeyAgeDays
-                }).ToList();
-                s.TableFrom(rows, title: "Selectors", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => {
-                    v.NumericColumnFormats["KeyBits"] = "0";
-                    v.NumericColumnFormats["AgeDays"] = "0";
-                    v.TextBackgrounds["Status"] = new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase) {
-                        { "Valid", "#D1E7DD" }, { "OK", "#D1E7DD" }, { "Warning", "#FFF4CE" }, { "Error", "#F8D7DA" }, { "Fail", "#F8D7DA" }
-                    };
-                    v.BoldByText["Status"] = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase) { "Error", "Fail" };
-                    v.FreezeHeaderRow = true;
-                });
-                // Highlights/Recommendations (aggregated)
-                var dkimHighlights = b.Dkim.SelectMany(x => x.Highlights ?? new List<string>()).Distinct().ToList();
-                if (dkimHighlights.Count > 0) { s.Section("Highlights"); s.BulletedList(dkimHighlights); }
-                var dkimRecs = b.Dkim.SelectMany(x => x.Recommendations ?? new List<DomainDetective.RecommendationAdvice>()).Select(r => r.Title ?? r.Code).Distinct().ToArray();
-                if (dkimRecs.Length > 0) { s.Section("Recommendations"); s.BulletedListWithFill(dkimRecs, fillHex: "#FFF4CE"); }
-            }
+            // DKIM details (handled later below with evidence table)
 
             if (b.Classification != null)
             {
@@ -692,6 +707,8 @@ public static class ExcelCompositionReport
             }
             s.Finish(autoFitColumns: true);
         }
+
+        // (duplicate DKIM/DMARC detail blocks removed — handled earlier within the per-domain sheet scope)
 
         // Summary sheet (counts by control)
         try

@@ -93,7 +93,7 @@ public static partial class HtmlCompositionReport
                                         if (sec!.Highlights.Count > 0) { c.Divider("Highlights"); foreach (var t in sec.Highlights) c.Text("• " + t); }
                                         if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
-                                        if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { c.Divider("Evidence"); c.Text("SPF Record:").Style(TablerTextStyle.Muted); c.Code(sec.SpfRecord!); }
+                                        if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { c.Divider("Evidence"); c.Text("SPF Record:").Style(TablerTextStyle.Muted); c.Text(sec.SpfRecord!).Style(TablerTextStyle.Monospace); }
                                         if (sec.Mechanisms.Count > 0) { c.Divider("Mechanisms"); var mech = sec.Mechanisms.Select(m => new { Qualifier = m.Qualifier, Type = m.Type, Value = m.Value, Provider = m.Provider }).ToList(); var tme = (TablerTable)c.Table(mech, TableType.Tabler); tme.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
                                         if (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0) { c.Divider("Flattened IP Analysis"); c.DataGrid(g => { g.AsCompact(); g.AddItem("Unique IPs", sec.FlattenedUniqueIpCount.ToString()); g.AddItem("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString()); g.AddItem("Tokens Resolved", sec.FlattenedTokenCount.ToString()); }); }
                                         if (sec.ProviderHelp.Count > 0) { c.Divider("Provider Help"); c.Row(rr => { rr.Gap(2); foreach (var (title, url) in sec.ProviderHelp.Take(6)) rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title, TablerBadgeColor.Azure, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: url)); }); }
@@ -103,17 +103,34 @@ public static partial class HtmlCompositionReport
                                     if (b.Dmarc != null) a.AddItem("DMARC", it => it.Content(c => {
                                         var sec = DomainDetective.Reports.SectionProjectors.BuildDmarc(b.Dmarc);
                                         c.DataGrid(g => { g.AsCompact(); foreach (var kvp in sec!.Summary) g.AddItem(kvp.Key, kvp.Value); });
-                                        if (sec!.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
+                                        if (sec!.Highlights.Count > 0) { c.Divider("Highlights"); foreach (var t in sec.Highlights) c.Text("• " + t); }
+                                        if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (!string.IsNullOrWhiteSpace(sec.DmarcRecord)) { c.Divider("Evidence"); c.Text("DMARC Record:").Style(TablerTextStyle.Muted); c.Text(sec.DmarcRecord!).Style(TablerTextStyle.Monospace); }
+                                        if (sec.MailtoRua.Count + sec.HttpRua.Count + sec.MailtoRuf.Count + sec.HttpRuf.Count > 0) {
+                                            c.Divider("Reporting URIs");
+                                            if (sec.MailtoRua.Count + sec.HttpRua.Count > 0) {
+                                                c.Text("Aggregate (RUA)").Style(TablerTextStyle.Muted);
+                                                var rua = sec.MailtoRua.Select(x => new { Scheme = "mailto", Uri = x }).Concat(sec.HttpRua.Select(x => new { Scheme = "http", Uri = x })).ToList();
+                                                var t = (TablerTable)c.Table(rua, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            }
+                                            if (sec.MailtoRuf.Count + sec.HttpRuf.Count > 0) {
+                                                c.Text("Forensic (RUF)").Style(TablerTextStyle.Muted);
+                                                var ruf = sec.MailtoRuf.Select(x => new { Scheme = "mailto", Uri = x }).Concat(sec.HttpRuf.Select(x => new { Scheme = "http", Uri = x })).ToList();
+                                                var t2 = (TablerTable)c.Table(ruf, TableType.Tabler); t2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            }
+                                        }
                                         if (sec.References.Count > 0) { c.Divider("References"); c.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                     }));
 
                                     if (b.Dkim.Count > 0) a.AddItem("DKIM", it => it.Content(c => {
-                                        var sec = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim);
+                                        var sec = DomainDetective.Reports.SectionProjectors.BuildDkim(b.Dkim, b.Ttl);
                                         c.DataGrid(g => { g.AsCompact(); g.AddItem("Selectors", b.Dkim.Count.ToString()); g.AddItem("Any Weak", b.Dkim.Any(x => x.WeakKey).ToString()); });
-                                        if (sec!.Rows.Count > 0) { var rows = sec.Rows.Select(r => new { r.Selector, r.Status, KeyBits = r.KeyBits, Hash = r.Hash }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec!.Rows.Count > 0) { var rows = sec.Rows.Select(r => new { r.Selector, r.Status, KeyBits = r.KeyBits, Alg = r.Hash, Weak = r.Weak ? "Yes" : "No", Flags = r.Flags, TTL = (r.TtlSeconds?.ToString() ?? "-") }).ToList(); var tt = (TablerTable)c.Table(rows, TableType.Tabler); tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.Highlights.Count > 0) { c.Divider("Highlights"); foreach (var t in sec.Highlights) c.Text("• " + t); }
                                         if (sec.Positives.Count > 0) { c.Divider("Good Posture"); foreach (var t in sec.Positives) c.Text("• " + t); }
                                         if (sec.Findings.Count > 0) { c.Divider("Findings"); var rows2 = sec.Findings.Select(x => new { x.Severity, x.Code, x.Target, x.Message }).ToList(); var tt2 = (TablerTable)c.Table(rows2, TableType.Tabler); tt2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
+                                        if (sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record))) { c.Divider("Evidence"); foreach (var r in sec.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record))) { c.Text($"Selector {r.Selector}").Style(TablerTextStyle.Muted); c.Text(r.Record).Style(TablerTextStyle.Monospace); } }
                                         if (sec.References.Count > 0) { c.Divider("References"); c.Row(rr => { rr.Gap(2); foreach (var u in sec.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                     }));
                                 });
@@ -136,6 +153,26 @@ public static partial class HtmlCompositionReport
                                     if (tr.Findings.Count > 0) { panel.Divider("TLS-RPT Findings"); var rows = tr.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (TablerTable)panel.Table(rows, TableType.Tabler); t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover); }
                                     if (tr.References.Count > 0) { panel.Divider("TLS-RPT References"); panel.Row(rr => { rr.Gap(2); foreach (var u in tr.References) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); }
                                 }
+                                // Per-service MailTLS servers
+                                void AddTlsTable(string title, DomainDetective.Views.MailTlsInfo? info)
+                                {
+                                    if (info == null || (info.Servers?.Count ?? 0) == 0) return;
+                                    panel.Divider(title + " Servers");
+                                    var rows = info.Servers.Select(s => new {
+                                        Host = s.Key,
+                                        Status = info.Status ?? "-",
+                                        StartTLS = s.StartTlsAdvertised ? "Yes" : "No",
+                                        Grade = s.Grade.ToString(),
+                                        Proto = s.Protocol,
+                                        TLS13 = s.Tls13Used ? "Yes" : (s.SupportsTls13 ? "Supported" : "No"),
+                                        DaysToExpire = s.DaysToExpire
+                                    }).ToList();
+                                    var tt = (TablerTable)panel.Table(rows, TableType.Tabler);
+                                    tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                }
+                                AddTlsTable("SMTP", b.SmtpTls);
+                                AddTlsTable("IMAP", b.ImapTls);
+                                AddTlsTable("POP3", b.PopTls);
                             });
 
                             // Reputation tab (DNSBL) — via SectionProjectors

@@ -379,6 +379,10 @@ public static class WordCompositionReport {
                 else DkimWordSectionWriter.Write(doc, headings, 2, bucket.Dkim, domain, scope, showInfoFindings, includeNarrativePerDomain);
                 try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDkim) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
             }, bucket.Dkim.Count > 0);
+            add("MAILTLS", () => {
+                headings.AddItem("MailTLS", 1);
+                MailTlsWordSectionWriter.Write(doc, headings, 2, bucket.SmtpTls, bucket.ImapTls, bucket.PopTls, scope, showInfoFindings);
+            }, (bucket.SmtpTls != null || bucket.ImapTls != null || bucket.PopTls != null));
             add("DMARC", () => {
                 headings.AddItem("DMARC", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildDmarc(bucket.Dmarc!);

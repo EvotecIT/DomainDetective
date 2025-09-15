@@ -41,6 +41,7 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
     }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
@@ -154,7 +155,8 @@ public static partial class HtmlCompositionReport {
             PopTls = s.PopTls,
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
-            Wildcard = s.Wildcard
+            Wildcard = s.Wildcard,
+            Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
         return b;
