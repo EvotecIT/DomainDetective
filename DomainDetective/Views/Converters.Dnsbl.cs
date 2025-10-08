@@ -50,27 +50,27 @@ public class DnsblInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = string.Empty;
     public int ProvidersChecked { get; set; }
     public int HostsChecked { get; set; }
     public int HostsListed { get; set; }
-    public IReadOnlyList<DNSBLRecord> ListedRecords { get; set; }
-    public IReadOnlyList<DnsblHostSummary> HostSummaries { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<DNSBLRecord> ListedRecords { get; set; } = System.Array.Empty<DNSBLRecord>();
+    public IReadOnlyList<DnsblHostSummary> HostSummaries { get; set; } = System.Array.Empty<DnsblHostSummary>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DNSBLAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public DNSBLAnalysis Raw { get; set; } = new DNSBLAnalysis();
 }
 
 public class DnsblHostSummary
 {
-    public string Key { get; set; }
+    public string Key { get; set; } = string.Empty;
     public int Total { get; set; }
     public int Listed { get; set; }
-    public IReadOnlyList<string> Blacklists { get; set; }
+    public IReadOnlyList<string> Blacklists { get; set; } = System.Array.Empty<string>();
 }

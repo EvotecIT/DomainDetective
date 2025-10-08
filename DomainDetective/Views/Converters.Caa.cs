@@ -39,22 +39,22 @@ public class CaaInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = string.Empty;
     public int ValidRecords { get; set; }
     public int InvalidRecords { get; set; }
     public bool Conflicting { get; set; }
     public bool HasDuplicateIssuers { get; set; }
-    public IReadOnlyList<string> CanIssueCertificatesForDomain { get; set; }
-    public IReadOnlyList<string> CanIssueWildcardCertificatesForDomain { get; set; }
-    public IReadOnlyList<string> CanIssueMail { get; set; }
-    public IReadOnlyList<string> ReportViolationEmail { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<string> CanIssueCertificatesForDomain { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> CanIssueWildcardCertificatesForDomain { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> CanIssueMail { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> ReportViolationEmail { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public CAAAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public CAAAnalysis Raw { get; set; } = new CAAAnalysis();
 }

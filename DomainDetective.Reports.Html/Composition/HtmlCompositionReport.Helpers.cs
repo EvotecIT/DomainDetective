@@ -94,7 +94,7 @@ public static partial class HtmlCompositionReport {
         } catch { return null; }
     }
 
-    private static string SectionKeyFor(DomainDetective.HealthCheckType h) => h switch {
+    private static string? SectionKeyFor(DomainDetective.HealthCheckType h) => h switch {
         DomainDetective.HealthCheckType.MX => "MX",
         DomainDetective.HealthCheckType.SPF => "SPF",
         DomainDetective.HealthCheckType.DKIM => "DKIM",

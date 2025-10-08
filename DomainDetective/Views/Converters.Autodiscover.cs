@@ -59,30 +59,30 @@ public class AutodiscoverInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = string.Empty;
     public bool SrvRecordExists { get; set; }
-    public string SrvTarget { get; set; }
+    public string SrvTarget { get; set; } = string.Empty;
     public int SrvPort { get; set; }
     public bool AutoconfigCnameExists { get; set; }
-    public string AutoconfigTarget { get; set; }
+    public string AutoconfigTarget { get; set; } = string.Empty;
     public bool AutodiscoverCnameExists { get; set; }
-    public string AutodiscoverTarget { get; set; }
-    public IReadOnlyList<AutodiscoverEndpointResult> Endpoints { get; set; }
+    public string AutodiscoverTarget { get; set; } = string.Empty;
+    public IReadOnlyList<AutodiscoverEndpointResult> Endpoints { get; set; } = System.Array.Empty<AutodiscoverEndpointResult>();
     public int AttemptedEndpoints { get; set; }
     public bool XmlValidFound { get; set; }
-    public string BestEndpointUrl { get; set; }
+    public string BestEndpointUrl { get; set; } = string.Empty;
     public int? BestEndpointStatus { get; set; }
     public int HttpsAttempts { get; set; }
     public int HttpAttempts { get; set; }
     public int SuccessfulResponses { get; set; }
     public int RedirectsForBest { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public AutodiscoverAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public AutodiscoverAnalysis Raw { get; set; } = new AutodiscoverAnalysis();
 }

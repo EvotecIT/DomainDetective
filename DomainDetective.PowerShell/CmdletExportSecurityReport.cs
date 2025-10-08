@@ -38,7 +38,9 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsData.Export, "DDSecurityReport", DefaultParameterSetName = "Default")]
     [Alias("New-DDSecurityReport")]
     public sealed class CmdletExportSecurityReport : ExportableAsyncPSCmdlet {
-        /// <summary>Objects to compose (SPF/DKIM/DMARC/… view objects). Optional when using -Compose.</summary>
+        /// <summary>Pipeline input to compose into the report.</summary>
+        /// <para>Objects to compose (SPF/DKIM/DMARC/… view objects). Optional when using <c>-Compose</c>.</para>
+        /// <para>Accepts single objects or arrays; enumerables are flattened. If a <see cref="ScriptBlock"/> is supplied, it is invoked and its output is composed.</para>
         // Default set: keep positional 0 for backward compatibility when no -Compose is used
         [Parameter(Mandatory = false, ValueFromPipeline = true, Position = 0, ParameterSetName = "Default")]
         // Inline set: accept pipeline as well, but place after the scriptblock
@@ -55,21 +57,38 @@ namespace DomainDetective.PowerShell {
         public SwitchParameter ShowInfoFindings { get; set; } = true;
 
         // Provider Help controls
+        /// <para>Controls how much provider reference material is embedded beneath each section (MX/SPF/DKIM/DMARC, etc.).</para>
+        /// <para>
+        /// Presets: <c>Off</c> (no provider help), <c>Minimal</c> (only under MX, no summaries/notes),
+        /// <c>Standard</c> (balanced defaults), <c>Detailed</c> (enable all summaries/notes/verified/badges under all sections).
+        /// Use together with <see cref="ProviderHelpOptions"/> to fine-tune.
+        /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Off","Minimal","Standard","Detailed")]
         public string ProviderHelpPreset { get; set; } = "Standard";
 
+        /// <para>Optional overrides for the chosen <see cref="ProviderHelpPreset"/>. Provide as a hashtable.</para>
+        /// <para>
+        /// Recognized keys: <c>Under</c> (array of section keys such as MX, SPF, DKIM, DMARC, BIMI, ARC),
+        /// <c>Topics</c> (array of topic names to order), <c>ShowSummaries</c>, <c>ShowNotes</c>,
+        /// <c>ShowBadges</c>, <c>ShowVerified</c>, <c>IncludeRestricted</c>, <c>IncludeThirdParty</c>,
+        /// and <c>MaxProviders</c> (integer limit).
+        /// Example: <c>@{ Under = 'MX','SPF','DKIM'; ShowNotes = $true; MaxProviders = 10 }</c>.
+        /// </para>
         [Parameter(Mandatory = false)]
         public Hashtable? ProviderHelpOptions { get; set; }
 
-        /// <summary>
-        /// Optional script block to run and capture its output for composition.
-        /// Enables inline scenarios:
+        /// <summary>Inline script block used to generate additional input for composition.</summary>
+        /// <para>Optional script block executed to produce additional input objects for composition (inline mode).</para>
+        /// <para>Example:</para>
+        /// <para>
+        /// <code>
         /// Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports {
         ///     Test-DDEmailSpfRecord -DomainName contoso.com
         ///     Test-DDDnsBlacklist -NameOrIpAddress 203.0.113.5
         /// }
-        /// </summary>
+        /// </code>
+        /// </para>
         // Make Compose the first positional parameter in the Inline parameter set, so users can write:
         // Export-DDSecurityReport { Test-DDEmailSpfRecord -DomainName example.com }
         [Parameter(Mandatory = false, Position = 0, ParameterSetName = "Inline")]
@@ -88,23 +107,48 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)] public string? Creator { get; set; }
 
         // Presentation profiles (optional)
+        /// <para>Choose the HTML presentation profile.</para>
+        /// <para>
+        /// <c>Document</c> provides a narrative, document-style layout; <c>Dashboard</c> focuses on
+        /// high-level, concise summaries suitable for quick review or portals.
+        /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Document","Dashboard")]
         public string HtmlProfile { get; set; } = "Document";
 
+        /// <para>Choose the Excel presentation profile.</para>
+        /// <para>
+        /// <c>Workbook</c> exports structured sheets intended for analysis and filtering; <c>Dashboard</c>
+        /// emphasizes an at-a-glance overview sheet.
+        /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Workbook","Dashboard")]
         public string ExcelProfile { get; set; } = "Workbook";
 
         // Ordering controls
+        /// <para>Controls how domains are ordered in the output.</para>
+        /// <para>
+        /// <c>Alphabetical</c> sorts domains A→Z. <c>Input</c> preserves first-seen order from the input
+        /// stream/inline composition.
+        /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Alphabetical","Input")]
         public string DomainOrder { get; set; } = "Alphabetical";
 
+        /// <para>Controls section ordering within each domain.</para>
+        /// <para>
+        /// <c>Canonical</c> uses the built-in order (e.g. MX, SPF, DKIM, DMARC, …), <c>Input</c> orders by
+        /// first appearance in your data, and <c>Custom</c> applies the explicit order from <see cref="SectionOrder"/>.
+        /// </para>
         [Parameter(Mandatory = false)]
         [ValidateSet("Canonical","Input","Custom")]
         public string SectionOrderMode { get; set; } = "Canonical";
 
+        /// <para>Explicit section order to use when <see cref="SectionOrderMode"/> is <c>Custom</c>.</para>
+        /// <para>
+        /// Typical keys include: MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer,
+        /// Wildcard, CAA, Classification, MTA-STS, TLS-RPT, DNSSEC, DANE. Values are normalized (e.g. "TLSRPT" → "TLS-RPT").
+        /// </para>
         [Parameter(Mandatory = false)]
         public string[]? SectionOrder { get; set; }
 

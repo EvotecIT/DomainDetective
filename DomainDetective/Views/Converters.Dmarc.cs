@@ -55,37 +55,37 @@ public class DmarcRecordInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string DmarcRecord { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string DmarcRecord { get; set; } = string.Empty;
     public bool DmarcRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool IsPolicyValid { get; set; }
-    public string Policy { get; set; }
-    public string SubPolicy { get; set; }
-    public string NonexistentPolicy { get; set; }
-    public string PublicSuffixPolicy { get; set; }
-    public string ReportFeedback { get; set; }
-    public string Percent { get; set; }
-    public string DkimAlignment { get; set; }
-    public string SpfAlignment { get; set; }
-    public string Rua { get; set; }
-    public string Ruf { get; set; }
-    public IReadOnlyList<string> MailtoRua { get; set; }
-    public IReadOnlyList<string> HttpRua { get; set; }
-    public IReadOnlyList<string> MailtoRuf { get; set; }
-    public IReadOnlyList<string> HttpRuf { get; set; }
-    public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; }
+    public string Policy { get; set; } = string.Empty;
+    public string SubPolicy { get; set; } = string.Empty;
+    public string NonexistentPolicy { get; set; } = string.Empty;
+    public string PublicSuffixPolicy { get; set; } = string.Empty;
+    public string ReportFeedback { get; set; } = string.Empty;
+    public string Percent { get; set; } = string.Empty;
+    public string DkimAlignment { get; set; } = string.Empty;
+    public string SpfAlignment { get; set; } = string.Empty;
+    public string Rua { get; set; } = string.Empty;
+    public string Ruf { get; set; } = string.Empty;
+    public IReadOnlyList<string> MailtoRua { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> HttpRua { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> MailtoRuf { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<string> HttpRuf { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyDictionary<string, bool> ExternalReportAuthorization { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();
     public bool InvalidReportUri { get; set; }
-    public IReadOnlyList<string> DeprecatedTags { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<string> DeprecatedTags { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DmarcAnalysis Raw { get; set; }
-    public DomainDetective.Narratives.DmarcNarrative.Sections Narrative { get; set; }
-    public IReadOnlyList<string> Highlights { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public DmarcAnalysis Raw { get; set; } = new DmarcAnalysis();
+    public DomainDetective.Narratives.DmarcNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DmarcNarrative.Sections();
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
 }

@@ -71,7 +71,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the policy mode value.
         /// </summary>
-        public string Mode { get; private set; }
+        public string Mode { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the Max-Age value defined by the policy.
@@ -156,7 +156,7 @@ public class MTASTSAnalysis : IHasAssessments {
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
-            Mode = null;
+            Mode = string.Empty;
             MaxAge = 0;
             Mx = new List<string>();
             Policy = null;

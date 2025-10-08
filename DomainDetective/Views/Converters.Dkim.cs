@@ -65,10 +65,10 @@ public class DkimRecordInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string Selector { get; set; }
-    public string Name { get; set; }
-    public string DkimRecord { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string Selector { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string DkimRecord { get; set; } = string.Empty;
     public bool DkimRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool PublicKeyExists { get; set; }
@@ -78,28 +78,28 @@ public class DkimRecordInfo
     public bool WeakKey { get; set; }
     public bool KeyTypeExists { get; set; }
     public bool ValidKeyType { get; set; }
-    public string PublicKey { get; set; }
-    public string ServiceType { get; set; }
-    public string Flags { get; set; }
+    public string PublicKey { get; set; } = string.Empty;
+    public string ServiceType { get; set; } = string.Empty;
+    public string Flags { get; set; } = string.Empty;
     public bool ValidFlags { get; set; }
-    public string UnknownFlagCharacters { get; set; }
-    public string Canonicalization { get; set; }
+    public string UnknownFlagCharacters { get; set; } = string.Empty;
+    public string Canonicalization { get; set; } = string.Empty;
     public bool ValidCanonicalization { get; set; }
-    public string KeyType { get; set; }
-    public string HashAlgorithm { get; set; }
+    public string KeyType { get; set; } = string.Empty;
+    public string HashAlgorithm { get; set; } = string.Empty;
     public DateTime? CreationDate { get; set; }
     public int KeyAgeDays { get; set; }
     public bool OldKey { get; set; }
-    public IReadOnlyList<string> DeprecatedTags { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<string> DeprecatedTags { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DkimRecordAnalysis Raw { get; set; }
-    public DomainDetective.Narratives.DkimNarrative.Sections Narrative { get; set; }
-    public IReadOnlyList<string> Highlights { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public DkimRecordAnalysis Raw { get; set; } = new DkimRecordAnalysis();
+    public DomainDetective.Narratives.DkimNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DkimNarrative.Sections();
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
 }

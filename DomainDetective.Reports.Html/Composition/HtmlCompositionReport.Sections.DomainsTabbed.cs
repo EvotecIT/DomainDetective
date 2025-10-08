@@ -31,8 +31,8 @@ public static partial class HtmlCompositionReport
                             var d = kv.Key; var b = kv.Value;
                             tabs.AddTab(d, TablerIconType.Globe, panel => {
                                 // Make domain obvious + show quick stats
-                                var warnCount = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
-                                var errCount = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount);
+                                var warnCount = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x?.WarningCount ?? 0);
+                                var errCount = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x?.ErrorCount ?? 0);
 
                                 // Severity banner with compact header badges (no intermediate grid/row)
                                 panel.Card(card => {
@@ -143,7 +143,7 @@ public static partial class HtmlCompositionReport
                                     {
                                         acc.AddItem("DKIM (DomainKeys Identified Mail)", item => {
                                             item.HeaderRight(c => {
-                                                var err = b.Dkim.Sum(x => x.ErrorCount); var warn = b.Dkim.Sum(x => x.WarningCount);
+                                                var err = b.Dkim.Sum(x => x?.ErrorCount ?? 0); var warn = b.Dkim.Sum(x => x?.WarningCount ?? 0);
                                                 c.Badge(err > 0 ? $"{err} Error" + (err > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                                 c.Badge(warn > 0 ? $"{warn} Warning" + (warn > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true);
                                             });

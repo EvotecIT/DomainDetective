@@ -21,13 +21,24 @@ public static class WordCompositionReport {
     /// <param name="items">View objects (SPF/DKIM/DMARC/DNSBL/MailClassification).</param>
     /// <param name="scope">Detail level for sections.</param>
     /// <param name="showInfoFindings">Include Info-level findings in tables.</param>
+    /// <param name="narrativePlacement">Where to render background narrative (global or per-domain).</param>
     /// <param name="titleOverride">Optional title override.</param>
+    /// <param name="subjectOverride">Optional subject override for document properties.</param>
+    /// <param name="categoryOverride">Optional category override for document properties.</param>
+    /// <param name="keywordsOverride">Optional keywords override for document properties.</param>
+    /// <param name="creatorOverride">Optional creator/author override for document properties.</param>
     /// <param name="companyName">Branding property.</param>
     /// <param name="companyAddress">Branding property.</param>
     /// <param name="companyYear">Branding property.</param>
     /// <param name="logoPath">Header logo.</param>
     /// <param name="headerText">Header left text.</param>
     /// <param name="watermarkText">Watermark text.</param>
+    /// <param name="showDkimSelectorCountInSummary">Show DKIM selector count next to DKIM status in executive summary.</param>
+    /// <param name="showMailTlsProtocolHintInSummary">Show protocol hint (SMTP/IMAP/POP) for Mail TLS in summary.</param>
+    /// <param name="providerHelp">Provider reference rendering options for sections.</param>
+    /// <param name="domainOrder">How to order domains in the output (Alphabetical or Input).</param>
+    /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
+    /// <param name="sectionOrder">Explicit section order used when <paramref name="sectionOrderMode"/> is Custom.</param>
     public static void Generate(
         string path,
         IReadOnlyList<object> items,

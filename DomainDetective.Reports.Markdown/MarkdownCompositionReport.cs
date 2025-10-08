@@ -120,9 +120,10 @@ public static partial class MarkdownCompositionReport
                 var links = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
                 var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
                                   ?? links?.FirstOrDefault();
-                if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
+                var topics = primaryHelp?.Topics;
+                if (topics != null && topics.Count > 0)
                 {
-                    var top = primaryHelp.Topics.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
+                    var top = topics.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
                     if (top.Count > 0)
                     {
                         md.Ul(ul => { foreach (var t in top) { var titleSafe = string.IsNullOrWhiteSpace(t?.Title) ? t!.Topic : t!.Title; ul.ItemLink(titleSafe!, t!.Url!); } });

@@ -17,7 +17,7 @@ namespace DomainDetective {
     public class ReverseDnsAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>Provides DNS configuration for lookups.</summary>
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         /// <summary>Optional DNS query override.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
@@ -61,11 +61,11 @@ namespace DomainDetective {
         /// <summary>Represents PTR lookup result for a single address.</summary>
         /// <para>Part of the DomainDetective project.</para>
         public class ReverseDnsResult {
-            public string IpAddress { get; set; }
+            public string IpAddress { get; set; } = string.Empty;
             public string? PtrRecord { get; set; }
             /// <summary>All PTR records returned for the IP.</summary>
             public List<string> PtrRecords { get; } = new();
-            public string ExpectedHost { get; set; }
+            public string ExpectedHost { get; set; } = string.Empty;
             /// <summary>True when <see cref="PtrRecord"/> equals <see cref="ExpectedHost"/>.</summary>
             public bool IsValid => string.Equals(PtrRecord, ExpectedHost, StringComparison.Ordinal);
             /// <summary>True when any PTR hostname resolves back to <see cref="IpAddress"/>.</summary>

@@ -345,8 +345,9 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
             JsonEndpointUrl = jsonEndpoint
         };
         if (res.JsonValid) {
-            logger?.WriteInformationCode(AutodiscoverCodes.JsonValid, "Autodiscover JSON discovery returned {0}", jsonEndpoint);
-            logger?.WriteInformationCode(AutodiscoverCodes.EndpointDiscovered, "Autodiscover endpoint discovered via JSON: {0}", jsonEndpoint);
+            var jsonUrl = jsonEndpoint ?? string.Empty;
+            logger?.WriteInformationCode(AutodiscoverCodes.JsonValid, "Autodiscover JSON discovery returned {0}", jsonUrl);
+            logger?.WriteInformationCode(AutodiscoverCodes.EndpointDiscovered, "Autodiscover endpoint discovered via JSON: {0}", jsonUrl);
         }
         return res;
     }

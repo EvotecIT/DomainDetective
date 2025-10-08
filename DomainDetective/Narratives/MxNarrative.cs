@@ -11,7 +11,7 @@ public static class MxNarrative
 
     public static Sections Build(MXAnalysis mx)
     {
-        var subj = string.IsNullOrWhiteSpace(mx?.Subject) ? "(domain)" : mx.Subject;
+        var subj = string.IsNullOrWhiteSpace(mx.Subject) ? "(domain)" : mx.Subject;
         var title = $"MX Report — {subj}";
         var subtitle = "MX Assessment";
         var category = "Email Security";
@@ -50,8 +50,8 @@ public static class MxNarrative
                 det.Add($"Gateway(s): {string.Join(", ", match.Gateways.Select(g => g.DisplayName).Distinct())}.");
         } catch { }
 
-        var refs = mx.RfcReferences?.Select(r => string.IsNullOrWhiteSpace(r.Url) ? r.Reference : r.Url).ToList()
-            ?? new List<string> { "https://www.rfc-editor.org/rfc/rfc5321" };
+        var refsList = mx.RfcReferences?.Select(r => string.IsNullOrWhiteSpace(r.Url) ? r.Reference : r.Url).ToList();
+        var refs = refsList ?? new List<string> { "https://www.rfc-editor.org/rfc/rfc5321" };
 
         try
         {
@@ -59,9 +59,10 @@ public static class MxNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
+                var title = g.Advice?.Title;
+                var msg = string.IsNullOrWhiteSpace(title)
                     ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : g.Advice.Title;
+                    : title;
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

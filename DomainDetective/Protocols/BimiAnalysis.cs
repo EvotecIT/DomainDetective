@@ -299,6 +299,11 @@ public partial class BimiAnalysis : IHasAssessments {
                     return false;
                 }
 
+                if (root == null)
+                {
+                    SvgInvalidReason ??= "Malformed SVG";
+                    return false;
+                }
                 var widthAttr = root.Attribute("width");
                 var heightAttr = root.Attribute("height");
                 var viewBoxAttr = root.Attribute("viewBox");

@@ -181,8 +181,8 @@ namespace DomainDetective {
     /// <summary>Detailed analysis for a single SMIMEA record.</summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SMIMEARecordAnalysis {
-        public string EmailAddress { get; set; }
-        public string SmimeaRecord { get; set; }
+        public string EmailAddress { get; set; } = string.Empty;
+        public string SmimeaRecord { get; set; } = string.Empty;
         public bool ValidSMIMEARecord { get; set; }
         public bool ValidUsage { get; set; }
         public bool ValidSelector { get; set; }
@@ -190,10 +190,10 @@ namespace DomainDetective {
         public bool ValidCertificateAssociationData { get; set; }
         /// <summary>True when the record name uses the '_smimecert' label without a protocol.</summary>
         public bool ValidServiceAndProtocol { get; set; }
-        public string CertificateUsage { get; set; }
-        public string SelectorField { get; set; }
-        public string MatchingTypeField { get; set; }
-        public string CertificateAssociationData { get; set; }
+        public string CertificateUsage { get; set; } = string.Empty;
+        public string SelectorField { get; set; } = string.Empty;
+        public string MatchingTypeField { get; set; } = string.Empty;
+        public string CertificateAssociationData { get; set; } = string.Empty;
         public bool CorrectNumberOfFields { get; set; }
         public bool CorrectLengthOfCertificateAssociationData { get; set; }
         public int LengthOfCertificateAssociationData { get; set; }

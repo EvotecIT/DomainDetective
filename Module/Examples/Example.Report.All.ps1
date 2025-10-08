@@ -62,10 +62,14 @@ Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 $domains = @('evotec.pl', 'evotec.xyz')
 $d = @('evotec.pl', 'evotec.xyz')
 
-Export-DDSecurityReport -ExportFormat Markdown, MarkdownHtml, Word, Excel -ExportPath "$PSScriptRoot\Reports" -Scope Detailed {
+$Data = @(
     Test-DDEmailSpfRecord -DomainName $domains
     Test-DDEmailDkimRecord -DomainName $domains
     Test-DDEmailDmarcRecord -DomainName $domains
+)
+
+Export-DDSecurityReport -ExportFormat Excel -ExportPath "$PSScriptRoot\Reports" -Scope Detailed {
+    $Data
     # Test-DDDnsNsRecord -DomainName 'evotec.pl'
     # Test-DDDnsSecStatus -DomainName 'evotec.pl'
 

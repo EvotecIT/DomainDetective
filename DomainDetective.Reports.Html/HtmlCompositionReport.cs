@@ -25,6 +25,10 @@ public static partial class HtmlCompositionReport {
     /// <param name="titleOverride">Optional document title override.</param>
     /// <param name="authorOverride">Optional author override.</param>
     /// <param name="descriptionOverride">Optional description/summary override.</param>
+    /// <param name="domainOrder">How to order domains in the output (Alphabetical or Input).</param>
+    /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
+    /// <param name="sectionOrder">Explicit section order used when <paramref name="sectionOrderMode"/> is Custom.</param>
+    /// <param name="profile">Presentation profile for HTML (Document or Dashboard).</param>
     public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null, DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical, DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical, string[]? sectionOrder = null, HtmlProfile profile = HtmlProfile.Document) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 

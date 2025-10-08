@@ -225,11 +225,7 @@ public class EdnsSupportAnalysis : IHasAssessments
 
         var info = ParseEdns(data);
         // Map truncation hint
-        if (info != null)
-        {
-            return info with { TruncatedUdp = truncated };
-        }
-        return info;
+        return info with { TruncatedUdp = truncated };
     }
 
     /// <summary>

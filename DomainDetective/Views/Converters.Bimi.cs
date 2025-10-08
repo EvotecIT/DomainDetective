@@ -51,19 +51,19 @@ public class BimiRecordInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string BimiRecord { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string BimiRecord { get; set; } = string.Empty;
     public bool BimiRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
-    public string Location { get; set; }
-    public string Authority { get; set; }
+    public string Location { get; set; } = string.Empty;
+    public string Authority { get; set; } = string.Empty;
     public bool LocationUsesHttps { get; set; }
     public bool AuthorityUsesHttps { get; set; }
     public bool DeclinedToPublish { get; set; }
     public bool InvalidLocation { get; set; }
     public bool SvgFetched { get; set; }
     public bool SvgValid { get; set; }
-    public string SvgInvalidReason { get; set; }
+    public string SvgInvalidReason { get; set; } = string.Empty;
     public bool SvgSizeValid { get; set; }
     public bool DimensionsValid { get; set; }
     public bool ViewBoxValid { get; set; }
@@ -71,14 +71,14 @@ public class BimiRecordInfo
     public bool ValidVmc { get; set; }
     public bool VmcSignedByKnownRoot { get; set; }
     public bool VmcContainsLogo { get; set; }
-    public string FailureReason { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string FailureReason { get; set; } = string.Empty;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public BimiAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public BimiAnalysis Raw { get; set; } = new BimiAnalysis();
 }
