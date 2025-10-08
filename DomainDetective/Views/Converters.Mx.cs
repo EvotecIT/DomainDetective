@@ -149,12 +149,15 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing MX (Mail Exchanger) analysis.
+/// </summary>
 public class MxInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<string> MxRecords { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public IReadOnlyList<string> MxRecords { get; set; } = System.Array.Empty<string>();
     public bool MxRecordExists { get; set; }
     public bool PointsToCname { get; set; }
     public bool PointsToIpAddress { get; set; }
@@ -168,21 +171,24 @@ public class MxInfo
     public bool MxTtlUniform { get; set; }
     public bool MxRrsetConsistentAcrossNs { get; set; }
     public bool TargetAddressConsistentAcrossNs { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public MXAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public MXAnalysis Raw { get; set; } = new MXAnalysis();
     public string? ProviderPrimary { get; set; }
     public double ProviderPrimaryScore { get; set; }
-    public IReadOnlyList<string> ProviderGateways { get; set; }
-    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; }
+    public IReadOnlyList<string> ProviderGateways { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
 }
 
+/// <summary>
+/// Helpful vendor documentation links discovered for the current provider.
+/// </summary>
 public sealed class ProviderHelpLinks
 {
     public string ProviderName { get; set; } = string.Empty;

@@ -38,29 +38,32 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing SOA (Start of Authority) analysis.
+/// </summary>
 public class SoaInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string PrimaryNameServer { get; set; }
-    public string ResponsibleMailbox { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string PrimaryNameServer { get; set; } = string.Empty;
+    public string ResponsibleMailbox { get; set; } = string.Empty;
     public long SerialNumber { get; set; }
     public bool SerialFormatValid { get; set; }
-    public string SerialFormatSuggestion { get; set; }
+    public string SerialFormatSuggestion { get; set; } = string.Empty;
     public int Refresh { get; set; }
     public int Retry { get; set; }
     public int Expire { get; set; }
     public int Minimum { get; set; }
     public int NegativeCacheTtl { get; set; }
     public bool RecordExists { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public SOAAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public SOAAnalysis Raw { get; set; } = new SOAAnalysis();
 }

@@ -47,15 +47,24 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing BIMI (Brand Indicators for Message Identification) analysis.
+/// </summary>
 public class BimiRecordInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Raw BIMI TXT record.</summary>
     public string BimiRecord { get; set; } = string.Empty;
     public bool BimiRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
+    /// <summary>URL to the SVG indicator (l=).</summary>
     public string Location { get; set; } = string.Empty;
+    /// <summary>URL to the VMC certificate (a=).</summary>
     public string Authority { get; set; } = string.Empty;
     public bool LocationUsesHttps { get; set; }
     public bool AuthorityUsesHttps { get; set; }
@@ -63,6 +72,7 @@ public class BimiRecordInfo
     public bool InvalidLocation { get; set; }
     public bool SvgFetched { get; set; }
     public bool SvgValid { get; set; }
+    /// <summary>Why the SVG failed validation (when invalid).</summary>
     public string SvgInvalidReason { get; set; } = string.Empty;
     public bool SvgSizeValid { get; set; }
     public bool DimensionsValid { get; set; }
@@ -71,14 +81,22 @@ public class BimiRecordInfo
     public bool ValidVmc { get; set; }
     public bool VmcSignedByKnownRoot { get; set; }
     public bool VmcContainsLogo { get; set; }
+    /// <summary>Failure reason when HTTP requests fail.</summary>
     public string FailureReason { get; set; } = string.Empty;
+    /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    /// <summary>Short summary text used in executive reports.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis.</summary>
     public BimiAnalysis Raw { get; set; } = new BimiAnalysis();
 }

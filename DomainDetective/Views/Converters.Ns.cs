@@ -41,12 +41,15 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing NS (authoritative name servers) analysis.
+/// </summary>
 public class NsInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<string> NsRecords { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public IReadOnlyList<string> NsRecords { get; set; } = System.Array.Empty<string>();
     public bool NsRecordExists { get; set; }
     public bool HasDuplicates { get; set; }
     public bool AtLeastTwoRecords { get; set; }
@@ -54,19 +57,19 @@ public class NsInfo
     public bool PointsToCname { get; set; }
     public bool HasDiverseLocations { get; set; }
     public int AsnDistinctCount { get; set; }
-    public IReadOnlyList<string> ParentNsRecords { get; set; }
+    public IReadOnlyList<string> ParentNsRecords { get; set; } = System.Array.Empty<string>();
     public bool DelegationMatches { get; set; }
     public bool GlueRecordsComplete { get; set; }
     public bool GlueRecordsConsistent { get; set; }
-    public IReadOnlyDictionary<string, bool> RootServerResponses { get; set; }
-    public IReadOnlyDictionary<string, bool> RecursionEnabled { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyDictionary<string, bool> RootServerResponses { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();
+    public IReadOnlyDictionary<string, bool> RecursionEnabled { get; set; } = new System.Collections.Generic.Dictionary<string, bool>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public NSAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public NSAnalysis Raw { get; set; } = new NSAnalysis();
 }

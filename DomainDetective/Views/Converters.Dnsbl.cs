@@ -46,6 +46,9 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing DNSBL blacklist checks.
+/// </summary>
 public class DnsblInfo
 {
     public HealthCheckType Check { get; set; }
@@ -67,6 +70,9 @@ public class DnsblInfo
     public DNSBLAnalysis Raw { get; set; } = new DNSBLAnalysis();
 }
 
+/// <summary>
+/// Brief per-host DNSBL summary used in DNSBL reports.
+/// </summary>
 public class DnsblHostSummary
 {
     public string Key { get; set; } = string.Empty;

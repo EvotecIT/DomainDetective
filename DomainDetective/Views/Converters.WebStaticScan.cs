@@ -97,6 +97,9 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing a static website scan (HTTP resources, hosts, trackers).
+/// </summary>
 public sealed class WebStaticScanInfo
 {
     public HealthCheckType Check { get; set; }
@@ -134,6 +137,9 @@ public sealed class WebStaticScanInfo
     public WebStaticScanAnalysis Raw { get; set; } = new WebStaticScanAnalysis();
 }
 
+/// <summary>
+/// Summary for a single host observed during a static scan (bytes, requests, types).
+/// </summary>
 public sealed class WebStaticScanHostBrief
 {
     public string Host { get; set; } = string.Empty;

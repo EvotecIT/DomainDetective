@@ -35,26 +35,43 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing CAA (Certificate Authority Authorization) analysis.
+/// </summary>
 public class CaaInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
     public int ValidRecords { get; set; }
     public int InvalidRecords { get; set; }
     public bool Conflicting { get; set; }
     public bool HasDuplicateIssuers { get; set; }
+    /// <summary>Issuers authorized to issue domain certificates.</summary>
     public IReadOnlyList<string> CanIssueCertificatesForDomain { get; set; } = System.Array.Empty<string>();
+    /// <summary>Issuers authorized to issue wildcard certificates.</summary>
     public IReadOnlyList<string> CanIssueWildcardCertificatesForDomain { get; set; } = System.Array.Empty<string>();
+    /// <summary>Issuers authorized for S/MIME.</summary>
     public IReadOnlyList<string> CanIssueMail { get; set; } = System.Array.Empty<string>();
+    /// <summary>Email addresses for iodef report notifications.</summary>
     public IReadOnlyList<string> ReportViolationEmail { get; set; } = System.Array.Empty<string>();
+    /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    /// <summary>Short summary text used in executive summaries.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis.</summary>
     public CAAAnalysis Raw { get; set; } = new CAAAnalysis();
 }

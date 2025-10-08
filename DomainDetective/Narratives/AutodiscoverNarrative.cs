@@ -6,11 +6,13 @@ namespace DomainDetective.Narratives;
 
 public static class AutodiscoverNarrative
 {
+    /// <summary>Structured narrative sections for Autodiscover analysis.</summary>
     public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(AutodiscoverAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var s = analysis?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"Autodiscover Report — {subj}";
         var subtitle = "Autodiscover Assessment";
         var category = "Email Configuration";
@@ -68,8 +70,17 @@ public static class AutodiscoverNarrative
             var line = $"{e.Method}: {e.StatusCode}";
             if (e.XmlValid) line += " (valid XML)";
             if (e.JsonValid) line += " (valid JSON)";
-            if (!string.IsNullOrWhiteSpace(e.FinalHost) && !string.Equals(e.FinalHost, new Uri(e.FinalUrl ?? e.Url ?? string.Empty).Host, StringComparison.OrdinalIgnoreCase))
-                line += $" → {e.FinalHost}";
+            if (!string.IsNullOrWhiteSpace(e.FinalHost))
+            {
+                var rawUrl = e.FinalUrl ?? e.Url;
+                string? host = null;
+                if (!string.IsNullOrWhiteSpace(rawUrl) && Uri.TryCreate(rawUrl, UriKind.Absolute, out var parsed))
+                {
+                    host = parsed.Host;
+                }
+                if (!string.Equals(e.FinalHost, host, StringComparison.OrdinalIgnoreCase))
+                    line += $" → {e.FinalHost}";
+            }
             det.Add(line);
         }
 

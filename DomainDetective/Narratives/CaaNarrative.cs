@@ -7,11 +7,13 @@ namespace DomainDetective.Narratives;
 
 public static class CaaNarrative
 {
+    /// <summary>Structured narrative sections for CAA analysis.</summary>
     public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(CAAAnalysis caa)
     {
-        var subj = string.IsNullOrWhiteSpace(caa?.Subject) ? "(domain)" : caa.Subject;
+        var s = caa?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"CAA Report — {subj}";
         var subtitle = "CAA Assessment";
         var category = "TLS Security";

@@ -153,8 +153,8 @@ public class SpfRecordInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string SpfRecord { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public string SpfRecord { get; set; } = string.Empty;
     public int RecordLength { get; set; }
     public bool SpfRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
@@ -164,19 +164,19 @@ public class SpfRecordInfo
     public bool MultipleAllMechanisms { get; set; }
     public bool ExceedsTotalCharacterLimit { get; set; }
     public bool ExceedsCharacterLimit { get; set; }
-    public IReadOnlyList<string> UnknownMechanisms { get; set; }
-    public IReadOnlyList<SpfPartAnalysis> Mechanisms { get; set; }
-    public IReadOnlyDictionary<string, int> ProviderCounts { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<string> UnknownMechanisms { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<SpfPartAnalysis> Mechanisms { get; set; } = System.Array.Empty<SpfPartAnalysis>();
+    public IReadOnlyDictionary<string, int> ProviderCounts { get; set; } = new System.Collections.Generic.Dictionary<string, int>();
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public SpfAnalysis Raw { get; set; }
-    public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; }
-    public IReadOnlyList<string> Highlights { get; set; }
-    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public SpfAnalysis Raw { get; set; } = new SpfAnalysis();
+    public DomainDetective.Narratives.SpfNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.SpfNarrative.Sections();
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
+    public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
 }

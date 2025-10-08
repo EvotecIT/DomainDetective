@@ -7,7 +7,8 @@ namespace DomainDetective.Narratives;
 
 public static class MxNarrative
 {
-    public sealed class Sections : NarrativeSections { }
+/// <summary>Structured narrative sections for MX analysis.</summary>
+public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(MXAnalysis mx)
     {
@@ -59,10 +60,10 @@ public static class MxNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var title = g.Advice?.Title;
-                var msg = string.IsNullOrWhiteSpace(title)
+                var adviceTitle = g.Advice?.Title;
+                var msg = string.IsNullOrWhiteSpace(adviceTitle)
                     ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : title;
+                    : adviceTitle;
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

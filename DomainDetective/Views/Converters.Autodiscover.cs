@@ -55,34 +55,63 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing Autodiscover DNS/HTTP results for reporting.
+/// </summary>
 public class AutodiscoverInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area this result belongs to.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Domain the analysis applies to.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>True when an _autodiscover._tcp SRV record is present.</summary>
     public bool SrvRecordExists { get; set; }
+    /// <summary>Target host from SRV record.</summary>
     public string SrvTarget { get; set; } = string.Empty;
+    /// <summary>Port from SRV record.</summary>
     public int SrvPort { get; set; }
+    /// <summary>True when autoconfig CNAME exists.</summary>
     public bool AutoconfigCnameExists { get; set; }
+    /// <summary>Target of autoconfig CNAME.</summary>
     public string AutoconfigTarget { get; set; } = string.Empty;
+    /// <summary>True when autodiscover CNAME exists.</summary>
     public bool AutodiscoverCnameExists { get; set; }
+    /// <summary>Target of autodiscover CNAME.</summary>
     public string AutodiscoverTarget { get; set; } = string.Empty;
+    /// <summary>HTTP probe results in discovery order.</summary>
     public IReadOnlyList<AutodiscoverEndpointResult> Endpoints { get; set; } = System.Array.Empty<AutodiscoverEndpointResult>();
+    /// <summary>Total HTTP endpoints attempted.</summary>
     public int AttemptedEndpoints { get; set; }
+    /// <summary>True if any endpoint produced valid XML.</summary>
     public bool XmlValidFound { get; set; }
+    /// <summary>URL considered most promising (valid XML/JSON or first attempt).</summary>
     public string BestEndpointUrl { get; set; } = string.Empty;
+    /// <summary>Status code for the best endpoint (if any).</summary>
     public int? BestEndpointStatus { get; set; }
+    /// <summary>Number of HTTPS attempts.</summary>
     public int HttpsAttempts { get; set; }
+    /// <summary>Number of HTTP attempts.</summary>
     public int HttpAttempts { get; set; }
+    /// <summary>Number of successful responses (2xx).</summary>
     public int SuccessfulResponses { get; set; }
+    /// <summary>Redirect hop count for the best endpoint.</summary>
     public int RedirectsForBest { get; set; }
+    /// <summary>Structured assessment list underpinning the status.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    /// <summary>Short summary string for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable guidance derived from assessments.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture findings.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links relevant to this check.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis object.</summary>
     public AutodiscoverAnalysis Raw { get; set; } = new AutodiscoverAnalysis();
 }

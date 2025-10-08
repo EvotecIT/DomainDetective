@@ -148,7 +148,8 @@ public static class DmarcReportParser {
                 {
                     var t = r.Element(ns + "type")?.Value;
                     var c = r.Element(ns + "comment")?.Value;
-                    var s = string.IsNullOrWhiteSpace(c) ? t : $"{t}: {c}";
+                    if (string.IsNullOrWhiteSpace(t) && string.IsNullOrWhiteSpace(c)) continue;
+                    var s = string.IsNullOrWhiteSpace(c) ? (t ?? string.Empty) : $"{t}: {c}";
                     if (!string.IsNullOrWhiteSpace(s)) rec.Reasons.Add(s);
                 }
             }
