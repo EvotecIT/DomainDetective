@@ -33,25 +33,28 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing dangling CNAME analysis (takeover risk).
+/// </summary>
 public class DanglingCnameInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = string.Empty;
     public bool CnameRecordExists { get; set; }
-    public string Target { get; set; }
+    public string Target { get; set; } = string.Empty;
     public bool TargetResolves { get; set; }
     public bool KnownService { get; set; }
     public bool IsDangling { get; set; }
     public bool UnclaimedService { get; set; }
-    public string FailureReason { get; set; }
-    public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string FailureReason { get; set; } = string.Empty;
+    public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public System.Collections.Generic.IReadOnlyList<string> References { get; set; }
-    public DanglingCnameAnalysis Raw { get; set; }
+    public string Summary { get; set; } = string.Empty;
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public System.Collections.Generic.IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public DanglingCnameAnalysis Raw { get; set; } = new DanglingCnameAnalysis();
 }

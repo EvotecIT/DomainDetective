@@ -154,35 +154,63 @@ public static partial class Converters
 /// </summary>
 public class MxInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>MX resource records as returned by DNS.</summary>
     public IReadOnlyList<string> MxRecords { get; set; } = System.Array.Empty<string>();
+    /// <summary>True when at least one MX record exists.</summary>
     public bool MxRecordExists { get; set; }
+    /// <summary>True when MX points to a CNAME (discouraged).</summary>
     public bool PointsToCname { get; set; }
+    /// <summary>True when MX points directly to an IP address (invalid).</summary>
     public bool PointsToIpAddress { get; set; }
+    /// <summary>True when MX target does not exist.</summary>
     public bool PointsToNonExistentDomain { get; set; }
+    /// <summary>True when MX target lacks A/AAAA records.</summary>
     public bool PointsToDomainWithoutAOrAaaaRecord { get; set; }
+    /// <summary>True when MX preference values are in ascending order.</summary>
     public bool PrioritiesInOrder { get; set; }
+    /// <summary>True when multiple MX preferences provide redundancy.</summary>
     public bool HasBackupServers { get; set; }
+    /// <summary>True when NULL MX pattern is used.</summary>
     public bool HasNullMx { get; set; }
+    /// <summary>True when any MX target is localhost.</summary>
     public bool PointsToLocalhost { get; set; }
+    /// <summary>True when at least one MX target supports IPv6.</summary>
     public bool Ipv6Supported { get; set; }
+    /// <summary>True when MX TTL values are uniform across the RRset.</summary>
     public bool MxTtlUniform { get; set; }
+    /// <summary>True when MX RRsets are consistent across authoritative NS.</summary>
     public bool MxRrsetConsistentAcrossNs { get; set; }
+    /// <summary>True when target A/AAAA answers are consistent across authoritative NS.</summary>
     public bool TargetAddressConsistentAcrossNs { get; set; }
+    /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    /// <summary>Short summary text used in executive reports.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying MX analysis.</summary>
     public MXAnalysis Raw { get; set; } = new MXAnalysis();
+    /// <summary>Primary provider inferred from MX (best-effort).</summary>
     public string? ProviderPrimary { get; set; }
+    /// <summary>Confidence score for primary provider (0..1).</summary>
     public double ProviderPrimaryScore { get; set; }
+    /// <summary>Gateway providers inferred from MX.</summary>
     public IReadOnlyList<string> ProviderGateways { get; set; } = System.Array.Empty<string>();
+    /// <summary>Helpful vendor documentation links for this provider.</summary>
     public IReadOnlyList<ProviderHelpLinks> ProviderHelp { get; set; } = System.Array.Empty<ProviderHelpLinks>();
 }
 

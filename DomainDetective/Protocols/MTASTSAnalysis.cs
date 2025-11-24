@@ -26,7 +26,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the domain name that was analysed.
         /// </summary>
-        public string Domain { get; private set; }
+        public string Domain { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets a value indicating whether the policy was successfully fetched.
@@ -86,7 +86,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the text of the policy.
         /// </summary>
-        public string Policy { get; private set; }
+        public string Policy { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets a value indicating whether the policy enforces MTA-STS.
@@ -96,14 +96,14 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets or sets the logger instance used for reporting warnings.
         /// </summary>
-        internal InternalLogger Logger { get; set; }
+        internal InternalLogger Logger { get; set; } = new InternalLogger(false);
 
         /// <summary>
         /// Gets or sets a policy URL override. When set, this URL is used
         /// instead of constructing one from the domain name. Primarily
         /// intended for testing.
         /// </summary>
-        public string PolicyUrlOverride { get; set; }
+        public string PolicyUrlOverride { get; set; } = string.Empty;
 
         /// <summary>
         /// Provides DNS configuration used for queries.

@@ -9,7 +9,8 @@ public static class CnameNarrative
 
     public static Sections Build(CnameAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var s = analysis?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"CNAME Report — {subj}";
         var subtitle = "CNAME Assessment";
         var category = "DNS";

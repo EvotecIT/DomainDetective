@@ -43,13 +43,19 @@ public static partial class Converters
 /// </summary>
 public class SoaInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
+    /// <summary>Subject domain.</summary>
     public string Subject { get; set; } = string.Empty;
+    /// <summary>Primary name server (MNAME).</summary>
     public string PrimaryNameServer { get; set; } = string.Empty;
+    /// <summary>Responsible mailbox (RNAME).</summary>
     public string ResponsibleMailbox { get; set; } = string.Empty;
     public long SerialNumber { get; set; }
     public bool SerialFormatValid { get; set; }
+    /// <summary>Suggestion when the serial format is not YYYMMDDnn.</summary>
     public string SerialFormatSuggestion { get; set; } = string.Empty;
     public int Refresh { get; set; }
     public int Retry { get; set; }
@@ -57,13 +63,20 @@ public class SoaInfo
     public int Minimum { get; set; }
     public int NegativeCacheTtl { get; set; }
     public bool RecordExists { get; set; }
+    /// <summary>Assessment list.</summary>
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
     public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
+    /// <summary>Short summary text for executive reports.</summary>
     public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
     public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis.</summary>
     public SOAAnalysis Raw { get; set; } = new SOAAnalysis();
 }

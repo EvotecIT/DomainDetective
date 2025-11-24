@@ -10,7 +10,8 @@ public static class ContactNarrative
 
     public static Sections Build(ContactInfoAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
+        var s = analysis?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"Contact Record Report — {subj}";
         var subtitle = "Contact TXT Assessment";
         var category = "Contact Details";

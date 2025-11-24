@@ -11,7 +11,8 @@ public static class ZoneTransferNarrative
 
     public static Sections Build(ZoneTransferAnalysis analysis, IEnumerable<Assessment>? assessments = null, InternalLogger? logger = null)
     {
-        var subject = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var s = analysis?.Subject;
+        var subject = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"Zone Transfer Report — {subject}";
         var subtitle = "AXFR Exposure Assessment";
         var category = "DNS Security";

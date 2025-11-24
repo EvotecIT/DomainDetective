@@ -43,10 +43,10 @@ namespace DomainDetective {
         private const string TagPublicSuffixPolicy = "psd";
         private const string TagReportFeedback = "rfb";
         private const string TagReportFormat = "rf"; // deprecated in DMARCbis draft (draft-ietf-dmarcbis-base)
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
         public Dictionary<string, bool> ExternalReportAuthorization { get; private set; } = new();
-        public string DmarcRecord { get; private set; }
+        public string DmarcRecord { get; private set; } = string.Empty;
         public bool DmarcRecordExists { get; private set; } // should be true
         public bool MultipleRecords { get; private set; }
         public bool StartsCorrectly { get; private set; } // should be true
@@ -75,7 +75,7 @@ namespace DomainDetective {
         public string? PolicyRecommendation { get; private set; }
 
         /// <summary>Summary message describing DMARC status.</summary>
-        public string Advisory { get; private set; }
+        public string Advisory { get; private set; } = string.Empty;
 
         /// <summary>Indicates whether the SPF domain aligns with the policy.</summary>
         public bool SpfAligned { get; private set; }
@@ -84,10 +84,10 @@ namespace DomainDetective {
 
         public bool InvalidReportUri { get; private set; }
 
-        public string Rua { get; private set; }
+        public string Rua { get; private set; } = string.Empty;
         public List<string> MailtoRua { get; private set; } = new List<string>();
         public List<string> HttpRua { get; private set; } = new List<string>();
-        public string Ruf { get; private set; }
+        public string Ruf { get; private set; } = string.Empty;
         public List<string> MailtoRuf { get; private set; } = new List<string>();
         public List<string> HttpRuf { get; private set; } = new List<string>();
         public List<long?> RufSizeLimits { get; private set; } = new List<long?>();
