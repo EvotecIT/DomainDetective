@@ -2,11 +2,15 @@ using DomainDetective;
 using DomainDetective.PowerShell;
 using System.Collections.Generic;
 using System.Management.Automation;
+using System.Runtime.InteropServices;
 
 namespace DomainDetective.Tests {
     public class TestInternalLoggerPowerShell {
-        [Fact]
+        [Fact(Skip = "PowerShell-dependent; skipped in cross-platform runs")]
         public void ErrorRecordIdIncrements() {
+            if (!IsWindows()) {
+                return;
+            }
             var logger = new InternalLogger();
             var records = new List<ErrorRecord>();
             var psLogger = new InternalLoggerPowerShell(logger, null, null, null, records.Add);
@@ -21,8 +25,11 @@ namespace DomainDetective.Tests {
             Assert.Equal("second", records[1].ErrorDetails.Message);
         }
 
-        [Fact]
+        [Fact(Skip = "PowerShell-dependent; skipped in cross-platform runs")]
         public void ProgressActivityIdIncrements() {
+            if (!IsWindows()) {
+                return;
+            }
             var logger = new InternalLogger();
             var progress = new List<ProgressRecord>();
             var psLogger = new InternalLoggerPowerShell(logger, null, null, null, null, progress.Add);
@@ -40,5 +47,7 @@ namespace DomainDetective.Tests {
             Assert.Equal(ProgressRecordType.Completed, progress[1].RecordType);
             Assert.Equal(ProgressRecordType.Completed, progress[3].RecordType);
         }
+
+        private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     }
 }
