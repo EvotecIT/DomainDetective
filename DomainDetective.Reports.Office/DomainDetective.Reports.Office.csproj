@@ -11,8 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference
-            Include="C:\Support\GitHub\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" />
+        <ProjectReference Include="..\..\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" />
     </ItemGroup>
 
     <ItemGroup>
