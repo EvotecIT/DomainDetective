@@ -107,13 +107,15 @@ public static partial class Converters
             PointsToLocalhost = analysis.PointsToLocalhost,
             Ipv6Supported = analysis.Ipv6Supported,
             MxTtlUniform = analysis.MxTtlUniform,
+            MxRecordTtl = analysis.MinMxTtl,
+            MxRecordTtls = analysis.MxRecordTtls,
             MxRrsetConsistentAcrossNs = analysis.MxRrsetConsistentAcrossNs,
             TargetAddressConsistentAcrossNs = analysis.TargetAddressConsistentAcrossNs,
             Assessments = analysis is IHasAssessments h ? h.Assessments : new List<Assessment>(),
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,
-            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
+            Summary = $"{analysis.MxRecords?.Count ?? 0} MX; backup {(analysis.HasBackupServers ? "yes" : "no")}\u002c TTL {(analysis.MinMxTtl.HasValue ? analysis.MinMxTtl.Value.ToString() : "-")}s {(analysis.MxTtlUniform ? "uniform" : "mixed")}\u002c NS {(analysis.MxRrsetConsistentAcrossNs ? "consistent" : "differs")}",
             Recommendations = recs,
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
@@ -169,6 +171,8 @@ public class MxInfo
     public bool PointsToLocalhost { get; set; }
     public bool Ipv6Supported { get; set; }
     public bool MxTtlUniform { get; set; }
+    public int? MxRecordTtl { get; set; }
+    public IReadOnlyList<int> MxRecordTtls { get; set; } = System.Array.Empty<int>();
     public bool MxRrsetConsistentAcrossNs { get; set; }
     public bool TargetAddressConsistentAcrossNs { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();

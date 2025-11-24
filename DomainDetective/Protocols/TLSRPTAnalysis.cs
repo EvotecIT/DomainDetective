@@ -17,6 +17,8 @@ public class TLSRPTAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
+        /// <summary>DNS configuration used when following CNAMEs to locate the policy TXT.</summary>
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         /// <summary>Indicates whether a TLSRPT record exists.</summary>
         public bool TlsRptRecordExists { get; private set; }
@@ -26,6 +28,10 @@ public class TLSRPTAnalysis : IHasAssessments {
 
         /// <summary>Indicates whether the record starts with v=TLSRPTv1.</summary>
         public bool StartsCorrectly { get; private set; }
+        /// <summary>TTL values observed for TLSRPT TXT answers.</summary>
+        public IReadOnlyList<int> DnsRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL across TLSRPT answers.</summary>
+        public int? DnsRecordTtl => (DnsRecordTtls?.Count ?? 0) > 0 ? DnsRecordTtls.Min() : null;
 
         /// <summary>True when at least one RUA destination is defined.</summary>
         public bool RuaDefined { get; private set; }
@@ -67,6 +73,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             InvalidRua = new List<string>();
             UnknownTags = new List<string>();
             RuaHttpStatus = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+            DnsRecordTtls = Array.Empty<int>();
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -74,8 +81,31 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
 
             var recordList = dnsResults
-                .Where(r => r.Type != DnsRecordType.CNAME)
+                .Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) >= 0)
                 .ToList();
+            var cnameTargets = dnsResults
+                .Where(r => r.Type == DnsRecordType.CNAME && !string.IsNullOrWhiteSpace(r.Data))
+                .Select(r => r.Data!.Trim('.'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (recordList.Count == 0 || cnameTargets.Length > 0)
+            {
+                foreach (var target in cnameTargets)
+                {
+                    try
+                    {
+                        var follow = await DnsConfiguration.QueryDNS(target, DnsRecordType.TXT, cancellationToken: cancellationToken);
+                        var followTxt = follow.Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        if (followTxt.Count > 0)
+                        {
+                            recordList = followTxt;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            DnsRecordTtls = recordList.Select(r => r.TTL).ToArray();
             TlsRptRecordExists = recordList.Any();
             MultipleRecords = recordList.Count > 1;
             if (!TlsRptRecordExists) {

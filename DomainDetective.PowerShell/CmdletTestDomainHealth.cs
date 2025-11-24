@@ -62,6 +62,10 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public PortScanProfile[]? PortScanProfile;
 
+        /// <summary>When set, collects authoritative (configured) TTLs from NS hosts alongside observed resolver TTLs.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter CollectAuthoritativeTtls { get; set; }
+
         private InternalLogger _logger = null!;
         private DomainHealthCheck _healthCheck = null!;
 
@@ -79,6 +83,7 @@ namespace DomainDetective.PowerShell {
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck.CollectAuthoritativeTtls = CollectAuthoritativeTtls.IsPresent;
             if (DnsEndpoints != null && DnsEndpoints.Length > 0)
             {
                 _healthCheck.DnsEndpoints.AddRange(DnsEndpoints);

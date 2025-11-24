@@ -17,6 +17,8 @@ public static partial class Converters
             Subject = analysis.Domain,
             DnsRecordPresent = analysis.DnsRecordPresent,
             DnsRecordValid = analysis.DnsRecordValid,
+            DnsRecordTtl = analysis.DnsRecordTtl,
+            DnsRecordTtls = analysis.DnsRecordTtls,
             PolicyPresent = analysis.PolicyPresent,
             PolicyValid = analysis.PolicyValid,
             Mode = analysis.Mode,
@@ -44,6 +46,8 @@ public class MtastsInfo
     public string Subject { get; set; }
     public bool DnsRecordPresent { get; set; }
     public bool DnsRecordValid { get; set; }
+    public int? DnsRecordTtl { get; set; }
+    public IReadOnlyList<int> DnsRecordTtls { get; set; } = System.Array.Empty<int>();
     public bool PolicyPresent { get; set; }
     public bool PolicyValid { get; set; }
     public string Mode { get; set; }

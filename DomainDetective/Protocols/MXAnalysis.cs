@@ -60,6 +60,10 @@ namespace DomainDetective {
 
         // Integrity checks
         public bool MxTtlUniform { get; private set; } = true;
+        /// <summary>TTL values observed for MX RRset.</summary>
+        public IReadOnlyList<int> MxRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL across MX records.</summary>
+        public int? MinMxTtl => (MxRecordTtls?.Count ?? 0) > 0 ? MxRecordTtls.Min() : null;
         public bool MxRrsetConsistentAcrossNs { get; private set; } = true;
         public bool TargetAddressConsistentAcrossNs { get; private set; } = true;
 
@@ -97,6 +101,7 @@ namespace DomainDetective {
             MxTtlUniform = true;
             MxRrsetConsistentAcrossNs = true;
             TargetAddressConsistentAcrossNs = true;
+            MxRecordTtls = Array.Empty<int>();
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -105,6 +110,7 @@ namespace DomainDetective {
 
             var mxRecordList = dnsResults.ToList();
             MxRecordExists = mxRecordList.Any();
+            MxRecordTtls = mxRecordList.Select(r => r.TTL).ToArray();
 
             var parsed = new List<(int Preference, string Host)>();
             foreach (var record in mxRecordList) {

@@ -125,6 +125,11 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         public bool DnsRecordValid { get; private set; }
 
+        /// <summary>TTL values observed for the DNS TXT record.</summary>
+        public IReadOnlyList<int> DnsRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL across TXT answers.</summary>
+        public int? DnsRecordTtl => (DnsRecordTtls?.Count ?? 0) > 0 ? DnsRecordTtls.Min() : null;
+
         /// <summary>
         /// Gets the policy ID extracted from the TXT record.
         /// </summary>
@@ -162,6 +167,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Policy = null;
             DnsRecordPresent = false;
             DnsRecordValid = false;
+            DnsRecordTtls = Array.Empty<int>();
             PolicyId = null;
             Advisory = string.Empty;
             MxAligned = false;
@@ -185,14 +191,40 @@ public class MTASTSAnalysis : IHasAssessments {
             Domain = domainName;
 
             var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
-            DnsRecordPresent = dns?.Any() == true;
+            var txtRecords = dns?
+                .Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=STSv1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToArray() ?? Array.Empty<DnsAnswer>();
+            var cnameTargets = dns?
+                .Where(r => r.Type == DnsRecordType.CNAME && !string.IsNullOrWhiteSpace(r.Data))
+                .Select(r => r.Data!.Trim('.'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray() ?? Array.Empty<string>();
+            if ((txtRecords.Length == 0 || cnameTargets.Length > 0) && dns != null)
+            {
+                foreach (var target in cnameTargets)
+                {
+                    try
+                    {
+                        var follow = await QueryDns(target, DnsRecordType.TXT);
+                        var followTxt = follow.Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=STSv1", StringComparison.OrdinalIgnoreCase) >= 0).ToArray();
+                        if (followTxt.Length > 0)
+                        {
+                            txtRecords = followTxt;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            DnsRecordPresent = txtRecords.Any();
+            DnsRecordTtls = txtRecords.Select(r => r.TTL).ToArray();
             if (!DnsRecordPresent) {
                 PolicyValid = false;
                 UpdateAdvisory();
                 return;
             }
 
-            ParseDnsRecord(string.Join(string.Empty, dns.Select(r => r.Data)));
+            ParseDnsRecord(string.Join(string.Empty, txtRecords.Select(r => r.Data)));
             if (!DnsRecordValid) {
                 PolicyValid = false;
                 UpdateAdvisory();

@@ -382,6 +382,8 @@ Analyze TTL values:
 ```powershell
 Test-DnsTtl -DomainName "example.com"
 ```
+Set `CollectAuthoritativeTtls` on the health check to gather authoritative TTLs from NS hosts alongside observed resolver TTLs when you need configured values. Default is `false`.
+Mail-focused runs of `Test-DDDomainOverallHealth` now include DNS TTLs for SPF, DMARC, DKIM selectors, MX, MTA-STS, and TLS-RPT records without adding `-HealthCheckType TTL`.
 
 Get concise summaries (Area/Check/Status/Summary) for views returned by cmdlets:
 

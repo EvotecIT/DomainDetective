@@ -50,6 +50,10 @@ namespace DomainDetective {
         public bool DmarcRecordExists { get; private set; } // should be true
         public bool MultipleRecords { get; private set; }
         public bool StartsCorrectly { get; private set; } // should be true
+        /// <summary>TTL values observed for DMARC TXT responses.</summary>
+        public IReadOnlyList<int> DnsRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL across DMARC answers.</summary>
+        public int? DnsRecordTtl => (DnsRecordTtls?.Count ?? 0) > 0 ? DnsRecordTtls.Min() : null;
         public bool ExceedsCharacterLimit { get; private set; } // should be false
         public bool HasMandatoryTags { get; private set; }
         public bool IsPolicyValid { get; private set; }
@@ -126,6 +130,7 @@ namespace DomainDetective {
             DmarcRecordExists = false;
             MultipleRecords = false;
             StartsCorrectly = false;
+            DnsRecordTtls = Array.Empty<int>();
             ExceedsCharacterLimit = false;
             HasMandatoryTags = false;
             IsPolicyValid = false;
@@ -162,11 +167,37 @@ namespace DomainDetective {
             }
 
             var dmarcRecordList = dnsResults.ToList();
-            DmarcRecordExists = dmarcRecordList.Any();
-            MultipleRecords = dmarcRecordList.Count > 1;
+            var dmarcTxtRecords = dmarcRecordList
+                .Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=DMARC1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .ToList();
+            var cnameTargets = dmarcRecordList
+                .Where(r => r.Type == DnsRecordType.CNAME && !string.IsNullOrWhiteSpace(r.Data))
+                .Select(r => r.Data!.Trim('.'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (dmarcTxtRecords.Count == 0 || cnameTargets.Length > 0)
+            {
+                foreach (var target in cnameTargets)
+                {
+                    try
+                    {
+                        var follow = await DnsConfiguration.QueryDNS(target, DnsRecordType.TXT, "DMARC1");
+                        var followTxt = follow.Where(r => r.Type == DnsRecordType.TXT && (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=DMARC1", StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                        if (followTxt.Count > 0)
+                        {
+                            dmarcTxtRecords = followTxt;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+            DnsRecordTtls = dmarcTxtRecords.Select(r => r.TTL).ToArray();
+            DmarcRecordExists = dmarcTxtRecords.Any();
+            MultipleRecords = dmarcTxtRecords.Count > 1;
 
             // concatenate all TXT chunks into a single string separated by spaces
-            DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
+            DmarcRecord = string.Join(" ", dmarcTxtRecords.Select(record => record.Data));
 
             if (!DmarcRecordExists || DmarcRecord == null) {
                 logger.WriteVerbose("No DMARC record found.");

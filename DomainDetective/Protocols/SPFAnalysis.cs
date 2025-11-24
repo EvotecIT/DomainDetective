@@ -24,6 +24,10 @@ namespace DomainDetective {
 
         /// <summary>Combined SPF record text.</summary>
         public string SpfRecord { get; private set; }
+        /// <summary>TTL values observed for SPF TXT responses.</summary>
+        public IReadOnlyList<int> DnsRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL observed across SPF TXT answers.</summary>
+        public int? DnsRecordTtl => (DnsRecordTtls?.Count ?? 0) > 0 ? DnsRecordTtls.Min() : null;
         public List<string> SpfRecords { get; private set; } = new List<string>();
         public bool SpfRecordExists { get; private set; } // should be true
         public bool MultipleSpfRecords { get; private set; } // should be false
@@ -116,6 +120,7 @@ namespace DomainDetective {
             SpfRecordExists = false;
             MultipleSpfRecords = false;
             StartsCorrectly = false;
+            DnsRecordTtls = Array.Empty<int>();
             ExceedsTotalCharacterLimit = false;
             ExceedsCharacterLimit = false;
             DnsLookups = new List<string>();
@@ -169,6 +174,7 @@ namespace DomainDetective {
                 return;
             }
             var spfRecordList = dnsResults.ToList();
+            DnsRecordTtls = spfRecordList.Select(r => r.TTL).ToArray();
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;
 

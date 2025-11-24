@@ -128,6 +128,11 @@ namespace DomainDetective {
         public List<string> TyposquattingBrandKeywords { get; } = new();
 
         /// <summary>
+        /// When true, TTL analysis collects authoritative (configured) TTLs from NS hosts alongside observed resolver TTLs.
+        /// </summary>
+        public bool CollectAuthoritativeTtls { get; set; }
+
+        /// <summary>
         /// When true, DNSSEC queries use local validation (validateDnsSec: true) in DnsClientX.
         /// </summary>
         public bool DnsSecValidateLocally { get; set; }

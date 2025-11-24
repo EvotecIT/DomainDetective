@@ -74,7 +74,8 @@ namespace DomainDetective {
             var analysis = new DkimRecordAnalysis {
                 DkimRecordExists = dkimRecordList.Any(),
                 ValidKeyType = true,
-                ValidFlags = true
+                ValidFlags = true,
+                Ttls = dkimRecordList.Select(r => r.TTL).ToArray()
             };
 
             // create a single string from the list of DnsResult objects
@@ -468,6 +469,20 @@ namespace DomainDetective {
         public string Name { get; set; }
         /// <summary>Gets or sets the full DKIM record text.</summary>
         public string DkimRecord { get; set; }
+        /// <summary>TTL values observed for the selector.</summary>
+        public IReadOnlyList<int> Ttls { get; set; } = Array.Empty<int>();
+        /// <summary>Authoritative TTL values for the selector (from NS hosts), when available.</summary>
+        public IReadOnlyList<int> AuthoritativeTtls { get; set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL observed, preferring authoritative values when available.</summary>
+        public int? Ttl
+        {
+            get
+            {
+                if ((AuthoritativeTtls?.Count ?? 0) > 0) return AuthoritativeTtls.Min();
+                if ((Ttls?.Count ?? 0) > 0) return Ttls.Min();
+                return null;
+            }
+        }
         /// <summary>Gets or sets a value indicating whether the record exists.</summary>
         public bool DkimRecordExists { get; set; }
         /// <summary>Gets or sets a value indicating whether the record starts with <c>v=DKIM1</c>.</summary>

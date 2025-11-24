@@ -26,6 +26,36 @@ public static class TtlNarrative
         var negatives = new List<string>();
         var remediations = new List<string>();
 
+        void AppendTtlRange(List<string> target, IReadOnlyList<int>? ttls, string label)
+        {
+            if (ttls == null || ttls.Count == 0)
+            {
+                return;
+            }
+
+            target.Add($"{label} TTLs min/max {ttls.Min()}/{ttls.Max()}s.");
+        }
+
+        void AppendAuthoritativeRange(List<string> target, IReadOnlyList<int>? ttls, string label)
+        {
+            if (ttls == null || ttls.Count == 0)
+            {
+                return;
+            }
+
+            target.Add($"{label} TTLs (authoritative) min/max {ttls.Min()}/{ttls.Max()}s.");
+        }
+
+        void AppendDetail(List<string> target, IReadOnlyList<int>? ttls, string label)
+        {
+            if (ttls == null || ttls.Count == 0)
+            {
+                return;
+            }
+
+            target.Add($"{label}: {string.Join(", ", ttls)}");
+        }
+
         if (analysis == null)
         {
             return new Sections
@@ -39,14 +69,14 @@ public static class TtlNarrative
         }
 
         hi.Add($"SOA TTL: {analysis.SoaTtl}s.");
-        if (analysis.ATtls?.Count > 0)
+        if (analysis.AuthoritativeSoaTtl.HasValue)
         {
-            hi.Add($"A TTLs min/max {analysis.ATtls.Min()}/{analysis.ATtls.Max()}s.");
+            hi.Add($"SOA TTL (authoritative): {analysis.AuthoritativeSoaTtl.Value}s.");
         }
-        if (analysis.AaaaTtls?.Count > 0)
-        {
-            hi.Add($"AAAA TTLs min/max {analysis.AaaaTtls.Min()}/{analysis.AaaaTtls.Max()}s.");
-        }
+        AppendTtlRange(hi, analysis.ATtls, "A");
+        AppendTtlRange(hi, analysis.AaaaTtls, "AAAA");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeATtls, "A");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeAaaaTtls, "AAAA");
         if (analysis.AUniformAcrossServers)
         {
             hi.Add("A TTLs uniform across name servers.");
@@ -71,6 +101,26 @@ public static class TtlNarrative
         {
             hi.Add("NS TTLs vary across name servers.");
         }
+        AppendTtlRange(hi, analysis.MxTtls, "MX");
+        AppendTtlRange(hi, analysis.SpfTxtTtls, "SPF TXT");
+        AppendTtlRange(hi, analysis.DmarcTxtTtls, "DMARC TXT");
+        AppendTtlRange(hi, analysis.MtastsTxtTtls, "MTA-STS TXT");
+        AppendTtlRange(hi, analysis.TlsRptTxtTtls, "TLS-RPT TXT");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeMxTtls, "MX");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeSpfTxtTtls, "SPF TXT");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeDmarcTxtTtls, "DMARC TXT");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeMtastsTxtTtls, "MTA-STS TXT");
+        AppendAuthoritativeRange(hi, analysis.AuthoritativeTlsRptTxtTtls, "TLS-RPT TXT");
+        var dkimAll = analysis.DkimTxtTtls?.Values?.SelectMany(v => v ?? Array.Empty<int>()).ToArray() ?? Array.Empty<int>();
+        if (dkimAll.Length > 0)
+        {
+            AppendTtlRange(hi, dkimAll, "DKIM TXT");
+        }
+        var dkimAuthAll = analysis.AuthoritativeDkimTxtTtls?.Values?.SelectMany(v => v ?? Array.Empty<int>()).ToArray() ?? Array.Empty<int>();
+        if (dkimAuthAll.Length > 0)
+        {
+            AppendAuthoritativeRange(hi, dkimAuthAll, "DKIM TXT");
+        }
 
         if (analysis.Warnings != null && analysis.Warnings.Count > 0)
         {
@@ -89,9 +139,36 @@ public static class TtlNarrative
         {
             det.Add($"AAAA: {string.Join(", ", analysis.AaaaTtls)}");
         }
-        if (analysis.MxTtls?.Count > 0)
+        AppendDetail(det, analysis.MxTtls, "MX");
+        AppendDetail(det, analysis.SpfTxtTtls, "SPF TXT");
+        AppendDetail(det, analysis.DmarcTxtTtls, "DMARC TXT");
+        AppendDetail(det, analysis.MtastsTxtTtls, "MTA-STS TXT");
+        AppendDetail(det, analysis.TlsRptTxtTtls, "TLS-RPT TXT");
+        if (analysis.DkimTxtTtls != null && analysis.DkimTxtTtls.Count > 0)
         {
-            det.Add($"MX: {string.Join(", ", analysis.MxTtls)}");
+            var dkimDetails = analysis.DkimTxtTtls
+                .Where(kv => kv.Value != null && kv.Value.Count > 0)
+                .Select(kv => $"{kv.Key}: {string.Join(", ", kv.Value)}")
+                .ToArray();
+            if (dkimDetails.Length > 0)
+            {
+                det.Add($"DKIM TXT: {string.Join("; ", dkimDetails)}");
+            }
+        }
+        AppendDetail(det, analysis.AuthoritativeSpfTxtTtls, "SPF TXT (authoritative)");
+        AppendDetail(det, analysis.AuthoritativeDmarcTxtTtls, "DMARC TXT (authoritative)");
+        AppendDetail(det, analysis.AuthoritativeMtastsTxtTtls, "MTA-STS TXT (authoritative)");
+        AppendDetail(det, analysis.AuthoritativeTlsRptTxtTtls, "TLS-RPT TXT (authoritative)");
+        if (analysis.AuthoritativeDkimTxtTtls != null && analysis.AuthoritativeDkimTxtTtls.Count > 0)
+        {
+            var dkimAuthDetails = analysis.AuthoritativeDkimTxtTtls
+                .Where(kv => kv.Value != null && kv.Value.Count > 0)
+                .Select(kv => $"{kv.Key}: {string.Join(", ", kv.Value)}")
+                .ToArray();
+            if (dkimAuthDetails.Length > 0)
+            {
+                det.Add($"DKIM TXT (authoritative): {string.Join("; ", dkimAuthDetails)}");
+            }
         }
         if (analysis.NsTtls?.Count > 0)
         {

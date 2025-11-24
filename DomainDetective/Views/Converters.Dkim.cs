@@ -15,6 +15,9 @@ public static partial class Converters
             var recs = RecommendationEngine.FromProblems(a);
             Summarize(a, out var warnCount, out var errCount, out var status);
             var narrative = DomainDetective.Narratives.DkimNarrative.Build(result, kvp.Key, a);
+            var ttlSource = (result.AuthoritativeTtls != null && result.AuthoritativeTtls.Count > 0)
+                ? result.AuthoritativeTtls
+                : (result.Ttls ?? Array.Empty<int>());
             yield return new DkimRecordInfo
             {
                 Check = HealthCheckType.DKIM,
@@ -23,6 +26,8 @@ public static partial class Converters
                 Selector = kvp.Key,
                 Name = result.Name,
                 DkimRecord = result.DkimRecord,
+                DnsRecordTtl = ttlSource.Count > 0 ? ttlSource.Min() : (int?)null,
+                DnsRecordTtls = ttlSource,
                 DkimRecordExists = result.DkimRecordExists,
                 StartsCorrectly = result.StartsCorrectly,
                 PublicKeyExists = result.PublicKeyExists,
@@ -76,6 +81,9 @@ public class DkimRecordInfo
     public string Selector { get; set; } = string.Empty;
     /// <summary>DNS name queried (selector._domainkey.domain).</summary>
     public string Name { get; set; } = string.Empty;
+    /// <summary>Minimum TTL observed for the selector TXT.</summary>
+    public int? DnsRecordTtl { get; set; }
+    public IReadOnlyList<int> DnsRecordTtls { get; set; } = System.Array.Empty<int>();
     /// <summary>Raw DKIM TXT record.</summary>
     public string DkimRecord { get; set; } = string.Empty;
     public bool DkimRecordExists { get; set; }

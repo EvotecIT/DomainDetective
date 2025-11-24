@@ -1014,10 +1014,25 @@ file static partial class Ui
         AnsiConsole.Write(root);
         AnsiConsole.WriteLine();
 
+        IReadOnlyDictionary<string, IReadOnlyList<int>> pickDkim()
+        {
+            var ttl = hc.DnsTtlAnalysis;
+            if (ttl == null) return new Dictionary<string, IReadOnlyList<int>>();
+            if (ttl.AuthoritativeDkimTxtTtls != null && ttl.AuthoritativeDkimTxtTtls.Count > 0)
+            {
+                return ttl.AuthoritativeDkimTxtTtls;
+            }
+            return ttl.DkimTxtTtls ?? new Dictionary<string, IReadOnlyList<int>>();
+        }
         var ttlAll = (hc.DnsTtlAnalysis?.ATtls ?? Array.Empty<int>())
             .Concat(hc.DnsTtlAnalysis?.AaaaTtls ?? Array.Empty<int>())
             .Concat(hc.DnsTtlAnalysis?.MxTtls ?? Array.Empty<int>())
             .Concat(hc.DnsTtlAnalysis?.NsTtls ?? Array.Empty<int>())
+            .Concat(hc.DnsTtlAnalysis?.SpfTxtTtls ?? Array.Empty<int>())
+            .Concat(hc.DnsTtlAnalysis?.DmarcTxtTtls ?? Array.Empty<int>())
+            .Concat(hc.DnsTtlAnalysis?.MtastsTxtTtls ?? Array.Empty<int>())
+            .Concat(hc.DnsTtlAnalysis?.TlsRptTxtTtls ?? Array.Empty<int>())
+            .Concat(pickDkim().SelectMany(kv => kv.Value ?? Array.Empty<int>()))
             .Where(x => x > 0).ToArray();
         var panel = new Panel(new Rows(
             new Markup($"DNSSEC: {(hc.DnsSecAnalysis?.ChainValid == true ? "[green]OK[/]" : "[red]NO[/]")}"),

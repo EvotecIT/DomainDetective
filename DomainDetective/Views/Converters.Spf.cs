@@ -98,6 +98,8 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.SPF),
             Subject = analysis.Subject,
             SpfRecord = analysis.SpfRecord,
+            DnsRecordTtl = analysis.DnsRecordTtl,
+            DnsRecordTtls = analysis.DnsRecordTtls,
             RecordLength = analysis?.SpfRecord?.Length ?? 0,
             SpfRecordExists = analysis.SpfRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -155,6 +157,8 @@ public class SpfRecordInfo
     public AnalysisArea Area { get; set; }
     public string Subject { get; set; } = string.Empty;
     public string SpfRecord { get; set; } = string.Empty;
+    public int? DnsRecordTtl { get; set; }
+    public IReadOnlyList<int> DnsRecordTtls { get; set; } = System.Array.Empty<int>();
     public int RecordLength { get; set; }
     public bool SpfRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }

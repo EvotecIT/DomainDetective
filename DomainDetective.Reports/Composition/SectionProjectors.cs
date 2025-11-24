@@ -284,7 +284,10 @@ public static class SectionProjectors
         if (sec == null) return null;
         try
         {
-            if (ttl?.DkimTxtTtls != null && ttl.DkimTxtTtls.Count > 0)
+            var ttlMap = (ttl?.AuthoritativeDkimTxtTtls != null && ttl.AuthoritativeDkimTxtTtls.Count > 0)
+                ? ttl.AuthoritativeDkimTxtTtls
+                : ttl?.DkimTxtTtls;
+            if (ttlMap != null && ttlMap.Count > 0)
             {
                 foreach (var row in sec.Rows)
                 {
@@ -297,7 +300,7 @@ public static class SectionProjectors
                         if (string.IsNullOrWhiteSpace(fqdn) && !string.IsNullOrWhiteSpace(src.Subject) && !string.IsNullOrWhiteSpace(src.Selector))
                             fqdn = $"{src.Selector}._domainkey.{src.Subject}";
                     }
-                    if (!string.IsNullOrWhiteSpace(fqdn) && ttl.DkimTxtTtls.TryGetValue(fqdn!, out var ttls) && ttls != null && ttls.Count > 0)
+                    if (!string.IsNullOrWhiteSpace(fqdn) && ttlMap.TryGetValue(fqdn!, out var ttls) && ttls != null && ttls.Count > 0)
                     {
                         // Use minimum TTL observed across authoritative servers as conservative value
                         row.TtlSeconds = ttls.Min();
