@@ -1,18 +1,18 @@
 name: Test PowerShell
 
 on:
-    workflow_dispatch:
-    push:
-        branches:
-            - master
-        paths-ignore:
-            - '*.md'
-            - 'Docs/**'
-            - 'Examples/**'
-            - '.gitignore'
-    pull_request:
-        branches:
-            - master
+  push:
+    branches:
+      - 'master'
+      - 'main'
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'Docs/**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:  # 👈 enables manual triggering
 
 env:
     DOTNET_VERSION: '8.x'
