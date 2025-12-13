@@ -435,6 +435,9 @@ namespace DomainDetective {
         /// <param name="recordType">DNS record type.</param>
         /// <param name="servers">Servers to query.</param>
         /// <param name="cancellationToken">Token used to cancel the operation.</param>
+        /// <param name="progress">Optional progress reporter (0..100).</param>
+        /// <param name="maxParallelism">Maximum concurrent queries (0 uses number of servers).</param>
+        /// <param name="includeGeo">When true, performs GeoIP lookups for returned IPs.</param>
         /// <returns>A list of query results.</returns>
         public async Task<List<DnsPropagationResult>> QueryAsync(
             string domain,

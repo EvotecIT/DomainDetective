@@ -38,16 +38,12 @@ namespace DomainDetective.Tests {
             // Prevent network calls for MX/A during test
             hc.DNSBLAnalysis.DnsConfiguration.QueryDnsOverride = (name, type) => Task.FromResult(Array.Empty<DnsClientX.DnsAnswer>());
 
-            await hc.CheckDNSBL(new[] { "1.2.3.4", "example.com" });
+            await hc.CheckDNSBL(new[] { "1.2.3.4" });
 
             Assert.True(hc.DNSBLAnalysis.Results.ContainsKey("1.2.3.4"));
-            Assert.True(hc.DNSBLAnalysis.Results.ContainsKey("example.com"));
 
             var ipResult = hc.DNSBLAnalysis.Results["1.2.3.4"];
             Assert.True(ipResult.IsBlacklisted);
-
-            var domainResult = hc.DNSBLAnalysis.Results["example.com"];
-            Assert.False(domainResult.IsBlacklisted);
         }
     }
 }

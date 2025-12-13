@@ -42,6 +42,6 @@ report.GenerateReport("security-report.html");
 
 ## Dependencies
 
-- HtmlForgeX 0.2.0
+- HtmlForgeX 0.4.0
 - DomainDetective
 - DomainDetective.Reports

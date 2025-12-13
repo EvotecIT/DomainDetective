@@ -9,7 +9,8 @@ public static class CnameNarrative
 
     public static Sections Build(CnameAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var s = analysis?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"CNAME Report — {subj}";
         var subtitle = "CNAME Assessment";
         var category = "DNS";
@@ -21,6 +22,7 @@ public static class CnameNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -51,7 +53,7 @@ public static class CnameNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assessments);
             }
         }
         catch (Exception ex)
@@ -73,6 +75,7 @@ public static class CnameNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

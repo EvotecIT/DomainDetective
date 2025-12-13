@@ -32,7 +32,10 @@ public static class IPAddressExtensions {
             return new string(result, 0, pos);
         }
 
-        return string.Join(".", ipAddress.GetAddressBytes().Reverse());
+        // IPv4: reverse octets and join as dotted string (avoid Linq.Reverse ambiguity)
+        var v4 = ipAddress.GetAddressBytes();
+        Array.Reverse(v4);
+        return string.Join(".", v4.Select(b => b.ToString()));
     }
 
     /// <summary>

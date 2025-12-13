@@ -37,6 +37,27 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Optional list of resolver endpoints to use (multi-resolver).</summary>
+        public List<DnsEndpoint> DnsEndpoints => DnsConfiguration.DnsEndpoints;
+
+        /// <summary>Strategy for multi-resolver queries.</summary>
+        public MultiResolverStrategy MultiResolverStrategy {
+            get => DnsConfiguration.MultiResolverStrategy;
+            set {
+                _logger.WriteVerbose("Setting MultiResolverStrategy to {0}", value);
+                DnsConfiguration.MultiResolverStrategy = value;
+            }
+        }
+
+        /// <summary>Maximum number of resolvers to query in parallel (null means all).</summary>
+        public int? MultiResolverMaxParallelism {
+            get => DnsConfiguration.MultiResolverMaxParallelism;
+            set {
+                _logger.WriteVerbose("Setting MultiResolverMaxParallelism to {0}", value);
+                DnsConfiguration.MultiResolverMaxParallelism = value;
+            }
+        }
+
         /// <summary>Optional override for the MTA-STS policy URL.</summary>
         /// <value>A URL to use instead of querying DNS.</value>
         public string? MtaStsPolicyUrlOverride {

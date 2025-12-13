@@ -272,7 +272,8 @@ namespace DomainDetective {
                     .Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(t => t.Trim('"'))
                     .ToArray();
-                var rawAll = rawTokens.Reverse().FirstOrDefault(t => IsAllMechanism(t));
+                // Find the last occurrence of an all-mechanism token without relying on Reverse()
+                var rawAll = rawTokens.LastOrDefault(t => IsAllMechanism(t));
                 if (!string.IsNullOrWhiteSpace(rawAll)) {
                     AllMechanism = rawAll;
                 }
@@ -701,11 +702,10 @@ namespace DomainDetective {
         }
 
         /// <summary>
-        /// Populates <see cref="SpfPartAnalyses"/> with provenance by traversing include/redirect chains.
+        /// Validates SPF macro syntax within a token and records warnings.
         /// </summary>
-        /// <param name="domain">Base domain whose SPF record is being analyzed.</param>
+        /// <param name="token">SPF token that may contain macros.</param>
         /// <param name="logger">Optional logger for diagnostics.</param>
-
         private void ValidateMacros(string token, InternalLogger? logger) {
             var index = token.IndexOf('%');
             while (index >= 0 && index < token.Length) {
@@ -918,6 +918,7 @@ namespace DomainDetective {
         /// Generates a detailed analysis of flattened SPF IP addresses.
         /// </summary>
         /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
+        /// <param name="logger">Optional logger for diagnostics.</param>
         public async Task<FlattenedSpfResult> GetFlattenedIpAnalysis(string domainName, InternalLogger? logger = null) {
             using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SPF", target: domainName) : null;
             if (string.IsNullOrEmpty(SpfRecord)) {
@@ -984,6 +985,7 @@ namespace DomainDetective {
         /// Returns all IP addresses referenced by the SPF record after resolving includes and redirects.
         /// </summary>
         /// <param name="domainName">Base domain used when an a or mx mechanism omits a domain.</param>
+        /// <param name="logger">Optional logger for diagnostics.</param>
         public async Task<List<string>> GetFlattenedIpAddresses(string domainName, InternalLogger? logger = null) {
             var analysis = await GetFlattenedIpAnalysis(domainName, logger);
             return analysis.UniqueIps;
@@ -1367,11 +1369,11 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SpfPartAnalysis {
-        public string Prefix { get; set; }
-        public string Type { get; set; }
-        public string Value { get; set; }
-        public string PrefixDesc { get; set; }
-        public string Description { get; set; }
+        public string Prefix { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        public string PrefixDesc { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public string? Provider { get; set; }
         /// <summary>Domain record where the token was found (top-level or included).</summary>
         public string? SourceDomain { get; set; }
@@ -1388,15 +1390,15 @@ namespace DomainDetective {
     public sealed class SpfHostEvaluation
     {
         /// <summary>Evaluated domain.</summary>
-        public string Subject { get; set; }
+        public string Subject { get; set; } = string.Empty;
         /// <summary>Tested IP address.</summary>
-        public string IpAddress { get; set; }
+        public string IpAddress { get; set; } = string.Empty;
         /// <summary>Sender used for macro expansion.</summary>
-        public string Sender { get; set; }
+        public string Sender { get; set; } = string.Empty;
         /// <summary>HELO/EHLO name used for macro expansion.</summary>
-        public string Helo { get; set; }
+        public string Helo { get; set; } = string.Empty;
         /// <summary>Final result: pass, fail, softfail, neutral, or permerror.</summary>
-        public string Verdict { get; set; }
+        public string Verdict { get; set; } = string.Empty;
         /// <summary>Token from the policy that matched and determined the verdict.</summary>
         public string? MatchedToken { get; set; }
         /// <summary>Mechanism/modifier type that matched (ip4, ip6, a, mx, exists, include, all).</summary>
@@ -1416,9 +1418,9 @@ namespace DomainDetective {
     /// </summary>
     /// <para>Part of the DomainDetective project.</para>
     public class SpfTestResult {
-        public string Test { get; set; }
-        public string Result { get; set; }
-        public string Assessment { get; set; }
+        public string Test { get; set; } = string.Empty;
+        public string Result { get; set; } = string.Empty;
+        public string Assessment { get; set; } = string.Empty;
     }
 
     /// <summary>

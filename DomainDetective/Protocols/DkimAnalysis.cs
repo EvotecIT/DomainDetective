@@ -476,7 +476,7 @@ namespace DomainDetective {
         public bool PublicKeyExists { get; set; }
         /// <summary>Gets or sets a value indicating whether a key type was specified.</summary>
         public bool ValidPublicKey { get; set; }
-        /// <summary>True when the RSA key length meets <see cref="MinimumRsaKeyBits"/>.</summary>
+        /// <summary>True when the RSA key length meets <see cref="DkimAnalysis.MinimumRsaKeyBits"/>.</summary>
         public bool ValidRsaKeyLength { get; set; }
         /// <summary>Length of the RSA public key in bits.</summary>
         public int KeyLength { get; set; }

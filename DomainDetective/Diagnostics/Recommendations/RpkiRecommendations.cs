@@ -39,6 +39,18 @@ internal sealed class RpkiRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Re-run RPKI checks and confirm valid/invalid status is returned."
         };
+
+        map[RpkiCodes.AllValid] = new RecommendationAdvice {
+            Code = RpkiCodes.AllValid,
+            Title = "All ROAs valid for domain IPs",
+            Why = "End-to-end ROA coverage for every apex IP reduces BGP hijack risk.",
+            How = "Keep ROAs current for all originated prefixes; monitor expiry and maxLength settings.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "rpki", "roa", "routing" },
+            Impact = "Maximum protection against invalid origin announcements.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Validator reports 'valid' for each apex IP's origin prefix/ASN."
+        };
     }
 }
 

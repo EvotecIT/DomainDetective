@@ -57,13 +57,21 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing apex A/AAAA address posture and reverse-DNS/RPKI signals.
+/// </summary>
 public class ApexAddressInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<string> ARecords { get; set; }
-    public IReadOnlyList<string> AaaaRecords { get; set; }
+    /// <summary>Subject domain.</summary>
+    public string Subject { get; set; } = string.Empty;
+    /// <summary>A records at the apex.</summary>
+    public IReadOnlyList<string> ARecords { get; set; } = System.Array.Empty<string>();
+    /// <summary>AAAA records at the apex.</summary>
+    public IReadOnlyList<string> AaaaRecords { get; set; } = System.Array.Empty<string>();
     public bool HasARecord { get; set; }
     public bool HasAaaaRecord { get; set; }
     public bool HasAnyAddress { get; set; }
@@ -78,22 +86,31 @@ public class ApexAddressInfo
     public int DocumentationAddressCount { get; set; }
     public int UniqueLocalV6Count { get; set; }
     public int PublicAddressCount { get; set; }
-    public IReadOnlyDictionary<string, List<string>> PtrByIp { get; set; }
+    /// <summary>PTR hostnames observed per IP.</summary>
+    public IReadOnlyDictionary<string, List<string>> PtrByIp { get; set; } = new System.Collections.Generic.Dictionary<string, List<string>>();
     public bool AnyPtrPresent { get; set; }
     public bool AllPtrPresent { get; set; }
     public int FcrDnsValidCount { get; set; }
     public bool AllFcrDnsValid { get; set; }
-    public IReadOnlyDictionary<string, int> AsnByIp { get; set; }
+    /// <summary>ASN mapping per IP.</summary>
+    public IReadOnlyDictionary<string, int> AsnByIp { get; set; } = new System.Collections.Generic.Dictionary<string, int>();
     public int AsnDistinctCount { get; set; }
     public int RpkiValidCount { get; set; }
     public bool AllRpkiValid { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    /// <summary>Assessment list.</summary>
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public ApexAddressAnalysis Raw { get; set; }
+    /// <summary>Short summary text used in executive reports.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis.</summary>
+    public ApexAddressAnalysis Raw { get; set; } = new ApexAddressAnalysis();
 }

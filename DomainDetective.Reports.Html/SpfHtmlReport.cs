@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using HtmlForgeX;
+using HtmlForgeX.Containers.Tabler;
 
 namespace DomainDetective.Reports.Html;
 
@@ -326,9 +327,16 @@ public static class SpfHtmlReport
                     r.Column(TablerColumnNumber.Twelve, col => {
                         col.Card(card => {
                             card.Header(h => h.Title("References"));
-                            card.Body(b => b.AddList(list => list.WithItems(items => {
-                                foreach (var url in nar.References) items.Item(url);
-                            })));
+                            card.Body(b => {
+                                b.Row(rr => {
+                                    rr.Gap(2);
+                                    foreach (var url in nar.References)
+                                    {
+                                        var f = DomainDetective.Reports.LinkFormatter.Format(url);
+                                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, HtmlForgeX.Containers.Tabler.TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
+                                    }
+                                });
+                            });
                         });
                     });
                 });

@@ -20,6 +20,7 @@ public static class ThreatIntelNarrative {
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (ti?.Listings != null) {
@@ -55,7 +56,7 @@ public static class ThreatIntelNarrative {
         };
 
         try {
-            AssessmentSplit.SplitTitles(ti?.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ti?.Assessments ?? new List<Assessment>());
         } catch {
         }
 
@@ -71,6 +72,7 @@ public static class ThreatIntelNarrative {
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

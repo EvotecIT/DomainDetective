@@ -22,6 +22,7 @@ public static class SmtpAuthNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null || analysis.ServerMechanisms.Count == 0)
@@ -39,7 +40,7 @@ public static class SmtpAuthNarrative
                     hi.Add(caps.Contains("STARTTLS", StringComparer.OrdinalIgnoreCase) ? $"{kv.Key} advertises STARTTLS." : $"{kv.Key} does not advertise STARTTLS.");
                 }
             }
-            AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis.Assessments ?? new List<Assessment>());
         }
 
         var refs = new List<string>
@@ -61,6 +62,7 @@ public static class SmtpAuthNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

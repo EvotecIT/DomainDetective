@@ -45,6 +45,7 @@ internal static partial class TechSignatureCatalog
     /// <param name="resp">HTTP response (HEAD or GET) used for headers and cookies.</param>
     /// <param name="body">Optional HTML body snapshot to search for meta generator hints.</param>
     /// <param name="outTech">Set to append inferred technologies.</param>
+    /// <param name="details">Optional list to collect detection details.</param>
     public static void ApplyHeadersCookiesMeta(HttpResponseMessage resp, string? body, System.Collections.Generic.ISet<string> outTech, System.Collections.Generic.IList<TechDetectionDetail>? details = null)
     {
         try
@@ -128,6 +129,7 @@ internal static partial class TechSignatureCatalog
     /// <param name="body">Optional HTML body snapshot for regex rules.</param>
     /// <param name="getRegistrableDomain">Public Suffix List resolver for registrable domains.</param>
     /// <param name="outTech">Set to append inferred technologies.</param>
+    /// <param name="details">Optional list to collect detection details.</param>
     public static void ApplyPathsDomainsBody(
         IEnumerable<WebStaticScanAnalysis.StaticRequest> requests,
         IDictionary<string, WebStaticScanAnalysis.StaticHost> hosts,

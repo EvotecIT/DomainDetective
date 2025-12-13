@@ -116,7 +116,7 @@ internal static class WordReportCommon
             case float f:
                 return new WordCustomProperty { Value = (double)f };
             default:
-                return new WordCustomProperty(value.ToString());
+                return new WordCustomProperty(value?.ToString() ?? string.Empty);
         }
     }
 
@@ -139,11 +139,11 @@ internal static class WordReportCommon
             case float f:
                 prop.Value = (double)f; break;
             default:
-                prop.Value = value?.ToString(); break;
+                prop.Value = value?.ToString() ?? string.Empty; break;
         }
     }
 
-    public static void AddHeader(WordDocument doc, string leftText, string? rightText = null, string? logoPath = null, string? watermarkText = null)
+    public static void AddHeader(WordDocument doc, string leftText, string? rightText = null, string? logoPath = null, string? watermarkText = null, int? logoHeightPx = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
 
@@ -157,18 +157,19 @@ internal static class WordReportCommon
         var leftP = headerTable.Rows[0].Cells[0].AddParagraph(leftText ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(logoPath) && File.Exists(logoPath))
         {
-            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath, 48, 48);
+            int h = logoHeightPx.GetValueOrDefault(48);
+            headerTable.Rows[0].Cells[0].AddParagraph().AddImage(logoPath!, h, h);
         }
         var rightP = headerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
         rightP.ParagraphAlignment = JustificationValues.Right;
 
         if (!string.IsNullOrWhiteSpace(watermarkText))
         {
-            doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText);
+            doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText!);
         }
     }
 
-    public static void AddFooter(WordDocument doc, string? leftText = null, string? rightText = null)
+    public static void AddFooter(WordDocument doc, string? leftText = null, string? rightText = null, string? logoPath = null, int? logoHeightPx = null)
     {
         if (doc == null) throw new ArgumentNullException(nameof(doc));
         doc.AddHeadersAndFooters();
@@ -192,7 +193,13 @@ internal static class WordReportCommon
         footerTable.WidthType = TableWidthUnitValues.Pct;
         footerTable.Width = 5000; // 100%
 
-        footerTable.Rows[0].Cells[0].AddParagraph(leftText);
+        var lp = footerTable.Rows[0].Cells[0].AddParagraph(leftText);
+        // Optional footer logo (right cell)
+        if (!string.IsNullOrWhiteSpace(logoPath) && System.IO.File.Exists(logoPath))
+        {
+            try { var h = logoHeightPx.GetValueOrDefault(32); footerTable.Rows[0].Cells[1].AddParagraph().AddImage(logoPath!, h, h); }
+            catch { /* ignore image errors */ }
+        }
         var rp = footerTable.Rows[0].Cells[1].AddParagraph(rightText ?? string.Empty);
         rp.ParagraphAlignment = JustificationValues.Right;
     }

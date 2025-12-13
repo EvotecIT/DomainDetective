@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using DnsClientX;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +27,13 @@ namespace DomainDetective {
             // Correlate with MX TLS posture: ensure MX advertise STARTTLS and negotiate modern TLS
             try {
                 var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                var hosts = CertificateAnalysis.ExtractMxHosts(mxRecords).ToArray();
+                // Avoid Linq dependency for CI targeting net472: build hosts array without ToArray()
+                var hostList = new System.Collections.Generic.List<string>();
+                foreach (var h in CertificateAnalysis.ExtractMxHosts(mxRecords))
+                {
+                    if (!string.IsNullOrWhiteSpace(h)) hostList.Add(h);
+                }
+                var hosts = hostList.ToArray();
                 // If we don't already have SMTP TLS results for these hosts: run SMTPTLS probe
                 bool haveCoverage = hosts.Length > 0 && hosts.All(h => SmtpTlsAnalysis.ServerResults.ContainsKey($"{h}:25"));
                 if (!haveCoverage)

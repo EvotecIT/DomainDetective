@@ -21,6 +21,7 @@ public static class ThreatFeedNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -65,7 +66,7 @@ public static class ThreatFeedNarrative
             var ass = assessments ?? analysis.Assessments;
             if (ass != null)
             {
-                AssessmentSplit.SplitTitles(ass, out positives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ass);
             }
         }
         catch
@@ -85,6 +86,7 @@ public static class ThreatFeedNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

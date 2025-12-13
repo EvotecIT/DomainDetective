@@ -7,11 +7,13 @@ namespace DomainDetective.Narratives;
 
 public static class CaaNarrative
 {
+    /// <summary>Structured narrative sections for CAA analysis.</summary>
     public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(CAAAnalysis caa)
     {
-        var subj = string.IsNullOrWhiteSpace(caa?.Subject) ? "(domain)" : caa.Subject;
+        var s = caa?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"CAA Report — {subj}";
         var subtitle = "CAA Assessment";
         var category = "TLS Security";
@@ -23,6 +25,7 @@ public static class CaaNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add(caa.AnalysisResults.Count > 0 ? "CAA record is published." : "No CAA record is published.");
@@ -43,7 +46,7 @@ public static class CaaNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(caa.Assessments ?? new List<Assessment>());
         }
         catch (Exception ex)
         {
@@ -64,6 +67,7 @@ public static class CaaNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

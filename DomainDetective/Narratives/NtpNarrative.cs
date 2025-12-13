@@ -18,6 +18,7 @@ public static class NtpNarrative {
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var results = analysis?.ServerResults ?? new Dictionary<string, NtpAnalysis.NtpResult>();
@@ -36,7 +37,7 @@ public static class NtpNarrative {
             }
         }
 
-        AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out remediations);
+        (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>());
 
         var refs = new List<string> {
             "https://datatracker.ietf.org/doc/html/rfc5905"
@@ -54,6 +55,7 @@ public static class NtpNarrative {
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

@@ -42,9 +42,9 @@ public class ThreatIntelAnalysis : IHasAssessments
     private static readonly HttpClient _staticClient = new();
     private readonly HttpClient _client;
     private VirusTotalClient? _virusTotalClient;
-    private DateTime? _urlHausLastSeenUtc;
-    private DateTime? _openPhishLastSeenUtc;
-    private DateTime? _vtLastAnalysisUtc;
+    private DateTime? _urlHausLastSeenUtc = null;
+    private DateTime? _openPhishLastSeenUtc = null;
+    private DateTime? _vtLastAnalysisUtc = null;
 
     internal HttpClient Client => _client;
 

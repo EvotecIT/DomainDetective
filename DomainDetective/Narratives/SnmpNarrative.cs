@@ -21,6 +21,7 @@ public static class SnmpNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         foreach (var kv in analysis?.ServerResults ?? new Dictionary<string, bool>())
@@ -38,7 +39,7 @@ public static class SnmpNarrative
         try
         {
             var assess = assessments ?? analysis?.Assessments ?? new List<Assessment>();
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
         catch
         {
@@ -57,6 +58,7 @@ public static class SnmpNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

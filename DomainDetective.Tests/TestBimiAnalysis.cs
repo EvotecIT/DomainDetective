@@ -23,7 +23,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg";
                 var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.BimiRecordExists);
@@ -73,7 +73,7 @@ namespace DomainDetective.Tests {
                     Type = DnsRecordType.TXT
                 }
             };
-            var analysis = new BimiAnalysis();
+            var analysis = CreateBimiAnalysisIgnoreSsl();
             await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
             Assert.True(analysis.InvalidLocation);
@@ -107,7 +107,7 @@ namespace DomainDetective.Tests {
                 var answers = new List<DnsAnswer> {
                     new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT }
                 };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.SvgFetched);
@@ -129,7 +129,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg";
                 var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.False(analysis.SvgFetched);
@@ -151,7 +151,7 @@ namespace DomainDetective.Tests {
                 var answers = new List<DnsAnswer> {
                     new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT }
                 };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.SvgFetched);
@@ -175,7 +175,7 @@ namespace DomainDetective.Tests {
                 var logger = new InternalLogger();
                 var warnings = new List<LogEventArgs>();
                 logger.OnWarningMessage += (_, e) => warnings.Add(e);
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, logger);
 
                 Assert.True(analysis.SvgFetched);
@@ -200,7 +200,7 @@ namespace DomainDetective.Tests {
                 var logger = new InternalLogger();
                 var warnings = new List<LogEventArgs>();
                 logger.OnWarningMessage += (_, e) => warnings.Add(e);
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, logger);
 
                 Assert.True(analysis.SvgFetched);
@@ -225,7 +225,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
                 var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.SvgValid);
@@ -248,7 +248,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
                 var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.VmcContainsLogo);
@@ -274,7 +274,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
                 var answers = new List<DnsAnswer> { new DnsAnswer { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
                 Assert.True(analysis.ValidVmc);
@@ -348,6 +348,14 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 
             Assert.False(analysis.SvgFetched);
+        }
+
+        private static BimiAnalysis CreateBimiAnalysisIgnoreSsl() {
+            return new BimiAnalysis {
+                HttpHandlerFactory = () => new HttpClientHandler {
+                    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+                }
+            };
         }
 
         private sealed class RedirectMockHandler : DelegatingHandler {

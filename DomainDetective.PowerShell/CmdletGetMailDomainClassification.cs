@@ -19,14 +19,14 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     /// <para>Domain(s) to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string[] DomainName;
+    public string[] DomainName = System.Array.Empty<string>();
 
     /// <para>DNS server used for queries.</para>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ByName")]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
 
@@ -56,9 +56,20 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
             var view = DomainDetective.Views.Converters.Convert(result);
             WriteObject(view);
 
+            // Short provider chain formatter for console output
+            try
+            {
+                var primary = string.IsNullOrWhiteSpace(view.ProviderPrimary) ? "(unknown)" : view.ProviderPrimary;
+                var gateways = (view.ProviderGateways != null && view.ProviderGateways.Count > 0) ? string.Join(", ", view.ProviderGateways) : "none";
+                var outbound = (view.ProviderOutbound != null && view.ProviderOutbound.Count > 0) ? string.Join(", ", view.ProviderOutbound) : "none";
+                var msg = $"Provider: {primary}; Gateways: {gateways}; Outbound: {outbound}";
+                WriteInformation(msg, new string[] { "DomainDetective", "Mail", "Provider" });
+            }
+            catch { }
+
             // When exporting, enrich the composition with detailed MX/SPF/DKIM/DMARC/MTASTS/TLS-RPT sections
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                     // Ensure DMARC is available (not required by classifier but expected in composed reports)
                     try { await _healthCheck.VerifyDMARC(domain); } catch { }
@@ -82,7 +93,7 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     /// <summary>When export is requested, compose Mail Classification sections into a single file.</summary>
     protected override Task EndProcessingAsync() {
         if (_items.Count == 0) return Task.CompletedTask;
-        var fmt = ExportFormat ?? ExportDefaults.Format;
+        var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
         if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
         var label = _subjects.Count switch {

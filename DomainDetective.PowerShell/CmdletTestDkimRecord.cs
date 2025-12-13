@@ -16,11 +16,11 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain(s) to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>Selectors to validate. When omitted, common selectors are auto-detected.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
-        public string[] Selectors;
+        public string[] Selectors = System.Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ServerName")]
@@ -32,8 +32,8 @@ namespace DomainDetective.PowerShell {
 
         // View-by-default: Raw analysis is attached to view.Raw
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
 
@@ -63,7 +63,7 @@ namespace DomainDetective.PowerShell {
                 WriteObject(output, true);
 
                 if (IsExportRequested()) {
-                    var fmt = ExportFormat ?? ExportDefaults.Format;
+                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                         _items.AddRange(output);
                         _subjects.Add(domain);
@@ -77,7 +77,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Composes DKIM sections into one document for Word/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
             var label = _subjects.Count switch {

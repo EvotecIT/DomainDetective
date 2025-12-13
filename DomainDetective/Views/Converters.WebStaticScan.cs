@@ -97,6 +97,9 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing a static website scan (HTTP resources, hosts, trackers).
+/// </summary>
 public sealed class WebStaticScanInfo
 {
     public HealthCheckType Check { get; set; }
@@ -106,14 +109,14 @@ public sealed class WebStaticScanInfo
     public HttpInfo? Page { get; set; }
     public int ResourceCount { get; set; }
     public int HostCount { get; set; }
-    public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; }
+    public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; } = new();
     public int FirstPartyHostCount { get; set; }
     public int ThirdPartyHostCount { get; set; }
-    public string[] Tech { get; set; }
-    public string[] Trackers { get; set; }
-    public WebStaticScanHostBrief[] TopHostsByBytes { get; set; }
-    public WebStaticScanHostBrief[] TopThirdPartyByBytes { get; set; }
-    public TechDetectionDetail[] TechDetails { get; set; }
+    public string[] Tech { get; set; } = System.Array.Empty<string>();
+    public string[] Trackers { get; set; } = System.Array.Empty<string>();
+    public WebStaticScanHostBrief[] TopHostsByBytes { get; set; } = System.Array.Empty<WebStaticScanHostBrief>();
+    public WebStaticScanHostBrief[] TopThirdPartyByBytes { get; set; } = System.Array.Empty<WebStaticScanHostBrief>();
+    public TechDetectionDetail[] TechDetails { get; set; } = System.Array.Empty<TechDetectionDetail>();
     public int HttpsPercent { get; set; }
     public int Ipv6Percent { get; set; }
     public int DomainCount { get; set; }
@@ -124,21 +127,24 @@ public sealed class WebStaticScanInfo
     public int CookiesSet { get; set; }
     public int BrokenLinksTotal { get; set; }
     public int BrokenLinksFirstParty { get; set; }
-    public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public System.Collections.Generic.IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public System.Collections.Generic.IReadOnlyList<string> References { get; set; }
-    public WebStaticScanAnalysis Raw { get; set; }
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public System.Collections.Generic.IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    public System.Collections.Generic.IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    public WebStaticScanAnalysis Raw { get; set; } = new WebStaticScanAnalysis();
 }
 
+/// <summary>
+/// Summary for a single host observed during a static scan (bytes, requests, types).
+/// </summary>
 public sealed class WebStaticScanHostBrief
 {
-    public string Host { get; set; }
+    public string Host { get; set; } = string.Empty;
     public long Bytes { get; set; }
     public bool FirstParty { get; set; }
     public int Requests { get; set; }
-    public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; }
+    public System.Collections.Generic.Dictionary<string, long> BytesByType { get; set; } = new();
 }

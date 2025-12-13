@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
+  <PropertyGroup>
         <TargetFrameworks Condition=" '$([MSBuild]::IsOsPlatform(`Windows`))' ">
             net472;net8.0
         </TargetFrameworks>
@@ -14,8 +14,9 @@
         <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
         <Company>Evotec</Company>
         <Authors>Przemyslaw Klys</Authors>
-        <LangVersion>latest</LangVersion>
-    </PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
@@ -23,6 +24,7 @@
         <ProjectReference Include="..\DomainDetective.Reports.Html\DomainDetective.Reports.Html.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />
         <ProjectReference Include="..\DomainDetective.Reports.Pdf\DomainDetective.Reports.Pdf.csproj" />
+        <ProjectReference Include="..\DomainDetective.Reports.Markdown\DomainDetective.Reports.Markdown.csproj" />
     </ItemGroup>
 
     <PropertyGroup>
@@ -42,7 +44,7 @@
     </Target>
 
     <ItemGroup>
-        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.6.0">
+        <PackageReference Include="MatejKafka.XmlDoc2CmdletDoc" Version="0.7.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
@@ -55,6 +57,6 @@
 
     <ItemGroup>
         <PackageReference Include="PowerShellStandard.Library" Version="5.1.1" PrivateAssets="all" />
-        <PackageReference Include="Spectre.Console" Version="0.50.0" />
+        <PackageReference Include="Spectre.Console" Version="0.51.1" />
     </ItemGroup>
 </Project>

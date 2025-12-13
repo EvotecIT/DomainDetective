@@ -22,6 +22,7 @@ public static class OpenRelayNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var results = analysis?.ServerResults ?? new Dictionary<string, OpenRelayAnalysis.OpenRelayResult>();
@@ -54,7 +55,7 @@ public static class OpenRelayNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(analysis?.Assessments ?? new List<Assessment>());
         }
         catch (Exception ex)
         {
@@ -74,6 +75,7 @@ public static class OpenRelayNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

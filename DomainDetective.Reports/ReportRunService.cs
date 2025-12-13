@@ -4,18 +4,28 @@ using DomainDetective.Reports.Artifacts;
 
 namespace DomainDetective.Reports;
 
+/// <summary>
+/// High-level helpers for running checks with artifact capture and exporting reports.
+/// </summary>
 public static class ReportRunService
 {
+    /// <summary>
+    /// Disposable scope that manages artifact capture and final export for a single report run.
+    /// </summary>
     public sealed class ReportRunScope : IDisposable
     {
         private readonly RunCoordinator _coordinator;
         private readonly string _subject;
+        /// <summary>Initializes the scope with a coordinator and subject label.</summary>
         public ReportRunScope(RunCoordinator coordinator, string subject)
         {
             _coordinator = coordinator;
             _subject = subject;
         }
 
+        /// <summary>
+        /// Exports the report and returns the run directory and result metadata.
+        /// </summary>
         public async Task<(string RunDirectory, ReportResult Report)> ExportAsync(
             DomainHealthCheck hc,
             ReportFormat format,
@@ -30,12 +40,16 @@ public static class ReportRunService
             return (dir, report);
         }
 
+        /// <summary>Disposes the underlying coordinator.</summary>
         public void Dispose()
         {
             try { _coordinator?.Dispose(); } catch { }
         }
     }
 
+    /// <summary>
+    /// Creates a new report run scope for the specified subject and output locations.
+    /// </summary>
     public static ReportRunScope Begin(InternalLogger logger, string subject, string? explicitExportPath, string? defaultOutputDirectory, string? artifactsDirectory = null)
     {
         var baseDir = !string.IsNullOrWhiteSpace(artifactsDirectory)

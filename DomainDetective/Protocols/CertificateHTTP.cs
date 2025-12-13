@@ -410,6 +410,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="url">The URL. If no scheme is provided, "https://" will be prepended.</param>
         /// <param name="port">The port.</param>
+        /// <param name="cancellationToken">Cancellation token to stop the operation.</param>
         /// <returns>The populated <see cref="CertificateAnalysis"/> instance.</returns>
         public static async Task<CertificateAnalysis> CheckWebsiteCertificate(string url, int port = 443, CancellationToken cancellationToken = default) {
             if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&

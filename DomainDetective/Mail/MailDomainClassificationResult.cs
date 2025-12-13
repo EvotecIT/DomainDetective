@@ -5,11 +5,11 @@ namespace DomainDetective;
 
 /// <summary>Classification result for a single domain.</summary>
 public sealed class MailDomainClassificationResult {
-    public string Domain { get; init; }
+    public string Domain { get; init; } = string.Empty;
     public MailDomainClassificationCategory Classification { get; init; }
     public MailDomainClassificationConfidence Confidence { get; init; }
     public MailDomainSignalSummary Signals { get; init; } = new();
-    public string ClassificationReason { get; init; }
+    public string ClassificationReason { get; init; } = string.Empty;
     public IReadOnlyList<string> ReceivingSignals { get; init; } = new List<string>();
     public IReadOnlyList<string> SendingSignals { get; init; } = new List<string>();
     public IReadOnlyList<string> SPFIncludesResolved { get; init; } = new List<string>();
@@ -17,6 +17,11 @@ public sealed class MailDomainClassificationResult {
     public double Score { get; init; }
     public IReadOnlyDictionary<string, double> ScoreBreakdown { get; init; } = new Dictionary<string, double>();
     public IReadOnlyList<StandardReference> RfcReferences { get; init; } = new List<StandardReference>();
+
+    // Provider chain (best-effort inference)
+    public string? ProviderPrimary { get; init; }
+    public IReadOnlyList<string> ProviderGateways { get; init; } = new List<string>();
+    public IReadOnlyList<string> ProviderOutbound { get; init; } = new List<string>();
 
     // BIMI eligibility hints (best-effort; actual display depends on receivers)
     public bool? BimiEligible { get; init; }

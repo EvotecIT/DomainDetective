@@ -351,7 +351,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeDmarcRecords(record, new InternalLogger());
 
             Assert.Equal("quarantine", analysis.PolicyShort);
-            Assert.Null(analysis.SubPolicyShort);
+            Assert.True(string.IsNullOrEmpty(analysis.SubPolicyShort));
             Assert.Equal("Quarantine (inherited)", analysis.SubPolicy);
         }
 

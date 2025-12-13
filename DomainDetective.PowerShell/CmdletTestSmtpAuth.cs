@@ -25,7 +25,7 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
     [ValidateNotNullOrEmpty]
-    public string DomainName;
+    public string DomainName = string.Empty;
 
     /// <summary>SMTP port number.</summary>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -35,8 +35,8 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false)]
     public SwitchParameter InspectCapabilities;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
     /// <summary>Initializes logging and helper classes.</summary>
     /// <returns>A completed task.</returns>

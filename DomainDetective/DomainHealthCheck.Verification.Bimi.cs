@@ -10,6 +10,7 @@ namespace DomainDetective {
         /// Analyzes a raw BIMI record.
         /// </summary>
         /// <param name="bimiRecord">BIMI record text.</param>
+        /// <param name="skipIndicatorDownload">When true, do not download the SVG indicator.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task CheckBIMI(string bimiRecord, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) {
             BimiAnalysis.SkipIndicatorDownload = skipIndicatorDownload;
@@ -25,6 +26,7 @@ namespace DomainDetective {
         /// Queries and analyzes BIMI records for a domain.
         /// </summary>
         /// <param name="domainName">Domain to verify.</param>
+        /// <param name="skipIndicatorDownload">When true, do not download the SVG indicator.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task VerifyBIMI(string domainName, bool skipIndicatorDownload = false, CancellationToken cancellationToken = default) {
             if (string.IsNullOrWhiteSpace(domainName)) {

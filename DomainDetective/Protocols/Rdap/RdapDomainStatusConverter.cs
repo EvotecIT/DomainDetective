@@ -16,7 +16,7 @@ internal sealed class RdapDomainStatusConverter : JsonConverter<RdapDomainStatus
         {
             return RdapDomainStatus.Unknown;
         }
-        var normalized = value.Replace("-", string.Empty).Replace(" ", string.Empty);
+        var normalized = value!.Replace("-", string.Empty).Replace(" ", string.Empty);
         if (Enum.TryParse(normalized, true, out RdapDomainStatus status))
         {
             return status;

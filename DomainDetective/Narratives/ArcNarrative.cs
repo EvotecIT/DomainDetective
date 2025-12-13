@@ -21,6 +21,7 @@ public static class ArcNarrative
         var highlights = new List<string>();
         var details = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         highlights.Add(arc.ArcHeadersFound ? "ARC headers present." : "No ARC headers present.");
@@ -52,7 +53,7 @@ public static class ArcNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(arc.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(arc.Assessments ?? new List<Assessment>());
         }
         catch (Exception)
         {
@@ -72,6 +73,7 @@ public static class ArcNarrative
             Details = details,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

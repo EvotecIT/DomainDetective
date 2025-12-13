@@ -25,6 +25,7 @@ public static class DaneNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (dane == null || dane.NumberOfRecords == 0)
@@ -51,7 +52,7 @@ public static class DaneNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assessments);
             }
         }
         catch (ArgumentException ex)
@@ -76,6 +77,7 @@ public static class DaneNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

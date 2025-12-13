@@ -21,6 +21,7 @@ public static class RdapNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (!string.IsNullOrWhiteSpace(rdap.CreationDate))
@@ -43,7 +44,7 @@ public static class RdapNarrative
 
         try
         {
-            AssessmentSplit.SplitTitles(rdap.Assessments ?? new List<Assessment>(), out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(rdap.Assessments ?? new List<Assessment>());
         }
         catch (Exception)
         {
@@ -63,6 +64,7 @@ public static class RdapNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

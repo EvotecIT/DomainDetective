@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace DomainDetective.Reports.Html;
 
@@ -18,6 +19,8 @@ public static class MxHtmlSectionWriter
             new { Name = "TTL Uniform", Value = mx.MxTtlUniform ? "Yes" : "No" },
             new { Name = "NS RRset Consistent", Value = mx.MxRrsetConsistentAcrossNs ? "Yes" : "No" },
             new { Name = "Status", Value = mx.Status ?? string.Empty },
+            new { Name = "Primary Provider", Value = mx.ProviderPrimary ?? string.Empty },
+            new { Name = "Gateways", Value = (mx.ProviderGateways != null && mx.ProviderGateways.Count > 0) ? string.Join(", ", mx.ProviderGateways) : string.Empty },
         });
 
         if (scope == Reports.ReportScope.Detailed && mx.MxRecords != null && mx.MxRecords.Count > 0)
@@ -25,6 +28,31 @@ public static class MxHtmlSectionWriter
             html.AddHeading("Evidence", 3);
             html.AddList(mx.MxRecords);
         }
+
+        // Provider Help (render simple text links)
+        try
+        {
+            var help = mx.ProviderHelp ?? Array.Empty<DomainDetective.Views.ProviderHelpLinks>();
+            bool any = help.Any(h => h != null && h.HasAny);
+            if (any)
+            {
+                html.AddHeading("Provider Help", 3);
+                html.AddParagraph("Official provider documentation for core email controls:");
+                foreach (var ph in help)
+                {
+                    if (ph == null || !ph.HasAny) continue;
+                    html.AddParagraph(ph.ProviderName);
+                    var items = new System.Collections.Generic.List<string>();
+                    if (!string.IsNullOrWhiteSpace(ph.Dmarc)) items.Add($"DMARC: {ph.Dmarc}");
+                    if (!string.IsNullOrWhiteSpace(ph.Spf)) items.Add($"SPF: {ph.Spf}");
+                    if (!string.IsNullOrWhiteSpace(ph.Dkim)) items.Add($"DKIM: {ph.Dkim}");
+                    if (!string.IsNullOrWhiteSpace(ph.MtaSts)) items.Add($"MTA-STS: {ph.MtaSts}");
+                    if (!string.IsNullOrWhiteSpace(ph.TlsRpt)) items.Add($"TLS-RPT: {ph.TlsRpt}");
+                    if (!string.IsNullOrWhiteSpace(ph.Deliverability)) items.Add($"Deliverability: {ph.Deliverability}");
+                    html.AddList(items);
+                }
+            }
+        }
+        catch { }
     }
 }
-

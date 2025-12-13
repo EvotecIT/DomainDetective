@@ -13,7 +13,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain name of the DNSBL provider.</para>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = string.Empty;
 
         /// <para>Sets the provider as enabled.</para>
         [Parameter(Mandatory = false)]
@@ -21,11 +21,11 @@ namespace DomainDetective.PowerShell {
 
         /// <para>Optional descriptive comment.</para>
         [Parameter(Mandatory = false)]
-        public string Comment { get; set; }
+        public string Comment { get; set; } = string.Empty;
 
         /// <para>Analysis object to add the provider to.</para>
         [Parameter(ValueFromPipeline = true)]
-        public DNSBLAnalysis InputObject { get; set; }
+        public DNSBLAnalysis? InputObject { get; set; }
 
         /// <summary>Processes the cmdlet operation.</summary>
         protected override void ProcessRecord() {

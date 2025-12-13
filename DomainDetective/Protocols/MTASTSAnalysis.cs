@@ -26,7 +26,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the domain name that was analysed.
         /// </summary>
-        public string Domain { get; private set; }
+        public string Domain { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets a value indicating whether the policy was successfully fetched.
@@ -71,7 +71,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the policy mode value.
         /// </summary>
-        public string Mode { get; private set; }
+        public string Mode { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets the Max-Age value defined by the policy.
@@ -86,7 +86,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the text of the policy.
         /// </summary>
-        public string Policy { get; private set; }
+        public string Policy { get; private set; } = string.Empty;
 
         /// <summary>
         /// Gets a value indicating whether the policy enforces MTA-STS.
@@ -96,14 +96,14 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets or sets the logger instance used for reporting warnings.
         /// </summary>
-        internal InternalLogger Logger { get; set; }
+        internal InternalLogger Logger { get; set; } = new InternalLogger(false);
 
         /// <summary>
         /// Gets or sets a policy URL override. When set, this URL is used
         /// instead of constructing one from the domain name. Primarily
         /// intended for testing.
         /// </summary>
-        public string PolicyUrlOverride { get; set; }
+        public string PolicyUrlOverride { get; set; } = string.Empty;
 
         /// <summary>
         /// Provides DNS configuration used for queries.
@@ -156,7 +156,7 @@ public class MTASTSAnalysis : IHasAssessments {
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
-            Mode = null;
+            Mode = string.Empty;
             MaxAge = 0;
             Mx = new List<string>();
             Policy = null;
@@ -269,11 +269,6 @@ public class MTASTSAnalysis : IHasAssessments {
             }
         }
 
-        /// <summary>
-        /// Retrieves the policy contents from the specified URL.
-        /// </summary>
-        /// <param name="url">The policy URL.</param>
-        /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
         private static readonly HttpClient _client;
 
         static MTASTSAnalysis()
@@ -283,6 +278,11 @@ public class MTASTSAnalysis : IHasAssessments {
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
         }
 
+        /// <summary>
+        /// Retrieves the policy contents from the specified URL.
+        /// </summary>
+        /// <param name="url">The policy URL.</param>
+        /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
         private async Task<string> GetPolicy(string url) {
             try {
                 var response = await _client.GetAsync(url);

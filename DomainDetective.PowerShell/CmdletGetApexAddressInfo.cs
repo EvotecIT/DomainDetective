@@ -13,14 +13,14 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
     /// <para>Domain to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string DomainName;
+    public string DomainName = string.Empty;
 
     /// <para>DNS server used for queries.</para>
     [Parameter(Mandatory = false, Position = 1)]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
     /// <summary>Initializes logging and helper classes.</summary>
     /// <returns>A completed task.</returns>

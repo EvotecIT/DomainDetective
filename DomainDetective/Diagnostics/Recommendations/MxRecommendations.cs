@@ -143,6 +143,15 @@ internal sealed class MxRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.EmailAuth,
             Tags = new [] { "mx", "tls" }
         };
+
+        map[MxCodes.SingleMxAllowedForProvider] = new RecommendationAdvice {
+            Code = MxCodes.SingleMxAllowedForProvider,
+            Title = "Single MX acceptable for detected provider",
+            Why = "Some providers run highly available infrastructure behind a single preference value.",
+            How = "No change required unless policy demands multiple preferences.",
+            Domain = RecommendationDomain.EmailAuth,
+            Tags = new [] { "mx", "provider" }
+        };
     }
 }
 

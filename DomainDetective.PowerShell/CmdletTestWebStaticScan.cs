@@ -11,7 +11,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
         [ValidateNotNullOrEmpty]
         [Alias("DomainName")]
-        public string Url;
+        public string Url = string.Empty;
 
         /// <summary>Maximum scan duration in seconds.</summary>
         [Parameter(Mandatory = false)]
@@ -70,8 +70,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter LinkOnly { get; set; }
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A completed task.</returns>
@@ -170,7 +170,7 @@ namespace DomainDetective.PowerShell {
                 }
             } catch { }
 
-            var view = DomainDetective.Views.Converters.Convert(ws);
+            var view = DomainDetective.Views.Converters.Convert(ws!);
             WriteObject(view);
         }
     }

@@ -14,10 +14,10 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to query (host or host:port).</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A completed task.</returns>

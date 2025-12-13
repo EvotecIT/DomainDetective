@@ -17,8 +17,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandArgument(0, "<domain>")]
         public string Domain { get; set; } = string.Empty;
         
-        [Description("Output format (html, json, word, excel, pdf)")]
-        [CommandOption("-f|--format")]
+        [Description("Report output (html, json, word, excel, pdf, markdown, markdownhtml)")]
+        [CommandOption("-f|--format|--report")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";
         
@@ -86,6 +86,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         "word" => ReportFormat.Word,
                         "excel" => ReportFormat.Excel,
                         "pdf" => ReportFormat.Pdf,
+                        "markdown" => ReportFormat.Markdown,
+                        "markdownhtml" => ReportFormat.MarkdownHtml,
                         _ => ReportFormat.Html
                     };
                     var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);

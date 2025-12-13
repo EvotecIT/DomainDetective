@@ -1,3 +1,4 @@
+using System;
 using DnsClientX;
 using System.Linq;
 using System.Management.Automation;
@@ -16,7 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -25,8 +26,8 @@ namespace DomainDetective.PowerShell {
         //[Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         //public SwitchParameter FullResponse;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
 
@@ -51,22 +52,24 @@ namespace DomainDetective.PowerShell {
                 WriteObject(output);
 
                 if (!IsExportRequested()) continue;
-                var fmt = ExportFormat ?? ExportDefaults.Format;
-                if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                    _items.Add(output);
-                    _subjects.Add(domain);
-                } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
-                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, domain, fmt);
-                    try {
-                        var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
-                        System.IO.File.WriteAllText(outPath, json);
-                        WriteVerbose($"SPF JSON saved: {outPath}");
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                    } catch (System.Exception ex) {
-                        WriteWarning($"SPF export failed: {ex.Message}");
+                var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                foreach (var fmt in fmts) {
+                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                        _items.Add(output);
+                        if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) _subjects.Add(domain);
+                    } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
+                        var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
+                        try {
+                            var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                            System.IO.File.WriteAllText(outPath, json);
+                            WriteVerbose($"SPF JSON saved: {outPath}");
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        } catch (System.Exception ex) {
+                            WriteWarning($"SPF export failed: {ex.Message}");
+                        }
+                    } else {
+                        await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                     }
-                } else {
-                    await ExportNotImplementedAsync("Test-DDEmailSpfRecord");
                 }
             }
         }
@@ -76,8 +79,10 @@ namespace DomainDetective.PowerShell {
         /// </summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
-            if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
+            var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            var needsWord = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Word);
+            var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
+            if (!needsWord && !needsHtml) return Task.CompletedTask;
 
             var label = _subjects.Count switch {
                 0 => "spf",
@@ -85,9 +90,9 @@ namespace DomainDetective.PowerShell {
                 2 => $"{_subjects[0]}+{_subjects[1]}",
                 _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
             };
-            var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
             try {
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                if (needsWord) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Word, fmts);
                     DomainDetective.Reports.Office.WordCompositionReport.Generate(
                         outPath,
                         _items,
@@ -106,7 +111,9 @@ namespace DomainDetective.PowerShell {
                         headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
                         watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                } else {
+                }
+                if (needsHtml) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Html, fmts);
                     DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
                         outPath,
                         _items,

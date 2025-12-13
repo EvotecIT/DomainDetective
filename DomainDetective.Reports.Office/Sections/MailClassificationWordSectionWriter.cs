@@ -42,7 +42,7 @@ public static class MailClassificationWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("Mail classification outcome and scoring.");
-        var t = doc.AddTable(5, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(8, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].AddParagraph("Classification");
         t.Rows[0].Cells[1].AddParagraph(info.Classification ?? string.Empty);
         t.Rows[1].Cells[0].AddParagraph("Confidence");
@@ -53,6 +53,12 @@ public static class MailClassificationWordSectionWriter
         t.Rows[3].Cells[1].AddParagraph(info.Summary ?? string.Empty);
         t.Rows[4].Cells[0].AddParagraph("Status");
         t.Rows[4].Cells[1].AddParagraph(info.Status ?? string.Empty);
+        t.Rows[5].Cells[0].AddParagraph("Primary Provider");
+        t.Rows[5].Cells[1].AddParagraph(info.ProviderPrimary ?? string.Empty);
+        t.Rows[6].Cells[0].AddParagraph("Gateways");
+        t.Rows[6].Cells[1].AddParagraph(info.ProviderGateways != null && info.ProviderGateways.Count > 0 ? string.Join(", ", info.ProviderGateways) : string.Empty);
+        t.Rows[7].Cells[0].AddParagraph("Outbound Senders");
+        t.Rows[7].Cells[1].AddParagraph(info.ProviderOutbound != null && info.ProviderOutbound.Count > 0 ? string.Join(", ", info.ProviderOutbound) : string.Empty);
 
         // Score Breakdown + Scoring rubric
         if (info.ScoreBreakdown != null && info.ScoreBreakdown.Count > 0)
@@ -138,8 +144,7 @@ public static class MailClassificationWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
-            var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in info.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            WordLinkHelpers.AddReferencesList(doc, info.References);
         }
     }
 }

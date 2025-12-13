@@ -34,7 +34,6 @@ public class TestNtpNarrative {
 
         var sections = NtpNarrative.Build(analysis);
 
-        Assert.Contains(sections.Highlights, h => h.Contains("2.00 s"));
+        Assert.Contains(sections.Highlights, h => h.Contains("2.00 s") || h.Contains("2,00 s"));
     }
 }
-

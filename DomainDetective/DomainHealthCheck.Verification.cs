@@ -84,6 +84,7 @@ namespace DomainDetective {
         /// <param name="daneServiceType">DANE service types to inspect. When <c>null</c>, SMTP and HTTPS (port 443) are queried.</param>
         /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <param name="portScanProfiles">Optional port scan profiles to use.</param>
         public async Task Verify(
             string domainName,
             HealthCheckType[]? healthCheckTypes = null,
@@ -194,6 +195,9 @@ namespace DomainDetective {
                     processedChecks,
                     totalChecks);
         }
+
+            // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
+            try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
     }
 
         private async Task VerifyDnsHealth(string domainName, CancellationToken cancellationToken) {

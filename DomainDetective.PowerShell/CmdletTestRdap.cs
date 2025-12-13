@@ -16,7 +16,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -26,8 +26,8 @@ namespace DomainDetective.PowerShell {
         [Parameter]
         public TimeSpan CacheDuration = TimeSpan.FromHours(1);
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         protected override Task BeginProcessingAsync() {

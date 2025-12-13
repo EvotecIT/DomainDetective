@@ -61,14 +61,23 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing DKIM selector analysis for reporting.
+/// </summary>
 public class DkimRecordInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string Selector { get; set; }
-    public string Name { get; set; }
-    public string DkimRecord { get; set; }
+    /// <summary>Subject domain.</summary>
+    public string Subject { get; set; } = string.Empty;
+    /// <summary>Selector value.</summary>
+    public string Selector { get; set; } = string.Empty;
+    /// <summary>DNS name queried (selector._domainkey.domain).</summary>
+    public string Name { get; set; } = string.Empty;
+    /// <summary>Raw DKIM TXT record.</summary>
+    public string DkimRecord { get; set; } = string.Empty;
     public bool DkimRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool PublicKeyExists { get; set; }
@@ -78,28 +87,45 @@ public class DkimRecordInfo
     public bool WeakKey { get; set; }
     public bool KeyTypeExists { get; set; }
     public bool ValidKeyType { get; set; }
-    public string PublicKey { get; set; }
-    public string ServiceType { get; set; }
-    public string Flags { get; set; }
+    /// <summary>Base64-encoded public key (p=).</summary>
+    public string PublicKey { get; set; } = string.Empty;
+    /// <summary>Service type flag (s=).</summary>
+    public string ServiceType { get; set; } = string.Empty;
+    /// <summary>Flags (t=).</summary>
+    public string Flags { get; set; } = string.Empty;
     public bool ValidFlags { get; set; }
-    public string UnknownFlagCharacters { get; set; }
-    public string Canonicalization { get; set; }
+    /// <summary>Any unrecognized flag characters.</summary>
+    public string UnknownFlagCharacters { get; set; } = string.Empty;
+    /// <summary>Canonicalization modes (c=).</summary>
+    public string Canonicalization { get; set; } = string.Empty;
     public bool ValidCanonicalization { get; set; }
-    public string KeyType { get; set; }
-    public string HashAlgorithm { get; set; }
+    /// <summary>Key type (k=).</summary>
+    public string KeyType { get; set; } = string.Empty;
+    /// <summary>Hash algorithm (h=) or inferred from key.</summary>
+    public string HashAlgorithm { get; set; } = string.Empty;
     public DateTime? CreationDate { get; set; }
     public int KeyAgeDays { get; set; }
     public bool OldKey { get; set; }
-    public IReadOnlyList<string> DeprecatedTags { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    /// <summary>Deprecated tags present in the record.</summary>
+    public IReadOnlyList<string> DeprecatedTags { get; set; } = System.Array.Empty<string>();
+    /// <summary>Assessment list.</summary>
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DkimRecordAnalysis Raw { get; set; }
-    public DomainDetective.Narratives.DkimNarrative.Sections Narrative { get; set; }
-    public IReadOnlyList<string> Highlights { get; set; }
+    /// <summary>Short summary text for executive reports.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying DKIM analysis result.</summary>
+    public DkimRecordAnalysis Raw { get; set; } = new DkimRecordAnalysis();
+    /// <summary>Narrative (human-friendly) content blocks.</summary>
+    public DomainDetective.Narratives.DkimNarrative.Sections Narrative { get; set; } = new DomainDetective.Narratives.DkimNarrative.Sections();
+    /// <summary>Key highlights extracted for the report.</summary>
+    public IReadOnlyList<string> Highlights { get; set; } = System.Array.Empty<string>();
 }

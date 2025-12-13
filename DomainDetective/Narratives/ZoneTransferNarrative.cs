@@ -11,7 +11,8 @@ public static class ZoneTransferNarrative
 
     public static Sections Build(ZoneTransferAnalysis analysis, IEnumerable<Assessment>? assessments = null, InternalLogger? logger = null)
     {
-        var subject = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var s = analysis?.Subject;
+        var subject = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"Zone Transfer Report — {subject}";
         var subtitle = "AXFR Exposure Assessment";
         var category = "DNS Security";
@@ -23,6 +24,7 @@ public static class ZoneTransferNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         var results = analysis?.ServerResults ?? new Dictionary<string, bool>();
@@ -49,7 +51,7 @@ public static class ZoneTransferNarrative
         try
         {
             var assess = assessments ?? analysis?.Assessments ?? new List<Assessment>();
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
         catch (Exception ex)
         {
@@ -69,6 +71,7 @@ public static class ZoneTransferNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

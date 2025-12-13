@@ -21,7 +21,7 @@ namespace DomainDetective {
             /// <summary>Initial banner line returned by the server.</summary>
             public string? Banner { get; init; }
             /// <summary>Queried host.</summary>
-            public string Host { get; init; }
+            public string Host { get; init; } = string.Empty;
             /// <summary>Queried port.</summary>
             public int Port { get; init; }
             /// <summary>True when <see cref="SMTPBannerAnalysis.ExpectedHostname"/> is found in the banner.</summary>

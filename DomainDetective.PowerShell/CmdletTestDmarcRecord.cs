@@ -15,7 +15,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string[] DomainName;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -23,8 +23,8 @@ namespace DomainDetective.PowerShell {
 
         // View-by-default: Raw analysis is attached to view.Raw
 
-        private InternalLogger _logger;
-        private DomainHealthCheck healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
 
@@ -48,7 +48,7 @@ namespace DomainDetective.PowerShell {
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
                 if (IsExportRequested()) {
-                    var fmt = ExportFormat ?? ExportDefaults.Format;
+                    var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                         _items.Add(output);
                         _subjects.Add(domain);
@@ -62,7 +62,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Composes DMARC sections into one document for Word/HTML export.</summary>
         protected override Task EndProcessingAsync() {
             if (_items.Count == 0) return Task.CompletedTask;
-            var fmt = ExportFormat ?? ExportDefaults.Format;
+            var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
             if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) return Task.CompletedTask;
 
             var label = _subjects.Count switch {

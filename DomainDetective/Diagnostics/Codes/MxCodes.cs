@@ -16,5 +16,6 @@ internal static class MxCodes {
     public const string TargetTtlNonUniform = "MX.Target.TTL.NonUniform";
     public const string RedundantHosts = "MX.Success.RedundantHosts";
     public const string TlsSupported = "MX.Success.TlsSupported";
+    public const string SingleMxAllowedForProvider = "MX.Success.SingleMX.ProviderAllowed";
 }
 

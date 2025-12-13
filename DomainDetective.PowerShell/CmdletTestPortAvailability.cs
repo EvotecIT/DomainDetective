@@ -16,14 +16,14 @@ namespace DomainDetective.PowerShell {
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>Host to test.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
-        public string HostName;
+    public string HostName = string.Empty;
 
         /// <summary>Ports to check.</summary>
         [Parameter(Mandatory = false)]
         public int[] Ports = new[] { 25, 80, 443, 465, 587 };
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

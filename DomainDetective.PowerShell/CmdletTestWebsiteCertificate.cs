@@ -17,7 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Website URL.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Url")]
         [ValidateNotNullOrEmpty]
-        public string Url;
+        public string Url = string.Empty;
 
         /// <summary>TCP port used for connection.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "Url")]
@@ -31,8 +31,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter SkipRevocation;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

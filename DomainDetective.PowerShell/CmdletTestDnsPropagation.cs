@@ -30,7 +30,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Builtin")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServersFile")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>DNS record type to test.</summary>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "Builtin")]
@@ -39,7 +39,7 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Path to JSON file with DNS servers.</summary>
         [Parameter(Mandatory = true, Position = 2, ParameterSetName = "ServersFile")]
-        public string ServersFile;
+        public string ServersFile = string.Empty;
 
         /// <summary>Filter servers by country.</summary>
         [Parameter(Mandatory = false)]
@@ -63,14 +63,14 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Directory used to store DNS snapshots.</summary>
         [Parameter(Mandatory = false)]
-        public string SnapshotPath;
+        public string SnapshotPath = string.Empty;
 
         /// <summary>Return changes since last snapshot.</summary>
         [Parameter(Mandatory = false)]
         public SwitchParameter Diff;
 
-        private InternalLogger _logger;
-        private DnsPropagationAnalysis _analysis;
+        private InternalLogger _logger = null!;
+        private DnsPropagationAnalysis _analysis = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

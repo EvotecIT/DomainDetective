@@ -176,6 +176,42 @@ public sealed class MailDomainClassifier {
 
         var references = BuildRfcReferences();
 
+        // Provider chain inference (MX + SPF + DKIM)
+        string? providerPrimary = null;
+        var providerGateways = new List<string>();
+        var providerOutbound = new List<string>();
+        try
+        {
+            var mxHosts = (_health.MXAnalysis?.MxRecords ?? new List<string>())
+                .Select(rr => rr?.Split(new[]{' ','\t'}, 2, StringSplitOptions.RemoveEmptyEntries))
+                .Where(p => p != null && p.Length > 0)
+                .Select(p => p!.Length == 2 ? p![1] : p![0])
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Select(h => h.Trim('.'))
+                .ToList();
+            var spfTokens = new List<string>();
+            if (_health.SpfAnalysis != null)
+            {
+                if (_health.SpfAnalysis.IncludeRecords != null) spfTokens.AddRange(_health.SpfAnalysis.IncludeRecords);
+                if (_health.SpfAnalysis.ResolvedIncludeRecords != null) spfTokens.AddRange(_health.SpfAnalysis.ResolvedIncludeRecords);
+                if (!string.IsNullOrWhiteSpace(_health.SpfAnalysis.SpfRecord)) spfTokens.Add(_health.SpfAnalysis.SpfRecord);
+            }
+            var dkimCnames = new List<string>();
+            if (_health.DKIMAnalysis?.AnalysisResults != null)
+            {
+                foreach (var kv in _health.DKIMAnalysis.AnalysisResults)
+                {
+                    var cn = kv.Value?.CnameTarget;
+                    if (!string.IsNullOrWhiteSpace(cn)) dkimCnames.Add(cn);
+                }
+            }
+            var match = Providers.Email.EmailProviderDetector.Detect(mxHosts, spfTokens, dkimCnames);
+            providerPrimary = match.Primary?.DisplayName;
+            providerGateways = match.Gateways.Select(g => g.DisplayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            providerOutbound = match.OutboundSenders.Select(o => o.DisplayName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        catch { }
+
         // Aggregate contributing assessments for consistency in views/PS
         var agg = new List<Assessment>();
         void Pull(IHasAssessments a) { if (a?.Assessments != null) agg.AddRange(a.Assessments); }
@@ -233,6 +269,9 @@ public sealed class MailDomainClassifier {
             ,BimiEligible = bimiEligible
             ,BimiEligibilityReason = bimiReason
             ,BimiNotes = bimiNotes
+            ,ProviderPrimary = providerPrimary
+            ,ProviderGateways = providerGateways
+            ,ProviderOutbound = providerOutbound
         };
     }
 

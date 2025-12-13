@@ -114,7 +114,7 @@ public partial class BimiAnalysis : IHasAssessments {
             logger?.WriteInformationCode(BimiCodes.RecordPresent, "BIMI record present");
 
             BimiRecord = string.Join(" ", recordList.Select(r => r.Data));
-            logger.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
+            logger?.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
 
             ParseBimiHeader(BimiRecord!, logger);
             if (!StartsCorrectly) {
@@ -178,7 +178,7 @@ public partial class BimiAnalysis : IHasAssessments {
             return (_client, false);
         }
 
-        private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(string? content, int size)> DownloadIndicator(string url, InternalLogger? logger, CancellationToken cancellationToken) {
             try {
                 var (client, dispose) = GetOrCreateClient();
                 try {
@@ -219,7 +219,7 @@ public partial class BimiAnalysis : IHasAssessments {
             }
         }
 
-        private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger logger, CancellationToken cancellationToken) {
+        private async Task<(bool valid, bool signedByKnownRoot, bool hasLogo)> DownloadAndValidateVmc(string url, InternalLogger? logger, CancellationToken cancellationToken) {
             try {
                 var (client, dispose) = GetOrCreateClient();
                 try {
@@ -299,6 +299,11 @@ public partial class BimiAnalysis : IHasAssessments {
                     return false;
                 }
 
+                if (root == null)
+                {
+                    SvgInvalidReason ??= "Malformed SVG";
+                    return false;
+                }
                 var widthAttr = root.Attribute("width");
                 var heightAttr = root.Attribute("height");
                 var viewBoxAttr = root.Attribute("viewBox");

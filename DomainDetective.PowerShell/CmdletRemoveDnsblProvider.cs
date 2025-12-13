@@ -13,11 +13,11 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain name of the provider to remove.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = string.Empty;
 
         /// <summary>Analysis object to modify.</summary>
         [Parameter(ValueFromPipeline = true)]
-        public DNSBLAnalysis InputObject { get; set; }
+        public DNSBLAnalysis? InputObject { get; set; }
 
         /// <summary>
         /// Removes the specified provider from the analysis object.

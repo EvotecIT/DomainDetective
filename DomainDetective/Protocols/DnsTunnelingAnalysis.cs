@@ -21,13 +21,13 @@ public class DnsTunnelingAnalysis : IHasAssessments
     /// <summary>Time window for frequency detection.</summary>
     public TimeSpan FrequencyInterval { get; set; } = TimeSpan.FromSeconds(1);
 
+    public List<Assessment> Assessments { get; } = new();
+
     /// <summary>
-    /// Parses <paramref name="logLines"/> looking for tunneling patterns.
+    /// Parses DNS query log lines looking for tunneling patterns.
     /// </summary>
     /// <param name="domainName">Domain to inspect.</param>
     /// <param name="logLines">Lines from DNS query logs.</param>
-    public List<Assessment> Assessments { get; } = new();
-
     public void Analyze(string domainName, IEnumerable<string?>? logLines)
     {
         Subject = domainName;

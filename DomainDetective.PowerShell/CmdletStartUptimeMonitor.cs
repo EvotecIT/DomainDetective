@@ -51,6 +51,10 @@ namespace DomainDetective.PowerShell {
 
         private UptimeMonitor? _monitor;
 
+        /// <summary>
+        /// Initializes and starts the uptime monitor with the configured options.
+        /// </summary>
+        /// <returns>A completed task.</returns>
         protected override Task BeginProcessingAsync() {
             _monitor = new UptimeMonitor(Url, TimeSpan.FromSeconds(Math.Max(1, IntervalSeconds)), SnapshotDirectory) {
                 SlowTtfbMsThreshold = Math.Max(1, SlowTtfbMs)

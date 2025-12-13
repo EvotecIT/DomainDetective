@@ -5,8 +5,20 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Reports;
 
+/// <summary>
+/// Dispatches report generation based on the requested <see cref="ReportFormat"/>.
+/// Resolves concrete generators (Html/Word/Excel/Pdf/Markdown/Json) and writes the output file.
+/// </summary>
 public sealed class ReportDispatcher
 {
+    /// <summary>
+    /// Generates a report for the given health check and options, writing it to the resolved output path.
+    /// </summary>
+    /// <param name="health">Domain health check results.</param>
+    /// <param name="options">Report options including format and output path.</param>
+    /// <param name="subject">Subject (domain label) used to derive default filenames and metadata.</param>
+    /// <param name="openInBrowser">If true and supported, attempts to open the report after generation.</param>
+    /// <returns>Structured <see cref="ReportResult"/> with success flag, file path, and size.</returns>
     public async Task<ReportResult> GenerateAsync(DomainHealthCheck health, ReportOptions options, string subject, bool openInBrowser = false)
     {
         var path = string.IsNullOrWhiteSpace(options.OutputPath)
@@ -61,6 +73,18 @@ public sealed class ReportDispatcher
             case ReportFormat.Html:
             {
                 var gen = TryCreate("DomainDetective.Reports.Html.HtmlReportGenerator, DomainDetective.Reports.Html");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.Markdown:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Markdown.MarkdownReportGenerator, DomainDetective.Reports.Markdown");
+                if (gen != null) return gen;
+                break;
+            }
+            case ReportFormat.MarkdownHtml:
+            {
+                var gen = TryCreate("DomainDetective.Reports.Markdown.MarkdownHtmlReportGenerator, DomainDetective.Reports.Markdown");
                 if (gen != null) return gen;
                 break;
             }

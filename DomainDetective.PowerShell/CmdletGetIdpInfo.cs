@@ -14,10 +14,10 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain to probe for identity tenant information.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+    public string DomainName = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+    private InternalLogger _logger = null!;
+    private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and context.</summary>
         protected override Task BeginProcessingAsync() {

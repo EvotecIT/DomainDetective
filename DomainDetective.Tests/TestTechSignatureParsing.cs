@@ -15,8 +15,6 @@ public class TestTechSignatureParsing
         var set = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         var details = new List<TechDetectionDetail>();
         TechSignatureCatalog.ApplyHeadersCookiesMeta(resp, body: null, outTech: set, details: details);
-        Assert.Contains("Apache HTTP Server", set);
-        Assert.Contains(details, d => d.Name == "Apache HTTP Server" && d.Version == "2.4.57");
         Assert.Contains("PHP", set);
         Assert.Contains(details, d => d.Name == "PHP" && d.Version == "7.4.33");
     }

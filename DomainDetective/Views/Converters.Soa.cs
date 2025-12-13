@@ -38,29 +38,45 @@ public static partial class Converters
     }
 }
 
+/// <summary>
+/// View model summarizing SOA (Start of Authority) analysis.
+/// </summary>
 public class SoaInfo
 {
+    /// <summary>Type of health check.</summary>
     public HealthCheckType Check { get; set; }
+    /// <summary>Logical analysis area.</summary>
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string PrimaryNameServer { get; set; }
-    public string ResponsibleMailbox { get; set; }
+    /// <summary>Subject domain.</summary>
+    public string Subject { get; set; } = string.Empty;
+    /// <summary>Primary name server (MNAME).</summary>
+    public string PrimaryNameServer { get; set; } = string.Empty;
+    /// <summary>Responsible mailbox (RNAME).</summary>
+    public string ResponsibleMailbox { get; set; } = string.Empty;
     public long SerialNumber { get; set; }
     public bool SerialFormatValid { get; set; }
-    public string SerialFormatSuggestion { get; set; }
+    /// <summary>Suggestion when the serial format is not YYYMMDDnn.</summary>
+    public string SerialFormatSuggestion { get; set; } = string.Empty;
     public int Refresh { get; set; }
     public int Retry { get; set; }
     public int Expire { get; set; }
     public int Minimum { get; set; }
     public int NegativeCacheTtl { get; set; }
     public bool RecordExists { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    /// <summary>Assessment list.</summary>
+    public IReadOnlyList<Assessment> Assessments { get; set; } = System.Array.Empty<Assessment>();
+    /// <summary>Overall status (OK/Warning/Error).</summary>
+    public string Status { get; set; } = string.Empty;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public SOAAnalysis Raw { get; set; }
+    /// <summary>Short summary text for executive reports.</summary>
+    public string Summary { get; set; } = string.Empty;
+    /// <summary>Actionable recommendations.</summary>
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Positive posture notes.</summary>
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = System.Array.Empty<RecommendationAdvice>();
+    /// <summary>Reference links.</summary>
+    public IReadOnlyList<string> References { get; set; } = System.Array.Empty<string>();
+    /// <summary>Underlying analysis.</summary>
+    public SOAAnalysis Raw { get; set; } = new SOAAnalysis();
 }

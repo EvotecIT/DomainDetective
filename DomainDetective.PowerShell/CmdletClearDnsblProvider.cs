@@ -12,7 +12,7 @@ namespace DomainDetective.PowerShell {
     public sealed class CmdletClearDnsblProvider : PSCmdlet {
         /// <summary>Analysis object to modify.</summary>
         [Parameter(ValueFromPipeline = true)]
-        public DNSBLAnalysis InputObject { get; set; }
+        public DNSBLAnalysis? InputObject { get; set; }
 
         /// <summary>
         /// Clears all configured DNSBL providers from the analysis object.

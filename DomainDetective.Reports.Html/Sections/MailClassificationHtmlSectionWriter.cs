@@ -17,8 +17,10 @@ public static class MailClassificationHtmlSectionWriter
             new { Name = "Classification", Value = info.Classification },
             new { Name = "Confidence", Value = info.Confidence },
             new { Name = "Score", Value = info.Score.ToString("0.##") },
-            new { Name = "Status", Value = info.Status }
+            new { Name = "Status", Value = info.Status },
+            new { Name = "Primary Provider", Value = info.ProviderPrimary ?? string.Empty },
+            new { Name = "Gateways", Value = (info.ProviderGateways != null && info.ProviderGateways.Count > 0) ? string.Join(", ", info.ProviderGateways) : string.Empty },
+            new { Name = "Outbound Senders", Value = (info.ProviderOutbound != null && info.ProviderOutbound.Count > 0) ? string.Join(", ", info.ProviderOutbound) : string.Empty }
         });
     }
 }
-

@@ -21,6 +21,7 @@ public static class RpkiNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null || analysis.Results.Count == 0)
@@ -36,7 +37,7 @@ public static class RpkiNarrative
                 det.Add($"IP {r.IpAddress} prefix {r.Prefix} ASN {r.Asn} valid={r.Valid}");
             }
             var assess = assessments ?? analysis.Assessments ?? new List<Assessment>();
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
 
         var refs = new List<string>
@@ -58,6 +59,7 @@ public static class RpkiNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

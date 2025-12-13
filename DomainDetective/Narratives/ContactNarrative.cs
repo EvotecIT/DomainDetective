@@ -10,7 +10,8 @@ public static class ContactNarrative
 
     public static Sections Build(ContactInfoAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
+        var s = analysis?.Subject;
+        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
         var title = $"Contact Record Report — {subj}";
         var subtitle = "Contact TXT Assessment";
         var category = "Contact Details";
@@ -22,6 +23,7 @@ public static class ContactNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null || !analysis.RecordExists)
@@ -54,7 +56,7 @@ public static class ContactNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assessments);
             }
         }
         catch (Exception)
@@ -74,6 +76,7 @@ public static class ContactNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

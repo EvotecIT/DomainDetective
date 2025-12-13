@@ -22,6 +22,7 @@ public static class SmtpBannerNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null || analysis.ServerResults.Count == 0)
@@ -53,7 +54,7 @@ public static class SmtpBannerNarrative
         {
             if (assessments != null)
             {
-                AssessmentSplit.SplitTitles(assessments, out positives, out remediations);
+                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assessments);
             }
         }
         catch { }
@@ -71,6 +72,7 @@ public static class SmtpBannerNarrative
             Details = det,
             References = DefaultRefs(),
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

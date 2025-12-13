@@ -24,4 +24,6 @@ internal static class DkimCodes {
     public const string AlgorithmRecommended = "DKIM.Algorithm.Recommended";
     public const string KeyReused = "DKIM.Key.Reused";
     public const string QueryFailed = "DKIM.Query.Failed";
+    public const string SelectorsMinimumMet = "DKIM.Selectors.Minimum.Met";
+    public const string SelectorsMinimumNotMet = "DKIM.Selectors.Minimum.NotMet";
 }

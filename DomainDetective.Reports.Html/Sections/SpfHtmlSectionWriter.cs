@@ -30,15 +30,24 @@ public static class SpfHtmlSectionWriter
                 html.AddList(spf.Highlights);
             }
 
+            var negatives = spf.Narrative?.Negatives ?? new System.Collections.Generic.List<string>();
+            if (negatives.Count > 0)
+            {
+                html.AddHeading("Negatives", 3);
+                html.AddList(negatives);
+            }
+
             // Good posture (positives)
-            var positives = spf.Positives?.Select(p => p?.Title)
-                                        .Where(t => !string.IsNullOrWhiteSpace(t))
-                                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                                        .ToList() ?? new System.Collections.Generic.List<string>();
+            var positives = spf.Positives?
+                .Select(p => p?.Title)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t!) // materialize as non-null strings
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList() ?? new System.Collections.Generic.List<string>();
             if (positives.Count > 0)
             {
                 html.AddHeading("Good posture", 3);
-                html.AddList(positives!);
+                html.AddList(positives);
             }
         }
     }

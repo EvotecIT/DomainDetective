@@ -31,7 +31,7 @@ public class WordReportGenerator : IReportGenerator {
 
             var summary = healthCheck.BuildSummary();
             doc.AddParagraph("Summary").SetBold().SetFontSize(18);
-            doc.AddParagraph(summary.ToString());
+            doc.AddParagraph(summary?.ToString() ?? string.Empty);
 
             var assess = healthCheck.GetAllAssessments();
             int info = assess.Count(a => a.Severity == AssessmentSeverity.Info);

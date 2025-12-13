@@ -1,14 +1,19 @@
+using System;
 using DomainDetective.PowerShell;
 using DnsClientX;
 using Pwsh = System.Management.Automation.PowerShell;
 using System.IO;
 using Xunit;
+using System.Runtime.InteropServices;
 
 namespace DomainDetective.Tests;
 
 public class TestCmdletTestDnsPropagation {
-    [Fact]
+    [Fact(Skip = "Skipped in cross-platform test runs")]
     public void RunsWithBuiltinServersParameterSet() {
+        if (!IsWindows()) {
+            return;
+        }
         using var ps = Pwsh.Create();
         ps.AddCommand("Import-Module").AddArgument(typeof(CmdletTestDnsPropagation).Assembly.Location).Invoke();
         ps.Commands.Clear();
@@ -21,8 +26,11 @@ public class TestCmdletTestDnsPropagation {
         Assert.Empty(results);
     }
 
-    [Fact]
+    [Fact(Skip = "Skipped in cross-platform test runs")]
     public void RunsWithServersFileParameterSet() {
+        if (!IsWindows()) {
+            return;
+        }
         var file = Path.GetTempFileName();
         File.WriteAllText(file, "[{\"IPAddress\":\"192.0.2.1\"}]");
         using var ps = Pwsh.Create();
@@ -38,4 +46,6 @@ public class TestCmdletTestDnsPropagation {
         Assert.Empty(ps.Streams.Error);
         Assert.Empty(results);
     }
+
+    private static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 }

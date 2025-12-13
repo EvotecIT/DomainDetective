@@ -148,7 +148,7 @@ namespace DomainDetective {
 
         /// <summary>
         /// Gets the collection of configured DNSBL provider entries.
-        /// Use <see cref="AddDNSBL(string, bool, string)"/>, <see cref="RemoveDNSBL(string)"/>,
+        /// Use <see cref="AddDNSBL(string, bool, string?, int)"/>, <see cref="RemoveDNSBL(string)"/>,
         /// <see cref="ClearDNSBL()"/>, <see cref="LoadDNSBL(string, bool)"/> or
         /// <see cref="LoadDnsblConfig(string, bool, bool)"/> to modify the list.
         /// </summary>

@@ -14,7 +14,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Path to the JSON report.</summary>
         [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string Path { get; set; }
+        public string Path { get; set; } = string.Empty;
 
         /// <summary>
         /// Reads a TLS-RPT JSON report and outputs the parsed summaries.

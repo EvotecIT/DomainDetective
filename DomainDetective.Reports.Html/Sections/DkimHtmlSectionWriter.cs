@@ -25,7 +25,11 @@ public static class DkimHtmlSectionWriter
 
         if (scope != Reports.ReportScope.Minimal)
         {
-            var highlights = dkim.SelectMany(x => x.Highlights ?? Array.Empty<string>()).Distinct().ToList();
+            var highlights = dkim.SelectMany(x => x.Highlights ?? Array.Empty<string>())
+                                  .Where(s => !string.IsNullOrWhiteSpace(s))
+                                  .Select(s => s!)
+                                  .Distinct()
+                                  .ToList();
             if (highlights.Count > 0)
             {
                 html.AddHeading("Highlights", 3);
@@ -37,6 +41,7 @@ public static class DkimHtmlSectionWriter
                 .SelectMany(x => x.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
                 .Select(p => p?.Title)
                 .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t!)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             if (positives.Count > 0)

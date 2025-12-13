@@ -21,11 +21,23 @@ namespace DomainDetective.PowerShell {
     public sealed class CmdletTestDomainHealth : ExportableAsyncPSCmdlet {
         /// <summary>Domain to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
+
+        /// <summary>Optional list of DNS endpoints to use (multi-resolver).</summary>
+        [Parameter(Mandatory = false)]
+        public DnsEndpoint[]? DnsEndpoints { get; set; }
+
+        /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
+        [Parameter(Mandatory = false)]
+        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
+
+        /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
+        [Parameter(Mandatory = false)]
+        public int? MultiResolverMaxParallelism { get; set; }
 
         /// <summary>Specific tests to run.</summary>
         [Parameter(Mandatory = false)]
@@ -50,8 +62,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public PortScanProfile[]? PortScanProfile;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -67,6 +79,12 @@ namespace DomainDetective.PowerShell {
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            if (DnsEndpoints != null && DnsEndpoints.Length > 0)
+            {
+                _healthCheck.DnsEndpoints.AddRange(DnsEndpoints);
+                _healthCheck.MultiResolverStrategy = MultiResolverStrategy;
+                _healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism;
+            }
             if (BrandKeyword != null)
             {
                 _healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
@@ -88,16 +106,36 @@ namespace DomainDetective.PowerShell {
 
             // 2) Export (post-run) if requested, after emitting data
             if (IsExportRequested()) {
-                var fmt = ExportFormat ?? ExportDefaults.Format;
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 var outPath = ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, DomainName, fmt);
                 var wantArtifacts = ExportArtifacts.IsPresent || ExportDefaults.EmitArtifacts;
 
                 // If specific HealthCheckType selection is provided and we support writers for it,
                 // use the composition aggregators for Word/HTML to ensure identical section rendering.
-                var canCompose = (HealthCheckType != null && HealthCheckType.Length > 0 && (fmt == ReportFormat.Word || fmt == ReportFormat.Html));
-                if (canCompose) {
+                var wantsComposition = (fmt == ReportFormat.Word || fmt == ReportFormat.Html);
+                if (wantsComposition) {
+                    // Enrich with transport policies when user didn't specify a subset
+                    if (HealthCheckType == null || HealthCheckType.Length == 0)
+                    {
+                        try { await _healthCheck.VerifyMTASTS(DomainName); } catch { }
+                        try { await _healthCheck.VerifyTLSRPT(DomainName); } catch { }
+                    }
+
                     var items = new System.Collections.Generic.List<object>();
-                    foreach (var kind in HealthCheckType!) {
+                    var selection = HealthCheckType ?? new[] {
+                        DomainDetective.HealthCheckType.SPF,
+                        DomainDetective.HealthCheckType.DKIM,
+                        DomainDetective.HealthCheckType.DMARC,
+                        DomainDetective.HealthCheckType.MX,
+                        DomainDetective.HealthCheckType.DNSSEC,
+                        DomainDetective.HealthCheckType.DANE,
+                        DomainDetective.HealthCheckType.MTASTS,
+                        DomainDetective.HealthCheckType.TLSRPT,
+                        DomainDetective.HealthCheckType.DNSBL,
+                        DomainDetective.HealthCheckType.RPKI
+                    };
+
+                    foreach (var kind in selection) {
                         switch (kind) {
                             case DomainDetective.HealthCheckType.SPF:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.SpfAnalysis));
@@ -111,6 +149,12 @@ namespace DomainDetective.PowerShell {
                             case DomainDetective.HealthCheckType.MX:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MXAnalysis));
                                 break;
+                            case DomainDetective.HealthCheckType.DNSSEC:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DnsSecAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.DANE:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DaneAnalysis));
+                                break;
                             case DomainDetective.HealthCheckType.DNSBL:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DNSBLAnalysis));
                                 break;
@@ -119,6 +163,9 @@ namespace DomainDetective.PowerShell {
                                 break;
                             case DomainDetective.HealthCheckType.TLSRPT:
                                 items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.TLSRPTAnalysis));
+                                break;
+                            case DomainDetective.HealthCheckType.RPKI:
+                                items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.RpkiAnalysis));
                                 break;
                             case DomainDetective.HealthCheckType.MAILCLASSIFICATION:
                                 {
@@ -189,7 +236,7 @@ namespace DomainDetective.PowerShell {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
                         } else {
-                            WriteWarning(reportResult.ErrorMessage);
+                        WriteWarning(reportResult.ErrorMessage ?? "Report generation failed.");
                         }
                     } else {
                         var dispatcher = new ReportDispatcher();
@@ -200,7 +247,7 @@ namespace DomainDetective.PowerShell {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
                         } else {
-                            WriteWarning(reportResult.ErrorMessage);
+                    WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                         }
                     }
                 } catch (System.Exception ex) {

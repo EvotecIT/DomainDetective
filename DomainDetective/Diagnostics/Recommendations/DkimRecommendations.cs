@@ -50,6 +50,23 @@ internal sealed class DkimRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Dkim,
             Tags = new [] { "dkim", "keys", "rotation" }
         };
+
+        map[DkimCodes.SelectorsMinimumMet] = new RecommendationAdvice {
+            Code = DkimCodes.SelectorsMinimumMet,
+            Title = "Recommended number of DKIM selectors present",
+            Why = "Having multiple selectors simplifies rotation and continuity.",
+            How = "Continue to maintain at least the recommended number of selectors for the detected provider.",
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "selectors" }
+        };
+        map[DkimCodes.SelectorsMinimumNotMet] = new RecommendationAdvice {
+            Code = DkimCodes.SelectorsMinimumNotMet,
+            Title = "Add additional DKIM selector(s)",
+            Why = "The detected provider recommends multiple selectors for safe rotation and resilience.",
+            How = "Publish at least the minimum number of selectors (e.g., selector1/selector2 for Microsoft 365) and configure signing.",
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "dkim", "selectors" }
+        };
     }
 }
 

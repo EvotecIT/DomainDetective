@@ -17,7 +17,7 @@ namespace DomainDetective.PowerShell {
         public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
         /// <summary>IMAP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
-        public string HostName;
+        public string HostName = string.Empty;
 
         /// <summary>IMAP port number.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -27,8 +27,8 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter ShowChain;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -45,6 +45,7 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             _logger.WriteVerbose("Checking IMAP TLS for {0}:{1}", HostName, Port);
             await _healthCheck.CheckImapTlsHost(HostName, Port);
+            _healthCheck.ImapTlsAnalysis.Subject = HostName;
             var analysis = _healthCheck.ImapTlsAnalysis;
             var view = DomainDetective.Views.Converters.Convert(analysis);
             var result = analysis.ServerResults[$"{HostName}:{Port}"];
@@ -52,7 +53,28 @@ namespace DomainDetective.PowerShell {
             if (ShowChain && result.Chain.Count > 0) {
                 WriteObject(result.Chain, true);
             }
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            if (IsExportRequested()) {
+                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
+                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
+                    var key = $"{HostName}-{Port}";
+                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
+                    try {
+                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                            outPath,
+                            new System.Collections.Generic.List<object> { view },
+                            DomainDetective.Reports.ReportScope.Normal,
+                            showInfoFindings: true,
+                            narrativePlacement: ExportDefaults.NarrativePlacement,
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"IMAP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                    } catch (System.Exception ex) {
+                        WriteWarning($"IMAP TLS export failed: {ex.Message}");
+                    }
+                } else {
+                    await ExportNotImplementedAsync("Test-DDEmailImapTls");
+                }
+                return;
+            }
         }
     }
 }

@@ -27,6 +27,7 @@ public static class BimiNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         hi.Add(bimi.BimiRecordExists
@@ -80,6 +81,7 @@ public static class BimiNarrative
                 }
                 else
                 {
+                    negatives.Add(msg);
                     remediations.Add(msg);
                 }
             }
@@ -103,6 +105,7 @@ public static class BimiNarrative
             Details = det,
             References = refs,
             Positives = positives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Negatives = negatives.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Remediations = remediations.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
         };
     }

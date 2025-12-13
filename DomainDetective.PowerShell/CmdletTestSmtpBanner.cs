@@ -28,7 +28,7 @@ namespace DomainDetective.PowerShell {
         private const string DomainSet = "DomainName";
         /// <summary>SMTP host to check.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = ServerSet)]
-        public string HostName;
+        public string HostName = string.Empty;
 
         /// <summary>SMTP port number.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = ServerSet)]
@@ -37,18 +37,18 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain to check (aggregates MX hosts).</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = DomainSet)]
         [ValidateNotNullOrEmpty]
-        public string DomainName;
+        public string DomainName = string.Empty;
 
         /// <summary>Hostname expected in the banner.</summary>
         [Parameter(Mandatory = false)]
-        public string ExpectedHostname;
+        public string ExpectedHostname = string.Empty;
 
         /// <summary>Software string expected in the banner.</summary>
         [Parameter(Mandatory = false)]
-        public string ExpectedSoftware;
+        public string ExpectedSoftware = string.Empty;
 
-        private InternalLogger _logger;
-        private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>

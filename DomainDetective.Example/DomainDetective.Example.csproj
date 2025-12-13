@@ -10,13 +10,14 @@
     </PropertyGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="Spectre.Console" Version="0.50.0" />
+	  <PackageReference Include="Spectre.Console" Version="0.51.1" />
 	</ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
     <ProjectReference Include="..\DomainDetective.Reports.Html\DomainDetective.Reports.Html.csproj" />
+    <ProjectReference Include="..\DomainDetective.Reports.Office\DomainDetective.Reports.Office.csproj" />
   </ItemGroup>
 
   <ItemGroup>

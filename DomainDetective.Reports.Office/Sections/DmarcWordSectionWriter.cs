@@ -104,9 +104,15 @@ public static class DmarcWordSectionWriter
         {
             var elist = doc.AddList(WordListStyle.Bulleted);
             if (anyRua)
-                elist.AddItem($"Aggregate RUA: {string.Join(", ", dmarc.MailtoRua)}");
+            {
+                var rua = dmarc.MailtoRua?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+                elist.AddItem($"Aggregate RUA: {string.Join(", ", rua)}");
+            }
             if (anyRuf)
-                elist.AddItem($"Forensic RUF: {string.Join(", ", dmarc.MailtoRuf)}");
+            {
+                var ruf = dmarc.MailtoRuf?.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+                elist.AddItem($"Forensic RUF: {string.Join(", ", ruf)}");
+            }
         }
         // External report authorization
         if (dmarc.ExternalReportAuthorization != null && dmarc.ExternalReportAuthorization.Count > 0)
@@ -154,8 +160,85 @@ public static class DmarcWordSectionWriter
         {
             headings.AddItem("References", baseLevel);
             doc.AddParagraph("Further reading and relevant standards.");
+            WordLinkHelpers.AddReferencesList(doc, dmarc.References);
+        }
+    }
+
+    /// <summary>
+    /// Projector-aware overload using SectionProjectors.DmarcSection for common data, preserving Word-only extras.
+    /// </summary>
+    public static void Write(WordDocument doc, WordList headings, int baseLevel,
+        DomainDetective.Reports.SectionProjectors.DmarcSection sec,
+        DomainDetective.Views.DmarcRecordInfo? original,
+        string domain, ReportScope scope, bool showInfoFindings, bool includeNarrative = true)
+    {
+        if (doc == null) throw new ArgumentNullException(nameof(doc));
+        if (headings == null) throw new ArgumentNullException(nameof(headings));
+        if (sec == null) throw new ArgumentNullException(nameof(sec));
+
+        if (includeNarrative && original?.Narrative != null)
+        {
+            var nar = original.Narrative;
+            if (!string.IsNullOrWhiteSpace(nar.Introduction)) { headings.AddItem("Introduction", baseLevel); doc.AddParagraph(nar.Introduction); }
+            if (!string.IsNullOrWhiteSpace(nar.WhyItMatters)) { headings.AddItem("Why this matters", baseLevel); doc.AddParagraph(nar.WhyItMatters); }
+        }
+
+        // Summary
+        headings.AddItem("Summary", baseLevel);
+        var rows = sec.Summary.Count > 0 ? sec.Summary : new System.Collections.Generic.List<(string Key, string Value)>() {
+            ("Status", sec.Status), ("Policy", sec.Policy), ("rua", sec.RuaCount.ToString()), ("ruf", sec.RufCount.ToString()) };
+        var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
+        for (int i = 0; i < rows.Count; i++) { t.Rows[i].Cells[0].Paragraphs[0].Text = rows[i].Key; t.Rows[i].Cells[1].Paragraphs[0].Text = rows[i].Value; }
+
+        if (sec.Positives.Count > 0)
+        {
+            headings.AddItem("Good posture", baseLevel);
             var list = doc.AddList(WordListStyle.Bulleted);
-            foreach (var r in dmarc.References) if (!string.IsNullOrWhiteSpace(r)) list.AddItem(r);
+            foreach (var p in sec.Positives) list.AddItem(p);
+        }
+
+        var f = sec.Findings;
+        if (!showInfoFindings)
+            f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
+        if (f.Count > 0)
+        {
+            headings.AddItem("Findings", baseLevel);
+            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
+            ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
+            ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";
+            ft.Rows[0].Cells[2].Paragraphs[0].Text = "Target";
+            ft.Rows[0].Cells[3].Paragraphs[0].Text = "Message";
+            for (int i = 0; i < f.Count; i++)
+            {
+                var a = f[i];
+                ft.Rows[i + 1].Cells[0].Paragraphs[0].Text = a.Severity;
+                ft.Rows[i + 1].Cells[1].Paragraphs[0].Text = a.Code;
+                ft.Rows[i + 1].Cells[2].Paragraphs[0].Text = a.Target;
+                ft.Rows[i + 1].Cells[3].Paragraphs[0].Text = a.Message;
+            }
+        }
+
+        if (original != null)
+        {
+            // Evidence
+            headings.AddItem("Evidence", baseLevel);
+            var lbl = doc.AddParagraph("DMARC Record:"); lbl.Bold = true;
+            var rec = doc.AddParagraph(original.DmarcRecord ?? string.Empty); rec.FontSize = 10;
+
+            var anyRua = original.MailtoRua != null && original.MailtoRua.Count > 0;
+            var anyRuf = original.MailtoRuf != null && original.MailtoRuf.Count > 0;
+            if (anyRua || anyRuf)
+            {
+                var elist = doc.AddList(WordListStyle.Bulleted);
+                if (anyRua) elist.AddItem($"Aggregate RUA: {string.Join(", ", original.MailtoRua)}");
+                if (anyRuf) elist.AddItem($"Forensic RUF: {string.Join(", ", original.MailtoRuf)}");
+            }
+        }
+
+        if (sec.References.Count > 0)
+        {
+            headings.AddItem("References", baseLevel);
+            WordLinkHelpers.AddReferencesList(doc, sec.References);
         }
     }
 }

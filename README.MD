@@ -228,6 +228,20 @@ Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Report
 }
 ```
 
+- Or inline using positional ScriptBlock (no `-Compose`):
+
+```
+Import-Module ./Module/DomainDetective.psd1 -Force
+
+Export-DDSecurityReport -Scope Detailed -ExportFormat Markdown -ExportPath .\\Reports {
+  Test-DDEmailSpfRecord  -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDEmailDkimRecord -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDEmailDmarcRecord -DomainName 'evotec.pl','evotec.xyz'
+  Test-DDDnsNsRecord     -DomainName 'evotec.pl'
+  Test-DDDnsSecStatus    -DomainName 'evotec.pl'
+}
+```
+
 - Metadata overrides (PowerShell):
   - Set defaults once:
     - `Set-DDExportOptions -Title "Evotec — Q3 Portfolio Review" -Subject "Executive summary and remediation plan" -Category "Email Security" -Keywords "SPF,DKIM,DMARC" -Creator "Evotec"`
@@ -541,3 +555,35 @@ WHOIS snapshots can be stored by specifying a snapshot directory when running th
 ## Check Descriptions
 
 Human-friendly descriptions for each health check are stored in `CheckDescriptions.cs`. The CLI and any report generators look up a `CheckDescription` by `HealthCheckType` to display its summary, RFC link and remediation steps. You can extend or override these mappings by creating additional entries before generating output.
+## Multi-Resolver DNS Override
+
+- C# (FirstSuccess across Cloudflare + Google)
+
+```
+using System.Threading.Tasks;
+using DnsClientX;
+
+var hc = new DomainDetective.DomainHealthCheck();
+// Try Cloudflare wire-format, then Google; return the first useful answer
+hc.DnsEndpoints.Add(DnsEndpoint.CloudflareWireFormat);
+hc.DnsEndpoints.Add(DnsEndpoint.Google);
+hc.MultiResolverStrategy = DomainDetective.MultiResolverStrategy.FirstSuccess;
+
+await hc.Verify("example.com", new[]{ DomainDetective.HealthCheckType.SPF, DomainDetective.HealthCheckType.DNSSEC });
+
+System.Console.WriteLine($"SPF present: {hc.SpfAnalysis.SpfRecordExists}; DS count: {hc.DnsSecAnalysis.DsRecords.Count}");
+```
+
+- PowerShell (direct, no functions; edit $Domain)
+
+```
+Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
+
+$Domain = 'evotec.pl'
+$Resolvers = @(
+  [DnsClientX.DnsEndpoint]::CloudflareWireFormat,
+  [DnsClientX.DnsEndpoint]::Google
+)
+
+Test-DDDomainOverallHealth -DomainName $Domain -DnsEndpoints $Resolvers -MultiResolverStrategy FirstSuccess -ExportFormat Word -ExportPath "$PSScriptRoot\Reports" -OpenReport
+```

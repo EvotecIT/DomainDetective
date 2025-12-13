@@ -199,16 +199,32 @@ public class DomainSecurityReport {
         
         var checkResults = GetAllCheckResults();
         
-        // Create a table manually for now
+        // DataTables table with column highlighters
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {
+                    card.Header(h => h.Title("Checks"));
                     card.Body(body => {
-                        // Create table using HtmlForgeX table API
                         if (checkResults.Any()) {
-                            var table = (TablerTable)body.Table(checkResults, TableType.Tabler);
-                            table.Style(BootStrapTableStyle.Striped)
-                                 .Style(BootStrapTableStyle.Hover);
+                            var table = (DataTablesTable)body.Table(checkResults, TableType.DataTables);
+                            table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
+
+                            // Highlight failing Status
+                            table.HighlightWhen(
+                                where: g => g.And(c => c.StringContains("Status", "Fail", caseSensitive: false))
+                                             .Or(c => c.StringContains("Status", "✗")),
+                                then:  t => t.Column("Status").Danger());
+
+                            // Warn for partial/medium risk
+                            table.HighlightWhen(
+                                where: g => g.And(c => c.StringContains("Status", "Warn", caseSensitive: false))
+                                             .Or(c => c.StringContains("Status", "⚠")),
+                                then:  t => t.Column("Status").Warning());
+
+                            // Emphasize category column
+                            table.HighlightWhen(
+                                where: g => g.None(c => c.StringEq("Category", "")),
+                                then:  t => t.Column("Category").Text(RGBColor.DimGray));
                         }
                     });
                 });

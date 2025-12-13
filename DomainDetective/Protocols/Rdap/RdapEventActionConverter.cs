@@ -16,7 +16,7 @@ internal sealed class RdapEventActionConverter : JsonConverter<RdapEventAction>
         {
             return RdapEventAction.Unknown;
         }
-        var normalized = value.Replace("-", string.Empty).Replace(" ", string.Empty);
+        var normalized = value!.Replace("-", string.Empty).Replace(" ", string.Empty);
         if (Enum.TryParse(normalized, true, out RdapEventAction action))
         {
             return action;

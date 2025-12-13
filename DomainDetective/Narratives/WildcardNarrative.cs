@@ -20,6 +20,7 @@ public static class WildcardNarrative
         var hi = new List<string>();
         var det = new List<string>();
         var positives = new List<string>();
+        var negatives = new List<string>();
         var remediations = new List<string>();
 
         if (analysis == null)
@@ -52,7 +53,7 @@ public static class WildcardNarrative
         try
         {
             var assess = assessments ?? analysis.Assessments;
-            AssessmentSplit.SplitTitles(assess, out positives, out remediations);
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
         catch
         {
@@ -71,6 +72,7 @@ public static class WildcardNarrative
             Details = det,
             References = refs,
             Positives = positives,
+            Negatives = negatives,
             Remediations = remediations
         };
     }

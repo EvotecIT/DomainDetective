@@ -557,7 +557,7 @@ file static class FxLog
 file static class Fx
 {
     internal sealed class MailPolicyScore { public int SpfCoverage { get; set; } public int DkimSelectors { get; set; } public int DmarcStrength { get; set; } public int TransportTlsPosture { get; set; } }
-    private sealed class LiveModel { public ProgressTask? Dns; public ProgressTask? Mail; public ProgressTask? Web; public ProgressTask? Rep; }
+    private sealed class LiveModel { public ProgressTask? Dns = null; public ProgressTask? Mail = null; public ProgressTask? Web = null; public ProgressTask? Rep = null; }
 
 public static void TitleScreen(string domain, bool matrix, string persona)
     {

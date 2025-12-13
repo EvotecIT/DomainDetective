@@ -15,7 +15,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Path to a PEM or DER encoded certificate.</para>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string Path;
+        public string Path = string.Empty;
 
         /// <para>Include certificate chain in the output.</para>
         [Parameter(Mandatory = false)]
@@ -25,7 +25,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter SkipRevocation;
 
-        private CertificateAnalysis _analysis;
+        private CertificateAnalysis _analysis = null!;
 
         /// <summary>
         /// Parses the certificate file and writes the analysis to the pipeline.

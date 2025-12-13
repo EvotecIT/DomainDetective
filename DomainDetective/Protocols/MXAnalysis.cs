@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
+using DomainDetective.Providers.Email;
 
 namespace DomainDetective {
     /// <summary>
@@ -197,8 +198,17 @@ namespace DomainDetective {
                 using (_collector?.PushTarget(Subject ?? string.Empty))
                     logger?.WriteInformationCode(MxCodes.RedundantHosts, "Multiple MX preferences detected");
             } else if (evaluationList.Count >= 1 && !HasNullMx) {
-                using (_collector?.PushTarget(Subject ?? string.Empty))
-                    logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
+                // Use provider detection to decide whether a single MX is acceptable for this provider.
+                var hosts = evaluationList.Select(e => e.Host).ToList();
+                var match = EmailProviderDetector.Detect(hosts);
+                bool singleOk = match.Primary != null && match.Primary.SingleMxOk;
+                if (!singleOk) {
+                    using (_collector?.PushTarget(Subject ?? string.Empty))
+                        logger?.WriteWarningCode(MxCodes.NoBackupServers, "Only a single MX preference detected; consider a backup MX");
+                } else {
+                    using (_collector?.PushTarget(Subject ?? string.Empty))
+                        logger?.WriteInformationCode(MxCodes.SingleMxAllowedForProvider, $"Single MX acceptable for provider {match.Primary?.DisplayName}");
+                }
             }
             if (HasNullMx) {
                 using (_collector?.PushTarget(Subject ?? string.Empty))

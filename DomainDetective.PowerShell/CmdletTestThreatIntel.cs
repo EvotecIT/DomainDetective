@@ -18,7 +18,7 @@ namespace DomainDetective.PowerShell;
     /// <summary>Domain or IP address to query.</summary>
     [Parameter(Mandatory = true, Position = 0)]
     [ValidateNotNullOrEmpty]
-    public string NameOrIpAddress;
+        public string NameOrIpAddress = string.Empty;
 
     /// <summary>Google Safe Browsing API key.</summary>
     [Parameter(Mandatory = false)]
@@ -32,8 +32,8 @@ namespace DomainDetective.PowerShell;
     [Parameter(Mandatory = false)]
     public string? VirusTotalApiKey;
 
-    private InternalLogger _logger;
-    private DomainHealthCheck _healthCheck;
+        private InternalLogger _logger = null!;
+        private DomainHealthCheck _healthCheck = null!;
 
         /// <summary>Initializes logging and helper classes.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
