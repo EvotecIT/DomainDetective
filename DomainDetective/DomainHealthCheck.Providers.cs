@@ -161,7 +161,7 @@ public partial class DomainHealthCheck
                         {
                             // Heuristic: If outbound or gateways present and 'sp' not present, suggest adding sp=
                             bool hasOutboundOrGateway = (EmailProviderMatch?.OutboundSenders?.Count ?? 0) > 0 || (EmailProviderMatch?.Gateways?.Count ?? 0) > 0;
-                            var hasSpExplicit = !(string.IsNullOrWhiteSpace((string?)typeof(DmarcAnalysis).GetField("SubPolicyShort", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)?.GetValue(DmarcAnalysis)));
+                            bool hasSpExplicit = !string.IsNullOrWhiteSpace(DmarcAnalysis.SubPolicyShort);
                             if (hasOutboundOrGateway && !hasSpExplicit)
                             {
                                 var providerName = EmailProviderMatch?.Primary?.DisplayName ?? (EmailProviderMatch?.Gateways?.FirstOrDefault()?.DisplayName ?? "provider");

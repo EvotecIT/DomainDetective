@@ -310,22 +310,29 @@ namespace DomainDetective {
         {
             bool anyKeyAd = false, anyDsAd = false;
             var endpoints = new[] { DnsEndpoint.Cloudflare, DnsEndpoint.Google, DnsEndpoint.Quad9 };
-            foreach (var ep in endpoints)
-            {
-                ct.ThrowIfCancellationRequested();
-                try {
-                    using var c = new ClientX(endpoint: ep);
+                foreach (var ep in endpoints)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    try {
+                        using var c = new ClientX(endpoint: ep);
                     using var rCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     rCts.CancelAfter(TimeSpan.FromSeconds(5));
                     var ds = await c.Resolve(domain, DnsRecordType.DS, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
                     var dk = await c.Resolve(domain, DnsRecordType.DNSKEY, requestDnsSec: true, validateDnsSec: false, cancellationToken: rCts.Token).ConfigureAwait(false);
-                    anyDsAd |= ds.AuthenticData;
-                    anyKeyAd |= dk.AuthenticData;
-                    if (anyDsAd && anyKeyAd) break;
-                } catch { /* try next */ }
+                        anyDsAd |= ds.AuthenticData;
+                        anyKeyAd |= dk.AuthenticData;
+                        if (anyDsAd && anyKeyAd) break;
+                    } catch (OperationCanceledException) {
+                        if (ct.IsCancellationRequested) {
+                            throw;
+                        }
+                        // Timeout per resolver; try next.
+                    } catch {
+                        // Best-effort: resolver may be unavailable; try next.
+                    }
+                }
+                return (anyKeyAd, anyDsAd);
             }
-            return (anyKeyAd, anyDsAd);
-        }
 
         internal async Task MultiResolverAdCheck(string domainName, InternalLogger logger, CancellationToken ct)
         {
@@ -428,9 +435,12 @@ namespace DomainDetective {
                     var resp = await c.Resolve(name, type, requestDnsSec: requestDnsSec, validateDnsSec: validateDnsSec, cancellationToken: rCts.Token).ConfigureAwait(false);
                     if (resp != null && (resp.Answers?.Length ?? 0) > 0) return resp;
                 } catch (OperationCanceledException) {
-                    // try next
+                    if (ct.IsCancellationRequested) {
+                        throw;
+                    }
+                    // Timeout per endpoint; try next fallback.
                 } catch {
-                    // try next
+                    // Best-effort: endpoint may be unavailable; try next fallback.
                 }
             }
             // Last attempt with system (may be empty)
@@ -527,6 +537,7 @@ namespace DomainDetective {
 
                 return digestHex.StartsWith(digest.ToLowerInvariant());
             } catch {
+                // Any parsing/crypto error => treat as mismatch.
                 return false;
             }
         }
@@ -660,6 +671,7 @@ namespace DomainDetective {
                 HashAlgorithmName hash = algorithm == 14 ? HashAlgorithmName.SHA384 : HashAlgorithmName.SHA256;
                 return ecdsa.VerifyData(data, sig, hash);
             } catch {
+                // Treat invalid key/signature formats as verification failure.
                 return false;
             }
         }
