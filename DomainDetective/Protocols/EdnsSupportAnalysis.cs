@@ -157,7 +157,7 @@ public class EdnsSupportAnalysis : IHasAssessments
         }
 
         using var udp = new UdpClient();
-        var id = (ushort)new Random().Next(ushort.MaxValue);
+        var id = Helpers.DnsQueryIdGenerator.NextUShort();
         var query = BuildQuery("example.com", id);
         using var udpCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 #if NET8_0_OR_GREATER
