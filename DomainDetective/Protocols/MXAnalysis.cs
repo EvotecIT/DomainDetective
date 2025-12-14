@@ -29,6 +29,21 @@ namespace DomainDetective {
         /// <summary>MX records discovered during analysis.</summary>
         public List<string> MxRecords { get; private set; } = new List<string>();
 
+        /// <summary>
+        /// TTL values (seconds) for each MX record answer as returned by DNS.
+        /// </summary>
+        /// <remarks>
+        /// MX commonly returns multiple answers; this analysis exposes both the raw TTL set and aggregate
+        /// min/avg/max values to support operational TTL policy checks without additional DNS queries.
+        /// </remarks>
+        public IReadOnlyList<int> MxRecordTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>Minimum TTL (seconds) across MX answers (ignores 0).</summary>
+        public int? MinMxTtl { get; private set; }
+        /// <summary>Maximum TTL (seconds) across MX answers (ignores 0).</summary>
+        public int? MaxMxTtl { get; private set; }
+        /// <summary>Average TTL (seconds) across MX answers (ignores 0).</summary>
+        public double? AvgMxTtl { get; private set; }
+
         /// <summary>Indicates whether at least one MX record exists.</summary>
         public bool MxRecordExists { get; private set; } // should be true
         /// <summary>Indicates that a record incorrectly points to a CNAME.</summary>
@@ -84,6 +99,10 @@ namespace DomainDetective {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "MX");
             // reset properties for repeated calls
             MxRecords = new List<string>();
+            MxRecordTtls = Array.Empty<int>();
+            MinMxTtl = null;
+            MaxMxTtl = null;
+            AvgMxTtl = null;
             MxRecordExists = false;
             PointsToCname = false;
             PointsToIpAddress = false;
@@ -105,6 +124,33 @@ namespace DomainDetective {
 
             var mxRecordList = dnsResults.ToList();
             MxRecordExists = mxRecordList.Any();
+
+            var ttlArray = mxRecordList.Select(r => r.TTL).ToArray();
+            MxRecordTtls = ttlArray;
+            int? minTtl = null;
+            int? maxTtl = null;
+            long sumTtl = 0;
+            int positiveCount = 0;
+            foreach (var ttl in ttlArray) {
+                if (ttl <= 0) {
+                    continue;
+                }
+
+                positiveCount++;
+                sumTtl += ttl;
+                if (!minTtl.HasValue || ttl < minTtl.Value) {
+                    minTtl = ttl;
+                }
+                if (!maxTtl.HasValue || ttl > maxTtl.Value) {
+                    maxTtl = ttl;
+                }
+            }
+
+            if (positiveCount > 0) {
+                MinMxTtl = minTtl;
+                MaxMxTtl = maxTtl;
+                AvgMxTtl = (double)sumTtl / positiveCount;
+            }
 
             var parsed = new List<(int Preference, string Host)>();
             foreach (var record in mxRecordList) {

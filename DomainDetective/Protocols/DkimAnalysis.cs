@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -76,6 +77,7 @@ namespace DomainDetective {
                 ValidKeyType = true,
                 ValidFlags = true
             };
+            analysis.DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dkimRecordList, expectedType: DnsRecordType.TXT);
 
             // create a single string from the list of DnsResult objects
             foreach (var record in dkimRecordList) {
@@ -524,6 +526,8 @@ namespace DomainDetective {
         public string? Provider { get; set; }
         /// <summary>Resolved CNAME target (when present).</summary>
         public string? CnameTarget { get; set; }
+        /// <summary>DNS TTL (seconds) of the selector TXT record as returned by DNS.</summary>
+        public int? DnsRecordTtl { get; set; }
     }
 
     internal static partial class DKIMProviders

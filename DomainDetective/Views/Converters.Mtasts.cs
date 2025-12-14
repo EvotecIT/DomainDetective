@@ -17,6 +17,7 @@ public static partial class Converters
             Subject = analysis.Domain,
             DnsRecordPresent = analysis.DnsRecordPresent,
             DnsRecordValid = analysis.DnsRecordValid,
+            DnsRecordTtl = analysis.DnsRecordTtl,
             PolicyPresent = analysis.PolicyPresent,
             PolicyValid = analysis.PolicyValid,
             Mode = analysis.Mode,
@@ -44,6 +45,8 @@ public class MtastsInfo
     public string Subject { get; set; } = null!;
     public bool DnsRecordPresent { get; set; }
     public bool DnsRecordValid { get; set; }
+    /// <summary>DNS TTL (seconds) of the _mta-sts TXT record.</summary>
+    public int? DnsRecordTtl { get; set; }
     public bool PolicyPresent { get; set; }
     public bool PolicyValid { get; set; }
     public string Mode { get; set; } = null!;

@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Mail;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -15,6 +16,8 @@ namespace DomainDetective {
 public class TLSRPTAnalysis : IHasAssessments {
         /// <summary>Domain under analysis.</summary>
         public string? Subject { get; set; }
+        /// <summary>DNS TTL (seconds) of the TLSRPT TXT record as returned by DNS.</summary>
+        public int? DnsRecordTtl { get; private set; }
         /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
 
@@ -67,6 +70,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             InvalidRua = new List<string>();
             UnknownTags = new List<string>();
             RuaHttpStatus = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+            DnsRecordTtl = null;
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -76,6 +80,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             var recordList = dnsResults
                 .Where(r => r.Type != DnsRecordType.CNAME)
                 .ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(recordList, expectedType: DnsRecordType.TXT);
             TlsRptRecordExists = recordList.Any();
             MultipleRecords = recordList.Count > 1;
             if (!TlsRptRecordExists) {

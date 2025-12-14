@@ -105,7 +105,7 @@ public class OpenResolverAnalysis : IHasAssessments {
             using var udp = new UdpClient();
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(Timeout);
-            var id = (ushort)new Random().Next(ushort.MaxValue);
+            var id = Helpers.DnsQueryIdGenerator.NextUShort();
             var query = BuildQuery("example.com", id);
             var sw = System.Diagnostics.Stopwatch.StartNew();
 #if NET8_0_OR_GREATER

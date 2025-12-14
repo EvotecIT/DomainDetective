@@ -6,6 +6,7 @@ using System.Net;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -21,6 +22,9 @@ namespace DomainDetective {
     public partial class SpfAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         internal DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
+
+        /// <summary>DNS TTL (seconds) of the SPF TXT record as returned by DNS.</summary>
+        public int? DnsRecordTtl { get; private set; }
 
         /// <summary>Combined SPF record text.</summary>
         public string SpfRecord { get; private set; } = string.Empty;
@@ -114,6 +118,7 @@ namespace DomainDetective {
             SpfRecord = string.Empty;
             SpfRecords = new List<string>();
             SpfRecordExists = false;
+            DnsRecordTtl = null;
             MultipleSpfRecords = false;
             StartsCorrectly = false;
             ExceedsTotalCharacterLimit = false;
@@ -169,6 +174,7 @@ namespace DomainDetective {
                 return;
             }
             var spfRecordList = dnsResults.ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(spfRecordList, expectedType: DnsRecordType.TXT);
             SpfRecordExists = spfRecordList.Any();
             MultipleSpfRecords = spfRecordList.Count > 1;
 

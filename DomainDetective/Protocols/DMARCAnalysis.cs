@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -27,6 +28,8 @@ namespace DomainDetective {
     /// </remarks>
     public class DmarcAnalysis : IHasAssessments {
         public string? Subject { get; set; }
+        /// <summary>DNS TTL (seconds) of the DMARC TXT record as returned by DNS.</summary>
+        public int? DnsRecordTtl { get; private set; }
         private const string TagVersion = "v";
         private const string TagPolicy = "p";
         private const string TagSubPolicy = "sp";
@@ -155,6 +158,7 @@ namespace DomainDetective {
             ReportingIntervalShort = string.Empty;
             ExternalReportAuthorization = new Dictionary<string, bool>();
             Advisory = string.Empty;
+            DnsRecordTtl = null;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -162,6 +166,7 @@ namespace DomainDetective {
             }
 
             var dmarcRecordList = dnsResults.ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dmarcRecordList, expectedType: DnsRecordType.TXT);
             DmarcRecordExists = dmarcRecordList.Any();
             MultipleRecords = dmarcRecordList.Count > 1;
 

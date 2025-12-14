@@ -22,6 +22,7 @@ public static partial class Converters
                 Subject = analysis.Subject ?? string.Empty,
                 Selector = kvp.Key,
                 Name = result.Name ?? string.Empty,
+                DnsRecordTtl = result.DnsRecordTtl,
                 DkimRecord = result.DkimRecord,
                 DkimRecordExists = result.DkimRecordExists,
                 StartsCorrectly = result.StartsCorrectly,
@@ -76,6 +77,8 @@ public class DkimRecordInfo
     public string Selector { get; set; } = string.Empty;
     /// <summary>DNS name queried (selector._domainkey.domain).</summary>
     public string Name { get; set; } = string.Empty;
+    /// <summary>DNS TTL (seconds) of the selector TXT record.</summary>
+    public int? DnsRecordTtl { get; set; }
     /// <summary>Raw DKIM TXT record.</summary>
     public string DkimRecord { get; set; } = string.Empty;
     public bool DkimRecordExists { get; set; }

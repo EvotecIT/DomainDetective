@@ -16,6 +16,7 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.DMARC),
             Subject = analysis.Subject ?? string.Empty,
             DmarcRecord = analysis.DmarcRecord,
+            DnsRecordTtl = analysis.DnsRecordTtl,
             DmarcRecordExists = analysis.DmarcRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
             IsPolicyValid = analysis.IsPolicyValid,
@@ -64,6 +65,8 @@ public class DmarcRecordInfo
     public string Subject { get; set; } = string.Empty;
     /// <summary>Raw DMARC TXT record.</summary>
     public string DmarcRecord { get; set; } = string.Empty;
+    /// <summary>DNS TTL (seconds) of the DMARC TXT record.</summary>
+    public int? DnsRecordTtl { get; set; }
     public bool DmarcRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool IsPolicyValid { get; set; }

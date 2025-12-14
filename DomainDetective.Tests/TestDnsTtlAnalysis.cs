@@ -100,5 +100,30 @@ namespace DomainDetective.Tests {
 
             Assert.Contains(analysis.Warnings, w => w.Contains("differ significantly"));
         }
+
+        [Fact]
+        public async Task CapturesMtastsAndTlsRptTxtTtls() {
+            var analysis = new DnsTtlAnalysis {
+                DnsConfiguration = new DnsConfiguration(),
+                QueryDnsOverride = (name, type) => {
+                    if (type == DnsRecordType.DS) {
+                        return Task.FromResult(Array.Empty<DnsAnswer>());
+                    }
+                    if (type == DnsRecordType.TXT && name.StartsWith("_mta-sts.", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(new[] { new DnsAnswer { TTL = 1111, Type = type, DataRaw = "v=STSv1; id=abc" } });
+                    }
+                    if (type == DnsRecordType.TXT && name.StartsWith("_smtp._tls.", StringComparison.OrdinalIgnoreCase)) {
+                        return Task.FromResult(new[] { new DnsAnswer { TTL = 2222, Type = type, DataRaw = "v=TLSRPTv1; rua=mailto:test@example.com" } });
+                    }
+
+                    return Task.FromResult(new[] { new DnsAnswer { TTL = 3600, Type = type } });
+                }
+            };
+
+            await analysis.Analyze("example.com", new InternalLogger());
+
+            Assert.Contains(1111, analysis.MtastsTxtTtls);
+            Assert.Contains(2222, analysis.TlsRptTxtTtls);
+        }
     }
 }

@@ -376,7 +376,7 @@ namespace DomainDetective {
             try {
                 using var udp = new System.Net.Sockets.UdpClient();
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
-                var id = (ushort)new Random().Next(ushort.MaxValue);
+                var id = Helpers.DnsQueryIdGenerator.NextUShort();
                 var query = BuildQuery("example.com", id);
 #if NET8_0_OR_GREATER
                 await udp.SendAsync(query, server, 53, cts.Token);

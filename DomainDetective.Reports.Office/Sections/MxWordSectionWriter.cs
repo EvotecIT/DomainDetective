@@ -25,7 +25,18 @@ public static class MxWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("MX posture and integrity signals.");
-        var t = doc.AddTable(11, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(12, 2, WordTableStyle.TableGrid);
+        var ttlText = "-";
+        if (mx.MinMxTtl.HasValue && mx.MaxMxTtl.HasValue) {
+            var min = mx.MinMxTtl.Value;
+            var max = mx.MaxMxTtl.Value;
+            if (min == max) {
+                ttlText = min.ToString();
+            } else {
+                var avg = mx.AvgMxTtl.HasValue ? ((int)Math.Round(mx.AvgMxTtl.Value)).ToString() : "-";
+                ttlText = $"{min}-{max} (avg {avg})";
+            }
+        }
         t.Rows[0].Cells[0].Paragraphs[0].Text = "MX Records";
         t.Rows[0].Cells[1].Paragraphs[0].Text = (mx.MxRecords?.Count ?? 0).ToString();
         t.Rows[1].Cells[0].Paragraphs[0].Text = "Priorities In Order";
@@ -36,18 +47,20 @@ public static class MxWordSectionWriter
         t.Rows[3].Cells[1].Paragraphs[0].Text = mx.Ipv6Supported ? "Yes" : "No";
         t.Rows[4].Cells[0].Paragraphs[0].Text = "TTL Uniform";
         t.Rows[4].Cells[1].Paragraphs[0].Text = mx.MxTtlUniform ? "Yes" : "No";
-        t.Rows[5].Cells[0].Paragraphs[0].Text = "RRset Consistent Across NS";
-        t.Rows[5].Cells[1].Paragraphs[0].Text = mx.MxRrsetConsistentAcrossNs ? "Yes" : "No";
-        t.Rows[6].Cells[0].Paragraphs[0].Text = "Targets Consistent Across NS";
-        t.Rows[6].Cells[1].Paragraphs[0].Text = mx.TargetAddressConsistentAcrossNs ? "Yes" : "No";
-        t.Rows[7].Cells[0].Paragraphs[0].Text = "Null MX";
-        t.Rows[7].Cells[1].Paragraphs[0].Text = mx.HasNullMx ? "Yes" : "No";
-        t.Rows[8].Cells[0].Paragraphs[0].Text = "Status";
-        t.Rows[8].Cells[1].Paragraphs[0].Text = mx.Status ?? string.Empty;
-        t.Rows[9].Cells[0].Paragraphs[0].Text = "Primary Provider";
-        t.Rows[9].Cells[1].Paragraphs[0].Text = mx.ProviderPrimary ?? string.Empty;
-        t.Rows[10].Cells[0].Paragraphs[0].Text = "Gateways";
-        t.Rows[10].Cells[1].Paragraphs[0].Text = (mx.ProviderGateways != null && mx.ProviderGateways.Count > 0)
+        t.Rows[5].Cells[0].Paragraphs[0].Text = "MX TTL (s)";
+        t.Rows[5].Cells[1].Paragraphs[0].Text = ttlText;
+        t.Rows[6].Cells[0].Paragraphs[0].Text = "RRset Consistent Across NS";
+        t.Rows[6].Cells[1].Paragraphs[0].Text = mx.MxRrsetConsistentAcrossNs ? "Yes" : "No";
+        t.Rows[7].Cells[0].Paragraphs[0].Text = "Targets Consistent Across NS";
+        t.Rows[7].Cells[1].Paragraphs[0].Text = mx.TargetAddressConsistentAcrossNs ? "Yes" : "No";
+        t.Rows[8].Cells[0].Paragraphs[0].Text = "Null MX";
+        t.Rows[8].Cells[1].Paragraphs[0].Text = mx.HasNullMx ? "Yes" : "No";
+        t.Rows[9].Cells[0].Paragraphs[0].Text = "Status";
+        t.Rows[9].Cells[1].Paragraphs[0].Text = mx.Status ?? string.Empty;
+        t.Rows[10].Cells[0].Paragraphs[0].Text = "Primary Provider";
+        t.Rows[10].Cells[1].Paragraphs[0].Text = mx.ProviderPrimary ?? string.Empty;
+        t.Rows[11].Cells[0].Paragraphs[0].Text = "Gateways";
+        t.Rows[11].Cells[1].Paragraphs[0].Text = (mx.ProviderGateways != null && mx.ProviderGateways.Count > 0)
             ? string.Join(", ", mx.ProviderGateways)
             : string.Empty;
 

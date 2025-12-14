@@ -16,6 +16,7 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.TLSRPT),
             Subject = analysis.Subject,
             TlsRptRecord = analysis.TlsRptRecord,
+            DnsRecordTtl = analysis.DnsRecordTtl,
             TlsRptRecordExists = analysis.TlsRptRecordExists,
             MultipleRecords = analysis.MultipleRecords,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -44,6 +45,8 @@ public class TlsRptInfo
     public AnalysisArea Area { get; set; }
     public string? Subject { get; set; }
     public string? TlsRptRecord { get; set; }
+    /// <summary>DNS TTL (seconds) of the TLS-RPT TXT record.</summary>
+    public int? DnsRecordTtl { get; set; }
     public bool TlsRptRecordExists { get; set; }
     public bool MultipleRecords { get; set; }
     public bool StartsCorrectly { get; set; }

@@ -137,7 +137,7 @@ namespace DomainDetective {
 
         private static byte[] BuildQuery(string domain, ushort qtype) {
             var header = new byte[12];
-            var id = (ushort)new Random().Next(ushort.MaxValue);
+            var id = Helpers.DnsQueryIdGenerator.NextUShort();
             header[0] = (byte)(id >> 8);
             header[1] = (byte)(id & 0xFF);
             header[2] = 0x01; // RD

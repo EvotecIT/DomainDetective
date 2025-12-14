@@ -383,6 +383,8 @@ Analyze TTL values:
 Test-DnsTtl -DomainName "example.com"
 ```
 
+TTL metadata is also captured during email controls checks (SPF/DMARC/DKIM/MX/MTA-STS/TLS-RPT) and surfaced in the returned Views (and exports) without requiring `-HealthCheckType TTL`.
+
 Get concise summaries (Area/Check/Status/Summary) for views returned by cmdlets:
 
 ```powershell

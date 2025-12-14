@@ -160,6 +160,7 @@ public static class SectionProjectors
         sec.Summary.Add(("Status", spf.Status ?? "-"));
         sec.Summary.Add(("DNS Lookups", spf.DnsLookupsCount.ToString()));
         sec.Summary.Add(("Record Present", spf.SpfRecordExists ? "Yes" : "No"));
+        sec.Summary.Add(("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"));
         if (spf.StartsCorrectly) sec.Summary.Add(("Starts Correctly", "Yes")); else sec.Summary.Add(("Starts Correctly", "No"));
         if (!string.IsNullOrWhiteSpace(spf.Raw?.AllMechanism)) sec.Summary.Add(("All Mechanism", spf.Raw!.AllMechanism!));
         // Findings (exclude Info)
@@ -223,6 +224,7 @@ public static class SectionProjectors
         };
         sec.Summary.Add(("Status", sec.Status));
         sec.Summary.Add(("Policy", sec.Policy));
+        sec.Summary.Add(("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"));
         sec.Summary.Add(("rua", sec.RuaCount.ToString()));
         sec.Summary.Add(("ruf", sec.RufCount.ToString()));
         if (!string.IsNullOrWhiteSpace(d.DkimAlignment)) sec.Summary.Add(("adkim", d.DkimAlignment));
@@ -256,6 +258,7 @@ public static class SectionProjectors
                 Hash = string.IsNullOrWhiteSpace(k.HashAlgorithm) ? "-" : k.HashAlgorithm!,
                 Weak = k.WeakKey,
                 Flags = k.Flags ?? string.Empty,
+                TtlSeconds = k.DnsRecordTtl,
                 Record = k.DkimRecord ?? string.Empty
             });
         }
@@ -317,6 +320,10 @@ public static class SectionProjectors
         s.Summary.Add(("Has Backup Servers", mx.HasBackupServers ? "Yes" : "No"));
         s.Summary.Add(("IPv6 Supported", mx.Ipv6Supported ? "Yes" : "No"));
         s.Summary.Add(("Null MX", mx.HasNullMx ? "Yes" : "No"));
+        s.Summary.Add(("TTL Uniform", mx.MxTtlUniform ? "Yes" : "No"));
+        s.Summary.Add(("MX TTL Min (s)", mx.MinMxTtl?.ToString() ?? "-"));
+        s.Summary.Add(("MX TTL Avg (s)", mx.AvgMxTtl.HasValue ? ((int)Math.Round(mx.AvgMxTtl.Value)).ToString() : "-"));
+        s.Summary.Add(("MX TTL Max (s)", mx.MaxMxTtl?.ToString() ?? "-"));
         try { foreach (var rec in mx.MxRecords ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rec)) s.Records.Add(rec); } catch { }
         try { s.MailTlsSmtp = smtp?.Status; s.MailTlsImap = imap?.Status; s.MailTlsPop = pop?.Status; } catch { }
         foreach (var a in mx.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
@@ -333,6 +340,7 @@ public static class SectionProjectors
         s.Summary.Add(("Mode", s.Mode));
         s.Summary.Add(("Max-Age", m.MaxAge.ToString()));
         s.Summary.Add(("DNS Present", m.DnsRecordPresent ? "Yes" : "No"));
+        s.Summary.Add(("DNS TTL (s)", m.DnsRecordTtl?.ToString() ?? "-"));
         s.Summary.Add(("Policy Valid", m.PolicyValid ? "Yes" : "No"));
         s.Summary.Add(("MX Aligned", m.MxAligned ? "Yes" : "No"));
         foreach (var a in m.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
@@ -347,6 +355,7 @@ public static class SectionProjectors
         var s = new TlsRptSection { Status = t.Status ?? "-", RuaCount = t.MailtoRua?.Count ?? 0 };
         s.Summary.Add(("Status", s.Status));
         s.Summary.Add(("rua", s.RuaCount.ToString()));
+        s.Summary.Add(("DNS TTL (s)", t.DnsRecordTtl?.ToString() ?? "-"));
         foreach (var a in t.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         foreach (var p in t.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var tt = p?.Title ?? p?.Code; if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!); }
         foreach (var r in t.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(r)) s.References.Add(r);

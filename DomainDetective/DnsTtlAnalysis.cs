@@ -37,6 +37,10 @@ namespace DomainDetective {
         public IReadOnlyList<int> SpfTxtTtls { get; private set; } = Array.Empty<int>();
         /// <summary>TTL values for _dmarc TXT.</summary>
         public IReadOnlyList<int> DmarcTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for _mta-sts TXT.</summary>
+        public IReadOnlyList<int> MtastsTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for _smtp._tls TXT (TLS-RPT).</summary>
+        public IReadOnlyList<int> TlsRptTxtTtls { get; private set; } = Array.Empty<int>();
         /// <summary>TTL values for DKIM selector TXT records, keyed by FQDN (selector._domainkey.domain).</summary>
         public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; private set; } = new();
         /// <summary>Collection of warning messages produced during analysis.</summary>
@@ -56,6 +60,22 @@ namespace DomainDetective {
         public int MinTtlDmarcSeconds { get; set; } = 3600;
         /// <summary>Minimum TTL for DKIM selector TXT records (seconds).</summary>
         public int MinTtlDkimSelectorSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for MTA-STS TXT records (seconds).</summary>
+        public int MinTtlMtastsSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for TLS-RPT TXT records (seconds).</summary>
+        public int MinTtlTlsRptSeconds { get; set; } = 3600;
+
+        /// <summary>
+        /// UDP receive timeout (milliseconds) used when querying authoritative servers directly
+        /// during <see cref="AnalyzeUniformityAcrossServers"/>.
+        /// </summary>
+        public int UniformityQueryTimeoutMs { get; set; } = 4000;
+
+        /// <summary>
+        /// Maximum number of concurrent authoritative-server TTL queries performed by
+        /// <see cref="AnalyzeUniformityAcrossServers"/>.
+        /// </summary>
+        public int UniformityMaxParallelism { get; set; } = 8;
 
         // Per-authoritative-server TTL uniformity results
         public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
@@ -98,7 +118,7 @@ namespace DomainDetective {
         }
         private static byte[] BuildQuery(string domain, ushort qtype) {
             var header = new byte[12];
-            var id = (ushort)new Random().Next(ushort.MaxValue);
+            var id = Helpers.DnsQueryIdGenerator.NextUShort();
             header[0] = (byte)(id >> 8); header[1] = (byte)(id & 0xFF);
             header[2] = 0x01; header[5] = 0x01;
             var qname = EncodeDomainName(domain, true);
@@ -126,12 +146,14 @@ namespace DomainDetective {
             var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
             offset += 2; return v;
         }
-        private static async Task<byte[]?> QueryUdp(System.Net.IPAddress server, byte[] query, System.Threading.CancellationToken token) {
+        private static async Task<byte[]?> QueryUdp(System.Net.IPAddress server, byte[] query, System.Threading.CancellationToken token, int timeoutMs) {
             using var udp = new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? System.Net.IPAddress.IPv6Any : System.Net.IPAddress.Any, 0));
-            udp.Client.ReceiveTimeout = 4000;
+            udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 4000;
 #if NET6_0_OR_GREATER
+            using var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 4000);
             await udp.SendAsync(query, new System.Net.IPEndPoint(server, 53));
-            var res = await udp.ReceiveAsync(token);
+            var res = await udp.ReceiveAsync(cts.Token);
             return res.Buffer;
 #else
             await udp.SendAsync(query, query.Length, new System.Net.IPEndPoint(server, 53)).WaitWithCancellation(token);
@@ -159,9 +181,9 @@ namespace DomainDetective {
             }
             return null;
         }
-        private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct) {
+        private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
             var q = BuildQuery(name, qtype);
-            var buf = await QueryUdp(ip, q, ct);
+            var buf = await QueryUdp(ip, q, ct, timeoutMs);
             return buf != null ? ParseFirstAnswerTtl(buf, qtype) : null;
         }
 
@@ -181,6 +203,8 @@ namespace DomainDetective {
             SoaTtl = 0;
             SpfTxtTtls = Array.Empty<int>();
             DmarcTxtTtls = Array.Empty<int>();
+            MtastsTxtTtls = Array.Empty<int>();
+            TlsRptTxtTtls = Array.Empty<int>();
             DkimTxtTtls = new Dictionary<string, IReadOnlyList<int>>();
 
             var aRecords = await QueryDns(domainName, DnsRecordType.A);
@@ -191,6 +215,8 @@ namespace DomainDetective {
             var dsRecords = await QueryDns(domainName, DnsRecordType.DS);
             var txtApex = await QueryDns(domainName, DnsRecordType.TXT);
             var txtDmarc = await QueryDns($"_dmarc.{domainName}", DnsRecordType.TXT);
+            var txtMtasts = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            var txtTlsRpt = await QueryDns($"_smtp._tls.{domainName}", DnsRecordType.TXT);
 
             DnsSecSigned = dsRecords.Length > 0;
 
@@ -208,6 +234,16 @@ namespace DomainDetective {
             // Only treat TXT at _dmarc as DMARC when it actually contains a DMARC record
             DmarcTxtTtls = txtDmarc
                 .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=DMARC1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
+
+            MtastsTxtTtls = txtMtasts
+                .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=STSv1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
+
+            TlsRptTxtTtls = txtTlsRpt
+                .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) >= 0)
                 .Select(r => r.TTL)
                 .ToArray();
 
@@ -235,6 +271,8 @@ namespace DomainDetective {
             // Evaluate TXT categories with specific minima
             if (SpfTxtTtls.Any()) Evaluate("SPF TXT", SpfTxtTtls, MinTtlSpfSeconds, 86400, false, logger);
             if (DmarcTxtTtls.Any()) Evaluate("DMARC TXT", DmarcTxtTtls, MinTtlDmarcSeconds, 86400, false, logger);
+            if (MtastsTxtTtls.Any()) Evaluate("MTA-STS TXT", MtastsTxtTtls, MinTtlMtastsSeconds, 86400, false, logger);
+            if (TlsRptTxtTtls.Any()) Evaluate("TLS-RPT TXT", TlsRptTxtTtls, MinTtlTlsRptSeconds, 86400, false, logger);
         }
 
         /// <summary>
@@ -245,37 +283,96 @@ namespace DomainDetective {
             ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtPerName = new();
             AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
 
+            var timeoutMs = UniformityQueryTimeoutMs > 0 ? UniformityQueryTimeoutMs : 4000;
+            var maxParallelism = UniformityMaxParallelism > 0 ? UniformityMaxParallelism : 1;
+            using var semaphore = new System.Threading.SemaphoreSlim(maxParallelism, maxParallelism);
+
             // Discover authoritative NS hosts and IPs via resolver
             var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
             var nsHosts = nsAnswers.Select(a => a.Data?.Trim('.') ?? string.Empty).Where(h => !string.IsNullOrEmpty(h)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            var nsIps = new List<System.Net.IPAddress>();
+            var nsIps = new HashSet<System.Net.IPAddress>();
             foreach (var host in nsHosts) {
                 var a = await QueryDns(host, DnsRecordType.A);
-                foreach (var ans in a) if (System.Net.IPAddress.TryParse(ans.Data, out var ip)) nsIps.Add(ip);
+                foreach (var ans in a) {
+                    if (System.Net.IPAddress.TryParse(ans.Data, out var ip)) {
+                        nsIps.Add(ip);
+                    }
+                }
                 var aaaa = await QueryDns(host, DnsRecordType.AAAA);
-                foreach (var ans in aaaa) if (System.Net.IPAddress.TryParse(ans.Data, out var ip6)) nsIps.Add(ip6);
+                foreach (var ans in aaaa) {
+                    if (System.Net.IPAddress.TryParse(ans.Data, out var ip6)) {
+                        nsIps.Add(ip6);
+                    }
+                }
             }
-            if (nsIps.Count == 0) return;
+            if (nsIps.Count == 0) {
+                return;
+            }
 
-            foreach (var ip in nsIps) {
+            async Task<int?> SafeQuery(System.Net.IPAddress server, string name, ushort qtype, string label) {
+                await semaphore.WaitAsync(ct);
+                try {
+                    return await QueryTtlFromServer(server, name, qtype, ct, timeoutMs);
+                } catch (Exception ex) {
+                    logger?.WriteDebug("TTL uniformity query failed: server={0} label={1} name={2} qtype={3} error={4}", server, label, name, qtype, ex.Message);
+                    return null;
+                } finally {
+                    semaphore.Release();
+                }
+            }
+
+            var dkimSelectors = (DkimSelectors != null && DkimSelectors.Count > 0)
+                ? DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                : Array.Empty<string>();
+
+            var ipTasks = nsIps.Select(async ip => {
                 ct.ThrowIfCancellationRequested();
                 var key = ip.ToString();
-                try { ServerTtlA[key] = await QueryTtlFromServer(ip, domainName, 1, ct); } catch { ServerTtlA[key] = null; }
-                try { ServerTtlAaaa[key] = await QueryTtlFromServer(ip, domainName, 28, ct); } catch { ServerTtlAaaa[key] = null; }
-                try { ServerTtlNs[key] = await QueryTtlFromServer(ip, domainName, 2, ct); } catch { ServerTtlNs[key] = null; }
-                try { ServerTtlCname[key] = await QueryTtlFromServer(ip, domainName, 5, ct); } catch { ServerTtlCname[key] = null; }
-                // TXT names: apex (SPF) and _dmarc
-                try { ServerTtlTxtSpf[key] = await QueryTtlFromServer(ip, domainName, 16, ct); } catch { ServerTtlTxtSpf[key] = null; }
-                try { ServerTtlTxtDmarc[key] = await QueryTtlFromServer(ip, $"_dmarc.{domainName}", 16, ct); } catch { ServerTtlTxtDmarc[key] = null; }
-                // DKIM selectors
-                if (DkimSelectors != null && DkimSelectors.Count > 0)
-                {
-                    foreach (var sel in DkimSelectors.Distinct(StringComparer.OrdinalIgnoreCase))
-                    {
-                        var name = $"{sel}._domainkey.{domainName}";
-                        if (!ServerTtlTxtPerName.TryGetValue(name, out var map)) { map = new(); ServerTtlTxtPerName[name] = map; }
-                        try { map[key] = await QueryTtlFromServer(ip, name, 16, ct); } catch { map[key] = null; }
+
+                var aTask = SafeQuery(ip, domainName, 1, "A");
+                var aaaaTask = SafeQuery(ip, domainName, 28, "AAAA");
+                var nsTask = SafeQuery(ip, domainName, 2, "NS");
+                var cnameTask = SafeQuery(ip, domainName, 5, "CNAME");
+                var txtSpfTask = SafeQuery(ip, domainName, 16, "TXT(SPF)");
+                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "TXT(DMARC)");
+
+                await Task.WhenAll(aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask);
+
+                var dkim = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+                if (dkimSelectors.Length > 0) {
+                    var dkimTasks = dkimSelectors
+                        .Select(async sel => {
+                            var name = $"{sel}._domainkey.{domainName}";
+                            var ttl = await SafeQuery(ip, name, 16, "TXT(DKIM)");
+                            return (Name: name, Ttl: ttl);
+                        })
+                        .ToArray();
+
+                    var dkimResults = await Task.WhenAll(dkimTasks);
+                    foreach (var dkimResult in dkimResults) {
+                        dkim[dkimResult.Name] = dkimResult.Ttl;
                     }
+                }
+
+                return (Key: key, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: nsTask.Result, Cname: cnameTask.Result, TxtSpf: txtSpfTask.Result, TxtDmarc: txtDmarcTask.Result, Dkim: dkim);
+            }).ToArray();
+
+            var results = await Task.WhenAll(ipTasks);
+
+            foreach (var r in results) {
+                ServerTtlA[r.Key] = r.A;
+                ServerTtlAaaa[r.Key] = r.Aaaa;
+                ServerTtlNs[r.Key] = r.Ns;
+                ServerTtlCname[r.Key] = r.Cname;
+                ServerTtlTxtSpf[r.Key] = r.TxtSpf;
+                ServerTtlTxtDmarc[r.Key] = r.TxtDmarc;
+
+                foreach (var kv in r.Dkim) {
+                    if (!ServerTtlTxtPerName.TryGetValue(kv.Key, out var map)) {
+                        map = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+                        ServerTtlTxtPerName[kv.Key] = map;
+                    }
+                    map[r.Key] = kv.Value;
                 }
             }
 
