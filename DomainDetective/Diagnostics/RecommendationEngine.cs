@@ -61,7 +61,7 @@ public static class RecommendationEngine {
         // Group primarily by code; when code is missing, synthesize a stable key
         // from normalized recommendation title/how so duplicates merge across domains.
         static string Normalize(string? s) {
-            if (string.IsNullOrWhiteSpace(s)) return string.Empty;
+            if (s == null || string.IsNullOrWhiteSpace(s)) return string.Empty;
             var span = s.Trim().ToLowerInvariant();
             // Collapse whitespace and strip trivial punctuation for stability
             span = System.Text.RegularExpressions.Regex.Replace(span, "\n|\r", " ");

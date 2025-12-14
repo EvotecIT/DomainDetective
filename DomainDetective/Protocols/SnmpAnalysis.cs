@@ -32,18 +32,18 @@ public class SnmpAnalysis : IHasAssessments
     /// <summary>Tests a single server for SNMP responses.</summary>
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)
     {
-        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}") : null;
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}");
         Subject ??= $"{host}:{port}";
         ServerResults.Clear();
         var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = result;
         if (result)
         {
-            logger?.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
+            logger.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
         }
         else
         {
-            logger?.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+            logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
         }
     }
 
@@ -56,16 +56,16 @@ public class SnmpAnalysis : IHasAssessments
             foreach (var port in ports)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}") : null;
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SNMP", target: $"{host}:{port}");
                 var result = await CheckSnmpAsync(host, port, logger, cancellationToken);
                 ServerResults[$"{host}:{port}"] = result;
                 if (result)
                 {
-                    logger?.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
+                    logger.WriteWarningCode(SnmpCodes.Responds, "SNMP responded on {0}:{1}", host, port);
                 }
                 else
                 {
-                    logger?.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
+                    logger.WriteInformationCode(SnmpCodes.Disabled, "SNMP disabled or secured on {0}:{1}", host, port);
                 }
             }
         }
@@ -81,8 +81,9 @@ public class SnmpAnalysis : IHasAssessments
         try
         {
             IPAddress address;
-            if (!IPAddress.TryParse(host, out address))
-            {
+            if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null) {
+                address = parsedAddress;
+            } else {
                 address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
             }
 

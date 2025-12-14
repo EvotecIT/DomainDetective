@@ -18,28 +18,28 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DNSBLRecord {
         /// <summary>Plain IPv4/IPv6 for IP-based checks; null for domain-based checks.</summary>
-        public string IpAddress { get; set; }
+        public string? IpAddress { get; set; }
         /// <summary>Indicates where the IP address originated from (for IP-based checks).</summary>
         public DnsblIpSource? IpSource { get; set; }
         /// <summary>Optional host label that produced the IP (e.g., apex domain or MX host).</summary>
-        public string SourceHost { get; set; }
+        public string? SourceHost { get; set; }
         /// <summary>Indicates whether this record came from a domain or IP-based query.</summary>
         public DnsblQueryKind QueryKind { get; set; }
         /// <summary>Gets or sets the blacklist domain.</summary>
-        public string BlackList { get; set; }
+        public string BlackList { get; set; } = null!;
         //public string BlackListReason { get; set; }
         /// <summary>Gets or sets a value indicating whether the address was listed.</summary>
         public bool IsBlackListed { get; set; }
         /// <summary>Gets or sets the raw DNSBL response.</summary>
-        public string Answer { get; set; }
+        public string Answer { get; set; } = null!;
         /// <summary>Gets or sets the interpreted meaning of <see cref="Answer"/>.</summary>
-        public string ReplyMeaning { get; set; }
+        public string ReplyMeaning { get; set; } = null!;
         //public string NameServer { get; set; }
         /// <summary>Gets or sets the fully qualified domain name that was queried.</summary>
-        public string FQDN { get; set; }
+        public string FQDN { get; set; } = null!;
         /// <summary>DNSBL base query label (e.g., reversed IP or domain without provider).
         /// For provider-specific full query, see <see cref="FQDN"/>.</summary>
-        public string Query { get; set; }
+        public string Query { get; set; } = null!;
     }
 
     /// <summary>
@@ -48,9 +48,9 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DNSQueryResult {
         /// <summary>Gets or sets the host that was checked.</summary>
-        public string Host { get; set; }
+        public string Host { get; set; } = null!;
         /// <summary>Gets or sets the DNSBL results.</summary>
-        public IEnumerable<DNSBLRecord> DNSBLRecords { get; set; }
+        public IEnumerable<DNSBLRecord> DNSBLRecords { get; set; } = Array.Empty<DNSBLRecord>();
         /// <summary>Gets the number of blacklists that reported a listing.</summary>
         public int Listed => DNSBLRecords.Count(record => record.IsBlackListed);
 
@@ -71,7 +71,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DnsblEntry {
         /// <summary>Gets or sets the blacklist domain.</summary>
-        public string Domain { get; set; }
+        public string Domain { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the entry is used during checks.</summary>
         public bool Enabled { get; set; } = true;
         /// <summary>Gets or sets optional descriptive text.</summary>
@@ -197,7 +197,7 @@ namespace DomainDetective {
         /// <summary>Gets a flattened list of all DNSBL records returned.</summary>
         public List<DNSBLRecord> AllResults { get; private set; } = new List<DNSBLRecord>();
 
-        internal InternalLogger Logger { get; set; } = new InternalLogger();
+        internal InternalLogger? Logger { get; set; } = new InternalLogger();
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
@@ -265,11 +265,10 @@ namespace DomainDetective {
                 foreach (var mx in mxRecords) {
                     var data = (mx.Data ?? string.Empty).Trim();
                     if (string.IsNullOrEmpty(data)) continue;
-                    string host = null;
                     var parts = data.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 0) continue;
                     for (int i = 0; i < parts.Length; i++) parts[i] = parts[i].Trim();
-                    if (parts.Length >= 2) host = parts[1];
-                    else host = parts[0];
+                    var host = parts.Length >= 2 ? parts[1] : parts[0];
                     if (host.EndsWith(".", StringComparison.Ordinal)) host = host.Substring(0, host.Length - 1);
                     if (!string.IsNullOrWhiteSpace(host)) hosts.Add(host);
                 }
@@ -486,12 +485,11 @@ namespace DomainDetective {
 
             // Check if the input is an IP address or a hostname
             string name;
-            var isIp = IPAddress.TryParse(ipAddressOrHostname, out IPAddress ipAddress);
-            if (isIp) {
-                name = FormatDnsblName(ipAddress);
-            } else {
-                name = ipAddressOrHostname;
-            }
+            var isIp = IPAddress.TryParse(ipAddressOrHostname, out IPAddress? ipAddress);
+            var queryKind = (isIp && ipAddress != null)
+                ? (ipAddress.AddressFamily == AddressFamily.InterNetwork ? DnsblQueryKind.IpAddressV4 : DnsblQueryKind.IpAddressV6)
+                : DnsblQueryKind.Domain;
+            name = (isIp && ipAddress != null) ? FormatDnsblName(ipAddress) : ipAddressOrHostname;
 
             List<string> queries = new List<string>();
             foreach (var dnsbl in dnsblList) {
@@ -519,7 +517,7 @@ namespace DomainDetective {
                 }
             }
 
-            if (IPAddress.TryParse(ipAddressOrHostname, out IPAddress ip) && ip.AddressFamily == AddressFamily.InterNetworkV6) {
+            if (queryKind == DnsblQueryKind.IpAddressV6) {
                 try {
                     var resultAaaa = (await QueryFullDns(queries.ToArray(), DnsRecordType.AAAA)).ToArray();
                     for (int i = 0; i < queries.Count; i++) {
@@ -550,7 +548,7 @@ namespace DomainDetective {
                         IpAddress = isIp ? ipAddressOrHostname : null,
                         IpSource = ipSource,
                         SourceHost = sourceHost,
-                        QueryKind = isIp ? (ipAddress.AddressFamily == AddressFamily.InterNetwork ? DnsblQueryKind.IpAddressV4 : DnsblQueryKind.IpAddressV6) : DnsblQueryKind.Domain,
+                        QueryKind = queryKind,
                         FQDN = pair.Key,
                         BlackList = blacklist,
                         IsBlackListed = false,
@@ -568,7 +566,7 @@ namespace DomainDetective {
                             IpAddress = isIp ? ipAddressOrHostname : null,
                             IpSource = ipSource,
                             SourceHost = sourceHost,
-                            QueryKind = isIp ? (ipAddress.AddressFamily == AddressFamily.InterNetwork ? DnsblQueryKind.IpAddressV4 : DnsblQueryKind.IpAddressV6) : DnsblQueryKind.Domain,
+                            QueryKind = queryKind,
                             FQDN = record.Name,
                             BlackList = blacklist,
                             IsBlackListed = true,
@@ -677,7 +675,7 @@ namespace DomainDetective {
                     trimmed = trimmed.Substring(1).Trim();
                 }
 
-                string comment = null;
+                string? comment = null;
                 var commentIndex = trimmed.IndexOf('#');
                 if (commentIndex >= 0) {
                     comment = trimmed.Substring(commentIndex + 1).Trim();

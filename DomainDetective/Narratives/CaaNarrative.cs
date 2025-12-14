@@ -12,8 +12,16 @@ public static class CaaNarrative
 
     public static Sections Build(CAAAnalysis caa)
     {
-        var s = caa?.Subject;
-        var subj = string.IsNullOrWhiteSpace(s) ? "(domain)" : s;
+        var subjCandidate = caa.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"CAA Report — {subj}";
         var subtitle = "CAA Assessment";
         var category = "TLS Security";

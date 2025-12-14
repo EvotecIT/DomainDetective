@@ -67,9 +67,11 @@ namespace DomainDetective {
                 }
             }
 
-            LocationUsesHttps = string.IsNullOrEmpty(Location) || Location.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
-            AuthorityUsesHttps = string.IsNullOrEmpty(Authority) || Authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
-            DeclinedToPublish = string.IsNullOrEmpty(Location) && string.IsNullOrEmpty(Authority);
+            var location = Location;
+            LocationUsesHttps = location == null || location.Length == 0 || location.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            var authority = Authority;
+            AuthorityUsesHttps = authority == null || authority.Length == 0 || authority.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+            DeclinedToPublish = (location == null || location.Length == 0) && (authority == null || authority.Length == 0);
         }
     }
 }

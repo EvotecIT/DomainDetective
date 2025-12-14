@@ -46,7 +46,7 @@ namespace DomainDetective
                 string? record = SpfRecordExists && string.Equals(d, Subject, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(SpfRecord)
                     ? SpfRecord
                     : await GetRecordAsync(d);
-                if (string.IsNullOrWhiteSpace(record)) return (false, "neutral", string.Empty, string.Empty, null, chain);
+                if (record == null || string.IsNullOrWhiteSpace(record)) return (false, "neutral", string.Empty, string.Empty, null, chain);
                 var parts = TokenizeSpfRecord(record).ToArray();
                 foreach (var p in parts)
                 {

@@ -40,7 +40,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
         }
         foreach (var line in logLines)
         {
-            if (string.IsNullOrWhiteSpace(line))
+            if (line == null || string.IsNullOrWhiteSpace(line))
             {
                 continue;
             }

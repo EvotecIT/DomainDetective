@@ -28,9 +28,14 @@ public sealed class VirusTotalClient
     public VirusTotalClient(string? apiKey = null, string? baseUrl = null)
     {
         ApiKey = apiKey;
-        BaseUrl = string.IsNullOrWhiteSpace(baseUrl)
-            ? "https://www.virustotal.com/api/v3"
-            : baseUrl.TrimEnd('/');
+        if (baseUrl != null && !string.IsNullOrWhiteSpace(baseUrl))
+        {
+            BaseUrl = baseUrl.TrimEnd('/');
+        }
+        else
+        {
+            BaseUrl = "https://www.virustotal.com/api/v3";
+        }
     }
 
     private HttpClient GetClient(out bool dispose)

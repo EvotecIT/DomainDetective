@@ -232,22 +232,22 @@ public class IPNeighborAnalysis : IHasAssessments
                     }
                     if (list.Count > 50)
                     {
-                        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: ipStr) : null;
-                        logger?.WriteWarningCode(IpNeighborCodes.MailOnSharedIp, "MX IP {0} hosts {1} domains", ipStr, list.Count);
+                        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: ipStr);
+                        logger.WriteWarningCode(IpNeighborCodes.MailOnSharedIp, "MX IP {0} hosts {1} domains", ipStr, list.Count);
                     }
                 }
                 catch (Exception ex)
                 {
                     lock (Errors) { Errors.Add(ex); }
-                    logger?.WriteErrorCode(IpNeighborCodes.AnalysisFailed, "Neighbor analysis failed for MX IP {0}: {1}", ipStr, ex.Message);
+                    logger.WriteErrorCode(IpNeighborCodes.AnalysisFailed, "Neighbor analysis failed for MX IP {0}: {1}", ipStr, ex.Message);
                 }
             }
         }
 
         if (!Results.Any(r => r.CoHostCount > 50))
         {
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: domainName) : null;
-            logger?.WriteInformationCode(IpNeighborCodes.NoMaliciousNeighbors, "No malicious IP neighbors detected");
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "IPNeighbor", target: domainName);
+            logger.WriteInformationCode(IpNeighborCodes.NoMaliciousNeighbors, "No malicious IP neighbors detected");
         }
     }
 

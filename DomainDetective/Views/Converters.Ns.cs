@@ -13,7 +13,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.NS,
             Area = AreaForKind(HealthCheckType.NS),
-            Subject = analysis.Subject, // if null, leave null
+            Subject = analysis.Subject ?? string.Empty,
             NsRecords = analysis.NsRecords,
             NsRecordExists = analysis.NsRecordExists,
             HasDuplicates = analysis.HasDuplicates,

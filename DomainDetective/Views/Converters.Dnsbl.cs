@@ -21,7 +21,7 @@ public static partial class Converters
 
         var listedRecords = analysis.AllResults?.Where(r => r.IsBlackListed).ToList() ?? new List<DNSBLRecord>();
         // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
-        string subject = analysis.Subject;
+        string subject = analysis.Subject ?? string.Empty;
 
         return new DnsblInfo
         {

@@ -14,9 +14,9 @@ public static partial class Converters
         {
             Check = HealthCheckType.CONTACT,
             Area = AreaForKind(HealthCheckType.CONTACT),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             RecordExists = analysis.RecordExists,
-            ContactRecord = analysis.ContactRecord,
+            ContactRecord = analysis.ContactRecord ?? string.Empty,
             Fields = analysis.Fields,
             Assessments = analysis.Assessments,
             Status = status,

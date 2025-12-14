@@ -16,7 +16,7 @@ public partial class WebStaticScanAnalysis
 {
     private async Task<(List<string> schedule, HashSet<string> seen)> DiscoverResourcesAndBuildSchedule(Uri baseUri, string? body, HttpClient http, InternalLogger logger, CancellationToken cancellationToken)
     {
-        logger?.WriteVerbose("[WEB] Discover from HTML ...");
+        logger.WriteVerbose("[WEB] Discover from HTML ...");
         var discovered = new List<string>();
         WebStaticScanAnalysis.RobotsRules? robots = null;
         if (RespectRobots)
@@ -28,7 +28,7 @@ public partial class WebStaticScanAnalysis
             foreach (Match m in _attrRegex.Matches(body))
             {
                 var v = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Success ? m.Groups[2].Value : null;
-                if (string.IsNullOrWhiteSpace(v)) continue;
+                if (v == null || string.IsNullOrWhiteSpace(v)) continue;
                 v = v.Trim();
                 if (v.StartsWith("#") || v.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)) continue;
                 try
@@ -82,7 +82,7 @@ public partial class WebStaticScanAnalysis
                 if (kv.Value.Count == 0) buckets.Remove(kv.Key);
             }
         }
-        logger?.WriteVerbose("[WEB] Discovery complete: {0} unique", schedule.Count);
+        logger.WriteVerbose("[WEB] Discovery complete: {0} unique", schedule.Count);
         return (schedule, seen);
     }
 
@@ -92,7 +92,7 @@ public partial class WebStaticScanAnalysis
         var hostCounts = new ConcurrentDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         int cap = Math.Max(1, (DiscoveryConcurrency > 0 ? DiscoveryConcurrency : Concurrency));
         using var gate = new SemaphoreSlim(cap);
-        logger?.WriteVerbose("[WEB] Fetching headers for {0} resources (cap={1})", schedule.Count, cap);
+        logger.WriteVerbose("[WEB] Fetching headers for {0} resources (cap={1})", schedule.Count, cap);
         var tasks = new List<Task>(schedule.Count);
         foreach (var res in schedule)
         {
@@ -137,7 +137,9 @@ public partial class WebStaticScanAnalysis
                             lock (_sync) {
                                 if (Hosts.TryGetValue(host, out var hh)) {
                                     if (string.IsNullOrWhiteSpace(hh.ServerHeader) && resp.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
-                                    if (!hh.HostHstsPresent && (resp.Headers.Contains("Strict-Transport-Security") || resp.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
+                                    if (!hh.HostHstsPresent && (resp.Headers.Contains("Strict-Transport-Security") || resp.Content?.Headers?.Contains("Strict-Transport-Security") == true)) {
+                                        hh.HostHstsPresent = true;
+                                    }
                                 }
                             }
                         } catch { }
@@ -180,7 +182,9 @@ public partial class WebStaticScanAnalysis
                                 lock (_sync) {
                                     if (Hosts.TryGetValue(host, out var hh)) {
                                         if (string.IsNullOrWhiteSpace(hh.ServerHeader) && get.Headers.TryGetValues("Server", out var sh)) hh.ServerHeader = System.Linq.Enumerable.FirstOrDefault(sh);
-                                        if (!hh.HostHstsPresent && (get.Headers.Contains("Strict-Transport-Security") || get.Content.Headers.Contains("Strict-Transport-Security"))) hh.HostHstsPresent = true;
+                                        if (!hh.HostHstsPresent && (get.Headers.Contains("Strict-Transport-Security") || get.Content?.Headers?.Contains("Strict-Transport-Security") == true)) {
+                                            hh.HostHstsPresent = true;
+                                        }
                                     }
                                 }
                             } catch { }
@@ -211,7 +215,10 @@ public partial class WebStaticScanAnalysis
                         req.ParentId = Requests.Count > 0 ? Requests[0].Id : (int?)null;
                         Requests.Add(req);
                         _requestIdByUrl.TryAdd(req.Url, req.Id);
-                        if (!string.IsNullOrWhiteSpace(req.FinalUrl)) _requestIdByUrl.TryAdd(req.FinalUrl, req.Id);
+                        var finalUrl = req.FinalUrl;
+                        if (finalUrl != null && !string.IsNullOrWhiteSpace(finalUrl)) {
+                            _requestIdByUrl.TryAdd(finalUrl, req.Id);
+                        }
                         if (!Hosts.TryGetValue(req.Host, out var h))
                         {
                             h = new StaticHost { Host = req.Host, RegistrableDomain = GetRegistrableDomain?.Invoke(req.Host) };
@@ -259,7 +266,7 @@ public partial class WebStaticScanAnalysis
             }, cancellationToken));
         }
         await Task.WhenAll(tasks);
-        logger?.WriteVerbose("[WEB] Header fetch complete. CSS candidates: {0}", cssCandidates.Count);
+        logger.WriteVerbose("[WEB] Header fetch complete. CSS candidates: {0}", cssCandidates.Count);
         return (cssCandidates, hostCounts);
     }
 }

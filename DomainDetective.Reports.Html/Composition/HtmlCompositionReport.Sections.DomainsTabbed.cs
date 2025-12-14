@@ -103,7 +103,8 @@ public static partial class HtmlCompositionReport
                                                             }
                                                         } catch { }
 
-                                                    if ((b.Spf.Highlights?.Count ?? 0) > 0) { c2.Divider("Highlights"); foreach (var t in b.Spf.Highlights) c2.Text("• " + t); }
+                                                    var spfHighlights = b.Spf.Highlights;
+                                                    if (spfHighlights != null && spfHighlights.Count > 0) { c2.Divider("Highlights"); foreach (var t in spfHighlights) c2.Text("• " + t); }
                                                     var spfSec = DomainDetective.Reports.SectionProjectors.BuildSpf(b.Spf);
                                                     if ((spfSec?.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var t in spfSec!.Positives) c2.Text("• " + t); }
                                                     if ((spfSec?.Findings?.Count ?? 0) > 0) { c2.Divider("Findings"); var rows = spfSec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
@@ -128,7 +129,8 @@ public static partial class HtmlCompositionReport
                                                             g.AddItem("mailto RUA", (b.Dmarc.MailtoRua?.Count ?? 0).ToString()).AsPanel();
                                                             g.AddItem("mailto RUF", (b.Dmarc.MailtoRuf?.Count ?? 0).ToString()).AsPanel();
                                                         });
-                                                        if ((b.Dmarc.Highlights?.Count ?? 0) > 0) { c2.Divider("Highlights"); foreach (var t in b.Dmarc.Highlights) c2.Text("• " + t); }
+                                                        var dmarcHighlights = b.Dmarc.Highlights;
+                                                        if (dmarcHighlights != null && dmarcHighlights.Count > 0) { c2.Divider("Highlights"); foreach (var t in dmarcHighlights) c2.Text("• " + t); }
                                                         var dmSec = DomainDetective.Reports.SectionProjectors.BuildDmarc(b.Dmarc);
                                                         if ((dmSec?.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var t in dmSec!.Positives) c2.Text("• " + t); }
                                                         if ((dmSec?.Findings?.Count ?? 0) > 0) { c2.Divider("Findings"); var rows = dmSec!.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList(); var t = (DataTablesTable)c2.Table(rows, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
@@ -187,10 +189,11 @@ public static partial class HtmlCompositionReport
                                                         g.AddItem("Null MX", b.Mx.HasNullMx ? "Yes" : "No").AsPanel();
                                                     });
                                                     // MX records
-                                                    if ((b.Mx.MxRecords?.Count ?? 0) > 0)
+                                                    var mxRecords = b.Mx.MxRecords;
+                                                    if (mxRecords != null && mxRecords.Count > 0)
                                                     {
                                                         c2.Divider("Records");
-                                                        var mxRows = b.Mx.MxRecords.Select(x => new { Host = x }).ToList();
+                                                        var mxRows = mxRecords.Select(x => new { Host = x }).ToList();
                                                         var tmx = (TablerTable)c2.Table(mxRows, TableType.Tabler); tmx.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                                                     }
                                                     // MailTLS summary
@@ -204,7 +207,8 @@ public static partial class HtmlCompositionReport
                                                         }.ToList();
                                                         var ttls = (TablerTable)c2.Table(tlsRows, TableType.Tabler); ttls.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                                                     }
-                                                    if ((b.Mx.Positives?.Count ?? 0) > 0) { c2.Divider("Good Posture"); foreach (var p in b.Mx.Positives) if (!string.IsNullOrWhiteSpace(p?.Title)) c2.Text("• " + p!.Title!); }
+                                                    var mxPositives = b.Mx.Positives;
+                                                    if (mxPositives != null && mxPositives.Count > 0) { c2.Divider("Good Posture"); foreach (var p in mxPositives) if (!string.IsNullOrWhiteSpace(p?.Title)) c2.Text("• " + p!.Title!); }
                                                     var mxFind = (b.Mx.Assessments ?? System.Array.Empty<DomainDetective.Assessment>()).Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info).Select(a => new { Severity = a.Severity.ToString(), a.Code, a.Target, a.Message }).ToList();
                                                     if (mxFind.Count > 0) { c2.Divider("Findings"); var t = (DataTablesTable)c2.Table(mxFind, TableType.DataTables); t.EnablePaging(10, new[]{10,25,50}).EnableSearching().EnableOrdering(); }
                                                     if ((b.Mx.References?.Count ?? 0) > 0) { c2.Divider("References"); var refs = b.Mx.References!.Where(s => !string.IsNullOrWhiteSpace(s)).ToList(); if (refs.Count > 0) { c2.Row(rr => { rr.Gap(2); foreach (var u in refs) { var f = DomainDetective.Reports.LinkFormatter.Format(u); rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url)); } }); } }

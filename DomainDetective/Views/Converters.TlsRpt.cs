@@ -42,24 +42,24 @@ public class TlsRptInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string TlsRptRecord { get; set; }
+    public string? Subject { get; set; }
+    public string? TlsRptRecord { get; set; }
     public bool TlsRptRecordExists { get; set; }
     public bool MultipleRecords { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool RuaDefined { get; set; }
-    public IReadOnlyList<string> MailtoRua { get; set; }
-    public IReadOnlyList<string> HttpRua { get; set; }
-    public IReadOnlyList<string> InvalidRua { get; set; }
-    public IReadOnlyList<string> UnknownTags { get; set; }
+    public IReadOnlyList<string> MailtoRua { get; set; } = null!;
+    public IReadOnlyList<string> HttpRua { get; set; } = null!;
+    public IReadOnlyList<string> InvalidRua { get; set; } = null!;
+    public IReadOnlyList<string> UnknownTags { get; set; } = null!;
     public bool PolicyValid { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public TLSRPTAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public TLSRPTAnalysis Raw { get; set; } = null!;
 }

@@ -19,9 +19,18 @@ public static class PortScanNarrative
     /// <param name="analysis">The port scan analysis to summarize.</param>
     /// <param name="assessments">Optional assessments to include.</param>
     /// <returns>The narrative sections describing the analysis.</returns>
-    public static Sections Build(PortScanAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(PortScanAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"Port Scan Report — {subj}";
         var subtitle = "Port Scan Assessment";
         var category = "Network Security";
@@ -54,7 +63,8 @@ public static class PortScanNarrative
         foreach (var kv in sorted)
         {
             var r = kv.Value;
-            var bannerText = string.IsNullOrWhiteSpace(r.Banner) ? string.Empty : r.Banner.Trim();
+            var banner = r.Banner;
+            var bannerText = (banner != null && !string.IsNullOrWhiteSpace(banner)) ? banner.Trim() : string.Empty;
             var status = r.TcpOpen || r.UdpOpen;
 
             if (status)

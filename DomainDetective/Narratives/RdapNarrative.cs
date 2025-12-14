@@ -9,7 +9,7 @@ public static class RdapNarrative
 
     public static Sections Build(RdapAnalysis rdap)
     {
-        var subj = string.IsNullOrWhiteSpace(rdap?.DomainName) ? "(domain)" : rdap.DomainName;
+        var subj = string.IsNullOrWhiteSpace(rdap.DomainName) ? "(domain)" : rdap.DomainName;
         var title = $"RDAP Report — {subj}";
         var subtitle = "RDAP Registration";
         var category = "Domain Registration";

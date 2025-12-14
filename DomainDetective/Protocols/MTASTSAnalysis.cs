@@ -103,7 +103,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// instead of constructing one from the domain name. Primarily
         /// intended for testing.
         /// </summary>
-        public string PolicyUrlOverride { get; set; } = string.Empty;
+        public string? PolicyUrlOverride { get; set; }
 
         /// <summary>
         /// Provides DNS configuration used for queries.
@@ -128,10 +128,10 @@ public class MTASTSAnalysis : IHasAssessments {
         /// <summary>
         /// Gets the policy ID extracted from the TXT record.
         /// </summary>
-        public string PolicyId { get; private set; }
+        public string PolicyId { get; private set; } = string.Empty;
 
         /// <summary>Summary message describing MTA-STS status.</summary>
-        public string Advisory { get; private set; }
+        public string Advisory { get; private set; } = string.Empty;
 
         /// <summary>Indicates whether policy MX patterns cover actual DNS MX hosts.</summary>
         public bool MxAligned { get; private set; }
@@ -147,7 +147,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// Resets analysis state so the instance can be reused.
         /// </summary>
         public void Reset() {
-            Domain = null;
+            Domain = string.Empty;
             PolicyPresent = false;
             PolicyValid = false;
             ValidVersion = false;
@@ -159,10 +159,10 @@ public class MTASTSAnalysis : IHasAssessments {
             Mode = string.Empty;
             MaxAge = 0;
             Mx = new List<string>();
-            Policy = null;
+            Policy = string.Empty;
             DnsRecordPresent = false;
             DnsRecordValid = false;
-            PolicyId = null;
+            PolicyId = string.Empty;
             Advisory = string.Empty;
             MxAligned = false;
             MissingMxFromPolicy = new List<string>();
@@ -192,7 +192,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 return;
             }
 
-            ParseDnsRecord(string.Join(string.Empty, dns.Select(r => r.Data)));
+            ParseDnsRecord(string.Join(string.Empty, (dns ?? Array.Empty<DnsAnswer>()).Select(r => r.Data ?? string.Empty)));
             if (!DnsRecordValid) {
                 PolicyValid = false;
                 UpdateAdvisory();
@@ -211,7 +211,7 @@ public class MTASTSAnalysis : IHasAssessments {
                 return;
             }
 
-            string content = await GetPolicy(url);
+            string? content = await GetPolicy(url);
             if (content == null) {
                 PolicyPresent = false;
                 PolicyValid = false;
@@ -283,7 +283,7 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         /// <param name="url">The policy URL.</param>
         /// <returns>The policy text or <see langword="null"/> if the request failed.</returns>
-        private async Task<string> GetPolicy(string url) {
+        private async Task<string?> GetPolicy(string url) {
             try {
                 var response = await _client.GetAsync(url);
                 if (response.IsSuccessStatusCode) {
@@ -306,7 +306,7 @@ public class MTASTSAnalysis : IHasAssessments {
 
         private void ParseDnsRecord(string record) {
             DnsRecordValid = false;
-            PolicyId = null;
+            PolicyId = string.Empty;
             if (string.IsNullOrWhiteSpace(record)) {
                 return;
             }
@@ -351,7 +351,7 @@ public class MTASTSAnalysis : IHasAssessments {
             ValidMode = false;
             ValidMaxAge = false;
             HasMx = false;
-            Mode = null;
+            Mode = string.Empty;
             MaxAge = 0;
             Mx = new List<string>();
 

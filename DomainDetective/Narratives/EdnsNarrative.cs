@@ -8,9 +8,18 @@ public static class EdnsNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(EdnsSupportAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(EdnsSupportAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"EDNS Support Report — {subj}";
         var subtitle = "EDNS Assessment";
         var category = "DNS Infrastructure";
@@ -76,7 +85,7 @@ public static class EdnsNarrative
 
         try
         {
-            var assess = assessments ?? analysis.Assessments;
+            var assess = assessments ?? analysis.Assessments ?? new List<Assessment>();
             (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
         catch

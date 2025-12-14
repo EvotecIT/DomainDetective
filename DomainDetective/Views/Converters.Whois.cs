@@ -47,25 +47,25 @@ public class WhoisInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string WhoisServer { get; set; }
-    public string LookupSource { get; set; }
-    public string Registrar { get; set; }
-    public string RegistrarId { get; set; }
-    public string ExpiryDate { get; set; }
+    public string Subject { get; set; } = null!;
+    public string? WhoisServer { get; set; }
+    public string? LookupSource { get; set; }
+    public string? Registrar { get; set; }
+    public string? RegistrarId { get; set; }
+    public string? ExpiryDate { get; set; }
     public int? DaysUntilExpiration { get; set; }
     public bool ExpiresSoon { get; set; }
     public bool IsExpired { get; set; }
     public bool RegistrarLocked { get; set; }
     public bool PrivacyProtected { get; set; }
-    public IReadOnlyList<string> NameServers { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<string> NameServers { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public WhoisAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public WhoisAnalysis Raw { get; set; } = null!;
 }

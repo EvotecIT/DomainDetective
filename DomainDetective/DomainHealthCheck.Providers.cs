@@ -41,7 +41,7 @@ public partial class DomainHealthCheck
                 foreach (var kv in DKIMAnalysis.AnalysisResults)
                 {
                     var cn = kv.Value?.CnameTarget;
-                    if (!string.IsNullOrWhiteSpace(cn)) dkimCnames.Add(cn);
+                    if (cn != null && !string.IsNullOrWhiteSpace(cn)) dkimCnames.Add(cn);
                 }
             }
 
@@ -120,7 +120,10 @@ public partial class DomainHealthCheck
                             {
                                 var prov = EmailProviderMatch?.Primary ?? outbound.FirstOrDefault();
                                 string? help = null;
-                                try { var meta = prov?.Docs?.Get("DMARC"); if (!string.IsNullOrWhiteSpace(meta?.Url)) help = meta.Url; } catch { }
+                                try {
+                                    var metaUrl = prov?.Docs?.Get("DMARC")?.Url;
+                                    if (metaUrl != null && !string.IsNullOrWhiteSpace(metaUrl)) help = metaUrl;
+                                } catch { }
                                 var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
                                 DmarcAnalysis.Assessments.Add(new Assessment
                                 {
@@ -173,7 +176,10 @@ public partial class DomainHealthCheck
                                     _ => "Use sp= to match the organizational policy (quarantine/reject)."
                                 };
                                 string? help = null;
-                                try { var meta = EmailProviderMatch?.Primary?.Docs?.Get("DMARC"); if (!string.IsNullOrWhiteSpace(meta?.Url)) help = meta.Url; } catch { }
+                                try {
+                                    var metaUrl = EmailProviderMatch?.Primary?.Docs?.Get("DMARC")?.Url;
+                                    if (metaUrl != null && !string.IsNullOrWhiteSpace(metaUrl)) help = metaUrl;
+                                } catch { }
                                 var extra = string.IsNullOrWhiteSpace(help) ? string.Empty : $" See: {help}";
                                 DmarcAnalysis.Assessments.Add(new Assessment
                                 {

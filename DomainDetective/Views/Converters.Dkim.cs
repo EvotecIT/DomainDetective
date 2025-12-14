@@ -19,7 +19,7 @@ public static partial class Converters
             {
                 Check = HealthCheckType.DKIM,
                 Area = AreaForKind(HealthCheckType.DKIM),
-                Subject = analysis.Subject,
+                Subject = analysis.Subject ?? string.Empty,
                 Selector = kvp.Key,
                 Name = result.Name,
                 DkimRecord = result.DkimRecord,

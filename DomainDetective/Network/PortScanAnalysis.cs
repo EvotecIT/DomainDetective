@@ -143,7 +143,7 @@ public class PortScanAnalysis : IHasAssessments
 
     private async Task<ScanResult> ScanPort(string host, int port, InternalLogger? logger, CancellationToken token)
     {
-        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: $"{host}:{port}");
+        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "PORTSCAN", target: $"{host}:{port}") : null;
         bool tcpOpen = false;
         bool udpOpen = false;
         string? banner = null;
@@ -151,14 +151,12 @@ public class PortScanAnalysis : IHasAssessments
         string? error = null;
 
         IPAddress address;
-        if (!IPAddress.TryParse(host, out address))
-        {
-            try
-            {
+        if (IPAddress.TryParse(host, out var parsedAddress) && parsedAddress != null) {
+            address = parsedAddress;
+        } else {
+            try {
                 address = (await Dns.GetHostAddressesAsync(host).ConfigureAwait(false)).First();
-            }
-            catch (Exception ex)
-            {
+            } catch (Exception ex) {
                 error = ex.Message;
                 return new ScanResult { TcpOpen = false, UdpOpen = false, TcpLatency = sw.Elapsed, Error = error };
             }

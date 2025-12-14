@@ -24,7 +24,8 @@ public static partial class Converters
                 }
             }
         }
-        var policy = string.IsNullOrWhiteSpace(analysis.AllMechanism) ? "none" : analysis.AllMechanism.ToLowerInvariant();
+        var allMechanism = analysis.AllMechanism;
+        var policy = string.IsNullOrWhiteSpace(allMechanism) ? "none" : allMechanism!.ToLowerInvariant();
         // Provider help (from SPF tokens)
         var spfTokens = new List<string>();
         try
@@ -96,9 +97,9 @@ public static partial class Converters
         {
             Check = HealthCheckType.SPF,
             Area = AreaForKind(HealthCheckType.SPF),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             SpfRecord = analysis.SpfRecord,
-            RecordLength = analysis?.SpfRecord?.Length ?? 0,
+            RecordLength = analysis.SpfRecord?.Length ?? 0,
             SpfRecordExists = analysis.SpfRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
             MultipleSpfRecords = analysis.MultipleSpfRecords,
@@ -108,7 +109,7 @@ public static partial class Converters
             ExceedsTotalCharacterLimit = analysis.ExceedsTotalCharacterLimit,
             ExceedsCharacterLimit = analysis.ExceedsCharacterLimit,
             UnknownMechanisms = analysis.UnknownMechanisms,
-            Mechanisms = analysis.SpfPartAnalyses,
+            Mechanisms = analysis.SpfPartAnalyses ?? new List<SpfPartAnalysis>(),
             ProviderCounts = providerCounts,
             Assessments = analysis.Assessments,
             Status = status,

@@ -101,12 +101,13 @@ public static class RpkiWordSectionWriter
         foreach (var kv in sec.Summary) { t.Rows[r].Cells[0].AddParagraph(kv.Key); t.Rows[r].Cells[1].AddParagraph(kv.Value); r++; }
         t.Rows[r].Cells[0].AddParagraph("Status"); t.Rows[r].Cells[1].AddParagraph(sec.Status);
 
-        if (original != null && (original.Results?.Count ?? 0) > 0)
+        var results = original?.Results;
+        if (results != null && results.Count > 0)
         {
             headings.AddItem("Per-IP Results", baseLevel);
-            var rt = doc.AddTable(original.Results.Count + 1, 4, WordTableStyle.TableGrid);
+            var rt = doc.AddTable(results.Count + 1, 4, WordTableStyle.TableGrid);
             rt.Rows[0].Cells[0].AddParagraph("IP"); rt.Rows[0].Cells[1].AddParagraph("Prefix"); rt.Rows[0].Cells[2].AddParagraph("ASN"); rt.Rows[0].Cells[3].AddParagraph("Valid");
-            for (int i=0;i<original.Results.Count;i++){ var rr = original.Results[i]; rt.Rows[i+1].Cells[0].AddParagraph(rr.IpAddress ?? string.Empty); rt.Rows[i+1].Cells[1].AddParagraph(rr.Prefix ?? string.Empty); rt.Rows[i+1].Cells[2].AddParagraph(rr.Asn.ToString()); rt.Rows[i+1].Cells[3].AddParagraph(rr.Valid ? "Yes" : "No"); }
+            for (int i=0;i<results.Count;i++){ var rr = results[i]; rt.Rows[i+1].Cells[0].AddParagraph(rr.IpAddress ?? string.Empty); rt.Rows[i+1].Cells[1].AddParagraph(rr.Prefix ?? string.Empty); rt.Rows[i+1].Cells[2].AddParagraph(rr.Asn.ToString()); rt.Rows[i+1].Cells[3].AddParagraph(rr.Valid ? "Yes" : "No"); }
         }
 
         if (sec.Positives.Count > 0)

@@ -30,7 +30,7 @@ namespace DomainDetective {
     public class CertificateAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>Gets or sets the URL that was checked.</summary>
-        public string Url { get; set; }
+        public string Url { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the certificate chain is valid.</summary>
         public bool IsValid { get; set; }
         /// <summary>Gets or sets a value indicating whether the endpoint was reachable.</summary>
@@ -45,7 +45,7 @@ namespace DomainDetective {
         public bool IsExpired { get; private set; }
 
         /// <summary>Gets the negotiated HTTP protocol version.</summary>
-        public Version ProtocolVersion { get; private set; }
+        public Version? ProtocolVersion { get; private set; }
 
         /// <summary>Gets a value indicating HTTP/2 support.</summary>
         public bool Http2Supported { get; private set; }
@@ -54,7 +54,7 @@ namespace DomainDetective {
         public bool Http3Supported { get; private set; }
 
         /// <summary>Gets the leaf certificate.</summary>
-        public X509Certificate2 Certificate { get; set; }
+        public X509Certificate2? Certificate { get; set; }
 
         /// <summary>Gets the certificate chain.</summary>
         public List<X509Certificate2> Chain { get; } = new();
@@ -79,7 +79,7 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the certificate is self-signed.</summary>
         public bool IsSelfSigned { get; private set; }
         /// <summary>Gets the public key algorithm.</summary>
-        public string KeyAlgorithm { get; private set; }
+        public string KeyAlgorithm { get; private set; } = string.Empty;
         /// <summary>Gets the key size in bits.</summary>
         public int KeySize { get; private set; }
         /// <summary>Indicates if the certificate uses a key under 2048 bits.</summary>
@@ -177,12 +177,15 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url) : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
 #if NET8_0_OR_GREATER
                 handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
 #endif
-                handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2 certificate, X509Chain chain, SslPolicyErrors policyErrors) => {
+                handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
+                    if (certificate == null) {
+                        return false;
+                    }
                     Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
                     Chain.Clear();
                     if (chain != null) {
@@ -252,7 +255,7 @@ namespace DomainDetective {
                                     IsSelfSigned = Chain.Count == 1;
                                 }
                             } catch (Exception ex) {
-                                logger?.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
+                                logger.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
                             }
                         }
                         if (Certificate != null) {
@@ -276,7 +279,7 @@ namespace DomainDetective {
                         }
                     } catch (Exception ex) {
                         IsReachable = false;
-                        logger?.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
+                        logger.WriteErrorCode(CertificateHttpCodes.ConnectFailed, "Exception reaching {0}: {1}", url, ex.ToString());
                     }
                 }
             }
@@ -291,8 +294,12 @@ namespace DomainDetective {
             OcspRevoked = null;
             CrlRevoked = null;
             try {
+                var certificate = Certificate;
+                if (certificate == null) {
+                    return;
+                }
                 var parser = new X509CertificateParser();
-                var bcCert = parser.ReadCertificate(Certificate.RawData);
+                var bcCert = parser.ReadCertificate(certificate.RawData);
 
                 var aiaExt = bcCert.GetExtensionValue(X509Extensions.AuthorityInfoAccess);
                 if (aiaExt != null) {
@@ -328,7 +335,9 @@ namespace DomainDetective {
 
                 if (OcspUrls.Count > 0 && Chain.Count > 1) {
                     var issuer = parser.ReadCertificate(Chain[1].RawData);
+#pragma warning disable CS0618
                     var id = new CertificateID(CertificateID.HashSha1, issuer, bcCert.SerialNumber);
+#pragma warning restore CS0618
                     var gen = new OcspReqGenerator();
                     gen.AddRequest(id);
                     var req = gen.Generate();
@@ -525,17 +534,41 @@ namespace DomainDetective {
         }
 
         private void PopulateKeyInfo() {
-            if (Certificate == null) {
+            var certificate = Certificate;
+            if (certificate == null) {
                 return;
             }
-            KeyAlgorithm = Certificate.PublicKey.Oid.FriendlyName;
+            KeyAlgorithm = certificate.PublicKey?.Oid?.FriendlyName ?? certificate.PublicKey?.Oid?.Value ?? string.Empty;
             try {
-                KeySize = Certificate.PublicKey.Key.KeySize;
+                // PublicKey.Key is obsolete in modern runtimes; prefer algorithm-specific helpers.
+#if NET6_0_OR_GREATER
+                var keySize = 0;
+                using (var rsa = certificate.GetRSAPublicKey()) {
+                    if (rsa != null) {
+                        keySize = rsa.KeySize;
+                    }
+                }
+                if (keySize == 0) {
+                    using (var ecdsa = certificate.GetECDsaPublicKey()) {
+                        if (ecdsa != null) {
+                            keySize = ecdsa.KeySize;
+                        }
+                    }
+                }
+                if (keySize == 0) {
+                    using (var dsa = certificate.GetDSAPublicKey()) {
+                        keySize = dsa?.KeySize ?? 0;
+                    }
+                }
+                KeySize = keySize;
+#else
+                KeySize = certificate.PublicKey?.Key?.KeySize ?? 0;
+#endif
             } catch {
                 KeySize = 0;
             }
             WeakKey = KeySize > 0 && KeySize < 2048;
-            string oid = Certificate.SignatureAlgorithm.Value;
+            var oid = certificate.SignatureAlgorithm?.Value ?? string.Empty;
             Sha1Signature = oid == "1.2.840.113549.1.1.5" ||
                             oid == "1.2.840.10040.4.3" ||
                             oid == "1.3.14.3.2.29";

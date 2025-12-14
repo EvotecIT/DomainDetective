@@ -84,8 +84,18 @@ public static partial class Converters
         {
             foreach (var r in refs)
             {
-                if (!string.IsNullOrWhiteSpace(r?.Url)) list.Add(r.Url);
-                else if (!string.IsNullOrWhiteSpace(r?.Reference)) list.Add(r.Reference);
+                var url = r?.Url;
+                if (url != null && !string.IsNullOrWhiteSpace(url))
+                {
+                    list.Add(url);
+                    continue;
+                }
+
+                var reference = r?.Reference;
+                if (reference != null && !string.IsNullOrWhiteSpace(reference))
+                {
+                    list.Add(reference);
+                }
             }
         }
         if (advices != null)

@@ -102,7 +102,7 @@ namespace DomainDetective {
         /// <param name="dnsConfiguration">Optional DNS configuration.</param>
         /// <param name="ct">Cancellation token.</param>
         public async Task Analyze(string domainName, InternalLogger logger, DnsConfiguration? dnsConfiguration = null, CancellationToken ct = default) {
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName) : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DNSSEC", target: domainName);
             Subject = domainName;
             // Prepare a short list of fallback endpoints for robust DNSSEC queries
             var epPrimary = (dnsConfiguration?.DnsEndpoint) ?? DnsEndpoint.System;
@@ -147,7 +147,7 @@ namespace DomainDetective {
                                 double days = (sig.Expiration - DateTimeOffset.UtcNow).TotalDays;
                                 string message = string.Format(CultureInfo.InvariantCulture,
                                     "RRSIG for {0} expires in {1:F0} days", current, Math.Ceiling(days));
-                                logger?.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
+                                logger.WriteWarningCode(DnssecCodes.RrsigExpiring, message);
                                 _warnings.Add(message);
                                 KeyExpiresSoon = true;
                             }
@@ -179,15 +179,15 @@ namespace DomainDetective {
 
                 foreach (string rec in currentDsRecords) {
                     if (!IsDsDigestLengthValid(rec)) {
-                        logger?.WriteWarningCode(DnssecCodes.DsDigestLengthUnexpected, "DS record for {0} has unexpected digest length", current);
+                        logger.WriteWarningCode(DnssecCodes.DsDigestLengthUnexpected, "DS record for {0} has unexpected digest length", current);
                     }
                     var parts = rec.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 2) {
                         int alg = AlgorithmNumber(parts[1]);
                         if (!DNSKeyAnalysis.IsValidAlgorithmNumber(alg)) {
-                            logger?.WriteWarningCode(DnssecCodes.DsAlgorithmUnknown, "DS record for {0} contains unknown algorithm {1}", current, parts[1]);
+                            logger.WriteWarningCode(DnssecCodes.DsAlgorithmUnknown, "DS record for {0} contains unknown algorithm {1}", current, parts[1]);
                         } else if (DNSKeyAnalysis.IsDeprecatedAlgorithmNumber(alg)) {
-                            logger?.WriteWarningCode(DnssecCodes.DsAlgorithmDeprecated, "DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
+                            logger.WriteWarningCode(DnssecCodes.DsAlgorithmDeprecated, "DS record for {0} uses deprecated algorithm {1}", current, parts[1]);
                         }
                     }
                 }
@@ -195,22 +195,22 @@ namespace DomainDetective {
                 if (!keyAd) {
                     var msg = $"DNSKEY for {current} not authenticated";
                     _mismatchSummary.Add(msg);
-                    logger?.WriteWarningCode(DnssecCodes.DnskeyNotAuthenticated, msg);
+                    logger.WriteWarningCode(DnssecCodes.DnskeyNotAuthenticated, msg);
                 }
                 if (currentDsRecords.Count == 0) {
                     var msg = $"No DS record for {current}";
                     _mismatchSummary.Add(msg);
-                    logger?.WriteWarningCode(DnssecCodes.DsMissing, msg);
+                    logger.WriteWarningCode(DnssecCodes.DsMissing, msg);
                 } else {
                     if (!dsResult.ad) {
                         var msg = $"DS for {current} not authenticated";
                         _mismatchSummary.Add(msg);
-                        logger?.WriteWarningCode(DnssecCodes.DsNotAuthenticated, msg);
+                        logger.WriteWarningCode(DnssecCodes.DsNotAuthenticated, msg);
                     }
                     if (!dsMatch) {
                         var msg = $"DS mismatch for {current}";
                         _mismatchSummary.Add(msg);
-                        logger?.WriteWarningCode(DnssecCodes.DsMismatch, msg);
+                        logger.WriteWarningCode(DnssecCodes.DsMismatch, msg);
                     }
                 }
 
@@ -258,7 +258,7 @@ namespace DomainDetective {
                         CultureInfo.InvariantCulture,
                         "Root trust anchor expired {0:F0} days ago",
                         Math.Ceiling(Math.Abs(days)));
-                    logger?.WriteWarningCode(DnssecCodes.RootAnchorExpired, message);
+                    logger.WriteWarningCode(DnssecCodes.RootAnchorExpired, message);
                     _warnings.Add(message);
                     KeyExpiresSoon = true;
                 } else if (days <= KeyExpirationWarningThreshold.TotalDays) {
@@ -266,7 +266,7 @@ namespace DomainDetective {
                         CultureInfo.InvariantCulture,
                         "Root trust anchor expires in {0:F0} days",
                         Math.Ceiling(days));
-                    logger?.WriteWarningCode(DnssecCodes.RootAnchorExpiring, message);
+                    logger.WriteWarningCode(DnssecCodes.RootAnchorExpiring, message);
                     _warnings.Add(message);
                     KeyExpiresSoon = true;
                 }
@@ -276,29 +276,29 @@ namespace DomainDetective {
             DsTtls = dsTtls;
             RootKeyTag = rootKeyTag;
 
-            logger?.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
+            logger.WriteVerbose("DNSSEC validation for {0}: {1}, chain valid: {2}", domainName, AuthenticData, ChainValid);
 
             // Check NSEC3/NSEC3PARAM for Opt-Out usage (risk advisory)
             try {
                 // Use System endpoint for feature check, but tolerate failure
                 using var featureResolver = new ClientX(endpoint: DnsEndpoint.System);
                 if (await HasNsec3OptOutAsync(domainName, featureResolver, UseLocalDnssecValidation, ct).ConfigureAwait(false)) {
-                    logger?.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
+                    logger.WriteWarningCode(DnssecCodes.Nsec3OptOutRisk, "Zone uses NSEC3 Opt-Out");
                 }
             } catch (Exception ex) {
-                logger?.WriteDebug("NSEC3 Opt-Out check skipped: {0}", ex.Message);
+                logger.WriteDebug("NSEC3 Opt-Out check skipped: {0}", ex.Message);
             }
 
             if (ChainValid) {
-                logger?.WriteInformationCode(DnssecCodes.SignaturesValid, "DNSSEC signatures validated");
-                logger?.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
+                logger.WriteInformationCode(DnssecCodes.SignaturesValid, "DNSSEC signatures validated");
+                logger.WriteInformationCode(DnssecCodes.ChainValid, "DNSSEC chain validated");
             }
 
             // Positive posture: DS present at parent for the subject
             try {
                 if (DsRecords != null && DsRecords.Count > 0)
                 {
-                    logger?.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
+                    logger.WriteInformationCode(DnssecCodes.DsPresent, "DS record present at parent");
                 }
             } catch { /* non-fatal */ }
 
@@ -360,7 +360,7 @@ namespace DomainDetective {
                     if (result.ok) { total++; if (result.ad) confirmed++; }
                 }
                 if (confirmed >= 2) {
-                    logger?.WriteInformationCode(DnssecCodes.AuthenticDataMultiResolver, "AD bit set for DS/DNSKEY via {0} resolvers", confirmed);
+                    logger.WriteInformationCode(DnssecCodes.AuthenticDataMultiResolver, "AD bit set for DS/DNSKEY via {0} resolvers", confirmed);
                     Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Info,
                         Category = "DNSSEC",
@@ -370,7 +370,7 @@ namespace DomainDetective {
                     });
                 }
             } catch (Exception ex) {
-                logger?.WriteDebug("DNSSEC multi-resolver AD check skipped: {0}", ex.Message);
+                logger.WriteDebug("DNSSEC multi-resolver AD check skipped: {0}", ex.Message);
             }
         }
 

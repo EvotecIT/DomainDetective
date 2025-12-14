@@ -8,8 +8,8 @@ namespace DomainDetective;
 public sealed class CookieRule
 {
     /// <summary>Substring to look for in Set-Cookie values.</summary>
-    [JsonPropertyName("contains")] public string Contains { get; set; }
+    [JsonPropertyName("contains")] public string Contains { get; set; } = null!;
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

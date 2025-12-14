@@ -54,10 +54,13 @@ public static class RecommendationCatalog {
             foreach (var type in assembly.GetTypes()) {
                 if (type.IsAbstract || type.IsInterface) continue;
                 if (!typeof(IRecommendationProvider).IsAssignableFrom(type)) continue;
-                IRecommendationProvider provider;
-                try { provider = (IRecommendationProvider)Activator.CreateInstance(type); }
-                catch { continue; }
-                RegisterProvider(provider);
+                try {
+                    if (Activator.CreateInstance(type) is IRecommendationProvider provider) {
+                        RegisterProvider(provider);
+                    }
+                } catch {
+                    continue;
+                }
             }
         } catch {
             // ignore discovery errors to avoid blocking core functionality

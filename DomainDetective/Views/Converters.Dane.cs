@@ -13,7 +13,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.DANE,
             Area = AreaForKind(HealthCheckType.DANE),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             NumberOfRecords = analysis.NumberOfRecords,
             HasDuplicateRecords = analysis.HasDuplicateRecords,
             HasInvalidRecords = analysis.HasInvalidRecords,

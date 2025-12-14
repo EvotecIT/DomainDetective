@@ -11,7 +11,7 @@ public static class NSNarrative
 
     public static Sections Build(NSAnalysis ns)
     {
-        var subj = string.IsNullOrWhiteSpace(ns?.Subject) ? "(domain)" : ns.Subject;
+        var subj = string.IsNullOrWhiteSpace(ns.Subject) ? "(domain)" : ns.Subject;
         var title = $"Nameserver Report — {subj}";
         var subtitle = "Nameserver Assessment";
         var category = "DNS Infrastructure";
@@ -81,9 +81,13 @@ public static class NSNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : g.Advice.Title;
+                string msg;
+                var adviceTitle = g.Advice?.Title;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

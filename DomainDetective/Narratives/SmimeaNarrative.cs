@@ -8,9 +8,18 @@ public static class SmimeaNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(SMIMEAAnalysis analysis)
+    public static Sections Build(SMIMEAAnalysis? analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(email)" : analysis.Subject;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(email)";
+        }
         var title = $"SMIMEA Report — {subj}";
         var subtitle = "SMIMEA Assessment";
         var category = "Email Security";

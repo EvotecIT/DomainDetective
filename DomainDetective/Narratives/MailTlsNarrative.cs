@@ -8,9 +8,18 @@ namespace DomainDetective.Narratives
     {
         public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(MailTlsAnalysis analysis, MailTlsAnalysis.MailProtocol protocol)
+    public static Sections Build(MailTlsAnalysis? analysis, MailTlsAnalysis.MailProtocol protocol)
         {
-            var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+            var subjCandidate = analysis?.Subject;
+            string subj;
+            if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+            {
+                subj = subjCandidate;
+            }
+            else
+            {
+                subj = "(domain)";
+            }
             var protoName = protocol switch
             {
                 MailTlsAnalysis.MailProtocol.Smtp => "SMTP",

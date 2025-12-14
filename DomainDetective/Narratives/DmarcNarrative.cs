@@ -11,7 +11,7 @@ public static class DmarcNarrative
 
     public static Sections Build(DmarcAnalysis dmarc)
     {
-        var subj = string.IsNullOrWhiteSpace(dmarc?.Subject) ? "(domain)" : dmarc.Subject;
+        var subj = string.IsNullOrWhiteSpace(dmarc.Subject) ? "(domain)" : dmarc.Subject;
         var title = $"DMARC Report — {subj}";
         var subtitle = "DMARC Assessment";
         var category = "Email Security";

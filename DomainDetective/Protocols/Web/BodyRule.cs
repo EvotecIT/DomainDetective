@@ -8,8 +8,8 @@ namespace DomainDetective;
 public sealed class BodyRule
 {
     /// <summary>Regular expression used to detect the technology in HTML content.</summary>
-    [JsonPropertyName("regex")] public string Regex { get; set; }
+    [JsonPropertyName("regex")] public string Regex { get; set; } = null!;
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

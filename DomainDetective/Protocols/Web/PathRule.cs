@@ -12,6 +12,6 @@ public sealed class PathRule
     /// <summary>Regular expression used to match the path. Optional when <see cref="Contains"/> is used.</summary>
     [JsonPropertyName("regex")] public string? Regex { get; set; }
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

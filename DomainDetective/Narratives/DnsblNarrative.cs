@@ -9,9 +9,18 @@ public static class DnsblNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(DNSBLAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DNSBLAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"DNSBL Report — {subj}";
         var subtitle = "DNS Blocklist Assessment";
         var category = "Threat Intelligence";

@@ -63,7 +63,7 @@ namespace DomainDetective {
             cancellationToken.ThrowIfCancellationRequested();
 
             if (dnsResults == null) {
-                logger?.WriteVerbose("DNS query returned no results.");
+                logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
@@ -121,19 +121,19 @@ namespace DomainDetective {
                 analysis.ValidCertificateAssociationData = IsHexadecimal(associationData);
 
                 if (!usageParsed) {
-                    logger?.WriteWarningCode(DaneCodes.UsageNotNumeric, $"TLSA usage field '{usagePart}' is not numeric");
+                    logger.WriteWarningCode(DaneCodes.UsageNotNumeric, $"TLSA usage field '{usagePart}' is not numeric");
                 } else if (!ValidateUsage(usageValue)) {
-                    logger?.WriteWarningCode(DaneCodes.UsageInvalid, $"TLSA usage '{usageValue}' is invalid, expected 0-3");
+                    logger.WriteWarningCode(DaneCodes.UsageInvalid, $"TLSA usage '{usageValue}' is invalid, expected 0-3");
                 }
 
                 if (!selectorParsed) {
-                    logger?.WriteWarningCode(DaneCodes.SelectorNotNumeric, $"TLSA selector field '{selectorPart}' is not numeric");
+                    logger.WriteWarningCode(DaneCodes.SelectorNotNumeric, $"TLSA selector field '{selectorPart}' is not numeric");
                 } else if (!ValidateSelector(selectorValue)) {
-                    logger?.WriteWarningCode(DaneCodes.SelectorInvalid, $"TLSA selector value '{selectorValue}' is invalid, expected 0 or 1");
+                    logger.WriteWarningCode(DaneCodes.SelectorInvalid, $"TLSA selector value '{selectorValue}' is invalid, expected 0 or 1");
                 }
 
                 if (!matchingParsed) {
-                    logger?.WriteWarningCode(DaneCodes.MatchingTypeNotNumeric, $"TLSA matching type field '{matchingPart}' is not numeric");
+                    logger.WriteWarningCode(DaneCodes.MatchingTypeNotNumeric, $"TLSA matching type field '{matchingPart}' is not numeric");
                 }
 
                 if (!usageParsed || !selectorParsed || !matchingParsed) {
@@ -157,7 +157,7 @@ namespace DomainDetective {
                 analysis.LengthOfCertificateAssociationData = associationData.Length;
                 analysis.ValidMatchingType = ValidateMatchingType(matchingTypeValue);
                 if (!analysis.ValidMatchingType) {
-                    logger?.WriteWarningCode(DaneCodes.MatchingTypeInvalid, $"TLSA matching type '{matchingTypeValue}' is invalid, expected 0, 1 or 2");
+                    logger.WriteWarningCode(DaneCodes.MatchingTypeInvalid, $"TLSA matching type '{matchingTypeValue}' is invalid, expected 0, 1 or 2");
                 }
 
 
@@ -176,22 +176,22 @@ namespace DomainDetective {
                 // - Matching Type: 1 (SHA-256: SHA-256 of Certificate or SPKI)
                 analysis.IsValidChoiceForSmtp = analysis.ServiceType == ServiceType.SMTP && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
                 if (analysis.ServiceType == ServiceType.SMTP && !analysis.IsValidChoiceForSmtp) {
-                    logger?.WriteWarningCode(DaneCodes.ComboNotRecommended, $"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for SMTP");
+                    logger.WriteWarningCode(DaneCodes.ComboNotRecommended, $"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for SMTP");
                 }
 
                 // For HTTPS, RFC 7671 recommends the same parameters
                 analysis.IsValidChoiceForHttps = analysis.ServiceType == ServiceType.HTTPS && usageValue == 3 && selectorValue == 1 && matchingTypeValue == 1;
                 if (analysis.ServiceType == ServiceType.HTTPS && !analysis.IsValidChoiceForHttps) {
-                    logger?.WriteWarningCode(DaneCodes.ComboNotRecommended, $"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for HTTPS");
+                    logger.WriteWarningCode(DaneCodes.ComboNotRecommended, $"TLSA selector {selectorValue} and matching type {matchingTypeValue} are not recommended for HTTPS");
                 }
 
                 analysis.ValidDANERecord = analysis.ValidUsage && analysis.ValidSelector && analysis.ValidMatchingType && analysis.CorrectNumberOfFields && analysis.CorrectLengthOfCertificateAssociationData && analysis.ValidCertificateAssociationData;
                 if (analysis.ValidDANERecord)
                 {
-                    logger?.WriteInformationCode(DaneCodes.RecordValid, $"TLSA record valid for {record.Name}");
+                    logger.WriteInformationCode(DaneCodes.RecordValid, $"TLSA record valid for {record.Name}");
                     if (analysis.ValidCertificateAssociationData && analysis.CorrectLengthOfCertificateAssociationData)
                     {
-                        logger?.WriteInformationCode(DaneCodes.CertificateMatches, $"TLSA certificate association data valid for {record.Name}");
+                        logger.WriteInformationCode(DaneCodes.CertificateMatches, $"TLSA certificate association data valid for {record.Name}");
                     }
                 }
 
@@ -260,13 +260,13 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DANERecordAnalysis {
         /// <summary>Gets or sets the domain name that provided the record.</summary>
-        public string DomainName { get; set; }
+        public string DomainName { get; set; } = string.Empty;
 
         /// <summary>Gets or sets the associated service type.</summary>
         public ServiceType ServiceType { get; set; } = ServiceType.HTTPS;
 
         /// <summary>Gets or sets the raw TLSA record.</summary>
-        public string DANERecord { get; set; }
+        public string DANERecord { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record passed all validations.</summary>
         public bool ValidDANERecord { get; set; }
         /// <summary>Gets or sets whether the usage field is valid.</summary>
@@ -288,7 +288,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the matching type value.</summary>
         public TlsaMatchingType MatchingTypeField { get; set; }
         /// <summary>Gets or sets the certificate association data.</summary>
-        public string CertificateAssociationData { get; set; }
+        public string CertificateAssociationData { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record contains four fields.</summary>
         public bool CorrectNumberOfFields { get; set; }
         /// <summary>Gets or sets whether the certificate association data has the expected length.</summary>

@@ -7,7 +7,7 @@ namespace DomainDetective.Narratives {
         public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(SecurityTXTAnalysis analysis) {
-            var subj = string.IsNullOrWhiteSpace(analysis?.Domain) ? "(domain)" : analysis.Domain;
+            var subj = string.IsNullOrWhiteSpace(analysis.Domain) ? "(domain)" : analysis.Domain;
             var title = $"security.txt Report — {subj}";
             var subtitle = "Security Policy";
             var category = "Vulnerability Disclosure";

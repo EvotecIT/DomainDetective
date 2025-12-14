@@ -7,9 +7,18 @@ public static class TlsNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(TlsAnalysis analysis)
+    public static Sections Build(TlsAnalysis? analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"TLS Report — {subj}";
         var subtitle = "HTTPS TLS Assessment";
         var category = "Web Security";

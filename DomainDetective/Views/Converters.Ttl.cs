@@ -41,23 +41,23 @@ public class TtlInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string? Subject { get; set; }
     public bool DnssecSigned { get; set; }
-    public IReadOnlyList<int> ATtls { get; set; }
-    public IReadOnlyList<int> AaaaTtls { get; set; }
-    public IReadOnlyList<int> MxTtls { get; set; }
-    public IReadOnlyList<int> NsTtls { get; set; }
+    public IReadOnlyList<int> ATtls { get; set; } = null!;
+    public IReadOnlyList<int> AaaaTtls { get; set; } = null!;
+    public IReadOnlyList<int> MxTtls { get; set; } = null!;
+    public IReadOnlyList<int> NsTtls { get; set; } = null!;
     public int SoaTtl { get; set; }
-    public IReadOnlyList<int> SpfTxtTtls { get; set; }
-    public IReadOnlyList<int> DmarcTxtTtls { get; set; }
-    public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<int> SpfTxtTtls { get; set; } = null!;
+    public IReadOnlyList<int> DmarcTxtTtls { get; set; } = null!;
+    public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DnsTtlAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public DnsTtlAnalysis Raw { get; set; } = null!;
 }

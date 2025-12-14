@@ -6,7 +6,7 @@ namespace DomainDetective;
 public sealed class TechDetectionDetail
 {
     /// <summary>Technology name (e.g., WordPress, Cloudflare).</summary>
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     /// <summary>Typed detection source (e.g., Header, Cookie, ScriptSrc, Dns).</summary>
     public TechEvidenceKind SourceKind { get; set; }
     /// <summary>High-level technology category (e.g., CMS, WebServer, JSLibrary).</summary>

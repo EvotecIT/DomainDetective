@@ -104,14 +104,14 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             AnalysisResults = new List<CAARecordAnalysis>();
 
             if (dnsResults == null) {
-                logger?.WriteVerbose("DNS query returned no results.");
+                logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
             var caaRecordList = dnsResults.ToList();
 
             if (!caaRecordList.Any()) {
-                logger?.WriteVerbose("No CAA record found.");
+                logger.WriteVerbose("No CAA record found.");
                 return;
             }
 
@@ -140,7 +140,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.InvalidFlag = true;
                     } else if ((flag & 0x7F) != 0 && flag != 128) {
                         analysis.InvalidFlag = true;
-                        logger?.WriteWarningCode(CaaCodes.ReservedFlagBits, $"CAA record uses reserved flag bits: {flag}");
+                        logger.WriteWarningCode(CaaCodes.ReservedFlagBits, $"CAA record uses reserved flag bits: {flag}");
                     }
                     analysis.Critical = (flag & 0x80) == 0x80;
 
@@ -157,7 +157,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         analysis.Tag = CAATagType.Unknown;
                         if (analysis.Critical) {
                             analysis.InvalidTag = true;
-                            logger?.WriteWarningCode(CaaCodes.UnknownCriticalTag, $"Unknown CAA property tag '{tag}' flagged as critical");
+                            logger.WriteWarningCode(CaaCodes.UnknownCriticalTag, $"Unknown CAA property tag '{tag}' flagged as critical");
                         }
                     }
 
@@ -314,11 +314,11 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             ReportViolationEmail = emails.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
             if (Valid && AnalysisResults.Count > 0) {
-                logger?.WriteInformationCode(CaaCodes.RecordPresent, $"CAA record present with {AnalysisResults.Count} record(s)");
+                logger.WriteInformationCode(CaaCodes.RecordPresent, $"CAA record present with {AnalysisResults.Count} record(s)");
             }
 
             if (ReportViolationEmail.Count > 0) {
-                logger?.WriteInformationCode(CaaCodes.IodefPresent, $"CAA reporting endpoint(s) configured: {ReportViolationEmail.Count}");
+                logger.WriteInformationCode(CaaCodes.IodefPresent, $"CAA reporting endpoint(s) configured: {ReportViolationEmail.Count}");
             }
         }
 
@@ -364,17 +364,17 @@ As an illustration, a CAA record that is set on example.com is also applicable t
     /// <para>Part of the DomainDetective project.</para>
     public class CAARecordAnalysis {
         /// <summary>Gets or sets the raw CAA record text.</summary>
-        public string CAARecord { get; set; }
+        public string CAARecord { get; set; } = string.Empty;
         /// <summary>Gets or sets the flag field.</summary>
-        public string Flag { get; set; }
+        public string Flag { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the critical bit is set.</summary>
         public bool Critical { get; set; }
         /// <summary>Gets or sets the parsed tag type.</summary>
         public CAATagType Tag { get; set; }
         /// <summary>Gets or sets the record value.</summary>
-        public string Value { get; set; }
+        public string Value { get; set; } = string.Empty;
         /// <summary>Gets or sets the issuer domain name.</summary>
-        public string Issuer { get; set; }
+        public string Issuer { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record failed validation.</summary>
         public bool Invalid { get; set; }
         /// <summary>Gets or sets a value indicating an invalid flag field.</summary>

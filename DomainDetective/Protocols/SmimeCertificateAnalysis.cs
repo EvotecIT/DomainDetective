@@ -13,7 +13,7 @@ namespace DomainDetective;
 /// <para>Part of the DomainDetective project.</para>
 public class SmimeCertificateAnalysis {
     /// <summary>Gets the loaded certificate.</summary>
-    public X509Certificate2 Certificate { get; private set; }
+    public X509Certificate2 Certificate { get; private set; } = null!;
 
     /// <summary>Gets the certificate chain.</summary>
     public List<X509Certificate2> Chain { get; } = new();

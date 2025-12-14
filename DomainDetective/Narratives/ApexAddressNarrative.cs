@@ -10,8 +10,16 @@ public static class ApexAddressNarrative
 
     public static Sections Build(ApexAddressAnalysis analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subjCandidate = analysis?.Subject;
-        var subj = string.IsNullOrWhiteSpace(subjCandidate) ? "(domain)" : subjCandidate;
+        var subjCandidate = analysis.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"Apex Address Report — {subj}";
         var subtitle = "Apex Address Assessment";
         var category = "DNS Infrastructure";

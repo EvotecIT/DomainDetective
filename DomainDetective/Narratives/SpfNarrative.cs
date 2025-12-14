@@ -11,7 +11,7 @@ public static class SpfNarrative
 
     public static Sections Build(SpfAnalysis spf)
     {
-        var subj = string.IsNullOrWhiteSpace(spf?.Subject) ? "(domain)" : spf.Subject;
+        var subj = string.IsNullOrWhiteSpace(spf.Subject) ? "(domain)" : spf.Subject;
         var title = $"SPF Report — {subj}";
         var subtitle = "SPF Assessment";
         var category = "Email Security";
@@ -30,9 +30,10 @@ public static class SpfNarrative
         hi.Add(spf.SpfRecordExists
             ? "SPF record is published and begins with v=spf1."
             : "No SPF record is published.");
-        if (!string.IsNullOrWhiteSpace(spf.AllMechanism))
+        var allMechanism = spf.AllMechanism;
+        if (allMechanism != null && !string.IsNullOrWhiteSpace(allMechanism))
         {
-            hi.Add($"Policy ends with '{spf.AllMechanism}'. {ExplainAll(spf.AllMechanism)}");
+            hi.Add($"Policy ends with '{allMechanism}'. {ExplainAll(allMechanism)}");
         }
         hi.Add($"DNS lookups used: {spf.DnsLookupsCount}/10 {(spf.ExceedsDnsLookups ? "(exceeds limit)" : "(within limit)")}");
         if (spf.UnknownMechanisms != null && spf.UnknownMechanisms.Count > 0)
@@ -66,7 +67,13 @@ public static class SpfNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title) ? (g.Instances.FirstOrDefault()?.Message ?? g.Code) : g.Advice.Title;
+                string msg;
+                var adviceTitle = g.Advice?.Title;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

@@ -156,11 +156,15 @@ public static partial class HtmlCompositionReport
                                 // Per-service MailTLS servers
                                 void AddTlsTable(string title, DomainDetective.Views.MailTlsInfo? info)
                                 {
-                                    if (info == null || (info.Servers?.Count ?? 0) == 0) return;
+                                    var servers = info?.Servers;
+                                    if (servers == null || servers.Count == 0)
+                                    {
+                                        return;
+                                    }
                                     panel.Divider(title + " Servers");
-                                    var rows = info.Servers.Select(s => new {
+                                    var rows = servers.Select(s => new {
                                         Host = s.Key,
-                                        Status = info.Status ?? "-",
+                                        Status = info?.Status ?? "-",
                                         StartTLS = s.StartTlsAdvertised ? "Yes" : "No",
                                         Grade = s.Grade.ToString(),
                                         Proto = s.Protocol,

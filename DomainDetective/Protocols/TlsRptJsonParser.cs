@@ -84,7 +84,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public sealed class TlsRptSummary {
         /// <summary>Hostname of the receiving MX.</summary>
-        public string MxHost { get; set; }
+        public string MxHost { get; set; } = null!;
         /// <summary>Count of successful TLS sessions.</summary>
         public int SuccessfulSessions { get; set; }
         /// <summary>Count of failed TLS sessions.</summary>

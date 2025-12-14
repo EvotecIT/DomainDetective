@@ -46,29 +46,29 @@ public class StartTlsInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<StartTlsServerInfo> Servers { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string? Subject { get; set; }
+    public IReadOnlyList<StartTlsServerInfo> Servers { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public STARTTLSAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public STARTTLSAnalysis Raw { get; set; } = null!;
 }
 
 public class StartTlsServerInfo
 {
-    public string Key { get; set; }
+    public string Key { get; set; } = null!;
     public bool StartTlsAdvertised { get; set; }
     public bool TlsNegotiated { get; set; }
     public bool DowngradeDetected { get; set; }
-    public string TlsProtocol { get; set; }
-    public string CipherAlgorithm { get; set; }
+    public string? TlsProtocol { get; set; }
+    public string? CipherAlgorithm { get; set; }
     public int? CipherStrength { get; set; }
-    public string CertificateSubject { get; set; }
-    public string CertificateIssuer { get; set; }
+    public string? CertificateSubject { get; set; }
+    public string? CertificateIssuer { get; set; }
     public System.DateTime? CertificateNotAfter { get; set; }
 }

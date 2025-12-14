@@ -11,7 +11,7 @@ namespace DomainDetective {
         /// </summary>
         public IEnumerable<Assessment> GetAllAssessments() {
             foreach (var pi in _assessmentProps.Value) {
-                object value;
+                object? value;
                 try { value = pi.GetValue(this); } catch { continue; }
                 if (value is IHasAssessments has && has.Assessments != null) {
                     foreach (var a in has.Assessments) yield return a;

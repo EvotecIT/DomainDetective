@@ -58,9 +58,9 @@ namespace DomainDetective {
         /// <summary>Gets a value indicating whether the endpoint was reachable.</summary>
         public bool IsReachable { get; private set; }
         /// <summary>If <see cref="IsReachable"/> is false, explains why.</summary>
-        public string FailureReason { get; private set; }
+        public string? FailureReason { get; private set; }
         /// <summary>Gets the HTTP protocol version returned by the server.</summary>
-        public Version ProtocolVersion { get; private set; }
+        public Version? ProtocolVersion { get; private set; }
         /// <summary>Gets a value indicating whether the server supports HTTP/2.</summary>
         public bool Http2Supported { get; private set; }
         /// <summary>Gets a value indicating whether the server supports HTTP/3.</summary>
@@ -76,7 +76,7 @@ namespace DomainDetective {
         /// <summary>Raw speculation-rules header if present.</summary>
         public string? SpeculationRulesRaw { get; private set; }
         /// <summary>Gets the response body when <c>captureBody</c> is enabled.</summary>
-        public string Body { get; private set; }
+        public string? Body { get; private set; }
         /// <summary>Gets the decompressed body length in bytes when <c>captureBody</c> is enabled.</summary>
         public int? BodyLength { get; private set; }
         /// <summary>Gets the SHA-256 hash of the decompressed body when <c>captureBody</c> is enabled.</summary>
@@ -194,6 +194,7 @@ namespace DomainDetective {
             using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;
+            ProtocolVersion = null;
             Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
             ServerHeader = null;
             VisitedUrls.Clear();
@@ -204,7 +205,9 @@ namespace DomainDetective {
             ExpectCtPresent = false;
             ExpectCtMaxAge = null;
             ExpectCtReportUri = null;
+#pragma warning disable CS0618
             PublicKeyPinsPresent = false;
+#pragma warning restore CS0618
             CspUnsafeDirectives = false;
             HstsMaxAge = null;
             HstsIncludesSubDomains = false;
@@ -229,7 +232,7 @@ namespace DomainDetective {
             try {
 #if NET6_0_OR_GREATER
                 var currentUri = new Uri(url);
-                HttpResponseMessage response = null;
+                HttpResponseMessage? response = null;
                 var redirects = 0;
                 var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 while (true) {
@@ -319,7 +322,7 @@ namespace DomainDetective {
                 }
                 ServerHeader = serverHeader;
 #if NET6_0_OR_GREATER
-                if (IsReachable && ProtocolVersion >= HttpVersion.Version30) {
+                if (IsReachable && ProtocolVersion != null && ProtocolVersion >= HttpVersion.Version30) {
                     QuicVersion = ParseQuicVersion(altSvcHeader);
                     if (!string.IsNullOrEmpty(QuicVersion) && !QuicVersion.Equals("h3", StringComparison.OrdinalIgnoreCase)) {
                         logger?.WriteWarningCode(HttpCodes.H3AltSvcMismatch, "HTTP/3 negotiated but Alt-Svc advertises {0}", QuicVersion);
@@ -344,10 +347,12 @@ namespace DomainDetective {
                     }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
+#pragma warning disable CS0618
                     PublicKeyPinsPresent = SecurityHeaders.ContainsKey("Public-Key-Pins");
                     if (PublicKeyPinsPresent) {
                         logger?.WriteWarningCode(HttpCodes.HpkpDeprecated, "Public-Key-Pins header is deprecated and should not be used.");
                     }
+#pragma warning restore CS0618
                     if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
                         ParseContentSecurityPolicy(csp.Value);
                     }
@@ -518,17 +523,26 @@ namespace DomainDetective {
                         string? charset = response.Content?.Headers?.ContentType?.CharSet;
                         Encoding enc;
                         try { enc = !string.IsNullOrWhiteSpace(charset) ? Encoding.GetEncoding(charset!) : Encoding.UTF8; } catch { enc = Encoding.UTF8; }
-                        Body = bytes != null ? enc.GetString(bytes) : await response.Content.ReadAsStringAsync();
-                    } catch { Body = await response.Content.ReadAsStringAsync(); }
+                        if (bytes != null) {
+                            Body = enc.GetString(bytes);
+                        } else if (response.Content != null) {
+                            Body = await response.Content.ReadAsStringAsync();
+                        } else {
+                            Body = string.Empty;
+                        }
+                    } catch {
+                        Body = response.Content != null ? await response.Content.ReadAsStringAsync() : string.Empty;
+                    }
                     var scheme = response.RequestMessage?.RequestUri?.Scheme;
+                    var bodyText = Body ?? string.Empty;
                     if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
-                        Body.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {
+                        bodyText.IndexOf("http://", StringComparison.OrdinalIgnoreCase) >= 0) {
                         MixedContentDetected = true;
                     }
                     // Detect insecure form actions when page is HTTPS
-                    if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(Body)) {
+                    if (string.Equals(scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && bodyText.Length > 0) {
                         try {
-                            var html = Body;
+                            var html = bodyText;
                             // Simple, fast regex for <form ... action="http://...">
                             var rx = new System.Text.RegularExpressions.Regex(
                                 "<form[^>]*action\\s*=\\s*\"(?<url>[^\"]+)\"|<form[^>]*action\\s*=\\s*'(?<url>[^']+)'",
@@ -537,10 +551,11 @@ namespace DomainDetective {
                             foreach (System.Text.RegularExpressions.Match m in matches) {
                                 var u = m.Groups["url"]?.Value?.Trim();
                                 if (string.IsNullOrEmpty(u)) continue;
-                                if (u.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
+                                var actionUrl = u!;
+                                if (actionUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) {
                                     InsecureFormsCount++;
-                                    if (InsecureFormActions.Count < 5 && !InsecureFormActions.Contains(u)) {
-                                        InsecureFormActions.Add(u);
+                                    if (InsecureFormActions.Count < 5 && !InsecureFormActions.Contains(actionUrl)) {
+                                        InsecureFormActions.Add(actionUrl);
                                     }
                                 }
                             }

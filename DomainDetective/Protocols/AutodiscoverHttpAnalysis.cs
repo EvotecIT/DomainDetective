@@ -122,7 +122,7 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
                 return (false, ns, false);
             }
             bool nsValid = false;
-            if (!string.IsNullOrWhiteSpace(ns)) {
+            if (ns != null && !string.IsNullOrWhiteSpace(ns)) {
                 // Accept common Exchange autodiscover namespaces
                 nsValid = ns.IndexOf("autodiscover", StringComparison.OrdinalIgnoreCase) >= 0
                           || ns.IndexOf("schemas.microsoft.com/exchange/autodiscover", StringComparison.OrdinalIgnoreCase) >= 0
@@ -162,15 +162,17 @@ public class AutodiscoverHttpAnalysis : IHasAssessments {
                     continue;
                 }
                 if (response.IsSuccessStatusCode) {
-                    var body = await response.Content.ReadAsStringAsync();
-                    if (!string.IsNullOrEmpty(body)) {
-                        contentSnippet = body.Length > 512 ? body.Substring(0, 512) : body;
-                        var trimmed = body.TrimStart();
-                        looksHtml = trimmed.StartsWith("<html", StringComparison.OrdinalIgnoreCase) || (contentType?.IndexOf("html", StringComparison.OrdinalIgnoreCase) >= 0);
-                        var vr = ValidateXmlAndNamespace(body);
-                        valid = vr.valid;
-                        xmlNs = vr.ns;
-                        xmlNsValid = vr.nsValid;
+                    if (response.Content != null) {
+                        var body = await response.Content.ReadAsStringAsync();
+                        if (!string.IsNullOrEmpty(body)) {
+                            contentSnippet = body.Length > 512 ? body.Substring(0, 512) : body;
+                            var trimmed = body.TrimStart();
+                            looksHtml = trimmed.StartsWith("<html", StringComparison.OrdinalIgnoreCase) || (contentType?.IndexOf("html", StringComparison.OrdinalIgnoreCase) >= 0);
+                            var vr = ValidateXmlAndNamespace(body);
+                            valid = vr.valid;
+                            xmlNs = vr.ns;
+                            xmlNsValid = vr.nsValid;
+                        }
                     }
                 }
                 finalUrl = current.AbsoluteUri;

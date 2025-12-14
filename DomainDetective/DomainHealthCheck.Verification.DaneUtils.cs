@@ -8,7 +8,7 @@ namespace DomainDetective {
             if (ports != null && ports.Length > 0) {
                 await VerifyDANE(domainName, ports, cancellationToken);
             } else {
-                await VerifyDANE(domainName, serviceTypes, cancellationToken);
+                await VerifyDANE(domainName, serviceTypes ?? System.Array.Empty<ServiceType>(), cancellationToken);
             }
         }
 

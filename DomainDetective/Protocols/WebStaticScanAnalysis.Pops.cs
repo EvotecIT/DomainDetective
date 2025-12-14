@@ -118,7 +118,7 @@ public partial class WebStaticScanAnalysis
 
     private static string? ExtractPopCode(string? pop)
     {
-        if (string.IsNullOrWhiteSpace(pop)) return null;
+        if (pop == null || string.IsNullOrWhiteSpace(pop)) return null;
         var s = pop.Trim();
         // CloudFront: e.g., "FRA56-C1" → "FRA"
         var code = new System.Text.StringBuilder(3);

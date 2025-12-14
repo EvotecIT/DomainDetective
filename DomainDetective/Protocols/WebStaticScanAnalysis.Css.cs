@@ -181,7 +181,11 @@ public partial class WebStaticScanAnalysis
                                     if (_requestIdByUrl.TryGetValue(css, out var pid)) headReq.ParentId = pid;
                                     Requests.Add(headReq);
                                     _requestIdByUrl.TryAdd(headReq.Url, headReq.Id);
-                                    if (!string.IsNullOrWhiteSpace(headReq.FinalUrl)) _requestIdByUrl.TryAdd(headReq.FinalUrl, headReq.Id);
+                                    var finalUrl = headReq.FinalUrl;
+                                    if (finalUrl != null && !string.IsNullOrWhiteSpace(finalUrl))
+                                    {
+                                        _requestIdByUrl.TryAdd(finalUrl, headReq.Id);
+                                    }
                                     AddAdjacency(headReq.ParentId, headReq.Id);
                                     if (!Hosts.TryGetValue(headReq.Host, out var host2))
                                     {

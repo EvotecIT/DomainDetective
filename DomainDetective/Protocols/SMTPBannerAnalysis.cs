@@ -183,7 +183,10 @@ namespace DomainDetective {
                     logger?.WriteWarningCode(SmtpBannerCodes.VersionLeaked, "SMTP banner on {0}:{1} exposes software version: {2}", host, port, banner);
                 }
                 int? code = null;
-                if (!string.IsNullOrEmpty(banner) && banner.Length >= 3 && int.TryParse(banner.Substring(0, 3), out var parsed)) code = parsed;
+                if (banner != null && banner.Length >= 3 && int.TryParse(banner.Substring(0, 3), out var parsed))
+                {
+                    code = parsed;
+                }
                 return new BannerResult {
                     Banner = banner,
                     Host = host,

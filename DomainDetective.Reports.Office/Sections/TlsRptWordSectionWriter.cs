@@ -128,8 +128,11 @@ public static class TlsRptWordSectionWriter
             {
                 headings.AddItem("Evidence", baseLevel);
                 var list = doc.AddList(WordListStyle.Bulleted);
-                if ((original.MailtoRua?.Count ?? 0) > 0) list.AddItem($"mailto: {string.Join(", ", original.MailtoRua)}");
-                if ((original.HttpRua?.Count ?? 0) > 0) list.AddItem($"http: {string.Join(", ", original.HttpRua)}");
+                var mailtoRua = original.MailtoRua;
+                if (mailtoRua != null && mailtoRua.Count > 0) list.AddItem($"mailto: {string.Join(", ", mailtoRua)}");
+
+                var httpRua = original.HttpRua;
+                if (httpRua != null && httpRua.Count > 0) list.AddItem($"http: {string.Join(", ", httpRua)}");
             }
         }
 

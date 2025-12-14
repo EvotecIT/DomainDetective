@@ -44,22 +44,22 @@ public class ArcInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = null!;
     public bool ArcHeadersFound { get; set; }
     public int SealCount { get; set; }
     public int AarCount { get; set; }
     public bool SealsIncludeSignatures { get; set; }
     public bool ValidChain { get; set; }
-    public string ChainState { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string ChainState { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public DomainDetective.ARCAnalysis Raw { get; set; }
-    public DomainDetective.Narratives.ArcNarrative.Sections Narrative { get; set; }
-    public IReadOnlyList<string> Highlights { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public DomainDetective.ARCAnalysis Raw { get; set; } = null!;
+    public DomainDetective.Narratives.ArcNarrative.Sections Narrative { get; set; } = null!;
+    public IReadOnlyList<string> Highlights { get; set; } = null!;
 }

@@ -8,9 +8,18 @@ public static class DnsTunnelingNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(DnsTunnelingAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DnsTunnelingAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"DNS Tunneling Report — {subj}";
         var subtitle = "DNS tunneling analysis";
         var category = "Threat Intel";

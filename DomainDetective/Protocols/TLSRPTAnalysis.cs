@@ -69,7 +69,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             RuaHttpStatus = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
 
             if (dnsResults == null) {
-                logger?.WriteVerbose("DNS query returned no results.");
+                logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
@@ -79,18 +79,18 @@ public class TLSRPTAnalysis : IHasAssessments {
             TlsRptRecordExists = recordList.Any();
             MultipleRecords = recordList.Count > 1;
             if (!TlsRptRecordExists) {
-                logger?.WriteVerbose("No TLSRPT record found.");
+                logger.WriteVerbose("No TLSRPT record found.");
                 return;
             }
 
-            logger?.WriteInformationCode(TlsRptCodes.RecordPresent, "TLSRPT record present");
+            logger.WriteInformationCode(TlsRptCodes.RecordPresent, "TLSRPT record present");
 
             TlsRptRecord = string.Join(" ", recordList.Select(r => r.Data));
-            logger?.WriteVerbose($"Analyzing TLSRPT record {TlsRptRecord}");
+            logger.WriteVerbose($"Analyzing TLSRPT record {TlsRptRecord}");
 
             StartsCorrectly = TlsRptRecord?.StartsWith("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) == true;
             if (StartsCorrectly) {
-                logger?.WriteInformationCode(TlsRptCodes.RecordStartsV1, "TLSRPT starts with v=TLSRPTv1");
+                logger.WriteInformationCode(TlsRptCodes.RecordStartsV1, "TLSRPT starts with v=TLSRPTv1");
             }
 
             foreach (var part in (TlsRptRecord ?? string.Empty).Split(';')) {
@@ -121,14 +121,14 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
 
             if (MailtoRua.Count > 0) {
-                logger?.WriteInformationCode(TlsRptCodes.RuaMailtoPresent, $"TLSRPT mailto RUA configured: {MailtoRua.Count} address(es)");
+                logger.WriteInformationCode(TlsRptCodes.RuaMailtoPresent, $"TLSRPT mailto RUA configured: {MailtoRua.Count} address(es)");
             }
             if (HttpRua.Count > 0) {
-                logger?.WriteInformationCode(TlsRptCodes.RuaHttpPresent, $"TLSRPT HTTPS RUA configured: {HttpRua.Count} endpoint(s)");
+                logger.WriteInformationCode(TlsRptCodes.RuaHttpPresent, $"TLSRPT HTTPS RUA configured: {HttpRua.Count} endpoint(s)");
             }
 
             if (!RuaDefined) {
-                logger?.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
+                logger.WriteWarningCode(TlsRptCodes.MissingRua, "TLSRPT record missing rua tag.");
             }
 
             if (CheckEndpoints && HttpRua.Count > 0)
@@ -137,7 +137,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             }
 
             if (PolicyValid) {
-                logger?.WriteInformationCode(TlsRptCodes.PolicyValid, "TLSRPT policy valid");
+                logger.WriteInformationCode(TlsRptCodes.PolicyValid, "TLSRPT policy valid");
             }
         }
 
@@ -152,13 +152,13 @@ public class TLSRPTAnalysis : IHasAssessments {
                     RuaHttpStatus[url] = (int)resp.StatusCode;
                     if ((int)resp.StatusCode >= 400)
                     {
-                        logger?.WriteWarningCode(TlsRptCodes.RuaHttpError, "TLSRPT HTTPS RUA responded with {0}: {1}", (int)resp.StatusCode, url);
+                        logger.WriteWarningCode(TlsRptCodes.RuaHttpError, "TLSRPT HTTPS RUA responded with {0}: {1}", (int)resp.StatusCode, url);
                     }
                 }
                 catch (Exception ex)
                 {
                     RuaHttpStatus[url] = 0;
-                    logger?.WriteWarningCode(TlsRptCodes.RuaHttpUnreachable, "TLSRPT HTTPS RUA unreachable: {0} ({1})", url, ex.Message);
+                    logger.WriteWarningCode(TlsRptCodes.RuaHttpUnreachable, "TLSRPT HTTPS RUA unreachable: {0} ({1})", url, ex.Message);
                 }
             }
         }
@@ -173,7 +173,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                     try {
                         decoded = Uri.UnescapeDataString(part);
                     } catch (Exception ex) {
-                        logger?.WriteWarning($"Failed to unescape mailto RUA '{u}': {ex.Message}");
+                        logger.WriteWarning($"Failed to unescape mailto RUA '{u}': {ex.Message}");
                         invalidList.Add(u);
                         continue;
                     }
@@ -181,7 +181,7 @@ public class TLSRPTAnalysis : IHasAssessments {
                         _ = new MailAddress(decoded);
                         mailtoList.Add(decoded);
                     } catch (Exception ex) {
-                        logger?.WriteWarning($"Invalid mailto RUA '{decoded}': {ex.Message}");
+                        logger.WriteWarning($"Invalid mailto RUA '{decoded}': {ex.Message}");
                         invalidList.Add(u);
                     }
                 } else if (Uri.TryCreate(u, UriKind.Absolute, out var parsed) &&

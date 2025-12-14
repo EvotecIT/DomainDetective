@@ -11,7 +11,7 @@ public static class BimiNarrative
 
     public static Sections Build(BimiAnalysis bimi)
     {
-        var subj = bimi?.Subject;
+        var subj = bimi.Subject;
         if (string.IsNullOrWhiteSpace(subj))
         {
             subj = "(domain)";
@@ -72,9 +72,13 @@ public static class BimiNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : g.Advice.Title;
+                string msg;
+                var adviceTitle = g.Advice?.Title;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

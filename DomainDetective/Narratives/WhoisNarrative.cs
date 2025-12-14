@@ -10,7 +10,7 @@ public static class WhoisNarrative
 
     public static Sections Build(WhoisAnalysis whois)
     {
-        var subj = string.IsNullOrWhiteSpace(whois?.DomainName) ? "(domain)" : whois.DomainName;
+        var subj = string.IsNullOrWhiteSpace(whois.DomainName) ? "(domain)" : whois.DomainName;
         var title = $"WHOIS Report — {subj}";
         var subtitle = "WHOIS Registration";
         var category = "Domain Registration";
@@ -25,7 +25,7 @@ public static class WhoisNarrative
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(whois?.RegisteredTo))
+        if (!string.IsNullOrWhiteSpace(whois.RegisteredTo))
         {
             hi.Add($"Registered to {whois.RegisteredTo}");
         }
@@ -34,11 +34,11 @@ public static class WhoisNarrative
             hi.Add("Registrant information not disclosed");
         }
 
-        hi.Add(whois?.PrivacyProtected == true
+        hi.Add(whois.PrivacyProtected == true
             ? "WHOIS privacy protection enabled"
             : "WHOIS privacy protection not enabled");
 
-        if (!string.IsNullOrWhiteSpace(whois?.ExpiryDate))
+        if (!string.IsNullOrWhiteSpace(whois.ExpiryDate))
         {
             hi.Add($"Expires on {whois.ExpiryDate}");
         }
@@ -47,15 +47,15 @@ public static class WhoisNarrative
             hi.Add("Expiration date unavailable");
         }
 
-        if (!string.IsNullOrWhiteSpace(whois?.Registrar))
+        if (!string.IsNullOrWhiteSpace(whois.Registrar))
         {
             det.Add($"Registrar: {whois.Registrar}");
         }
-        if (!string.IsNullOrWhiteSpace(whois?.Country))
+        if (!string.IsNullOrWhiteSpace(whois.Country))
         {
             det.Add($"Country: {whois.Country}");
         }
-        if (whois?.NameServers != null)
+        if (whois.NameServers != null)
         {
             var ns = whois.NameServers.Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
             if (ns.Count > 0)
@@ -69,7 +69,7 @@ public static class WhoisNarrative
             "https://datatracker.ietf.org/doc/html/rfc3912"
         };
 
-        (positives, negatives, remediations) = AssessmentSplit.SplitTitles(whois?.Assessments ?? new List<Assessment>());
+        (positives, negatives, remediations) = AssessmentSplit.SplitTitles(whois.Assessments ?? new List<Assessment>());
 
         return new Sections
         {

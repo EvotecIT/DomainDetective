@@ -151,7 +151,9 @@ public class TestMtaStsCorrelation
             hc.SmtpTlsAnalysis.ServerResults[$"{mx[1]}:25"] = new MailTlsAnalysis.TlsResult
             {
                 StartTlsAdvertised = true,
+#pragma warning disable SYSLIB0039
                 Protocol = SslProtocols.Tls,
+#pragma warning restore SYSLIB0039
                 LegacyEnabled = true,
                 CertificateValid = true,
                 HostnameMatch = true,

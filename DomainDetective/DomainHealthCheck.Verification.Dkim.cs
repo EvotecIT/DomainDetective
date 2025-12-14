@@ -32,7 +32,7 @@ namespace DomainDetective {
 
             foreach (var selector in selectors) {
                 var trimmedSelector = selector?.Trim();
-                if (string.IsNullOrEmpty(trimmedSelector)) {
+                if (trimmedSelector == null || trimmedSelector.Length == 0) {
                     continue;
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -41,7 +41,7 @@ namespace DomainDetective {
                     await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
                 } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                     // Treat network timeouts as transient in tests/CI: record no results and continue.
-                    _logger?.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, ex.Message);
+                    _logger.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, ex.Message);
                 }
             }
         }

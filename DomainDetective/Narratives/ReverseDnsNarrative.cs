@@ -10,7 +10,7 @@ public static class ReverseDnsNarrative
 
     public static Sections Build(ReverseDnsAnalysis rdns)
     {
-        var subj = string.IsNullOrWhiteSpace(rdns?.Subject) ? "(domain)" : rdns.Subject;
+        var subj = string.IsNullOrWhiteSpace(rdns.Subject) ? "(domain)" : rdns.Subject;
         var title = $"Reverse DNS Report — {subj}";
         var subtitle = "Reverse DNS Assessment";
         var category = "DNS Infrastructure";
@@ -25,17 +25,19 @@ public static class ReverseDnsNarrative
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        var total = rdns?.Results?.Count ?? 0;
-        var withPtr = rdns?.Results?.Count(r => !string.IsNullOrWhiteSpace(r.PtrRecord)) ?? 0;
-        var allValid = rdns?.Results != null && rdns.Results.All(r => r.IsValid);
-        var allFcr = rdns?.Results?.All(r => r.FcrDnsValid) == true;
+        var rawResults = rdns.Results;
+        var results = rawResults ?? new List<ReverseDnsAnalysis.ReverseDnsResult>();
+        var total = results.Count;
+        var withPtr = results.Count(r => !string.IsNullOrWhiteSpace(r.PtrRecord));
+        var allValid = rawResults != null && results.All(r => r.IsValid);
+        var allFcr = rawResults != null && results.All(r => r.FcrDnsValid);
         hi.Add($"PTR records found: {withPtr}/{total}.");
         hi.Add(allValid ? "PTR names align with MX hosts." : "PTR names do not align with all MX hosts.");
         hi.Add(allFcr ?
             "PTR hostnames resolve back to their IP addresses." :
             "Some PTR hostnames fail to resolve back to their IP addresses.");
 
-        foreach (var r in rdns.Results ?? new List<ReverseDnsAnalysis.ReverseDnsResult>())
+        foreach (var r in results)
         {
             det.Add(string.IsNullOrWhiteSpace(r.PtrRecord)
                 ? $"{r.IpAddress} has no PTR record."
@@ -50,9 +52,13 @@ public static class ReverseDnsNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : g.Advice.Title;
+                string msg;
+                var adviceTitle = g.Advice?.Title;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

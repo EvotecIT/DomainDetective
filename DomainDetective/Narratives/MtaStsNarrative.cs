@@ -11,9 +11,18 @@ public static class MtaStsNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(MTASTSAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(MTASTSAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Domain) ? "(domain)" : analysis.Domain;
+        var domainCandidate = analysis?.Domain;
+        string subj;
+        if (domainCandidate != null && !string.IsNullOrWhiteSpace(domainCandidate))
+        {
+            subj = domainCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"MTA-STS Report — {subj}";
         var subtitle = "MTA-STS Assessment";
         var category = "Email Security";

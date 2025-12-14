@@ -10,7 +10,7 @@ public static class TlsRptNarrative
 
     public static Sections Build(TLSRPTAnalysis analysis, InternalLogger? logger = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
+        var subj = string.IsNullOrWhiteSpace(analysis.Subject) ? "(domain)" : analysis.Subject;
         var title = $"TLS-RPT Report — {subj}";
         var subtitle = "TLS-RPT Assessment";
         var category = "Email Security";

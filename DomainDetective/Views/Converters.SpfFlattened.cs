@@ -14,10 +14,10 @@ public static partial class Converters
             Check = HealthCheckType.SPFFLATTENED,
             Area = AreaForKind(HealthCheckType.SPFFLATTENED),
             Subject = result.Subject,
-            Tokens = result.Tokens,
-            TokenIpMap = result.TokenIpMap,
-            UniqueIps = result.UniqueIps,
-            DuplicateIps = result.DuplicateIps,
+            Tokens = result.Tokens ?? new List<string>(),
+            TokenIpMap = result.TokenIpMap ?? new Dictionary<string, List<string>>(),
+            UniqueIps = result.UniqueIps ?? new List<string>(),
+            DuplicateIps = result.DuplicateIps ?? new List<string>(),
             Assessments = new List<Assessment>(),
             Status = "OK",
             WarningCount = 0,
@@ -34,18 +34,18 @@ public sealed class SpfFlattenedInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<string> Tokens { get; set; }
-    public IReadOnlyDictionary<string, List<string>> TokenIpMap { get; set; }
-    public IReadOnlyList<string> UniqueIps { get; set; }
-    public IReadOnlyList<string> DuplicateIps { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string? Subject { get; set; }
+    public IReadOnlyList<string> Tokens { get; set; } = null!;
+    public IReadOnlyDictionary<string, List<string>> TokenIpMap { get; set; } = null!;
+    public IReadOnlyList<string> UniqueIps { get; set; } = null!;
+    public IReadOnlyList<string> DuplicateIps { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public FlattenedSpfResult Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public FlattenedSpfResult Raw { get; set; } = null!;
 }
 

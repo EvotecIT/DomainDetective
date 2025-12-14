@@ -110,7 +110,8 @@ public static class DkimWordSectionWriter
         foreach (var r in dkim)
         {
             if (string.IsNullOrWhiteSpace(r?.Selector)) continue;
-            var sl = doc.AddParagraph($"Selector: {r.Selector}");
+            var selector = r!.Selector!;
+            var sl = doc.AddParagraph($"Selector: {selector}");
             sl.Bold = true;
             if (!string.IsNullOrWhiteSpace(r.DkimRecord))
             {
@@ -238,7 +239,8 @@ public static class DkimWordSectionWriter
             foreach (var r in original)
             {
                 if (string.IsNullOrWhiteSpace(r?.Selector)) continue;
-                var sl = doc.AddParagraph($"Selector: {r.Selector}"); sl.Bold = true;
+                var selector = r!.Selector!;
+                var sl = doc.AddParagraph($"Selector: {selector}"); sl.Bold = true;
                 if (!string.IsNullOrWhiteSpace(r.DkimRecord)) { var rl = doc.AddParagraph("Record:"); rl.Bold = true; var rp = doc.AddParagraph(r.DkimRecord); rp.FontSize = 10; }
                 if (!string.IsNullOrWhiteSpace(r.PublicKey)) { var kl = doc.AddParagraph("Public Key (snippet):"); kl.Bold = true; var key = r.PublicKey!.Length > 120 ? r.PublicKey.Substring(0, 120) + "…" : r.PublicKey; var kp = doc.AddParagraph(key); kp.FontSize = 10; }
             }

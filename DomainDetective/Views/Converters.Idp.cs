@@ -48,15 +48,15 @@ public sealed class IdpInfoView
     /// <summary>True when GetUserRealm returned a 200 response and was parsed.</summary>
     public bool GetUserRealmSucceeded { get; set; }
     /// <summary>Structured assessments captured during analysis.</summary>
-    public IReadOnlyList<Assessment> Assessments { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     /// <summary>Computed status string (OK/Warning/Error) from assessments.</summary>
-    public string Status { get; set; }
+    public string Status { get; set; } = null!;
     /// <summary>Total number of warnings encountered.</summary>
     public int WarningCount { get; set; }
     /// <summary>Total number of errors encountered.</summary>
     public int ErrorCount { get; set; }
     /// <summary>One-line summary containing key IdP hints.</summary>
-    public string Summary { get; set; }
+    public string Summary { get; set; } = null!;
     /// <summary>Raw analysis object.</summary>
-    public IdpInfoAnalysis Raw { get; set; }
+    public IdpInfoAnalysis Raw { get; set; } = null!;
 }

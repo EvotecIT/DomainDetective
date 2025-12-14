@@ -131,7 +131,11 @@ public partial class WebStaticScanAnalysis
                         try { if (MainFinalUri != null) { var fu = new Uri(req.FinalUrl ?? req.Url); req.SameOrigin = fu.Scheme == MainFinalUri.Scheme && fu.Host == MainFinalUri.Host && fu.Port == MainFinalUri.Port; } } catch { }
                         Requests.Add(req);
                         _requestIdByUrl.TryAdd(req.Url, req.Id);
-                        if (!string.IsNullOrWhiteSpace(req.FinalUrl)) _requestIdByUrl.TryAdd(req.FinalUrl, req.Id);
+                        var finalUrl = req.FinalUrl;
+                        if (finalUrl != null && !string.IsNullOrWhiteSpace(finalUrl))
+                        {
+                            _requestIdByUrl.TryAdd(finalUrl, req.Id);
+                        }
                         AddAdjacency(req.ParentId, req.Id);
                         if (!Hosts.TryGetValue(req.Host, out var h))
                         {

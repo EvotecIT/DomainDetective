@@ -10,7 +10,7 @@ namespace DomainDetective.Narratives
 
         public static Sections Build(SOAAnalysis soa)
         {
-            var subj = string.IsNullOrWhiteSpace(soa?.Subject) ? "(domain)" : soa.Subject;
+            var subj = string.IsNullOrWhiteSpace(soa.Subject) ? "(domain)" : soa.Subject;
             var title = $"SOA Report — {subj}";
             var subtitle = "Start of Authority Assessment";
             var category = "DNS Infrastructure";
@@ -25,7 +25,7 @@ namespace DomainDetective.Narratives
         var negatives = new List<string>();
             var remediations = new List<string>();
 
-            if (soa?.RecordExists == true)
+            if (soa.RecordExists)
             {
                 if (!string.IsNullOrWhiteSpace(soa.PrimaryNameServer))
                 {
@@ -50,7 +50,7 @@ namespace DomainDetective.Narratives
             {
                 hi.Add("No SOA record is published.");
             }
-            if (!string.IsNullOrWhiteSpace(soa?.Subject))
+            if (!string.IsNullOrWhiteSpace(soa.Subject))
             {
                 det.Add($"Subject: {soa.Subject}");
             }
@@ -62,13 +62,17 @@ namespace DomainDetective.Narratives
 
             try
             {
-                var assessments = (IEnumerable<Assessment>)(soa?.Assessments ?? new List<Assessment>());
+                var assessments = (IEnumerable<Assessment>)(soa.Assessments ?? new List<Assessment>());
                 var groups = RecommendationEngine.GroupByCode(assessments);
                 foreach (var g in groups)
                 {
-                    var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                        ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                        : g.Advice.Title;
+                    string msg;
+                    var adviceTitle = g.Advice?.Title;
+                    if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                        msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                    } else {
+                        msg = adviceTitle;
+                    }
                     if (g.MaxSeverity == AssessmentSeverity.Info)
                     {
                         positives.Add(msg);

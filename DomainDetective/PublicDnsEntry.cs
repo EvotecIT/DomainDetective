@@ -7,15 +7,15 @@ namespace DomainDetective {
         /// <summary>Gets the country of the DNS server.</summary>
         public CountryId? Country { get; init; }
         /// <summary>Gets the IP address of the DNS server.</summary>
-        public System.Net.IPAddress IPAddress { get; init; }
+        public System.Net.IPAddress IPAddress { get; init; } = null!;
         /// <summary>Gets the host name of the DNS server.</summary>
-        public string HostName { get; init; }
+        public string HostName { get; init; } = null!;
         /// <summary>Gets the location description.</summary>
         public LocationId? Location { get; init; }
         /// <summary>Gets the ASN of the DNS server.</summary>
-        public string ASN { get; init; }
+        public string ASN { get; init; } = null!;
         /// <summary>Gets the ASN name of the DNS server.</summary>
-        public string ASNName { get; init; }
+        public string ASNName { get; init; } = null!;
         /// <summary>Gets a value indicating whether the server is enabled.</summary>
         public bool Enabled { get; init; } = true;
     }

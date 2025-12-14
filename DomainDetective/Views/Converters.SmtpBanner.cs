@@ -61,32 +61,32 @@ public class SmtpBannerInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string ExpectedHostname { get; set; }
-    public string ExpectedSoftware { get; set; }
-    public IReadOnlyList<SmtpBannerServerInfo> Servers { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string? Subject { get; set; }
+    public string? ExpectedHostname { get; set; }
+    public string? ExpectedSoftware { get; set; }
+    public IReadOnlyList<SmtpBannerServerInfo> Servers { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public SMTPBannerAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public SMTPBannerAnalysis Raw { get; set; } = null!;
 }
 
 public class SmtpBannerServerInfo
 {
-    public string Key { get; set; }
-    public string Banner { get; set; }
+    public string Key { get; set; } = null!;
+    public string? Banner { get; set; }
     public bool HostnameMatch { get; set; }
     public bool SoftwareMatch { get; set; }
     public bool StartsWith220 { get; set; }
     public bool ContainsDomain { get; set; }
     public bool ValidFormat { get; set; }
     public int? GreetingCode { get; set; }
-    public string ServerDomain { get; set; }
+    public string? ServerDomain { get; set; }
     public bool Truncated { get; set; }
     public int? ResponseTimeMs { get; set; }
     public bool TlsAdvertised { get; set; }

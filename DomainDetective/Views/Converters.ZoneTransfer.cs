@@ -11,16 +11,17 @@ public static partial class Converters
         Summarize(assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(assessments);
         var positives = RecommendationEngine.FromPositives(assessments);
-        var total = analysis.ServerResults?.Count ?? 0;
-        var open = analysis.ServerResults?.Count(kv => kv.Value) ?? 0;
+        var serverResults = analysis.ServerResults ?? new Dictionary<string, bool>();
+        var total = serverResults.Count;
+        var open = serverResults.Count(kv => kv.Value);
         return new ZoneTransferInfo
         {
             Check = HealthCheckType.ZONETRANSFER,
             Area = AreaForKind(HealthCheckType.ZONETRANSFER),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             TotalChecked = total,
             OpenCount = open,
-            ServerResults = analysis.ServerResults,
+            ServerResults = serverResults,
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,

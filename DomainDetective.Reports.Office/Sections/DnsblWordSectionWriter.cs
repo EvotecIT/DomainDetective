@@ -92,7 +92,7 @@ public static class DnsblWordSectionWriter
             for (int i = 0; i < listed.Count; i++)
             {
                 var r = listed[i];
-                lt.Rows[i + 1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress);
+                lt.Rows[i + 1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress ?? string.Empty);
                 lt.Rows[i + 1].Cells[1].AddParagraph(r.BlackList ?? string.Empty);
                 lt.Rows[i + 1].Cells[2].AddParagraph(r.ReplyMeaning ?? string.Empty);
             }
@@ -132,8 +132,16 @@ public static class DnsblWordSectionWriter
         if (f.Count > 0)
         { headings.AddItem("Findings", baseLevel); var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid); ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message"); for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);} }
 
-        if (scope != ReportScope.Minimal && original != null && (original.ListedRecords?.Count ?? 0) > 0)
-        { headings.AddItem("Evidence", baseLevel); var lt = doc.AddTable(original.ListedRecords.Count + 1, 3, WordTableStyle.TableGrid); lt.Rows[0].Cells[0].AddParagraph("Host"); lt.Rows[0].Cells[1].AddParagraph("Blacklist"); lt.Rows[0].Cells[2].AddParagraph("Reason"); for (int i=0;i<original.ListedRecords.Count;i++){ var r = original.ListedRecords[i]; lt.Rows[i+1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress); lt.Rows[i+1].Cells[1].AddParagraph(r.BlackList ?? string.Empty); lt.Rows[i+1].Cells[2].AddParagraph(r.ReplyMeaning ?? string.Empty);} }
+        var listedRecords = original?.ListedRecords;
+        if (scope != ReportScope.Minimal && listedRecords != null && listedRecords.Count > 0)
+        {
+            headings.AddItem("Evidence", baseLevel);
+            var lt = doc.AddTable(listedRecords.Count + 1, 3, WordTableStyle.TableGrid);
+            lt.Rows[0].Cells[0].AddParagraph("Host");
+            lt.Rows[0].Cells[1].AddParagraph("Blacklist");
+            lt.Rows[0].Cells[2].AddParagraph("Reason");
+            for (int i=0;i<listedRecords.Count;i++){ var r = listedRecords[i]; lt.Rows[i+1].Cells[0].AddParagraph(r.SourceHost ?? r.IpAddress ?? string.Empty); lt.Rows[i+1].Cells[1].AddParagraph(r.BlackList ?? string.Empty); lt.Rows[i+1].Cells[2].AddParagraph(r.ReplyMeaning ?? string.Empty);}
+        }
 
         if (sec.References.Count > 0)
         { headings.AddItem("References", baseLevel); WordLinkHelpers.AddReferencesList(doc, sec.References); }

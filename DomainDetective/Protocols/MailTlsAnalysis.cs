@@ -187,13 +187,13 @@ public class MailTlsAnalysis : IHasAssessments {
                             bool weak = s.Contains("3DES") || s.Contains("RC4") || s.Contains("_CBC_");
                             if (s.Contains("_SHA") && !s.Contains("SHA256") && !s.Contains("SHA384") && !s.Contains("SHA512")) weak = true;
                             if (weak) {
-                                logger?.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                                logger.WriteWarningCode(TlsCodes.WeakCipherNegotiated, "Weak cipher negotiated on {0}:{1}: {2}", host, port, suite);
                             } else {
-                                logger?.WriteInformationCode(MailTlsCodes.StrongCipherSuite, "Strong cipher negotiated on {0}:{1}: {2}", host, port, suite);
+                                logger.WriteInformationCode(MailTlsCodes.StrongCipherSuite, "Strong cipher negotiated on {0}:{1}: {2}", host, port, suite);
                             }
                         }
                         if (result.DhKeyBits > 0 && result.DhKeyBits < 2048) {
-                            logger?.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
+                            logger.WriteWarningCode(TlsCodes.WeakKeyExchange, "Weak DH key size {0} bits negotiated on {1}:{2}", result.DhKeyBits, host, port);
                         }
                     } catch { }
                     try {
@@ -201,21 +201,21 @@ public class MailTlsAnalysis : IHasAssessments {
                         await secureWriter.WriteLineAsync(GetQuitCommand(protocol)).WaitWithCancellation(timeoutCts.Token);
                     } catch (ObjectDisposedException) {
                         // Remote closed immediately after handshake; safe to ignore.
-                        logger?.WriteVerbose($"TLS session closed before QUIT on {host}:{port} (direct TLS)");
+                        logger.WriteVerbose($"TLS session closed before QUIT on {host}:{port} (direct TLS)");
                     } catch (IOException ioex) {
                         // Socket closed/reset while attempting QUIT; treat as benign post-handshake.
-                        logger?.WriteVerbose($"TLS write failed (QUIT) on {host}:{port} - {ioex.Message}");
+                        logger.WriteVerbose($"TLS write failed (QUIT) on {host}:{port} - {ioex.Message}");
                     }
                     if (result.CertificateValid && result.ChainValid && result.HostnameMatch && !result.IsExpired) {
-                        logger?.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
+                        logger.WriteInformationCode(MailTlsCodes.CertificateValid, "Valid certificate on {0}:{1}", host, port);
                     }
                 } catch (AuthenticationException ex) {
-                    logger?.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
+                    logger.WriteVerbose($"TLS authentication failed for {host}:{port} - {ex.Message}");
                 } catch (ObjectDisposedException odex) {
                     // Some servers tear down the stream aggressively; report as verbose and continue.
-                    logger?.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
+                    logger.WriteVerbose($"TLS stream disposed during operation on {host}:{port} - {odex.Message}");
                 } catch (IOException ioex) {
-                    logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
+                    logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
                     try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
 #if NET8_0_OR_GREATER
@@ -228,7 +228,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     // Probe protocol support (best-effort)
                     await ProbeProtocolSupport(host, port, result, cancellationToken);
                     if (result.SupportsTls10 || result.SupportsTls11) {
-                        logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
+                        logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                             result.SupportsTls10 ? "1.0" : string.Empty,
                             result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
                             host, port);
@@ -237,7 +237,7 @@ public class MailTlsAnalysis : IHasAssessments {
                     // Grade and legacy detection
                     ComputeGrade(result);
                     if (result.LegacyEnabled) {
-                        logger?.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
+                        logger.WriteWarningCode(TlsCodes.LegacyEnabled, "Legacy TLS protocol negotiated on {0}:{1} - {2}", host, port, result.Protocol);
                     }
                     await ProbeOcspStaplingWithOpenSsl(host, port, result, logger, cancellationToken);
                 }
@@ -256,10 +256,10 @@ public class MailTlsAnalysis : IHasAssessments {
             switch (protocol) {
                 case MailProtocol.Smtp:
                     await writer.WriteLineAsync("EHLO example.com");
-                    string line;
+                    string? line;
                     while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                         timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger?.WriteVerbose($"EHLO response: {line}");
+                        logger.WriteVerbose($"EHLO response: {line}");
                         if (line.StartsWith("250")) {
                             string capLine = line.Substring(4).Trim();
                             foreach (var part in capLine.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries)) {
@@ -279,15 +279,15 @@ public class MailTlsAnalysis : IHasAssessments {
                     while (true) {
                         var resp = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                         timeoutCts.Token.ThrowIfCancellationRequested();
-                        if (resp == null) {
-                            break;
-                        }
-                        logger?.WriteVerbose($"CAPABILITY response: {resp}");
-                        if (resp.StartsWith("*")) {
-                            var capLine = resp.Substring(1).Trim();
-                            if (capLine.StartsWith("CAPABILITY", StringComparison.OrdinalIgnoreCase)) {
-                                var caps = capLine.Substring(10).Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                                foreach (var cap in caps) {
+                    if (resp == null) {
+                        break;
+                    }
+                    logger.WriteVerbose($"CAPABILITY response: {resp}");
+                    if (resp.StartsWith("*")) {
+                        var capLine = resp.Substring(1).Trim();
+                        if (capLine.StartsWith("CAPABILITY", StringComparison.OrdinalIgnoreCase)) {
+                            var caps = capLine.Substring(10).Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var cap in caps) {
                                     capabilities.Add(cap);
                                 }
                             }
@@ -299,10 +299,10 @@ public class MailTlsAnalysis : IHasAssessments {
                     break;
                 case MailProtocol.Pop3:
                     await writer.WriteLineAsync("CAPA");
-                    string popLine;
+                    string? popLine;
                     while ((popLine = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                         timeoutCts.Token.ThrowIfCancellationRequested();
-                        logger?.WriteVerbose($"CAPA response: {popLine}");
+                        logger.WriteVerbose($"CAPA response: {popLine}");
                         if (popLine == ".") {
                             break;
                         }
@@ -508,7 +508,7 @@ public class MailTlsAnalysis : IHasAssessments {
 #pragma warning restore SYSLIB0039
     }
 
-    private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger logger, CancellationToken token) {
+    private static async Task ProbeOcspStaplingWithOpenSsl(string host, int port, TlsResult result, InternalLogger? logger, CancellationToken token) {
         try {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             var psi = new System.Diagnostics.ProcessStartInfo {

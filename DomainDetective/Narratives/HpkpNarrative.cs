@@ -4,8 +4,14 @@ namespace DomainDetective.Narratives {
     public static class HpkpNarrative {
         public sealed class Sections : NarrativeSections { }
 
-        public static Sections Build(HPKPAnalysis analysis) {
-            var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        public static Sections Build(HPKPAnalysis? analysis) {
+            var subjCandidate = analysis?.Subject;
+            string subj;
+            if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate)) {
+                subj = subjCandidate;
+            } else {
+                subj = "(host)";
+            }
             var title = $"HPKP Report — {subj}";
             var subtitle = "HPKP Assessment";
             var category = "Web Security";

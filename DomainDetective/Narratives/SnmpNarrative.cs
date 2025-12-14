@@ -7,9 +7,18 @@ public static class SnmpNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(SnmpAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(SnmpAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"SNMP Report — {subj}";
         var subtitle = "SNMP Exposure Assessment";
         var category = "Infrastructure";

@@ -118,7 +118,8 @@ public class SimpleDomainReport {
                                 if (_healthCheck.SpfAnalysis != null) {
                                     grid.AddItem("SPF Record", _healthCheck.SpfAnalysis.SpfRecordExists && _healthCheck.SpfAnalysis.StartsCorrectly ? "Valid" : "Invalid");
                                     grid.AddItem("SPF Status", _healthCheck.SpfAnalysis.SpfRecordExists ? "Found" : "Not found");
-                                    var policy = string.IsNullOrWhiteSpace(_healthCheck.SpfAnalysis.AllMechanism) ? "none" : _healthCheck.SpfAnalysis.AllMechanism.ToLowerInvariant();
+                                    var allMechanism = _healthCheck.SpfAnalysis.AllMechanism;
+                                    var policy = string.IsNullOrWhiteSpace(allMechanism) ? "none" : allMechanism!.ToLowerInvariant();
                                     grid.AddItem("SPF Policy", policy);
                                     var lookups = _healthCheck.SpfAnalysis.DnsLookupsCount;
                                     var lookupsTxt = _healthCheck.SpfAnalysis.ExceedsDnsLookups ? $"{lookups}/10 (exceeds)" : $"{lookups}/10";

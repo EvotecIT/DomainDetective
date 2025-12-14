@@ -34,16 +34,16 @@ public static partial class Converters
 public class ThreatFeedInfo
 {
     public HealthCheckType Check { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<ThreatListing> Listings { get; set; }
-    public string FailureReason { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string? Subject { get; set; }
+    public IReadOnlyList<ThreatListing> Listings { get; set; } = null!;
+    public string? FailureReason { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public ThreatFeedAnalysis Raw { get; set; }
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public ThreatFeedAnalysis Raw { get; set; } = null!;
 }
 
