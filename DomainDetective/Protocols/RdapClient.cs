@@ -21,7 +21,14 @@ public sealed class RdapClient
     /// <param name="baseUrl">Service endpoint. Defaults to rdap.org.</param>
     public RdapClient(string? baseUrl = null)
     {
-        BaseUrl = string.IsNullOrWhiteSpace(baseUrl) ? "https://rdap.org" : baseUrl.TrimEnd('/');
+        if (baseUrl != null && !string.IsNullOrWhiteSpace(baseUrl))
+        {
+            BaseUrl = baseUrl.TrimEnd('/');
+        }
+        else
+        {
+            BaseUrl = "https://rdap.org";
+        }
     }
 
     private async Task<T?> QueryAsync<T>(string path, CancellationToken ct)

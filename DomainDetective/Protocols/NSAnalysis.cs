@@ -15,7 +15,7 @@ namespace DomainDetective {
     public class NSAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>Configuration used for DNS queries.</summary>
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         /// <summary>Allows injection of a DNS query implementation for testing.</summary>
         public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
@@ -53,25 +53,27 @@ namespace DomainDetective {
         /// Executes a DNS query for the specified record type.
         /// </summary>
         private async Task<DnsAnswer[]> QueryDns(string name, DnsRecordType type) {
-            if (QueryDnsOverride != null) {
+            var queryDnsOverride = QueryDnsOverride;
+            if (queryDnsOverride != null) {
                 // Try exact first
-                var res = await QueryDnsOverride(name, type);
+                var res = await queryDnsOverride(name, type);
                 if (res != null && res.Length > 0) return res;
                 // Fallback to toggling trailing dot to accommodate tests and mixed data
                 string alt = name.EndsWith(".", StringComparison.Ordinal) ? name.TrimEnd('.') : name + ".";
-                try { res = await QueryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
+                try { res = await queryDnsOverride(alt, type); } catch { res = Array.Empty<DnsAnswer>(); }
                 return res ?? Array.Empty<DnsAnswer>();
             }
 
-            return await DnsConfiguration.QueryDNS(name, type);
+            return await DnsConfiguration.QueryDNS(name, type) ?? Array.Empty<DnsAnswer>();
         }
 
         private async Task<IEnumerable<DnsResponse>> QueryFullDns(string name, DnsRecordType type) {
-            if (QueryDnsFullOverride != null) {
-                return await QueryDnsFullOverride(name, type);
+            var queryDnsFullOverride = QueryDnsFullOverride;
+            if (queryDnsFullOverride != null) {
+                return await queryDnsFullOverride(name, type);
             }
 
-            return await DnsConfiguration.QueryFullDNS(new[] { name }, type);
+            return await DnsConfiguration.QueryFullDNS(new[] { name }, type) ?? Array.Empty<DnsResponse>();
         }
 
         private static string? GetParentZone(string domain) {
@@ -123,7 +125,7 @@ namespace DomainDetective {
         /// Processes NS records and determines their properties.
         /// </summary>
         public async Task AnalyzeNsRecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "NS") : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS");
             NsRecords = new List<string>();
             NsRecordExists = false;
             HasDuplicates = false;
@@ -133,7 +135,7 @@ namespace DomainDetective {
             HasDiverseLocations = false;
 
             if (dnsResults == null) {
-                logger?.WriteVerbose("DNS query returned no results.");
+                logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
@@ -195,28 +197,28 @@ namespace DomainDetective {
 
             // Emit assessments for common NS issues
             if (!NsRecordExists) {
-                logger?.WriteWarningCode(NSCodes.Missing, "No NS records found");
+                logger.WriteWarningCode(NSCodes.Missing, "No NS records found");
             }
             if (HasDuplicates) {
-                logger?.WriteWarningCode(NSCodes.Duplicate, "Duplicate NS records detected");
+                logger.WriteWarningCode(NSCodes.Duplicate, "Duplicate NS records detected");
             }
             if (!AtLeastTwoRecords) {
-                logger?.WriteWarningCode(NSCodes.TooFewRecords, "Fewer than two NS records published");
+                logger.WriteWarningCode(NSCodes.TooFewRecords, "Fewer than two NS records published");
             }
             if (PointsToCname) {
-                logger?.WriteWarningCode(NSCodes.CnameTarget, "One or more NS hostnames point to CNAMEs");
+                logger.WriteWarningCode(NSCodes.CnameTarget, "One or more NS hostnames point to CNAMEs");
             }
             if (!AllHaveAOrAaaa) {
                 foreach (var host in missingAddressHosts) {
-                    using (_collector?.PushTarget(host))
-                        logger?.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
+                    using (_collector.PushTarget(host))
+                        logger.WriteWarningCode(NSCodes.MissingAddressRecords, "NS hostname has no A/AAAA address records");
                 }
             }
             if (!HasDiverseLocations) {
-                logger?.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
+                logger.WriteWarningCode(NSCodes.LowDiversity, "NS hosts lack diversity across networks");
             } else {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
-                logger?.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
+                logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
             }
         }
 
@@ -247,7 +249,7 @@ namespace DomainDetective {
         /// <param name="domainName">Domain being checked.</param>
         /// <param name="logger">Logger used for diagnostics.</param>
         public async Task AnalyzeParentDelegation(string domainName, InternalLogger logger) {
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName) : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: domainName);
             ParentNsRecords = new List<string>();
             DelegationMatches = false;
             GlueRecordsComplete = true;
@@ -255,7 +257,7 @@ namespace DomainDetective {
 
             var parent = GetParentZone(domainName);
             if (string.IsNullOrEmpty(parent)) {
-                logger?.WriteVerbose("No parent zone for {0}", domainName);
+                logger.WriteVerbose("No parent zone for {0}", domainName);
                 return;
             }
 
@@ -290,13 +292,13 @@ namespace DomainDetective {
             }
 
             if (!DelegationMatches) {
-                logger?.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");
+                logger.WriteWarningCode(NSCodes.DelegationMismatch, "Parent delegation NS set differs from child zone NS set");
             }
             if (!GlueRecordsComplete) {
-                logger?.WriteWarningCode(NSCodes.GlueIncomplete, "Parent zone missing glue records for in-bailiwick NS");
+                logger.WriteWarningCode(NSCodes.GlueIncomplete, "Parent zone missing glue records for in-bailiwick NS");
             }
             if (!GlueRecordsConsistent) {
-                logger?.WriteWarningCode(NSCodes.GlueInconsistent, "Parent glue records do not match child A/AAAA records");
+                logger.WriteWarningCode(NSCodes.GlueInconsistent, "Parent glue records do not match child A/AAAA records");
             }
         }
 
@@ -329,7 +331,7 @@ namespace DomainDetective {
                 RecursionEnabled[host] = recursion;
                 if (recursion) {
                     using var _s = AssessmentCollector.ForAnalysis(logger, this, category: "NS", target: host);
-                    logger?.WriteWarningCode(NSCodes.RecursionOnAuthoritative, "Authoritative NS allows recursion");
+                    logger.WriteWarningCode(NSCodes.RecursionOnAuthoritative, "Authoritative NS allows recursion");
                 }
             }
         }
@@ -367,8 +369,9 @@ namespace DomainDetective {
         }
 
         private async Task<bool> CheckRecursionAsync(string server, InternalLogger logger) {
-            if (RecursionTestOverride != null) {
-                return await RecursionTestOverride(server);
+            var recursionTestOverride = RecursionTestOverride;
+            if (recursionTestOverride != null) {
+                return await recursionTestOverride(server);
             }
             try {
                 using var udp = new System.Net.Sockets.UdpClient();
@@ -387,7 +390,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteVerbose("Recursion test failed for {0}: {1}", server, ex.Message);
+                logger.WriteVerbose("Recursion test failed for {0}: {1}", server, ex.Message);
                 return false;
             }
         }

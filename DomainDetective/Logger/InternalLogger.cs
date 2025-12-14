@@ -133,7 +133,7 @@ namespace DomainDetective {
             }
         }
 
-        public void WriteError(string message, params object[] args) {
+        public void WriteError(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
                 if (!_loggedMessages.Add(formatted)) {
@@ -149,7 +149,7 @@ namespace DomainDetective {
         /// <summary>
         /// Writes an error with a structured code.
         /// </summary>
-        public void WriteErrorCode(string code, string message, params object[] args) {
+        public void WriteErrorCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
                 if (!_loggedMessages.Add(formatted)) {
@@ -174,7 +174,7 @@ namespace DomainDetective {
             }
         }
 
-        public void WriteWarning(string message, params object[] args) {
+        public void WriteWarning(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
                 if (!_loggedMessages.Add(formatted)) {
@@ -190,7 +190,7 @@ namespace DomainDetective {
         /// <summary>
         /// Writes a warning with a structured code.
         /// </summary>
-        public void WriteWarningCode(string code, string message, params object[] args) {
+        public void WriteWarningCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
                 if (!_loggedMessages.Add(formatted)) {
@@ -215,7 +215,7 @@ namespace DomainDetective {
             }
         }
 
-        public void WriteVerbose(string message, params object[] args) {
+        public void WriteVerbose(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
                 if (!_loggedMessages.Add(formatted)) {
@@ -228,7 +228,7 @@ namespace DomainDetective {
             }
         }
 
-        public void WriteDebug(string message, params object[] args) {
+        public void WriteDebug(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
                 if (!_loggedMessages.Add(formatted)) {
@@ -241,7 +241,7 @@ namespace DomainDetective {
             }
         }
 
-        public void WriteInformation(string message, params object[] args) {
+        public void WriteInformation(string message, params object?[] args) {
             lock (_lock) {
                 var formatted = string.Format(message, args);
                 if (!_loggedMessages.Add(formatted)) {
@@ -257,7 +257,7 @@ namespace DomainDetective {
         /// <summary>
         /// Writes an information message with a structured code.
         /// </summary>
-        public void WriteInformationCode(string code, string message, params object[] args) {
+        public void WriteInformationCode(string code, string message, params object?[] args) {
             lock (_lock) {
                 var formatted = args != null && args.Length > 0 ? string.Format(message, args) : message;
                 if (!_loggedMessages.Add(formatted)) {

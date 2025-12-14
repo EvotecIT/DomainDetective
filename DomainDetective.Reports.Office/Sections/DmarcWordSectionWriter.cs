@@ -230,8 +230,11 @@ public static class DmarcWordSectionWriter
             if (anyRua || anyRuf)
             {
                 var elist = doc.AddList(WordListStyle.Bulleted);
-                if (anyRua) elist.AddItem($"Aggregate RUA: {string.Join(", ", original.MailtoRua)}");
-                if (anyRuf) elist.AddItem($"Forensic RUF: {string.Join(", ", original.MailtoRuf)}");
+                var rua = original.MailtoRua;
+                if (rua != null && rua.Count > 0) elist.AddItem($"Aggregate RUA: {string.Join(", ", rua)}");
+
+                var ruf = original.MailtoRuf;
+                if (ruf != null && ruf.Count > 0) elist.AddItem($"Forensic RUF: {string.Join(", ", ruf)}");
             }
         }
 

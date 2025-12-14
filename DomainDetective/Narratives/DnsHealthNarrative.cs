@@ -8,9 +8,18 @@ public static class DnsHealthNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(DnsHealthAnalysis analysis)
+    public static Sections Build(DnsHealthAnalysis? analysis)
     {
-        var subject = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjectCandidate = analysis?.Subject;
+        string subject;
+        if (subjectCandidate != null && !string.IsNullOrWhiteSpace(subjectCandidate))
+        {
+            subject = subjectCandidate;
+        }
+        else
+        {
+            subject = "(domain)";
+        }
         var title = $"DNS Health Report — {subject}";
         var subtitle = "DNS Health Assessment";
         var category = "DNS Infrastructure";

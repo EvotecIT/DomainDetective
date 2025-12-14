@@ -123,13 +123,13 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         PrimaryRegistrableDomain = GetRegistrableDomain?.Invoke(baseUri.Host) ?? baseUri.Host;
 
         // Progress: start
-        logger?.WriteVerbose("[WEB] Static scan start: {0}", url);
-        logger?.WriteProgress("WEBSTATIC", "Fetch main document", 5.0, 0, 6);
+        logger.WriteVerbose("[WEB] Static scan start: {0}", url);
+        logger.WriteProgress("WEBSTATIC", "Fetch main document", 5.0, 0, 6);
         // 1) Reuse HttpAnalysis for main document posture
         MainHttpAnalysis = new HttpAnalysis();
         await MainHttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: logger, collectHeaders: true, captureBody: true, cancellationToken);
         string? body = MainHttpAnalysis.Body;
-        try { logger?.WriteVerbose("[WEB] Main document: {0} ({1} bytes)", MainHttpAnalysis.StatusCode, MainHttpAnalysis.BodyLength ?? (body?.Length ?? 0)); } catch { }
+        try { logger.WriteVerbose("[WEB] Main document: {0} ({1} bytes)", MainHttpAnalysis.StatusCode, MainHttpAnalysis.BodyLength ?? (body?.Length ?? 0)); } catch { }
         // Add main document as the first request entry for waterfall/ordering
         try
         {
@@ -263,8 +263,8 @@ public partial class WebStaticScanAnalysis : IHasAssessments
             try { RecordHeaderFrequency(baseUri.Host, headResp); } catch { }
         } catch { }
 
-        DetectTechFromHeadersAndBody(MainHttpAnalysis, body);
-        logger?.WriteProgress("WEBSTATIC", "Discover resources", 20.0, 1, 6);
+        if (MainHttpAnalysis != null) DetectTechFromHeadersAndBody(MainHttpAnalysis, body);
+        logger.WriteProgress("WEBSTATIC", "Discover resources", 20.0, 1, 6);
 
         // Discover link hints and structured data in main HTML (no network activity)
         try { ParseLinkHintsFromBody(baseUri, body); } catch { }
@@ -278,22 +278,22 @@ public partial class WebStaticScanAnalysis : IHasAssessments
         else
         {
             var (schedule, seen) = await DiscoverResourcesAndBuildSchedule(baseUri, body, http, logger, cancellationToken);
-            logger?.WriteVerbose("[WEB] Discovered {0} resource candidates", schedule?.Count ?? 0);
-            logger?.WriteProgress("WEBSTATIC", "Fetch resource headers", 40.0, 2, 6);
+            logger.WriteVerbose("[WEB] Discovered {0} resource candidates", schedule.Count);
+            logger.WriteProgress("WEBSTATIC", "Fetch resource headers", 40.0, 2, 6);
             var (cssCandidates, hostCounts) = await FetchResourceHeadersAsync(schedule, http, logger, cancellationToken);
-            logger?.WriteVerbose("[WEB] CSS candidates: {0}", cssCandidates.Count);
-            logger?.WriteProgress("WEBSTATIC", "Process CSS", 55.0, 3, 6);
+            logger.WriteVerbose("[WEB] CSS candidates: {0}", cssCandidates.Count);
+            logger.WriteProgress("WEBSTATIC", "Process CSS", 55.0, 3, 6);
             await ProcessCssAsync(cssCandidates, seen, hostCounts, http, logger, cancellationToken);
             // Optional link checking (bounded depth/pages)
             try { await CheckLinksAsync(baseUri, body, http, logger, cancellationToken); } catch { }
-            logger?.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
+            logger.WriteProgress("WEBSTATIC", "Enrich hosts (TLS/DNS)", 75.0, 4, 6);
             await EnrichHostsAsync(logger, cancellationToken);
             // Stamp TLS info onto existing requests where available
             try
             {
                 foreach (var r in Requests)
                 {
-                    if (string.IsNullOrWhiteSpace(r?.Host)) continue;
+                    if (r == null || string.IsNullOrWhiteSpace(r.Host)) continue;
                     if (string.IsNullOrWhiteSpace(r.TlsProtocol) && Hosts.TryGetValue(r.Host, out var h) && h?.Tls != null)
                     {
                         r.TlsProtocol = h.Tls.Protocol.ToString();
@@ -330,8 +330,7 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                     var visited = new System.Collections.Generic.HashSet<int>();
                     int baseDepth = (r.SourceKind == ResourceSourceKind.Link) ? r.Depth : 0;
                     int maxAbsDepth = baseDepth;
-                    System.Action<int> dfs = null;
-                    dfs = (int id) =>
+                    void Dfs(int id)
                     {
                         if (!visited.Add(id)) return;
                         if (RequestAdjacency.TryGetValue(id, out var kids))
@@ -343,11 +342,11 @@ public partial class WebStaticScanAnalysis : IHasAssessments
                                 {
                                     if (cr.Depth > maxAbsDepth) maxAbsDepth = cr.Depth;
                                 }
-                                dfs(cid);
+                                Dfs(cid);
                             }
                         }
                     };
-                    dfs(r.Id);
+                    Dfs(r.Id);
                     r.MaxLinkDepthFromHere = System.Math.Max(0, maxAbsDepth - baseDepth);
                 }
                 // Top redirect pairs

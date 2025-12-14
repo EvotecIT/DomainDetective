@@ -310,7 +310,7 @@ internal sealed class WizardScanCommand : AsyncCommand<WizardScanSettings>
             {
                 case "json":
                     {
-                        var json = hc.ToJson();
+                        var json = hc!.ToJson();
                         if (!string.IsNullOrWhiteSpace(wizard.Options.Out))
                         {
                             File.WriteAllText(wizard.Options.Out!, json);

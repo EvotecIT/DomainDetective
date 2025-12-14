@@ -35,22 +35,17 @@ public partial class WebStaticScanAnalysis
     {
         try
         {
-            var ver = resp?.Version;
-            if (ver != null) { req.ProtocolVersion = ver.ToString(); }
+            var ver = resp.Version;
+            req.ProtocolVersion = ver.ToString();
 #if NET6_0_OR_GREATER
-            if (ver != null)
-            {
-                req.Http3 = ver >= System.Net.HttpVersion.Version30;
-                req.Http2 = ver >= System.Net.HttpVersion.Version20;
-            }
+            req.Http3 = ver >= System.Net.HttpVersion.Version30;
+            req.Http2 = ver >= System.Net.HttpVersion.Version20;
 #else
-            if (ver != null)
-            {
-                req.Http2 = ver.Major >= 2;
-                req.Http3 = false;
-            }
+            req.Http2 = ver.Major >= 2;
+            req.Http3 = false;
 #endif
-            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name) => h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
+            static string? JoinVals(System.Net.Http.Headers.HttpHeaders? h, string name) =>
+                h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
             req.CacheControl = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control");
             req.ETag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
             req.LastModified = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
@@ -60,11 +55,12 @@ public partial class WebStaticScanAnalysis
             req.Expires = resp.Content?.Headers?.Expires?.ToString() ?? JoinVals(resp.Headers, "Expires") ?? JoinVals(resp.Content?.Headers, "Expires");
             req.AltSvc = JoinVals(resp.Headers, "Alt-Svc");
             req.LinkHeader = JoinVals(resp.Headers, "Link");
-            if (!string.IsNullOrWhiteSpace(req.LinkHeader))
+            var linkHeader = req.LinkHeader;
+            if (!string.IsNullOrWhiteSpace(linkHeader))
             {
                 int preloadCount = 0;
                 var asTypes = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-                foreach (var seg in req.LinkHeader.Split(','))
+                foreach (var seg in linkHeader!.Split(','))
                 {
                     var s = seg.Trim(); if (s.Length == 0) continue;
                     if (s.IndexOf("rel=\"preload\"", System.StringComparison.OrdinalIgnoreCase) >= 0)
@@ -100,7 +96,10 @@ public partial class WebStaticScanAnalysis
             req.AccessControlAllowMethods = JoinVals(resp.Headers, "Access-Control-Allow-Methods") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Methods");
             req.AccessControlAllowHeaders = JoinVals(resp.Headers, "Access-Control-Allow-Headers") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Headers");
             var cred = JoinVals(resp.Headers, "Access-Control-Allow-Credentials") ?? JoinVals(resp.Content?.Headers, "Access-Control-Allow-Credentials");
-            if (!string.IsNullOrWhiteSpace(cred)) req.AccessControlAllowCredentials = cred.Trim().Equals("true", System.StringComparison.OrdinalIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(cred))
+            {
+                req.AccessControlAllowCredentials = cred!.Trim().Equals("true", System.StringComparison.OrdinalIgnoreCase);
+            }
             // Per-request HSTS and cookie count
             req.HstsPresent = (JoinVals(resp.Headers, "Strict-Transport-Security") ?? JoinVals(resp.Content?.Headers, "Strict-Transport-Security")) != null;
             try
@@ -120,10 +119,14 @@ public partial class WebStaticScanAnalysis
             int sum = 0;
             if (resp != null)
             {
-                foreach (var h in resp.Headers)
+                var respHeaders = resp.Headers;
+                if (respHeaders != null)
                 {
-                    if (h.Key == null) continue; var nameLen = h.Key.Length + 2; // include ': '
-                    foreach (var v in h.Value) { if (v != null) sum += nameLen + v.Length + 2; } // include CRLF
+                    foreach (var h in respHeaders)
+                    {
+                        if (h.Key == null) continue; var nameLen = h.Key.Length + 2; // include ': '
+                        foreach (var v in h.Value) { if (v != null) sum += nameLen + v.Length + 2; } // include CRLF
+                    }
                 }
                 if (resp.Content?.Headers != null)
                 {
@@ -160,7 +163,7 @@ public partial class WebStaticScanAnalysis
     private static MediaSupertype ToMediaSupertype(string? contentType)
     {
         if (string.IsNullOrWhiteSpace(contentType)) return MediaSupertype.Unknown;
-        var ct = contentType.Trim();
+        var ct = contentType!.Trim();
         var slash = ct.IndexOf('/');
         var major = slash > 0 ? ct.Substring(0, slash) : ct;
         return major.ToLowerInvariant() switch
@@ -342,24 +345,25 @@ public partial class WebStaticScanAnalysis
                 Cors.FirstPartyResponses++;
                 if (!string.IsNullOrWhiteSpace(origin))
                 {
-                    if (origin.Trim() == "*") { Cors.WildcardOriginCount++; if (Hosts.TryGetValue(host, out var hh)) hh.CorsAnyOrigin = true; }
-                    else Cors.Origins.Add(origin.Trim());
+                    var originValue = origin!.Trim();
+                    if (originValue == "*") { Cors.WildcardOriginCount++; if (Hosts.TryGetValue(host, out var hh)) hh.CorsAnyOrigin = true; }
+                    else Cors.Origins.Add(originValue);
                 }
                 if (!string.IsNullOrWhiteSpace(methods))
                 {
-                    foreach (var tok in methods.Split(','))
+                    foreach (var tok in methods!.Split(','))
                     {
                         var t = tok.Trim(); if (t.Length > 0) Cors.Methods.Add(t);
                     }
                 }
                 if (!string.IsNullOrWhiteSpace(headers))
                 {
-                    foreach (var tok in headers.Split(','))
+                    foreach (var tok in headers!.Split(','))
                     {
                         var t = tok.Trim(); if (t.Length > 0) Cors.Headers.Add(t);
                     }
                 }
-                if (!string.IsNullOrWhiteSpace(credentials) && credentials.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) Cors.CredentialsCount++;
+                if (!string.IsNullOrWhiteSpace(credentials) && credentials!.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)) Cors.CredentialsCount++;
             }
         }
         catch { }
@@ -395,7 +399,7 @@ public partial class WebStaticScanAnalysis
         try
         {
             if (!Hosts.TryGetValue(host, out var hh) || hh == null) return;
-            string JoinVals(System.Net.Http.Headers.HttpHeaders h, string name) => h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
+            static string? JoinVals(System.Net.Http.Headers.HttpHeaders? h, string name) => h != null && h.TryGetValues(name, out var vals) ? string.Join(",", vals) : null;
             var cc = JoinVals(resp.Headers, "Cache-Control") ?? JoinVals(resp.Content?.Headers, "Cache-Control") ?? string.Empty;
             var etag = resp.Headers?.ETag != null ? resp.Headers.ETag.Tag : (JoinVals(resp.Headers, "ETag") ?? JoinVals(resp.Content?.Headers, "ETag"));
             var lastMod = resp.Content?.Headers?.LastModified?.ToString() ?? JoinVals(resp.Headers, "Last-Modified") ?? JoinVals(resp.Content?.Headers, "Last-Modified");
@@ -608,11 +612,11 @@ public partial class WebStaticScanAnalysis
                     var first = System.Linq.Enumerable.FirstOrDefault(fastlyCache);
                     if (!string.IsNullOrWhiteSpace(first))
                     {
-                        var parts = first.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        var token = parts.Length > 0 ? parts[0] : null;
-                        if (!string.IsNullOrWhiteSpace(token)) lock (host) host.EdgeCacheStatus ??= token.ToUpperInvariant();
-                    }
+                    var parts = first.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    var token = parts.Length > 0 ? parts[0] : null;
+                    if (!string.IsNullOrWhiteSpace(token)) lock (host) host.EdgeCacheStatus ??= token!.ToUpperInvariant();
                 }
+            }
                 if ((resp.Headers.TryGetValues("X-Cache-Hits", out var hits) || resp.Content.Headers.TryGetValues("X-Cache-Hits", out hits)))
                 {
                     var first = System.Linq.Enumerable.FirstOrDefault(hits);
@@ -634,13 +638,13 @@ public partial class WebStaticScanAnalysis
                     var first = System.Linq.Enumerable.FirstOrDefault(akCache) ?? string.Empty;
                     var parts = first.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     var token = parts.Length > 0 ? parts[0] : null;
-                    if (!string.IsNullOrWhiteSpace(token) && token.StartsWith("TCP_", StringComparison.OrdinalIgnoreCase))
+                    if (!string.IsNullOrWhiteSpace(token) && token!.StartsWith("TCP_", StringComparison.OrdinalIgnoreCase))
                     {
-                        lock (host) host.EdgeCacheStatus ??= token.ToUpperInvariant();
+                        lock (host) host.EdgeCacheStatus ??= token!.ToUpperInvariant();
                     }
                     else if (first.IndexOf("AkamaiGHost", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
-                        if (!string.IsNullOrWhiteSpace(token)) lock (host) host.EdgeCacheStatus ??= token.ToUpperInvariant();
+                        if (!string.IsNullOrWhiteSpace(token)) lock (host) host.EdgeCacheStatus ??= token!.ToUpperInvariant();
                     }
                 }
             }

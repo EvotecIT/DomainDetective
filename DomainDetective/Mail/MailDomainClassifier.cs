@@ -202,7 +202,7 @@ public sealed class MailDomainClassifier {
                 foreach (var kv in _health.DKIMAnalysis.AnalysisResults)
                 {
                     var cn = kv.Value?.CnameTarget;
-                    if (!string.IsNullOrWhiteSpace(cn)) dkimCnames.Add(cn);
+                    if (!string.IsNullOrWhiteSpace(cn)) dkimCnames.Add(cn!);
                 }
             }
             var match = Providers.Email.EmailProviderDetector.Detect(mxHosts, spfTokens, dkimCnames);
@@ -214,7 +214,7 @@ public sealed class MailDomainClassifier {
 
         // Aggregate contributing assessments for consistency in views/PS
         var agg = new List<Assessment>();
-        void Pull(IHasAssessments a) { if (a?.Assessments != null) agg.AddRange(a.Assessments); }
+        void Pull(IHasAssessments? a) { if (a?.Assessments != null) agg.AddRange(a.Assessments); }
         Pull(_health.SpfAnalysis);
         Pull(_health.DKIMAnalysis);
         Pull(_health.MXAnalysis);
@@ -233,10 +233,10 @@ public sealed class MailDomainClassifier {
             _ => null
         };
 
-        if (!string.IsNullOrWhiteSpace(classificationCode))
-        {
-            agg.Add(new Assessment { Code = classificationCode, Severity = AssessmentSeverity.Info, Message = reason, Category = "MailClassification" });
-            _logger?.WriteInformationCode(classificationCode, reason);
+        if (!string.IsNullOrWhiteSpace(classificationCode)) {
+            var code = classificationCode!;
+            agg.Add(new Assessment { Code = code, Severity = AssessmentSeverity.Info, Message = reason, Category = "MailClassification" });
+            _logger?.WriteInformationCode(code, reason);
         }
 
         return new MailDomainClassificationResult {
@@ -277,7 +277,7 @@ public sealed class MailDomainClassifier {
 
     private IReadOnlyList<StandardReference> BuildRfcReferences() {
         var list = new List<StandardReference>();
-        void AddRange(IEnumerable<StandardReference> refsList) {
+        void AddRange(IEnumerable<StandardReference>? refsList) {
             if (refsList == null) return;
             foreach (var r in refsList) {
                 if (!list.Any(x => string.Equals(x.Reference, r.Reference, StringComparison.OrdinalIgnoreCase))) {

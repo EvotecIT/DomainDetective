@@ -15,7 +15,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DnsHealthAnalysis : IHasAssessments {
         public string? Subject { get; set; }
-        public DnsConfiguration DnsConfiguration { get; set; }
+        public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
 

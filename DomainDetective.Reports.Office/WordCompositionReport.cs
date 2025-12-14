@@ -285,16 +285,17 @@ public static class WordCompositionReport {
                         var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
                         var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase))
                                           ?? links?.FirstOrDefault();
-                        if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0) {
+                        var topics = primaryHelp?.Topics;
+                        if (topics != null && topics.Count > 0) {
                             var ordered = (helpOpts.TopicOrder?.Length > 0)
-                                ? primaryHelp.Topics.OrderBy(t => Array.IndexOf(helpOpts.TopicOrder, (t?.Topic ?? string.Empty).ToUpperInvariant())).ToList()
-                                : primaryHelp.Topics.ToList();
+                                ? topics.OrderBy(t => Array.IndexOf(helpOpts.TopicOrder, (t?.Topic ?? string.Empty).ToUpperInvariant())).ToList()
+                                : topics.ToList();
                             var top = ordered.Where(t => !string.IsNullOrWhiteSpace(t?.Url)).Take(3).ToList();
                             if (top.Count > 0) {
                                 var l = doc.AddList(WordListStyle.Bulleted);
                                 foreach (var t in top) {
                                     var p = l.AddItem(string.Empty);
-                                    var text = string.IsNullOrWhiteSpace(t.Title) ? ($"{primaryHelp.ProviderName} — {t.Topic}") : t.Title!;
+                                    var text = string.IsNullOrWhiteSpace(t.Title) ? ($"{primaryHelp!.ProviderName} — {t.Topic}") : t.Title!;
                                     try { p.AddHyperLink(text, new Uri(t.Url!), addStyle: true); } catch { p.AddText(text + ": " + t.Url); }
                                 }
                             }
@@ -611,7 +612,7 @@ public static class WordCompositionReport {
         } catch { return null; }
     }
 
-    private static string SectionKeyFor(HealthCheckType h) => h switch {
+    private static string? SectionKeyFor(HealthCheckType h) => h switch {
         HealthCheckType.MX => "MX",
         HealthCheckType.SPF => "SPF",
         HealthCheckType.DKIM => "DKIM",
@@ -770,9 +771,19 @@ public static class WordCompositionReport {
                     case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject):
                         Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
                     case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
-                        Ensure(dnsbl.Subject); map[dnsbl.Subject].Dnsbl = dnsbl; break;
+                    {
+                        var subject = dnsbl.Subject!;
+                        Ensure(subject);
+                        map[subject].Dnsbl = dnsbl;
+                        break;
+                    }
                     case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
-                        Ensure(rpki.Subject); map[rpki.Subject].Rpki = rpki; break;
+                    {
+                        var subject = rpki.Subject!;
+                        Ensure(subject);
+                        map[subject].Rpki = rpki;
+                        break;
+                    }
                     case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject):
                         Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
                     case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject):
@@ -788,13 +799,23 @@ public static class WordCompositionReport {
                     case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
                         Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                     case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
-                        Ensure(tr.Subject); map[tr.Subject].TlsRpt = tr; break;
+                    {
+                        var subject = tr.Subject!;
+                        Ensure(subject);
+                        map[subject].TlsRpt = tr;
+                        break;
+                    }
                     case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
                         Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                     case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
                         Ensure(dn.Subject); map[dn.Subject].Dane = dn; break;
                     case DomainDetective.Views.TtlInfo ttl when !string.IsNullOrWhiteSpace(ttl.Subject):
-                        Ensure(ttl.Subject); map[ttl.Subject].Ttl = ttl; break;
+                    {
+                        var subject = ttl.Subject!;
+                        Ensure(subject);
+                        map[subject].Ttl = ttl;
+                        break;
+                    }
                     case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
                         Ensure(mt.Subject);
                         switch (mt.Check) {

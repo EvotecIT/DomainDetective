@@ -9,9 +9,18 @@ public static class TtlNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(DnsTtlAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DnsTtlAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"DNS TTL Report — {subj}";
         var subtitle = "DNS TTL Assessment";
         var category = "DNS";

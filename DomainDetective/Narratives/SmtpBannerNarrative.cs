@@ -8,9 +8,18 @@ public static class SmtpBannerNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(SMTPBannerAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(SMTPBannerAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"SMTP Banner Report — {subj}";
         var subtitle = "SMTP Banner Assessment";
         var category = "Email Security";

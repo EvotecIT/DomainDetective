@@ -11,9 +11,18 @@ public static class DnssecNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(DnsSecAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(DnsSecAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subject = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjectCandidate = analysis?.Subject;
+        string subject;
+        if (subjectCandidate != null && !string.IsNullOrWhiteSpace(subjectCandidate))
+        {
+            subject = subjectCandidate;
+        }
+        else
+        {
+            subject = "(domain)";
+        }
         var title = $"DNSSEC Report — {subject}";
         var subtitle = "DNSSEC Assessment";
         var category = "DNS Security";

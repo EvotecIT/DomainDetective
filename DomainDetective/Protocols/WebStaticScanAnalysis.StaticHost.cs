@@ -12,7 +12,7 @@ public partial class WebStaticScanAnalysis
     {
         /// <summary>Stable grouping id used to assign requests to waterfall lanes.</summary>
         public int GroupId { get; set; }
-        public string Host { get; set; }
+        public string Host { get; set; } = null!;
         public string? RegistrableDomain { get; set; }
         public List<string> IpAddresses { get; } = new();
         public string? Cidr { get; set; }

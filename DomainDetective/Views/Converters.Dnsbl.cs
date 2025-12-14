@@ -20,14 +20,13 @@ public static partial class Converters
         }).ToList() ?? new List<DnsblHostSummary>();
 
         var listedRecords = analysis.AllResults?.Where(r => r.IsBlackListed).ToList() ?? new List<DNSBLRecord>();
-        // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
-        string subject = analysis.Subject;
 
         return new DnsblInfo
         {
             Check = HealthCheckType.DNSBL,
             Area = AreaForKind(HealthCheckType.DNSBL),
-            Subject = subject,
+            // Subject is domain-scoped when analysis was invoked with a domain; null for multi-input/IP-only runs
+            Subject = analysis.Subject,
             ProvidersChecked = analysis.GetDNSBL().Count,
             HostsChecked = analysis.RecordChecked,
             HostsListed = analysis.Blacklisted,
@@ -53,7 +52,7 @@ public class DnsblInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; } = string.Empty;
+    public string? Subject { get; set; }
     public int ProvidersChecked { get; set; }
     public int HostsChecked { get; set; }
     public int HostsListed { get; set; }

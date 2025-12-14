@@ -77,10 +77,11 @@ public static class ZoneTransferWordSectionWriter
         var t = doc.AddTable(sec.Summary.Count, 2, WordTableStyle.TableGrid);
         for (int i=0;i<sec.Summary.Count;i++){ var kv = sec.Summary[i]; t.Rows[i].Cells[0].AddParagraph(kv.Key); t.Rows[i].Cells[1].AddParagraph(kv.Value); }
 
-        if (original != null && (original.ServerResults?.Count ?? 0) > 0)
+        var serverResults = original?.ServerResults;
+        if (serverResults != null && serverResults.Count > 0)
         {
             headings.AddItem("Servers", baseLevel);
-            var srv = original.ServerResults.ToList();
+            var srv = serverResults.ToList();
             var table = doc.AddTable(srv.Count + 1, 2, WordTableStyle.TableGrid);
             table.Rows[0].Cells[0].AddParagraph("Server"); table.Rows[0].Cells[1].AddParagraph("Open");
             for (int i=0;i<srv.Count;i++){ table.Rows[i+1].Cells[0].AddParagraph(srv[i].Key); table.Rows[i+1].Cells[1].AddParagraph(srv[i].Value ? "Yes" : "No"); }

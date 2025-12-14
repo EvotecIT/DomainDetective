@@ -21,7 +21,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
         /// </summary>
         public static void ClearCache() => _cache.Clear();
         /// <summary>Domain that was analyzed.</summary>
-        public string Domain { get; set; }
+        public string Domain { get; set; } = string.Empty;
 
         /// <summary>True when a security.txt record was found.</summary>
         public bool RecordPresent { get; set; }
@@ -36,7 +36,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
         public bool FallbackUsed { get; set; }
 
         /// <summary>URL from which the record was downloaded.</summary>
-        public string Url { get; set; }
+        public string Url { get; set; } = string.Empty;
         public HashSet<string> DuplicateTags { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Fields that can appear multiple times as List<string>
         public List<string> ContactEmail { get; set; } = new List<string>();
@@ -49,11 +49,11 @@ public class SecurityTXTAnalysis : IHasAssessments {
 
         // Fields that should only appear once as string
         public List<string> Canonical { get; set; } = new List<string>();
-        public string Expires { get; set; }
-        public string SignatureEncryption { get; set; }
+        public string Expires { get; set; } = string.Empty;
+        public string SignatureEncryption { get; set; } = string.Empty;
 
 
-        internal InternalLogger Logger { get; set; }
+        internal InternalLogger Logger { get; set; } = new InternalLogger();
         public List<Assessment> Assessments { get; } = new();
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
@@ -80,7 +80,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
             }
 
             string url = $"https://{domainName}/.well-known/security.txt";
-            string response = await GetSecurityTxt(url);
+            string? response = await GetSecurityTxt(url);
             bool fallback = false;
             if (response == null) {
                 url = $"http://{domainName}/security.txt";
@@ -117,7 +117,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537");
         }
 
-        private async Task<string> GetSecurityTxt(string url) {
+        private async Task<string?> GetSecurityTxt(string url) {
             try {
                 var response = await _client.GetAsync(url);
                 if (response.IsSuccessStatusCode && response.Content.Headers.ContentType?.MediaType == "text/plain") {
@@ -135,7 +135,7 @@ public class SecurityTXTAnalysis : IHasAssessments {
         /// <summary>
         /// Parses the contents of a security.txt file.
         /// </summary>
-        private void ParseSecurityTxt(string txt, string pgpPublicKey, string currentUrl) {
+        private void ParseSecurityTxt(string txt, string? pgpPublicKey, string currentUrl) {
             if (txt.Contains("-----BEGIN PGP SIGNED MESSAGE-----")) {
                 PGPSigned = true;
                 if (!string.IsNullOrEmpty(pgpPublicKey)) {

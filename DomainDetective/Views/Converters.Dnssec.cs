@@ -13,7 +13,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.DNSSEC,
             Area = AreaForKind(HealthCheckType.DNSSEC),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             AuthenticData = analysis.AuthenticData,
             DsAuthenticData = analysis.DsAuthenticData,
             DsMatch = analysis.DsMatch,

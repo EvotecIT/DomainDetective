@@ -40,27 +40,27 @@ public class ThreatIntelInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string? Subject { get; set; }
     public int? RiskScore { get; set; }
     public int? CompositeScore { get; set; }
-    public string Severity { get; set; }
+    public string? Severity { get; set; }
     public double? Confidence { get; set; }
-    public IReadOnlyList<ThreatListing> Listings { get; set; }
-    public string FailureReason { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<ThreatListing> Listings { get; set; } = null!;
+    public string? FailureReason { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public ThreatIntelAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public ThreatIntelAnalysis Raw { get; set; } = null!;
 }
 
 public class ThreatListing
 {
-    public string Source { get; set; }
+    public string Source { get; set; } = null!;
     public bool Listed { get; set; }
 }
 

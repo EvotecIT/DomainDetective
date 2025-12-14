@@ -8,10 +8,10 @@ namespace DomainDetective;
 public sealed class MetaRule
 {
     /// <summary>Meta name attribute (e.g., generator).</summary>
-    [JsonPropertyName("name")] public string Name { get; set; }
+    [JsonPropertyName("name")] public string Name { get; set; } = null!;
     /// <summary>Substring to search for within the meta content value.</summary>
-    [JsonPropertyName("contains")] public string Contains { get; set; }
+    [JsonPropertyName("contains")] public string Contains { get; set; } = null!;
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

@@ -64,7 +64,7 @@ public class SubdomainEnumeration
             if (item.TryGetProperty("name_value", out var nv))
             {
                 var vals = nv.GetString();
-                if (!string.IsNullOrWhiteSpace(vals))
+                if (vals != null && !string.IsNullOrWhiteSpace(vals))
                 {
                     list.AddRange(vals.Split('\n'));
                 }

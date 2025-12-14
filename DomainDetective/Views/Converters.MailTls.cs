@@ -34,10 +34,10 @@ public static partial class Converters
                 CipherAlgorithm = r.CipherAlgorithm.ToString(),
                 CipherStrength = r.CipherStrength,
                 CipherSuite = r.CipherSuite,
-                KeyExchangeAlgorithm = r.KeyExchangeAlgorithm,
+                KeyExchangeAlgorithm = r.KeyExchangeAlgorithm ?? string.Empty,
                 DhKeyBits = r.DhKeyBits,
-                CertificateSubject = r.CertificateSubject,
-                CertificateIssuer = r.CertificateIssuer,
+                CertificateSubject = r.CertificateSubject ?? string.Empty,
+                CertificateIssuer = r.CertificateIssuer ?? string.Empty,
                 CertificateNotAfter = r.CertificateNotAfter,
                 // New summary-friendly aliases
                 Issuer = r.CertificateIssuer,
@@ -62,7 +62,7 @@ public static partial class Converters
         {
             Check = kind,
             Area = AreaForKind(kind),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             Servers = servers,
             Assessments = analysis.Assessments,
             Status = status,
@@ -81,23 +81,23 @@ public class MailTlsInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public IReadOnlyList<MailTlsServerInfo> Servers { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string Subject { get; set; } = null!;
+    public IReadOnlyList<MailTlsServerInfo> Servers { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public MailTlsAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public MailTlsAnalysis Raw { get; set; } = null!;
 }
 
 public class MailTlsServerInfo
 {
     /// <summary>Server key in the form host:port.</summary>
-    public string Key { get; set; }
+    public string Key { get; set; } = null!;
     /// <summary>True when STARTTLS was advertised or implicit TLS used.</summary>
     public bool StartTlsAdvertised { get; set; }
     /// <summary>Computed letter grade for TLS posture.</summary>
@@ -111,7 +111,7 @@ public class MailTlsServerInfo
     /// <summary>True when the certificate is expired.</summary>
     public bool IsExpired { get; set; }
     /// <summary>Negotiated TLS protocol.</summary>
-    public string Protocol { get; set; }
+    public string Protocol { get; set; } = null!;
     /// <summary>True when server supports TLS 1.3.</summary>
     public bool SupportsTls13 { get; set; }
     /// <summary>True when TLS 1.3 was used for the connection.</summary>
@@ -119,19 +119,19 @@ public class MailTlsServerInfo
     /// <summary>True when certificate hostname matches the server name.</summary>
     public bool HostnameMatch { get; set; }
     /// <summary>Negotiated cipher algorithm.</summary>
-    public string CipherAlgorithm { get; set; }
+    public string CipherAlgorithm { get; set; } = null!;
     /// <summary>Negotiated cipher strength in bits.</summary>
     public int CipherStrength { get; set; }
     /// <summary>Negotiated cipher suite identifier.</summary>
-    public string CipherSuite { get; set; }
+    public string CipherSuite { get; set; } = null!;
     /// <summary>Key exchange algorithm.</summary>
-    public string KeyExchangeAlgorithm { get; set; }
+    public string KeyExchangeAlgorithm { get; set; } = null!;
     /// <summary>Diffie-Hellman key size (bits) when applicable.</summary>
     public int DhKeyBits { get; set; }
     /// <summary>Certificate subject (CN/SAN summary).</summary>
-    public string CertificateSubject { get; set; }
+    public string CertificateSubject { get; set; } = null!;
     /// <summary>Certificate issuer (legacy field).</summary>
-    public string CertificateIssuer { get; set; }
+    public string CertificateIssuer { get; set; } = null!;
     /// <summary>Certificate expiration time (legacy field).</summary>
     public System.DateTime? CertificateNotAfter { get; set; }
     /// <summary>Indicator of OCSP stapling (if detected).</summary>

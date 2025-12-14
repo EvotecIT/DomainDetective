@@ -23,8 +23,8 @@ namespace DomainDetective;
 public class WhoisAnalysis : IHasAssessments {
     /// <summary>DNS configuration used for auxiliary lookups (e.g., whois-servers.net).</summary>
     public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
-    private string TLD { get; set; }
-    private string _domainName;
+    private string TLD { get; set; } = string.Empty;
+    private string _domainName = string.Empty;
 
     /// <summary>The domain name being queried.</summary>
     public string DomainName {
@@ -41,19 +41,19 @@ public class WhoisAnalysis : IHasAssessments {
     public string Tld => TLD;
 
     /// <summary>WHOIS registrar name.</summary>
-    public string Registrar { get; set; }
+    public string? Registrar { get; set; }
 
     /// <summary>Creation date string as returned by the server.</summary>
-    public string CreationDate { get; set; }
+    public string? CreationDate { get; set; }
 
     /// <summary>Expiry date string as returned by the server.</summary>
-    public string ExpiryDate { get; set; }
+    public string? ExpiryDate { get; set; }
 
     /// <summary>Last updated date string.</summary>
-    public string LastUpdated { get; set; }
+    public string? LastUpdated { get; set; }
 
     /// <summary>Entity the domain is registered to.</summary>
-    public string RegisteredTo { get; set; }
+    public string? RegisteredTo { get; set; }
 
     /// <summary>Name servers listed in the response.</summary>
     public List<string> NameServers { get; set; } = new List<string>();
@@ -62,32 +62,32 @@ public class WhoisAnalysis : IHasAssessments {
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Type of registrant if provided.</summary>
-    public string RegistrantType { get; set; }
+    public string? RegistrantType { get; set; }
 
     /// <summary>Registrant country code.</summary>
-    public string Country { get; set; }
+    public string? Country { get; set; }
 
     /// <summary>DNSSEC status string.</summary>
-    public string DnsSec { get; set; }
+    public string? DnsSec { get; set; }
 
     /// <summary>Raw DNS record returned, if any.</summary>
-    public string DnsRecord { get; set; }
+    public string? DnsRecord { get; set; }
 
     /// <summary>Registrar address text.</summary>
-    public string RegistrarAddress { get; set; }
+    public string? RegistrarAddress { get; set; }
 
     /// <summary>Registrar phone number.</summary>
-    public string RegistrarTel { get; set; }
+    public string? RegistrarTel { get; set; }
 
     /// <summary>Registrar website URL.</summary>
-    public string RegistrarWebsite { get; set; }
+    public string? RegistrarWebsite { get; set; }
 
     /// <summary>Registrar licence identifier.</summary>
-    public string RegistrarLicense { get; set; }
-    public string RegistrarEmail { get; set; }
-    public string RegistrarAbuseEmail { get; set; }
-    public string RegistrarAbusePhone { get; set; }
-    public string WhoisData { get; set; }
+    public string? RegistrarLicense { get; set; }
+    public string? RegistrarEmail { get; set; }
+    public string? RegistrarAbuseEmail { get; set; }
+    public string? RegistrarAbusePhone { get; set; }
+    public string WhoisData { get; set; } = string.Empty;
     /// <summary>When true, follows Registrar WHOIS referrals for gTLDs when available.</summary>
     public bool FollowReferral { get; set; } = false;
     /// <summary>Maximum referral depth when <see cref="FollowReferral"/> is enabled.</summary>
@@ -102,7 +102,7 @@ public class WhoisAnalysis : IHasAssessments {
     public TimeSpan ExpirationWarningThreshold { get; set; } = TimeSpan.FromDays(30);
     public TimeSpan ExpirationLongTermThreshold { get; set; } = TimeSpan.FromDays(365);
     public string? SnapshotDirectory { get; set; }
-    public string RegistrarId { get; private set; }
+    public string? RegistrarId { get; private set; }
     public Func<string, Task<string>>? IanaQueryOverride { private get; set; }
     public List<Assessment> Assessments { get; } = new();
 
@@ -448,7 +448,7 @@ public class WhoisAnalysis : IHasAssessments {
         if (domainParts.Length > 2) {
             string compoundTld = string.Join(".", domainParts.Skip(domainParts.Length - 2));
             lock (_whoisServersLock) {
-                if (WhoisServers.TryGetValue(compoundTld, out string server)) {
+                if (WhoisServers.TryGetValue(compoundTld, out var server) && !string.IsNullOrWhiteSpace(server)) {
                     TLD = compoundTld;
                     _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
                     WhoisServerUsed = server;
@@ -468,7 +468,7 @@ public class WhoisAnalysis : IHasAssessments {
         string singleTld = domainParts[domainParts.Length - 1];
         TLD = singleTld;
         lock (_whoisServersLock) {
-            if (WhoisServers.TryGetValue(singleTld, out string server)) {
+            if (WhoisServers.TryGetValue(singleTld, out var server) && !string.IsNullOrWhiteSpace(server)) {
                 _logger?.WriteVerbose("WHOIS TLD '{0}' uses server '{1}'", TLD, server);
                 WhoisServerUsed = server;
                 WhoisLookupSource = "StaticMap";
@@ -568,7 +568,7 @@ public class WhoisAnalysis : IHasAssessments {
             }
 
             byte[] responseBytes = Array.Empty<byte>();
-            Exception lastEx = null;
+            Exception? lastEx = null;
             var retries = Math.Max(1, MaxQueryRetries);
             for (int attempt = 0; attempt < retries; attempt++) {
                 try {
@@ -612,7 +612,7 @@ public class WhoisAnalysis : IHasAssessments {
                 "\n",
                 RegexOptions.CultureInvariant | RegexOptions.Multiline);
             WhoisData = response;
-            using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: domain))
+            using (var _collector = AssessmentCollector.ForAnalysis(_logger!, this, category: "WHOIS", target: domain))
             {
                 ParseWhoisData();
             }
@@ -652,23 +652,23 @@ public class WhoisAnalysis : IHasAssessments {
         while (!string.IsNullOrWhiteSpace(current) && depth < MaxReferralDepth)
         {
             depth++;
-            ReferralChain.Add(current);
+            ReferralChain.Add(current!);
             _logger?.WriteVerbose("Following referral to WHOIS server: {0}", current);
             string? nextResponse = await QueryWhoisRawAsync(current!, domain, ct).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(nextResponse)) break;
+            if (nextResponse == null || string.IsNullOrWhiteSpace(nextResponse)) break;
 
             // Overwrite data with registrar WHOIS details
             WhoisServerUsed = current;
             WhoisLookupSource = "Referral";
             WhoisData = nextResponse;
-            using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: domain))
+            using (var _collector = AssessmentCollector.ForAnalysis(_logger!, this, category: "WHOIS", target: domain))
             {
                 ParseWhoisData();
             }
             NormalizeExpiryDateInData();
 
             // Check if further referrals exist
-            current = ExtractReferralServer(nextResponse!);
+            current = ExtractReferralServer(nextResponse);
         }
     }
 
@@ -781,7 +781,7 @@ public class WhoisAnalysis : IHasAssessments {
         UpdatePrivacyFlag();
 
         // Emit assessments after parsing flags
-        using (var _collector = AssessmentCollector.ForAnalysis(_logger, this, category: "WHOIS", target: DomainName))
+        using (var _collector = AssessmentCollector.ForAnalysis(_logger!, this, category: "WHOIS", target: DomainName))
         {
             if (IsExpired)
             {
@@ -826,7 +826,7 @@ public class WhoisAnalysis : IHasAssessments {
             "\n",
             RegexOptions.CultureInvariant | RegexOptions.Multiline);
 
-        string currentSection = null;
+        string? currentSection = null;
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
             ParseRegistrarLicense(trimmedLine);
@@ -937,8 +937,6 @@ public class WhoisAnalysis : IHasAssessments {
             "\r\n|\n|\r",
             "\n",
             RegexOptions.CultureInvariant | RegexOptions.Multiline);
-
-        bool isParsingNameServers = false;
 
         foreach (var line in WhoisData.Split('\n')) {
             var trimmedLine = line.Trim();
@@ -1552,7 +1550,11 @@ public class WhoisAnalysis : IHasAssessments {
             } catch (HttpRequestException ex) {
                 // Ignore IANA RDAP failures; WHOIS data may still be valid
 #if NET6_0_OR_GREATER
-                if (ex.StatusCode.HasValue) return;
+                if (ex.StatusCode.HasValue) {
+                    return;
+                }
+#else
+                _ = ex;
 #endif
                 return;
             }

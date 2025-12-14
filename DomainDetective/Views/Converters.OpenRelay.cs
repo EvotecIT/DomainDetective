@@ -20,7 +20,7 @@ public static partial class Converters
             Subject = null,
             TotalChecked = total,
             OpenAllowed = allows,
-            Results = analysis.ServerResults,
+            Results = analysis.ServerResults ?? new Dictionary<string, OpenRelayAnalysis.OpenRelayResult>(),
             Assessments = assessments,
             Status = status,
             WarningCount = warnCount,
@@ -38,17 +38,17 @@ public class OpenRelayInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string? Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenAllowed { get; set; }
-    public IReadOnlyDictionary<string, OpenRelayAnalysis.OpenRelayResult> Results { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyDictionary<string, OpenRelayAnalysis.OpenRelayResult> Results { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public OpenRelayAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public OpenRelayAnalysis Raw { get; set; } = null!;
 }

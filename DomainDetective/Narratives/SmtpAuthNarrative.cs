@@ -8,9 +8,18 @@ public static class SmtpAuthNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(SmtpAuthAnalysis analysis)
+    public static Sections Build(SmtpAuthAnalysis? analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"SMTP AUTH Report — {subj}";
         var subtitle = "SMTP AUTH Assessment";
         var category = "Email Security";

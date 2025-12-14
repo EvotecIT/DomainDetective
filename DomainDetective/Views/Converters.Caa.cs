@@ -13,7 +13,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.CAA,
             Area = AreaForKind(HealthCheckType.CAA),
-            Subject = analysis.Subject ?? analysis.DomainName,
+            Subject = analysis.Subject ?? analysis.DomainName ?? string.Empty,
             ValidRecords = analysis.ValidRecords,
             InvalidRecords = analysis.InvalidRecords,
             Conflicting = analysis.Conflicting,

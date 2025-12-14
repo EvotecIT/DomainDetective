@@ -62,10 +62,11 @@ public static class DkimNarrative
             hi.Add("Public key missing (p=). This selector cannot validate.");
         }
 
-        if (!string.IsNullOrWhiteSpace(dkim.HashAlgorithm))
+        var hashAlgorithm = dkim.HashAlgorithm;
+        if (hashAlgorithm != null && !string.IsNullOrWhiteSpace(hashAlgorithm))
         {
-            hi.Add($"Hash algorithm: {dkim.HashAlgorithm}.");
-            if (dkim.HashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
+            hi.Add($"Hash algorithm: {hashAlgorithm}.");
+            if (hashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
                 hi.Add("Hash includes sha256.");
         }
 

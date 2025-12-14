@@ -36,8 +36,8 @@ public static partial class Converters
             Subject = result.Domain,
             Classification = result.Classification.ToString(),
             Confidence = result.Confidence.ToString(),
-            ReceivingSignals = result.ReceivingSignals,
-            SendingSignals = result.SendingSignals,
+            ReceivingSignals = result.ReceivingSignals ?? System.Array.Empty<string>(),
+            SendingSignals = result.SendingSignals ?? System.Array.Empty<string>(),
             Score = result.Score,
             ScoreBreakdown = result.ScoreBreakdown,
             Assessments = assessments,
@@ -50,8 +50,8 @@ public static partial class Converters
             References = BuildReferences(result.RfcReferences, recs),
             Raw = result,
             ProviderPrimary = result.ProviderPrimary,
-            ProviderGateways = result.ProviderGateways,
-            ProviderOutbound = result.ProviderOutbound
+            ProviderGateways = result.ProviderGateways ?? System.Array.Empty<string>(),
+            ProviderOutbound = result.ProviderOutbound ?? System.Array.Empty<string>()
         };
     }
 }
@@ -60,24 +60,24 @@ public sealed class MailClassificationInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string Classification { get; set; }
-    public string Confidence { get; set; }
-    public IReadOnlyList<string> ReceivingSignals { get; set; }
-    public IReadOnlyList<string> SendingSignals { get; set; }
+    public string Subject { get; set; } = null!;
+    public string Classification { get; set; } = null!;
+    public string Confidence { get; set; } = null!;
+    public IReadOnlyList<string> ReceivingSignals { get; set; } = null!;
+    public IReadOnlyList<string> SendingSignals { get; set; } = null!;
     public double Score { get; set; }
-    public IReadOnlyDictionary<string, double> ScoreBreakdown { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyDictionary<string, double> ScoreBreakdown { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public MailDomainClassificationResult Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public MailDomainClassificationResult Raw { get; set; } = null!;
     public string? ProviderPrimary { get; set; }
-    public IReadOnlyList<string> ProviderGateways { get; set; }
-    public IReadOnlyList<string> ProviderOutbound { get; set; }
+    public IReadOnlyList<string> ProviderGateways { get; set; } = null!;
+    public IReadOnlyList<string> ProviderOutbound { get; set; } = null!;
 }
 

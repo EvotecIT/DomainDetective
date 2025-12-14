@@ -23,11 +23,11 @@ public partial class WebStaticScanAnalysis
         /// <summary>Maximum link depth reachable from this node relative to its own depth.</summary>
         public int MaxLinkDepthFromHere { get; set; }
         /// <summary>Original URL requested.</summary>
-        public string Url { get; set; }
+        public string Url { get; set; } = null!;
         /// <summary>Final host after redirects (or host parsed from <see cref="Url"/>).</summary>
-        public string Host { get; set; }
+        public string Host { get; set; } = null!;
         /// <summary>HTTP method used (HEAD/GET).</summary>
-        public string Method { get; set; }
+        public string Method { get; set; } = null!;
         /// <summary>HTTP status code returned.</summary>
         public int StatusCode { get; set; }
         /// <summary>Classification of the status code family (2xx, 3xx, 4xx, 5xx).</summary>

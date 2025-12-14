@@ -9,14 +9,17 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var page = analysis.MainHttpAnalysis != null ? Convert(analysis.MainHttpAnalysis) : null;
+        var hosts = analysis.Hosts;
+        var requests = analysis.Requests;
+        var brokenResources = analysis.BrokenResources;
         int fp = 0, tp = 0;
-        foreach (var kv in analysis.Hosts) { if (kv.Value.FirstParty) fp++; else tp++; }
-        var topHosts = analysis.Hosts.Values
+        foreach (var kv in hosts) { if (kv.Value.FirstParty) fp++; else tp++; }
+        var topHosts = hosts.Values
             .OrderByDescending(h => h.Bytes)
             .Take(10)
             .Select(h => new WebStaticScanHostBrief { Host = h.Host, Bytes = h.Bytes, FirstParty = h.FirstParty, Requests = h.RequestCount, BytesByType = h.BytesByType })
             .ToArray();
-        var topThird = analysis.Hosts.Values
+        var topThird = hosts.Values
             .Where(h => !h.FirstParty)
             .OrderByDescending(h => h.Bytes)
             .Take(10)
@@ -24,38 +27,36 @@ public static partial class Converters
             .ToArray();
 
         // Stats
-        var reqTotal = analysis.Requests?.Count ?? 0;
+        var reqTotal = requests.Count;
         int https = 0;
         long transfer = 0;
-        if (analysis.Requests != null)
+        foreach (var r in requests)
         {
-            foreach (var r in analysis.Requests)
-            {
-                try { var u = new System.Uri(r.FinalUrl ?? r.Url); if (u.Scheme == "https") https++; } catch { }
-                if (r.ContentLength.HasValue) transfer += r.ContentLength.Value;
-            }
+            try { var u = new System.Uri(r.FinalUrl ?? r.Url); if (u.Scheme == "https") https++; } catch { }
+            if (r.ContentLength.HasValue) transfer += r.ContentLength.Value;
         }
         var httpsPct = reqTotal > 0 ? (int)System.Math.Round(100.0 * https / reqTotal) : 0;
         // IPv6 percent by host: any IPv6 address recorded
-        int ipv6Hosts = analysis.Hosts.Values.Count(h => h.IpAddresses.Any(ip => ip.Contains(':')));
-        var ipv6Pct = analysis.Hosts.Count > 0 ? (int)System.Math.Round(100.0 * ipv6Hosts / analysis.Hosts.Count) : 0;
+        int ipv6Hosts = hosts.Values.Count(h => h.IpAddresses.Any(ip => ip.Contains(':')));
+        var ipv6Pct = hosts.Count > 0 ? (int)System.Math.Round(100.0 * ipv6Hosts / hosts.Count) : 0;
         var domains = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        foreach (var h in analysis.Hosts.Values) domains.Add(h.RegistrableDomain ?? h.Host);
+        foreach (var h in hosts.Values) domains.Add(h.RegistrableDomain ?? h.Host);
         int domainCount = domains.Count;
-        int subdomainCount = System.Math.Max(0, (analysis.Hosts?.Count ?? 0) - domainCount);
+        int subdomainCount = System.Math.Max(0, hosts.Count - domainCount);
         var ips = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         var countries = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
-        foreach (var h in analysis.Hosts.Values) {
+        foreach (var h in hosts.Values) {
             foreach (var ip in h.IpAddresses) ips.Add(ip);
-            if (!string.IsNullOrWhiteSpace(h.Country)) countries.Add(h.Country);
+            var country = h.Country;
+            if (country != null && !string.IsNullOrWhiteSpace(country)) countries.Add(country);
         }
 
         // Broken links summary
-        int brokenTotal = analysis.BrokenResources?.Count ?? 0;
+        int brokenTotal = brokenResources.Count;
         int brokenFirstParty = 0;
         if (brokenTotal > 0)
         {
-            try { brokenFirstParty = analysis.BrokenResources.Count(b => b.FirstParty); } catch { }
+            try { brokenFirstParty = brokenResources.Count(b => b.FirstParty); } catch { }
         }
 
         return new WebStaticScanInfo
@@ -65,13 +66,13 @@ public static partial class Converters
             Subject = analysis.Subject,
             Title = analysis.PageTitle,
             Page = page,
-            ResourceCount = analysis.Requests?.Count ?? 0,
-            HostCount = analysis.Hosts?.Count ?? 0,
+            ResourceCount = requests.Count,
+            HostCount = hosts.Count,
             BytesByType = analysis.BytesByType,
             FirstPartyHostCount = fp,
             ThirdPartyHostCount = tp,
-            Tech = analysis.TechDetections?.ToArray() ?? System.Array.Empty<string>(),
-            Trackers = analysis.TrackersUsed?.ToArray() ?? System.Array.Empty<string>(),
+            Tech = analysis.TechDetections.ToArray(),
+            Trackers = analysis.TrackersUsed.ToArray(),
             TopHostsByBytes = topHosts,
             TopThirdPartyByBytes = topThird,
             HttpsPercent = httpsPct,
@@ -85,7 +86,7 @@ public static partial class Converters
             BrokenLinksTotal = brokenTotal,
             BrokenLinksFirstParty = brokenFirstParty,
             Assessments = analysis.Assessments,
-            TechDetails = analysis.TechDetails?.ToArray() ?? System.Array.Empty<TechDetectionDetail>(),
+            TechDetails = analysis.TechDetails.ToArray(),
             Status = status,
             WarningCount = warnCount,
             ErrorCount = errCount,

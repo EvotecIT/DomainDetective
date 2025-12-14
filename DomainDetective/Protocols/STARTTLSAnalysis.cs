@@ -112,7 +112,7 @@ public class STARTTLSAnalysis : IHasAssessments {
 
                 var capabilities = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
                 var ehloLines = new List<string>();
-                string line;
+                string? line;
                 string? lastEhlo = null;
                 while ((line = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token)) != null) {
                     timeoutCts.Token.ThrowIfCancellationRequested();
@@ -190,13 +190,17 @@ public class STARTTLSAnalysis : IHasAssessments {
                         }
 #endif
                         try {
-                            var cert = ssl.RemoteCertificate as System.Security.Cryptography.X509Certificates.X509Certificate2 ??
-                                       new System.Security.Cryptography.X509Certificates.X509Certificate2(ssl.RemoteCertificate);
-                            resultCertSubject = cert.Subject;
-                            resultCertIssuer = cert.Issuer;
-                            resultCertNotBefore = cert.NotBefore;
-                            resultCertNotAfter = cert.NotAfter;
-                            resultCertThumbprint = cert.Thumbprint;
+                            var remoteCertificate = ssl.RemoteCertificate;
+                            if (remoteCertificate != null)
+                            {
+                                var cert = remoteCertificate as System.Security.Cryptography.X509Certificates.X509Certificate2 ??
+                                           new System.Security.Cryptography.X509Certificates.X509Certificate2(remoteCertificate);
+                                resultCertSubject = cert.Subject;
+                                resultCertIssuer = cert.Issuer;
+                                resultCertNotBefore = cert.NotBefore;
+                                resultCertNotAfter = cert.NotAfter;
+                                resultCertThumbprint = cert.Thumbprint;
+                            }
                         } catch { }
                     } catch (Exception ex) {
                         logger?.WriteVerbose($"STARTTLS handshake failed for {host}:{port} - {ex.Message}");
@@ -261,11 +265,11 @@ public class STARTTLSAnalysis : IHasAssessments {
 
     /// <summary>Detailed STARTTLS probe result per server.</summary>
     public sealed class STARTTLSResult {
-        public string Host { get; set; }
+        public string Host { get; set; } = string.Empty;
         public int Port { get; set; }
-        public string Banner { get; set; }
-        public List<string> EhloLines { get; set; }
-        public List<string> Capabilities { get; set; }
+        public string Banner { get; set; } = string.Empty;
+        public List<string> EhloLines { get; set; } = new List<string>();
+        public List<string> Capabilities { get; set; } = new List<string>();
         public bool StartTlsAdvertised { get; set; }
         public bool DowngradeDetected { get; set; }
         public bool StartTlsAttempted { get; set; }

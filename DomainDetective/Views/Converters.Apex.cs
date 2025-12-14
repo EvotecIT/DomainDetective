@@ -18,7 +18,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.APEXADDRESS,
             Area = AreaForKind(HealthCheckType.APEXADDRESS),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             ARecords = analysis.ARecords,
             AaaaRecords = analysis.AaaaRecords,
             HasARecord = analysis.HasARecord,

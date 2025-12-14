@@ -48,30 +48,30 @@ public class SecurityTxtInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string Subject { get; set; } = null!;
     public bool RecordPresent { get; set; }
     public bool RecordValid { get; set; }
     public bool PGPSigned { get; set; }
     public bool FallbackUsed { get; set; }
-    public string Url { get; set; }
-    public IReadOnlyCollection<string> DuplicateTags { get; set; }
-    public IReadOnlyList<string> ContactEmail { get; set; }
-    public IReadOnlyList<string> ContactWebsite { get; set; }
-    public IReadOnlyList<string> Acknowledgments { get; set; }
-    public IReadOnlyList<string> PreferredLanguages { get; set; }
-    public IReadOnlyList<string> Encryption { get; set; }
-    public IReadOnlyList<string> Policy { get; set; }
-    public IReadOnlyList<string> Hiring { get; set; }
-    public IReadOnlyList<string> Canonical { get; set; }
-    public string Expires { get; set; }
-    public string SignatureEncryption { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public string Url { get; set; } = null!;
+    public IReadOnlyCollection<string> DuplicateTags { get; set; } = null!;
+    public IReadOnlyList<string> ContactEmail { get; set; } = null!;
+    public IReadOnlyList<string> ContactWebsite { get; set; } = null!;
+    public IReadOnlyList<string> Acknowledgments { get; set; } = null!;
+    public IReadOnlyList<string> PreferredLanguages { get; set; } = null!;
+    public IReadOnlyList<string> Encryption { get; set; } = null!;
+    public IReadOnlyList<string> Policy { get; set; } = null!;
+    public IReadOnlyList<string> Hiring { get; set; } = null!;
+    public IReadOnlyList<string> Canonical { get; set; } = null!;
+    public string Expires { get; set; } = null!;
+    public string SignatureEncryption { get; set; } = null!;
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public SecurityTXTAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public SecurityTXTAnalysis Raw { get; set; } = null!;
 }

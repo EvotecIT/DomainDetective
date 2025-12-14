@@ -35,7 +35,7 @@ namespace DomainDetective {
         public bool AdspRecordExists { get; private set; }
 
         /// <summary>Summary message describing DKIM validation outcome.</summary>
-        public string Advisory { get; private set; }
+        public string Advisory { get; private set; } = string.Empty;
 
         /// <summary>Relevant standards for DKIM analysis.</summary>
         public IReadOnlyList<StandardReference> RfcReferences => new[] {
@@ -317,7 +317,8 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.KeyTypeValid, "DKIM key type valid: {0}", analysis.KeyType ?? "unknown");
             if (analysis.ValidCanonicalization && !string.IsNullOrWhiteSpace(analysis.Canonicalization))
                 logger?.WriteInformationCode(DkimCodes.CanonicalizationValid, "DKIM canonicalization valid: {0}", analysis.Canonicalization);
-            if (!string.IsNullOrWhiteSpace(analysis.HashAlgorithm) && analysis.HashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
+            var hashAlgorithm = analysis.HashAlgorithm;
+            if (hashAlgorithm != null && hashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
                 logger?.WriteInformationCode(DkimCodes.HashSha256, "DKIM hash algorithm includes sha256 for selector {0}", selector);
             if (analysis.ValidFlags)
                 logger?.WriteInformationCode(DkimCodes.FlagsValid, "DKIM flags valid for selector {0}", selector);
@@ -331,9 +332,10 @@ namespace DomainDetective {
             // Provider mapping via CNAME target when available (best-effort)
             try
             {
-                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
+                var name = analysis.Name;
+                if (DnsConfiguration != null && name != null && !string.IsNullOrWhiteSpace(name))
                 {
-                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
+                    var cname = await DnsConfiguration.QueryDNS(name.TrimEnd('.'), DnsRecordType.CNAME);
                     if (cname != null && cname.Length > 0)
                     {
                         var target = cname[0].Data?.Trim('.') ?? string.Empty;
@@ -429,7 +431,7 @@ namespace DomainDetective {
         /// <returns>The selector that returned a record, or <see langword="null"/>.</returns>
         public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
             Reset();
-            logger?.WriteVerbose("Auto-detecting DKIM selectors for {0}", domainName);
+            logger.WriteVerbose("Auto-detecting DKIM selectors for {0}", domainName);
             var adsp = await dnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
             if (adsp.Any()) {
                 await AnalyzeAdspRecord(adsp, logger);
@@ -439,10 +441,10 @@ namespace DomainDetective {
             var found = new List<string>();
             foreach (var selector in DKIMSelectors.GuessSelectors()) {
                 cancellationToken.ThrowIfCancellationRequested();
-                logger?.WriteVerbose("Trying DKIM selector '{0}'", selector);
+                logger.WriteVerbose("Trying DKIM selector '{0}'", selector);
                 var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
                 if (dkim.Any()) {
-                    logger?.WriteVerbose("Found DKIM record with selector '{0}'", selector);
+                    logger.WriteVerbose("Found DKIM record with selector '{0}'", selector);
                     await AnalyzeDkimRecords(selector, dkim, logger);
                     firstFound ??= selector;
                     found.Add(selector);
@@ -450,9 +452,9 @@ namespace DomainDetective {
             }
 
             if (found.Count == 0) {
-                logger?.WriteVerbose("No DKIM records found in built-in selector list.");
+                logger.WriteVerbose("No DKIM records found in built-in selector list.");
             } else {
-                logger?.WriteVerbose("Auto-detection discovered {0} selector(s): {1}", found.Count, string.Join(", ", found));
+                logger.WriteVerbose("Auto-detection discovered {0} selector(s): {1}", found.Count, string.Join(", ", found));
             }
 
             return firstFound;
@@ -465,9 +467,9 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DkimRecordAnalysis {
         /// <summary>Gets or sets the queried record name.</summary>
-        public string Name { get; set; }
+        public string? Name { get; set; }
         /// <summary>Gets or sets the full DKIM record text.</summary>
-        public string DkimRecord { get; set; }
+        public string DkimRecord { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record exists.</summary>
         public bool DkimRecordExists { get; set; }
         /// <summary>Gets or sets a value indicating whether the record starts with <c>v=DKIM1</c>.</summary>
@@ -487,13 +489,13 @@ namespace DomainDetective {
         /// <summary>Gets or sets a value indicating whether the key type is recognized.</summary>
         public bool ValidKeyType { get; set; }
         /// <summary>Gets or sets the public key.</summary>
-        public string PublicKey { get; set; }
+        public string PublicKey { get; set; } = string.Empty;
         /// <summary>Gets or sets the service type flag.</summary>
-        public string ServiceType { get; set; }
+        public string ServiceType { get; set; } = string.Empty;
         /// <summary>Gets or sets any flags defined for the record.</summary>
-        public string Flags { get; set; }
+        public string? Flags { get; set; }
         /// <summary>Gets unrecognized flag characters if <see cref="ValidFlags"/> is <c>false</c>.</summary>
-        public string UnknownFlagCharacters { get; set; }
+        public string UnknownFlagCharacters { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
         public bool ValidFlags { get; set; }
         /// <summary>Unrecognized canonicalization modes.</summary>
@@ -501,15 +503,15 @@ namespace DomainDetective {
         /// <summary>Lists deprecated tags or values detected in the record.</summary>
         public List<string> DeprecatedTags { get; } = new();
         /// <summary>Canonicalization modes specified in the record.</summary>
-        public string Canonicalization { get; set; }
+        public string Canonicalization { get; set; } = string.Empty;
         /// <summary>Gets a value indicating whether the canonicalization string is valid.</summary>
         public bool ValidCanonicalization { get; set; }
         /// <summary>Gets or sets the key type.</summary>
-        public string KeyType { get; set; }
+        public string KeyType { get; set; } = string.Empty;
         /// <summary>Gets or sets the hash algorithm type.</summary>
-        public string HashAlgorithm { get; set; }
+        public string? HashAlgorithm { get; set; }
         /// <summary>Gets or sets the signature algorithm.</summary>
-        public string SignatureAlgorithm { get; set; }
+        public string SignatureAlgorithm { get; set; } = string.Empty;
         /// <summary>Date the record appears to have been created.</summary>
         public DateTime? CreationDate { get; set; }
         /// <summary>Age of the key in days when <see cref="CreationDate"/> is known.</summary>
@@ -547,7 +549,7 @@ namespace DomainDetective {
         public static string? ProviderForDomain(string? name)
         {
             if (string.IsNullOrWhiteSpace(name)) return null;
-            var d = name.Trim('.');
+            var d = name!.Trim('.');
             foreach (var (suffix, provider) in _providerSuffixes)
             {
                 if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return provider;

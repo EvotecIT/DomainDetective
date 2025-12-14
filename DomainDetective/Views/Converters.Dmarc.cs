@@ -14,7 +14,7 @@ public static partial class Converters
         {
             Check = HealthCheckType.DMARC,
             Area = AreaForKind(HealthCheckType.DMARC),
-            Subject = analysis.Subject,
+            Subject = analysis.Subject ?? string.Empty,
             DmarcRecord = analysis.DmarcRecord,
             DmarcRecordExists = analysis.DmarcRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,

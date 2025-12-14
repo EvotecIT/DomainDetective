@@ -58,7 +58,7 @@ public static partial class Converters
                 }
             }
             // Gateways may have useful docs too
-            foreach (var g in providerMatch.Gateways ?? new List<DomainDetective.Providers.Email.IMailProvider>())
+            foreach (var g in providerMatch?.Gateways ?? new List<DomainDetective.Providers.Email.IMailProvider>())
             {
                 var gh = new ProviderHelpLinks
                 {
@@ -88,14 +88,14 @@ public static partial class Converters
             }
         }
         catch { }
-        var gateways = providerMatch.Gateways?.Select(g => g.DisplayName).Distinct().ToList() ?? new List<string>();
+        var gateways = providerMatch?.Gateways?.Select(g => g.DisplayName).Distinct().ToList() ?? new List<string>();
 
         return new MxInfo
         {
             Check = HealthCheckType.MX,
             Area = AreaForKind(HealthCheckType.MX),
-            Subject = analysis.Subject,
-            MxRecords = analysis.MxRecords,
+            Subject = analysis.Subject ?? string.Empty,
+            MxRecords = analysis.MxRecords ?? new List<string>(),
             MxRecordExists = analysis.MxRecordExists,
             PointsToCname = analysis.PointsToCname,
             PointsToIpAddress = analysis.PointsToIpAddress,
@@ -118,8 +118,8 @@ public static partial class Converters
             Positives = positives,
             References = new [] { "https://www.rfc-editor.org/rfc/rfc5321" },
             Raw = analysis,
-            ProviderPrimary = providerMatch.Primary?.DisplayName,
-            ProviderPrimaryScore = providerMatch.PrimaryScore,
+            ProviderPrimary = providerMatch?.Primary?.DisplayName,
+            ProviderPrimaryScore = providerMatch?.PrimaryScore ?? 0.0,
             ProviderGateways = gateways,
             ProviderHelp = providerHelps
         };

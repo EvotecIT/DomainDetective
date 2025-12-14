@@ -9,9 +9,18 @@ public static class RobotsTxtNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(RobotsTxtAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(RobotsTxtAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Domain) ? "(domain)" : analysis.Domain;
+        var domainCandidate = analysis?.Domain;
+        string subj;
+        if (domainCandidate != null && !string.IsNullOrWhiteSpace(domainCandidate))
+        {
+            subj = domainCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"robots.txt Report — {subj}";
         var subtitle = "robots.txt Assessment";
         var category = "Web Crawling";

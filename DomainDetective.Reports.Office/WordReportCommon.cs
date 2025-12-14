@@ -150,7 +150,13 @@ internal static class WordReportCommon
         doc.AddHeadersAndFooters();
         doc.DifferentFirstPage = false;
 
-        var headerTable = doc.Header.Default.AddTable(1, 2, WordTableStyle.TableNormal);
+        var header = doc.Header?.Default;
+        if (header == null)
+        {
+            throw new InvalidOperationException("Word header is not available.");
+        }
+
+        var headerTable = header.AddTable(1, 2, WordTableStyle.TableNormal);
         headerTable.WidthType = TableWidthUnitValues.Pct;
         headerTable.Width = 5000; // 100%
 
@@ -165,7 +171,14 @@ internal static class WordReportCommon
 
         if (!string.IsNullOrWhiteSpace(watermarkText))
         {
-            doc.Sections[0].Header.Default.AddWatermark(WordWatermarkStyle.Text, watermarkText!);
+            var section = doc.Sections[0];
+            var watermarkHeader = section.Header?.Default;
+            if (watermarkHeader == null)
+            {
+                throw new InvalidOperationException("Word header section is not available for watermark rendering.");
+            }
+
+            watermarkHeader.AddWatermark(WordWatermarkStyle.Text, watermarkText!);
         }
     }
 
@@ -189,7 +202,13 @@ internal static class WordReportCommon
         }
         leftText ??= "Confidential";
 
-        var footerTable = doc.Footer.Default.AddTable(1, 2, WordTableStyle.TableNormal);
+        var footer = doc.Footer?.Default;
+        if (footer == null)
+        {
+            throw new InvalidOperationException("Word footer is not available.");
+        }
+
+        var footerTable = footer.AddTable(1, 2, WordTableStyle.TableNormal);
         footerTable.WidthType = TableWidthUnitValues.Pct;
         footerTable.Width = 5000; // 100%
 

@@ -7,9 +7,18 @@ public static class HttpNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(HttpAnalysis analysis)
+    public static Sections Build(HttpAnalysis? analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(host)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(host)";
+        }
         var title = $"HTTP Report — {subj}";
         var subtitle = "HTTP Response and Header Summary";
         var category = "Web Security";

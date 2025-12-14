@@ -8,10 +8,10 @@ namespace DomainDetective;
 public sealed class HeaderRule
 {
     /// <summary>Header name to inspect (e.g., X-Powered-By).</summary>
-    [JsonPropertyName("name")] public string Name { get; set; }
+    [JsonPropertyName("name")] public string Name { get; set; } = null!;
     /// <summary>Substring to search for in the header value.</summary>
-    [JsonPropertyName("contains")] public string Contains { get; set; }
+    [JsonPropertyName("contains")] public string Contains { get; set; } = null!;
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

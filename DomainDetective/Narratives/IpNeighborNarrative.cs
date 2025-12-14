@@ -8,9 +8,18 @@ namespace DomainDetective.Narratives
     {
         public sealed class Sections : NarrativeSections { }
 
-        public static Sections Build(IPNeighborAnalysis analysis)
+        public static Sections Build(IPNeighborAnalysis? analysis)
         {
-            var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject;
+            var subjCandidate = analysis?.Subject;
+            string subj;
+            if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+            {
+                subj = subjCandidate;
+            }
+            else
+            {
+                subj = "(domain)";
+            }
             var title = $"IP Neighbor Report — {subj}";
             var subtitle = "IP Neighbor Analysis";
             var category = "Infrastructure";

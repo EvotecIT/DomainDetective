@@ -48,12 +48,12 @@ public class ZoneTransferAnalysis : IHasAssessments
         {
             cancellationToken.ThrowIfCancellationRequested();
             var ns = server.Trim('.');
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "AXFR", target: ns) : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "AXFR", target: ns);
             var allowed = await AttemptZoneTransfer(domain, ns, logger, cancellationToken);
             ServerResults[server] = allowed;
             if (allowed)
             {
-                logger?.WriteWarningCode(ZoneTransferCodes.Allowed, "AXFR allowed on {0}", ns);
+                logger.WriteWarningCode(ZoneTransferCodes.Allowed, "AXFR allowed on {0}", ns);
             }
             else
             {
@@ -61,7 +61,7 @@ public class ZoneTransferAnalysis : IHasAssessments
                                                  string.Equals(a.Target, ns, StringComparison.OrdinalIgnoreCase));
                 if (!failed)
                 {
-                    logger?.WriteInformationCode(ZoneTransferCodes.Restricted, "AXFR refused on {0}", ns);
+                    logger.WriteInformationCode(ZoneTransferCodes.Restricted, "AXFR refused on {0}", ns);
                 }
             }
         }

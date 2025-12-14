@@ -8,7 +8,7 @@ public static class ThreatIntelNarrative {
     public sealed class Sections : NarrativeSections { }
 
     public static Sections Build(ThreatIntelAnalysis ti) {
-        var subj = string.IsNullOrWhiteSpace(ti?.Subject) ? "(domain)" : ti.Subject;
+        var subj = string.IsNullOrWhiteSpace(ti.Subject) ? "(domain)" : ti.Subject;
         var title = $"Threat Intelligence Report — {subj}";
         var subtitle = "Threat Intelligence";
         var category = "Security";
@@ -23,30 +23,32 @@ public static class ThreatIntelNarrative {
         var negatives = new List<string>();
         var remediations = new List<string>();
 
-        if (ti?.Listings != null) {
+        if (ti.Listings != null) {
             foreach (var f in ti.Listings) {
                 hi.Add($"{Label(f.Source)}: {(f.IsListed ? "listed" : "not listed")}");
             }
         }
 
-        if (ti?.RiskScore != null) {
+        if (ti.RiskScore != null) {
             hi.Add($"Reputation score: {ti.RiskScore}");
         }
 
-        if (ti?.CompositeScore != null) {
+        if (ti.CompositeScore != null) {
             det.Add($"Composite score: {ti.CompositeScore}/100");
         }
 
-        if (!string.IsNullOrWhiteSpace(ti?.Severity)) {
-            det.Add($"Severity: {ti.Severity}");
+        var severity = ti.Severity;
+        if (severity != null && !string.IsNullOrWhiteSpace(severity)) {
+            det.Add($"Severity: {severity}");
         }
 
-        if (ti?.Confidence != null) {
+        if (ti.Confidence != null) {
             det.Add($"Confidence: {ti.Confidence:P0}");
         }
 
-        if (!string.IsNullOrWhiteSpace(ti?.FailureReason)) {
-            det.Add($"Failure reason: {ti.FailureReason}");
+        var failureReason = ti.FailureReason;
+        if (failureReason != null && !string.IsNullOrWhiteSpace(failureReason)) {
+            det.Add($"Failure reason: {failureReason}");
         }
 
         var refs = new List<string> {
@@ -56,7 +58,7 @@ public static class ThreatIntelNarrative {
         };
 
         try {
-            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ti?.Assessments ?? new List<Assessment>());
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ti.Assessments ?? new List<Assessment>());
         } catch {
         }
 

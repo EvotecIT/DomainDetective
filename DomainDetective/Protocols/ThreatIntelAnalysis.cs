@@ -248,7 +248,7 @@ public class ThreatIntelAnalysis : IHasAssessments
         var urlHausListed = false;
         var openPhishListed = false;
 
-        if (!string.IsNullOrWhiteSpace(googleApiKey))
+        if (googleApiKey != null && !string.IsNullOrWhiteSpace(googleApiKey))
         {
             try
             {
@@ -262,7 +262,7 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(phishTankApiKey))
+        if (phishTankApiKey != null && !string.IsNullOrWhiteSpace(phishTankApiKey))
         {
             try
             {
@@ -276,7 +276,7 @@ public class ThreatIntelAnalysis : IHasAssessments
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(virusTotalApiKey))
+        if (virusTotalApiKey != null && !string.IsNullOrWhiteSpace(virusTotalApiKey))
         {
             try
             {

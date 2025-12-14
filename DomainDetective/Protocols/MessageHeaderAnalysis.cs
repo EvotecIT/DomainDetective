@@ -326,16 +326,18 @@ namespace DomainDetective {
         }
 
         private void DetermineIssues() {
+            var dkimResult = DkimResult;
             if (InvalidDkimSignatures.Count > 0 ||
-                (!string.IsNullOrWhiteSpace(DkimResult) &&
-                 !DkimResult.Equals("pass", StringComparison.OrdinalIgnoreCase))) {
+                (!string.IsNullOrWhiteSpace(dkimResult) &&
+                 !string.Equals(dkimResult, "pass", StringComparison.OrdinalIgnoreCase))) {
                 AddIssue(MessageHeaderIssue.InvalidDkim);
             }
 
-            if (string.IsNullOrWhiteSpace(ArcResult) ||
-                ArcResult.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+            var arcResult = ArcResult;
+            if (string.IsNullOrWhiteSpace(arcResult) ||
+                string.Equals(arcResult, "none", StringComparison.OrdinalIgnoreCase)) {
                 AddIssue(MessageHeaderIssue.MissingArc);
-            } else if (!ArcResult.Equals("pass", StringComparison.OrdinalIgnoreCase)) {
+            } else if (!string.Equals(arcResult, "pass", StringComparison.OrdinalIgnoreCase)) {
                 AddIssue(MessageHeaderIssue.InvalidArc);
             }
         }

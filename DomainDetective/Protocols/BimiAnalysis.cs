@@ -100,7 +100,7 @@ public partial class BimiAnalysis : IHasAssessments {
             ResetState();
 
             if (dnsResults == null) {
-                logger?.WriteVerbose("DNS query returned no results.");
+                logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
@@ -108,49 +108,51 @@ public partial class BimiAnalysis : IHasAssessments {
             BimiRecordExists = recordList.Any();
             if (!BimiRecordExists) {
                 logger.WriteVerbose("No BIMI record found.");
-                logger?.WriteWarningCode(BimiCodes.MissingRecord, "No BIMI record found.");
+                logger.WriteWarningCode(BimiCodes.MissingRecord, "No BIMI record found.");
                 return;
             }
-            logger?.WriteInformationCode(BimiCodes.RecordPresent, "BIMI record present");
+            logger.WriteInformationCode(BimiCodes.RecordPresent, "BIMI record present");
 
             BimiRecord = string.Join(" ", recordList.Select(r => r.Data));
-            logger?.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
+            logger.WriteVerbose($"Analyzing BIMI record {BimiRecord}");
 
             ParseBimiHeader(BimiRecord!, logger);
             if (!StartsCorrectly) {
-                logger?.WriteWarningCode(BimiCodes.StartsInvalid, "BIMI record does not start with v=BIMI1.");
+                logger.WriteWarningCode(BimiCodes.StartsInvalid, "BIMI record does not start with v=BIMI1.");
             }
 
-            if (!string.IsNullOrEmpty(Location) && !InvalidLocation) {
+            var location = Location;
+            if (location != null && location.Length > 0 && !InvalidLocation) {
                 if (!LocationUsesHttps) {
-                    logger?.WriteWarningCode(BimiCodes.LocationNotHttps, "BIMI indicator location does not use HTTPS: {0}", Location);
+                    logger.WriteWarningCode(BimiCodes.LocationNotHttps, "BIMI indicator location does not use HTTPS: {0}", location);
                 }
 
                 if (!SkipIndicatorDownload) {
-                    var (svg, size) = await DownloadIndicator(Location, logger, cancellationToken);
+                    var (svg, size) = await DownloadIndicator(location, logger, cancellationToken);
                     if (svg != null) {
                         SvgFetched = true;
                         SvgValid = ValidateSvg(svg, size, logger);
                         if (SvgValid) {
-                            logger?.WriteInformationCode(BimiCodes.SvgValid, "BIMI SVG valid");
+                            logger.WriteInformationCode(BimiCodes.SvgValid, "BIMI SVG valid");
                         }
-                        logger?.WriteVerbose("Successfully downloaded BIMI indicator from {0}", Location);
+                        logger.WriteVerbose("Successfully downloaded BIMI indicator from {0}", location);
                     } else {
-                        logger?.WriteWarningCode(BimiCodes.DownloadFailed, "Failed to download BIMI indicator from {0}", Location);
+                        logger.WriteWarningCode(BimiCodes.DownloadFailed, "Failed to download BIMI indicator from {0}", location);
                     }
                 } else {
-                    logger?.WriteVerbose("Skipping BIMI indicator download");
+                    logger.WriteVerbose("Skipping BIMI indicator download");
                 }
             }
 
-            if (!string.IsNullOrEmpty(Authority)) {
+            var authority = Authority;
+            if (authority != null && authority.Length > 0) {
                 if (!AuthorityUsesHttps) {
-                    logger?.WriteWarningCode(BimiCodes.AuthorityNotHttps, "BIMI authority URL does not use HTTPS: {0}", Authority);
+                    logger.WriteWarningCode(BimiCodes.AuthorityNotHttps, "BIMI authority URL does not use HTTPS: {0}", authority);
                 }
 
-                (ValidVmc, VmcSignedByKnownRoot, VmcContainsLogo) = await DownloadAndValidateVmc(Authority, logger, cancellationToken);
+                (ValidVmc, VmcSignedByKnownRoot, VmcContainsLogo) = await DownloadAndValidateVmc(authority, logger, cancellationToken);
                 if (ValidVmc && VmcSignedByKnownRoot) {
-                    logger?.WriteInformationCode(BimiCodes.VmcVerified, "BIMI certificate valid and trusted");
+                    logger.WriteInformationCode(BimiCodes.VmcVerified, "BIMI certificate valid and trusted");
                 }
             }
         }
@@ -282,7 +284,7 @@ public partial class BimiAnalysis : IHasAssessments {
             SvgSizeValid = byteSize <= maxSize;
             if (!SvgSizeValid) {
                 SvgInvalidReason = $"Indicator exceeds 32 KB ({byteSize} bytes)";
-                logger?.WriteWarningCode(BimiCodes.SvgTooLarge, "BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
+                logger.WriteWarningCode(BimiCodes.SvgTooLarge, "BIMI indicator exceeds 32 KB: {0} bytes", byteSize);
             }
 
             try {
@@ -309,20 +311,20 @@ public partial class BimiAnalysis : IHasAssessments {
                 var viewBoxAttr = root.Attribute("viewBox");
                 SvgAttributesPresent = widthAttr != null && heightAttr != null && viewBoxAttr != null;
                 if (!SvgAttributesPresent) {
-                    logger?.WriteWarningCode(BimiCodes.SvgMissingAttributes, "BIMI SVG missing width, height or viewBox");
+                    logger.WriteWarningCode(BimiCodes.SvgMissingAttributes, "BIMI SVG missing width, height or viewBox");
                 }
 
                 var widthStr = widthAttr?.Value;
                 var heightStr = heightAttr?.Value;
                 DimensionsValid = int.TryParse(widthStr, out var w) && int.TryParse(heightStr, out var h) && w == SvgRequiredDimension && h == SvgRequiredDimension;
                 if (!DimensionsValid) {
-                    logger?.WriteWarningCode(BimiCodes.SvgWrongDimensions, $"BIMI SVG width and height must be {SvgRequiredDimension}x{SvgRequiredDimension}");
+                    logger.WriteWarningCode(BimiCodes.SvgWrongDimensions, $"BIMI SVG width and height must be {SvgRequiredDimension}x{SvgRequiredDimension}");
                 }
 
                 var viewBox = viewBoxAttr?.Value;
                 ViewBoxValid = viewBox == SvgRequiredViewBox;
                 if (!ViewBoxValid) {
-                    logger?.WriteWarningCode(BimiCodes.SvgWrongViewBox, $"BIMI SVG viewBox must be '{SvgRequiredViewBox}'");
+                    logger.WriteWarningCode(BimiCodes.SvgWrongViewBox, $"BIMI SVG viewBox must be '{SvgRequiredViewBox}'");
                 }
 
                 return isSvg && SvgSizeValid;

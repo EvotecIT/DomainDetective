@@ -27,7 +27,7 @@ public class OpenResolverAnalysis : IHasAssessments {
     public List<Assessment> Assessments { get; } = new();
 
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
-        using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}") : null;
+        using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}");
         Subject ??= $"{host}:{port}";
         ServerResults.Clear();
         ServerDetails.Clear();
@@ -35,9 +35,9 @@ public class OpenResolverAnalysis : IHasAssessments {
         ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
         ServerDetails[$"{host}:{port}"] = detail;
         if (detail.IsOpenResolver) {
-            logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+            logger.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
         } else {
-            logger?.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
+            logger.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
         }
     }
 
@@ -48,14 +48,14 @@ public class OpenResolverAnalysis : IHasAssessments {
         foreach (var host in hosts) {
             foreach (var port in ports) {
                 cancellationToken.ThrowIfCancellationRequested();
-                using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}") : null;
+                using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}");
                 var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);
                 ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
                 ServerDetails[$"{host}:{port}"] = detail;
                 if (detail.IsOpenResolver) {
-                    logger?.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
+                    logger.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
                 } else {
-                    logger?.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
+                    logger.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
                 }
             }
         }
@@ -155,7 +155,7 @@ public class OpenResolverAnalysis : IHasAssessments {
         } catch (TaskCanceledException ex) {
             throw new OperationCanceledException(ex.Message, ex, token);
         } catch (Exception ex) {
-            logger?.WriteWarningCode(OpenResolverCodes.CheckFailed, "Open resolver check failed for {0}:{1} - {2}", server, port, ex.Message);
+            logger.WriteWarningCode(OpenResolverCodes.CheckFailed, "Open resolver check failed for {0}:{1} - {2}", server, port, ex.Message);
             return new OpenResolverResult {
                 Host = server,
                 Port = port,
@@ -167,7 +167,7 @@ public class OpenResolverAnalysis : IHasAssessments {
 
 /// <summary>Detailed open resolver test result.</summary>
 public sealed class OpenResolverResult {
-    public string Host { get; set; }
+    public string Host { get; set; } = null!;
     public int Port { get; set; }
     public bool IsOpenResolver { get; set; }
     public bool? RaBitSet { get; set; }

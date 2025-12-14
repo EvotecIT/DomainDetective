@@ -20,10 +20,10 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public partial class SpfAnalysis : IHasAssessments {
         public string? Subject { get; set; }
-        internal DnsConfiguration DnsConfiguration { get; set; }
+        internal DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
 
         /// <summary>Combined SPF record text.</summary>
-        public string SpfRecord { get; private set; }
+        public string SpfRecord { get; private set; } = string.Empty;
         public List<string> SpfRecords { get; private set; } = new List<string>();
         public bool SpfRecordExists { get; private set; } // should be true
         public bool MultipleSpfRecords { get; private set; } // should be false
@@ -47,9 +47,9 @@ namespace DomainDetective {
         public List<string> PtrRecords { get; private set; } = new List<string>();
         public List<string> IncludeRecords { get; private set; } = new List<string>();
         public List<string> ExistsRecords { get; private set; } = new List<string>();
-        public string ExpValue { get; private set; }
-        public string RedirectValue { get; private set; }
-        public string AllMechanism { get; private set; }
+        public string? ExpValue { get; private set; }
+        public string? RedirectValue { get; private set; }
+        public string? AllMechanism { get; private set; }
 
         public List<string> ResolvedARecords { get; private set; } = new List<string>();
         public List<string> ResolvedIpv4Records { get; private set; } = new List<string>();
@@ -61,17 +61,17 @@ namespace DomainDetective {
 
         public List<string> UnknownMechanisms { get; private set; } = new List<string>();
 
-        public FlattenedSpfResult FlattenedIpAnalysis { get; private set; }
+        public FlattenedSpfResult FlattenedIpAnalysis { get; private set; } = new FlattenedSpfResult();
 
         public Dictionary<string, string> TestSpfRecords { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         public bool CycleDetected { get; private set; }
-        public string CyclePath { get; private set; }
+        public string? CyclePath { get; private set; }
         public bool PermError { get; private set; }
         public List<string> RedirectVisitedDomains { get; private set; } = new List<string>();
         private HashSet<string> _visitedDomains = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Summary message describing overall SPF status.</summary>
-        public string Advisory { get; private set; }
+        public string Advisory { get; private set; } = string.Empty;
 
 
         public List<SpfPartAnalysis> SpfPartAnalyses { get; private set; } = new List<SpfPartAnalysis>();
@@ -111,7 +111,7 @@ namespace DomainDetective {
         private static bool DebugSpf => Environment.GetEnvironmentVariable("DD_DEBUG_SPF") == "1";
 
         public void Reset() {
-            SpfRecord = null;
+            SpfRecord = string.Empty;
             SpfRecords = new List<string>();
             SpfRecordExists = false;
             MultipleSpfRecords = false;
@@ -288,7 +288,7 @@ namespace DomainDetective {
             // policy strength advisory for 'all'
             if (string.IsNullOrWhiteSpace(AllMechanism)) {
                 logger?.WriteWarningCode(SpfCodes.AllMissing, "No terminal '-all' mechanism present; consider adding '-all'.");
-            } else if (!AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase)) {
+            } else if (!AllMechanism!.Equals("-all", StringComparison.OrdinalIgnoreCase)) {
                 logger?.WriteWarningCode(SpfCodes.AllSoft, $"SPF ends with '{AllMechanism}'. Consider '-all' once senders are validated.");
             }
 
@@ -321,7 +321,7 @@ namespace DomainDetective {
             Advisory = "SPF record passed basic checks.";
             logger?.WriteInformationCode(SpfCodes.Present, "SPF record present");
             logger?.WriteInformationCode(SpfCodes.StartsV1, "SPF starts with v=spf1");
-            if (!string.IsNullOrWhiteSpace(AllMechanism) && AllMechanism.Equals("-all", StringComparison.OrdinalIgnoreCase))
+            if (AllMechanism?.Equals("-all", StringComparison.OrdinalIgnoreCase) == true)
                 logger?.WriteInformationCode(SpfCodes.AllEnforced, "SPF ends with -all (enforced)");
             if (!ExceedsDnsLookups)
                 logger?.WriteInformationCode(SpfCodes.LookupsWithinLimit, $"DNS lookups within limit: {DnsLookupsCount}/10");
@@ -610,7 +610,7 @@ namespace DomainDetective {
         private static string? ProviderForDomain(string? domain)
         {
             if (string.IsNullOrWhiteSpace(domain)) return null;
-            var d = domain.Trim('.');
+            var d = domain!.Trim('.');
             foreach (var (suffix, provider) in _providerSuffixes)
             {
                 if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
@@ -1082,7 +1082,8 @@ namespace DomainDetective {
                         }
 
                         if (!string.IsNullOrEmpty(includeRecord)) {
-                            var flattened = await FlattenTokens(TokenizeSpfRecord(includeRecord), visited, logger);
+                            var record = includeRecord!;
+                            var flattened = await FlattenTokens(TokenizeSpfRecord(record), visited, logger);
                             result.AddRange(flattened.Where(x =>
                                 !x.Equals("v=spf1", StringComparison.OrdinalIgnoreCase) &&
                                 !IsAllMechanism(x)));
@@ -1104,7 +1105,8 @@ namespace DomainDetective {
                         }
 
                         if (!string.IsNullOrEmpty(redirectRecord)) {
-                            return await FlattenTokens(TokenizeSpfRecord(redirectRecord), visited, logger);
+                            var record = redirectRecord!;
+                            return await FlattenTokens(TokenizeSpfRecord(record), visited, logger);
                         }
                     }
                 } else {
@@ -1141,7 +1143,8 @@ namespace DomainDetective {
                             }
                         }
                         if (!string.IsNullOrEmpty(includeRecord)) {
-                            await BuildTree(TokenizeSpfRecord(includeRecord), visited, depth + 1, lines, logger);
+                            var record = includeRecord!;
+                            await BuildTree(TokenizeSpfRecord(record), visited, depth + 1, lines, logger);
                         }
                         visited.Remove(domain);
                     }
@@ -1159,7 +1162,8 @@ namespace DomainDetective {
                             }
                         }
                         if (!string.IsNullOrEmpty(redirectRecord)) {
-                            await BuildTree(TokenizeSpfRecord(redirectRecord), visited, depth + 1, lines, logger);
+                            var record = redirectRecord!;
+                            await BuildTree(TokenizeSpfRecord(record), visited, depth + 1, lines, logger);
                         }
                     }
                     return;
@@ -1330,14 +1334,15 @@ namespace DomainDetective {
 
         public async Task<string?> GetExplanationText(IPAddress ip, string sender, string helo, string domain, InternalLogger? logger = null)
         {
-            if (string.IsNullOrEmpty(ExpValue))
+            var expValue = ExpValue;
+            if (expValue == null || expValue.Length == 0)
             {
                 return null;
             }
 
             ExpDnsLookupsCount = 0;
             ExpExceedsDnsLookups = false;
-            var target = await ExpandMacrosAsync(ExpValue, ip, sender, helo, domain, logger);
+            var target = await ExpandMacrosAsync(expValue, ip, sender, helo, domain, logger);
             if (ExpExceedsDnsLookups || ExpDnsLookupsCount > MaxDnsLookups)
             {
                 ExpExceedsDnsLookups = true;

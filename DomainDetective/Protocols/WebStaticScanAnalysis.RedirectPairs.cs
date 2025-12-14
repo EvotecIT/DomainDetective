@@ -10,9 +10,9 @@ public partial class WebStaticScanAnalysis
     public sealed class RedirectPairStat
     {
         /// <summary>Source host of the redirect.</summary>
-        public string FromHost { get; set; }
+        public string FromHost { get; set; } = null!;
         /// <summary>Destination host of the redirect.</summary>
-        public string ToHost { get; set; }
+        public string ToHost { get; set; } = null!;
         /// <summary>Total redirects observed from source to destination.</summary>
         public int Count { get; set; }
         /// <summary>Number of redirects that upgraded scheme (http→https).</summary>

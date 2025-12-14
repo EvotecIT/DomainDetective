@@ -21,10 +21,12 @@ public partial class WebStaticScanAnalysis
             var namesToCheck = new System.Collections.Generic.List<string> { host };
             try
             {
-                if (!string.IsNullOrWhiteSpace(PrimaryRegistrableDomain) &&
-                    !string.Equals(PrimaryRegistrableDomain, host, System.StringComparison.OrdinalIgnoreCase))
+                var primaryRegistrableDomain = PrimaryRegistrableDomain;
+                if (primaryRegistrableDomain != null &&
+                    !string.IsNullOrWhiteSpace(primaryRegistrableDomain) &&
+                    !string.Equals(primaryRegistrableDomain, host, System.StringComparison.OrdinalIgnoreCase))
                 {
-                    namesToCheck.Add(PrimaryRegistrableDomain);
+                    namesToCheck.Add(primaryRegistrableDomain);
                 }
             }
             catch { }

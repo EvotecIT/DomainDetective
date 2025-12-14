@@ -95,7 +95,7 @@ public class ThreatFeedAnalysis : IHasAssessments {
         var vtListed = false;
         var abuseListed = false;
 
-        if (!string.IsNullOrWhiteSpace(virusTotalApiKey)) {
+        if (virusTotalApiKey != null && !string.IsNullOrWhiteSpace(virusTotalApiKey)) {
             try {
                 var result = await QueryVirusTotal(ip, virusTotalApiKey, ct).ConfigureAwait(false);
                 vtListed = result?.Attributes?.LastAnalysisStats?.Malicious > 0;
@@ -105,7 +105,7 @@ public class ThreatFeedAnalysis : IHasAssessments {
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(abuseIpDbApiKey)) {
+        if (abuseIpDbApiKey != null && !string.IsNullOrWhiteSpace(abuseIpDbApiKey)) {
             try {
                 var json = await QueryAbuseIpDb(ip, abuseIpDbApiKey, ct);
                 abuseListed = ParseAbuseIpDb(json);

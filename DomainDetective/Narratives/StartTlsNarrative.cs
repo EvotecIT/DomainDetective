@@ -8,9 +8,18 @@ public static class StartTlsNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(STARTTLSAnalysis analysis)
+    public static Sections Build(STARTTLSAnalysis? analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"STARTTLS Report — {subj}";
         var subtitle = "STARTTLS Assessment";
         var category = "Email Security";

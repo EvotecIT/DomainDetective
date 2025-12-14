@@ -290,7 +290,13 @@ namespace DomainDetective {
                 query = query.Where(s => s.Location == location.Value);
             }
             if (take.HasValue) {
-                query = query.OrderBy(_ => _rnd.Value.Next()).Take(take.Value);
+                var random = _rnd.Value;
+                if (random == null)
+                {
+                    random = new Random(Guid.NewGuid().GetHashCode());
+                    _rnd.Value = random;
+                }
+                query = query.OrderBy(_ => random.Next()).Take(take.Value);
             }
             return query.ToList();
         }
@@ -359,11 +365,13 @@ namespace DomainDetective {
             ipAddress.IsIPv4MappedToIPv6 ? ipAddress.MapToIPv4() : ipAddress;
 
         private static bool TryParseNormalized(string value, out IPAddress result) {
-            if (!IPAddress.TryParse(value, out result)) {
+            IPAddress? parsed;
+            if (!IPAddress.TryParse(value, out parsed) || parsed == null) {
+                result = IPAddress.None;
                 return false;
             }
 
-            result = NormalizeIpAddress(result);
+            result = NormalizeIpAddress(parsed);
             return true;
         }
 

@@ -19,7 +19,7 @@ public class DanglingCnameAnalysis : IHasAssessments {
     /// <summary>Domain under analysis.</summary>
     public string? Subject { get; set; }
     /// <summary>Gets or sets DNS configuration for queries.</summary>
-    public DnsConfiguration DnsConfiguration { get; set; }
+    public DnsConfiguration DnsConfiguration { get; set; } = new DnsConfiguration();
     /// <summary>Gets or sets override for DNS queries.</summary>
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
     /// <summary>Gets a value indicating whether a CNAME exists for the domain.</summary>

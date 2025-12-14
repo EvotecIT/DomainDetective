@@ -49,11 +49,12 @@ internal static class ProviderHelpWordSectionWriter
     private static void AddLink(WordList list, string label, string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return;
+        var linkUrl = url!;
         try
         {
             var p = list.AddItem(label + ": ");
             // Proper, clickable hyperlink with hyperlink style
-            p.AddHyperLink(url, new Uri(url), addStyle: true);
+            p.AddHyperLink(linkUrl, new Uri(linkUrl), addStyle: true);
         }
         catch
         {
@@ -62,14 +63,15 @@ internal static class ProviderHelpWordSectionWriter
         }
     }
 
-    private static void AddTopic(WordList list, string providerName, DomainDetective.Views.ProviderHelpTopic topic, ProviderHelpRenderOptions opts)
+    private static void AddTopic(WordList list, string providerName, DomainDetective.Views.ProviderHelpTopic? topic, ProviderHelpRenderOptions opts)
     {
-        if (string.IsNullOrWhiteSpace(topic?.Url)) return;
+        var url = topic?.Url;
+        if (topic == null || string.IsNullOrWhiteSpace(url)) return;
         var text = string.IsNullOrWhiteSpace(topic.Title) ? ($"{providerName} — {topic.Topic}") : topic.Title!;
         try
         {
             var p = list.AddItem(string.Empty);
-            p.AddHyperLink(text, new Uri(topic.Url), addStyle: true);
+            p.AddHyperLink(text, new Uri(url), addStyle: true);
             // Append brief summary/notes and badges
             var fragments = new System.Collections.Generic.List<string>();
             if (opts.ShowSummaries && !string.IsNullOrWhiteSpace(topic.Summary)) fragments.Add(topic.Summary!);
@@ -86,7 +88,7 @@ internal static class ProviderHelpWordSectionWriter
         {
             // Fallback single-line item
             var label = string.IsNullOrWhiteSpace(text) ? (providerName + " — " + (topic.Topic ?? "Doc")) : text;
-            list.AddItem(label + ": " + topic.Url);
+            list.AddItem(label + ": " + url);
         }
     }
 }

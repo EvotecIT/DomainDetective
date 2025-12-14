@@ -499,24 +499,28 @@ public static partial class ExcelCompositionReport {
                 column.Section("RUF Destinations").BulletedList(list.ToArray());
             }
 
-            if ((d.DeprecatedTags?.Count ?? 0) > 0)
+            var deprecatedTags = d.DeprecatedTags;
+            if (deprecatedTags != null && deprecatedTags.Count > 0)
             {
-                column.Section("Deprecated Tags").BulletedList(d.DeprecatedTags.ToArray());
+                column.Section("Deprecated Tags").BulletedList(deprecatedTags.ToArray());
             }
 
-            if ((d.Recommendations?.Count ?? 0) > 0)
+            var dmarcRecommendations = d.Recommendations;
+            if (dmarcRecommendations != null && dmarcRecommendations.Count > 0)
             {
-                column.Section("Recommendations").BulletedList(d.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                column.Section("Recommendations").BulletedList(dmarcRecommendations.Select(r => r.Title ?? r.Code).ToArray());
             }
 
-            if ((d.Positives?.Count ?? 0) > 0)
+            var dmarcPositives = d.Positives;
+            if (dmarcPositives != null && dmarcPositives.Count > 0)
             {
-                column.Section("Positives").BulletedList(d.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                column.Section("Positives").BulletedList(dmarcPositives.Select(p => p.Title ?? p.Code).ToArray());
             }
 
-            if ((d.Highlights?.Count ?? 0) > 0)
+            var dmarcHighlights = d.Highlights;
+            if (dmarcHighlights != null && dmarcHighlights.Count > 0)
             {
-                column.Section("Highlights").BulletedList(d.Highlights);
+                column.Section("Highlights").BulletedList(dmarcHighlights);
             }
         };
     }
@@ -596,9 +600,10 @@ public static partial class ExcelCompositionReport {
             {
                 var links = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp;
                 var primaryHelp = links?.FirstOrDefault(p => string.Equals(p?.ProviderName, chain.Primary, StringComparison.OrdinalIgnoreCase)) ?? links?.FirstOrDefault();
-                if (primaryHelp != null && (primaryHelp.Topics?.Count ?? 0) > 0)
+                var topics = primaryHelp?.Topics;
+                if (topics != null && topics.Count > 0)
                 {
-                    topLinks = primaryHelp.Topics
+                    topLinks = topics
                         .Where(t => !string.IsNullOrWhiteSpace(t?.Url))
                         .Take(3)
                         .Select(t =>
@@ -773,20 +778,23 @@ public static partial class ExcelCompositionReport {
                 ("Target Consistent Across NS", mx.TargetAddressConsistentAcrossNs ? "Yes" : "No")
             });
 
-            if ((mx.MxRecords?.Count ?? 0) > 0)
+            var mxRecords = mx.MxRecords;
+            if (mxRecords != null && mxRecords.Count > 0)
             {
-                var rows = mx.MxRecords.Select(r => new { Host = r }).ToList();
+                var rows = mxRecords.Select(r => new { Host = r }).ToList();
                 column.TableFrom(rows, title: "MX Records", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
 
-            if ((mx.Recommendations?.Count ?? 0) > 0)
+            var mxRecommendations = mx.Recommendations;
+            if (mxRecommendations != null && mxRecommendations.Count > 0)
             {
-                column.Section("Recommendations").BulletedList(mx.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                column.Section("Recommendations").BulletedList(mxRecommendations.Select(r => r.Title ?? r.Code).ToArray());
             }
 
-            if ((mx.Positives?.Count ?? 0) > 0)
+            var mxPositives = mx.Positives;
+            if (mxPositives != null && mxPositives.Count > 0)
             {
-                column.Section("Positives").BulletedList(mx.Positives.Select(p => p.Title ?? p.Code).ToArray());
+                column.Section("Positives").BulletedList(mxPositives.Select(p => p.Title ?? p.Code).ToArray());
             }
         };
     }
@@ -810,14 +818,16 @@ public static partial class ExcelCompositionReport {
                 ("Chain State", arc.ChainState)
             });
 
-            if ((arc.Highlights?.Count ?? 0) > 0)
+            var arcHighlights = arc.Highlights;
+            if (arcHighlights != null && arcHighlights.Count > 0)
             {
-                column.Section("Highlights").BulletedList(arc.Highlights);
+                column.Section("Highlights").BulletedList(arcHighlights);
             }
 
-            if ((arc.Recommendations?.Count ?? 0) > 0)
+            var arcRecommendations = arc.Recommendations;
+            if (arcRecommendations != null && arcRecommendations.Count > 0)
             {
-                column.Section("Recommendations").BulletedList(arc.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
+                column.Section("Recommendations").BulletedList(arcRecommendations.Select(r => r.Title ?? r.Code).ToArray());
             }
         };
     }
@@ -912,15 +922,17 @@ public static partial class ExcelCompositionReport {
                 ("Delegation Matches", ns.DelegationMatches ? "Yes" : "No")
             });
 
-            if ((ns.NsRecords?.Count ?? 0) > 0)
+            var nsRecords = ns.NsRecords;
+            if (nsRecords != null && nsRecords.Count > 0)
             {
-                var rows = ns.NsRecords.Select(host => new { Host = host }).ToList();
+                var rows = nsRecords.Select(host => new { Host = host }).ToList();
                 column.TableFrom(rows, title: "Authoritative NS", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
 
-            if ((ns.ParentNsRecords?.Count ?? 0) > 0)
+            var parentNsRecords = ns.ParentNsRecords;
+            if (parentNsRecords != null && parentNsRecords.Count > 0)
             {
-                var rows = ns.ParentNsRecords.Select(host => new { Parent = host }).ToList();
+                var rows = parentNsRecords.Select(host => new { Parent = host }).ToList();
                 column.TableFrom(rows, title: "Parent Delegation", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
@@ -1009,9 +1021,10 @@ public static partial class ExcelCompositionReport {
                 ("All Valid", rpki.AllValid ? "Yes" : "No")
             });
 
-            if ((rpki.Results?.Count ?? 0) > 0)
+            var rpkiResults = rpki.Results;
+            if (rpkiResults != null && rpkiResults.Count > 0)
             {
-                var rows = rpki.Results.Select(r => new { r.IpAddress, r.Prefix, r.Asn, Valid = r.Valid ? "Yes" : "No" }).ToList();
+                var rows = rpkiResults.Select(r => new { r.IpAddress, r.Prefix, r.Asn, Valid = r.Valid ? "Yes" : "No" }).ToList();
                 column.TableFrom(rows, title: "RPKI Results", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
                 {
                     v.NumericColumnFormats["Asn"] = "0";
@@ -1036,9 +1049,10 @@ public static partial class ExcelCompositionReport {
                 ("Open", $"{zone.OpenCount}/{zone.TotalChecked}")
             });
 
-            if ((zone.ServerResults?.Count ?? 0) > 0)
+            var zoneServerResults = zone.ServerResults;
+            if (zoneServerResults != null && zoneServerResults.Count > 0)
             {
-                var rows = zone.ServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
+                var rows = zoneServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
                 column.TableFrom(rows, title: "Servers", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
             }
         };
@@ -1055,13 +1069,15 @@ public static partial class ExcelCompositionReport {
         return column =>
         {
             column.Section("Wildcard DNS").KeyValues(new (string, object?)[] { ("Catch-All", wc.CatchAll ? "Yes" : "No") });
-            if ((wc.TestedNames?.Count ?? 0) > 0)
+            var testedNames = wc.TestedNames;
+            if (testedNames != null && testedNames.Count > 0)
             {
-                column.Section("Tested Names").BulletedList(wc.TestedNames.ToArray());
+                column.Section("Tested Names").BulletedList(testedNames.ToArray());
             }
-            if ((wc.ResolvedNames?.Count ?? 0) > 0)
+            var resolvedNames = wc.ResolvedNames;
+            if (resolvedNames != null && resolvedNames.Count > 0)
             {
-                column.Section("Resolved Names").BulletedList(wc.ResolvedNames.ToArray());
+                column.Section("Resolved Names").BulletedList(resolvedNames.ToArray());
             }
         };
     }

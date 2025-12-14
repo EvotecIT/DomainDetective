@@ -39,7 +39,7 @@ public static class ProviderChainBuilder
                 if (string.IsNullOrWhiteSpace(n)) continue;
                 if (!string.IsNullOrWhiteSpace(primary) && string.Equals(n, primary, StringComparison.OrdinalIgnoreCase)) continue;
                 if (gateways.Contains(n, StringComparer.OrdinalIgnoreCase)) continue;
-                outbound.Add(n);
+                outbound.Add(n!);
             }
         }
         catch { }

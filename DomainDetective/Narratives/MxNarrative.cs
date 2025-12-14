@@ -37,7 +37,7 @@ public sealed class Sections : NarrativeSections { }
 
         // Provider summary from MX hosts (best-effort; fuller detection happens at DomainHealthCheck level)
         try {
-            var hosts = (mx?.MxRecords ?? new List<string>())
+            var hosts = (mx.MxRecords ?? new List<string>())
                 .Select(rr => rr?.Split(new[]{' ','\t'}, 2, StringSplitOptions.RemoveEmptyEntries))
                 .Where(p => p != null && p.Length > 0)
                 .Select(p => p!.Length == 2 ? p![1] : p![0])
@@ -61,9 +61,12 @@ public sealed class Sections : NarrativeSections { }
             foreach (var g in groups)
             {
                 var adviceTitle = g.Advice?.Title;
-                var msg = string.IsNullOrWhiteSpace(adviceTitle)
-                    ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : adviceTitle;
+                string msg;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

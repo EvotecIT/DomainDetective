@@ -39,8 +39,8 @@ public partial class WebStaticScanAnalysis
             {
                 foreach (var rule in _techRules.Headers)
                 {
-                    if (string.IsNullOrEmpty(rule?.Name) || string.IsNullOrEmpty(rule.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
-                    if (resp.Headers.TryGetValues(rule.Name, out var vals) || resp.Content.Headers.TryGetValues(rule.Name, out vals))
+                    if (rule == null || string.IsNullOrEmpty(rule.Name) || string.IsNullOrEmpty(rule.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
+                    if (resp.Headers.TryGetValues(rule.Name, out var vals) || (resp.Content != null && resp.Content.Headers.TryGetValues(rule.Name, out vals)))
                     {
                         foreach (var v in vals)
                         {
@@ -59,7 +59,7 @@ public partial class WebStaticScanAnalysis
                 {
                     foreach (var rule in _techRules.Cookies)
                     {
-                        if (string.IsNullOrEmpty(rule?.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
+                        if (rule == null || string.IsNullOrEmpty(rule.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
                         if (!string.IsNullOrEmpty(c) && c.IndexOf(rule.Contains, StringComparison.OrdinalIgnoreCase) >= 0)
                         {
                             TechDetections.Add(rule.Tech);
@@ -68,11 +68,11 @@ public partial class WebStaticScanAnalysis
                 }
             }
             // Meta
-            if (_techRules.Meta != null && !string.IsNullOrEmpty(body))
+            if (_techRules.Meta != null && body != null && body.Length > 0)
             {
                 foreach (var rule in _techRules.Meta)
                 {
-                    if (string.IsNullOrEmpty(rule?.Name) || string.IsNullOrEmpty(rule.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
+                    if (rule == null || string.IsNullOrEmpty(rule.Name) || string.IsNullOrEmpty(rule.Contains) || string.IsNullOrEmpty(rule.Tech)) continue;
                     var pattern = $"<meta[^>]*name=\"{System.Text.RegularExpressions.Regex.Escape(rule.Name)}\"[^>]*content=\"([^\"]*)\"";
                     var m = System.Text.RegularExpressions.Regex.Match(body, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     if (m.Success && (m.Groups[1].Value ?? string.Empty).IndexOf(rule.Contains, StringComparison.OrdinalIgnoreCase) >= 0)
@@ -120,7 +120,7 @@ public partial class WebStaticScanAnalysis
                     var dom = kv.Value.RegistrableDomain ?? kv.Key;
                     foreach (var rule in _techRules.Domains)
                     {
-                        if (string.IsNullOrEmpty(rule?.Suffix) || string.IsNullOrEmpty(rule.Tech)) continue;
+                        if (rule == null || string.IsNullOrEmpty(rule.Suffix) || string.IsNullOrEmpty(rule.Tech)) continue;
                         if (dom.EndsWith(rule.Suffix, StringComparison.OrdinalIgnoreCase))
                         {
                             TechDetections.Add(rule.Tech);
@@ -128,12 +128,13 @@ public partial class WebStaticScanAnalysis
                     }
                 }
             }
-            if (_techRules.Body != null && !string.IsNullOrWhiteSpace(MainHttpAnalysis?.Body))
+            var mainBody = MainHttpAnalysis?.Body;
+            if (_techRules.Body != null && mainBody != null && !string.IsNullOrWhiteSpace(mainBody))
             {
-                var html = MainHttpAnalysis.Body!;
+                var html = mainBody;
                 foreach (var rule in _techRules.Body)
                 {
-                    if (string.IsNullOrEmpty(rule?.Regex) || string.IsNullOrEmpty(rule.Tech)) continue;
+                    if (rule == null || string.IsNullOrEmpty(rule.Regex) || string.IsNullOrEmpty(rule.Tech)) continue;
                     try { if (System.Text.RegularExpressions.Regex.IsMatch(html, rule.Regex, System.Text.RegularExpressions.RegexOptions.IgnoreCase)) TechDetections.Add(rule.Tech); } catch { }
                 }
             }

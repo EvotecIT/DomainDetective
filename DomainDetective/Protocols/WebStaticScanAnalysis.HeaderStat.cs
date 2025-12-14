@@ -8,7 +8,7 @@ public partial class WebStaticScanAnalysis
     public sealed class HeaderStat
     {
         /// <summary>Header name.</summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
         /// <summary>Total occurrences of the header across responses.</summary>
         public int Count { get; set; }
     }

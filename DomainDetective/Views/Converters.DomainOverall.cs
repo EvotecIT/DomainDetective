@@ -35,11 +35,11 @@ public static partial class Converters
 public sealed class DomainOverallInfo
 {
     public string? Subject { get; set; }
-    public DomainSummary Summary { get; set; }
+    public DomainSummary Summary { get; set; } = null!;
     public int TotalAssessments { get; set; }
     public int InfoCount { get; set; }
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public System.Collections.Generic.IReadOnlyList<RecommendationView> Recommendations { get; set; }
-    public DomainHealthCheck Raw { get; set; }
+    public System.Collections.Generic.IReadOnlyList<RecommendationView> Recommendations { get; set; } = System.Array.Empty<RecommendationView>();
+    public DomainHealthCheck Raw { get; set; } = null!;
 }

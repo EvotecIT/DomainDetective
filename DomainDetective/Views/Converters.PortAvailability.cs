@@ -15,7 +15,7 @@ public static partial class Converters
                 if (r != null && r.Success) open++;
             }
         }
-        string subject = null;
+        string? subject = null;
         if (analysis.ServerResults != null && analysis.ServerResults.Count == 1)
         {
             foreach (var key in analysis.ServerResults.Keys) { subject = key; break; }
@@ -27,7 +27,7 @@ public static partial class Converters
             Subject = subject,
             TotalChecked = total,
             OpenCount = open,
-            Results = analysis.ServerResults,
+            Results = analysis.ServerResults ?? new Dictionary<string, PortAvailabilityAnalysis.PortResult>(),
             Summary = $"open {open}/{total}"
         };
     }
@@ -37,9 +37,9 @@ public class PortAvailabilityInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
+    public string? Subject { get; set; }
     public int TotalChecked { get; set; }
     public int OpenCount { get; set; }
-    public IReadOnlyDictionary<string, PortAvailabilityAnalysis.PortResult> Results { get; set; }
-    public string Summary { get; set; }
+    public IReadOnlyDictionary<string, PortAvailabilityAnalysis.PortResult> Results { get; set; } = null!;
+    public string Summary { get; set; } = null!;
 }

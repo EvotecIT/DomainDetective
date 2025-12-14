@@ -23,7 +23,7 @@ public class FCrDnsAnalysis
     /// <summary>Represents forward confirmed result for a single address.</summary>
     public class FCrDnsResult
     {
-        public string IpAddress { get; set; }
+        public string IpAddress { get; set; } = null!;
         public List<string> PtrRecords { get; set; } = new();
         public string? PtrRecord => PtrRecords.FirstOrDefault();
         /// <summary>True when PTR hostname resolves to the original IP.</summary>
@@ -53,9 +53,10 @@ public class FCrDnsAnalysis
         foreach (var item in reverseResults)
         {
             var ptrs = item.PtrRecords;
-            if (ptrs.Count == 0 && !string.IsNullOrWhiteSpace(item.PtrRecord))
+            var ptrRecord = item.PtrRecord;
+            if (ptrs.Count == 0 && ptrRecord != null && !string.IsNullOrWhiteSpace(ptrRecord))
             {
-                ptrs = new List<string> { item.PtrRecord.TrimEnd('.') };
+                ptrs = new List<string> { ptrRecord.TrimEnd('.') };
             }
 
             if (ptrs.Count == 0 && IPAddress.TryParse(item.IpAddress, out var ip) &&

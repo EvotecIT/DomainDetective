@@ -105,10 +105,11 @@ public sealed class ApexAddressAnalysis {
                 return await QueryDnsOverride(q, type);
             }
             // If the DNS configuration has an override, prefer it directly to avoid any indirection issues
-            if (DnsConfiguration?.QueryDnsOverride != null) {
-                return await DnsConfiguration.QueryDnsOverride(q, type);
+            var dnsConfiguration = DnsConfiguration;
+            if (dnsConfiguration.QueryDnsOverride != null) {
+                return await dnsConfiguration.QueryDnsOverride(q, type);
             }
-            return await DnsConfiguration.QueryDNS(q, type);
+            return await dnsConfiguration.QueryDNS(q, type);
         }
 
         /// <summary>

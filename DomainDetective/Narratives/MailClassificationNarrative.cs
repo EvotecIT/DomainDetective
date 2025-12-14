@@ -10,7 +10,7 @@ public static class MailClassificationNarrative
 
     public static Sections Build(MailDomainClassificationResult result)
     {
-        var subj = string.IsNullOrWhiteSpace(result?.Domain) ? "(domain)" : result.Domain;
+        var subj = string.IsNullOrWhiteSpace(result.Domain) ? "(domain)" : result.Domain;
         var title = $"Mail Classification — {subj}";
         var subtitle = "Mail Posture";
         var category = "Email Security";
@@ -44,9 +44,13 @@ public static class MailClassificationNarrative
             var groups = RecommendationEngine.GroupByCode(assessments);
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? (g.Instances.FirstOrDefault()?.Message ?? g.Code)
-                    : g.Advice.Title;
+                string msg;
+                var adviceTitle = g.Advice?.Title;
+                if (adviceTitle == null || string.IsNullOrWhiteSpace(adviceTitle)) {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                } else {
+                    msg = adviceTitle;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

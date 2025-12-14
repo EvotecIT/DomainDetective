@@ -8,8 +8,8 @@ namespace DomainDetective;
 public sealed class DomainRule
 {
     /// <summary>Domain suffix to match (e.g., cloudflare.com).</summary>
-    [JsonPropertyName("suffix")] public string Suffix { get; set; }
+    [JsonPropertyName("suffix")] public string Suffix { get; set; } = null!;
     /// <summary>Technology label to record when matched.</summary>
-    [JsonPropertyName("tech")] public string Tech { get; set; }
+    [JsonPropertyName("tech")] public string Tech { get; set; } = null!;
 }
 

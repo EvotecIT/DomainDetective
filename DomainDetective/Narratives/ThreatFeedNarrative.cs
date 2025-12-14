@@ -7,9 +7,18 @@ public static class ThreatFeedNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(ThreatFeedAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(ThreatFeedAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(IP)" : analysis.Subject!;
+        var subjCandidate = analysis?.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(IP)";
+        }
         var title = $"Threat Feed Report — {subj}";
         var subtitle = "Threat Feed";
         var category = "Threat Intelligence";

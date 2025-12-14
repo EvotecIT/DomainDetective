@@ -11,7 +11,16 @@ public static class DirectoryExposureNarrative
 
     public static Sections Build(DirectoryExposureAnalysis analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"Directory Listing Report — {subj}";
         var subtitle = "Directory Exposure Assessment";
         var category = "Web Security";
@@ -22,7 +31,7 @@ public static class DirectoryExposureNarrative
 
         var hi = new List<string>();
         var det = new List<string>();
-        if (analysis?.ExposedPaths != null && analysis.ExposedPaths.Count > 0)
+        if (analysis.ExposedPaths != null && analysis.ExposedPaths.Count > 0)
         {
             hi.Add($"Exposed paths: {string.Join(", ", analysis.ExposedPaths)}");
             det.AddRange(analysis.ExposedPaths.Select(p => $"Exposed: {p}"));
@@ -42,12 +51,19 @@ public static class DirectoryExposureNarrative
         var remediations = new List<string>();
         try
         {
-            var groups = RecommendationEngine.GroupByCode(analysis?.Assessments ?? new List<Assessment>());
+            var groups = RecommendationEngine.GroupByCode(analysis.Assessments ?? new List<Assessment>());
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? g.Instances.FirstOrDefault()?.Message ?? g.Code
-                    : g.Advice.Title;
+                var adviceTitle = g.Advice?.Title;
+                string msg;
+                if (adviceTitle != null && !string.IsNullOrWhiteSpace(adviceTitle))
+                {
+                    msg = adviceTitle;
+                }
+                else
+                {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);

@@ -78,7 +78,7 @@ public sealed class CountryLocationGenerator : ISourceGenerator {
         sb.AppendLine("        _ => string.Empty");
         sb.AppendLine("    };\n");
         sb.AppendLine("    public static bool TryParse(string? name, out CountryId id) {");
-        sb.AppendLine("        if (!string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
+        sb.AppendLine("        if (name != null && !string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
         sb.AppendLine("}");
         sb.AppendLine("public static partial class LocationIdExtensions {");
         sb.AppendLine("    private static readonly Dictionary<string, LocationId> _map = new(StringComparer.OrdinalIgnoreCase) {");
@@ -93,7 +93,7 @@ public sealed class CountryLocationGenerator : ISourceGenerator {
         sb.AppendLine("        _ => string.Empty");
         sb.AppendLine("    };\n");
         sb.AppendLine("    public static bool TryParse(string? name, out LocationId id) {");
-        sb.AppendLine("        if (!string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
+        sb.AppendLine("        if (name != null && !string.IsNullOrWhiteSpace(name) && _map.TryGetValue(name.Trim(), out id)) { return true; }\n        id = default; return false; }");
         sb.AppendLine("}");
 
         context.AddSource("CountryLocationEnums.g.cs", SourceText.From(sb.ToString(), Encoding.UTF8));

@@ -51,8 +51,8 @@ public static partial class Converters {
 public class CertificateInfo {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
-    public string Subject { get; set; }
-    public string Url { get; set; }
+    public string? Subject { get; set; }
+    public string? Url { get; set; }
     public bool IsReachable { get; set; }
     public bool IsValid { get; set; }
     public bool HostnameMatch { get; set; }
@@ -69,20 +69,20 @@ public class CertificateInfo {
     public int SctCount { get; set; }
     public bool OcspMustStaple { get; set; }
     public bool? OcspStaplingPresent { get; set; }
-    public IReadOnlyList<string> SubjectAlternativeNames { get; set; }
+    public IReadOnlyList<string> SubjectAlternativeNames { get; set; } = null!;
     public bool IsWildcardCertificate { get; set; }
     public bool IsSelfSigned { get; set; }
-    public string KeyAlgorithm { get; set; }
+    public string KeyAlgorithm { get; set; } = null!;
     public int KeySize { get; set; }
     public bool WeakKey { get; set; }
     public bool Sha1Signature { get; set; }
-    public IReadOnlyList<Assessment> Assessments { get; set; }
-    public string Status { get; set; }
+    public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
+    public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
     public int ErrorCount { get; set; }
-    public string Summary { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; }
-    public IReadOnlyList<RecommendationAdvice> Positives { get; set; }
-    public IReadOnlyList<string> References { get; set; }
-    public CertificateAnalysis Raw { get; set; }
+    public string Summary { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
+    public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
+    public IReadOnlyList<string> References { get; set; } = null!;
+    public CertificateAnalysis Raw { get; set; } = null!;
 }

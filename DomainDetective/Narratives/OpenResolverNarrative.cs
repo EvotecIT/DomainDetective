@@ -9,9 +9,18 @@ public static class OpenResolverNarrative
 {
     public sealed class Sections : NarrativeSections { }
 
-    public static Sections Build(OpenResolverAnalysis analysis, IEnumerable<Assessment>? assessments = null)
+    public static Sections Build(OpenResolverAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subject = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(resolver)" : analysis.Subject!;
+        var subjectCandidate = analysis?.Subject;
+        string subject;
+        if (subjectCandidate != null && !string.IsNullOrWhiteSpace(subjectCandidate))
+        {
+            subject = subjectCandidate;
+        }
+        else
+        {
+            subject = "(resolver)";
+        }
         var title = $"Open Resolver Report — {subject}";
         var subtitle = "DNS Recursion Assessment";
         var category = "DNS Security";

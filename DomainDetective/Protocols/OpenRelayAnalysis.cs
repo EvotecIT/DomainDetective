@@ -32,13 +32,13 @@ namespace DomainDetective {
         public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
             ServerResults.Clear();
             cancellationToken.ThrowIfCancellationRequested();
-            using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}") : null;
+            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}");
             var result = await TryRelay(host, port, logger, cancellationToken);
             ServerResults[$"{host}:{port}"] = result;
             if (result.Status == OpenRelayStatus.AllowsRelay) {
-                logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+                logger.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
             } else if (result.Status == OpenRelayStatus.Denied) {
-                logger?.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
+                logger.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
             }
         }
 
@@ -50,13 +50,13 @@ namespace DomainDetective {
             foreach (var host in hosts) {
                 foreach (var port in ports) {
                     cancellationToken.ThrowIfCancellationRequested();
-                    using var _collector = logger != null ? AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}") : null;
+                    using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenRelay", target: $"{host}:{port}");
                     var result = await TryRelay(host, port, logger, cancellationToken);
                     ServerResults[$"{host}:{port}"] = result;
                     if (result.Status == OpenRelayStatus.AllowsRelay) {
-                        logger?.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
+                        logger.WriteErrorCode(OpenRelayCodes.AllowsRelay, "Server {0}:{1} allows unauthenticated relay", host, port);
                     } else if (result.Status == OpenRelayStatus.Denied) {
-                        logger?.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
+                        logger.WriteInformationCode(OpenRelayCodes.Denied, "Server {0}:{1} denied unauthenticated relay", host, port);
                     }
                 }
             }
@@ -98,8 +98,8 @@ namespace DomainDetective {
 #endif
                 await ReadResponseAsync(reader, timeoutCts.Token);
 
-                logger?.WriteVerbose($"MAIL FROM response: {mailResp}");
-                logger?.WriteVerbose($"RCPT TO response: {rcptResp}");
+                logger.WriteVerbose($"MAIL FROM response: {mailResp}");
+                logger.WriteVerbose($"RCPT TO response: {rcptResp}");
 
                 int mailCode = ParseStatusCode(mailResp);
                 int rcptCode = ParseStatusCode(rcptResp);
@@ -112,7 +112,7 @@ namespace DomainDetective {
             } catch (OperationCanceledException) {
                 throw;
             } catch (Exception ex) {
-                logger?.WriteInformationCode(OpenRelayCodes.ConnectionFailed, "Open relay connection failed for {0}:{1} - {2}", host, port, ex.Message);
+                logger.WriteInformationCode(OpenRelayCodes.ConnectionFailed, "Open relay connection failed for {0}:{1} - {2}", host, port, ex.Message);
                 SocketError? errorCode = (ex as SocketException)?.SocketErrorCode;
                 return new OpenRelayResult { Status = OpenRelayStatus.ConnectionFailed, SocketErrorCode = errorCode };
             }

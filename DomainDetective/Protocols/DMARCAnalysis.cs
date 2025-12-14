@@ -95,18 +95,18 @@ namespace DomainDetective {
         public List<string> DeprecatedTags { get; private set; } = new List<string>();
 
         // short versions of the tags
-        public string SubPolicyShort { get; private set; }
-        public string PolicyShort { get; private set; }
-        public string FoShort { get; private set; }
-        public string DkimAShort { get; private set; }
-        public string SpfAShort { get; private set; }
-        public string NonexistentPolicyShort { get; private set; }
-        public string PublicSuffixPolicyShort { get; private set; }
-        public string RfbShort { get; private set; }
+        public string SubPolicyShort { get; private set; } = string.Empty;
+        public string PolicyShort { get; private set; } = string.Empty;
+        public string FoShort { get; private set; } = string.Empty;
+        public string DkimAShort { get; private set; } = string.Empty;
+        public string SpfAShort { get; private set; } = string.Empty;
+        public string NonexistentPolicyShort { get; private set; } = string.Empty;
+        public string PublicSuffixPolicyShort { get; private set; } = string.Empty;
+        public string RfbShort { get; private set; } = string.Empty;
         public int? Pct { get; private set; }
         public int? OriginalPct { get; private set; }
         public bool IsPctValid { get; private set; }
-        public string ReportingIntervalShort { get; private set; }
+        public string ReportingIntervalShort { get; private set; } = string.Empty;
 
         private const int DefaultReportingInterval = 86400;
 
@@ -345,7 +345,7 @@ namespace DomainDetective {
                     Category = "DMARC",
                     Target = domainName,
                     Code = "DMARC.Policy.Recommendation",
-                    Message = PolicyRecommendation
+                    Message = PolicyRecommendation!
                 });
             }
 
@@ -559,7 +559,7 @@ namespace DomainDetective {
             var dkimPolicy = string.IsNullOrEmpty(DkimAShort) ? "r" : DkimAShort;
 
             if (!string.IsNullOrWhiteSpace(spfDomain)) {
-                var spfOrg = getOrgDomain(spfDomain);
+                var spfOrg = getOrgDomain(spfDomain!);
                 SpfAligned = spfPolicy == "s"
                     ? string.Equals(fromDomain, spfDomain, StringComparison.OrdinalIgnoreCase)
                     : string.Equals(fromOrg, spfOrg, StringComparison.OrdinalIgnoreCase);
@@ -568,7 +568,7 @@ namespace DomainDetective {
             }
 
             if (!string.IsNullOrWhiteSpace(dkimDomain)) {
-                var dkimOrg = getOrgDomain(dkimDomain);
+                var dkimOrg = getOrgDomain(dkimDomain!);
                 DkimAligned = dkimPolicy == "s"
                     ? string.Equals(fromDomain, dkimDomain, StringComparison.OrdinalIgnoreCase)
                     : string.Equals(fromOrg, dkimOrg, StringComparison.OrdinalIgnoreCase);

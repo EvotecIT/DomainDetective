@@ -10,7 +10,16 @@ public static class TyposquattingNarrative
 
     public static Sections Build(TyposquattingAnalysis analysis)
     {
-        var subj = string.IsNullOrWhiteSpace(analysis?.Subject) ? "(domain)" : analysis.Subject!;
+        var subjCandidate = analysis.Subject;
+        string subj;
+        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        {
+            subj = subjCandidate;
+        }
+        else
+        {
+            subj = "(domain)";
+        }
         var title = $"Typosquatting Report — {subj}";
         var subtitle = "Typosquatting Assessment";
         var category = "Brand Protection";
@@ -21,7 +30,7 @@ public static class TyposquattingNarrative
 
         var hi = new List<string>();
         var det = new List<string>();
-        var active = analysis?.ActiveDomains ?? new List<string>();
+        var active = analysis.ActiveDomains ?? new List<string>();
         if (active.Count > 0)
         {
             hi.Add($"Active typosquat domains: {string.Join(", ", active)}");
@@ -32,7 +41,7 @@ public static class TyposquattingNarrative
             hi.Add("No active typosquat domains detected.");
         }
 
-        var available = (analysis?.Variants ?? new List<string>())
+        var available = (analysis.Variants ?? new List<string>())
             .Except(active, StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (available.Count > 0)
@@ -50,12 +59,19 @@ public static class TyposquattingNarrative
         var remediations = new List<string>();
         try
         {
-            var groups = RecommendationEngine.GroupByCode(analysis?.Assessments ?? new List<Assessment>());
+            var groups = RecommendationEngine.GroupByCode(analysis.Assessments ?? new List<Assessment>());
             foreach (var g in groups)
             {
-                var msg = string.IsNullOrWhiteSpace(g.Advice?.Title)
-                    ? g.Instances.FirstOrDefault()?.Message ?? g.Code
-                    : g.Advice.Title;
+                var adviceTitle = g.Advice?.Title;
+                string msg;
+                if (adviceTitle != null && !string.IsNullOrWhiteSpace(adviceTitle))
+                {
+                    msg = adviceTitle;
+                }
+                else
+                {
+                    msg = g.Instances.FirstOrDefault()?.Message ?? g.Code;
+                }
                 if (g.MaxSeverity == AssessmentSeverity.Info)
                 {
                     positives.Add(msg);
