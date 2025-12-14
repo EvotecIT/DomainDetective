@@ -15,6 +15,7 @@ public static class TlsRptHtmlSectionWriter
         html.AddHeading($"TLS-RPT — {domain}", 2);
         html.AddTable(new [] {
             new { Name = "Record Present", Value = tlsrpt.TlsRptRecordExists ? (tlsrpt.StartsCorrectly ? "Yes (v=TLSRPTv1)" : "Yes (invalid start)") : "No" },
+            new { Name = "DNS TTL (s)", Value = tlsrpt.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "Multiple Records", Value = tlsrpt.MultipleRecords ? "Yes" : "No" },
             new { Name = "mailto: rua", Value = (tlsrpt.MailtoRua?.Count ?? 0).ToString() },
             new { Name = "http: rua", Value = (tlsrpt.HttpRua?.Count ?? 0).ToString() },

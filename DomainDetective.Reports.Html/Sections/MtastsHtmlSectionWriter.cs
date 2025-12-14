@@ -16,6 +16,7 @@ public static class MtastsHtmlSectionWriter
         html.AddHeading($"MTA-STS — {domain}", 2);
         html.AddTable(new [] {
             new { Name = "DNS Policy TXT", Value = mtasts.DnsRecordPresent ? (mtasts.DnsRecordValid ? "Present (valid)" : "Present (invalid)") : "Missing" },
+            new { Name = "DNS TTL (s)", Value = mtasts.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "Policy File", Value = mtasts.PolicyPresent ? (mtasts.PolicyValid ? "Present (valid)" : "Present (invalid)") : "Missing" },
             new { Name = "Mode", Value = mtasts.Mode ?? string.Empty },
             new { Name = "Max-Age", Value = mtasts.MaxAge.ToString() },

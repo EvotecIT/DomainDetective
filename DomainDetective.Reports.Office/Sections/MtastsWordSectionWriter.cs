@@ -26,21 +26,23 @@ public static class MtastsWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("MTA-STS DNS and policy file status.");
-        var t = doc.AddTable(7, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(8, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "DNS Policy TXT";
         t.Rows[0].Cells[1].Paragraphs[0].Text = mtasts.DnsRecordPresent ? (mtasts.DnsRecordValid ? "Present (valid)" : "Present (invalid)") : "Missing";
-        t.Rows[1].Cells[0].Paragraphs[0].Text = "Policy File";
-        t.Rows[1].Cells[1].Paragraphs[0].Text = mtasts.PolicyPresent ? (mtasts.PolicyValid ? "Present (valid)" : "Present (invalid)") : "Missing";
-        t.Rows[2].Cells[0].Paragraphs[0].Text = "Mode";
-        t.Rows[2].Cells[1].Paragraphs[0].Text = mtasts.Mode ?? string.Empty;
-        t.Rows[3].Cells[0].Paragraphs[0].Text = "Max-Age";
-        t.Rows[3].Cells[1].Paragraphs[0].Text = mtasts.MaxAge.ToString();
-        t.Rows[4].Cells[0].Paragraphs[0].Text = "MX Present";
-        t.Rows[4].Cells[1].Paragraphs[0].Text = mtasts.HasMx ? "Yes" : "No";
-        t.Rows[5].Cells[0].Paragraphs[0].Text = "MX Aligned";
-        t.Rows[5].Cells[1].Paragraphs[0].Text = mtasts.MxAligned ? "Yes" : "No";
-        t.Rows[6].Cells[0].Paragraphs[0].Text = "Status";
-        t.Rows[6].Cells[1].Paragraphs[0].Text = mtasts.Status ?? string.Empty;
+        t.Rows[1].Cells[0].Paragraphs[0].Text = "DNS TTL (s)";
+        t.Rows[1].Cells[1].Paragraphs[0].Text = mtasts.DnsRecordTtl?.ToString() ?? "-";
+        t.Rows[2].Cells[0].Paragraphs[0].Text = "Policy File";
+        t.Rows[2].Cells[1].Paragraphs[0].Text = mtasts.PolicyPresent ? (mtasts.PolicyValid ? "Present (valid)" : "Present (invalid)") : "Missing";
+        t.Rows[3].Cells[0].Paragraphs[0].Text = "Mode";
+        t.Rows[3].Cells[1].Paragraphs[0].Text = mtasts.Mode ?? string.Empty;
+        t.Rows[4].Cells[0].Paragraphs[0].Text = "Max-Age";
+        t.Rows[4].Cells[1].Paragraphs[0].Text = mtasts.MaxAge.ToString();
+        t.Rows[5].Cells[0].Paragraphs[0].Text = "MX Present";
+        t.Rows[5].Cells[1].Paragraphs[0].Text = mtasts.HasMx ? "Yes" : "No";
+        t.Rows[6].Cells[0].Paragraphs[0].Text = "MX Aligned";
+        t.Rows[6].Cells[1].Paragraphs[0].Text = mtasts.MxAligned ? "Yes" : "No";
+        t.Rows[7].Cells[0].Paragraphs[0].Text = "Status";
+        t.Rows[7].Cells[1].Paragraphs[0].Text = mtasts.Status ?? string.Empty;
 
         if (scope == ReportScope.Minimal) return;
 

@@ -332,6 +332,7 @@ public static partial class ExcelCompositionReport {
                 ("Status", spf.Status ?? "-"),
                 ("Record Present", spf.SpfRecordExists ? "Yes" : "No"),
                 ("Starts Correctly", spf.StartsCorrectly ? "Yes" : "No"),
+                ("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"),
                 ("DNS Lookups", projection?.DnsLookupsCount ?? spf.DnsLookupsCount)
             };
 
@@ -474,6 +475,7 @@ public static partial class ExcelCompositionReport {
             {
                 ("Record Present", d.DmarcRecordExists ? "Yes" : "No"),
                 ("Starts Correctly", d.StartsCorrectly ? "Yes" : "No"),
+                ("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"),
                 ("Policy (p)", d.Policy ?? "-"),
                 ("Subdomain Policy (sp)", d.SubPolicy ?? "-"),
                 ("Percent (pct)", d.Percent ?? "-"),
@@ -669,6 +671,7 @@ public static partial class ExcelCompositionReport {
                 details.Add(("Mode", m.Mode ?? "-"));
                 details.Add(("Max-Age", m.MaxAge));
                 details.Add(("DNS Present", m.DnsRecordPresent ? "Yes" : "No"));
+                details.Add(("DNS TTL (s)", m.DnsRecordTtl?.ToString() ?? "-"));
                 details.Add(("Policy Valid", m.PolicyValid ? "Yes" : "No"));
                 details.Add(("Has MX", m.HasMx ? "Yes" : "No"));
                 details.Add(("MX Aligned", m.MxAligned ? "Yes" : "No"));
@@ -679,6 +682,7 @@ public static partial class ExcelCompositionReport {
                 var t = bucket.TlsRpt;
                 details.Add(("TLS-RPT", t.Status ?? "-"));
                 details.Add(("Record Exists", t.TlsRptRecordExists ? "Yes" : "No"));
+                details.Add(("DNS TTL (s)", t.DnsRecordTtl?.ToString() ?? "-"));
                 details.Add(("Policy Valid", t.PolicyValid ? "Yes" : "No"));
                 details.Add(("mailto RUA", t.MailtoRua?.Count ?? 0));
                 details.Add(("http RUA", t.HttpRua?.Count ?? 0));
@@ -773,6 +777,10 @@ public static partial class ExcelCompositionReport {
                 ("Has Backup Servers", mx.HasBackupServers ? "Yes" : "No"),
                 ("Null MX", mx.HasNullMx ? "Yes" : "No"),
                 ("Priorities In Order", mx.PrioritiesInOrder ? "Yes" : "No"),
+                ("TTL Uniform", mx.MxTtlUniform ? "Yes" : "No"),
+                ("MX TTL Min (s)", mx.MinMxTtl?.ToString() ?? "-"),
+                ("MX TTL Avg (s)", mx.AvgMxTtl.HasValue ? ((int)Math.Round(mx.AvgMxTtl.Value)).ToString() : "-"),
+                ("MX TTL Max (s)", mx.MaxMxTtl?.ToString() ?? "-"),
                 ("Points to CNAME", mx.PointsToCname ? "Yes" : "No"),
                 ("Points to IP", mx.PointsToIpAddress ? "Yes" : "No"),
                 ("Target Consistent Across NS", mx.TargetAddressConsistentAcrossNs ? "Yes" : "No")

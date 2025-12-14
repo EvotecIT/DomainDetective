@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective {
     /// <summary>
@@ -130,6 +131,9 @@ public class MTASTSAnalysis : IHasAssessments {
         /// </summary>
         public string PolicyId { get; private set; } = string.Empty;
 
+        /// <summary>DNS TTL (seconds) of the _mta-sts TXT record as returned by DNS.</summary>
+        public int? DnsRecordTtl { get; private set; }
+
         /// <summary>Summary message describing MTA-STS status.</summary>
         public string Advisory { get; private set; } = string.Empty;
 
@@ -166,6 +170,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Advisory = string.Empty;
             MxAligned = false;
             MissingMxFromPolicy = new List<string>();
+            DnsRecordTtl = null;
         }
 
         /// <summary>
@@ -185,6 +190,7 @@ public class MTASTSAnalysis : IHasAssessments {
             Domain = domainName;
 
             var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dns, expectedType: DnsRecordType.TXT);
             DnsRecordPresent = dns?.Any() == true;
             if (!DnsRecordPresent) {
                 PolicyValid = false;

@@ -18,6 +18,7 @@ public static class SpfHtmlSectionWriter
         html.AddTable(new[] {
             new { Name = "Record Present", Value = spf.SpfRecordExists ? "Yes" : "No" },
             new { Name = "Starts Correctly", Value = spf.StartsCorrectly ? "Yes" : "No" },
+            new { Name = "DNS TTL (s)", Value = spf.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "DNS Lookups", Value = spf.DnsLookupsCount.ToString() },
             new { Name = "Multiple 'all'", Value = spf.MultipleAllMechanisms ? "Yes" : "No" },
         });

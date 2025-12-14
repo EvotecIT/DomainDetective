@@ -96,6 +96,10 @@ public static partial class Converters
             Area = AreaForKind(HealthCheckType.MX),
             Subject = analysis.Subject ?? string.Empty,
             MxRecords = analysis.MxRecords ?? new List<string>(),
+            MxRecordTtls = analysis.MxRecordTtls,
+            MinMxTtl = analysis.MinMxTtl,
+            MaxMxTtl = analysis.MaxMxTtl,
+            AvgMxTtl = analysis.AvgMxTtl,
             MxRecordExists = analysis.MxRecordExists,
             PointsToCname = analysis.PointsToCname,
             PointsToIpAddress = analysis.PointsToIpAddress,
@@ -162,6 +166,14 @@ public class MxInfo
     public string Subject { get; set; } = string.Empty;
     /// <summary>MX resource records as returned by DNS.</summary>
     public IReadOnlyList<string> MxRecords { get; set; } = System.Array.Empty<string>();
+    /// <summary>TTL values (seconds) for MX answers as returned by DNS.</summary>
+    public IReadOnlyList<int> MxRecordTtls { get; set; } = System.Array.Empty<int>();
+    /// <summary>Minimum TTL (seconds) across MX answers (ignores 0).</summary>
+    public int? MinMxTtl { get; set; }
+    /// <summary>Maximum TTL (seconds) across MX answers (ignores 0).</summary>
+    public int? MaxMxTtl { get; set; }
+    /// <summary>Average TTL (seconds) across MX answers (ignores 0).</summary>
+    public double? AvgMxTtl { get; set; }
     /// <summary>True when at least one MX record exists.</summary>
     public bool MxRecordExists { get; set; }
     /// <summary>True when MX points to a CNAME (discouraged).</summary>

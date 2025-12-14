@@ -37,6 +37,10 @@ namespace DomainDetective {
         public IReadOnlyList<int> SpfTxtTtls { get; private set; } = Array.Empty<int>();
         /// <summary>TTL values for _dmarc TXT.</summary>
         public IReadOnlyList<int> DmarcTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for _mta-sts TXT.</summary>
+        public IReadOnlyList<int> MtastsTxtTtls { get; private set; } = Array.Empty<int>();
+        /// <summary>TTL values for _smtp._tls TXT (TLS-RPT).</summary>
+        public IReadOnlyList<int> TlsRptTxtTtls { get; private set; } = Array.Empty<int>();
         /// <summary>TTL values for DKIM selector TXT records, keyed by FQDN (selector._domainkey.domain).</summary>
         public Dictionary<string, IReadOnlyList<int>> DkimTxtTtls { get; private set; } = new();
         /// <summary>Collection of warning messages produced during analysis.</summary>
@@ -56,6 +60,10 @@ namespace DomainDetective {
         public int MinTtlDmarcSeconds { get; set; } = 3600;
         /// <summary>Minimum TTL for DKIM selector TXT records (seconds).</summary>
         public int MinTtlDkimSelectorSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for MTA-STS TXT records (seconds).</summary>
+        public int MinTtlMtastsSeconds { get; set; } = 3600;
+        /// <summary>Minimum TTL for TLS-RPT TXT records (seconds).</summary>
+        public int MinTtlTlsRptSeconds { get; set; } = 3600;
 
         // Per-authoritative-server TTL uniformity results
         public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
@@ -181,6 +189,8 @@ namespace DomainDetective {
             SoaTtl = 0;
             SpfTxtTtls = Array.Empty<int>();
             DmarcTxtTtls = Array.Empty<int>();
+            MtastsTxtTtls = Array.Empty<int>();
+            TlsRptTxtTtls = Array.Empty<int>();
             DkimTxtTtls = new Dictionary<string, IReadOnlyList<int>>();
 
             var aRecords = await QueryDns(domainName, DnsRecordType.A);
@@ -191,6 +201,8 @@ namespace DomainDetective {
             var dsRecords = await QueryDns(domainName, DnsRecordType.DS);
             var txtApex = await QueryDns(domainName, DnsRecordType.TXT);
             var txtDmarc = await QueryDns($"_dmarc.{domainName}", DnsRecordType.TXT);
+            var txtMtasts = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
+            var txtTlsRpt = await QueryDns($"_smtp._tls.{domainName}", DnsRecordType.TXT);
 
             DnsSecSigned = dsRecords.Length > 0;
 
@@ -208,6 +220,16 @@ namespace DomainDetective {
             // Only treat TXT at _dmarc as DMARC when it actually contains a DMARC record
             DmarcTxtTtls = txtDmarc
                 .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=DMARC1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
+
+            MtastsTxtTtls = txtMtasts
+                .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=STSv1", StringComparison.OrdinalIgnoreCase) >= 0)
+                .Select(r => r.TTL)
+                .ToArray();
+
+            TlsRptTxtTtls = txtTlsRpt
+                .Where(r => (r.Data ?? r.DataRaw ?? string.Empty).IndexOf("v=TLSRPTv1", StringComparison.OrdinalIgnoreCase) >= 0)
                 .Select(r => r.TTL)
                 .ToArray();
 
@@ -235,6 +257,8 @@ namespace DomainDetective {
             // Evaluate TXT categories with specific minima
             if (SpfTxtTtls.Any()) Evaluate("SPF TXT", SpfTxtTtls, MinTtlSpfSeconds, 86400, false, logger);
             if (DmarcTxtTtls.Any()) Evaluate("DMARC TXT", DmarcTxtTtls, MinTtlDmarcSeconds, 86400, false, logger);
+            if (MtastsTxtTtls.Any()) Evaluate("MTA-STS TXT", MtastsTxtTtls, MinTtlMtastsSeconds, 86400, false, logger);
+            if (TlsRptTxtTtls.Any()) Evaluate("TLS-RPT TXT", TlsRptTxtTtls, MinTtlTlsRptSeconds, 86400, false, logger);
         }
 
         /// <summary>

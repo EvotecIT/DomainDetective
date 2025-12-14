@@ -45,17 +45,19 @@ public static class SpfWordSectionWriter
         // Summary
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("Key SPF posture indicators for this domain.");
-        var summaryTable = doc.AddTable(5, 2, WordTableStyle.TableGrid);
+        var summaryTable = doc.AddTable(6, 2, WordTableStyle.TableGrid);
         summaryTable.Rows[0].Cells[0].AddParagraph("Record Present");
         summaryTable.Rows[0].Cells[1].AddParagraph(spf.SpfRecordExists ? "Yes" : "No");
         summaryTable.Rows[1].Cells[0].AddParagraph("Starts Correctly");
         summaryTable.Rows[1].Cells[1].AddParagraph(spf.StartsCorrectly ? "Yes" : "No");
-        summaryTable.Rows[2].Cells[0].AddParagraph("DNS Lookups");
-        summaryTable.Rows[2].Cells[1].AddParagraph(spf.DnsLookupsCount.ToString());
-        summaryTable.Rows[3].Cells[0].AddParagraph("Multiple 'all'");
-        summaryTable.Rows[3].Cells[1].AddParagraph(spf.MultipleAllMechanisms ? "Yes" : "No");
-        summaryTable.Rows[4].Cells[0].AddParagraph("All Mechanism");
-        summaryTable.Rows[4].Cells[1].AddParagraph(spf.Raw?.AllMechanism ?? string.Empty);
+        summaryTable.Rows[2].Cells[0].AddParagraph("DNS TTL (s)");
+        summaryTable.Rows[2].Cells[1].AddParagraph(spf.DnsRecordTtl?.ToString() ?? "-");
+        summaryTable.Rows[3].Cells[0].AddParagraph("DNS Lookups");
+        summaryTable.Rows[3].Cells[1].AddParagraph(spf.DnsLookupsCount.ToString());
+        summaryTable.Rows[4].Cells[0].AddParagraph("Multiple 'all'");
+        summaryTable.Rows[4].Cells[1].AddParagraph(spf.MultipleAllMechanisms ? "Yes" : "No");
+        summaryTable.Rows[5].Cells[0].AddParagraph("All Mechanism");
+        summaryTable.Rows[5].Cells[1].AddParagraph(spf.Raw?.AllMechanism ?? string.Empty);
 
         // Highlights
         if (spf.Highlights != null && spf.Highlights.Count > 0)

@@ -18,6 +18,7 @@ public static class DmarcHtmlSectionWriter
         html.AddTable(new[] {
             new { Name = "Record Present", Value = dmarc.DmarcRecordExists ? "Yes" : "No" },
             new { Name = "Policy", Value = dmarc.Policy ?? string.Empty },
+            new { Name = "DNS TTL (s)", Value = dmarc.DnsRecordTtl?.ToString() ?? "-" },
             new { Name = "adkim/aspf", Value = $"{dmarc.DkimAlignment ?? "?"}/{dmarc.SpfAlignment ?? "?"}" },
             new { Name = "pct", Value = dmarc.Percent ?? string.Empty },
             new { Name = "rua", Value = (dmarc.MailtoRua?.Count ?? 0).ToString() },

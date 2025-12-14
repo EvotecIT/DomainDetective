@@ -43,14 +43,15 @@ public static class DkimWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("DKIM selectors discovered and their key properties.");
-        var table = doc.AddTable(dkim.Count + 1, 7, WordTableStyle.TableGrid);
+        var table = doc.AddTable(dkim.Count + 1, 8, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Record";
         table.Rows[0].Cells[2].Paragraphs[0].Text = "Key Bits";
         table.Rows[0].Cells[3].Paragraphs[0].Text = "Alg";
-        table.Rows[0].Cells[4].Paragraphs[0].Text = "Key Age";
-        table.Rows[0].Cells[5].Paragraphs[0].Text = "Public Key";
-        table.Rows[0].Cells[6].Paragraphs[0].Text = "Status";
+        table.Rows[0].Cells[4].Paragraphs[0].Text = "TTL (s)";
+        table.Rows[0].Cells[5].Paragraphs[0].Text = "Key Age";
+        table.Rows[0].Cells[6].Paragraphs[0].Text = "Public Key";
+        table.Rows[0].Cells[7].Paragraphs[0].Text = "Status";
         for (int i = 0; i < dkim.Count; i++)
         {
             var r = dkim[i];
@@ -58,9 +59,10 @@ public static class DkimWordSectionWriter
             table.Rows[i + 1].Cells[1].Paragraphs[0].Text = r.DkimRecordExists ? "Present" : "Missing";
             table.Rows[i + 1].Cells[2].Paragraphs[0].Text = r.PublicKeyExists ? r.KeyLength.ToString() : "-";
             table.Rows[i + 1].Cells[3].Paragraphs[0].Text = r.HashAlgorithm ?? string.Empty;
-            table.Rows[i + 1].Cells[4].Paragraphs[0].Text = r.KeyAgeDays > 0 ? r.KeyAgeDays.ToString() : "-";
-            table.Rows[i + 1].Cells[5].Paragraphs[0].Text = r.PublicKeyExists ? "Yes" : "No";
-            table.Rows[i + 1].Cells[6].Paragraphs[0].Text = r.Status ?? string.Empty;
+            table.Rows[i + 1].Cells[4].Paragraphs[0].Text = r.DnsRecordTtl?.ToString() ?? "-";
+            table.Rows[i + 1].Cells[5].Paragraphs[0].Text = r.KeyAgeDays > 0 ? r.KeyAgeDays.ToString() : "-";
+            table.Rows[i + 1].Cells[6].Paragraphs[0].Text = r.PublicKeyExists ? "Yes" : "No";
+            table.Rows[i + 1].Cells[7].Paragraphs[0].Text = r.Status ?? string.Empty;
         }
 
         if (scope == ReportScope.Minimal) return;
