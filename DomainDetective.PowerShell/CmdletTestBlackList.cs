@@ -217,7 +217,7 @@ AfterWrite:
                             view.Subject = string.IsNullOrWhiteSpace(firstKey) ? "DNSBL" : firstKey;
                         }
                         var items = new System.Collections.Generic.List<object> { view };
-                        var label = view.Subject;
+                        var label = view.Subject ?? "DNSBL";
                         var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, fmt);
                         if (fmt == DomainDetective.Reports.ReportFormat.Word) {
                             DomainDetective.Reports.Office.WordCompositionReport.Generate(

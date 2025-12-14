@@ -317,7 +317,8 @@ namespace DomainDetective {
                 logger?.WriteInformationCode(DkimCodes.KeyTypeValid, "DKIM key type valid: {0}", analysis.KeyType ?? "unknown");
             if (analysis.ValidCanonicalization && !string.IsNullOrWhiteSpace(analysis.Canonicalization))
                 logger?.WriteInformationCode(DkimCodes.CanonicalizationValid, "DKIM canonicalization valid: {0}", analysis.Canonicalization);
-            if (!string.IsNullOrWhiteSpace(analysis.HashAlgorithm) && analysis.HashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
+            var hashAlgorithm = analysis.HashAlgorithm;
+            if (hashAlgorithm != null && hashAlgorithm.IndexOf("sha256", StringComparison.OrdinalIgnoreCase) >= 0)
                 logger?.WriteInformationCode(DkimCodes.HashSha256, "DKIM hash algorithm includes sha256 for selector {0}", selector);
             if (analysis.ValidFlags)
                 logger?.WriteInformationCode(DkimCodes.FlagsValid, "DKIM flags valid for selector {0}", selector);
@@ -331,9 +332,10 @@ namespace DomainDetective {
             // Provider mapping via CNAME target when available (best-effort)
             try
             {
-                if (DnsConfiguration != null && !string.IsNullOrWhiteSpace(analysis.Name))
+                var name = analysis.Name;
+                if (DnsConfiguration != null && name != null && !string.IsNullOrWhiteSpace(name))
                 {
-                    var cname = await DnsConfiguration.QueryDNS(analysis.Name.TrimEnd('.'), DnsRecordType.CNAME);
+                    var cname = await DnsConfiguration.QueryDNS(name.TrimEnd('.'), DnsRecordType.CNAME);
                     if (cname != null && cname.Length > 0)
                     {
                         var target = cname[0].Data?.Trim('.') ?? string.Empty;
@@ -465,7 +467,7 @@ namespace DomainDetective {
     /// <para>Part of the DomainDetective project.</para>
     public class DkimRecordAnalysis {
         /// <summary>Gets or sets the queried record name.</summary>
-        public string Name { get; set; } = string.Empty;
+        public string? Name { get; set; }
         /// <summary>Gets or sets the full DKIM record text.</summary>
         public string DkimRecord { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether the record exists.</summary>
@@ -491,7 +493,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the service type flag.</summary>
         public string ServiceType { get; set; } = string.Empty;
         /// <summary>Gets or sets any flags defined for the record.</summary>
-        public string Flags { get; set; } = string.Empty;
+        public string? Flags { get; set; }
         /// <summary>Gets unrecognized flag characters if <see cref="ValidFlags"/> is <c>false</c>.</summary>
         public string UnknownFlagCharacters { get; set; } = string.Empty;
         /// <summary>Gets or sets a value indicating whether all flag characters are valid.</summary>
@@ -507,7 +509,7 @@ namespace DomainDetective {
         /// <summary>Gets or sets the key type.</summary>
         public string KeyType { get; set; } = string.Empty;
         /// <summary>Gets or sets the hash algorithm type.</summary>
-        public string HashAlgorithm { get; set; } = string.Empty;
+        public string? HashAlgorithm { get; set; }
         /// <summary>Gets or sets the signature algorithm.</summary>
         public string SignatureAlgorithm { get; set; } = string.Empty;
         /// <summary>Date the record appears to have been created.</summary>

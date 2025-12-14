@@ -191,6 +191,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                         var isValueOnlySemicolon = value == ";";
                         if (isValueOnlySemicolon) {
                             analysis.Value = value;
+                            analysis.Issuer = null;
                             // Don't continue here - we still need to add this analysis to the results
                         } else {
                             var parts = value.Split(new[] { ';' }, 2); // Split into 2 parts at most
@@ -210,7 +211,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
                                 }
                             }
 
-                            analysis.Issuer = domainName;
+                            analysis.Issuer = string.IsNullOrWhiteSpace(domainName) ? null : domainName;
 
                             // Parse additional parameters
                             var parameters = new Dictionary<string, string>();
@@ -282,11 +283,15 @@ As an illustration, a CAA record that is set on example.com is also applicable t
             var certificateIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.Issue && a.Value != ";")
                 .Select(a => a.Issuer)
+                .Where(i => !string.IsNullOrWhiteSpace(i))
+                .Select(i => i!)
                 .ToList();
 
             var wildcardIssuers = AnalysisResults
                 .Where(a => !a.InvalidFlag && !a.InvalidTag && !a.InvalidValueUnescapedQuotes && !a.InvalidValueWrongDomain && !a.InvalidValueWrongParameters && a.Tag == CAATagType.IssueWildcard && a.Value != ";")
                 .Select(a => a.Issuer)
+                .Where(i => !string.IsNullOrWhiteSpace(i))
+                .Select(i => i!)
                 .ToList();
 
             var mailIssuers = AnalysisResults
@@ -374,7 +379,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// <summary>Gets or sets the record value.</summary>
         public string Value { get; set; } = string.Empty;
         /// <summary>Gets or sets the issuer domain name.</summary>
-        public string Issuer { get; set; } = string.Empty;
+        public string? Issuer { get; set; }
         /// <summary>Gets or sets a value indicating whether the record failed validation.</summary>
         public bool Invalid { get; set; }
         /// <summary>Gets or sets a value indicating an invalid flag field.</summary>

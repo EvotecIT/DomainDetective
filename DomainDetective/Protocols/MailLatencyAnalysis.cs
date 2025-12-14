@@ -66,10 +66,10 @@ public class MailLatencyAnalysis : IHasAssessments {
             await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
 #endif
             connectElapsed = sw.Elapsed;
+            var bannerStart = sw.Elapsed;
             if (connectElapsed < TimeSpan.FromSeconds(1)) {
                 logger?.WriteInformationCode(MailLatencyCodes.ConnectFast, "Connection to {0}:{1} in {2} ms", host, port, (int)connectElapsed.TotalMilliseconds);
             }
-            var bannerStart = sw.Elapsed;
             using NetworkStream network = client.GetStream();
             using var reader = new StreamReader(network);
             using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };

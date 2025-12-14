@@ -771,7 +771,12 @@ public static class WordCompositionReport {
                     case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject):
                         Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
                     case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
-                        Ensure(dnsbl.Subject); map[dnsbl.Subject].Dnsbl = dnsbl; break;
+                    {
+                        var subject = dnsbl.Subject!;
+                        Ensure(subject);
+                        map[subject].Dnsbl = dnsbl;
+                        break;
+                    }
                     case DomainDetective.Views.RpkiInfo rpki when !string.IsNullOrWhiteSpace(rpki.Subject):
                     {
                         var subject = rpki.Subject!;
