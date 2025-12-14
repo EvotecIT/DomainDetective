@@ -29,7 +29,13 @@ namespace DomainDetective {
         /// <summary>MX records discovered during analysis.</summary>
         public List<string> MxRecords { get; private set; } = new List<string>();
 
-        /// <summary>TTL values (seconds) for each MX record answer as returned by DNS.</summary>
+        /// <summary>
+        /// TTL values (seconds) for each MX record answer as returned by DNS.
+        /// </summary>
+        /// <remarks>
+        /// MX commonly returns multiple answers; this analysis exposes both the raw TTL set and aggregate
+        /// min/avg/max values to support operational TTL policy checks without additional DNS queries.
+        /// </remarks>
         public IReadOnlyList<int> MxRecordTtls { get; private set; } = Array.Empty<int>();
         /// <summary>Minimum TTL (seconds) across MX answers (ignores 0).</summary>
         public int? MinMxTtl { get; private set; }
@@ -121,11 +127,29 @@ namespace DomainDetective {
 
             var ttlArray = mxRecordList.Select(r => r.TTL).ToArray();
             MxRecordTtls = ttlArray;
-            var positive = ttlArray.Where(t => t > 0).ToArray();
-            if (positive.Length > 0) {
-                MinMxTtl = positive.Min();
-                MaxMxTtl = positive.Max();
-                AvgMxTtl = positive.Average();
+            int? minTtl = null;
+            int? maxTtl = null;
+            long sumTtl = 0;
+            int positiveCount = 0;
+            foreach (var ttl in ttlArray) {
+                if (ttl <= 0) {
+                    continue;
+                }
+
+                positiveCount++;
+                sumTtl += ttl;
+                if (!minTtl.HasValue || ttl < minTtl.Value) {
+                    minTtl = ttl;
+                }
+                if (!maxTtl.HasValue || ttl > maxTtl.Value) {
+                    maxTtl = ttl;
+                }
+            }
+
+            if (positiveCount > 0) {
+                MinMxTtl = minTtl;
+                MaxMxTtl = maxTtl;
+                AvgMxTtl = (double)sumTtl / positiveCount;
             }
 
             var parsed = new List<(int Preference, string Host)>();
