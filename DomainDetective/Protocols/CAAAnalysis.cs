@@ -86,7 +86,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
         /// </summary>
         /// <param name="dnsResults">DNS query results containing CAA records.</param>
         /// <param name="logger">Logger used for warnings and errors.</param>
-        public async Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public Task AnalyzeCAARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CAA", target: Subject ?? DomainName);
             // reset all properties so repeated calls don't accumulate data
             DomainName = null;
@@ -105,14 +105,14 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
-                return;
+                return Task.CompletedTask;
             }
 
             var caaRecordList = dnsResults.ToList();
 
             if (!caaRecordList.Any()) {
                 logger.WriteVerbose("No CAA record found.");
-                return;
+                return Task.CompletedTask;
             }
 
             DomainName = caaRecordList.First().Name;
@@ -274,6 +274,7 @@ As an illustration, a CAA record that is set on example.com is also applicable t
 
             CheckForConflicts();
             GenerateLists(logger);
+            return Task.CompletedTask;
         }
         /// <summary>
         /// Builds summary lists of issuers and contact addresses from <see cref="AnalysisResults"/>.
