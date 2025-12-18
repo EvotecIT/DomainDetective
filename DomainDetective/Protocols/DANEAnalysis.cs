@@ -56,7 +56,7 @@ namespace DomainDetective {
         }
 
 
-        public async Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
+        public Task AnalyzeDANERecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger, CancellationToken cancellationToken = default) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "DANE");
             Reset();
 
@@ -64,7 +64,7 @@ namespace DomainDetective {
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
-                return;
+                return Task.CompletedTask;
             }
 
             var daneRecordList = dnsResults.ToList();
@@ -201,6 +201,7 @@ namespace DomainDetective {
 
             cancellationToken.ThrowIfCancellationRequested();
             HasInvalidRecords = AnalysisResults.Any(x => !x.ValidDANERecord);
+            return Task.CompletedTask;
         }
 
         private bool ValidateUsage(int usageValue) {

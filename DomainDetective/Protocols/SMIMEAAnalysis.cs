@@ -31,12 +31,12 @@ namespace DomainDetective {
         /// <summary>Actionable recommendations derived from assessments.</summary>
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
-        public async Task AnalyzeSMIMEARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
+        public Task AnalyzeSMIMEARecords(IEnumerable<DnsAnswer> dnsResults, InternalLogger logger) {
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "SMIMEA");
             Reset();
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
-                return;
+                return Task.CompletedTask;
             }
             var records = dnsResults.ToList();
             var duplicate = records.GroupBy(x => x.Data).Where(g => g.Count() > 1).ToList();
@@ -120,6 +120,8 @@ namespace DomainDetective {
             if (AnalysisResults.Any(x => x.ValidSMIMEARecord)) {
                 logger?.WriteInformationCode(SmimeaCodes.CertificateValid, "Valid SMIMEA certificate association");
             }
+
+            return Task.CompletedTask;
         }
 
         private bool ValidateUsage(int usage) => usage switch { 0 or 1 or 2 or 3 => true, _ => false };
