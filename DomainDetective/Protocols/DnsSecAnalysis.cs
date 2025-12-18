@@ -831,24 +831,60 @@ namespace DomainDetective {
 
             try {
                 var doc = XDocument.Parse(xml);
-                List<string> anchors = new();
-                DateTimeOffset? earliest = null;
+
+                var digests = new List<(string Ds, DateTimeOffset? ValidFrom, DateTimeOffset? ValidUntil)>();
                 foreach (var kd in doc.Descendants("KeyDigest")) {
                     var keyTag = kd.Element("KeyTag")?.Value;
                     var algorithm = kd.Element("Algorithm")?.Value;
                     var digestType = kd.Element("DigestType")?.Value;
                     var digest = kd.Element("Digest")?.Value;
-                    var validUntil = kd.Attribute("validUntil")?.Value;
-                    if (!string.IsNullOrEmpty(keyTag) && !string.IsNullOrEmpty(algorithm) && !string.IsNullOrEmpty(digestType) && !string.IsNullOrEmpty(digest)) {
-                        anchors.Add($"{keyTag} {algorithm} {digestType} {digest}");
+
+                    if (string.IsNullOrWhiteSpace(keyTag) ||
+                        string.IsNullOrWhiteSpace(algorithm) ||
+                        string.IsNullOrWhiteSpace(digestType) ||
+                        string.IsNullOrWhiteSpace(digest)) {
+                        continue;
                     }
-                    if (DateTimeOffset.TryParse(validUntil, out var exp)) {
-                        if (earliest == null || exp < earliest) {
-                            earliest = exp;
-                        }
+
+                    DateTimeOffset? validFrom = null;
+                    var validFromRaw = kd.Attribute("validFrom")?.Value;
+                    if (!string.IsNullOrWhiteSpace(validFromRaw) && DateTimeOffset.TryParse(validFromRaw, out var vf)) {
+                        validFrom = vf;
+                    }
+
+                    DateTimeOffset? validUntil = null;
+                    var validUntilRaw = kd.Attribute("validUntil")?.Value;
+                    if (!string.IsNullOrWhiteSpace(validUntilRaw) && DateTimeOffset.TryParse(validUntilRaw, out var vu)) {
+                        validUntil = vu;
+                    }
+
+                    digests.Add(($"{keyTag} {algorithm} {digestType} {digest}", validFrom, validUntil));
+                }
+
+                if (digests.Count == 0) {
+                    return (Array.Empty<string>(), null);
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var active = digests
+                    .Where(d => (!d.ValidFrom.HasValue || now >= d.ValidFrom.Value) &&
+                                (!d.ValidUntil.HasValue || now < d.ValidUntil.Value))
+                    .ToList();
+
+                var selected = active.Count > 0 ? active : digests;
+                var anchors = selected.Select(x => x.Ds).ToList();
+
+                DateTimeOffset? expiration = null;
+                foreach (var d in selected) {
+                    if (!d.ValidUntil.HasValue) {
+                        continue;
+                    }
+                    if (!expiration.HasValue || d.ValidUntil.Value < expiration.Value) {
+                        expiration = d.ValidUntil.Value;
                     }
                 }
-                return (anchors, earliest);
+
+                return (anchors, expiration);
             } catch {
                 return (Array.Empty<string>(), null);
             }

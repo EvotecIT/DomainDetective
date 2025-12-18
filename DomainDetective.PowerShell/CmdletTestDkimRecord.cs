@@ -58,8 +58,20 @@ namespace DomainDetective.PowerShell {
         protected override async Task ProcessRecordAsync() {
             foreach (var domain in DomainName) {
                 _logger.WriteVerbose("Querying DKIM records for domain: {0}", domain);
-                await healthCheck.VerifyDKIM(domain, Selectors);
+                var selectors = Selectors ?? System.Array.Empty<string>();
+                var includeMissingSelectors = selectors.Length > 0;
+                await healthCheck.VerifyDKIM(domain, selectors, includeMissingSelectors);
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis).ToList();
+                if (!includeMissingSelectors && output.Count == 0) {
+                    WriteWarning($"No DKIM selectors found for {domain}. Provide -Selectors to test specific selectors.");
+                } else if (includeMissingSelectors && output.Count > 0 && output.All(x => !x.DkimRecordExists)) {
+                    var checkedSelectors = string.Join(", ", selectors.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()));
+                    if (!string.IsNullOrWhiteSpace(checkedSelectors)) {
+                        WriteWarning($"No matching DKIM selectors found for {domain} (checked: {checkedSelectors}).");
+                    } else {
+                        WriteWarning($"No matching DKIM selectors found for {domain}.");
+                    }
+                }
                 WriteObject(output, true);
 
                 if (IsExportRequested()) {

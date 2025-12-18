@@ -107,19 +107,32 @@ namespace DomainDetective.PowerShell {
             }
 
             // Additional options
-            var httpChoice = Host.UI.PromptForChoice(
-                "HTTP Check",
-                "Perform plain HTTP security check?",
-                new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
-                1);
-            var runHttp = httpChoice == 0;
-            
-            var takeoverChoice = Host.UI.PromptForChoice(
-                "Subdomain Takeover",
-                "Check for subdomain takeover vulnerabilities?",
-                new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
-                1);
-            var checkTakeover = takeoverChoice == 0;
+            bool runHttp;
+            bool checkTakeover;
+            if (checkSelection == 1) {
+                // "Full" should mean full: include optional HTTP + takeover checks without extra prompts.
+                runHttp = true;
+                checkTakeover = true;
+            } else if (checkSelection == 4) {
+                // For Custom runs, ask about optional add-ons.
+                var httpChoice = Host.UI.PromptForChoice(
+                    "HTTP Check",
+                    "Perform plain HTTP security check?",
+                    new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
+                    1);
+                runHttp = httpChoice == 0;
+
+                var takeoverChoice = Host.UI.PromptForChoice(
+                    "Subdomain Takeover",
+                    "Check for subdomain takeover vulnerabilities?",
+                    new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
+                    1);
+                checkTakeover = takeoverChoice == 0;
+            } else {
+                // Presets map cleanly to their predefined checks.
+                runHttp = false;
+                checkTakeover = false;
+            }
 
             var outputChoice = Host.UI.PromptForChoice(
                 "Output Format",

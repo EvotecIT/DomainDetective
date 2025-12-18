@@ -25,6 +25,7 @@ public static partial class Converters
             NonexistentPolicy = analysis.NonexistentPolicy,
             PublicSuffixPolicy = analysis.PublicSuffixPolicy,
             ReportFeedback = analysis.ReportFeedback,
+            Pct = analysis.Pct,
             Percent = analysis.Percent,
             DkimAlignment = analysis.DkimAlignment,
             SpfAlignment = analysis.SpfAlignment,
@@ -82,6 +83,8 @@ public class DmarcRecordInfo
     public string ReportFeedback { get; set; } = string.Empty;
     /// <summary>Percent of messages to which policy applies.</summary>
     public string Percent { get; set; } = string.Empty;
+    /// <summary>Numeric percent (pct=) value when available.</summary>
+    public int? Pct { get; set; }
     /// <summary>DKIM alignment (adkim).</summary>
     public string DkimAlignment { get; set; } = string.Empty;
     /// <summary>SPF alignment (aspf).</summary>
