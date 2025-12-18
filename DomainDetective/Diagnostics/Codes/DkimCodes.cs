@@ -1,6 +1,7 @@
 namespace DomainDetective;
 
 internal static class DkimCodes {
+    public const string RecordMissing = "DKIM.Record.Missing";
     public const string KeyWeak = "DKIM.Key.Weak";
     public const string KeyOld = "DKIM.Key.Old";
     public const string HashDeprecated = "DKIM.Hash.Deprecated";

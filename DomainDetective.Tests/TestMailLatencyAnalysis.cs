@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -8,6 +9,9 @@ namespace DomainDetective.Tests {
     public class TestMailLatencyAnalysis {
         [Fact]
         public async Task RecordsBannerLatency() {
+            const int bannerDelayMs = 200;
+            const int minBannerMs = 150;
+            using var connectedSignal = new ManualResetEventSlim(false);
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -17,7 +21,8 @@ namespace DomainDetective.Tests {
                 using var stream = client.GetStream();
                 using var reader = new System.IO.StreamReader(stream);
                 using var writer = new System.IO.StreamWriter(stream) { AutoFlush = true, NewLine = "\r\n" };
-                await Task.Delay(200);
+                connectedSignal.Wait(TimeSpan.FromSeconds(2));
+                await Task.Delay(bannerDelayMs);
                 await writer.WriteLineAsync("220 slow ESMTP");
                 await writer.FlushAsync();
                 await reader.ReadLineAsync();
@@ -26,12 +31,18 @@ namespace DomainDetective.Tests {
             });
 
             try {
+                var logger = new InternalLogger(false);
+                logger.OnInformationMessage += (_, e) => {
+                    if (string.Equals(e.Code, MailLatencyCodes.ConnectFast, StringComparison.Ordinal)) {
+                        connectedSignal.Set();
+                    }
+                };
                 var analysis = new MailLatencyAnalysis { Timeout = TimeSpan.FromSeconds(5) };
                 var host = IPAddress.Loopback.ToString();
-                await analysis.AnalyzeServer(host, port, new InternalLogger());
+                await analysis.AnalyzeServer(host, port, logger);
                 var result = analysis.ServerResults[$"{host}:{port}"];
                 Assert.True(result.BannerSuccess, $"Connect:{result.ConnectSuccess} Banner:{result.BannerSuccess} ConnectTime:{result.ConnectTime.TotalMilliseconds} BannerTime:{result.BannerTime.TotalMilliseconds}");
-                Assert.True(result.BannerTime >= TimeSpan.FromMilliseconds(150), $"BannerTime {result.BannerTime.TotalMilliseconds}ms was shorter than expected");
+                Assert.True(result.BannerTime >= TimeSpan.FromMilliseconds(minBannerMs), $"BannerTime {result.BannerTime.TotalMilliseconds}ms was shorter than expected");
             } finally {
                 listener.Stop();
                 await serverTask;

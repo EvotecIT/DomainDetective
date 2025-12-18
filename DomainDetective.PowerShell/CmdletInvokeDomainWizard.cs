@@ -19,6 +19,19 @@ namespace DomainDetective.PowerShell {
     [OutputType(typeof(DomainSummary), typeof(string))]
     public sealed class CmdletInvokeDomainWizard : AsyncPSCmdlet {
         /// <summary>
+        /// Returns how optional checks should be handled for the selected preset.
+        /// </summary>
+        /// <param name="checkSelection">Preset selection index.</param>
+        /// <returns>Tuple describing optional check behavior.</returns>
+        internal static (bool RunHttp, bool CheckTakeover, bool PromptForOptionalChecks) GetOptionalChecksBehavior(int checkSelection) {
+            return checkSelection switch {
+                1 => (true, true, false),
+                4 => (false, false, true),
+                _ => (false, false, false)
+            };
+        }
+
+        /// <summary>
         /// Runs the interactive wizard that guides the user through domain
         /// verification.
         /// </summary>
@@ -107,19 +120,29 @@ namespace DomainDetective.PowerShell {
             }
 
             // Additional options
-            var httpChoice = Host.UI.PromptForChoice(
-                "HTTP Check",
-                "Perform plain HTTP security check?",
-                new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
-                1);
-            var runHttp = httpChoice == 0;
-            
-            var takeoverChoice = Host.UI.PromptForChoice(
-                "Subdomain Takeover",
-                "Check for subdomain takeover vulnerabilities?",
-                new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
-                1);
-            var checkTakeover = takeoverChoice == 0;
+            var optional = GetOptionalChecksBehavior(checkSelection);
+            bool runHttp;
+            bool checkTakeover;
+            if (optional.PromptForOptionalChecks) {
+                // For Custom runs, ask about optional add-ons.
+                var httpChoice = Host.UI.PromptForChoice(
+                    "HTTP Check",
+                    "Perform plain HTTP security check?",
+                    new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
+                    1);
+                runHttp = httpChoice == 0;
+
+                var takeoverChoice = Host.UI.PromptForChoice(
+                    "Subdomain Takeover",
+                    "Check for subdomain takeover vulnerabilities?",
+                    new Collection<ChoiceDescription> { new("&Yes"), new("&No") },
+                    1);
+                checkTakeover = takeoverChoice == 0;
+            } else {
+                // Presets map cleanly to their predefined checks.
+                runHttp = optional.RunHttp;
+                checkTakeover = optional.CheckTakeover;
+            }
 
             var outputChoice = Host.UI.PromptForChoice(
                 "Output Format",

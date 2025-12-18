@@ -4,6 +4,15 @@ namespace DomainDetective.Recommendations;
 
 internal sealed class DkimRecommendations : IRecommendationProvider {
     public void Register(IDictionary<string, RecommendationAdvice> map) {
+        map[DkimCodes.RecordMissing] = new RecommendationAdvice {
+            Code = DkimCodes.RecordMissing,
+            Title = "DKIM record not found for selector",
+            Why = "Without a published DKIM public key, signatures using this selector cannot be verified by receivers.",
+            How = "Confirm the selector value and publish a DKIM TXT record at <selector>._domainkey.<domain>. If you do not use this selector, remove it from your checks.",
+            Links = new [] { "https://datatracker.ietf.org/doc/html/rfc6376", "https://dmarc.org/resources/specifications/" },
+            Domain = RecommendationDomain.Dkim,
+            Tags = new [] { "email", "dkim", "dns" }
+        };
         map[DkimCodes.KeyTooShort] = new RecommendationAdvice {
             Code = DkimCodes.KeyTooShort,
             Title = "DKIM public key is too short",

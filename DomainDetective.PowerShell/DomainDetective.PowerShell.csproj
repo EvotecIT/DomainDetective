@@ -27,6 +27,10 @@
         <ProjectReference Include="..\DomainDetective.Reports.Markdown\DomainDetective.Reports.Markdown.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="DomainDetective.Tests" />
+    </ItemGroup>
+
     <PropertyGroup>
         <!-- This is needed for XmlDoc2CmdletDoc to generate a PowerShell documentation file. -->
         <GenerateDocumentationFile>true</GenerateDocumentationFile>

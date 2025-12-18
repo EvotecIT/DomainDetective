@@ -13,7 +13,18 @@ namespace DomainDetective {
         /// <param name="domainName">Domain to inspect.</param>
         /// <param name="selectors">Selectors to query or <c>null</c> to auto detect.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+        public Task VerifyDKIM(string domainName, string[] selectors, CancellationToken cancellationToken = default) {
+            return VerifyDKIM(domainName, selectors, includeMissingSelectors: false, cancellationToken);
+        }
+
+        /// <summary>
+        /// Verifies DKIM records for the specified domain.
+        /// </summary>
+        /// <param name="domainName">Domain to inspect.</param>
+        /// <param name="selectors">Selectors to query or <c>null</c> to auto detect.</param>
+        /// <param name="includeMissingSelectors">When <c>true</c>, <c>AnalysisResults</c> will include entries for selectors that have no published DKIM record and warnings will be logged for those missing records. When <c>false</c>, selectors with no published DKIM record are omitted from <c>AnalysisResults</c> and no warnings are logged for them.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        public async Task VerifyDKIM(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) {
             DKIMAnalysis.Reset();
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
@@ -38,7 +49,9 @@ namespace DomainDetective {
                 cancellationToken.ThrowIfCancellationRequested();
                 try {
                     var dkim = await DnsConfiguration.QueryDNS(name: $"{trimmedSelector}._domainkey.{domainName}", recordType: DnsRecordType.TXT, filter: "DKIM1", cancellationToken: cancellationToken);
-                    await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
+                    if (dkim.Any() || includeMissingSelectors) {
+                        await DKIMAnalysis.AnalyzeDkimRecords(trimmedSelector, dkim, logger: _logger);
+                    }
                 } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                     // Treat network timeouts as transient in tests/CI: record no results and continue.
                     _logger.WriteWarningCode(DkimCodes.QueryFailed, "DKIM DNS query failed for selector {0} on {1}: {2}", trimmedSelector, domainName, ex.Message);

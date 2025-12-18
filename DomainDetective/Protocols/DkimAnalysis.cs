@@ -91,9 +91,23 @@ namespace DomainDetective {
                 }
             }
 
+            if (string.IsNullOrWhiteSpace(analysis.Name) && !string.IsNullOrWhiteSpace(Subject)) {
+                analysis.Name = $"{selector}._domainkey.{Subject}";
+            }
+
             logger.WriteVerbose($"Analyzing DKIM record {analysis.DkimRecord}");
 
+            if (!analysis.DkimRecordExists) {
+                logger?.WriteWarningCode(DkimCodes.RecordMissing, "No DKIM record found for selector {0}.", selector);
+                AnalysisResults[selector] = analysis;
+                UpdateAdvisory(logger);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(analysis.DkimRecord)) {
+                logger?.WriteWarningCode(DkimCodes.RecordMissing, "DKIM record for selector {0} exists but is empty.", selector);
+                AnalysisResults[selector] = analysis;
+                UpdateAdvisory(logger);
                 return;
             }
 
