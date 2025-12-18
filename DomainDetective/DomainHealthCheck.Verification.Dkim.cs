@@ -22,8 +22,7 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="domainName">Domain to inspect.</param>
         /// <param name="selectors">Selectors to query or <c>null</c> to auto detect.</param>
-        /// <param name="includeMissingSelectors">When <c>true</c>, <c>AnalysisResults</c> will include entries for selectors that have no published DKIM record, and warnings will be logged for those missing records.
-        /// When <c>false</c>, selectors with no published DKIM record are omitted from <c>AnalysisResults</c> and no warnings are logged for them.</param>
+        /// <param name="includeMissingSelectors">When <c>true</c>, <c>AnalysisResults</c> will include entries for selectors that have no published DKIM record and warnings will be logged for those missing records. When <c>false</c>, selectors with no published DKIM record are omitted from <c>AnalysisResults</c> and no warnings are logged for them.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         public async Task VerifyDKIM(string domainName, string[] selectors, bool includeMissingSelectors, CancellationToken cancellationToken = default) {
             DKIMAnalysis.Reset();
