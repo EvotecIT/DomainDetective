@@ -27,11 +27,9 @@ public class TestDkimExplicitSelectorsMissing
 
         await healthCheck.VerifyDKIM("example.com", new[] { "s1" }, includeMissingSelectors: true);
 
-        Assert.True(healthCheck.DKIMAnalysis.AnalysisResults.ContainsKey("s1"));
-        var s1 = healthCheck.DKIMAnalysis.AnalysisResults["s1"];
+        Assert.True(healthCheck.DKIMAnalysis.AnalysisResults.TryGetValue("s1", out var s1));
         Assert.False(s1.DkimRecordExists);
         Assert.Equal("s1._domainkey.example.com", s1.Name);
         Assert.Contains(healthCheck.DKIMAnalysis.Assessments, a => a.Code == DkimCodes.RecordMissing);
     }
 }
-

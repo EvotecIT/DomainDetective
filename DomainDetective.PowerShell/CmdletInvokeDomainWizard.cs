@@ -19,6 +19,19 @@ namespace DomainDetective.PowerShell {
     [OutputType(typeof(DomainSummary), typeof(string))]
     public sealed class CmdletInvokeDomainWizard : AsyncPSCmdlet {
         /// <summary>
+        /// Returns how optional checks should be handled for the selected preset.
+        /// </summary>
+        /// <param name="checkSelection">Preset selection index.</param>
+        /// <returns>Tuple describing optional check behavior.</returns>
+        internal static (bool RunHttp, bool CheckTakeover, bool PromptForOptionalChecks) GetOptionalChecksBehavior(int checkSelection) {
+            return checkSelection switch {
+                1 => (true, true, false),
+                4 => (false, false, true),
+                _ => (false, false, false)
+            };
+        }
+
+        /// <summary>
         /// Runs the interactive wizard that guides the user through domain
         /// verification.
         /// </summary>
@@ -107,13 +120,10 @@ namespace DomainDetective.PowerShell {
             }
 
             // Additional options
+            var optional = GetOptionalChecksBehavior(checkSelection);
             bool runHttp;
             bool checkTakeover;
-            if (checkSelection == 1) {
-                // "Full" should mean full: include optional HTTP + takeover checks without extra prompts.
-                runHttp = true;
-                checkTakeover = true;
-            } else if (checkSelection == 4) {
+            if (optional.PromptForOptionalChecks) {
                 // For Custom runs, ask about optional add-ons.
                 var httpChoice = Host.UI.PromptForChoice(
                     "HTTP Check",
@@ -130,8 +140,8 @@ namespace DomainDetective.PowerShell {
                 checkTakeover = takeoverChoice == 0;
             } else {
                 // Presets map cleanly to their predefined checks.
-                runHttp = false;
-                checkTakeover = false;
+                runHttp = optional.RunHttp;
+                checkTakeover = optional.CheckTakeover;
             }
 
             var outputChoice = Host.UI.PromptForChoice(
