@@ -1,21 +1,15 @@
 # DomainDetective — Open TODO (Consolidated)
 
-This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER.MD. Completed entries were removed; items below were validated against the codebase on 2025-09-08.
+This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-18.
 
 ## High Priority
-- Pester: RPKI downgrade (5xx) logged as Warning; pipeline continues; assessment code `RPKI.Query.Failed` present.
-- Pester: Word composition headings present (Executive Summary, Overview, All References) and summary table renders; add PS-level test (C# unit test exists).
 - Golden report pass (Word): single-domain and multi-domain; verify one-liner intros and References blocks across sections.
 
 ## Reports — Word
-- Report Settings panel at front (narrative placement, generated timestamp, domain count).
-- Per-section narrative intros for all writers (ensure one-liner before Good Posture and Findings consistently across MX/MTA-STS/TLS-RPT/…)
-- Tighten recommendation de-duplication in consolidated table.
-- DKIM status in summary: derive from worst severity across selectors (Warning/Error/OK), not string max.
-- Optional: User-configurable summary column cap (default 4 content columns). CLI/PS surface.
+- Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
 ## Reports — HTML
-- Parity with Word: add Good Posture for DMARC/DKIM (SPF already done) and align section structure.
+- Parity with Word: add Good Posture for DMARC/DKIM and align section structure.
 
 ## Composition Parity (Next Day)
 - Word/HTML ordering polish
@@ -57,20 +51,16 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Trends: daily/weekly pass rate, top failing sources, alignment gaps; export time series.
   - Reports: Word/HTML sections for Aggregate Reports with posture one‑liners and remediation hints.
 - Mail transport security posture
-  - MTA‑STS: check TXT record, fetch policy, validate fields (version, mode, max_age, mx). (done)
-  - Verify declared MX list matches DNS MX and that MX hosts present STARTTLS with acceptable TLS versions/ciphers. (done)
-  - TLS‑RPT: check `_smtp._tls` TXT presence; capture `rua` endpoints and basic sanity of mailto/https URIs. (done)
-  - Surface in Good Posture/Findings; include references. (Word done; HTML pending)
+  - Surface in HTML Good Posture/Findings; include references.
 - DNSSEC presence and resolver‑based validation
-  - Detect DS/DNSKEY presence; attempt AD‑bit verification using multiple resolvers. (done)
-  - Summarize as Good Posture tile; include warnings when chain/validation missing. (HTML pending)
+  - Summarize as Good Posture tile in HTML; include warnings when chain/validation missing.
 - Registration snapshot (WHOIS/RDAP)
   - Query WHOIS (port 43) with server/port override; RDAP fallback when available.
   - Snapshot registrar, creation/update/expiry, domain status codes, nameservers.
   - Compute `DaysUntilExpiration`; warn at configurable thresholds (e.g., <60 days).
   - Track drift across runs (registrar/nameserver changes).
 - Resolver override everywhere
-  - Expose multi‑resolver lists across CLI/PS; pipe through to DNS layer. (partially done: Test-DDDomainOverallHealth supports -DnsEndpoints, strategy, parallelism)
+  - Expose multi‑resolver lists across CLI/PS beyond Test-DDDomainOverallHealth; pipe through to DNS layer.
 - Bulk input and CSV export
   - Add `-InputFile` to CLI/PS to process domain lists.
   - Add `-CsvPath` for first‑class CSV export without requiring downstream piping.
@@ -97,41 +87,27 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 
 ## Networking / Resolvers
 - DNS Resolver Override (PS + Core)
-  - Integrate DnsClientX multi‑resolver in `DnsConfiguration`. (done)
-    - FirstSuccess/FastestWins/SequentialAll strategies. (done)
-    - MaxParallelism support. (done)
-    - Accept resolver list as `DnsEndpoint[]`. (done)
-    - String parsing of resolver URIs. (skipped – not needed)
-    - Batch API preserving order. (pending)
+  - Batch API preserving order. (pending)
   - Endpoint validation and toggles
     - Friendly errors for invalid endpoints. (pending)
     - Global per‑query/per‑endpoint timeouts. (pending)
     - TTL passthrough surfaced where useful. (pending)
   - PowerShell/CLI surface
-    - Overall health cmdlet supports `-DnsEndpoints`, strategy, parallelism. (done)
     - Extend to other testing cmdlets. (pending)
   - Tests
     - Unit tests for multi‑resolver behavior. (pending)
-  - Docs
-    - Examples in README and Examples project. (done)
-
-<!-- Providers / Positives completed: Info-level positives are emitted for DNSSEC (DS present/chain valid), NS diversity (AS/vendor), and RPKI all-valid rollups. -->
 
 ## Tests & QA
 - Snapshot tests for Views: verify Recommendations exclude Info; Positives include only Info (autodiscover/subject policies/etc.).
 - DKIM: auto-detect tests for new selectors (assert advisory/key parsing).
 - Integration tests: assessments stamped with correct Subject scopes (e.g., per-server).
 - Pester smoke: adapt deep asserts to view.Raw across cmdlets.
-- xUnit: MTA‑STS ↔ MX TLS correlation (modern/missing/weak). (done)
-- xUnit: DNSSEC multi‑resolver AD‑bit info code. (done)
 
 ## Docs & Examples
 - Document the narrative metadata contract so PS/CLI and Word/HTML remain in sync.
 - Update examples for company branding, Good Posture sections, and dynamic Executive Summary behavior.
-- Extend XML examples for enums/classes (TLS enums, DnsEndpoint usage). (done)
 - Cmdlet XML remarks: outputs a view object with `.Raw` and `.Narrative` when available.
 - Add dashboard usage examples showing `Select-Object` over views and `.Raw` for deep data.
-- Add README + .ps1 examples for multi-resolver (C#/PowerShell). (done)
 
 ## Internal Tooling (Optional)
 - Provider Docs Verifier (dev-only)
@@ -143,8 +119,6 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
   - Output single JSON artifact + short console summary; no user‑facing cmdlet.
   - Optional CI (weekly) to upload artifact and open an issue on repeated failures; never runs during end‑user commands.
 
-<!-- PowerShell Output Conventions completed: DomainOverallHealth returns a View with .Raw; Test-* cmdlets return Views with .Raw; exports execute after pipeline output. -->
-
 ## Reporting (Consolidated Roadmap)
 - Narratives in core for all areas; views surface `.Narrative`.
 - Word (OfficeIMO): cover, TOC, numbered headings, header/footer branding, watermark, styled tables; charts later.
@@ -153,38 +127,19 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 
 ## Composition Unification — End-to-End Checklist (Added 2025-09-14)
 - Shared Data Model (SectionProjectors)
-  - Ensure projectors exist and are stable for all sections (MX, SPF, DKIM, DMARC, DNSBL, NS, SOA, CAA, DNSSEC, DANE, MTA‑STS, TLS‑RPT, Mail TLS, RPKI, Zone Transfer, Wildcard). [done]
   - Keep DTO surface minimal and consistent: Summary (KV), Positives, Findings (non‑Info), References (+ Rows where applicable e.g., DKIM selectors). [ongoing refinement]
 
 - Word
-  - Section writers use projector-aware overloads for all sections, preserving narrative/evidence and provider help. [done]
   - Remove legacy view‑only code paths once HTML/Markdown/Excel parity is validated. [pending]
   - Add a one‑shot “parity mode” toggle (internal) to compare DTO vs. legacy output counts (Findings/Positives/References) for test runs. [pending]
-
-- HTML
-  - Migrate all remaining sections to DTOs; maintain existing visuals; keep high‑value evidence (e.g., RPKI per‑IP, DNSBL listed records). [done]
-  - Dashboard profile renders KPIs/tables only; Document profile renders full sections. [done]
-  - DKIM selector-count hint and MAILTLS footnote parity (where applicable for HTML). [done]
-  - Add DNSSEC/RPKI badges using shared DisplayFormatting in single-domain header and overview. [done]
-  - Executive Summary table includes DNSSEC and RPKI columns (with highlighting). [done]
-
-- Markdown/MarkdownHtml
-  - Migrate SPF/DMARC/DKIM + NS/SOA/DNSBL + MTA‑STS/TLS‑RPT/CAA/DNSSEC/DANE/Mail TLS/RPKI/Zone/Wildcard to DTOs. [done]
-  - Keep concise “evidence” tables where they materially help (e.g., DNSBL listed, Zone server results). [done]
-  - Add “All References” section mirroring Word’s consolidated references. [done]
 
 - Excel
   - Switch per‑section panes to DTOs (Transport: MTA‑STS/TLS‑RPT; DNS: NS/SOA/DNSSEC; Security: CAA/DANE/RPKI; Reputation: DNSBL; Auth: SPF/DKIM/DMARC). [pending]
   - Preserve evidence tables where useful (RPKI, Zone Transfer). [pending]
-  - Honor `ExcelProfile` (Workbook|Dashboard) across panes with shared DTOs. [done at shell, content pending]
-  - Providers block shows Confidence/Single‑MX OK hints; “MailTLS Sources” section; “References” sheet. [done]
-  - Per‑domain Overview shows DNSSEC/RPKI summaries (DisplayFormatting). [done]
-  - Overview (Domains) table includes DNSSEC and RPKI columns with conditional backgrounds; icon set adjusted. [done]
+  - Honor `ExcelProfile` (Workbook|Dashboard) across panes with shared DTOs (content pending).
 
 - PowerShell/CLI Surface
-  - Expose `-HtmlProfile Document|Dashboard` and `-ExcelProfile Workbook|Dashboard`. [done]
   - Update Get‑Help and README usage examples for profiles, inline `ScriptBlock` composition, and the MarkdownHtml rename. [pending]
-  - CLI: ensure `--format markdownhtml` is documented and tested. [done]
 
 - Tests & Parity
   - Pester: Validate that Word/HTML/Markdown/Excel share consistent per‑section counts (Findings/Positives/References) for a known domain set. [pending]
@@ -222,14 +177,11 @@ Acceptance Criteria (for closing unification)
 
 - Shared Data Contract (ReportSchema v1)
   - Introduce a small immutable schema for top‑level composition: ReportHeader (Title, GeneratedOn, SubjectCount, Profiles), ExecutiveSummaryRow, ProviderChain, and PerDomain (Overview, Sections[]). [pending]
-  - Implement ExecutiveSummaryBuilder that produces the canonical rows once; consumers map to Word/Markdown/HTML/Excel widgets. [done]
   - Add StatusPalette service (text → status category) used by HTML/Excel conditional visuals and by emoji status in Markdown. [pending]
 
 - Output Adapters
   - Word: ensure all section writers accept projector DTOs; remove legacy view‑only branches after parity green. [pending]
-  - Markdown/MarkdownHtml: reuse ExecutiveSummaryBuilder; unify H2/H3 names with Word; maintain same tables for Positives/Findings/References. [done]
   - HTML (HtmlForgeX): create Dashboard composer that maps ExecutiveSummaryRow to KPI cards + summary Tabler table; retain optional Document profile that renders per‑domain accordions. [pending]
-  - Excel: align `DomainDetective.Reports.Office.ExcelCompositionReport` with Projects/OfficeIMO/OfficeIMO.Examples/Excel/DomainDetective.Report.Sheets.cs visuals while sourcing data from ExecutiveSummaryBuilder/SectionProjectors (no duplicate aggregation). [done]
 
 - Ordering & TOC
   - Single source of truth for CanonicalSectionOrder used by all renderers; respect `-SectionOrderMode` and `-SectionOrder`. [pending]

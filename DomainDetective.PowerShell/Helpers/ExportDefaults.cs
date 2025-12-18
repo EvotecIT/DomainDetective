@@ -37,6 +37,8 @@ namespace DomainDetective.PowerShell {
         public static string FooterText { get; set; } = string.Empty;
         /// <summary>Watermark text.</summary>
         public static string WatermarkText { get; set; } = string.Empty;
+        /// <summary>Executive Summary max content columns for Word composition.</summary>
+        public static int SummaryColumnCap { get; set; } = 4;
         // Company custom properties (exposed to Word reports)
         /// <summary>Company name.</summary>
         public static string CompanyName { get; set; } = string.Empty;

@@ -60,7 +60,8 @@ namespace DomainDetective.PowerShell {
                             DomainDetective.Reports.ReportScope.Normal,
                             showInfoFindings: true,
                             narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Zone Transfer — {DomainName}" : ExportDefaults.NarrativeTitle);
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Zone Transfer — {DomainName}" : ExportDefaults.NarrativeTitle,
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"Zone Transfer export failed: {ex.Message}");

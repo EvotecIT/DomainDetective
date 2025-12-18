@@ -65,7 +65,8 @@ namespace DomainDetective.PowerShell {
                             DomainDetective.Reports.ReportScope.Normal,
                             showInfoFindings: true,
                             narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"POP3 TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle);
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"POP3 TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle,
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"POP3 TLS export failed: {ex.Message}");

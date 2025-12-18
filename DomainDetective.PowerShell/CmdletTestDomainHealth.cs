@@ -197,7 +197,8 @@ namespace DomainDetective.PowerShell {
                                 companyYear: ExportDefaults.CompanyYear,
                                 logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
                                 headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                                watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText);
+                                watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
+                                summaryColumnCap: ExportDefaults.SummaryColumnCap);
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(outPath);
                         } else {
                             DomainDetective.Reports.Html.HtmlCompositionReport.Generate(

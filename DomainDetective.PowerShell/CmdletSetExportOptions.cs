@@ -34,6 +34,11 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? WatermarkText { get; set; }
 
+        /// <summary>Max status columns in Word executive summary tables.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(1, 12)]
+        public int? SummaryColumnCap { get; set; }
+
         /// <summary>Company name for custom document properties.</summary>
         [Parameter(Mandatory = false)]
         public string? CompanyName { get; set; }
@@ -97,6 +102,7 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.HeaderText = string.Empty;
                 ExportDefaults.FooterText = string.Empty;
                 ExportDefaults.WatermarkText = string.Empty;
+                ExportDefaults.SummaryColumnCap = 4;
                 ExportDefaults.CompanyName = string.Empty;
                 ExportDefaults.CompanyAddress = string.Empty;
                 ExportDefaults.CompanyYear = string.Empty;
@@ -146,6 +152,10 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(WatermarkText)) {
                 ExportDefaults.WatermarkText = WatermarkText!;
                 WriteVerbose($"WatermarkText set to {ExportDefaults.WatermarkText}.");
+            }
+            if (SummaryColumnCap.HasValue) {
+                ExportDefaults.SummaryColumnCap = SummaryColumnCap.Value;
+                WriteVerbose($"SummaryColumnCap set to {ExportDefaults.SummaryColumnCap}.");
             }
             if (!string.IsNullOrWhiteSpace(CompanyName)) {
                 ExportDefaults.CompanyName = CompanyName!;

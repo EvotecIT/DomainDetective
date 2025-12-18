@@ -35,6 +35,7 @@ public static class WordCompositionReport {
     /// <param name="watermarkText">Watermark text.</param>
     /// <param name="showDkimSelectorCountInSummary">Show DKIM selector count next to DKIM status in executive summary.</param>
     /// <param name="showMailTlsProtocolHintInSummary">Show protocol hint (SMTP/IMAP/POP) for Mail TLS in summary.</param>
+    /// <param name="summaryColumnCap">Optional cap for the number of status columns in the executive summary table.</param>
     /// <param name="providerHelp">Provider reference rendering options for sections.</param>
     /// <param name="domainOrder">How to order domains in the output (Alphabetical or Input).</param>
     /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
@@ -61,11 +62,16 @@ public static class WordCompositionReport {
         ProviderHelpRenderOptions? providerHelp = null,
         DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical,
         DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical,
-        string[]? sectionOrder = null) {
+        string[]? sectionOrder = null,
+        int? summaryColumnCap = null) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
         // Group items by domain/subject
         var grouped = GroupBySubject(items);
+        bool multiDomain = grouped.Count > 1;
+        bool placeGlobal = narrativePlacement == NarrativePlacement.Global || (narrativePlacement == NarrativePlacement.Auto && multiDomain);
+        bool includeNarrativePerDomain = narrativePlacement == NarrativePlacement.PerDomain || (narrativePlacement == NarrativePlacement.Auto && !multiDomain);
+        bool includeMechanismMeaningsPerDomain = includeNarrativePerDomain; // meanings go with narratives when per-domain
         var subjectTitle = BuildSubjectTitle(grouped.Keys.ToList());
         var title = string.IsNullOrWhiteSpace(titleOverride)
             ? $"Security Report — {subjectTitle}"
@@ -73,6 +79,7 @@ public static class WordCompositionReport {
 
         using var doc = WordDocument.Create(path);
         doc.Settings.UpdateFieldsOnOpen = true;
+        var generatedAt = DateTime.Now;
 
         // Built-in and custom properties
         var subj = string.IsNullOrWhiteSpace(subjectOverride) ? "Custom Composition" : subjectOverride;
@@ -87,10 +94,21 @@ public static class WordCompositionReport {
         doc.AddTableOfContent(TableOfContentStyle.Template1);
         doc.AddPageBreak();
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
-            $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, null);
+            $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, null);
         WordReportCommon.AddFooter(doc, null, null, logoPath, null); // left defaults to CompanyLine; add logo when provided
 
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
+        headings.AddItem("Report Settings");
+        var narrativePlacementLabel = placeGlobal ? "Global" : "Per-domain";
+        if (narrativePlacement == NarrativePlacement.Auto) narrativePlacementLabel += " (Auto)";
+        doc.AddParagraph("Report generation details and composition settings.");
+        var settings = doc.AddTable(3, 2, WordTableStyle.TableGrid);
+        settings.Rows[0].Cells[0].AddParagraph("Generated");
+        settings.Rows[0].Cells[1].AddParagraph($"{generatedAt:yyyy-MM-dd HH:mm:ss}");
+        settings.Rows[1].Cells[0].AddParagraph("Domain Count");
+        settings.Rows[1].Cells[1].AddParagraph(grouped.Count.ToString());
+        settings.Rows[2].Cells[0].AddParagraph("Narrative Placement");
+        settings.Rows[2].Cells[1].AddParagraph(narrativePlacementLabel);
         headings.AddItem("Executive Summary");
         headings.AddItem("Overview", 1);
         // Determine which sections are actually present in the composed items
@@ -156,8 +174,8 @@ public static class WordCompositionReport {
         }
         try {
             // Build dynamic header list and writers; cap content columns to keep layout tidy in Word.
-            // Max total columns ≈ 6 (including Domain + Findings) → content columns cap = 4.
-            const int maxContentColumns = 4;
+            // Max total columns ≈ 6 (including Domain + Findings) → content columns cap = 4 by default.
+            int contentColumnCap = summaryColumnCap.HasValue ? Math.Max(1, summaryColumnCap.Value) : 4;
             var candidates = new List<(string Header, Action<WordTableCell, DomainBucket> WriteCell, Func<DomainBucket, int>? Warns, Func<DomainBucket, int>? Errs, int Priority)>();
             if (hasSpf) candidates.Add(("SPF", (cell, b) => cell.AddParagraph(b.Spf?.Status ?? "-"), b => b.Spf?.WarningCount ?? 0, b => b.Spf?.ErrorCount ?? 0, 10));
             if (hasDkim) candidates.Add(("DKIM", (cell, b) => cell.AddParagraph(ComposeDkimStatus(b.Dkim, showDkimSelectorCountInSummary)), b => b.Dkim?.Sum(x => x.WarningCount) ?? 0, b => b.Dkim?.Sum(x => x.ErrorCount) ?? 0, 9));
@@ -182,7 +200,7 @@ public static class WordCompositionReport {
             var selected = candidates
                 .OrderByDescending(c => c.Priority)
                 .ThenBy(c => c.Header, StringComparer.OrdinalIgnoreCase)
-                .Take(maxContentColumns)
+                .Take(contentColumnCap)
                 .ToList();
             int omitted = candidates.Count - selected.Count;
 
@@ -348,10 +366,6 @@ public static class WordCompositionReport {
         } catch { /* skip summary on edge cases */ }
 
         // Background narratives (global) when requested
-        bool multiDomain = allRows.Count > 1;
-        bool placeGlobal = narrativePlacement == NarrativePlacement.Global || (narrativePlacement == NarrativePlacement.Auto && multiDomain);
-        bool includeNarrativePerDomain = narrativePlacement == NarrativePlacement.PerDomain || (narrativePlacement == NarrativePlacement.Auto && !multiDomain);
-        bool includeMechanismMeaningsPerDomain = includeNarrativePerDomain; // meanings go with narratives when per-domain
         if (placeGlobal) {
             BackgroundWordSectionWriter.Write(doc, headings, 1, items);
         }
@@ -455,21 +469,78 @@ public static class WordCompositionReport {
                 PullAssessments(b.ImapTls?.Assessments);
                 PullAssessments(b.PopTls?.Assessments);
             }
+            string NormalizeRec(string? text) {
+                if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+                var normalized = text.Trim().ToLowerInvariant();
+                normalized = System.Text.RegularExpressions.Regex.Replace(normalized, "\n|\r", " ");
+                normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
+                normalized = normalized.Replace(";", "").Replace(",", "").Replace(":", "").Replace(".", "");
+                return normalized;
+            }
+            string BuildRecKey(DomainDetective.RecommendationView rec) {
+                var title = NormalizeRec(rec.Advice?.Title);
+                var how = NormalizeRec(rec.Advice?.How);
+                if (!string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(how)) {
+                    return $"{title}|{how}";
+                }
+                return rec.Code ?? string.Empty;
+            }
+            string BuildCodeLabel(System.Collections.Generic.IEnumerable<string?> codes) {
+                var list = codes
+                    .Where(c => !string.IsNullOrWhiteSpace(c))
+                    .Select(c => c!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (list.Count == 0) return string.Empty;
+                const int maxCodes = 3;
+                var shown = list.Take(maxCodes).ToList();
+                int extra = list.Count - shown.Count;
+                var text = string.Join(", ", shown);
+                if (extra > 0) text += $" +{extra} more";
+                return text;
+            }
             var recGroups = DomainDetective.RecommendationEngine.GroupByCode(allAssessments);
             var negative = recGroups.Where(g => g.MaxSeverity != DomainDetective.AssessmentSeverity.Info).ToList();
-            if (negative.Count > 0) {
+            var consolidated = negative
+                .GroupBy(BuildRecKey, StringComparer.OrdinalIgnoreCase)
+                .Select(g => {
+                    var advice = g.Select(x => x.Advice).FirstOrDefault(a => a != null) ?? new DomainDetective.RecommendationAdvice();
+                    var maxSeverity = g.Max(x => x.MaxSeverity);
+                    var category = g.Select(x => x.Category).FirstOrDefault(c => !string.IsNullOrWhiteSpace(c)) ?? string.Empty;
+                    var targets = g.SelectMany(x => x.Targets ?? Array.Empty<string>())
+                        .Where(t => !string.IsNullOrWhiteSpace(t))
+                        .Select(t => t!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    var instances = g.SelectMany(x => x.Instances ?? Array.Empty<DomainDetective.Assessment>()).ToList();
+                    var codes = BuildCodeLabel(g.Select(x => x.Code));
+                    return new DomainDetective.RecommendationView {
+                        Code = codes,
+                        Advice = advice,
+                        MaxSeverity = maxSeverity,
+                        Category = category,
+                        Targets = targets,
+                        Instances = instances
+                    };
+                })
+                .OrderByDescending(r => r.MaxSeverity)
+                .ThenBy(r => r.Advice?.Title ?? string.Empty)
+                .ThenBy(r => r.Code ?? string.Empty)
+                .ToList();
+            if (consolidated.Count > 0) {
                 headings.AddItem("Consolidated Recommendations");
                 doc.AddParagraph("Actions to improve posture across all analyzed domains. Recommendations are grouped to avoid duplicates.");
-                var rt = doc.AddTable(negative.Count + 1, 5, WordTableStyle.TableGrid);
+                var rt = doc.AddTable(consolidated.Count + 1, 5, WordTableStyle.TableGrid);
                 var rc0 = rt.Rows[0].Cells; int hc = Math.Min(5, rc0.Count);
                 if (hc > 0) rc0[0].AddParagraph("Severity");
                 if (hc > 1) rc0[1].AddParagraph("Code");
                 if (hc > 2) rc0[2].AddParagraph("Title");
                 if (hc > 3) rc0[3].AddParagraph("How");
                 if (hc > 4) rc0[4].AddParagraph("Domains");
-                int negRows = Math.Min(negative.Count, Math.Max(0, rt.Rows.Count - 1));
+                int negRows = Math.Min(consolidated.Count, Math.Max(0, rt.Rows.Count - 1));
                 for (int i = 0; i < negRows; i++) {
-                    var g = negative[i];
+                    var g = consolidated[i];
                     var rc = rt.Rows[i + 1].Cells; int cc = Math.Min(5, rc.Count);
                     if (cc > 0) rc[0].AddParagraph(g.MaxSeverity.ToString());
                     if (cc > 1) rc[1].AddParagraph(g.Code ?? string.Empty);
@@ -699,15 +770,7 @@ public static class WordCompositionReport {
     }
 
     private static string ComposeDkimStatus(List<DomainDetective.Views.DkimRecordInfo> dkim, bool showCount) {
-        if (dkim == null || dkim.Count == 0) return "-";
-        int err = dkim.Sum(x => x?.ErrorCount ?? 0);
-        int warn = dkim.Sum(x => x?.WarningCount ?? 0);
-        string core = err > 0 ? "Error" : (warn > 0 ? "Warning" : "OK");
-        if (showCount) {
-            int n = dkim.Count;
-            core += $" ({n} selector{(n == 1 ? string.Empty : "s")})";
-        }
-        return core;
+        return DisplayFormatting.ComposeDkimSummary(dkim, showCount);
     }
 
     private static string ComposeMailTlsStatus(DomainBucket b, bool showProto) {

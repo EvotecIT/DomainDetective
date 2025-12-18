@@ -67,15 +67,7 @@ public static class ExecutiveSummaryBuilder
             warn += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
             err  += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);
             string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
-            string dkimStatus;
-            if (includeExtras)
-            {
-                dkimStatus = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
-            }
-            else
-            {
-                dkimStatus = (b.Dkim != null && b.Dkim.Count > 0) ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-            }
+            string dkimStatus = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: includeExtras);
 
             var dnssec = DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
             var rpki = DisplayFormatting.ComposeRpkiSummary(b.Rpki);

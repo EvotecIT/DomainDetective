@@ -111,13 +111,19 @@ public static class TlsRptWordSectionWriter
         for (int i=0;i<rows.Count;i++){ t.Rows[i].Cells[0].Paragraphs[0].Text = rows[i].Key; t.Rows[i].Cells[1].Paragraphs[0].Text = rows[i].Value; }
 
         if (sec.Positives.Count > 0)
-        { headings.AddItem("Good posture", baseLevel); var list = doc.AddList(WordListStyle.Bulleted); foreach (var p in sec.Positives) list.AddItem(p); }
+        {
+            headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
+            var list = doc.AddList(WordListStyle.Bulleted);
+            foreach (var p in sec.Positives) list.AddItem(p);
+        }
 
         var f = sec.Findings; if (!showInfoFindings) f = f.Where(x => !string.Equals(x.Severity, "Info", System.StringComparison.OrdinalIgnoreCase)).ToList();
         if (f.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
-            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
+            doc.AddParagraph("The following issues were detected:");
+            var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);    
             ft.Rows[0].Cells[0].AddParagraph("Severity"); ft.Rows[0].Cells[1].AddParagraph("Code"); ft.Rows[0].Cells[2].AddParagraph("Target"); ft.Rows[0].Cells[3].AddParagraph("Message");
             for (int i=0;i<f.Count;i++){ var a=f[i]; ft.Rows[i+1].Cells[0].AddParagraph(a.Severity); ft.Rows[i+1].Cells[1].AddParagraph(a.Code); ft.Rows[i+1].Cells[2].AddParagraph(a.Target); ft.Rows[i+1].Cells[3].AddParagraph(a.Message);}        
         }

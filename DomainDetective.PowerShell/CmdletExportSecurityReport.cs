@@ -152,6 +152,11 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string[]? SectionOrder { get; set; }
 
+        /// <summary>Max status columns in the Word executive summary table.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(1, 12)]
+        public int? SummaryColumnCap { get; set; }
+
         private readonly List<object> _items = new();
 
         // Recursively append objects, executing ScriptBlocks when provided via InputObject
@@ -320,6 +325,7 @@ namespace DomainDetective.PowerShell {
             }
 
             try {
+                var summaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap;
                 foreach (var fmt in fmts) {
                     var outPath = ResolveOutPathForFormat(fmt);
                     switch (fmt) {
@@ -347,7 +353,8 @@ namespace DomainDetective.PowerShell {
                             helpOpts,
                             (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
                             (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                            SectionOrder);
+                            SectionOrder,
+                            summaryColumnCap: summaryColumnCap);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                         case DomainDetective.Reports.ReportFormat.Html:
