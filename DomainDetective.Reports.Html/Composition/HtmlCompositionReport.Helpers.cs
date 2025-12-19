@@ -14,6 +14,13 @@ public static partial class HtmlCompositionReport {
     private static string BuildSubjectTitle(List<string> domains)
         => CompositionBuilder.BuildSubjectTitle(domains);
 
+    private static bool IsEmptyStatus(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+        var v = value!.Trim();
+        return v == "-" || v.Equals("n/a", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void ConfigureAccordion(TablerAccordion acc, string? persistKey = null)
     {
         acc.Type(TablerAccordionType.Flush)

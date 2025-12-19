@@ -51,28 +51,28 @@ public static partial class HtmlCompositionReport
                                              .WithActions(a => {
                                                  a.Badge(errCount > 0 ? $"{errCount} Error" + (errCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                                  a.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"MX: {b.Mx?.Status ?? "-"}", ColorForStatus(b.Mx?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"SPF: {b.Spf?.Status ?? "-"}", ColorForStatus(b.Spf?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"DKIM: {dkimSummary}", ColorForStatus(dkimSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"DMARC: {b.Dmarc?.Status ?? "-"}", ColorForStatus(b.Dmarc?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.Mx != null) a.Badge($"MX: {b.Mx.Status ?? "-"}", ColorForStatus(b.Mx.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.Spf != null) a.Badge($"SPF: {b.Spf.Status ?? "-"}", ColorForStatus(b.Spf.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.Dkim.Count > 0) a.Badge($"DKIM: {dkimSummary}", ColorForStatus(dkimSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.Dmarc != null) a.Badge($"DMARC: {b.Dmarc.Status ?? "-"}", ColorForStatus(b.Dmarc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                                  if (b.Arc != null) a.Badge($"ARC: {b.Arc.Status ?? "-"}", ColorForStatus(b.Arc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                                  if (b.Bimi != null) a.Badge($"BIMI: {b.Bimi.Status ?? "-"}", ColorForStatus(b.Bimi.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                                  if (b.Dnssec != null) a.Badge($"DNSSEC: {dnssecSummary}", ColorForStatus(dnssecSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                                  if (b.Rpki != null) a.Badge($"RPKI: {rpkiSummary}", ColorForStatus(rpkiSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"MTA-STS: {b.Mtasts?.Status ?? "-"}", ColorForStatus(b.Mtasts?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                                 a.Badge($"TLS-RPT: {b.TlsRpt?.Status ?? "-"}", ColorForStatus(b.TlsRpt?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.Mtasts != null) a.Badge($"MTA-STS: {b.Mtasts.Status ?? "-"}", ColorForStatus(b.Mtasts.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                                 if (b.TlsRpt != null) a.Badge($"TLS-RPT: {b.TlsRpt.Status ?? "-"}", ColorForStatus(b.TlsRpt.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                              });
                                         });
                                     domainCard.Body(bdy => {
                                         bdy.DataGrid(g =>
                                         {
                                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                            g.AddItem("MX", b.Mx?.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx?.Status), light: true);
-                                            g.AddItem("SPF", b.Spf?.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf?.Status), light: true);
-                                            g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);
-                                            g.AddItem("DMARC", b.Dmarc?.Status ?? "-").AsPanel(PanelColorForStatus(b.Dmarc?.Status), light: true);
-                                            g.AddItem("MTA-STS", b.Mtasts?.Status ?? "-").AsPanel(PanelColorForStatus(b.Mtasts?.Status), light: true);
-                                            g.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-").AsPanel(PanelColorForStatus(b.TlsRpt?.Status), light: true);
+                                            if (b.Mx != null) g.AddItem("MX", b.Mx.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx.Status), light: true);
+                                            if (b.Spf != null) g.AddItem("SPF", b.Spf.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf.Status), light: true);
+                                            if (b.Dkim.Count > 0) g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);
+                                            if (b.Dmarc != null) g.AddItem("DMARC", b.Dmarc.Status ?? "-").AsPanel(PanelColorForStatus(b.Dmarc.Status), light: true);
+                                            if (b.Mtasts != null) g.AddItem("MTA-STS", b.Mtasts.Status ?? "-").AsPanel(PanelColorForStatus(b.Mtasts.Status), light: true);
+                                            if (b.TlsRpt != null) g.AddItem("TLS-RPT", b.TlsRpt.Status ?? "-").AsPanel(PanelColorForStatus(b.TlsRpt.Status), light: true);
                                             if (b.Dnssec != null) g.AddItem("DNSSEC", dnssecSummary).AsPanel(PanelColorForStatus(dnssecSummary), light: true);
                                             if (b.Rpki != null) g.AddItem("RPKI", rpkiSummary).AsPanel(PanelColorForStatus(rpkiSummary), light: true);
                                         });

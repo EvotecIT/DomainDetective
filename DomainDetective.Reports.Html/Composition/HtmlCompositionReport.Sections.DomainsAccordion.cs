@@ -37,10 +37,10 @@ public static partial class HtmlCompositionReport
                                         rr.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                     });
                                     item.HeaderTrailing(tt => {
-                                        tt.Badge($"MX {b.Mx?.Status ?? "-"}", ColorForStatus(b.Mx?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                        tt.Badge($"SPF {b.Spf?.Status ?? "-"}", ColorForStatus(b.Spf?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                        tt.Badge($"DKIM {dkimSummary}", ColorForStatus(dkimSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
-                                        tt.Badge($"DMARC {b.Dmarc?.Status ?? "-"}", ColorForStatus(b.Dmarc?.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                        if (b.Mx != null) tt.Badge($"MX {b.Mx.Status ?? "-"}", ColorForStatus(b.Mx.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                        if (b.Spf != null) tt.Badge($"SPF {b.Spf.Status ?? "-"}", ColorForStatus(b.Spf.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                        if (b.Dkim.Count > 0) tt.Badge($"DKIM {dkimSummary}", ColorForStatus(dkimSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                                        if (b.Dmarc != null) tt.Badge($"DMARC {b.Dmarc.Status ?? "-"}", ColorForStatus(b.Dmarc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                         if (b.Mtasts != null) tt.Badge($"MTA-STS {b.Mtasts.Status ?? "-"}", ColorForStatus(b.Mtasts.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                         if (b.TlsRpt != null) tt.Badge($"TLS-RPT {b.TlsRpt.Status ?? "-"}", ColorForStatus(b.TlsRpt.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                         if (b.Dnssec != null) tt.Badge($"DNSSEC {dnssecSummary}", ColorForStatus(dnssecSummary), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);

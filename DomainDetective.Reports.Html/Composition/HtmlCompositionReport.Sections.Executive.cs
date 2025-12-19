@@ -29,100 +29,66 @@ public static partial class HtmlCompositionReport
 
         var controlRollup = BuildControlRollup(rows);
 
-        // Aggregate stats used in the header KPIs + rating hero
+        // Aggregate stats used in the overview
         var grade = ComputeOverallGrade(rows);
         var gradeColor = GradeColor(grade);
         var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
-        var spfStatus = ControlStatusLabel(controlRollup["SPF"]);
-        var dkimStatus = ControlStatusLabel(controlRollup["DKIM"]);
-        var dmarcStatus = ControlStatusLabel(controlRollup["DMARC"]);
-        var mtastsStatus = ControlStatusLabel(controlRollup["MTA-STS"]);
-        var tlsRptStatus = ControlStatusLabel(controlRollup["TLS-RPT"]);
+        bool hasMx = rows.Any(r => !IsEmptyStatus(r.Mx));
+        bool hasSpf = rows.Any(r => !IsEmptyStatus(r.Spf));
+        bool hasDkim = rows.Any(r => !IsEmptyStatus(r.Dkim));
+        bool hasDmarc = rows.Any(r => !IsEmptyStatus(r.Dmarc));
+        bool hasMtasts = rows.Any(r => !IsEmptyStatus(r.Mtasts));
+        bool hasTlsRpt = rows.Any(r => !IsEmptyStatus(r.TlsRpt));
+        bool hasDnssec = rows.Any(r => !IsEmptyStatus(r.Dnssec));
+        bool hasRpki = rows.Any(r => !IsEmptyStatus(r.Rpki));
+        bool hasClass = rows.Any(r => !IsEmptyStatus(r.Classification));
+        bool IncludeControl(string key) => key switch
+        {
+            "MX" => hasMx,
+            "SPF" => hasSpf,
+            "DKIM" => hasDkim,
+            "DMARC" => hasDmarc,
+            "MTA-STS" => hasMtasts,
+            "TLS-RPT" => hasTlsRpt,
+            "DNSSEC" => hasDnssec,
+            "RPKI" => hasRpki,
+            _ => false
+        };
 
-        // KPI header row (grade/status + warning/error counts)
+        // Executive overview: grade + control status rollup
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
-            row.Column(TablerColumnNumber.Twelve, col => {
+            row.Column(TablerColumnNumber.Four, col => {
                 col.Card(card => {
-                    card.Body(b => {
-                        TablerBadgeColor GradeBadgeColor(string value)
-                            => (value ?? string.Empty).Trim().ToUpperInvariant() switch
-                            {
-                                "A" => TablerBadgeColor.Success,
-                                "B" => TablerBadgeColor.Primary,
-                                "C" => TablerBadgeColor.Warning,
-                                "D" => TablerBadgeColor.Danger,
-                                "F" => TablerBadgeColor.Danger,
-                                _ => TablerBadgeColor.Secondary
-                            };
-
-                        b.Row(rr => {
-                            rr.Gap(2);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Grade {grade}", GradeBadgeColor(grade), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Domains {rows.Count}", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Warnings {totals.warn}", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Errors {totals.err}", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                    card.Background(gradeColor, isLight: true)
+                        .Header(h => h.Title("Overall Grade").Subtitle("Aggregate posture"))
+                        .Body(b => {
+                            b.H1(grade);
+                            b.Text($"{rows.Count} domain(s)").Style(TablerTextStyle.Muted);
+                            b.Text($"{totals.warn} warning(s) / {totals.err} error(s)").Style(TablerTextStyle.Muted);
                         });
-                        b.Row(rr => {
-                            rr.Gap(2);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"SPF {spfStatus}", ColorForStatus(spfStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"DKIM {dkimStatus}", ColorForStatus(dkimStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"DMARC {dmarcStatus}", ColorForStatus(dmarcStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"MTA-STS {mtastsStatus}", ColorForStatus(mtastsStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"TLS-RPT {tlsRptStatus}", ColorForStatus(tlsRptStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                        });
-                    });
                 });
             });
-        });
-
-        // Security rating hero
-        page.Row(row => {
-            row.WithBottomSpacing(TablerSpacing.Medium);
-            row.Column(TablerColumnNumber.Twelve, col => {
+            row.Column(TablerColumnNumber.Eight, col => {
                 col.Card(card => {
-                    card.Header(h => h.Title("Security Rating").Subtitle("Aggregate posture across domains"));
+                    card.Header(h => h.Title("Control Status").Subtitle("OK / Warning / Error / Unknown"));
                     card.Body(b => {
                         b.DataGrid(g => {
                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                            g.AddItem("Overall Grade", grade).AsPanel(gradeColor, light: true);
-                            g.AddItem("Domains", rows.Count.ToString()).AsPanel(TablerColor.Blue, light: true);
-                            g.AddItem("Warnings", totals.warn.ToString()).AsPanel(TablerColor.Orange, light: true);
-                            g.AddItem("Errors", totals.err.ToString()).AsPanel(TablerColor.Red, light: true);
-                            g.AddItem("SPF", spfStatus).AsPanel(PanelColorForStatus(spfStatus), light: true);
-                            g.AddItem("DKIM", dkimStatus).AsPanel(PanelColorForStatus(dkimStatus), light: true);
-                            g.AddItem("DMARC", dmarcStatus).AsPanel(PanelColorForStatus(dmarcStatus), light: true);
-                            g.AddItem("MTA-STS", mtastsStatus).AsPanel(PanelColorForStatus(mtastsStatus), light: true);
-                            g.AddItem("TLS-RPT", tlsRptStatus).AsPanel(PanelColorForStatus(tlsRptStatus), light: true);
+                            if (hasMx) { var s = ControlStatusLabel(controlRollup["MX"]); g.AddItem("MX", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasSpf) { var s = ControlStatusLabel(controlRollup["SPF"]); g.AddItem("SPF", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasDkim) { var s = ControlStatusLabel(controlRollup["DKIM"]); g.AddItem("DKIM", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasDmarc) { var s = ControlStatusLabel(controlRollup["DMARC"]); g.AddItem("DMARC", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasMtasts) { var s = ControlStatusLabel(controlRollup["MTA-STS"]); g.AddItem("MTA-STS", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasTlsRpt) { var s = ControlStatusLabel(controlRollup["TLS-RPT"]); g.AddItem("TLS-RPT", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasDnssec) { var s = ControlStatusLabel(controlRollup["DNSSEC"]); g.AddItem("DNSSEC", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            if (hasRpki) { var s = ControlStatusLabel(controlRollup["RPKI"]); g.AddItem("RPKI", s).AsPanel(PanelColorForStatus(s), light: true); }
                         });
+                        if (!(hasMx || hasSpf || hasDkim || hasDmarc || hasMtasts || hasTlsRpt || hasDnssec || hasRpki))
+                        {
+                            b.Text("No control data available.").Style(TablerTextStyle.Muted);
+                        }
                     });
-                });
-            });
-        });
-
-        // KPI cards: Domains / Warnings / Errors
-        page.Row(row => {
-            row.WithBottomSpacing(TablerSpacing.Medium);
-
-            row.Column(TablerColumnNumber.Four, col => {
-                col.Card(card => {
-                    card.Background(TablerColor.Success, isLight: true)
-                        .Header(h => { h.Title("Domains").Subtitle("Analyzed"); h.Avatar(a => a.Icon(TablerIconType.Globe).BackgroundColor(TablerColor.Success).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
-                        .Body(b => { b.H2(rows.Count.ToString()); b.Text("Total").Style(TablerTextStyle.Muted); });
-                });
-            });
-            row.Column(TablerColumnNumber.Four, col => {
-                col.Card(card => {
-                    card.Background(TablerColor.Warning, isLight: true)
-                        .Header(h => { h.Title("Warnings").Subtitle("Attention"); h.Avatar(a => a.Icon(TablerIconType.AlertCircle).BackgroundColor(TablerColor.Orange).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
-                        .Body(b => { b.H2(totals.Item1.ToString()); b.Text("Across all domains").Style(TablerTextStyle.Muted); });
-                });
-            });
-            row.Column(TablerColumnNumber.Four, col => {
-                col.Card(card => {
-                    card.Background(TablerColor.Danger, isLight: true)
-                        .Header(h => { h.Title("Errors").Subtitle("Critical"); h.Avatar(a => a.Icon(TablerIconType.AlertTriangle).BackgroundColor(TablerColor.Danger).TextColor(TablerColor.White).Size(AvatarSize.MD)); })
-                        .Body(b => { b.H2(totals.Item2.ToString()); b.Text("Across all domains").Style(TablerTextStyle.Muted); });
                 });
             });
         });
@@ -154,17 +120,20 @@ public static partial class HtmlCompositionReport
                                     b.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
                                     return;
                                 }
-                                b.DataGrid(g =>
+                                var rows2 = topFindings.Select(f =>
                                 {
-                                    g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                    foreach (var f in topFindings)
+                                    var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
+                                    var rank = SeverityRank(f.Severity);
+                                    var sev = rank == 0 ? "Error" : (rank == 1 ? "Warning" : "Info");
+                                    return new
                                     {
-                                        var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
-                                        var title = TrimForDisplay(label, 120);
-                                        var color = SeverityRank(f.Severity) == 0 ? TablerColor.Red : TablerColor.Orange;
-                                        g.AddItem(title, $"x{f.Count}").AsPanel(color, light: true);
-                                    }
-                                });
+                                        Severity = sev,
+                                        Finding = TrimForDisplay(label, 140),
+                                        Count = f.Count
+                                    };
+                                }).ToList();
+                                var t = (TablerTable)b.Table(rows2, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                             });
                         });
                     });
@@ -175,13 +144,20 @@ public static partial class HtmlCompositionReport
                             card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown"));
                             card.Body(body =>
                             {
-                                var rows2 = controlRollup.Select(kv => new {    
-                                    Control = kv.Key,
-                                    OK = kv.Value.ok,
-                                    Warning = kv.Value.warn,
-                                    Error = kv.Value.err,
-                                    Unknown = kv.Value.unknown
-                                }).ToList();
+                                var rows2 = controlRollup
+                                    .Where(kv => IncludeControl(kv.Key))
+                                    .Select(kv => new {
+                                        Control = kv.Key,
+                                        OK = kv.Value.ok,
+                                        Warning = kv.Value.warn,
+                                        Error = kv.Value.err,
+                                        Unknown = kv.Value.unknown
+                                    }).ToList();
+                                if (rows2.Count == 0)
+                                {
+                                    body.Text("No control data available.").Style(TablerTextStyle.Muted);
+                                    return;
+                                }
                                 var t = (TablerTable)body.Table(rows2, TableType.Tabler);
                                 t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                             });
@@ -206,13 +182,20 @@ public static partial class HtmlCompositionReport
                             card.Body(body =>
                             {
                                 var total = rows.Count;
-                                var rows2 = controlRollup.Select(kv =>
+                                var rows2 = controlRollup
+                                    .Where(kv => IncludeControl(kv.Key))
+                                    .Select(kv =>
+                                    {
+                                        var present = kv.Value.ok + kv.Value.warn + kv.Value.err;
+                                        var missing = kv.Value.unknown;
+                                        var pct = total > 0 ? (present * 100.0 / total) : 0;
+                                        return new { Control = kv.Key, Present = present, Missing = missing, Coverage = $"{pct:0}%"};
+                                    }).ToList();
+                                if (rows2.Count == 0)
                                 {
-                                    var present = kv.Value.ok + kv.Value.warn + kv.Value.err;
-                                    var missing = kv.Value.unknown;
-                                    var pct = total > 0 ? (present * 100.0 / total) : 0;
-                                    return new { Control = kv.Key, Present = present, Missing = missing, Coverage = $"{pct:0}%"};
-                                }).ToList();
+                                    body.Text("No control data available.").Style(TablerTextStyle.Muted);
+                                    return;
+                                }
                                 var t = (TablerTable)body.Table(rows2, TableType.Tabler);
                                 t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                             });
@@ -275,26 +258,40 @@ public static partial class HtmlCompositionReport
         // Executive summary table (DataTables) with highlighters
         page.Divider("Executive Summary");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
-            var tableRows = rows.Select(rw => new {
-                Domain = rw.Domain,
-                MX = rw.Mx,
-                SPF = rw.Spf,
-                DKIM = rw.Dkim,
-                DMARC = rw.Dmarc,
-                MTASTS = rw.Mtasts,
-                TLSRPT = rw.TlsRpt,
-                DNSSEC = rw.Dnssec,
-                RPKI = rw.Rpki,
-                Findings = $"{rw.Warnings} / {rw.Errors}"
+            var summaryColumns = new List<(string Header, Func<DomainDetective.Reports.ExecutiveSummaryBuilder.Row, string> Get)>();
+            if (hasMx) summaryColumns.Add(("MX", r2 => r2.Mx));
+            if (hasSpf) summaryColumns.Add(("SPF", r2 => r2.Spf));
+            if (hasDkim) summaryColumns.Add(("DKIM", r2 => r2.Dkim));
+            if (hasDmarc) summaryColumns.Add(("DMARC", r2 => r2.Dmarc));
+            if (hasMtasts) summaryColumns.Add(("MTASTS", r2 => r2.Mtasts));
+            if (hasTlsRpt) summaryColumns.Add(("TLSRPT", r2 => r2.TlsRpt));
+            if (hasDnssec) summaryColumns.Add(("DNSSEC", r2 => r2.Dnssec));
+            if (hasRpki) summaryColumns.Add(("RPKI", r2 => r2.Rpki));
+            if (hasClass) summaryColumns.Add(("Classification", r2 => r2.Classification));
+            var tableRows = rows.Select(rw => {
+                var row = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Domain"] = rw.Domain
+                };
+                foreach (var col in summaryColumns)
+                {
+                    row[col.Header] = col.Get(rw);
+                }
+                row["Findings"] = $"{rw.Warnings} / {rw.Errors}";
+                return (IDictionary<string, object>)row;
             }).ToList();
             c.Card(card => {
                 card.Header(h => h.Title("Domains"));
                 card.Body(body => {
                     var table = (DataTablesTable)body.Table(tableRows, TableType.DataTables);
                     table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
-                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
+                    var statusColumns = summaryColumns
+                        .Where(s => !string.Equals(s.Header, "Classification", StringComparison.OrdinalIgnoreCase))
+                        .Select(s => s.Header)
+                        .ToList();
+                    foreach (var col in statusColumns)
                         table.HighlightWhen(g => g.And(x => x.StringContains(col, "error", false)).Or(x => x.StringContains(col, "fail", false)), t => t.Column(col).Danger());
-                    foreach (var col in new[] { "MX", "SPF", "DKIM", "DMARC", "MTASTS", "TLSRPT", "DNSSEC", "RPKI" })
+                    foreach (var col in statusColumns)
                         table.HighlightWhen(g => g.Or(x => x.StringContains(col, "warn", false)), t => t.Column(col).Warning());
                 });
             });

@@ -91,10 +91,7 @@ public static partial class HtmlCompositionReport {
             var multiDomain = grouped.Count > 1;
             var placeGlobal = narrativePlacement == Reports.NarrativePlacement.Global || (narrativePlacement == Reports.NarrativePlacement.Auto && multiDomain);
             if (placeGlobal) {
-                page.Divider("Background");
-                page.Row(rr => rr.Column(TablerColumnNumber.Twelve, cc => {
-                    cc.Card(cd => { cd.Body(b => b.Text("Background narrative omitted in this version.")); });
-                }));
+                try { RenderBackgroundSection(page, items); } catch { }
             }
 
             // Per-domain overview cards + accordion details (SPF/DMARC/DKIM/MX)
@@ -103,7 +100,15 @@ public static partial class HtmlCompositionReport {
             {
                 if (multiDomain)
                 {
-                    RenderDomainsAccordion(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    var useTabs = ordered.Count <= 6;
+                    if (useTabs)
+                    {
+                        RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    }
+                    else
+                    {
+                        RenderDomainsAccordion(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    }
                 }
                 else
                 {

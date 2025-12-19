@@ -22,14 +22,12 @@ public static partial class HtmlCompositionReport
             c.Card(card => {
                 card.Header(h => h.Title("References cited across all sections"));
                 card.Body(b => {
-                    b.Row(rr => {
-                        rr.Gap(2);
-                        foreach (var u in refs)
-                        {
-                            var f = DomainDetective.Reports.LinkFormatter.Format(u);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
-                        }
-                    });
+                    var rows = refs.Select(u => {
+                        var f = DomainDetective.Reports.LinkFormatter.Format(u);
+                        return new { Title = f.Title, Url = f.Url };
+                    }).ToList();
+                    var t = (TablerTable)b.Table(rows, TableType.Tabler);
+                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                 });
             });
         }));
