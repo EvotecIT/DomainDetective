@@ -20,6 +20,198 @@ public static partial class HtmlCompositionReport {
         return (warn, err);
     }
 
+    private sealed class FindingSummary
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string? Code { get; set; }
+        public string? Target { get; set; }
+        public int Count { get; set; }
+    }
+
+    private static string TrimForDisplay(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+        var t = text!.Trim();
+        if (t.Length <= max) return t;
+        return t.Substring(0, max - 1) + "...";
+    }
+
+    private static string? BuildProviderSummary(DomainDetective.Views.MailClassificationInfo? classification)
+    {
+        if (classification == null) return null;
+        var primary = classification.ProviderPrimary;
+        if (string.IsNullOrWhiteSpace(primary)) return null;
+        var provider = primary!.Trim();
+        if (classification.ProviderGateways != null && classification.ProviderGateways.Count > 0)
+            provider += $" via {string.Join(", ", classification.ProviderGateways)}";
+        if (classification.ProviderOutbound != null && classification.ProviderOutbound.Count > 0)
+            provider += $"; outbound: {string.Join(", ", classification.ProviderOutbound)}";
+        return $"Provider: {TrimForDisplay(provider, 160)}";
+    }
+
+    private static IEnumerable<DomainDetective.Assessment> EnumerateAssessments(DomainBucket b)
+    {
+        static IEnumerable<DomainDetective.Assessment> FromList(IReadOnlyList<DomainDetective.Assessment>? list)
+        {
+            if (list == null) yield break;
+            foreach (var a in list)
+            {
+                if (a == null) continue;
+                yield return a;
+            }
+        }
+
+        foreach (var a in FromList(b.Mx?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Spf?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Mtasts?.Assessments)) yield return a;
+        foreach (var a in FromList(b.TlsRpt?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dnsbl?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Ns?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Soa?.Assessments)) yield return a;
+        foreach (var a in FromList(b.ZoneTransfer?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Wildcard?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dnssec?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dane?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Caa?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Arc?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Bimi?.Assessments)) yield return a;
+        foreach (var a in FromList(b.SmtpTls?.Assessments)) yield return a;
+        foreach (var a in FromList(b.ImapTls?.Assessments)) yield return a;
+        foreach (var a in FromList(b.PopTls?.Assessments)) yield return a;
+        foreach (var dkim in b.Dkim)
+        {
+            foreach (var a in FromList(dkim?.Assessments)) yield return a;
+        }
+    }
+
+    private static int SeverityRank(string? severity)
+    {
+        if (string.IsNullOrWhiteSpace(severity)) return 3;
+        var s = severity!.Trim().ToLowerInvariant();
+        if (s.Contains("error")) return 0;
+        if (s.Contains("warning") || s.Contains("warn")) return 1;
+        return 2;
+    }
+
+    private static List<FindingSummary> BuildTopFindings(IEnumerable<DomainBucket> buckets, int maxItems)
+    {
+        var map = new Dictionary<string, FindingSummary>(StringComparer.OrdinalIgnoreCase);
+        foreach (var b in buckets ?? Array.Empty<DomainBucket>())
+        {
+            foreach (var a in EnumerateAssessments(b))
+            {
+                if (a == null) continue;
+                if (a.Severity == DomainDetective.AssessmentSeverity.Info) continue;
+                var sev = a.Severity.ToString();
+                var title = !string.IsNullOrWhiteSpace(a.Message) ? a.Message! : (a.Code ?? "Finding");
+                var code = string.IsNullOrWhiteSpace(a.Code) ? null : a.Code;
+                var target = string.IsNullOrWhiteSpace(a.Target) ? null : a.Target;
+                var key = $"{sev}|{code}|{title}";
+                if (!map.TryGetValue(key, out var summary))
+                {
+                    summary = new FindingSummary { Title = title, Severity = sev, Code = code, Target = target, Count = 0 };
+                    map[key] = summary;
+                }
+                summary.Count += 1;
+            }
+        }
+
+        return map.Values
+                  .OrderBy(s => SeverityRank(s.Severity))
+                  .ThenByDescending(s => s.Count)
+                  .ThenBy(s => s.Code ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                  .ThenBy(s => s.Title, StringComparer.OrdinalIgnoreCase)
+                  .Take(Math.Max(1, maxItems))
+                  .ToList();
+    }
+
+    private static Dictionary<string, (int ok, int warn, int err, int unknown)> BuildControlRollup(IEnumerable<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows)
+    {
+        var controls = new Dictionary<string, (int ok, int warn, int err, int unknown)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["MX"] = (0,0,0,0),
+            ["SPF"] = (0,0,0,0),
+            ["DKIM"] = (0,0,0,0),
+            ["DMARC"] = (0,0,0,0),
+            ["MTA-STS"] = (0,0,0,0),
+            ["TLS-RPT"] = (0,0,0,0),
+            ["DNSSEC"] = (0,0,0,0),
+            ["RPKI"] = (0,0,0,0)
+        };
+
+        static void Tally(ref (int ok, int warn, int err, int unknown) bucket, string? status)
+        {
+            var s = (status ?? "-").Trim().ToLowerInvariant();
+            if (s.Contains("error") || s.Contains("fail")) { bucket.err++; return; }
+            if (s.Contains("warn")) { bucket.warn++; return; }
+            if (s == "-" || s.Contains("none") || s.Contains("missing")) { bucket.unknown++; return; }
+            bucket.ok++;
+        }
+
+        foreach (var r in rows ?? Array.Empty<DomainDetective.Reports.ExecutiveSummaryBuilder.Row>())
+        {
+            var v = controls["MX"]; Tally(ref v, r.Mx); controls["MX"] = v;
+            v = controls["SPF"]; Tally(ref v, r.Spf); controls["SPF"] = v;
+            v = controls["DKIM"]; Tally(ref v, r.Dkim); controls["DKIM"] = v;
+            v = controls["DMARC"]; Tally(ref v, r.Dmarc); controls["DMARC"] = v;
+            v = controls["MTA-STS"]; Tally(ref v, r.Mtasts); controls["MTA-STS"] = v;
+            v = controls["TLS-RPT"]; Tally(ref v, r.TlsRpt); controls["TLS-RPT"] = v;
+            v = controls["DNSSEC"]; Tally(ref v, r.Dnssec); controls["DNSSEC"] = v;
+            v = controls["RPKI"]; Tally(ref v, r.Rpki); controls["RPKI"] = v;
+        }
+
+        return controls;
+    }
+
+    private static string ComputeOverallGrade(IEnumerable<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows)
+    {
+        if (rows == null) return "N/A";
+        int warn = 0;
+        int err = 0;
+        foreach (var r in rows)
+        {
+            if (r == null) continue;
+            warn += r.Warnings;
+            err += r.Errors;
+        }
+        if (err == 0 && warn == 0) return "A";
+        if (err == 0 && warn <= 3) return "B";
+        if (err == 0 && warn <= 10) return "C";
+        if (err <= 3) return "D";
+        return "F";
+    }
+
+    private static TablerColor GradeColor(string grade)
+    {
+        switch ((grade ?? string.Empty).Trim().ToUpperInvariant())
+        {
+            case "A":
+                return TablerColor.Green;
+            case "B":
+                return TablerColor.Teal;
+            case "C":
+                return TablerColor.Orange;
+            case "D":
+                return TablerColor.Red;
+            case "F":
+                return TablerColor.Red;
+            default:
+                return TablerColor.Blue;
+        }
+    }
+
+    private static string ControlStatusLabel((int ok, int warn, int err, int unknown) rollup)
+    {
+        if (rollup.err > 0) return "Error";
+        if (rollup.warn > 0) return "Warning";
+        if (rollup.ok > 0) return "OK";
+        return "Unknown";
+    }
+
     private sealed class DomainBucket {
         public string Subject { get; set; } = string.Empty;
         public DomainDetective.Views.MxInfo? Mx { get; set; }
@@ -91,6 +283,16 @@ public static partial class HtmlCompositionReport {
         if (s.Contains("ok") || s.Contains("pass") || s.Contains("valid")) return TablerBadgeColor.Success;
         if (s == "-" || s.Contains("none") || s.Contains("missing")) return TablerBadgeColor.Info;
         return TablerBadgeColor.Blue;
+    }
+
+    private static TablerColor PanelColorForStatus(string? status)
+    {
+        var s = (status ?? "-").Trim().ToLowerInvariant();
+        if (s.Contains("error") || s.Contains("fail")) return TablerColor.Red;
+        if (s.Contains("warn")) return TablerColor.Orange;
+        if (s.Contains("ok") || s.Contains("pass") || s.Contains("valid")) return TablerColor.Green;
+        if (s == "-" || s.Contains("none") || s.Contains("missing")) return TablerColor.Blue;
+        return TablerColor.Blue;
     }
 
     // Adapter: map shared CompositionBuilder.DomainBucket to the local DomainBucket used by HTML renderer

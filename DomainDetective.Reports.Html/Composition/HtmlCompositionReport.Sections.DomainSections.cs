@@ -6,6 +6,7 @@ using HtmlForgeX.Containers.Tabler;
 using DomainDetective;
 using DomainDetective.Reports;
 using DomainDetective.Views;
+using DomainDetective.Narratives;
 
 namespace DomainDetective.Reports.Html;
 
@@ -135,6 +136,7 @@ public static partial class HtmlCompositionReport
                         RenderHighlights(c2, sec?.Highlights);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
+                        RenderNarrative(c2, spf.Narrative);
                         var spfRecord = sec?.SpfRecord;
                         if (!string.IsNullOrWhiteSpace(spfRecord))
                         {
@@ -159,7 +161,7 @@ public static partial class HtmlCompositionReport
                                 g.AddItem("Tokens Resolved", sec.FlattenedTokenCount.ToString());
                             });
                         }
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, spf.Narrative?.References));
                     });
                 });
             });
@@ -186,6 +188,7 @@ public static partial class HtmlCompositionReport
                         RenderHighlights(c2, sec?.Highlights);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
+                        RenderNarrative(c2, dmarc.Narrative);
                         var dmarcRecord = sec?.DmarcRecord;
                         if (!string.IsNullOrWhiteSpace(dmarcRecord))
                         {
@@ -213,7 +216,7 @@ public static partial class HtmlCompositionReport
                                 t2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                             }
                         }
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, dmarc.Narrative?.References));
                     });
                 });
             });
@@ -224,6 +227,7 @@ public static partial class HtmlCompositionReport
     {
         if (b.Dkim.Count == 0) return;
         var sec = SectionProjectors.BuildDkim(b.Dkim, b.Ttl);
+        var narrative = b.Dkim.FirstOrDefault()?.Narrative;
         acc.AddItem("DKIM (DomainKeys Identified Mail)", item => {
             item.HeaderRight(c => {
                 var err = b.Dkim.Sum(x => x?.ErrorCount ?? 0);
@@ -257,6 +261,7 @@ public static partial class HtmlCompositionReport
                         RenderHighlights(c2, sec?.Highlights);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
+                        RenderNarrative(c2, narrative);
                         if (sec != null && sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record)))
                         {
                             c2.Divider("Evidence");
@@ -266,7 +271,7 @@ public static partial class HtmlCompositionReport
                                 c2.Text(r2.Record).Style(TablerTextStyle.Monospace);
                             }
                         }
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -476,15 +481,49 @@ public static partial class HtmlCompositionReport
         var mtasts = b.Mtasts;
         if (mtasts == null) return;
         var sec = SectionProjectors.BuildMtasts(mtasts);
+        var narrative = MtaStsNarrative.Build(mtasts.Raw, mtasts.Assessments);
         acc.AddItem("MTA-STS", item => {
             item.HeaderRight(c => c.Badge(mtasts.Status ?? "-", ColorForStatus(mtasts.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
+                        var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                        RenderProviderHelpBadges(c2, help, new[] { "MTA-STS" });
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = mtasts.Raw;
+                        bool hasEvidence = raw != null
+                            && (!string.IsNullOrWhiteSpace(raw.PolicyId)
+                                || !string.IsNullOrWhiteSpace(raw.Policy)
+                                || (raw.Mx != null && raw.Mx.Count > 0)
+                                || (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0));
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            if (!string.IsNullOrWhiteSpace(raw.PolicyId))
+                            {
+                                c2.Text("MTA-STS TXT:").Style(TablerTextStyle.Muted);
+                                c2.Text($"v=STSv1; id={raw.PolicyId}").Style(TablerTextStyle.Monospace);
+                            }
+                            if (!string.IsNullOrWhiteSpace(raw.Policy))
+                            {
+                                c2.Text("Policy (mta-sts.txt):").Style(TablerTextStyle.Muted);
+                                c2.Text(raw.Policy).Style(TablerTextStyle.Monospace);
+                            }
+                            if (raw.Mx != null && raw.Mx.Count > 0)
+                            {
+                                c2.Text("Policy MX Patterns:").Style(TablerTextStyle.Muted);
+                                foreach (var mx in raw.Mx) c2.Text("- " + mx);
+                            }
+                            if (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0)
+                            {
+                                c2.Text("Missing MX in policy:").Style(TablerTextStyle.Muted);
+                                foreach (var mx in raw.MissingMxFromPolicy) c2.Text("- " + mx);
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -496,15 +535,54 @@ public static partial class HtmlCompositionReport
         var tls = b.TlsRpt;
         if (tls == null) return;
         var sec = SectionProjectors.BuildTlsRpt(tls);
+        var narrative = tls.Raw != null ? TlsRptNarrative.Build(tls.Raw) : null;
         acc.AddItem("TLS-RPT", item => {
             item.HeaderRight(c => c.Badge(tls.Status ?? "-", ColorForStatus(tls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
+                        var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                        RenderProviderHelpBadges(c2, help, new[] { "TLS-RPT" });
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        bool hasEvidence = !string.IsNullOrWhiteSpace(tls.TlsRptRecord)
+                            || (tls.MailtoRua != null && tls.MailtoRua.Count > 0)
+                            || (tls.HttpRua != null && tls.HttpRua.Count > 0)
+                            || (tls.InvalidRua != null && tls.InvalidRua.Count > 0)
+                            || (tls.UnknownTags != null && tls.UnknownTags.Count > 0);
+                        if (hasEvidence)
+                        {
+                            c2.Divider("Evidence");
+                            if (!string.IsNullOrWhiteSpace(tls.TlsRptRecord))
+                            {
+                                c2.Text("TLS-RPT Record:").Style(TablerTextStyle.Muted);
+                                c2.Text(tls.TlsRptRecord!).Style(TablerTextStyle.Monospace);
+                            }
+                            if ((tls.MailtoRua?.Count ?? 0) + (tls.HttpRua?.Count ?? 0) > 0)
+                            {
+                                c2.Text("Reporting URIs").Style(TablerTextStyle.Muted);
+                                var rows = (tls.MailtoRua ?? Array.Empty<string>())
+                                    .Select(x => new { Scheme = "mailto", Uri = x })
+                                    .Concat((tls.HttpRua ?? Array.Empty<string>())
+                                        .Select(x => new { Scheme = "https", Uri = x }))
+                                    .ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                            if (tls.InvalidRua != null && tls.InvalidRua.Count > 0)
+                            {
+                                c2.Text("Invalid rua").Style(TablerTextStyle.Muted);
+                                foreach (var u in tls.InvalidRua) c2.Text("- " + u);
+                            }
+                            if (tls.UnknownTags != null && tls.UnknownTags.Count > 0)
+                            {
+                                c2.Text("Unknown tags").Style(TablerTextStyle.Muted);
+                                foreach (var t in tls.UnknownTags) c2.Text("- " + t);
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -756,6 +834,39 @@ public static partial class HtmlCompositionReport
         RenderFindings(c2, list);
     }
 
+    private static void RenderNarrative(TablerColumn c2, NarrativeSections? narrative)
+    {
+        if (narrative == null) return;
+        var intro = narrative.Introduction;
+        var why = narrative.WhyItMatters;
+        var details = narrative.Details?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
+        var remediations = narrative.Remediations?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
+        bool hasIntro = !string.IsNullOrWhiteSpace(intro);
+        bool hasWhy = !string.IsNullOrWhiteSpace(why);
+        if (!hasIntro && !hasWhy && details.Count == 0 && remediations.Count == 0) return;
+        c2.Divider("Guidance");
+        if (hasIntro)
+        {
+            c2.Text("Summary").Style(TablerTextStyle.Muted);
+            c2.Text(intro!);
+        }
+        if (hasWhy)
+        {
+            c2.Text("Why it matters").Style(TablerTextStyle.Muted);
+            c2.Text(why!);
+        }
+        if (details.Count > 0)
+        {
+            c2.Text("Details").Style(TablerTextStyle.Muted);
+            foreach (var d in details) c2.Text("- " + d);
+        }
+        if (remediations.Count > 0)
+        {
+            c2.Text("How to fix").Style(TablerTextStyle.Muted);
+            foreach (var r in remediations) c2.Text("- " + r);
+        }
+    }
+
     private static void RenderReferences(TablerColumn c2, IEnumerable<string>? references)
     {
         if (references == null) return;
@@ -770,6 +881,25 @@ public static partial class HtmlCompositionReport
                 rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
             }
         });
+    }
+
+    private static IEnumerable<string>? MergeReferences(IEnumerable<string>? first, IEnumerable<string>? second)
+    {
+        if (first == null && second == null) return null;
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var list = new List<string>();
+        void AddRange(IEnumerable<string>? src)
+        {
+            if (src == null) return;
+            foreach (var s in src)
+            {
+                if (string.IsNullOrWhiteSpace(s)) continue;
+                if (set.Add(s)) list.Add(s);
+            }
+        }
+        AddRange(first);
+        AddRange(second);
+        return list;
     }
 
     private static void RenderMailTlsServers(TablerColumn c2, string title, MailTlsInfo info)

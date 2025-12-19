@@ -27,6 +27,39 @@ public static partial class HtmlCompositionReport
             });
         });
 
+        var controlRollup = BuildControlRollup(rows);
+
+        // Security rating hero
+        var grade = ComputeOverallGrade(rows);
+        var gradeColor = GradeColor(grade);
+        page.Row(row => {
+            row.WithBottomSpacing(TablerSpacing.Medium);
+            row.Column(TablerColumnNumber.Twelve, col => {
+                col.Card(card => {
+                    card.Header(h => h.Title("Security Rating").Subtitle("Aggregate posture across domains"));
+                    card.Body(b => {
+                        b.DataGrid(g => {
+                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                            g.AddItem("Overall Grade", grade).AsPanel(gradeColor, light: true);
+                            g.AddItem("Domains", rows.Count.ToString()).AsPanel(TablerColor.Blue, light: true);
+                            g.AddItem("Warnings", rows.Sum(r => r.Warnings).ToString()).AsPanel(TablerColor.Orange, light: true);
+                            g.AddItem("Errors", rows.Sum(r => r.Errors).ToString()).AsPanel(TablerColor.Red, light: true);
+                            var spfStatus = ControlStatusLabel(controlRollup["SPF"]);
+                            var dkimStatus = ControlStatusLabel(controlRollup["DKIM"]);
+                            var dmarcStatus = ControlStatusLabel(controlRollup["DMARC"]);
+                            var mtastsStatus = ControlStatusLabel(controlRollup["MTA-STS"]);
+                            var tlsRptStatus = ControlStatusLabel(controlRollup["TLS-RPT"]);
+                            g.AddItem("SPF", spfStatus).AsPanel(PanelColorForStatus(spfStatus), light: true);
+                            g.AddItem("DKIM", dkimStatus).AsPanel(PanelColorForStatus(dkimStatus), light: true);
+                            g.AddItem("DMARC", dmarcStatus).AsPanel(PanelColorForStatus(dmarcStatus), light: true);
+                            g.AddItem("MTA-STS", mtastsStatus).AsPanel(PanelColorForStatus(mtastsStatus), light: true);
+                            g.AddItem("TLS-RPT", tlsRptStatus).AsPanel(PanelColorForStatus(tlsRptStatus), light: true);
+                        });
+                    });
+                });
+            });
+        });
+
         // KPI cards: Domains / Warnings / Errors
         var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
         page.Row(row => {
@@ -60,6 +93,63 @@ public static partial class HtmlCompositionReport
             page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
                 c.Card(card => card.Body(b => b.Text(overviewLine)));
             }));
+        } catch { }
+
+        // Top findings + control rollup
+        try
+        {
+            var topFindings = BuildTopFindings(ordered.Select(kv => kv.Value), 6);
+            if (topFindings.Count > 0 || controlRollup.Count > 0)
+            {
+                page.Row(r =>
+                {
+                    r.Column(TablerColumnNumber.Six, c =>
+                    {
+                        c.Card(card =>
+                        {
+                            card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors"));
+                            card.Body(b =>
+                            {
+                                if (topFindings.Count == 0)
+                                {
+                                    b.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
+                                    return;
+                                }
+                                b.DataGrid(g =>
+                                {
+                                    g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                                    foreach (var f in topFindings)
+                                    {
+                                        var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
+                                        var title = TrimForDisplay(label, 120);
+                                        var color = SeverityRank(f.Severity) == 0 ? TablerColor.Red : TablerColor.Orange;
+                                        g.AddItem(title, $"x{f.Count}").AsPanel(color, light: true);
+                                    }
+                                });
+                            });
+                        });
+                    });
+                    r.Column(TablerColumnNumber.Six, c =>
+                    {
+                        c.Card(card =>
+                        {
+                            card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown"));
+                            card.Body(body =>
+                            {
+                                var rows2 = controlRollup.Select(kv => new {
+                                    Control = kv.Key,
+                                    OK = kv.Value.ok,
+                                    Warning = kv.Value.warn,
+                                    Error = kv.Value.err,
+                                    Unknown = kv.Value.unknown
+                                }).ToList();
+                                var t = (TablerTable)body.Table(rows2, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            });
+                        });
+                    });
+                });
+            }
         } catch { }
 
         // Good Posture (aggregated top positives across domains)

@@ -49,24 +49,62 @@ public static partial class HtmlCompositionReport
                              });
                         });
                     card.Body(body => {
+                        body.DataGrid(g =>
+                        {
+                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                            g.AddItem("MX", b.Mx?.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx?.Status), light: true);
+                            g.AddItem("SPF", b.Spf?.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf?.Status), light: true);
+                            g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);
+                            g.AddItem("DMARC", b.Dmarc?.Status ?? "-").AsPanel(PanelColorForStatus(b.Dmarc?.Status), light: true);
+                            g.AddItem("MTA-STS", b.Mtasts?.Status ?? "-").AsPanel(PanelColorForStatus(b.Mtasts?.Status), light: true);
+                            g.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-").AsPanel(PanelColorForStatus(b.TlsRpt?.Status), light: true);
+                            if (b.Dnssec != null) g.AddItem("DNSSEC", dnssecSummary).AsPanel(PanelColorForStatus(dnssecSummary), light: true);
+                            if (b.Rpki != null) g.AddItem("RPKI", rpkiSummary).AsPanel(PanelColorForStatus(rpkiSummary), light: true);
+                        });
                         var summaryParts = new List<string>
                         {
-                            $"SPF {b.Spf?.Status ?? "-"}",
-                            $"DMARC {b.Dmarc?.Status ?? "-"}",
-                            $"DKIM {dkimSummary}",
-                            $"MX {b.Mx?.Status ?? "-"}",
-                            $"MTA-STS {b.Mtasts?.Status ?? "-"}",
-                            $"TLS-RPT {b.TlsRpt?.Status ?? "-"}"
+                            $"Warnings: {warnCount}",
+                            $"Errors: {errCount}"
                         };
-                        if (b.Arc != null) summaryParts.Add($"ARC {b.Arc.Status ?? "-"}");
-                        if (b.Bimi != null) summaryParts.Add($"BIMI {b.Bimi.Status ?? "-"}");
-                        if (b.Dnssec != null) summaryParts.Add($"DNSSEC {dnssecSummary}");
-                        if (b.Rpki != null) summaryParts.Add($"RPKI {rpkiSummary}");
-                        body.Text(string.Join(", ", summaryParts)).Style(TablerTextStyle.Muted);
+                        if (b.Classification != null && !string.IsNullOrWhiteSpace(b.Classification.Classification))
+                            summaryParts.Add($"Classification: {b.Classification.Classification}");
+                        var providerSummary = BuildProviderSummary(b.Classification);
+                        if (!string.IsNullOrWhiteSpace(providerSummary))
+                            summaryParts.Add(providerSummary!);
+                        body.Text(string.Join(" • ", summaryParts)).Style(TablerTextStyle.Muted);
                     });
                 });
             });
         });
+
+        var topFindings = BuildTopFindings(new[] { b }, 3);
+        if (topFindings.Count > 0)
+        {
+            page.Row(row =>
+            {
+                row.Column(TablerColumnNumber.Twelve, col =>
+                {
+                    col.Card(card =>
+                    {
+                        card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors"));
+                        card.Body(body =>
+                        {
+                            body.DataGrid(g =>
+                            {
+                                g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                                foreach (var f in topFindings)
+                                {
+                                    var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
+                                    var title = TrimForDisplay(label, 120);
+                                    var color = SeverityRank(f.Severity) == 0 ? TablerColor.Red : TablerColor.Orange;
+                                    g.AddItem(title, $"x{f.Count}").AsPanel(color, light: true);
+                                }
+                            });
+                        });
+                    });
+                });
+            });
+        }
 
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
