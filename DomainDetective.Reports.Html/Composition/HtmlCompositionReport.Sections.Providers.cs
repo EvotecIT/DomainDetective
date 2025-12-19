@@ -27,7 +27,7 @@ public static partial class HtmlCompositionReport {
 
                         b.Row(rr => {
                             rr.Gap(2);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(domain, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(domain, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                             rr.Column(TablerColumnNumber.Auto, cc => cc.Text(chainText));
                         });
 
@@ -37,13 +37,13 @@ public static partial class HtmlCompositionReport {
                             b.Row(rr => {
                                 rr.Gap(2);
                                 if (hints.ConfidencePercent > 0)
-                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Confidence {hints.ConfidencePercent}%", TablerBadgeColor.Info, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Confidence {hints.ConfidencePercent}%", TablerBadgeColor.Info, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                                 if (hints.SingleMxOk)
-                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Single-MX OK", TablerBadgeColor.Success, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Single-MX OK", TablerBadgeColor.Success, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                                 if (prov.Gateways.Count > 0)
-                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Gateway", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Gateway", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                                 if (prov.Outbound.Count > 0)
-                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Outbound", TablerBadgeColor.Warning, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Outbound", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                             });
                         } catch { }
 
@@ -60,7 +60,7 @@ public static partial class HtmlCompositionReport {
                                         rr.Gap(2);
                                         foreach (var t in top) {
                                             var titleSafe = string.IsNullOrWhiteSpace(t?.Title) ? t!.Topic : t!.Title;
-                                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(titleSafe!, TablerBadgeColor.Secondary, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: t!.Url));
+                                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(titleSafe!, TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: t!.Url));
                                         }
                                     });
                                 }
@@ -79,3 +79,4 @@ public static partial class HtmlCompositionReport {
         }));
     }
 }
+

@@ -280,6 +280,47 @@ namespace DomainDetective.PowerShell {
             // Build label from first two domains we can detect
             var subjects = ExtractSubjects(flat);
             WriteVerbose($"Export-DDSecurityReport: composing {flat.Count} item(s) across {subjects.Count} domain(s).");
+            try
+            {
+                var orderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(
+                    typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true);
+                var custom = DomainDetective.Reports.SectionOrdering.NormalizeSectionList(SectionOrder ?? Array.Empty<string>());
+                var inputOrder = DomainDetective.Reports.SectionOrdering.DetermineSectionOrderByDomain(flat);
+                var grouped = DomainDetective.Reports.CompositionBuilder.GroupBySubject(flat);
+                foreach (var kv in grouped)
+                {
+                    var domain = kv.Key;
+                    var b = kv.Value;
+                    var present = new List<string>();
+                    if (b.Mx != null) present.Add("MX");
+                    if (b.Spf != null) present.Add("SPF");
+                    if (b.Dkim.Count > 0) present.Add("DKIM");
+                    if (b.Dmarc != null) present.Add("DMARC");
+                    if (b.Arc != null) present.Add("ARC");
+                    if (b.Bimi != null) present.Add("BIMI");
+                    if (b.Dnsbl != null) present.Add("DNSBL");
+                    if (b.Classification != null) present.Add("Classification");
+                    if (b.Mtasts != null) present.Add("MTA-STS");
+                    if (b.TlsRpt != null) present.Add("TLS-RPT");
+                    if (b.Ns != null) present.Add("NS");
+                    if (b.Soa != null) present.Add("SOA");
+                    if (b.ZoneTransfer != null) present.Add("ZoneTransfer");
+                    if (b.Wildcard != null) present.Add("Wildcard");
+                    if (b.Caa != null) present.Add("CAA");
+                    if (b.Dnssec != null) present.Add("DNSSEC");
+                    if (b.Dane != null) present.Add("DANE");
+                    if (b.Rpki != null) present.Add("RPKI");
+                    if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null) present.Add("MAILTLS");
+                    var input = inputOrder.TryGetValue(domain, out var list) ? list : null;
+                    var resolved = DomainDetective.Reports.SectionOrdering.ResolveOrder(orderMode, present, input, custom);
+                    if (resolved.Count > 0)
+                        WriteVerbose($"Export-DDSecurityReport: section order for {domain}: {string.Join(", ", resolved)}");
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteVerbose($"Export-DDSecurityReport: failed to compute section order: {ex.Message}");
+            }
             var label = subjects.Count switch {
                 0 => "report",
                 1 => subjects[0],

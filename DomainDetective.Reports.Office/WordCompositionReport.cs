@@ -471,7 +471,7 @@ public static class WordCompositionReport {
             }
             string NormalizeRec(string? text) {
                 if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-                var normalized = text.Trim().ToLowerInvariant();
+                var normalized = text!.Trim().ToLowerInvariant();
                 normalized = System.Text.RegularExpressions.Regex.Replace(normalized, "\n|\r", " ");
                 normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
                 normalized = normalized.Replace(";", "").Replace(",", "").Replace(":", "").Replace(".", "");

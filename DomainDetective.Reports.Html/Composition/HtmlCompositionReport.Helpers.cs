@@ -70,30 +70,8 @@ public static partial class HtmlCompositionReport {
         return list;
     }
 
-    private static string? TryGetSubject(object item) {
-        try { var p = item.GetType().GetProperty("Subject"); return p?.GetValue(item) as string; } catch { return null; }
-    }
-
     private static Dictionary<string, List<string>> DetermineSectionOrderByDomain(IReadOnlyList<object> items) {
-        var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var it in items ?? Array.Empty<object>()) {
-            var subject = TryGetSubject(it);
-            if (string.IsNullOrWhiteSpace(subject)) continue;
-            var key = TryGetSectionKey(it);
-            if (string.IsNullOrWhiteSpace(key)) continue;
-            if (!map.TryGetValue(subject!, out var list)) { list = new List<string>(); map[subject!] = list; }
-            if (!list.Contains(key!, StringComparer.OrdinalIgnoreCase)) list.Add(key!);
-        }
-        return map;
-    }
-
-    private static string? TryGetSectionKey(object it) {
-        try {
-            var p = it.GetType().GetProperty("Check");
-            if (p == null) return null;
-            if (p.GetValue(it) is not DomainDetective.HealthCheckType h) return null;
-            return SectionOrdering.SectionKeyFor(h);
-        } catch { return null; }
+        return SectionOrdering.DetermineSectionOrderByDomain(items);
     }
 
     private static string[] CanonicalSections => SectionOrdering.CanonicalSections.ToArray();

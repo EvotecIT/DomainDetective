@@ -27,7 +27,7 @@ public static partial class HtmlCompositionReport
                         foreach (var u in refs)
                         {
                             var f = DomainDetective.Reports.LinkFormatter.Format(u);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
                         }
                     });
                 });
@@ -35,3 +35,4 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
+

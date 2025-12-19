@@ -86,7 +86,7 @@ public static partial class HtmlCompositionReport
                         card.Body(b => {
                             b.Row(rr => {
                                 rr.Gap(2);
-                                foreach (var kv2 in top) rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(kv2.Key, TablerBadgeColor.Success, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true));
+                                foreach (var kv2 in top) rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(kv2.Key, TablerBadgeColor.Success, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
                             });
                         });
                     });
@@ -141,3 +141,4 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
+

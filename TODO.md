@@ -1,6 +1,6 @@
 # DomainDetective — Open TODO (Consolidated)
 
-This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-18.
+This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-19.
 
 ## High Priority
 - Golden report pass (Word): single-domain and multi-domain; verify one-liner intros and References blocks across sections.
@@ -8,22 +8,10 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 ## Reports — Word
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
-## Reports — HTML
-- Parity with Word: add Good Posture for DMARC/DKIM and align section structure.
-
 ## Composition Parity (Next Day)
 - Word/HTML ordering polish
   - Verify new ordering controls end-to-end: `-DomainOrder`, `-SectionOrderMode`, `-SectionOrder`.
   - Executive Summary remains canonical; document behavior in README/Module docs.
-  - Add verbose trace when `-Verbose` is set: item count, domain count, and per-domain section order.
-- HTML parity with Word
-  - Add ARC and BIMI HTML section writers; wire into HtmlCompositionReport.
-  - Provider Help under ARC/BIMI/MX/SPF/DMARC with topic ordering and badges; include legend line.
-  - DKIM selector-count hint and MAILTLS footnote parity (where applicable for HTML).
-- Markdown (new)
-  - Add MarkdownCompositionReport using OrderingOptions; implement sections: MX, SPF, DKIM, DMARC, DNSBL, Classification, MTA-STS, TLS-RPT.
-  - Executive Summary table + per-domain subsections; Good Posture/Findings/References blocks.
-  - Hook into PS `Export-DDSecurityReport -ExportFormat Markdown` via ReportDispatcher generator (new IReportGenerator if needed).
 - Excel (new)
   - Add ExcelCompositionReport (ClosedXML):
     - Sheet1: Executive Summary (canonical columns; warnings/errors rollup; provider chain line optional).
@@ -35,7 +23,6 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Tests
   - Pester: verify ordering (domain and section) for Word/HTML; assert Executive Summary non-empty.
   - Pester: flattening works for piped arrays ($spf,$dmarc,$mx) — domains detected > 0 and sections rendered.
-  - xUnit: composition utilities (NormalizeSection, SectionKeyFor) map synonyms correctly.
 - Branding controls (optional)
   - `Set-DDExportOptions`: add `-HeaderLogoSizePx`/`-FooterLogoSizePx`; update WordReportCommon to honor.
 - Provider docs (dev-only)

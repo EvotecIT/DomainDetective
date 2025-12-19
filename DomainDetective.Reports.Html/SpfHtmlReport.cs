@@ -333,7 +333,7 @@ public static class SpfHtmlReport
                                     foreach (var url in nar.References)
                                     {
                                         var f = DomainDetective.Reports.LinkFormatter.Format(url);
-                                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, HtmlForgeX.Containers.Tabler.TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
+                                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
                                     }
                                 });
                             });
@@ -377,3 +377,5 @@ public static class SpfHtmlReport
         }
     }
 }
+
+

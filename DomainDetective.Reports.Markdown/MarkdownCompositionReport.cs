@@ -29,7 +29,8 @@ public static partial class MarkdownCompositionReport
 
         var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
         var overview = OverviewWording.ComposeFromItems(items);
-        var md = BuildDoc(domains, title, rows, overview);
+        var inputSectionOrder = SectionOrdering.DetermineSectionOrderByDomain(items);
+        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder);
         var text = md.ToMarkdown();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".");
         File.WriteAllText(path, text, Encoding.UTF8);
@@ -50,7 +51,8 @@ public static partial class MarkdownCompositionReport
 
         var rows = ExecutiveSummaryBuilder.Build(items, ordering?.DomainOrder ?? DomainOrder.Alphabetical);
         var overview = OverviewWording.ComposeFromItems(items);
-        var md = BuildDoc(domains, title, rows, overview);
+        var inputSectionOrder = SectionOrdering.DetermineSectionOrderByDomain(items);
+        var md = BuildDoc(domains, title, rows, overview, ordering, inputSectionOrder);
         var mdPath = Path.ChangeExtension(htmlPath, ".md");
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(mdPath)) ?? ".");
         File.WriteAllText(mdPath, md.ToMarkdown(), Encoding.UTF8);
@@ -71,7 +73,7 @@ public static partial class MarkdownCompositionReport
         md.SaveHtml(htmlPath, htmlOptions);
     }
 
-    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine)
+    private static MarkdownDoc BuildDoc(List<KeyValuePair<string, DomainBucket>> domains, string title, List<ExecutiveSummaryBuilder.Row> rows, string overviewLine, OrderingOptions? ordering, Dictionary<string, List<string>> inputSectionOrder)
     {
         var md = MarkdownDoc.Create()
             .FrontMatter(new { title = $"Security Report — {title}", date = DateTimeOffset.Now.ToString("u") })
@@ -134,7 +136,7 @@ public static partial class MarkdownCompositionReport
         }
 
         // Per-domain content (implemented in partial file)
-        WritePerDomain(md, domains);
+        WritePerDomain(md, domains, ordering, inputSectionOrder);
 
         // All References parity with Word
         try

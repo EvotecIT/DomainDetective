@@ -76,7 +76,7 @@ public static partial class HtmlCompositionReport
                         b.Row(rr => {
                             rr.Gap(2);
                             foreach (var (title, url) in d.Sec.ProviderHelp.Take(6))
-                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title, TablerBadgeColor.Azure, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: url));
+                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title, TablerBadgeColor.Azure, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: url));
                         });
                     }
                 });
@@ -84,4 +84,5 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
+
 
