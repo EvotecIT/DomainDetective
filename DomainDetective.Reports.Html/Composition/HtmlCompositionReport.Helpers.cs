@@ -14,6 +14,22 @@ public static partial class HtmlCompositionReport {
     private static string BuildSubjectTitle(List<string> domains)
         => CompositionBuilder.BuildSubjectTitle(domains);
 
+    private static void ConfigureAccordion(TablerAccordion acc, string? persistKey = null)
+    {
+        acc.Type(TablerAccordionType.Flush)
+           .ItemHeaderSize(5)
+           .FullWidthLines(true)
+           .Settings(s => s
+               .SingleOpenClosable(true)
+               .PersistState(persistKey)
+               .CopyTitleButtons()
+               .Searchable()
+               .SearchPlaceholder("Search (AND/OR/\"phrase\"/-NOT)")
+               .SearchHelp()
+               .End())
+           .Color(TablerColor.Blue);
+    }
+
     private static (int warn, int err) CountFindings(DomainBucket b) {
         int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
         int err  = (b.Mx?.ErrorCount ?? 0)   + (b.Spf?.ErrorCount ?? 0)   + (b.Dmarc?.ErrorCount ?? 0)   + (b.Mtasts?.ErrorCount ?? 0)   + (b.TlsRpt?.ErrorCount ?? 0)   + b.Dkim.Sum(x => x.ErrorCount);

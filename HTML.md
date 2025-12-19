@@ -21,7 +21,7 @@ Goal: Make HTML reports match (or surpass) the maturity of Word reports and Test
 - [x] Evidence panels (raw DNS records, headers, TLS chain, etc.)
 - [ ] Resolver matrix for DNS-heavy sections
 - [x] Provider trust grid (DNSBL/reputation)
-- [x] Sticky TOC / ScrollSpy for large reports (optional)
+- [x] Searchable domain accordion (TestimoX pattern)
 
 ## Phase 4 - Visual polish & consistency
 - [x] Unified status palette (OK/Warning/Error) across all widgets
@@ -59,4 +59,4 @@ Progress log
 - 2025-12-19: Added Excel Overview provider chain table.
 - 2025-12-19: Added DNSBL provider trust grid and Mail TLS narrative blocks.
 - 2025-12-19: Unified status badge palette and added DKIM selector count hint.
-- 2025-12-19: Added multi-domain ScrollSpy navigation (sticky TOC) for large reports.
+- 2025-12-19: Replaced ScrollSpy with searchable multi-domain accordion (TestimoX pattern).

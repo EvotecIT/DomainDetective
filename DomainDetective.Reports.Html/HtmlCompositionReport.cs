@@ -101,18 +101,9 @@ public static partial class HtmlCompositionReport {
 
             if (!isDashboard)
             {
-                const int scrollSpyThreshold = 5;
-                var useScrollSpy = multiDomain && ordered.Count >= scrollSpyThreshold;
                 if (multiDomain)
                 {
-                    if (useScrollSpy)
-                    {
-                        RenderDomainsScrollSpy(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
-                    }
-                    else
-                    {
-                        RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
-                    }
+                    RenderDomainsAccordion(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
                 }
                 else
                 {
