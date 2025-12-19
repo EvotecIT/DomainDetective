@@ -9,26 +9,12 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
 ## Composition Parity (Next Day)
-- Word/HTML ordering polish
-  - Verify new ordering controls end-to-end: `-DomainOrder`, `-SectionOrderMode`, `-SectionOrder`.
-  - Executive Summary remains canonical; document behavior in README/Module docs.
-- Excel (new)
-  - Add ExcelCompositionReport (ClosedXML):
-    - Sheet1: Executive Summary (canonical columns; warnings/errors rollup; provider chain line optional).
-    - Per-domain sheets in chosen order; per-section tables; auto-fit; basic styling.
-  - Hook into PS `Export-DDSecurityReport -ExportFormat Excel` via ReportDispatcher generator (new IReportGenerator if needed).
-- PowerShell surface
-  - Ensure `Export-DDSecurityReport` help includes ordering params; update examples to demonstrate Input/Custom ordering.
-  - Add example scripts for HTML/Markdown/Excel under `Module/Examples` mirroring Word examples.
-- Tests
-  - Pester: verify ordering (domain and section) for Word/HTML; assert Executive Summary non-empty.
-  - Pester: flattening works for piped arrays ($spf,$dmarc,$mx) — domains detected > 0 and sections rendered.
-- Branding controls (optional)
-  - `Set-DDExportOptions`: add `-HeaderLogoSizePx`/`-FooterLogoSizePx`; update WordReportCommon to honor.
+- Excel (OfficeIMO.Excel)
+  - Verify Overview sheet uses canonical columns and warnings/errors rollup.
+  - Confirm per-domain sheets follow chosen order with auto-fit + basic styling.
+  - Optional: provider chain line on Overview sheet.
 - Provider docs (dev-only)
   - Provider Docs Verifier task tracked; no public cmdlet.
-- Docs
-  - README/Module README: ordering options, section canonical order, per-format parity, and examples.
 
 ## Competitive Parity (External Feature Gaps)
 - DMARC Aggregate (RUA) ingestion and analysis

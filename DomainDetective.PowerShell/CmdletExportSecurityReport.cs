@@ -35,6 +35,16 @@ namespace DomainDetective.PowerShell {
     ///   }
     ///   </code>
     /// </example>
+    /// <example>
+    ///   <summary>Preserve input domain order and force a custom section order.</summary>
+    ///   <code>
+    ///   Export-DDSecurityReport -ExportFormat Html -ExportPath ".\\Reports" -DomainOrder Input `
+    ///     -SectionOrderMode Custom -SectionOrder MX,SPF,DMARC {
+    ///     Test-DDEmailSpfRecord   -DomainName contoso.com,fabrikam.com
+    ///     Test-DDEmailDmarcRecord -DomainName contoso.com,fabrikam.com
+    ///   }
+    ///   </code>
+    /// </example>
     [Cmdlet(VerbsData.Export, "DDSecurityReport", DefaultParameterSetName = "Default")]
     [Alias("New-DDSecurityReport")]
     public sealed class CmdletExportSecurityReport : ExportableAsyncPSCmdlet {
@@ -395,7 +405,9 @@ namespace DomainDetective.PowerShell {
                             (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
                             (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                             SectionOrder,
-                            summaryColumnCap: summaryColumnCap);
+                            summaryColumnCap: summaryColumnCap,
+                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                         case DomainDetective.Reports.ReportFormat.Html:

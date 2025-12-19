@@ -116,7 +116,9 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
                     categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
                     keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
                     creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                    summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                    summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                    headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                    footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                 if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
             } else {
                 DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
@@ -135,3 +137,4 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
         return Task.CompletedTask;
     }
 }
+

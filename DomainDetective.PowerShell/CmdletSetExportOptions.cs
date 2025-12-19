@@ -22,6 +22,16 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public string? LogoPath { get; set; }
 
+        /// <summary>Header logo height in pixels (optional).</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(8, 512)]
+        public int? HeaderLogoSizePx { get; set; }
+
+        /// <summary>Footer logo height in pixels (optional).</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(8, 512)]
+        public int? FooterLogoSizePx { get; set; }
+
         /// <summary>Header text (optional; shown in Word header if provided).</summary>
         [Parameter(Mandatory = false)]
         public string? HeaderText { get; set; }
@@ -99,6 +109,8 @@ namespace DomainDetective.PowerShell {
                 ExportDefaults.ArtifactsDirectory = string.Empty;
                 ExportDefaults.NarrativePlacement = DomainDetective.Reports.NarrativePlacement.Auto;
                 ExportDefaults.LogoPath = string.Empty;
+                ExportDefaults.HeaderLogoSizePx = null;
+                ExportDefaults.FooterLogoSizePx = null;
                 ExportDefaults.HeaderText = string.Empty;
                 ExportDefaults.FooterText = string.Empty;
                 ExportDefaults.WatermarkText = string.Empty;
@@ -140,6 +152,14 @@ namespace DomainDetective.PowerShell {
             if (!string.IsNullOrWhiteSpace(LogoPath)) {
                 ExportDefaults.LogoPath = LogoPath!;
                 WriteVerbose($"LogoPath set to {ExportDefaults.LogoPath}.");
+            }
+            if (HeaderLogoSizePx.HasValue) {
+                ExportDefaults.HeaderLogoSizePx = HeaderLogoSizePx.Value;
+                WriteVerbose($"HeaderLogoSizePx set to {ExportDefaults.HeaderLogoSizePx}.");
+            }
+            if (FooterLogoSizePx.HasValue) {
+                ExportDefaults.FooterLogoSizePx = FooterLogoSizePx.Value;
+                WriteVerbose($"FooterLogoSizePx set to {ExportDefaults.FooterLogoSizePx}.");
             }
             if (!string.IsNullOrWhiteSpace(HeaderText)) {
                 ExportDefaults.HeaderText = HeaderText!;

@@ -73,7 +73,9 @@ namespace DomainDetective.PowerShell {
                             showInfoFindings: true,
                             narrativePlacement: ExportDefaults.NarrativePlacement,
                             titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SMTP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"SMTP TLS export failed: {ex.Message}");
@@ -86,3 +88,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

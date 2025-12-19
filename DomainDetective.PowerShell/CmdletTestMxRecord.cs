@@ -57,7 +57,9 @@ namespace DomainDetective.PowerShell {
                             categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
                             keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
                             creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"MX export failed: {ex.Message}");
@@ -70,3 +72,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

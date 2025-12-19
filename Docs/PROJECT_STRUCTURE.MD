@@ -25,9 +25,9 @@
 - Web-based export functionality
 
 #### 4. **DomainDetective.Reports.Office** (Office Documents)
-- References: DomainDetective.Reports, OfficeIMO.Word, ClosedXML
+- References: DomainDetective.Reports, OfficeIMO.Word, OfficeIMO.Excel
 - Word document generation using OfficeIMO.Word
-- Excel spreadsheet generation using ClosedXML
+- Excel spreadsheet generation using OfficeIMO.Excel
 - Professional document templates
 
 #### 5. **DomainDetective.Reports.Pdf** (PDF Reports)
@@ -59,7 +59,7 @@ var report = await reportFactory.CreateReport(healthCheck, format: ReportFormat.
 
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/PDF export switches are available but not yet implemented; they will emit TODO
+# Word/Excel/Markdown composition is available; PDF export remains planned.
 ```
 
 ## Benefits of This Structure

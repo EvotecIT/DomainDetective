@@ -61,7 +61,9 @@ namespace DomainDetective.PowerShell {
                             showInfoFindings: true,
                             narrativePlacement: ExportDefaults.NarrativePlacement,
                             titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Zone Transfer — {DomainName}" : ExportDefaults.NarrativeTitle,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"Zone Transfer export failed: {ex.Message}");
@@ -74,3 +76,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

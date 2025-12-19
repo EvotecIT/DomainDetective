@@ -36,6 +36,8 @@ public static class WordCompositionReport {
     /// <param name="showDkimSelectorCountInSummary">Show DKIM selector count next to DKIM status in executive summary.</param>
     /// <param name="showMailTlsProtocolHintInSummary">Show protocol hint (SMTP/IMAP/POP) for Mail TLS in summary.</param>
     /// <param name="summaryColumnCap">Optional cap for the number of status columns in the executive summary table.</param>
+    /// <param name="headerLogoSizePx">Header logo height in pixels.</param>
+    /// <param name="footerLogoSizePx">Footer logo height in pixels.</param>
     /// <param name="providerHelp">Provider reference rendering options for sections.</param>
     /// <param name="domainOrder">How to order domains in the output (Alphabetical or Input).</param>
     /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
@@ -63,7 +65,9 @@ public static class WordCompositionReport {
         DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical,
         DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical,
         string[]? sectionOrder = null,
-        int? summaryColumnCap = null) {
+        int? summaryColumnCap = null,
+        int? headerLogoSizePx = null,
+        int? footerLogoSizePx = null) {
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
 
         // Group items by domain/subject
@@ -94,8 +98,8 @@ public static class WordCompositionReport {
         doc.AddTableOfContent(TableOfContentStyle.Template1);
         doc.AddPageBreak();
         WordReportCommon.AddHeader(doc, WordReportCommon.ResolveHeaderLeftText(headerText, new { Title = title }, title),
-            $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, null);
-        WordReportCommon.AddFooter(doc, null, null, logoPath, null); // left defaults to CompanyLine; add logo when provided
+            $"Generated: {generatedAt:yyyy-MM-dd HH:mm:ss}", logoPath, watermarkText, headerLogoSizePx);
+        WordReportCommon.AddFooter(doc, null, null, logoPath, footerLogoSizePx); // left defaults to CompanyLine; add logo when provided
 
         var headings = doc.AddTableOfContentList(WordListStyle.Headings111);
         headings.AddItem("Report Settings");

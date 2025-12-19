@@ -31,6 +31,10 @@ namespace DomainDetective.PowerShell {
         // Branding / report cosmetics
         /// <summary>Logo image path.</summary>
         public static string LogoPath { get; set; } = string.Empty;
+        /// <summary>Header logo height (px).</summary>
+        public static int? HeaderLogoSizePx { get; set; }
+        /// <summary>Footer logo height (px).</summary>
+        public static int? FooterLogoSizePx { get; set; }
         /// <summary>Header text.</summary>
         public static string HeaderText { get; set; } = string.Empty;
         /// <summary>Footer text.</summary>

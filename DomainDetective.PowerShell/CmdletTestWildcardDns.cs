@@ -57,7 +57,9 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
                         showInfoFindings: true,
                         narrativePlacement: ExportDefaults.NarrativePlacement,
                         titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"Wildcard DNS — {DomainName}" : ExportDefaults.NarrativeTitle,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                 } catch (System.Exception ex) {
                     WriteWarning($"Wildcard DNS export failed: {ex.Message}");
@@ -69,3 +71,4 @@ public sealed class CmdletTestWildcardDns : ExportableAsyncPSCmdlet
         }
     }
 }
+

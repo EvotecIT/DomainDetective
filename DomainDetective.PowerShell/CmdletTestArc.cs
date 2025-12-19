@@ -122,7 +122,9 @@ namespace DomainDetective.PowerShell {
                         logoPath: string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
                         headerText: string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
                         watermarkText: string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                        summaryColumnCap: ExportDefaults.SummaryColumnCap);
+                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                 } else {
                     DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
@@ -142,3 +144,4 @@ namespace DomainDetective.PowerShell {
         }
 }
 }
+
