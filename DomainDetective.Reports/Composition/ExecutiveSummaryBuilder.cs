@@ -50,6 +50,8 @@ public static class ExecutiveSummaryBuilder
             warn += b.Spf?.WarningCount ?? 0; err += b.Spf?.ErrorCount ?? 0;
             warn += b.Dmarc?.WarningCount ?? 0; err += b.Dmarc?.ErrorCount ?? 0;
             warn += b.Dkim?.Sum(x => x.WarningCount) ?? 0; err += b.Dkim?.Sum(x => x.ErrorCount) ?? 0;
+            warn += b.Arc?.WarningCount ?? 0; err += b.Arc?.ErrorCount ?? 0;
+            warn += b.Bimi?.WarningCount ?? 0; err += b.Bimi?.ErrorCount ?? 0;
             // Optional sections
             warn += b.Mtasts?.WarningCount ?? 0; err += b.Mtasts?.ErrorCount ?? 0;
             warn += b.TlsRpt?.WarningCount ?? 0; err += b.TlsRpt?.ErrorCount ?? 0;

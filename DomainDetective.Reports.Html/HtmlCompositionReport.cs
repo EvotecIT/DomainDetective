@@ -42,6 +42,13 @@ public static partial class HtmlCompositionReport {
         var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
         var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Security posture overview for domains" : descriptionOverride;
 
+        var inputSectionOrder = (sectionOrderMode == DomainDetective.Reports.SectionOrderMode.Input)
+            ? DetermineSectionOrderByDomain(items)
+            : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var normalizedCustom = (sectionOrderMode == DomainDetective.Reports.SectionOrderMode.Custom && sectionOrder != null)
+            ? NormalizeSectionList(sectionOrder)
+            : Array.Empty<string>();
+
         using var document = new Document {
             Head = {
                 Title = theTitle,
@@ -94,8 +101,8 @@ public static partial class HtmlCompositionReport {
 
             if (!isDashboard)
             {
-                if (multiDomain) { RenderDomainsTabbed(page, ordered); }
-                else { foreach (var kv in ordered) RenderSingleDomain(page, kv.Key, kv.Value); }
+                if (multiDomain) { RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder); }
+                else { foreach (var kv in ordered) RenderSingleDomain(page, kv.Key, kv.Value, sectionOrderMode, normalizedCustom, inputSectionOrder); }
             }
             // Ensure page block closes cleanly
         });

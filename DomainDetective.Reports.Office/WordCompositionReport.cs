@@ -683,47 +683,16 @@ public static class WordCompositionReport {
         } catch { return null; }
     }
 
-    private static string? SectionKeyFor(HealthCheckType h) => h switch {
-        HealthCheckType.MX => "MX",
-        HealthCheckType.SPF => "SPF",
-        HealthCheckType.DKIM => "DKIM",
-        HealthCheckType.DMARC => "DMARC",
-        HealthCheckType.ARC => "ARC",
-        HealthCheckType.BIMI => "BIMI",
-        HealthCheckType.DNSBL => "DNSBL",
-        HealthCheckType.RPKI => "RPKI",
-        HealthCheckType.NS => "NS",
-        HealthCheckType.SOA => "SOA",
-        HealthCheckType.ZONETRANSFER => "ZoneTransfer",
-        HealthCheckType.WILDCARDDNS => "Wildcard",
-        HealthCheckType.CAA => "CAA",
-        HealthCheckType.MAILCLASSIFICATION => "Classification",
-        HealthCheckType.MTASTS => "MTA-STS",
-        HealthCheckType.TLSRPT => "TLS-RPT",
-        HealthCheckType.DNSSEC => "DNSSEC",
-        HealthCheckType.DANE => "DANE",
-        _ => null
-    };
+    private static string? SectionKeyFor(HealthCheckType h) => SectionOrdering.SectionKeyFor(h);
 
-    private static string[] CanonicalSections => new[] { "MX","SPF","DKIM","DMARC","ARC","BIMI","DNSBL","RPKI","NS","SOA","ZoneTransfer","Wildcard","CAA","Classification","MTA-STS","TLS-RPT","DNSSEC","DANE" };
+    private static string[] CanonicalSections => SectionOrdering.CanonicalSections.ToArray();
 
     private static string NormalizeSection(string s) {
-        if (string.IsNullOrWhiteSpace(s)) return s;
-        var t = s.Trim();
-        var u = t.ToUpperInvariant().Replace(" ", "");
-        return u switch {
-            "TLSRPT" => "TLS-RPT",
-            "MTASTS" => "MTA-STS",
-            "ZONEXFR" => "ZoneTransfer",
-            "ZONETRANSFER" => "ZoneTransfer",
-            "WILDCARDDNS" => "Wildcard",
-            "MAILCLASSIFICATION" => "Classification",
-            _ => (u == "NS" || u == "SOA" || u == "MX" || u == "SPF" || u == "DKIM" || u == "DMARC" || u == "ARC" || u == "BIMI" || u == "DNSBL" || u == "RPKI" || u == "CAA" || u == "DANE" || u == "DNSSEC") ? u : t
-        };
+        return SectionOrdering.NormalizeSection(s);
     }
 
     private static string[] NormalizeSectionList(IEnumerable<string> list) {
-        return list?.Select(NormalizeSection).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+        return SectionOrdering.NormalizeSectionList(list);
     }
 
     private static string MaxStatus(string a, string b) {

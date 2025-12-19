@@ -24,8 +24,10 @@ public static partial class HtmlCompositionReport {
         public string Subject { get; set; } = string.Empty;
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
-        public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
+        public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }       
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
+        public DomainDetective.Views.ArcInfo? Arc { get; set; }
+        public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
         public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
@@ -90,36 +92,17 @@ public static partial class HtmlCompositionReport {
             var p = it.GetType().GetProperty("Check");
             if (p == null) return null;
             if (p.GetValue(it) is not DomainDetective.HealthCheckType h) return null;
-            return SectionKeyFor(h);
+            return SectionOrdering.SectionKeyFor(h);
         } catch { return null; }
     }
 
-    private static string? SectionKeyFor(DomainDetective.HealthCheckType h) => h switch {
-        DomainDetective.HealthCheckType.MX => "MX",
-        DomainDetective.HealthCheckType.SPF => "SPF",
-        DomainDetective.HealthCheckType.DKIM => "DKIM",
-        DomainDetective.HealthCheckType.DMARC => "DMARC",
-        DomainDetective.HealthCheckType.DNSBL => "DNSBL",
-        DomainDetective.HealthCheckType.MAILCLASSIFICATION => "Classification",
-        DomainDetective.HealthCheckType.MTASTS => "MTA-STS",
-        DomainDetective.HealthCheckType.TLSRPT => "TLS-RPT",
-        _ => null
-    };
+    private static string[] CanonicalSections => SectionOrdering.CanonicalSections.ToArray();
 
-    private static string[] CanonicalSections => new[] { "MX","SPF","DKIM","DMARC","DNSBL","Classification","MTA-STS","TLS-RPT" };
-
-    private static string[] NormalizeSectionList(IEnumerable<string> list) {
-        return list?.Select(s => NormalizeSection(s)).Where(x => !string.IsNullOrWhiteSpace(x)).ToArray() ?? Array.Empty<string>();
+    private static string[] NormalizeSectionList(IEnumerable<string> list) {    
+        return SectionOrdering.NormalizeSectionList(list);
     }
     private static string NormalizeSection(string s) {
-        if (string.IsNullOrWhiteSpace(s)) return s;
-        var t = s.Trim();
-        var u = t.ToUpperInvariant().Replace(" ", "");
-        return u switch {
-            "TLSRPT" => "TLS-RPT",
-            "MTASTS" => "MTA-STS",
-            _ => (u == "MX" || u == "SPF" || u == "DKIM" || u == "DMARC" || u == "DNSBL" || u == "CLASSIFICATION" || u == "MTA-STS" || u == "TLS-RPT") ? (u == "CLASSIFICATION" ? "Classification" : (u == "MTA-STS" ? "MTA-STS" : u)) : t
-        };
+        return SectionOrdering.NormalizeSection(s);
     }
 
     // Helper: choose a badge color for a status string
@@ -141,6 +124,8 @@ public static partial class HtmlCompositionReport {
             Mx = s.Mx,
             Spf = s.Spf,
             Dmarc = s.Dmarc,
+            Arc = s.Arc,
+            Bimi = s.Bimi,
             Dnsbl = s.Dnsbl,
             Classification = s.Classification,
             Mtasts = s.Mtasts,
