@@ -12,9 +12,9 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderSingleDomain(HtmlForgeX.TablerPage page, string d, DomainBucket b, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
+    private static void RenderSingleDomain(Element page, string d, DomainBucket b, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder, bool includeDivider = true)
     {
-        page.Divider(d);
+        if (includeDivider) page.Divider(d);
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {

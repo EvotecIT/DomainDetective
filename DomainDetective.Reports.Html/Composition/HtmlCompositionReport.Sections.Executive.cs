@@ -29,9 +29,54 @@ public static partial class HtmlCompositionReport
 
         var controlRollup = BuildControlRollup(rows);
 
-        // Security rating hero
+        // Aggregate stats used in the header KPIs + rating hero
         var grade = ComputeOverallGrade(rows);
         var gradeColor = GradeColor(grade);
+        var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
+        var spfStatus = ControlStatusLabel(controlRollup["SPF"]);
+        var dkimStatus = ControlStatusLabel(controlRollup["DKIM"]);
+        var dmarcStatus = ControlStatusLabel(controlRollup["DMARC"]);
+        var mtastsStatus = ControlStatusLabel(controlRollup["MTA-STS"]);
+        var tlsRptStatus = ControlStatusLabel(controlRollup["TLS-RPT"]);
+
+        // KPI header row (grade/status + warning/error counts)
+        page.Row(row => {
+            row.WithBottomSpacing(TablerSpacing.Medium);
+            row.Column(TablerColumnNumber.Twelve, col => {
+                col.Card(card => {
+                    card.Body(b => {
+                        TablerBadgeColor GradeBadgeColor(string value)
+                            => (value ?? string.Empty).Trim().ToUpperInvariant() switch
+                            {
+                                "A" => TablerBadgeColor.Success,
+                                "B" => TablerBadgeColor.Primary,
+                                "C" => TablerBadgeColor.Warning,
+                                "D" => TablerBadgeColor.Danger,
+                                "F" => TablerBadgeColor.Danger,
+                                _ => TablerBadgeColor.Secondary
+                            };
+
+                        b.Row(rr => {
+                            rr.Gap(2);
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Grade {grade}", GradeBadgeColor(grade), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Domains {rows.Count}", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Warnings {totals.warn}", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Errors {totals.err}", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                        });
+                        b.Row(rr => {
+                            rr.Gap(2);
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"SPF {spfStatus}", ColorForStatus(spfStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"DKIM {dkimStatus}", ColorForStatus(dkimStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"DMARC {dmarcStatus}", ColorForStatus(dmarcStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"MTA-STS {mtastsStatus}", ColorForStatus(mtastsStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"TLS-RPT {tlsRptStatus}", ColorForStatus(tlsRptStatus), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                        });
+                    });
+                });
+            });
+        });
+
+        // Security rating hero
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
             row.Column(TablerColumnNumber.Twelve, col => {
@@ -42,13 +87,8 @@ public static partial class HtmlCompositionReport
                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
                             g.AddItem("Overall Grade", grade).AsPanel(gradeColor, light: true);
                             g.AddItem("Domains", rows.Count.ToString()).AsPanel(TablerColor.Blue, light: true);
-                            g.AddItem("Warnings", rows.Sum(r => r.Warnings).ToString()).AsPanel(TablerColor.Orange, light: true);
-                            g.AddItem("Errors", rows.Sum(r => r.Errors).ToString()).AsPanel(TablerColor.Red, light: true);
-                            var spfStatus = ControlStatusLabel(controlRollup["SPF"]);
-                            var dkimStatus = ControlStatusLabel(controlRollup["DKIM"]);
-                            var dmarcStatus = ControlStatusLabel(controlRollup["DMARC"]);
-                            var mtastsStatus = ControlStatusLabel(controlRollup["MTA-STS"]);
-                            var tlsRptStatus = ControlStatusLabel(controlRollup["TLS-RPT"]);
+                            g.AddItem("Warnings", totals.warn.ToString()).AsPanel(TablerColor.Orange, light: true);
+                            g.AddItem("Errors", totals.err.ToString()).AsPanel(TablerColor.Red, light: true);
                             g.AddItem("SPF", spfStatus).AsPanel(PanelColorForStatus(spfStatus), light: true);
                             g.AddItem("DKIM", dkimStatus).AsPanel(PanelColorForStatus(dkimStatus), light: true);
                             g.AddItem("DMARC", dmarcStatus).AsPanel(PanelColorForStatus(dmarcStatus), light: true);
@@ -61,7 +101,6 @@ public static partial class HtmlCompositionReport
         });
 
         // KPI cards: Domains / Warnings / Errors
-        var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
 
@@ -136,12 +175,43 @@ public static partial class HtmlCompositionReport
                             card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown"));
                             card.Body(body =>
                             {
-                                var rows2 = controlRollup.Select(kv => new {
+                                var rows2 = controlRollup.Select(kv => new {    
                                     Control = kv.Key,
                                     OK = kv.Value.ok,
                                     Warning = kv.Value.warn,
                                     Error = kv.Value.err,
                                     Unknown = kv.Value.unknown
+                                }).ToList();
+                                var t = (TablerTable)body.Table(rows2, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            });
+                        });
+                    });
+                });
+            }
+        } catch { }
+
+        // Coverage summary
+        try
+        {
+            if (rows.Count > 0 && controlRollup.Count > 0)
+            {
+                page.Row(r =>
+                {
+                    r.Column(TablerColumnNumber.Twelve, c =>
+                    {
+                        c.Card(card =>
+                        {
+                            card.Header(h => h.Title("Control Coverage").Subtitle("Presence across domains"));
+                            card.Body(body =>
+                            {
+                                var total = rows.Count;
+                                var rows2 = controlRollup.Select(kv =>
+                                {
+                                    var present = kv.Value.ok + kv.Value.warn + kv.Value.err;
+                                    var missing = kv.Value.unknown;
+                                    var pct = total > 0 ? (present * 100.0 / total) : 0;
+                                    return new { Control = kv.Key, Present = present, Missing = missing, Coverage = $"{pct:0}%"};
                                 }).ToList();
                                 var t = (TablerTable)body.Table(rows2, TableType.Tabler);
                                 t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);

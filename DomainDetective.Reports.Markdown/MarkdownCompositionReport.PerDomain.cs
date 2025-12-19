@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Narratives;
 using OfficeIMO.Markdown;
 
 namespace DomainDetective.Reports.Markdown;
@@ -30,6 +31,7 @@ public static partial class MarkdownCompositionReport
             {
                 var cls = b.Classification;
                 if (cls == null) return;
+                var narrative = cls.Raw != null ? MailClassificationNarrative.Build(cls.Raw) : null;
                 md.H2("Classification");
                 md.Table(t => t.Headers("Key","Value")
                     .Row("Classification", cls.Classification ?? "-")
@@ -48,21 +50,97 @@ public static partial class MarkdownCompositionReport
                         .AlignLeft(0).AlignRight(1));
                 }
 
+                if (cls.ReceivingSignals != null && cls.ReceivingSignals.Count > 0)
+                {
+                    md.H3("Receiving Signals").Ul(cls.ReceivingSignals.ToArray());
+                }
+                if (cls.SendingSignals != null && cls.SendingSignals.Count > 0)
+                {
+                    md.H3("Sending Signals").Ul(cls.SendingSignals.ToArray());
+                }
+                var clsFind = (cls.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+                    .Where(a => a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                    .Select(a => (IReadOnlyList<string>)new[]
+                    {
+                        a.Severity.ToString(),
+                        a.Code ?? string.Empty,
+                        a.Target ?? string.Empty,
+                        a.Message ?? string.Empty
+                    })
+                    .ToList();
+                if (clsFind.Count > 0)
+                {
+                    md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message")
+                        .Rows(clsFind)
+                        .AlignLeft(0,1,2,3));
+                }
+
+                RenderNarrative(md, narrative);
+                var raw = cls.Raw;
+                bool hasEvidence = raw != null
+                    && (!string.IsNullOrWhiteSpace(raw.ClassificationReason)
+                        || (raw.SPFIncludesResolved?.Count ?? 0) > 0
+                        || (raw.DKIMSelectorsFound?.Count ?? 0) > 0
+                        || raw.BimiEligible.HasValue
+                        || (raw.BimiNotes?.Count ?? 0) > 0
+                        || !string.IsNullOrWhiteSpace(raw.IdpTenantId)
+                        || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
+                        || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl));
+                if (hasEvidence && raw != null)
+                {
+                    md.H3("Evidence");
+                    if (!string.IsNullOrWhiteSpace(raw.ClassificationReason))
+                    {
+                        md.P(p => p.Bold("Reason: ").Text(raw.ClassificationReason));
+                    }
+                    if (raw.SPFIncludesResolved != null && raw.SPFIncludesResolved.Count > 0)
+                    {
+                        md.H4("SPF Includes");
+                        md.Ul(raw.SPFIncludesResolved.ToArray());
+                    }
+                    if (raw.DKIMSelectorsFound != null && raw.DKIMSelectorsFound.Count > 0)
+                    {
+                        md.H4("DKIM Selectors");
+                        md.Ul(raw.DKIMSelectorsFound.ToArray());
+                    }
+                    if (raw.BimiEligible.HasValue)
+                    {
+                        md.P(p => p.Bold("BIMI eligibility: ").Text(raw.BimiEligible.Value ? "Eligible" : "Not eligible"));
+                    }
+                    if (!string.IsNullOrWhiteSpace(raw.BimiEligibilityReason))
+                    {
+                        md.P(p => p.Bold("BIMI note: ").Text(raw.BimiEligibilityReason!));
+                    }
+                    if (raw.BimiNotes != null && raw.BimiNotes.Count > 0)
+                    {
+                        md.H4("BIMI Notes");
+                        md.Ul(raw.BimiNotes.ToArray());
+                    }
+                    if (!string.IsNullOrWhiteSpace(raw.IdpTenantId)
+                        || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
+                        || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                    {
+                        md.H4("Identity Hints");
+                        var idp = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(raw.IdpTenantId)) idp.Add($"Tenant: {raw.IdpTenantId}");
+                        if (!string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)) idp.Add($"Namespace: {raw.IdpNameSpaceType}");
+                        if (!string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl)) idp.Add($"Federation URL: {raw.IdpFederatedAuthUrl}");
+                        if (idp.Count > 0) md.Ul(idp.ToArray());
+                    }
+                }
+
                 if (cls.Recommendations?.Count > 0)
                     md.H3("Recommendations").Ul(cls.Recommendations.Select(r => r.Title ?? r.Code).ToArray());
                 if (cls.Positives?.Count > 0)
                     md.H3("Positives").Ul(cls.Positives.Select(r => r.Title ?? r.Code).ToArray());
-                if (cls.References?.Count > 0)
-                {
-                    md.H3("References");
-                    md.Ul(ul => { foreach (var u in cls.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } });
-                }
+                RenderReferences(md, MergeReferences(cls.References, narrative?.References));
             }
 
             void RenderSpf()
             {
                 if (b.Spf == null) return;
                 var sec = SectionProjectors.BuildSpf(b.Spf);
+                var narrative = b.Spf?.Narrative;
                 md.H2("SPF");
                 if (sec != null)
                 {
@@ -71,11 +149,12 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var spfFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (spfFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(spfFind).AlignLeft(0,1,2,3));
+                    RenderNarrative(md, narrative);
                     if (!string.IsNullOrWhiteSpace(sec.SpfRecord)) { md.H3("Evidence").P("SPF Record:"); md.Code("", sec.SpfRecord!); }
                     if (sec.Mechanisms.Count > 0) { md.H3("Mechanisms"); var mechRows = sec.Mechanisms.Select(m => (IReadOnlyList<string>)new[]{ m.Qualifier, m.Type, m.Value, m.Provider }).ToList(); md.Table(t => t.Headers("Qualifier","Type","Value","Provider").Rows(mechRows).AlignLeft(0,1,2,3)); }
                     if (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0) { md.H3("Flattened IP Analysis"); md.Table(t => t.Headers("Metric","Value").Row("Unique IPs", sec.FlattenedUniqueIpCount.ToString()).Row("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString()).Row("Tokens Resolved", sec.FlattenedTokenCount.ToString()).AlignLeft(0,1)); }
                     if (sec.ProviderHelp.Count > 0) { md.H3("Provider Help"); md.Ul(ul => { foreach (var (title, url) in sec.ProviderHelp.Take(5)) ul.ItemLink(title, url); }); }
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -83,6 +162,7 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Dmarc == null) return;
                 var sec = SectionProjectors.BuildDmarc(b.Dmarc);
+                var narrative = b.Dmarc?.Narrative;
                 md.H2("DMARC");
                 if (sec != null)
                 {
@@ -91,6 +171,7 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var dmFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dmFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dmFind).AlignLeft(0,1,2,3));
+                    RenderNarrative(md, narrative);
                     if (!string.IsNullOrWhiteSpace(sec.DmarcRecord)) { md.H3("Evidence").P("DMARC Record:"); md.Code("", sec.DmarcRecord!); }
                     if (sec.MailtoRua.Count + sec.HttpRua.Count + sec.MailtoRuf.Count + sec.HttpRuf.Count > 0)
                     {
@@ -108,7 +189,7 @@ public static partial class MarkdownCompositionReport
                             md.Table(t => t.Headers("Scheme","URI").Rows(rowsRuf).AlignLeft(0,1));
                         }
                     }
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -117,6 +198,7 @@ public static partial class MarkdownCompositionReport
                 if (b.Dkim.Count == 0) return;
                 md.H2("DKIM");
                 var sec = SectionProjectors.BuildDkim(b.Dkim, b.Ttl);
+                var narrative = b.Dkim.FirstOrDefault()?.Narrative;
                 if (sec != null)
                 {
                     if (sec.Rows.Count > 0) { var dkimRows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash, x.Weak ? "Yes" : "No", x.Flags, (x.TtlSeconds?.ToString() ?? "-") }).ToList(); md.Table(t => t.Headers("Selector","Status","Key Bits","Alg","Weak","Flags","TTL (s)").Rows(dkimRows).AlignLeft(0,1,2,3,4,5,6)); }
@@ -124,8 +206,9 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var dkFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dkFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dkFind).AlignLeft(0,1,2,3));
+                    RenderNarrative(md, narrative);
                     if (sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record))) { md.H3("Evidence"); foreach (var r in sec.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record))) { md.H4($"Selector {r.Selector}"); md.Code("", r.Record); } }
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -133,6 +216,7 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Mx == null) return;
                 var sec = SectionProjectors.BuildMx(b.Mx, b.SmtpTls, b.ImapTls, b.PopTls);
+                var narrative = b.Mx.Raw != null ? MxNarrative.Build(b.Mx.Raw) : null;
                 md.H2("MX");
                 if (sec != null)
                 {
@@ -142,7 +226,25 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var mxFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mxFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mxFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Mx.Raw;
+                    bool hasEvidence = raw != null && ((raw.MxRecords?.Count ?? 0) > 0 || (raw.MxRecordTtls?.Count ?? 0) > 0);
+                    if (hasEvidence && raw != null)
+                    {
+                        md.H3("Evidence");
+                        if (raw.MxRecords != null && raw.MxRecords.Count > 0)
+                        {
+                            md.H4("MX records");
+                            var records = raw.MxRecords.Where(r => !string.IsNullOrWhiteSpace(r)).ToArray();
+                            if (records.Length > 0) md.Code("", string.Join(Environment.NewLine, records));
+                        }
+                        if (raw.MxRecordTtls != null && raw.MxRecordTtls.Count > 0)
+                        {
+                            md.H4("TTL (seconds)");
+                            md.Code("", string.Join(", ", raw.MxRecordTtls));
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -150,13 +252,46 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Mtasts == null) return;
                 var sec = SectionProjectors.BuildMtasts(b.Mtasts);
+                var narrative = MtaStsNarrative.Build(b.Mtasts.Raw, b.Mtasts.Assessments);
                 md.H2("MTA-STS");
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Mtasts.Raw;
+                    bool hasEvidence = raw != null
+                        && (!string.IsNullOrWhiteSpace(raw.PolicyId)
+                            || !string.IsNullOrWhiteSpace(raw.Policy)
+                            || (raw.Mx != null && raw.Mx.Count > 0)
+                            || (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0));
+                    if (hasEvidence && raw != null)
+                    {
+                        md.H3("Evidence");
+                        if (!string.IsNullOrWhiteSpace(raw.PolicyId))
+                        {
+                            md.P("MTA-STS TXT:");
+                            md.Code("", $"v=STSv1; id={raw.PolicyId}");
+                        }
+                        if (!string.IsNullOrWhiteSpace(raw.Policy))
+                        {
+                            md.P("Policy (mta-sts.txt):");
+                            md.Code("", raw.Policy);
+                        }
+                        if (raw.Mx != null && raw.Mx.Count > 0)
+                        {
+                            md.H4("Policy MX Patterns");
+                            md.Ul(raw.Mx.ToArray());
+                        }
+                        if (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0)
+                        {
+                            md.H4("Missing MX in policy");
+                            md.Ul(raw.MissingMxFromPolicy.ToArray());
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -164,13 +299,50 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.TlsRpt == null) return;
                 var sec = SectionProjectors.BuildTlsRpt(b.TlsRpt);
+                var narrative = b.TlsRpt.Raw != null ? TlsRptNarrative.Build(b.TlsRpt.Raw) : null;
                 md.H2("TLS-RPT");
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var trFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (trFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(trFind).AlignLeft(0,1,2,3));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    bool hasEvidence = !string.IsNullOrWhiteSpace(b.TlsRpt.TlsRptRecord)
+                        || (b.TlsRpt.MailtoRua != null && b.TlsRpt.MailtoRua.Count > 0)
+                        || (b.TlsRpt.HttpRua != null && b.TlsRpt.HttpRua.Count > 0)
+                        || (b.TlsRpt.InvalidRua != null && b.TlsRpt.InvalidRua.Count > 0)
+                        || (b.TlsRpt.UnknownTags != null && b.TlsRpt.UnknownTags.Count > 0);
+                    if (hasEvidence)
+                    {
+                        md.H3("Evidence");
+                        if (!string.IsNullOrWhiteSpace(b.TlsRpt.TlsRptRecord))
+                        {
+                            md.P("TLS-RPT Record:");
+                            md.Code("", b.TlsRpt.TlsRptRecord!);
+                        }
+                        if ((b.TlsRpt.MailtoRua?.Count ?? 0) + (b.TlsRpt.HttpRua?.Count ?? 0) > 0)
+                        {
+                            md.H4("Reporting URIs");
+                            var rows = (b.TlsRpt.MailtoRua ?? Array.Empty<string>())
+                                .Select(x => (IReadOnlyList<string>)new[] { "mailto", x })
+                                .Concat((b.TlsRpt.HttpRua ?? Array.Empty<string>())
+                                    .Select(x => (IReadOnlyList<string>)new[] { "https", x }))
+                                .ToList();
+                            md.Table(t => t.Headers("Scheme","URI").Rows(rows).AlignLeft(0,1));
+                        }
+                        if (b.TlsRpt.InvalidRua != null && b.TlsRpt.InvalidRua.Count > 0)
+                        {
+                            md.H4("Invalid rua");
+                            md.Ul(b.TlsRpt.InvalidRua.ToArray());
+                        }
+                        if (b.TlsRpt.UnknownTags != null && b.TlsRpt.UnknownTags.Count > 0)
+                        {
+                            md.H4("Unknown tags");
+                            md.Ul(b.TlsRpt.UnknownTags.ToArray());
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -178,6 +350,13 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.SmtpTls == null && b.ImapTls == null && b.PopTls == null) return;
                 md.H2("MailTLS");
+                var narrative = b.SmtpTls?.Raw != null
+                    ? MailTlsNarrative.Build(b.SmtpTls.Raw, DomainDetective.MailTlsAnalysis.MailProtocol.Smtp)
+                    : b.ImapTls?.Raw != null
+                        ? MailTlsNarrative.Build(b.ImapTls.Raw, DomainDetective.MailTlsAnalysis.MailProtocol.Imap)
+                        : b.PopTls?.Raw != null
+                            ? MailTlsNarrative.Build(b.PopTls.Raw, DomainDetective.MailTlsAnalysis.MailProtocol.Pop3)
+                            : null;
                 IEnumerable<(string Service, DomainDetective.Views.MailTlsInfo Info)> svc()
                 {
                     if (b.SmtpTls != null) yield return ("SMTP", b.SmtpTls);
@@ -203,12 +382,32 @@ public static partial class MarkdownCompositionReport
                 {
                     md.Table(t => t.Headers("Service","Status","Servers","StartTLS","TLS 1.3","A","B","C","D","F","Exp<=30d").Rows(rows).AlignLeft(0,1).AlignCenter(2,3,4,5,6,7,8,9,10));
                 }
+                var sec = SectionProjectors.BuildMailTls(b.SmtpTls, b.ImapTls, b.PopTls);
+                if (sec != null)
+                {
+                    if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
+                    var mtFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
+                    if (mtFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(mtFind).AlignLeft(0,1,2,3));
+                }
+                RenderNarrative(md, narrative);
+                bool hasEvidence = (b.SmtpTls?.Servers?.Count ?? 0) > 0
+                    || (b.ImapTls?.Servers?.Count ?? 0) > 0
+                    || (b.PopTls?.Servers?.Count ?? 0) > 0;
+                if (hasEvidence)
+                {
+                    md.H3("Evidence");
+                    if (b.SmtpTls?.Servers != null && b.SmtpTls.Servers.Count > 0) RenderMailTlsServers(md, "SMTP", b.SmtpTls);
+                    if (b.ImapTls?.Servers != null && b.ImapTls.Servers.Count > 0) RenderMailTlsServers(md, "IMAP", b.ImapTls);
+                    if (b.PopTls?.Servers != null && b.PopTls.Servers.Count > 0) RenderMailTlsServers(md, "POP3", b.PopTls);
+                }
+                RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
             }
 
             void RenderDnsbl()
             {
                 if (b.Dnsbl == null) return;
                 var sec = SectionProjectors.BuildDnsbl(b.Dnsbl);
+                var narrative = DnsblNarrative.Build(b.Dnsbl.Raw, b.Dnsbl.Assessments);
                 md.H2("DNSBL");
                 if (sec != null)
                 {
@@ -218,9 +417,37 @@ public static partial class MarkdownCompositionReport
                         var dnsblRows = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                         md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsblRows).AlignLeft(0,1,2,3));
                     }
-                    var listed = b.Dnsbl.ListedRecords?.Select(r => (IReadOnlyList<string>)new[]{ r.SourceHost ?? r.IpAddress ?? "", r.BlackList ?? "", r.ReplyMeaning ?? "" }).ToList() ?? new List<IReadOnlyList<string>>();
-                    if (listed.Count > 0) md.H3("Listed Records").Table(t => t.Headers("Host","Blacklist","Reason").Rows(listed).AlignLeft(0,1,2));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var summaries = b.Dnsbl.HostSummaries ?? Array.Empty<DomainDetective.Views.DnsblHostSummary>();
+                    var listed = b.Dnsbl.ListedRecords ?? Array.Empty<DomainDetective.DNSBLRecord>();
+                    bool hasEvidence = summaries.Count > 0 || listed.Count > 0;
+                    if (hasEvidence)
+                    {
+                        md.H3("Evidence");
+                        if (summaries.Count > 0)
+                        {
+                            md.H4("Host summary");
+                            var rows = summaries.Select(s => (IReadOnlyList<string>)new[]
+                            {
+                                s.Key,
+                                $"{s.Listed}/{s.Total}",
+                                s.Blacklists != null && s.Blacklists.Count > 0 ? string.Join(", ", s.Blacklists) : "-"
+                            }).ToList();
+                            md.Table(t => t.Headers("Host","Listed","Blacklists").Rows(rows).AlignLeft(0,1,2));
+                        }
+                        if (listed.Count > 0)
+                        {
+                            md.H4("Listed records");
+                            var rows = listed.Select(r2 => (IReadOnlyList<string>)new[]
+                            {
+                                r2.SourceHost ?? r2.IpAddress ?? string.Empty,
+                                r2.BlackList ?? string.Empty,
+                                r2.ReplyMeaning ?? string.Empty
+                            }).ToList();
+                            md.Table(t => t.Headers("Host","Blacklist","Reason").Rows(rows).AlignLeft(0,1,2));
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -228,6 +455,7 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Ns == null) return;
                 var sec = SectionProjectors.BuildNs(b.Ns);
+                var narrative = b.Ns.Raw != null ? NSNarrative.Build(b.Ns.Raw) : null;
                 md.H2("NS");
                 if (sec != null)
                 {
@@ -235,7 +463,40 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var nsFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (nsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(nsFind));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Ns.Raw;
+                    bool hasEvidence = raw != null
+                        && ((raw.NsRecords?.Count ?? 0) > 0
+                            || (raw.ParentNsRecords?.Count ?? 0) > 0
+                            || (raw.RootServerResponses?.Count ?? 0) > 0
+                            || (raw.RecursionEnabled?.Count ?? 0) > 0);
+                    if (hasEvidence && raw != null)
+                    {
+                        md.H3("Evidence");
+                        if (raw.NsRecords != null && raw.NsRecords.Count > 0)
+                        {
+                            md.H4("Child NS");
+                            md.Ul(raw.NsRecords.ToArray());
+                        }
+                        if (raw.ParentNsRecords != null && raw.ParentNsRecords.Count > 0)
+                        {
+                            md.H4("Parent NS");
+                            md.Ul(raw.ParentNsRecords.ToArray());
+                        }
+                        if (raw.RootServerResponses != null && raw.RootServerResponses.Count > 0)
+                        {
+                            md.H4("Root responses");
+                            var rows = raw.RootServerResponses.Select(kv => (IReadOnlyList<string>)new[] { kv.Key, kv.Value ? "Yes" : "No" }).ToList();
+                            md.Table(t => t.Headers("Server","Responded").Rows(rows).AlignLeft(0,1));
+                        }
+                        if (raw.RecursionEnabled != null && raw.RecursionEnabled.Count > 0)
+                        {
+                            md.H4("Recursion status");
+                            var rows = raw.RecursionEnabled.Select(kv => (IReadOnlyList<string>)new[] { kv.Key, kv.Value ? "Yes" : "No" }).ToList();
+                            md.Table(t => t.Headers("Server","Recursion").Rows(rows).AlignLeft(0,1));
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -243,13 +504,32 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Soa == null) return;
                 var sec = SectionProjectors.BuildSoa(b.Soa);
+                var narrative = b.Soa.Raw != null ? SoaNarrative.Build(b.Soa.Raw) : null;
                 md.H2("SOA");
                 if (sec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in sec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     var soaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (soaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(soaFind));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Soa.Raw;
+                    bool hasEvidence = raw != null && raw.RecordExists;
+                    if (hasEvidence && raw != null)
+                    {
+                        md.H3("Evidence");
+                        md.Table(t => t.Headers("Key","Value")
+                            .Row("Primary NS", raw.PrimaryNameServer ?? "-")
+                            .Row("Responsible", raw.ResponsibleMailbox ?? "-")
+                            .Row("Serial", raw.SerialNumber.ToString())
+                            .Row("Serial format", raw.SerialFormatValid ? "Valid" : "Check")
+                            .Row("Refresh", raw.Refresh.ToString())
+                            .Row("Retry", raw.Retry.ToString())
+                            .Row("Expire", raw.Expire.ToString())
+                            .Row("Minimum", raw.Minimum.ToString())
+                            .Row("Negative cache TTL", raw.NegativeCacheTtl.ToString())
+                            .AlignLeft(0,1));
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -257,6 +537,7 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Caa == null) return;
                 var sec = SectionProjectors.BuildCaa(b.Caa);
+                var narrative = b.Caa.Raw != null ? CaaNarrative.Build(b.Caa.Raw) : null;
                 md.H2("CAA");
                 if (sec != null)
                 {
@@ -264,7 +545,26 @@ public static partial class MarkdownCompositionReport
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var caaFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (caaFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(caaFind));
-                    if (sec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in sec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Caa.Raw;
+                    if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                    {
+                        md.H3("Evidence");
+                        var rows = raw.AnalysisResults.Select(r => (IReadOnlyList<string>)new string[]
+                        {
+                            r.CAARecord ?? string.Empty,
+                            r.Flag ?? string.Empty,
+                            r.Tag.ToString(),
+                            r.Value ?? string.Empty,
+                            string.IsNullOrWhiteSpace(r.Issuer) ? "-" : r.Issuer!,
+                            r.Critical ? "Yes" : "No",
+                            r.Invalid ? "Yes" : "No"
+                        }).ToList();
+                        md.Table(t => t.Headers("Record","Flag","Tag","Value","Issuer","Critical","Invalid")
+                            .Rows(rows)
+                            .AlignLeft(0,1,2,3,4,5,6));
+                    }
+                    RenderReferences(md, MergeReferences(sec?.References, narrative?.References));
                 }
             }
 
@@ -272,6 +572,7 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Dnssec == null) return;
                 var dsec = SectionProjectors.BuildDnssec(b.Dnssec);
+                var narrative = DnssecNarrative.Build(b.Dnssec.Raw, b.Dnssec.Assessments);
                 md.H2("DNSSEC");
                 if (dsec != null)
                 {
@@ -279,7 +580,57 @@ public static partial class MarkdownCompositionReport
                     if (dsec.Positives.Count > 0) md.H3("Positives").Ul(dsec.Positives.ToArray());
                     var dnsFind = dsec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (dnsFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(dnsFind));
-                    if (dsec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in dsec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Dnssec.Raw;
+                    bool hasEvidence = raw != null
+                        && ((raw.DsRecords?.Count ?? 0) > 0
+                            || (raw.DnsKeys?.Count ?? 0) > 0
+                            || (raw.Rrsigs?.Count ?? 0) > 0
+                            || raw.RootAnchorExpiration.HasValue
+                            || (raw.MismatchSummary?.Count ?? 0) > 0
+                            || (raw.Warnings?.Count ?? 0) > 0);
+                    if (hasEvidence && raw != null)
+                    {
+                        md.H3("Evidence");
+                        if (raw.DsRecords != null && raw.DsRecords.Count > 0)
+                        {
+                            md.H4("DS records");
+                            md.Code("", string.Join(Environment.NewLine, raw.DsRecords));
+                        }
+                        if (raw.DnsKeys != null && raw.DnsKeys.Count > 0)
+                        {
+                            md.H4("DNSKEY records");
+                            md.Code("", string.Join(Environment.NewLine, raw.DnsKeys));
+                        }
+                        if (raw.Rrsigs != null && raw.Rrsigs.Count > 0)
+                        {
+                            md.H4("RRSIG summary");
+                            var rows = raw.Rrsigs.Select(r => (IReadOnlyList<string>)new[]
+                            {
+                                r.Algorithm,
+                                r.KeyTag.ToString(),
+                                r.Inception == DateTimeOffset.MinValue ? "-" : r.Inception.UtcDateTime.ToString("yyyy-MM-dd"),
+                                r.Expiration == DateTimeOffset.MinValue ? "-" : r.Expiration.UtcDateTime.ToString("yyyy-MM-dd")
+                            }).ToList();
+                            md.Table(t => t.Headers("Algorithm","KeyTag","Inception","Expiration").Rows(rows).AlignLeft(0,1,2,3));
+                        }
+                        if (raw.RootAnchorExpiration.HasValue)
+                        {
+                            md.H4("Root trust anchor expires");
+                            md.P(raw.RootAnchorExpiration.Value.UtcDateTime.ToString("yyyy-MM-dd"));
+                        }
+                        if (raw.MismatchSummary != null && raw.MismatchSummary.Count > 0)
+                        {
+                            md.H4("Mismatch summary");
+                            md.Ul(raw.MismatchSummary.ToArray());
+                        }
+                        if (raw.Warnings != null && raw.Warnings.Count > 0)
+                        {
+                            md.H4("Warnings");
+                            md.Ul(raw.Warnings.ToArray());
+                        }
+                    }
+                    RenderReferences(md, MergeReferences(dsec?.References, narrative?.References));
                 }
             }
 
@@ -287,13 +638,29 @@ public static partial class MarkdownCompositionReport
             {
                 if (b.Dane == null) return;
                 var dasec = SectionProjectors.BuildDane(b.Dane);
+                var narrative = DaneNarrative.Build(b.Dane.Raw, b.Dane.Assessments);
                 md.H2("DANE");
                 if (dasec != null)
                 {
                     md.Table(t => { t.Headers("Key","Value"); foreach (var kv2 in dasec.Summary) t.Row(kv2.Key, kv2.Value); t.AlignLeft(0,1); });
                     var daFind = dasec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();
                     if (daFind.Count > 0) md.H3("Findings").Table(t => t.Headers("Severity","Code","Target","Message").Rows(daFind));
-                    if (dasec.References.Count > 0) { md.H3("References"); md.Ul(ul => { foreach (var u in dasec.References) { var f = LinkFormatter.Format(u); ul.ItemLink(f.Title, f.Url); } }); }
+                    RenderNarrative(md, narrative);
+                    var raw = b.Dane.Raw;
+                    if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                    {
+                        md.H3("Evidence");
+                        var rows = raw.AnalysisResults.Select(r => (IReadOnlyList<string>)new string[]
+                        {
+                            r.DomainName ?? string.Empty,
+                            r.CertificateUsage.ToString(),
+                            r.SelectorField.ToString(),
+                            r.MatchingTypeField.ToString(),
+                            r.ValidDANERecord ? "Yes" : "No"
+                        }).ToList();
+                        md.Table(t => t.Headers("Host","Usage","Selector","Matching","Valid").Rows(rows).AlignLeft(0,1,2,3,4));
+                    }
+                    RenderReferences(md, MergeReferences(dasec?.References, narrative?.References));
                 }
             }
 

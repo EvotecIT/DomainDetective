@@ -101,8 +101,26 @@ public static partial class HtmlCompositionReport {
 
             if (!isDashboard)
             {
-                if (multiDomain) { RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder); }
-                else { foreach (var kv in ordered) RenderSingleDomain(page, kv.Key, kv.Value, sectionOrderMode, normalizedCustom, inputSectionOrder); }
+                const int scrollSpyThreshold = 5;
+                var useScrollSpy = multiDomain && ordered.Count >= scrollSpyThreshold;
+                if (multiDomain)
+                {
+                    if (useScrollSpy)
+                    {
+                        RenderDomainsScrollSpy(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    }
+                    else
+                    {
+                        RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    }
+                }
+                else
+                {
+                    foreach (var kv in ordered)
+                    {
+                        RenderSingleDomain(page, kv.Key, kv.Value, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                    }
+                }
             }
             // Ensure page block closes cleanly
         });

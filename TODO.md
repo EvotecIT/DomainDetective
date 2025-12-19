@@ -9,10 +9,6 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
 ## Composition Parity (Next Day)
-- Excel (OfficeIMO.Excel)
-  - Verify Overview sheet uses canonical columns and warnings/errors rollup.
-  - Confirm per-domain sheets follow chosen order with auto-fit + basic styling.
-  - Optional: provider chain line on Overview sheet.
 - Provider docs (dev-only)
   - Provider Docs Verifier task tracked; no public cmdlet.
 

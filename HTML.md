@@ -3,35 +3,35 @@
 Goal: Make HTML reports match (or surpass) the maturity of Word reports and TestimoX-style dashboards.
 
 ## Phase 1 - Dashboard-first summary (now)
-- [ ] Add KPI header row with grade/status and warning/error counts
+- [x] Add KPI header row with grade/status and warning/error counts
 - [x] Add Top Findings rollup (aggregated across domains)
 - [x] Add Control Risk Rollup (OK/Warn/Error per control)
-- [ ] Keep Executive Summary table canonical, but move it below dashboard cards
+- [x] Keep Executive Summary table canonical, but move it below dashboard cards
 
 ## Phase 2 - Per-domain maturity (next)
 - [x] Domain card header: status badge, counts, provider chain
 - [x] Domain quick stats grid (MX/SPF/DKIM/DMARC/MTA-STS/TLS-RPT/DNSSEC/RPKI)
 - [x] Domain Top Findings card (top 3-5 warnings/errors)
-- [ ] Section layout: Summary grid + Findings + Evidence + References blocks
+- [x] Section layout: Summary grid + Findings + Evidence + References blocks
 - [x] Security rating hero: grade badge + inbound/outbound posture + key status chips
-- [ ] Evidence blocks per section (raw DNS, headers, TLS chain, etc.)
+- [x] Evidence blocks per section (raw DNS, headers, TLS chain, etc.)
 - [x] Evidence blocks for SPF/DMARC/DKIM/MTA-STS/TLS-RPT
 
 ## Phase 3 - Evidence + UX parity
-- [ ] Evidence panels (raw DNS records, headers, TLS chain, etc.)
+- [x] Evidence panels (raw DNS records, headers, TLS chain, etc.)
 - [ ] Resolver matrix for DNS-heavy sections
-- [ ] Provider trust grid (DNSBL/reputation)
-- [ ] Sticky TOC / ScrollSpy for large reports (optional)
+- [x] Provider trust grid (DNSBL/reputation)
+- [x] Sticky TOC / ScrollSpy for large reports (optional)
 
 ## Phase 4 - Visual polish & consistency
-- [ ] Unified status palette (OK/Warning/Error) across all widgets
+- [x] Unified status palette (OK/Warning/Error) across all widgets
 - [ ] Card spacing and typography pass (Tabler layout polish)
 - [ ] Align HTML narrative one-liners with Word content
 
 ## Guidance & Narration Parity (TestimoX-inspired)
 - [ ] Introduce a narrative registry (per check/category) that maps to `NarrativeSections`
 - [ ] Expand narratives for core categories (MX/SPF/DKIM/DMARC/MTA-STS/TLS-RPT/DNSSEC/RPKI/ARC/BIMI)
-- [ ] Render narrative blocks in HTML: Summary, Why It Matters, How To Fix, References
+- [x] Render narrative blocks in HTML: Summary, Why It Matters, How To Fix, References
 - [ ] Surface guidance in Word/Markdown using the same narrative source
 - [ ] Add per-check “best practice” hints derived from guidance + assessments
 - [ ] Add optional “Evidence” sub-blocks tied to guidance (record samples, recommended values)
@@ -53,3 +53,10 @@ Progress log
 - 2025-12-19: Added narrative guidance blocks across MX/ARC/BIMI/DNSBL/DNSSEC/RPKI/NS/SOA/CAA/DANE/Wildcard/Zone Transfer/Classification.
 - 2025-12-19: Added evidence blocks for MX/DNSBL/NS/SOA/CAA/DNSSEC/DANE/RPKI/Zone Transfer/Wildcard/Classification.
 - 2025-12-19: Added evidence blocks for ARC/BIMI/Mail TLS (headers, VMC cert, TLS server details).
+- 2025-12-19: Added KPI header row with grade/status badges; confirmed executive summary placement.
+- 2025-12-19: Added control coverage summary in executive dashboard.
+- 2025-12-19: Added Markdown per-domain guidance/evidence parity and mail TLS evidence tables.
+- 2025-12-19: Added Excel Overview provider chain table.
+- 2025-12-19: Added DNSBL provider trust grid and Mail TLS narrative blocks.
+- 2025-12-19: Unified status badge palette and added DKIM selector count hint.
+- 2025-12-19: Added multi-domain ScrollSpy navigation (sticky TOC) for large reports.
