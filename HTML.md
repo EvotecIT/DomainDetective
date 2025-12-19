@@ -50,3 +50,6 @@ Progress log
 - 2025-12-19: Added Top Findings + Control Risk rollups; per-domain quick stats + top findings card.
 - 2025-12-19: Added provider chain line to per-domain summary.
 - 2025-12-19: Added security rating hero + guidance/evidence blocks for SPF/DMARC/DKIM/MTA-STS/TLS-RPT.
+- 2025-12-19: Added narrative guidance blocks across MX/ARC/BIMI/DNSBL/DNSSEC/RPKI/NS/SOA/CAA/DANE/Wildcard/Zone Transfer/Classification.
+- 2025-12-19: Added evidence blocks for MX/DNSBL/NS/SOA/CAA/DNSSEC/DANE/RPKI/Zone Transfer/Wildcard/Classification.
+- 2025-12-19: Added evidence blocks for ARC/BIMI/Mail TLS (headers, VMC cert, TLS server details).

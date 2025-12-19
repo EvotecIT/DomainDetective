@@ -278,11 +278,12 @@ public static partial class HtmlCompositionReport
         });
     }
 
-    private static void RenderMxSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderMxSection(TablerAccordion acc, DomainBucket b)    
     {
         var mx = b.Mx;
         if (mx == null) return;
         var sec = SectionProjectors.BuildMx(mx, b.SmtpTls, b.ImapTls, b.PopTls);
+        var narrative = mx.Raw != null ? MxNarrative.Build(mx.Raw) : null;
         acc.AddItem("MX (Mail Exchanger)", item => {
             item.HeaderRight(c => {
                 c.Badge(mx.ErrorCount > 0 ? $"{mx.ErrorCount} Error" + (mx.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
@@ -315,14 +316,37 @@ public static partial class HtmlCompositionReport
                         }
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = mx.Raw;
+                        bool hasEvidence = raw != null && ((raw.MxRecords?.Count ?? 0) > 0 || (raw.MxRecordTtls?.Count ?? 0) > 0);
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            if (raw.MxRecords != null && raw.MxRecords.Count > 0)
+                            {
+                                c2.Text("MX records").Style(TablerTextStyle.Muted);
+                                foreach (var rr in raw.MxRecords)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(rr))
+                                    {
+                                        c2.Text(rr).Style(TablerTextStyle.Monospace);
+                                    }
+                                }
+                            }
+                            if (raw.MxRecordTtls != null && raw.MxRecordTtls.Count > 0)
+                            {
+                                c2.Text("TTL (seconds)").Style(TablerTextStyle.Muted);
+                                c2.Text(string.Join(", ", raw.MxRecordTtls)).Style(TablerTextStyle.Monospace);
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderArcSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderArcSection(TablerAccordion acc, DomainBucket b)   
     {
         var arc = b.Arc;
         if (arc == null) return;
@@ -349,22 +373,59 @@ public static partial class HtmlCompositionReport
                             .Select(p => p?.Title ?? p?.Code)
                             .Where(t => !string.IsNullOrWhiteSpace(t))
                             .Select(t => t!));
-                        RenderFindingsFromAssessments(c2, arc.Assessments);
+                        RenderFindingsFromAssessments(c2, arc.Assessments);     
+                        RenderNarrative(c2, arc.Narrative);
                         c2.Divider("Evidence");
                         c2.Text($"ARC-Seal headers: {arc.SealCount}");
                         c2.Text($"ARC-Authentication-Results headers: {arc.AarCount}");
                         c2.Text($"Chain: {arc.ChainState}");
-                        RenderReferences(c2, arc.References);
+                        var raw = arc.Raw;
+                        if (raw != null)
+                        {
+                            const int maxHeaders = 5;
+                            if (raw.ArcSealHeaders.Count > 0)
+                            {
+                                c2.Text("ARC-Seal values").Style(TablerTextStyle.Muted);
+                                foreach (var header in raw.ArcSealHeaders.Take(maxHeaders))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(header))
+                                    {
+                                        c2.Text(header).Style(TablerTextStyle.Monospace);
+                                    }
+                                }
+                                if (raw.ArcSealHeaders.Count > maxHeaders)
+                                {
+                                    c2.Text($"+{raw.ArcSealHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
+                                }
+                            }
+                            if (raw.ArcAuthenticationResultsHeaders.Count > 0)
+                            {
+                                c2.Text("ARC-Authentication-Results values").Style(TablerTextStyle.Muted);
+                                foreach (var header in raw.ArcAuthenticationResultsHeaders.Take(maxHeaders))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(header))
+                                    {
+                                        c2.Text(header).Style(TablerTextStyle.Monospace);
+                                    }
+                                }
+                                if (raw.ArcAuthenticationResultsHeaders.Count > maxHeaders)
+                                {
+                                    c2.Text($"+{raw.ArcAuthenticationResultsHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
+                                }
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(arc.References, arc.Narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderBimiSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderBimiSection(TablerAccordion acc, DomainBucket b)  
     {
         var bimi = b.Bimi;
         if (bimi == null) return;
+        var narrative = bimi.Raw != null ? BimiNarrative.Build(bimi.Raw) : null;
         acc.AddItem("BIMI (Brand Indicators)", item => {
             item.HeaderRight(c => {
                 c.Badge(bimi.Status ?? "-", ColorForStatus(bimi.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
@@ -389,40 +450,81 @@ public static partial class HtmlCompositionReport
                             .Select(p => p?.Title ?? p?.Code)
                             .Where(t => !string.IsNullOrWhiteSpace(t))
                             .Select(t => t!));
-                        RenderFindingsFromAssessments(c2, bimi.Assessments);
+                        RenderFindingsFromAssessments(c2, bimi.Assessments);    
+                        RenderNarrative(c2, narrative);
                         c2.Divider("Evidence");
                         c2.Text("BIMI Record:").Style(TablerTextStyle.Muted);
                         c2.Text(bimi.BimiRecord ?? string.Empty).Style(TablerTextStyle.Monospace);
                         if (!string.IsNullOrWhiteSpace(bimi.Location)) c2.Text($"Location: {bimi.Location}");
                         if (!string.IsNullOrWhiteSpace(bimi.Authority)) c2.Text($"Authority: {bimi.Authority}");
                         if (!bimi.SvgValid && !string.IsNullOrWhiteSpace(bimi.SvgInvalidReason)) c2.Text($"SVG invalid: {bimi.SvgInvalidReason}");
-                        RenderReferences(c2, bimi.References);
+                        var raw = bimi.Raw;
+                        if (raw != null && !string.IsNullOrWhiteSpace(raw.FailureReason))
+                        {
+                            c2.Text("Failure").Style(TablerTextStyle.Muted);
+                            c2.Text(raw.FailureReason ?? string.Empty);
+                        }
+                        if (raw?.VmcCertificate != null)
+                        {
+                            var cert = raw.VmcCertificate;
+                            c2.Text("VMC certificate").Style(TablerTextStyle.Muted);
+                            c2.DataGrid(g => {
+                                g.AsCompact();
+                                g.AddItem("Subject", cert.Subject ?? "-");
+                                g.AddItem("Issuer", cert.Issuer ?? "-");
+                                g.AddItem("Valid from", cert.NotBefore.ToString("yyyy-MM-dd"));
+                                g.AddItem("Valid to", cert.NotAfter.ToString("yyyy-MM-dd"));
+                                g.AddItem("Serial", cert.SerialNumber ?? "-");
+                            });
+                        }
+                        RenderReferences(c2, MergeReferences(bimi.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderDnsblSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderDnsblSection(TablerAccordion acc, DomainBucket b) 
     {
         var dnsbl = b.Dnsbl;
         if (dnsbl == null) return;
         var sec = SectionProjectors.BuildDnsbl(dnsbl);
+        var narrative = DnsblNarrative.Build(dnsbl.Raw, dnsbl.Assessments);
         acc.AddItem("DNSBL (Reputation)", item => {
             item.HeaderRight(c => c.Badge(dnsbl.Status ?? "-", ColorForStatus(dnsbl.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
+                        RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        if (dnsbl.ListedRecords != null && dnsbl.ListedRecords.Count > 0)
+                        RenderNarrative(c2, narrative);
+                        var summaries = dnsbl.HostSummaries ?? Array.Empty<DnsblHostSummary>();
+                        var listed = dnsbl.ListedRecords ?? Array.Empty<DNSBLRecord>();
+                        bool hasEvidence = summaries.Count > 0 || listed.Count > 0;
+                        if (hasEvidence)
                         {
-                            c2.Divider("Listed Records");
-                            var rows = dnsbl.ListedRecords.Select(r2 => new { Host = r2.SourceHost ?? r2.IpAddress, Blacklist = r2.BlackList, Reason = r2.ReplyMeaning }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            c2.Divider("Evidence");
+                            if (summaries.Count > 0)
+                            {
+                                c2.Text("Host summary").Style(TablerTextStyle.Muted);
+                                var rows = summaries.Select(s => new {
+                                    Host = s.Key,
+                                    Listed = $"{s.Listed}/{s.Total}",
+                                    Blacklists = s.Blacklists != null && s.Blacklists.Count > 0 ? string.Join(", ", s.Blacklists) : "-"
+                                }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                            if (listed.Count > 0)
+                            {
+                                c2.Text("Listed records").Style(TablerTextStyle.Muted);
+                                var rows = listed.Select(r2 => new { Host = r2.SourceHost ?? r2.IpAddress, Blacklist = r2.BlackList, Reason = r2.ReplyMeaning }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
                         }
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -433,6 +535,7 @@ public static partial class HtmlCompositionReport
     {
         var cls = b.Classification;
         if (cls == null) return;
+        var narrative = cls.Raw != null ? MailClassificationNarrative.Build(cls.Raw) : null;
         acc.AddItem("Classification", item => {
             item.HeaderRight(c => c.Badge(cls.Status ?? "-", ColorForStatus(cls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -469,7 +572,79 @@ public static partial class HtmlCompositionReport
                             .Where(t => !string.IsNullOrWhiteSpace(t))
                             .Select(t => t!));
                         RenderFindingsFromAssessments(c2, cls.Assessments);
-                        RenderReferences(c2, cls.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = cls.Raw;
+                        bool hasEvidence = raw != null
+                            && (!string.IsNullOrWhiteSpace(raw.ClassificationReason)
+                                || (raw.SPFIncludesResolved?.Count ?? 0) > 0
+                                || (raw.DKIMSelectorsFound?.Count ?? 0) > 0
+                                || raw.BimiEligible.HasValue
+                                || (raw.BimiNotes?.Count ?? 0) > 0
+                                || !string.IsNullOrWhiteSpace(raw.IdpTenantId)
+                                || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
+                                || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl));
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            if (!string.IsNullOrWhiteSpace(raw.ClassificationReason))
+                            {
+                                c2.Text("Reason").Style(TablerTextStyle.Muted);
+                                c2.Text(raw.ClassificationReason);
+                            }
+                            if (raw.SPFIncludesResolved != null && raw.SPFIncludesResolved.Count > 0)
+                            {
+                                c2.Text("SPF includes").Style(TablerTextStyle.Muted);
+                                foreach (var include in raw.SPFIncludesResolved)
+                                {
+                                    c2.Text("- " + include);
+                                }
+                            }
+                            if (raw.DKIMSelectorsFound != null && raw.DKIMSelectorsFound.Count > 0)
+                            {
+                                c2.Text("DKIM selectors").Style(TablerTextStyle.Muted);
+                                foreach (var sel in raw.DKIMSelectorsFound)
+                                {
+                                    c2.Text("- " + sel);
+                                }
+                            }
+                            if (raw.BimiEligible.HasValue)
+                            {
+                                c2.Text("BIMI eligibility").Style(TablerTextStyle.Muted);
+                                c2.Text(raw.BimiEligible.Value ? "Eligible" : "Not eligible");
+                            }
+                            if (!string.IsNullOrWhiteSpace(raw.BimiEligibilityReason))
+                            {
+                                c2.Text("BIMI note").Style(TablerTextStyle.Muted);
+                                c2.Text(raw.BimiEligibilityReason ?? string.Empty);
+                            }
+                            if (raw.BimiNotes != null && raw.BimiNotes.Count > 0)
+                            {
+                                c2.Text("BIMI notes").Style(TablerTextStyle.Muted);
+                                foreach (var note in raw.BimiNotes)
+                                {
+                                    c2.Text("- " + note);
+                                }
+                            }
+                            if (!string.IsNullOrWhiteSpace(raw.IdpTenantId)
+                                || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
+                                || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                            {
+                                c2.Text("Identity hints").Style(TablerTextStyle.Muted);
+                                if (!string.IsNullOrWhiteSpace(raw.IdpTenantId))
+                                {
+                                    c2.Text($"Tenant: {raw.IdpTenantId}");
+                                }
+                                if (!string.IsNullOrWhiteSpace(raw.IdpNameSpaceType))
+                                {
+                                    c2.Text($"Namespace: {raw.IdpNameSpaceType}");
+                                }
+                                if (!string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                                {
+                                    c2.Text($"Federation URL: {raw.IdpFederatedAuthUrl}");
+                                }
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(cls.References, narrative?.References));
                     });
                 });
             });
@@ -589,11 +764,12 @@ public static partial class HtmlCompositionReport
         });
     }
 
-    private static void RenderNsSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderNsSection(TablerAccordion acc, DomainBucket b)    
     {
         var ns = b.Ns;
         if (ns == null) return;
         var sec = SectionProjectors.BuildNs(ns);
+        var narrative = ns.Raw != null ? NSNarrative.Build(ns.Raw) : null;
         acc.AddItem("NS (Authoritative)", item => {
             item.HeaderRight(c => c.Badge(ns.Status ?? "-", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -602,18 +778,60 @@ public static partial class HtmlCompositionReport
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = ns.Raw;
+                        bool hasEvidence = raw != null
+                            && ((raw.NsRecords?.Count ?? 0) > 0
+                                || (raw.ParentNsRecords?.Count ?? 0) > 0
+                                || (raw.RootServerResponses?.Count ?? 0) > 0
+                                || (raw.RecursionEnabled?.Count ?? 0) > 0);
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            if (raw.NsRecords != null && raw.NsRecords.Count > 0)
+                            {
+                                c2.Text("Child NS").Style(TablerTextStyle.Muted);
+                                foreach (var name in raw.NsRecords)
+                                {
+                                    c2.Text("- " + name);
+                                }
+                            }
+                            if (raw.ParentNsRecords != null && raw.ParentNsRecords.Count > 0)
+                            {
+                                c2.Text("Parent NS").Style(TablerTextStyle.Muted);
+                                foreach (var name in raw.ParentNsRecords)
+                                {
+                                    c2.Text("- " + name);
+                                }
+                            }
+                            if (raw.RootServerResponses != null && raw.RootServerResponses.Count > 0)
+                            {
+                                c2.Text("Root responses").Style(TablerTextStyle.Muted);
+                                var rows = raw.RootServerResponses.Select(kv => new { Server = kv.Key, Responded = kv.Value ? "Yes" : "No" }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                            if (raw.RecursionEnabled != null && raw.RecursionEnabled.Count > 0)
+                            {
+                                c2.Text("Recursion status").Style(TablerTextStyle.Muted);
+                                var rows = raw.RecursionEnabled.Select(kv => new { Server = kv.Key, Recursion = kv.Value ? "Yes" : "No" }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderSoaSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderSoaSection(TablerAccordion acc, DomainBucket b)   
     {
         var soa = b.Soa;
         if (soa == null) return;
         var sec = SectionProjectors.BuildSoa(soa);
+        var narrative = soa.Raw != null ? SoaNarrative.Build(soa.Raw) : null;
         acc.AddItem("SOA", item => {
             item.HeaderRight(c => c.Badge(soa.Status ?? "-", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -621,18 +839,38 @@ public static partial class HtmlCompositionReport
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = soa.Raw;
+                        bool hasEvidence = raw != null && raw.RecordExists;
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            c2.DataGrid(g => {
+                                g.AsCompact();
+                                g.AddItem("Primary NS", raw.PrimaryNameServer ?? "-");
+                                g.AddItem("Responsible", raw.ResponsibleMailbox ?? "-");
+                                g.AddItem("Serial", raw.SerialNumber.ToString());
+                                g.AddItem("Serial format", raw.SerialFormatValid ? "Valid" : "Check");
+                                g.AddItem("Refresh", raw.Refresh.ToString());
+                                g.AddItem("Retry", raw.Retry.ToString());
+                                g.AddItem("Expire", raw.Expire.ToString());
+                                g.AddItem("Minimum", raw.Minimum.ToString());
+                                g.AddItem("Negative cache TTL", raw.NegativeCacheTtl.ToString());
+                            });
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderCaaSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderCaaSection(TablerAccordion acc, DomainBucket b)   
     {
         var caa = b.Caa;
         if (caa == null) return;
         var sec = SectionProjectors.BuildCaa(caa);
+        var narrative = caa.Raw != null ? CaaNarrative.Build(caa.Raw) : null;
         acc.AddItem("CAA", item => {
             item.HeaderRight(c => c.Badge(caa.Status ?? "-", TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -641,7 +879,24 @@ public static partial class HtmlCompositionReport
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = caa.Raw;
+                        if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                        {
+                            c2.Divider("Evidence");
+                            var rows = raw.AnalysisResults.Select(r => new {
+                                Record = r.CAARecord,
+                                Flag = r.Flag,
+                                Tag = r.Tag.ToString(),
+                                Value = r.Value,
+                                Issuer = string.IsNullOrWhiteSpace(r.Issuer) ? "-" : r.Issuer,
+                                Critical = r.Critical ? "Yes" : "No",
+                                Invalid = r.Invalid ? "Yes" : "No"
+                            }).ToList();
+                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -653,6 +908,7 @@ public static partial class HtmlCompositionReport
         var dnssec = b.Dnssec;
         if (dnssec == null) return;
         var sec = SectionProjectors.BuildDnssec(dnssec);
+        var narrative = DnssecNarrative.Build(dnssec.Raw, dnssec.Assessments);
         acc.AddItem("DNSSEC", item => {
             item.HeaderRight(c => c.Badge(dnssec.Status ?? "-", ColorForStatus(dnssec.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -661,18 +917,81 @@ public static partial class HtmlCompositionReport
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = dnssec.Raw;
+                        bool hasEvidence = raw != null
+                            && ((raw.DsRecords?.Count ?? 0) > 0
+                                || (raw.DnsKeys?.Count ?? 0) > 0
+                                || (raw.Rrsigs?.Count ?? 0) > 0
+                                || raw.RootAnchorExpiration.HasValue
+                                || (raw.MismatchSummary?.Count ?? 0) > 0
+                                || (raw.Warnings?.Count ?? 0) > 0);
+                        if (hasEvidence && raw != null)
+                        {
+                            c2.Divider("Evidence");
+                            if (raw.DsRecords != null && raw.DsRecords.Count > 0)
+                            {
+                                c2.Text("DS records").Style(TablerTextStyle.Muted);
+                                foreach (var ds in raw.DsRecords)
+                                {
+                                    c2.Text(ds).Style(TablerTextStyle.Monospace);
+                                }
+                            }
+                            if (raw.DnsKeys != null && raw.DnsKeys.Count > 0)
+                            {
+                                c2.Text("DNSKEY records").Style(TablerTextStyle.Muted);
+                                foreach (var key in raw.DnsKeys)
+                                {
+                                    c2.Text(key).Style(TablerTextStyle.Monospace);
+                                }
+                            }
+                            if (raw.Rrsigs != null && raw.Rrsigs.Count > 0)
+                            {
+                                c2.Text("RRSIG summary").Style(TablerTextStyle.Muted);
+                                var rows = raw.Rrsigs.Select(r => new {
+                                    Algorithm = r.Algorithm,
+                                    KeyTag = r.KeyTag.ToString(),
+                                    Inception = r.Inception == DateTimeOffset.MinValue ? "-" : r.Inception.UtcDateTime.ToString("yyyy-MM-dd"),
+                                    Expiration = r.Expiration == DateTimeOffset.MinValue ? "-" : r.Expiration.UtcDateTime.ToString("yyyy-MM-dd")
+                                }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                            if (raw.RootAnchorExpiration.HasValue)
+                            {
+                                c2.Text("Root trust anchor expires").Style(TablerTextStyle.Muted);
+                                c2.Text(raw.RootAnchorExpiration.Value.UtcDateTime.ToString("yyyy-MM-dd"));
+                            }
+                            if (raw.MismatchSummary != null && raw.MismatchSummary.Count > 0)
+                            {
+                                c2.Text("Mismatch summary").Style(TablerTextStyle.Muted);
+                                foreach (var m in raw.MismatchSummary)
+                                {
+                                    c2.Text("- " + m);
+                                }
+                            }
+                            if (raw.Warnings != null && raw.Warnings.Count > 0)
+                            {
+                                c2.Text("Warnings").Style(TablerTextStyle.Muted);
+                                foreach (var w in raw.Warnings)
+                                {
+                                    c2.Text("- " + w);
+                                }
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderDaneSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderDaneSection(TablerAccordion acc, DomainBucket b)  
     {
         var dane = b.Dane;
         if (dane == null) return;
         var sec = SectionProjectors.BuildDane(dane);
+        var narrative = DaneNarrative.Build(dane.Raw, dane.Assessments);
         acc.AddItem("DANE", item => {
             item.HeaderRight(c => c.Badge(dane.Status ?? "-", ColorForStatus(dane.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -681,18 +1000,34 @@ public static partial class HtmlCompositionReport
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = dane.Raw;
+                        if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                        {
+                            c2.Divider("Evidence");
+                            var rows = raw.AnalysisResults.Select(r => new {
+                                Host = r.DomainName,
+                                Usage = r.CertificateUsage,
+                                Selector = r.SelectorField,
+                                Matching = r.MatchingTypeField,
+                                Valid = r.ValidDANERecord ? "Yes" : "No"
+                            }).ToList();
+                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
         });
     }
 
-    private static void RenderRpkiSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderRpkiSection(TablerAccordion acc, DomainBucket b)  
     {
         var rpki = b.Rpki;
         if (rpki == null) return;
         var sec = SectionProjectors.BuildRpki(rpki);
+        var narrative = RpkiNarrative.Build(rpki.Raw, rpki.Assessments);
         acc.AddItem("RPKI", item => {
             item.HeaderRight(c => c.Badge(rpki.Status ?? "-", ColorForStatus(rpki.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -701,14 +1036,16 @@ public static partial class HtmlCompositionReport
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
+                        RenderNarrative(c2, narrative);
                         if (rpki.Results != null && rpki.Results.Count > 0)
                         {
-                            c2.Divider("Per-IP Results");
+                            c2.Divider("Evidence");
+                            c2.Text("Per-IP results").Style(TablerTextStyle.Muted);
                             var rows = rpki.Results.Select(r2 => new { r2.IpAddress, r2.Prefix, r2.Asn, Valid = r2.Valid ? "Yes" : "No" }).ToList();
                             var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
                             t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                         }
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -720,21 +1057,24 @@ public static partial class HtmlCompositionReport
         var zone = b.ZoneTransfer;
         if (zone == null) return;
         var sec = SectionProjectors.BuildZoneTransfer(zone);
+        var narrative = ZoneTransferNarrative.Build(zone.Raw, zone.Assessments);
         acc.AddItem("Zone Transfer", item => {
             item.HeaderRight(c => c.Badge(zone.Status ?? "-", ColorForStatus(zone.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
+                        RenderFindings(c2, sec?.Findings);
+                        RenderNarrative(c2, narrative);
                         if (zone.ServerResults != null && zone.ServerResults.Count > 0)
                         {
-                            c2.Divider("Server Results");
+                            c2.Divider("Evidence");
+                            c2.Text("Server results").Style(TablerTextStyle.Muted);
                             var rows = zone.ServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
                             var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
                             t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                         }
-                        RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -746,6 +1086,7 @@ public static partial class HtmlCompositionReport
         var wildcard = b.Wildcard;
         if (wildcard == null) return;
         var sec = SectionProjectors.BuildWildcard(wildcard);
+        var narrative = WildcardNarrative.Build(wildcard.Raw, wildcard.Assessments);
         acc.AddItem("Wildcard DNS", item => {
             item.HeaderRight(c => c.Badge(wildcard.Status ?? "-", ColorForStatus(wildcard.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
             item.Content(content => {
@@ -753,7 +1094,54 @@ public static partial class HtmlCompositionReport
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         RenderSummaryGrid(c2, sec?.Summary);
                         RenderFindings(c2, sec?.Findings);
-                        RenderReferences(c2, sec?.References);
+                        RenderNarrative(c2, narrative);
+                        var raw = wildcard.Raw;
+                        bool hasEvidence = raw != null
+                            && ((raw.TestedNames?.Count ?? 0) > 0
+                                || (raw.ResolvedNames?.Count ?? 0) > 0
+                                || (raw.ResolvedAddresses?.Count ?? 0) > 0);
+                        if (hasEvidence && raw != null)
+                        {
+                            const int maxItems = 10;
+                            c2.Divider("Evidence");
+                            if (raw.TestedNames != null && raw.TestedNames.Count > 0)
+                            {
+                                c2.Text("Tested names").Style(TablerTextStyle.Muted);
+                                foreach (var name in raw.TestedNames.Take(maxItems))
+                                {
+                                    c2.Text("- " + name);
+                                }
+                                if (raw.TestedNames.Count > maxItems)
+                                {
+                                    c2.Text($"+{raw.TestedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                }
+                            }
+                            if (raw.ResolvedNames != null && raw.ResolvedNames.Count > 0)
+                            {
+                                c2.Text("Resolved names").Style(TablerTextStyle.Muted);
+                                foreach (var name in raw.ResolvedNames.Take(maxItems))
+                                {
+                                    c2.Text("- " + name);
+                                }
+                                if (raw.ResolvedNames.Count > maxItems)
+                                {
+                                    c2.Text($"+{raw.ResolvedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                }
+                            }
+                            if (raw.ResolvedAddresses != null && raw.ResolvedAddresses.Count > 0)
+                            {
+                                c2.Text("Resolved addresses").Style(TablerTextStyle.Muted);
+                                foreach (var addr in raw.ResolvedAddresses.Take(maxItems))
+                                {
+                                    c2.Text("- " + addr);
+                                }
+                                if (raw.ResolvedAddresses.Count > maxItems)
+                                {
+                                    c2.Text($"+{raw.ResolvedAddresses.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                }
+                            }
+                        }
+                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -776,6 +1164,13 @@ public static partial class HtmlCompositionReport
                         }
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
+                        bool hasEvidence = (b.SmtpTls?.Servers?.Count ?? 0) > 0
+                            || (b.ImapTls?.Servers?.Count ?? 0) > 0
+                            || (b.PopTls?.Servers?.Count ?? 0) > 0;
+                        if (hasEvidence)
+                        {
+                            c2.Divider("Evidence");
+                        }
                         if (b.SmtpTls?.Servers != null && b.SmtpTls.Servers.Count > 0) RenderMailTlsServers(c2, "SMTP", b.SmtpTls);
                         if (b.ImapTls?.Servers != null && b.ImapTls.Servers.Count > 0) RenderMailTlsServers(c2, "IMAP", b.ImapTls);
                         if (b.PopTls?.Servers != null && b.PopTls.Servers.Count > 0) RenderMailTlsServers(c2, "POP3", b.PopTls);
@@ -914,7 +1309,11 @@ public static partial class HtmlCompositionReport
             Grade = s.Grade.ToString(),
             Proto = s.Protocol,
             TLS13 = s.Tls13Used ? "Yes" : (s.SupportsTls13 ? "Supported" : "No"),
-            DaysToExpire = s.DaysToExpire
+            Cert = s.CertificateValid ? "Valid" : "Invalid",
+            Chain = s.ChainValid ? "Valid" : "Invalid",
+            Expires = s.ValidTo.HasValue ? s.ValidTo.Value.ToString("yyyy-MM-dd") : "-",
+            DaysToExpire = s.DaysToExpire,
+            Cipher = string.IsNullOrWhiteSpace(s.CipherSuite) ? "-" : s.CipherSuite
         }).ToList();
         var tt = (TablerTable)c2.Table(rows, TableType.Tabler);
         tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
