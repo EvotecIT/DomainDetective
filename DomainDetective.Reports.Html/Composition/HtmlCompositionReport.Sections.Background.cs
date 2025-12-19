@@ -10,9 +10,12 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderBackgroundSection(HtmlForgeX.TablerPage page, System.Collections.Generic.IReadOnlyList<object> items)
+    private static void RenderBackgroundSection(Element page, System.Collections.Generic.IReadOnlyList<object> items)
     {
-        if (items == null || items.Count == 0) return;
+        if (items == null || items.Count == 0)
+        {
+            return;
+        }
 
         var spf = items.OfType<DomainDetective.Views.SpfRecordInfo>().FirstOrDefault();
         var dkim = items.OfType<DomainDetective.Views.DkimRecordInfo>().FirstOrDefault();
@@ -27,7 +30,10 @@ public static partial class HtmlCompositionReport
             (dmarc?.Narrative != null) ||
             hasMx || hasMtasts || hasTlsRpt;
 
-        if (!hasNarrative) return;
+        if (!hasNarrative)
+        {
+            return;
+        }
 
         page.Divider("Background");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
@@ -40,9 +46,15 @@ public static partial class HtmlCompositionReport
                     void AddSection(string title, params string?[] paragraphs)
                     {
                         var content = paragraphs.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()).ToList();
-                        if (content.Count == 0) return;
+                        if (content.Count == 0)
+                        {
+                            return;
+                        }
                         b.H4(title);
-                        foreach (var p in content) b.Text(p);
+                        foreach (var p in content)
+                        {
+                            b.Text(p);
+                        }
                         b.Divider();
                     }
 

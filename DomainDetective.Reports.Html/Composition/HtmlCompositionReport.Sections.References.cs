@@ -11,11 +11,14 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderAllReferencesSection(HtmlForgeX.TablerPage page, IReadOnlyList<object> items)
+    private static void RenderAllReferencesSection(Element page, IReadOnlyList<object> items)
     {
         var comp = DomainDetective.Reports.CompositionBuilder.GroupBySubject(items);
         var refs = DomainDetective.Reports.ReferencesCollector.CollectAll(comp.Values);
-        if (refs.Count == 0) return;
+        if (refs.Count == 0)
+        {
+            return;
+        }
 
         page.Divider("All References");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {

@@ -11,22 +11,29 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderExecutiveSummary(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
+    private static void RenderHeaderBanner(Element page, string title)
     {
-        // Header banner card
-        page.Row(r => {
-            r.Column(TablerColumnNumber.Twelve, c => {
-                c.Card(card => {
+        page.Row(r =>
+        {
+            r.Column(TablerColumnNumber.Twelve, c =>
+            {
+                c.Card(card =>
+                {
                     card.Background(TablerColor.Blue, isLight: true)
-                        .Header(h => {
+                        .Header(h =>
+                        {
                             h.WithHeaderTitleLevel(HeaderLevelTag.H1).TitleDisplay(TablerTextSize.Display3);
-                            h.Title("Domain Security Compliance Report");
-                            h.Subtitle($"Generated on: {DateTime.Now:MMMM d, yyyy, h:mm tt zzz}").SubtitleAsHeader(HeaderLevelTag.H5);
+                            h.Title(title);
+                            h.Subtitle($"Generated on: {DateTime.Now:MMMM d, yyyy, h:mm tt zzz}")
+                             .SubtitleAsHeader(HeaderLevelTag.H5);
                         });
                 });
             });
         });
+    }
 
+    private static void RenderExecutiveSummary(Element page, List<KeyValuePair<string, DomainBucket>> ordered, System.Collections.Generic.List<DomainDetective.Reports.ExecutiveSummaryBuilder.Row> rows, string overviewLine)
+    {
         var controlRollup = BuildControlRollup(rows);
 
         // Aggregate stats used in the overview
@@ -55,23 +62,85 @@ public static partial class HtmlCompositionReport
             _ => false
         };
 
-        // Executive overview: grade + control status rollup
+        // Hero stats row with CardMini widgets (AutoFit for responsive layout)
+        page.Row(row => {
+            row.Settings(s => s.AutoFit(TablerCardWidth.Small, maxColumns: 4, TablerAutoFitPolicy.Soft).EqualHeights());
+            row.WithBottomSpacing(TablerSpacing.Small);
+            row.Column(TablerColumnNumber.Auto, col => {
+                col.CardMini()
+                    .Avatar(TablerIconType.Award)
+                    .BackgroundColor(gradeColor)
+                    .TextColor(TablerColor.White)
+                    .Title(grade)
+                    .Subtitle("Overall Grade");
+            });
+            row.Column(TablerColumnNumber.Auto, col => {
+                col.CardMini()
+                    .Avatar(TablerIconType.World)
+                    .BackgroundColor(TablerColor.Blue)
+                    .TextColor(TablerColor.White)
+                    .Title(rows.Count.ToString())
+                    .Subtitle(rows.Count == 1 ? "Domain" : "Domains");
+            });
+            row.Column(TablerColumnNumber.Auto, col => {
+                col.CardMini()
+                    .Avatar(TablerIconType.AlertTriangle)
+                    .BackgroundColor(totals.warn > 0 ? TablerColor.Orange : TablerColor.Green)
+                    .TextColor(TablerColor.White)
+                    .Title(totals.warn.ToString())
+                    .Subtitle(totals.warn == 1 ? "Warning" : "Warnings");
+            });
+            row.Column(TablerColumnNumber.Auto, col => {
+                col.CardMini()
+                    .Avatar(TablerIconType.AlertCircle)
+                    .BackgroundColor(totals.err > 0 ? TablerColor.Red : TablerColor.Green)
+                    .TextColor(TablerColor.White)
+                    .Title(totals.err.ToString())
+                    .Subtitle(totals.err == 1 ? "Error" : "Errors");
+            });
+        });
+
+        // Calculate status totals for donut chart
+        var statusTotals = (ok: 0, warn: 0, err: 0, unknown: 0);
+        foreach (var kv in controlRollup)
+        {
+            if (IncludeControl(kv.Key))
+            {
+                statusTotals.ok += kv.Value.ok;
+                statusTotals.warn += kv.Value.warn;
+                statusTotals.err += kv.Value.err;
+                statusTotals.unknown += kv.Value.unknown;
+            }
+        }
+
+        // Control status: donut chart + grid
         page.Row(row => {
             row.WithBottomSpacing(TablerSpacing.Medium);
+            // Donut chart
             row.Column(TablerColumnNumber.Four, col => {
                 col.Card(card => {
-                    card.Background(gradeColor, isLight: true)
-                        .Header(h => h.Title("Overall Grade").Subtitle("Aggregate posture"))
-                        .Body(b => {
-                            b.H1(grade);
-                            b.Text($"{rows.Count} domain(s)").Style(TablerTextStyle.Muted);
-                            b.Text($"{totals.warn} warning(s) / {totals.err} error(s)").Style(TablerTextStyle.Muted);
-                        });
+                    card.Header(h => h.Title("Status Distribution").Icon(TablerIconType.ChartDonut));
+                    card.Body(b => {
+                        if (statusTotals.ok + statusTotals.warn + statusTotals.err + statusTotals.unknown == 0)
+                        {
+                            b.Text("No data").Style(TablerTextStyle.Muted);
+                        }
+                        else
+                        {
+                            b.ApexChart(ch => {
+                                ch.AddDonut("OK", statusTotals.ok, "#2fb344");
+                                ch.AddDonut("Warning", statusTotals.warn, "#f59e0b");
+                                ch.AddDonut("Error", statusTotals.err, "#d63939");
+                                ch.AddDonut("Unknown", statusTotals.unknown, "#6c757d");
+                            });
+                        }
+                    });
                 });
             });
+            // Control grid
             row.Column(TablerColumnNumber.Eight, col => {
                 col.Card(card => {
-                    card.Header(h => h.Title("Control Status").Subtitle("OK / Warning / Error / Unknown"));
+                    card.Header(h => h.Title("Control Status").Subtitle("OK / Warning / Error / Unknown").Icon(TablerIconType.ShieldCheck));
                     card.Body(b => {
                         b.DataGrid(g => {
                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
@@ -112,7 +181,7 @@ public static partial class HtmlCompositionReport
                     {
                         c.Card(card =>
                         {
-                            card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors"));
+                            card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors").Icon(TablerIconType.AlertTriangle));
                             card.Body(b =>
                             {
                                 if (topFindings.Count == 0)
@@ -120,20 +189,21 @@ public static partial class HtmlCompositionReport
                                     b.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
                                     return;
                                 }
-                                var rows2 = topFindings.Select(f =>
+                                var rows1 = topFindings.Select(f =>
                                 {
                                     var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
                                     var rank = SeverityRank(f.Severity);
-                                    var sev = rank == 0 ? "Error" : (rank == 1 ? "Warning" : "Info");
+                                    var severity = rank == 0 ? "🔴 Error" : (rank == 1 ? "🟠 Warning" : "🔵 Info");
                                     return new
                                     {
-                                        Severity = sev,
-                                        Finding = TrimForDisplay(label, 140),
-                                        Count = f.Count
+                                        Severity = severity,
+                                        Count = f.Count,
+                                        Finding = TrimForDisplay(label, 220)
                                     };
                                 }).ToList();
-                                var t = (TablerTable)b.Table(rows2, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+
+                                var t1 = (TablerTable)b.Table(rows1, TableType.Tabler);
+                                t1.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                             });
                         });
                     });
@@ -141,7 +211,7 @@ public static partial class HtmlCompositionReport
                     {
                         c.Card(card =>
                         {
-                            card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown"));
+                            card.Header(h => h.Title("Control Risk Rollup").Subtitle("OK / Warning / Error / Unknown").Icon(TablerIconType.ChartBar));
                             card.Body(body =>
                             {
                                 var rows2 = controlRollup
@@ -167,7 +237,7 @@ public static partial class HtmlCompositionReport
             }
         } catch { }
 
-        // Coverage summary
+        // Coverage summary with progress bars
         try
         {
             if (rows.Count > 0 && controlRollup.Count > 0)
@@ -178,26 +248,49 @@ public static partial class HtmlCompositionReport
                     {
                         c.Card(card =>
                         {
-                            card.Header(h => h.Title("Control Coverage").Subtitle("Presence across domains"));
+                            card.Header(h => h.Title("Control Coverage").Subtitle("Presence across domains").Icon(TablerIconType.ChartPie));
                             card.Body(body =>
                             {
                                 var total = rows.Count;
-                                var rows2 = controlRollup
+                                var coverageData = controlRollup
                                     .Where(kv => IncludeControl(kv.Key))
                                     .Select(kv =>
                                     {
                                         var present = kv.Value.ok + kv.Value.warn + kv.Value.err;
-                                        var missing = kv.Value.unknown;
-                                        var pct = total > 0 ? (present * 100.0 / total) : 0;
-                                        return new { Control = kv.Key, Present = present, Missing = missing, Coverage = $"{pct:0}%"};
+                                        var pct = total > 0 ? (int)Math.Round(present * 100.0 / total) : 0;
+                                        return (Control: kv.Key, Present: present, Total: total, Pct: pct, Ok: kv.Value.ok, Warn: kv.Value.warn, Err: kv.Value.err);
                                     }).ToList();
-                                if (rows2.Count == 0)
+                                if (coverageData.Count == 0)
                                 {
                                     body.Text("No control data available.").Style(TablerTextStyle.Muted);
                                     return;
                                 }
-                                var t = (TablerTable)body.Table(rows2, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                // Render each control with a progress bar
+                                foreach (var item in coverageData)
+                                {
+                                    body.Row(rr =>
+                                    {
+                                        rr.Column(TablerColumnNumber.Two, cc =>
+                                        {
+                                            cc.Text(item.Control).Style(TablerTextStyle.Primary);
+                                        });
+                                        rr.Column(TablerColumnNumber.Eight, cc =>
+                                        {
+                                            // Stacked progress bar: OK (green) + Warning (orange) + Error (red)
+                                            var okPct = item.Total > 0 ? (int)Math.Round(item.Ok * 100.0 / item.Total) : 0;
+                                            var warnPct = item.Total > 0 ? (int)Math.Round(item.Warn * 100.0 / item.Total) : 0;
+                                            var errPct = item.Total > 0 ? (int)Math.Round(item.Err * 100.0 / item.Total) : 0;
+                                            cc.Add(new TablerProgressBar()
+                                                .Item(TablerColor.Success, okPct, "")
+                                                .Item(TablerColor.Warning, warnPct, "")
+                                                .Item(TablerColor.Danger, errPct, ""));
+                                        });
+                                        rr.Column(TablerColumnNumber.Two, cc =>
+                                        {
+                                            cc.Text($"{item.Present}/{item.Total} ({item.Pct}%)").Style(TablerTextStyle.Muted);
+                                        });
+                                    });
+                                }
                             });
                         });
                     });
@@ -225,7 +318,7 @@ public static partial class HtmlCompositionReport
             if (top.Count > 0) {
                 page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
                     c.Card(card => {
-                        card.Header(h => h.Title("Good Posture").Subtitle("Top positive signals across all domains"));
+                        card.Header(h => h.Title("Good Posture").Subtitle("Top positive signals across all domains").Icon(TablerIconType.CircleCheck));
                         card.Body(b => {
                             b.Row(rr => {
                                 rr.Gap(2);
@@ -241,7 +334,7 @@ public static partial class HtmlCompositionReport
         try {
             page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
                 c.Card(card => {
-                    card.Header(h => h.Title("Legend").Subtitle("Status meanings"));
+                    card.Header(h => h.Title("Legend").Subtitle("Status meanings").Icon(TablerIconType.InfoCircle));
                     card.Body(b => {
                         var rows = new[] {
                             new { Status = "🟢 OK", Meaning = "All checks passed or acceptable" },
@@ -281,7 +374,7 @@ public static partial class HtmlCompositionReport
                 return (IDictionary<string, object>)row;
             }).ToList();
             c.Card(card => {
-                card.Header(h => h.Title("Domains"));
+                card.Header(h => h.Title("Domains").Icon(TablerIconType.World));
                 card.Body(body => {
                     var table = (DataTablesTable)body.Table(tableRows, TableType.DataTables);
                     table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
@@ -298,4 +391,3 @@ public static partial class HtmlCompositionReport
         }));
     }
 }
-

@@ -11,13 +11,13 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderDomainsAccordion(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
+    private static void RenderDomainsAccordion(Element page, List<KeyValuePair<string, DomainBucket>> ordered, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
     {
         page.Divider("Domains");
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {
-                    card.Header(h => h.Title("Domains").Subtitle("Search and expand to view each domain"));
+                    card.Header(h => h.Title("Domains").Subtitle("Search and expand to view each domain").Icon(TablerIconType.Stack2));
                     card.Body(body => {
                         body.Accordion(acc => {
                             ConfigureAccordion(acc, persistKey: "domains");
@@ -32,6 +32,7 @@ public static partial class HtmlCompositionReport
                                 var rpkiSummary = DisplayFormatting.ComposeRpkiSummary(b.Rpki);
 
                                 acc.AddItem(domain, item => {
+                                    item.Icon(TablerIconType.World);
                                     item.HeaderRight(rr => {
                                         rr.Badge(errCount > 0 ? $"{errCount} Error" + (errCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
                                         rr.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);

@@ -8,12 +8,10 @@ using DomainDetective.Reports;
 namespace DomainDetective.Reports.Html;
 
 /// <summary>
-/// Aggregates mixed view objects (SPF/DKIM/DMARC) for one or more domains into a single HTML document using the IHtmlComposer adapter.
-/// </summary>
-/// <summary>
 /// Builds a single HTML report from mixed view objects using the engine-agnostic composer.
 /// </summary>
-public static partial class HtmlCompositionReport {
+public static partial class HtmlCompositionReport
+{
     /// <summary>
     /// Generates the HTML report.
     /// </summary>
@@ -29,28 +27,48 @@ public static partial class HtmlCompositionReport {
     /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
     /// <param name="sectionOrder">Explicit section order used when <paramref name="sectionOrderMode"/> is Custom.</param>
     /// <param name="profile">Presentation profile for HTML (Document or Dashboard).</param>
-    public static void Generate(string path, IReadOnlyList<object> items, Reports.ReportScope scope, bool openInBrowser = false, Reports.NarrativePlacement narrativePlacement = Reports.NarrativePlacement.Auto, string? titleOverride = null, string? authorOverride = null, string? descriptionOverride = null, DomainDetective.Reports.DomainOrder domainOrder = DomainDetective.Reports.DomainOrder.Alphabetical, DomainDetective.Reports.SectionOrderMode sectionOrderMode = DomainDetective.Reports.SectionOrderMode.Canonical, string[]? sectionOrder = null, HtmlProfile profile = HtmlProfile.Document) {
-        if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
+    public static void Generate(
+        string path,
+        IReadOnlyList<object> items,
+        ReportScope scope,
+        bool openInBrowser = false,
+        NarrativePlacement narrativePlacement = NarrativePlacement.Auto,
+        string? titleOverride = null,
+        string? authorOverride = null,
+        string? descriptionOverride = null,
+        DomainOrder domainOrder = DomainOrder.Alphabetical,
+        SectionOrderMode sectionOrderMode = SectionOrderMode.Canonical,
+        string[]? sectionOrder = null,
+        HtmlProfile profile = HtmlProfile.Document)
+    {
+        if (items == null || items.Count == 0)
+        {
+            throw new ArgumentException("No items to compose.", nameof(items));
+        }
 
         var grouped = GroupBySubject(items);
-        var ordered = (domainOrder == DomainDetective.Reports.DomainOrder.Input)
+        var ordered = domainOrder == DomainOrder.Input
             ? OrderDomainsByInput(items, grouped)
             : grouped.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();
 
         var title = BuildSubjectTitle(grouped.Keys.ToList());
-        var theTitle = string.IsNullOrWhiteSpace(titleOverride) ? $"Domain Security Compliance Report — {title}" : titleOverride;
+        var theTitle = string.IsNullOrWhiteSpace(titleOverride)
+            ? $"Domain Security Compliance Report — {title}"
+            : titleOverride!;
         var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
         var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Security posture overview for domains" : descriptionOverride;
 
-        var inputSectionOrder = (sectionOrderMode == DomainDetective.Reports.SectionOrderMode.Input)
+        var inputSectionOrder = sectionOrderMode == SectionOrderMode.Input
             ? DetermineSectionOrderByDomain(items)
             : new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        var normalizedCustom = (sectionOrderMode == DomainDetective.Reports.SectionOrderMode.Custom && sectionOrder != null)
+        var normalizedCustom = sectionOrderMode == SectionOrderMode.Custom && sectionOrder != null
             ? NormalizeSectionList(sectionOrder)
             : Array.Empty<string>();
 
-        using var document = new Document {
-            Head = {
+        using var document = new Document
+        {
+            Head =
+            {
                 Title = theTitle,
                 Author = theAuthor,
                 Description = theDesc,
@@ -60,68 +78,110 @@ public static partial class HtmlCompositionReport {
             ThemeMode = ThemeMode.Light
         };
 
-        document.Body.Page(page => {
+        // Performance: lazy init tables/charts, avoid URL hash navigation for tabs.
+        document.Configuration.DataTables.LazyInitByDefault = true;
+        document.Configuration.ApexCharts.LazyInitByDefault = true;
+        document.Configuration.Tabs.NoHashNavigationByDefault = true;
+
+        document.Body.Page(page =>
+        {
             page.Layout = TablerLayout.Combo;
 
-            // Executive banner, KPIs, and summary table (built from a single source of truth)
             var execRows = ExecutiveSummaryBuilder.Build(items, domainOrder);
             var overviewLine = OverviewWording.ComposeFromItems(items);
-            RenderExecutiveSummary(page, ordered, execRows, overviewLine);
 
-            // Dashboard profile: KPIs/summary plus compact SPF details
-            var isDashboard = profile == HtmlProfile.Dashboard;
-            if (!isDashboard)
+            // Header banner stays above all tabs.
+            try { RenderHeaderBanner(page, theTitle); } catch { }
+
+            var multiDomain = grouped.Count > 1;
+            var placeGlobal = narrativePlacement == NarrativePlacement.Global
+                || (narrativePlacement == NarrativePlacement.Auto && multiDomain);
+
+            if (profile == HtmlProfile.Dashboard)
             {
-                // Mail Providers — rendered via a dedicated partial to keep file small
-                try { RenderProvidersSection(page, ordered); } catch { }
-                // MailTLS footnote parity with Word
-                try { RenderMailTlsFootnote(page, ordered); } catch { }
-                // All References parity with Word
-                try { RenderAllReferencesSection(page, items); } catch { }
-            }
-            else
-            {
+                RenderExecutiveSummary(page, ordered, execRows, overviewLine);
                 try { RenderDashboardSpf(page, ordered); } catch { }
                 try { RenderDashboardDmarc(page, ordered); } catch { }
                 try { RenderDashboardDkim(page, ordered); } catch { }
                 try { RenderDashboardMailTls(page, ordered); } catch { }
+                if (placeGlobal)
+                {
+                    try { RenderBackgroundSection(page, items); } catch { }
+                }
+                return;
             }
 
-            // Optional global background/narrative placeholder (can be enhanced)
-            var multiDomain = grouped.Count > 1;
-            var placeGlobal = narrativePlacement == Reports.NarrativePlacement.Global || (narrativePlacement == Reports.NarrativePlacement.Auto && multiDomain);
-            if (placeGlobal) {
-                try { RenderBackgroundSection(page, items); } catch { }
-            }
-
-            // Per-domain overview cards + accordion details (SPF/DMARC/DKIM/MX)
-
-            if (!isDashboard)
+            // Document profile: organize content with top-level tabs (TestimoX-style).
+            var totals = (warn: execRows.Sum(r => r.Warnings), err: execRows.Sum(r => r.Errors));
+            var grade = ComputeOverallGrade(execRows);
+            var gradeBadge = grade switch
             {
-                if (multiDomain)
+                "A" or "B" => TablerBadgeColor.Success,
+                "C" => TablerBadgeColor.Warning,
+                "D" or "F" => TablerBadgeColor.Danger,
+                _ => TablerBadgeColor.Secondary
+            };
+            var diagnosticsTotal = totals.warn + totals.err;
+            var diagnosticsBadge = totals.err > 0
+                ? TablerBadgeColor.Danger
+                : (totals.warn > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
+            {
+                c.Tabs(tabs =>
                 {
-                    var useTabs = ordered.Count <= 6;
-                    if (useTabs)
+                    tabs.Settings(s => s.PersistSelection(enable: true, showReset: false, storageKey: "dd:report"));
+
+                    tabs.AddTab("Summary", summaryTab =>
                     {
-                        RenderDomainsTabbed(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
-                    }
-                    else
+                        RenderExecutiveSummary(summaryTab, ordered, execRows, overviewLine);
+                    }).WithIcon(TablerIconType.LayoutDashboard)
+                      .WithBadge(grade, gradeBadge);
+
+                    tabs.AddTab("Domains", domainsTab =>
                     {
-                        RenderDomainsAccordion(page, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
-                    }
-                }
-                else
-                {
-                    foreach (var kv in ordered)
+                        if (multiDomain)
+                        {
+                            var useTabs = ordered.Count <= 6;
+                            if (useTabs)
+                            {
+                                RenderDomainsTabbed(domainsTab, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                            }
+                            else
+                            {
+                                RenderDomainsAccordion(domainsTab, ordered, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                            }
+                        }
+                        else
+                        {
+                            foreach (var kv in ordered)
+                            {
+                                RenderSingleDomain(domainsTab, kv.Key, kv.Value, sectionOrderMode, normalizedCustom, inputSectionOrder);
+                            }
+                        }
+                    }).WithIcon(TablerIconType.World)
+                      .WithBadge(ordered.Count.ToString(), TablerBadgeColor.Blue);
+
+                    tabs.AddTab("Diagnostics", diagTab =>
                     {
-                        RenderSingleDomain(page, kv.Key, kv.Value, sectionOrderMode, normalizedCustom, inputSectionOrder);
-                    }
-                }
-            }
-            // Ensure page block closes cleanly
+                        RenderDiagnosticsSection(diagTab, ordered);
+                    }).WithIcon(TablerIconType.Activity)
+                      .WithBadge(diagnosticsTotal.ToString(), diagnosticsBadge);
+
+                    tabs.AddTab("About", aboutTab =>
+                    {
+                        try { RenderProvidersSection(aboutTab, ordered); } catch { }
+                        try { RenderMailTlsFootnote(aboutTab, ordered); } catch { }
+                        try { RenderAllReferencesSection(aboutTab, items); } catch { }
+                        if (placeGlobal)
+                        {
+                            try { RenderBackgroundSection(aboutTab, items); } catch { }
+                        }
+                    }).WithIcon(TablerIconType.InfoCircle);
+                });
+            }));
         });
 
         document.Save(path, openInBrowser);
     }
-
-    }
+}

@@ -10,7 +10,7 @@ namespace DomainDetective.Reports.Html;
 /// HtmlCompositionReport partial: provider chain/links section.
 /// </summary>
 public static partial class HtmlCompositionReport {
-    private static void RenderProvidersSection(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered) {
+    private static void RenderProvidersSection(Element page, List<KeyValuePair<string, DomainBucket>> ordered) {
         var rows = new List<Dictionary<string, object>>();
         var helpByDomain = new List<(string Domain, List<DomainDetective.Views.ProviderHelpTopic> Topics)>();
         foreach (var kv in ordered) {
@@ -25,7 +25,10 @@ public static partial class HtmlCompositionReport {
             if (hints.MinDkimSelectorsToPass > 0) hintParts.Add($"DKIM min {hints.MinDkimSelectorsToPass}");
             if (hints.RecommendedMinMxRecords > 0) hintParts.Add($"Rec MX {hints.RecommendedMinMxRecords}");
 
-            if (!hasChain && hintParts.Count == 0) continue;
+            if (!hasChain && hintParts.Count == 0)
+            {
+                continue;
+            }
 
             rows.Add(new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
@@ -47,7 +50,10 @@ public static partial class HtmlCompositionReport {
             } catch { }
         }
 
-        if (rows.Count == 0 && helpByDomain.Count == 0) return;
+        if (rows.Count == 0 && helpByDomain.Count == 0)
+        {
+            return;
+        }
 
         page.Divider("Mail Providers");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
