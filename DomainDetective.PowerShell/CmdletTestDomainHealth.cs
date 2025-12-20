@@ -39,6 +39,20 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int? MultiResolverMaxParallelism { get; set; }
 
+        /// <summary>Disable parallel execution of health checks.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter DisableParallel { get; set; }
+
+        /// <summary>Maximum concurrent health checks.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(1, 128)]
+        public int? MaxParallelism { get; set; }
+
+        /// <summary>DNS resolver concurrency hint.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(1, 128)]
+        public int? DnsParallelism { get; set; }
+
         /// <summary>Specific tests to run.</summary>
         [Parameter(Mandatory = false)]
         public HealthCheckType[]? HealthCheckType;
@@ -79,14 +93,21 @@ namespace DomainDetective.PowerShell {
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            if (DnsEndpoints != null && DnsEndpoints.Length > 0)
-            {
+            if (DnsEndpoints != null && DnsEndpoints.Length > 0) {
                 _healthCheck.DnsEndpoints.AddRange(DnsEndpoints);
                 _healthCheck.MultiResolverStrategy = MultiResolverStrategy;
                 _healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism;
             }
-            if (BrandKeyword != null)
-            {
+            if (DisableParallel.IsPresent) {
+                _healthCheck.ExecutionOptions.EnableParallelism = false;
+            }
+            if (MaxParallelism.HasValue) {
+                _healthCheck.ExecutionOptions.MaxParallelism = MaxParallelism.Value;
+            }
+            if (DnsParallelism.HasValue) {
+                _healthCheck.ExecutionOptions.DnsParallelism = DnsParallelism.Value;
+            }
+            if (BrandKeyword != null) {
                 _healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
             }
             return Task.CompletedTask;
@@ -115,8 +136,7 @@ namespace DomainDetective.PowerShell {
                 var wantsComposition = (fmt == ReportFormat.Word || fmt == ReportFormat.Html);
                 if (wantsComposition) {
                     // Enrich with transport policies when user didn't specify a subset
-                    if (HealthCheckType == null || HealthCheckType.Length == 0)
-                    {
+                    if (HealthCheckType == null || HealthCheckType.Length == 0) {
                         try { await _healthCheck.VerifyMTASTS(DomainName); } catch { }
                         try { await _healthCheck.VerifyTLSRPT(DomainName); } catch { }
                     }
@@ -201,7 +221,9 @@ namespace DomainDetective.PowerShell {
                                 summaryColumnCap: ExportDefaults.SummaryColumnCap,
                                 headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
                                 footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(outPath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpen(outPath);
+                            }
                         } else {
                             DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
                                 outPath,
@@ -237,7 +259,9 @@ namespace DomainDetective.PowerShell {
                         WriteVerbose($"Artifacts written to {dir}.");
                         if (reportResult.Success) {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpen(reportResult.FilePath);
+                            }
                         } else {
                         WriteWarning(reportResult.ErrorMessage ?? "Report generation failed.");
                         }
@@ -248,7 +272,9 @@ namespace DomainDetective.PowerShell {
                         var reportResult = await dispatcher.GenerateAsync(_healthCheck, options, DomainName, false);
                         if (reportResult.Success) {
                             WriteVerbose($"Report generated successfully: {reportResult.FilePath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpen(reportResult.FilePath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpen(reportResult.FilePath);
+                            }
                         } else {
                     WriteWarning(reportResult.ErrorMessage ?? "Export failed.");
                         }
@@ -259,9 +285,10 @@ namespace DomainDetective.PowerShell {
             }
         }
 
-        private void TryOpen(string? path)
-        {
-            if (string.IsNullOrWhiteSpace(path)) return;
+        private void TryOpen(string? path) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return;
+            }
             try {
                 var psi = new System.Diagnostics.ProcessStartInfo { FileName = path, UseShellExecute = true };
                 System.Diagnostics.Process.Start(psi);

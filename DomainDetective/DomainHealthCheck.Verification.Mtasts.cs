@@ -26,28 +26,17 @@ namespace DomainDetective {
 
             // Correlate with MX TLS posture: ensure MX advertise STARTTLS and negotiate modern TLS
             try {
-                var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-                // Avoid Linq dependency for CI targeting net472: build hosts array without ToArray()
-                var hostList = new System.Collections.Generic.List<string>();
-                foreach (var h in CertificateAnalysis.ExtractMxHosts(mxRecords))
-                {
-                    if (!string.IsNullOrWhiteSpace(h)) hostList.Add(h);
-                }
-                var hosts = hostList.ToArray();
+                var hosts = await GetMxHostsAsync(domainName, cancellationToken);
                 // If we don't already have SMTP TLS results for these hosts: run SMTPTLS probe
                 bool haveCoverage = hosts.Length > 0 && hosts.All(h => SmtpTlsAnalysis.ServerResults.ContainsKey($"{h}:25"));
-                if (!haveCoverage)
-                {
-                    await VerifySMTPTLS(domainName, 25, cancellationToken);
+                if (!haveCoverage && hosts.Length > 0) {
+                    await EnsureSmtpTlsAsync(domainName, 25, cancellationToken);
                 }
-                if (hosts.Length > 0 && SmtpTlsAnalysis?.ServerResults != null && SmtpTlsAnalysis.ServerResults.Count > 0)
-                {
+                if (hosts.Length > 0 && SmtpTlsAnalysis?.ServerResults != null && SmtpTlsAnalysis.ServerResults.Count > 0) {
                     bool allModern = true;
-                    foreach (var h in hosts)
-                    {
+                    foreach (var h in hosts) {
                         var key = $"{h}:25";
-                        if (!SmtpTlsAnalysis.ServerResults.TryGetValue(key, out var r) || r == null)
-                        {
+                        if (!SmtpTlsAnalysis.ServerResults.TryGetValue(key, out var r) || r == null) {
                             allModern = false; // missing data -> treat as not modern
                             MTASTSAnalysis.Assessments.Add(new Assessment {
                                 Severity = AssessmentSeverity.Warning,
@@ -59,8 +48,7 @@ namespace DomainDetective {
                             continue;
                         }
 
-                        if (!r.StartTlsAdvertised)
-                        {
+                        if (!r.StartTlsAdvertised) {
                             allModern = false;
                             MTASTSAnalysis.Assessments.Add(new Assessment {
                                 Severity = AssessmentSeverity.Warning,
@@ -75,8 +63,7 @@ namespace DomainDetective {
                         // Acceptable when TLS 1.2 or 1.3 negotiated and grade >= B
                         bool modernProto = r.Tls13Used || r.Protocol == System.Security.Authentication.SslProtocols.Tls12;
                         bool modernGrade = !r.LegacyEnabled && r.GradeLevel.IsAtLeast(GradeLevel.B);
-                        if (!(modernProto && modernGrade))
-                        {
+                        if (!(modernProto && modernGrade)) {
                             allModern = false;
                             MTASTSAnalysis.Assessments.Add(new Assessment {
                                 Severity = AssessmentSeverity.Warning,
@@ -88,8 +75,7 @@ namespace DomainDetective {
                         }
                     }
 
-                    if (allModern)
-                    {
+                    if (allModern) {
                         MTASTSAnalysis.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Info,
                             Category = "MTASTS",

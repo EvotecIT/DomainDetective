@@ -46,7 +46,7 @@ namespace DomainDetective {
                 return;
             }
             ValidatePort(port);
-            var mxRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var mxRecords = await GetMxRecordsAsync(domainName, cancellationToken);
             IEnumerable<string> hosts = CertificateAnalysis.ExtractMxHosts(mxRecords);
             foreach (string host in hosts) {
                 cancellationToken.ThrowIfCancellationRequested();

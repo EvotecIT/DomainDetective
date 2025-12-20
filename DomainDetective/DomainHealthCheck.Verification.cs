@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -92,14 +93,22 @@ namespace DomainDetective {
             ServiceType[]? daneServiceType = null,
             int[]? danePorts = null,
             PortScanProfile[]? portScanProfiles = null,
-            CancellationToken cancellationToken = default) {
+            CancellationToken cancellationToken = default,
+            HealthCheckExecutionOptions? executionOptions = null) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
+            ResetExecutionState();
             IsPublicSuffix = false;
             domainName = ValidateHostName(domainName);
             UpdateIsPublicSuffix(domainName);
-            if (healthCheckTypes == null || healthCheckTypes.Length == 0) {
+            var exec = executionOptions ?? ExecutionOptions;
+            if (exec.ResetLogDedupOnRun) {
+                _logger.ClearLoggedMessages();
+            }
+            ApplyExecutionOptions(exec);
+            _logger.WriteVerbose("Running health checks for {0}", domainName);
+            if (healthCheckTypes == null || healthCheckTypes.Length == 0) {     
                 healthCheckTypes = new[]                {
                     HealthCheckType.DMARC,
                     HealthCheckType.SPF,
@@ -171,34 +180,110 @@ namespace DomainDetective {
                 [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken)
             };
 
-            foreach (var healthCheckType in healthCheckTypes) {
-                cancellationToken.ThrowIfCancellationRequested();
+            if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
+                var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
+                actions[HealthCheckType.DANE] = () => daneTask.Value;
+                if (!exec.EnableParallelism && actions.TryGetValue(HealthCheckType.SMTPTLS, out var smtpAction)) {
+                    actions[HealthCheckType.SMTPTLS] = async () => {
+                        await daneTask.Value;
+                        await smtpAction();
+                    };
+                }
+                if (exec.EnableParallelism && (healthCheckTypes.Contains(HealthCheckType.SMTPTLS) || healthCheckTypes.Contains(HealthCheckType.MTASTS))) {
+                    _ = daneTask.Value;
+                }
+            }
+
+            void ReportProgress(string operation, int completed) {
+                if (totalChecks <= 0) {
+                    return;
+                }
                 _logger.WriteProgress(
                     "HealthCheck",
-                    healthCheckType.ToString(),
-                    processedChecks * 100d / totalChecks,
-                    processedChecks,
+                    operation,
+                    completed * 100d / totalChecks,
+                    completed,
                     totalChecks);
+            }
+
+            async Task RunCheckAsync(HealthCheckType healthCheckType) {
+                cancellationToken.ThrowIfCancellationRequested();
+                var sw = Stopwatch.StartNew();
+                _logger.WriteVerbose("Starting {0} check.", healthCheckType);
                 if (actions.TryGetValue(healthCheckType, out var action)) {
                     await action();
                 } else {
                     _logger.WriteError("Unknown health check type: {0}", healthCheckType);
                     throw new NotSupportedException($"Health check type not implemented: {(int)healthCheckType}");
                 }
+                sw.Stop();
+                _logger.WriteVerbose("{0} check completed in {1} ms.", healthCheckType, sw.ElapsedMilliseconds);
+            }
 
-                processedChecks++;
+            async Task RunCheckWithGateAsync(HealthCheckType healthCheckType, SemaphoreSlim gate) {
+                await gate.WaitAsync(cancellationToken);
+                try {
+                    await RunCheckAsync(healthCheckType);
+                } finally {
+                    gate.Release();
+                }
+                var done = Interlocked.Increment(ref processedChecks);
                 _logger.WriteInformation("{0} check completed", healthCheckType);
-                _logger.WriteProgress(
-                    "HealthCheck",
-                    healthCheckType.ToString(),
-                    processedChecks * 100d / totalChecks,
-                    processedChecks,
-                    totalChecks);
-        }
+                ReportProgress(healthCheckType.ToString(), done);
+            }
+
+            if (!exec.EnableParallelism || totalChecks <= 1) {
+                _logger.WriteVerbose("Parallel execution disabled; running checks sequentially.");
+                foreach (var healthCheckType in healthCheckTypes) {
+                    ReportProgress(healthCheckType.ToString(), processedChecks);
+                    await RunCheckAsync(healthCheckType);
+                    processedChecks++;
+                    _logger.WriteInformation("{0} check completed", healthCheckType);
+                    ReportProgress(healthCheckType.ToString(), processedChecks);
+                }
+            } else {
+                var maxParallelism = exec.GetEffectiveMaxParallelism();
+                _logger.WriteVerbose("Parallel execution enabled: max {0} concurrent checks.", maxParallelism);
+                ReportProgress("Starting", 0);
+                using var gate = new SemaphoreSlim(maxParallelism, maxParallelism);
+                var tasks = new List<Task>(healthCheckTypes.Length);
+                foreach (var healthCheckType in healthCheckTypes) {
+                    tasks.Add(RunCheckWithGateAsync(healthCheckType, gate));
+                }
+                await Task.WhenAll(tasks);
+            }
 
             // Compute provider inference once core mail checks ran (best-effort; safe if some were skipped)
             try { ComputeEmailProviderMatch(); } catch { /* non-fatal */ }
     }
+
+        private void ApplyExecutionOptions(HealthCheckExecutionOptions options) {
+            var effectiveMax = options.GetEffectiveMaxParallelism();
+            var effectiveDns = options.GetEffectiveDnsParallelism();
+
+            if (options.DnsParallelism.HasValue) {
+                if (DnsConfiguration.SupportsResolverConcurrency) {
+                    ResolverMaxConcurrency = options.DnsParallelism.Value;
+                }
+                if (!MultiResolverMaxParallelism.HasValue) {
+                    MultiResolverMaxParallelism = options.DnsParallelism.Value;
+                }
+            } else {
+                if (DnsConfiguration.SupportsResolverConcurrency && !ResolverMaxConcurrency.HasValue) {
+                    ResolverMaxConcurrency = effectiveDns;
+                }
+                if (!MultiResolverMaxParallelism.HasValue) {
+                    MultiResolverMaxParallelism = effectiveDns;
+                }
+            }
+
+            _logger.WriteVerbose(
+                "Execution options: Parallel={0}, MaxParallelism={1}, DnsParallelism={2}, SharedMxCache={3}",
+                options.EnableParallelism,
+                effectiveMax,
+                effectiveDns,
+                options.EnableSharedMxCache);
+        }
 
         private async Task VerifyDnsHealth(string domainName, CancellationToken cancellationToken) {
             if (string.IsNullOrWhiteSpace(domainName)) {

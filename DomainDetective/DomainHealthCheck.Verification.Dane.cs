@@ -171,7 +171,7 @@ namespace DomainDetective {
                     case ServiceType.SMTP:
                         port = (int)ServiceType.SMTP;
                         fromMx = true;
-                        records = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+                        records = await GetMxRecordsAsync(domainName, cancellationToken);
                         break;
                     case ServiceType.HTTPS:
                         port = (int)ServiceType.HTTPS;

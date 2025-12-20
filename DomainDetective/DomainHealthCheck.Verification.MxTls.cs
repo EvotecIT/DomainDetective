@@ -17,8 +17,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
-            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             StartTlsAnalysis.Subject = domainName;
             await StartTlsAnalysis.AnalyzeServers(tlsHosts, new[] { port }, _logger, cancellationToken);
@@ -30,21 +29,28 @@ namespace DomainDetective {
         /// <summary>
         /// Checks all MX hosts for SMTP TLS configuration.
         /// </summary>
-        public async Task VerifySMTPTLS(string domainName, int port, CancellationToken cancellationToken = default) {
+        public Task VerifySMTPTLS(string domainName, int port, CancellationToken cancellationToken = default)
+            => EnsureSmtpTlsAsync(domainName, port, cancellationToken);
+
+        private async Task VerifySmtpTlsInternal(string domainName, int port, CancellationToken cancellationToken) {
             if (string.IsNullOrWhiteSpace(domainName)) {
                 throw new ArgumentNullException(nameof(domainName));
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
-            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, port, string.Join(", ", tlsHosts));
             SmtpTlsAnalysis.Subject = domainName;
             await SmtpTlsAnalysis.AnalyzeServers(tlsHosts, port, _logger, cancellationToken);
 
             // DANE alignment advisory: if we have DANE results or MX but missing TLSA, or weak TLS under TLSA
             try {
+                if (_daneTask != null) {
+                    try {
+                        await _daneTask;
+                    } catch { }
+                }
                 EvaluateDaneAlignment(domainName, tlsHosts);
             } catch { }
         }
@@ -55,10 +61,11 @@ namespace DomainDetective {
         public Task VerifySMTPTLS(string domainName, CancellationToken cancellationToken = default)
             => VerifySMTPTLS(domainName, 25, cancellationToken);
 
-        private void EvaluateDaneAlignment(string domainName, IEnumerable<string> mxHosts)
-        {
+        private void EvaluateDaneAlignment(string domainName, IEnumerable<string> mxHosts) {
             var hosts = mxHosts?.ToArray() ?? Array.Empty<string>();
-            if (hosts.Length == 0) return;
+            if (hosts.Length == 0) {
+                return;
+            }
             var hasSmtpTlsa = DaneAnalysis?.AnalysisResults?.Any(r => r.ServiceType == ServiceType.SMTP) == true;
             if (!hasSmtpTlsa) {
                 _logger.WriteWarningCode(DaneCodes.AlignmentMissingForMx, "No TLSA coverage for MX hosts on {0}", domainName);
@@ -81,8 +88,7 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 143, string.Join(", ", tlsHosts));
             ImapTlsAnalysis.Subject = domainName;
             await ImapTlsAnalysis.AnalyzeServers(tlsHosts, 143, _logger, cancellationToken);
@@ -97,8 +103,7 @@ namespace DomainDetective {
             }
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
-            var mxRecordsForTls = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var tlsHosts = CertificateAnalysis.ExtractMxHosts(mxRecordsForTls);
+            var tlsHosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for {0} on port {1}: {2}", domainName, 110, string.Join(", ", tlsHosts));
             Pop3TlsAnalysis.Subject = domainName;
             await Pop3TlsAnalysis.AnalyzeServers(tlsHosts, 110, _logger, cancellationToken);
@@ -114,8 +119,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
-            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var hosts = CertificateAnalysis.ExtractMxHosts(mx);
+            var hosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for banner check on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
             SmtpBannerAnalysis.Subject = domainName;
             await SmtpBannerAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
@@ -131,8 +135,7 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ValidatePort(port);
-            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
-            var hosts = CertificateAnalysis.ExtractMxHosts(mx);
+            var hosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for SMTP AUTH on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
             SmtpAuthAnalysis.Subject = domainName;
             await SmtpAuthAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
