@@ -50,7 +50,7 @@ public static partial class HtmlCompositionReport
                     card.Body(body => {
                         body.DataGrid(g =>
                         {
-                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());
                             g.AddItem("MX", b.Mx?.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx?.Status), light: true);
                             g.AddItem("SPF", b.Spf?.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf?.Status), light: true);
                             g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);
@@ -59,6 +59,7 @@ public static partial class HtmlCompositionReport
                             g.AddItem("TLS-RPT", b.TlsRpt?.Status ?? "-").AsPanel(PanelColorForStatus(b.TlsRpt?.Status), light: true);
                             if (b.Dnssec != null) g.AddItem("DNSSEC", dnssecSummary).AsPanel(PanelColorForStatus(dnssecSummary), light: true);
                             if (b.Rpki != null) g.AddItem("RPKI", rpkiSummary).AsPanel(PanelColorForStatus(rpkiSummary), light: true);
+                            g.AsTiles("13rem");
                         });
                         var summaryParts = new List<string>
                         {

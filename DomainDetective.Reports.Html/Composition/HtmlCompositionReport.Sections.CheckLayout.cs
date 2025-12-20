@@ -21,7 +21,11 @@ public static partial class HtmlCompositionReport
         {
             card.Body(body =>
             {
-                body.Tabs(buildTabs);
+                body.Tabs(tabs =>
+                {
+                    tabs.Navigation(TabNavigation.Fill);
+                    buildTabs(tabs);
+                });
             });
         });
     }
@@ -43,8 +47,9 @@ public static partial class HtmlCompositionReport
             {
                 b.DataGrid(g =>
                 {
-                    g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                    g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());
                     gridConfig(g);
+                    g.AsTiles("16rem");
                 });
             });
         });

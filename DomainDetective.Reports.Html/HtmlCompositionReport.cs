@@ -98,15 +98,15 @@ public static partial class HtmlCompositionReport
                     var subjectTitle = BuildSubjectTitle(ordered.Select(kv => kv.Key).ToList());
                     if (!string.IsNullOrWhiteSpace(subjectTitle))
                     {
-                        var suffix = " — " + subjectTitle;
-                        var suffixAlt = " - " + subjectTitle;
-                        if (headerTitle.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                        var separators = new[] { " — ", " – ", " - " };
+                        foreach (var sep in separators)
                         {
-                            headerTitle = headerTitle.Substring(0, headerTitle.Length - suffix.Length);
-                        }
-                        else if (headerTitle.EndsWith(suffixAlt, StringComparison.OrdinalIgnoreCase))
-                        {
-                            headerTitle = headerTitle.Substring(0, headerTitle.Length - suffixAlt.Length);
+                            var suffix = sep + subjectTitle;
+                            if (headerTitle.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                headerTitle = headerTitle.Substring(0, headerTitle.Length - suffix.Length).TrimEnd();
+                                break;
+                            }
                         }
                     }
                 }
@@ -150,6 +150,7 @@ public static partial class HtmlCompositionReport
                 c.Tabs(tabs =>
                 {
                     tabs.Settings(s => s.PersistSelection(enable: true, showReset: false, storageKey: "dd:report"));
+                    tabs.Navigation(TabNavigation.Fill);
 
                     tabs.AddTab("Summary", summaryTab =>
                     {

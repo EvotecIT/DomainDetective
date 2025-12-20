@@ -147,7 +147,7 @@ public static partial class HtmlCompositionReport
                     card.Header(h => h.Title("Control Status").Subtitle("OK / Warning / Error / Unknown").Icon(TablerIconType.ShieldCheck));
                     card.Body(b => {
                         b.DataGrid(g => {
-                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());
                             if (hasMx) { var s = ControlStatusLabel(controlRollup["MX"]); g.AddItem("MX", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasSpf) { var s = ControlStatusLabel(controlRollup["SPF"]); g.AddItem("SPF", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasDkim) { var s = ControlStatusLabel(controlRollup["DKIM"]); g.AddItem("DKIM", s).AsPanel(PanelColorForStatus(s), light: true); }
@@ -156,6 +156,7 @@ public static partial class HtmlCompositionReport
                             if (hasTlsRpt) { var s = ControlStatusLabel(controlRollup["TLS-RPT"]); g.AddItem("TLS-RPT", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasDnssec) { var s = ControlStatusLabel(controlRollup["DNSSEC"]); g.AddItem("DNSSEC", s).AsPanel(PanelColorForStatus(s), light: true); }
                             if (hasRpki) { var s = ControlStatusLabel(controlRollup["RPKI"]); g.AddItem("RPKI", s).AsPanel(PanelColorForStatus(s), light: true); }
+                            g.AsTiles("13rem");
                         });
                         if (!(hasMx || hasSpf || hasDkim || hasDmarc || hasMtasts || hasTlsRpt || hasDnssec || hasRpki))
                         {

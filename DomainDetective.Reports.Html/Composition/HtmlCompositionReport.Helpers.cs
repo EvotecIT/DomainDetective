@@ -38,7 +38,7 @@ public static partial class HtmlCompositionReport {
            .Color(TablerColor.Blue);
     }
 
-    private static void ConfigureStandardDataTable(DataTablesTable table, ToggleViewMode defaultMode = ToggleViewMode.Responsive)
+    private static void ConfigureStandardDataTable(DataTablesTable table, ToggleViewMode defaultMode = ToggleViewMode.ScrollX)
     {
         if (table == null)
         {
@@ -59,7 +59,84 @@ public static partial class HtmlCompositionReport {
         });
     }
 
-    private static (int warn, int err) CountFindings(DomainBucket b)
+    private static void AddGridPanelUnique(
+        TablerDataGrid grid,
+        HashSet<string> seenKeys,
+        string key,
+        string value,
+        TablerColor? color = null,
+        bool light = false)
+    {
+        if (grid == null)
+        {
+            return;
+        }
+
+        if (seenKeys == null)
+        {
+            throw new ArgumentNullException(nameof(seenKeys));
+        }
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return;
+        }
+
+        var normalized = key.Trim();
+        if (!seenKeys.Add(normalized))
+        {
+            return;
+        }
+
+        var item = grid.AddItem(normalized, value ?? string.Empty);
+        if (color.HasValue)
+        {
+            item.AsPanel(color.Value, light: light);
+        }
+        else
+        {
+            item.AsPanel();
+        }
+    }
+
+    private static void AddGridSummaryPanelsUnique(
+        TablerDataGrid grid,
+        HashSet<string> seenKeys,
+        IEnumerable<(string Key, string Value)> summary)
+    {
+        if (grid == null)
+        {
+            return;
+        }
+
+        if (seenKeys == null)
+        {
+            throw new ArgumentNullException(nameof(seenKeys));
+        }
+
+        if (summary == null)
+        {
+            return;
+        }
+
+        foreach (var kv in summary)
+        {
+            if (string.IsNullOrWhiteSpace(kv.Key))
+            {
+                continue;
+            }
+
+            var key = kv.Key.Trim();
+            if (!seenKeys.Add(key))
+            {
+                continue;
+            }
+
+            grid.AddItem(key, kv.Value ?? string.Empty).AsPanel();
+        }
+    }
+
+    private static (int warn, int err) CountFindings(DomainBucket b)      
     {
         if (b == null)
         {
@@ -258,7 +335,7 @@ public static partial class HtmlCompositionReport {
                 }
             }
 
-            container.Alert(string.Join(" • ", metaParts), message, color)
+            container.Alert(message, string.Join(" • ", metaParts), color)
                 .Icon(icon)
                 .Minor();
         }
@@ -274,7 +351,9 @@ public static partial class HtmlCompositionReport {
                 if (a == null) continue;
                 if (a.Severity == DomainDetective.AssessmentSeverity.Info) continue;
                 var sev = a.Severity.ToString();
-                var title = !string.IsNullOrWhiteSpace(a.Message) ? a.Message! : (a.Code ?? "Finding");
+                var title = !string.IsNullOrWhiteSpace(a.Message)
+                    ? a.Message!
+                    : (NormalizeFindingCodeForDisplay(a.Code) ?? "Finding");
                 var code = string.IsNullOrWhiteSpace(a.Code) ? null : a.Code;
                 var target = string.IsNullOrWhiteSpace(a.Target) ? null : a.Target;
                 var key = $"{sev}|{code}|{title}";

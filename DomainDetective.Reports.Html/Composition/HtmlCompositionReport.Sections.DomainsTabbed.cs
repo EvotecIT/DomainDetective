@@ -28,6 +28,7 @@ public static partial class HtmlCompositionReport
                     body.Tabs(tabs =>
                     {
                         tabs.Settings(s => s.PersistSelection(enable: true, showReset: false, storageKey: "dd:domains"));
+                        tabs.Navigation(TabNavigation.Fill);
 
                         foreach (var kv in ordered)
                         {
@@ -89,15 +90,16 @@ public static partial class HtmlCompositionReport
                                     {
                                         bdy.DataGrid(g =>
                                         {
-                                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                            if (b.Mx != null) g.AddItem("MX", b.Mx.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx.Status), light: true);
-                                            if (b.Spf != null) g.AddItem("SPF", b.Spf.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf.Status), light: true);
-                                            if (b.Dkim.Count > 0) g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);
+                                            g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());
+                                            if (b.Mx != null) g.AddItem("MX", b.Mx.Status ?? "-").AsPanel(PanelColorForStatus(b.Mx.Status), light: true);       
+                                            if (b.Spf != null) g.AddItem("SPF", b.Spf.Status ?? "-").AsPanel(PanelColorForStatus(b.Spf.Status), light: true);   
+                                            if (b.Dkim.Count > 0) g.AddItem("DKIM", dkimSummary).AsPanel(PanelColorForStatus(dkimSummary), light: true);        
                                             if (b.Dmarc != null) g.AddItem("DMARC", b.Dmarc.Status ?? "-").AsPanel(PanelColorForStatus(b.Dmarc.Status), light: true);
                                             if (b.Mtasts != null) g.AddItem("MTA-STS", b.Mtasts.Status ?? "-").AsPanel(PanelColorForStatus(b.Mtasts.Status), light: true);
                                             if (b.TlsRpt != null) g.AddItem("TLS-RPT", b.TlsRpt.Status ?? "-").AsPanel(PanelColorForStatus(b.TlsRpt.Status), light: true);
-                                            if (b.Dnssec != null) g.AddItem("DNSSEC", dnssecSummary).AsPanel(PanelColorForStatus(dnssecSummary), light: true);
+                                            if (b.Dnssec != null) g.AddItem("DNSSEC", dnssecSummary).AsPanel(PanelColorForStatus(dnssecSummary), light: true);  
                                             if (b.Rpki != null) g.AddItem("RPKI", rpkiSummary).AsPanel(PanelColorForStatus(rpkiSummary), light: true);
+                                            g.AsTiles("13rem");
                                         });
 
                                         var summaryParts = new List<string> { $"Warnings: {warnCount}", $"Errors: {errCount}" };

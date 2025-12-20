@@ -155,7 +155,7 @@ public static partial class HtmlCompositionReport
                             x.Domain,
                             x.Section,
                             Severity = x.Severity.ToString(),
-                            x.Code,
+                            Code = NormalizeFindingCodeForDisplay(x.Code) ?? string.Empty,
                             x.Target,
                             x.Message
                         })

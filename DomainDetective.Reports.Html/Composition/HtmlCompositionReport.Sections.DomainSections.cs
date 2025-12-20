@@ -146,13 +146,17 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", spf.Status ?? "-").AsPanel(PanelColorForStatus(spf.Status), light: true);
-                            g.AddItem("Warnings", spf.WarningCount.ToString()).AsPanel(spf.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", spf.ErrorCount.ToString()).AsPanel(spf.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", spf.Status ?? "-", PanelColorForStatus(spf.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", spf.WarningCount.ToString(), spf.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", spf.ErrorCount.ToString(), spf.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
-                                if (sec.Mechanisms.Count > 0) g.AddItem("Mechanisms", sec.Mechanisms.Count.ToString()).AsPanel();
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
+                                if (sec.Mechanisms.Count > 0)
+                                {
+                                    AddGridPanelUnique(g, seen, "Mechanisms", sec.Mechanisms.Count.ToString());
+                                }
                             }
                         });
 
@@ -277,12 +281,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", dmarc.Status ?? "-").AsPanel(PanelColorForStatus(dmarc.Status), light: true);
-                            g.AddItem("Warnings", dmarc.WarningCount.ToString()).AsPanel(dmarc.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", dmarc.ErrorCount.ToString()).AsPanel(dmarc.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", dmarc.Status ?? "-", PanelColorForStatus(dmarc.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", dmarc.WarningCount.ToString(), dmarc.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", dmarc.ErrorCount.ToString(), dmarc.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         });
 
@@ -523,19 +528,18 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", mx.Status ?? "-").AsPanel(PanelColorForStatus(mx.Status), light: true);
-                            g.AddItem("Warnings", mx.WarningCount.ToString()).AsPanel(mx.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", mx.ErrorCount.ToString()).AsPanel(mx.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", mx.Status ?? "-", PanelColorForStatus(mx.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", mx.WarningCount.ToString(), mx.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", mx.ErrorCount.ToString(), mx.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary)
-                                {
-                                    g.AddItem(kv.Key, kv.Value).AsPanel();
-                                }
                                 if (sec.Records.Count > 0)
                                 {
-                                    g.AddItem("MX Records", sec.Records.Count.ToString()).AsPanel();
+                                    AddGridPanelUnique(g, seen, "MX Records", sec.Records.Count.ToString());
                                 }
+
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         });
 
@@ -957,15 +961,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", dnsbl.Status ?? "-").AsPanel(PanelColorForStatus(dnsbl.Status), light: true);
-                            g.AddItem("Warnings", dnsbl.WarningCount.ToString()).AsPanel(dnsbl.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", dnsbl.ErrorCount.ToString()).AsPanel(dnsbl.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", dnsbl.Status ?? "-", PanelColorForStatus(dnsbl.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", dnsbl.WarningCount.ToString(), dnsbl.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", dnsbl.ErrorCount.ToString(), dnsbl.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary)
-                                {
-                                    g.AddItem(kv.Key, kv.Value).AsPanel();
-                                }
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         });
 
@@ -1520,15 +1522,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", mtasts.Status ?? "-").AsPanel(PanelColorForStatus(mtasts.Status), light: true);
-                            g.AddItem("Warnings", mtasts.WarningCount.ToString()).AsPanel(mtasts.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", mtasts.ErrorCount.ToString()).AsPanel(mtasts.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", mtasts.Status ?? "-", PanelColorForStatus(mtasts.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", mtasts.WarningCount.ToString(), mtasts.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", mtasts.ErrorCount.ToString(), mtasts.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary)
-                                {
-                                    g.AddItem(kv.Key, kv.Value).AsPanel();
-                                }
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         });
 
@@ -1678,15 +1678,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", tls.Status ?? "-").AsPanel(PanelColorForStatus(tls.Status), light: true);
-                            g.AddItem("Warnings", tls.WarningCount.ToString()).AsPanel(tls.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", tls.ErrorCount.ToString()).AsPanel(tls.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", tls.Status ?? "-", PanelColorForStatus(tls.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", tls.WarningCount.ToString(), tls.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", tls.ErrorCount.ToString(), tls.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary)
-                                {
-                                    g.AddItem(kv.Key, kv.Value).AsPanel();
-                                }
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         });
 
@@ -1829,12 +1827,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", ns.Status ?? "-").AsPanel(PanelColorForStatus(ns.Status), light: true);
-                            g.AddItem("Warnings", ns.WarningCount.ToString()).AsPanel(ns.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", ns.ErrorCount.ToString()).AsPanel(ns.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", ns.Status ?? "-", PanelColorForStatus(ns.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", ns.WarningCount.ToString(), ns.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", ns.ErrorCount.ToString(), ns.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         }, subtitle: "Key metrics gathered during this check.");
 
@@ -1983,12 +1982,13 @@ public static partial class HtmlCompositionReport
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
-                            g.AddItem("Status", soa.Status ?? "-").AsPanel(PanelColorForStatus(soa.Status), light: true);
-                            g.AddItem("Warnings", soa.WarningCount.ToString()).AsPanel(soa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                            g.AddItem("Errors", soa.ErrorCount.ToString()).AsPanel(soa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", soa.Status ?? "-", PanelColorForStatus(soa.Status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", soa.WarningCount.ToString(), soa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", soa.ErrorCount.ToString(), soa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                             if (sec != null)
                             {
-                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                             }
                         }, subtitle: "Key metrics gathered during this check.");
 
@@ -2291,12 +2291,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", caa.Status ?? "-").AsPanel(PanelColorForStatus(caa.Status), light: true);
-                                g.AddItem("Warnings", caa.WarningCount.ToString()).AsPanel(caa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", caa.ErrorCount.ToString()).AsPanel(caa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", caa.Status ?? "-", PanelColorForStatus(caa.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", caa.WarningCount.ToString(), caa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", caa.ErrorCount.ToString(), caa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -2428,12 +2429,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", dnssec.Status ?? "-").AsPanel(PanelColorForStatus(dnssec.Status), light: true);
-                                g.AddItem("Warnings", dnssec.WarningCount.ToString()).AsPanel(dnssec.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", dnssec.ErrorCount.ToString()).AsPanel(dnssec.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", dnssec.Status ?? "-", PanelColorForStatus(dnssec.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", dnssec.WarningCount.ToString(), dnssec.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", dnssec.ErrorCount.ToString(), dnssec.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -2729,12 +2731,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", dane.Status ?? "-").AsPanel(PanelColorForStatus(dane.Status), light: true);
-                                g.AddItem("Warnings", dane.WarningCount.ToString()).AsPanel(dane.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", dane.ErrorCount.ToString()).AsPanel(dane.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", dane.Status ?? "-", PanelColorForStatus(dane.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", dane.WarningCount.ToString(), dane.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", dane.ErrorCount.ToString(), dane.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -2862,12 +2865,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", rpki.Status ?? "-").AsPanel(PanelColorForStatus(rpki.Status), light: true);
-                                g.AddItem("Warnings", rpki.WarningCount.ToString()).AsPanel(rpki.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", rpki.ErrorCount.ToString()).AsPanel(rpki.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", rpki.Status ?? "-", PanelColorForStatus(rpki.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", rpki.WarningCount.ToString(), rpki.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", rpki.ErrorCount.ToString(), rpki.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -2985,12 +2989,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", zone.Status ?? "-").AsPanel(PanelColorForStatus(zone.Status), light: true);
-                                g.AddItem("Warnings", zone.WarningCount.ToString()).AsPanel(zone.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", zone.ErrorCount.ToString()).AsPanel(zone.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", zone.Status ?? "-", PanelColorForStatus(zone.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", zone.WarningCount.ToString(), zone.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", zone.ErrorCount.ToString(), zone.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -3107,12 +3112,13 @@ public static partial class HtmlCompositionReport
 
                             RenderExecutionSnapshotCard(c2, g =>
                             {
-                                g.AddItem("Status", wildcard.Status ?? "-").AsPanel(PanelColorForStatus(wildcard.Status), light: true);
-                                g.AddItem("Warnings", wildcard.WarningCount.ToString()).AsPanel(wildcard.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
-                                g.AddItem("Errors", wildcard.ErrorCount.ToString()).AsPanel(wildcard.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                                AddGridPanelUnique(g, seen, "Status", wildcard.Status ?? "-", PanelColorForStatus(wildcard.Status), light: true);
+                                AddGridPanelUnique(g, seen, "Warnings", wildcard.WarningCount.ToString(), wildcard.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                AddGridPanelUnique(g, seen, "Errors", wildcard.ErrorCount.ToString(), wildcard.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
                                 if (sec != null)
                                 {
-                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                    AddGridSummaryPanelsUnique(g, seen, sec.Summary);
                                 }
                             });
 
@@ -3498,30 +3504,27 @@ public static partial class HtmlCompositionReport
         issues = issues.Take(maxItems).ToList();
         good = good.Take(maxItems).ToList();
 
-        c2.Card(card =>
+        foreach (var t in issues)
         {
-            card.Header(h => h.Title("Signals").Icon(TablerIconType.ListCheck));
-            card.Body(body =>
-            {
-                foreach (var t in issues)
-                {
-                    body.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Orange).Icon(TablerIconType.AlertTriangle).Minor();
-                }
-                if (issuesMore > 0)
-                {
-                    body.Text($"+{issuesMore} more issue(s)…").Style(TablerTextStyle.Muted);
-                }
+            c2.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Orange)
+                .Icon(TablerIconType.AlertTriangle)
+                .Minor();
+        }
+        if (issuesMore > 0)
+        {
+            c2.Text($"+{issuesMore} more issue(s)…").Style(TablerTextStyle.Muted);
+        }
 
-                foreach (var t in good)
-                {
-                    body.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Green).Icon(TablerIconType.CircleCheck).Minor();
-                }
-                if (goodMore > 0)
-                {
-                    body.Text($"+{goodMore} more positive signal(s)…").Style(TablerTextStyle.Muted);
-                }
-            });
-        });
+        foreach (var t in good)
+        {
+            c2.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Green)
+                .Icon(TablerIconType.CircleCheck)
+                .Minor();
+        }
+        if (goodMore > 0)
+        {
+            c2.Text($"+{goodMore} more positive signal(s)…").Style(TablerTextStyle.Muted);
+        }
     }
 
     private static void RenderHighlights(TablerColumn c2, IEnumerable<string>? highlights)
@@ -3588,7 +3591,7 @@ public static partial class HtmlCompositionReport
             return;
         }
         var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
-        ConfigureStandardDataTable(t);
+        ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
         t.EnablePaging(10, new[] { 10, 25, 50 })
             .EnableSearching()
             .EnableOrdering()
@@ -3708,8 +3711,11 @@ public static partial class HtmlCompositionReport
                     DaysToExpire = s.DaysToExpire,
                     Cipher = string.IsNullOrWhiteSpace(s.CipherSuite) ? "-" : s.CipherSuite
                 }).ToList();
-                var tt = (TablerTable)body.Table(rows, TableType.Tabler);
-                tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                var tt = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                ConfigureStandardDataTable(tt, defaultMode: ToggleViewMode.ScrollX);
+                tt.EnablePaging(10, new[] { 10, 25, 50 })
+                  .EnableSearching()
+                  .EnableOrdering();
             });
         });
     }
