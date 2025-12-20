@@ -24,9 +24,10 @@ public static partial class HtmlCompositionReport
         if (rows.Count == 0) return;
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
-                card.Header(h => h.Title("DKIM Selectors (all domains)"));
+                card.Header(h => h.Title("DKIM Selectors (all domains)"));      
                 card.Body(b => {
                     var t = (DataTablesTable)b.Table(rows, TableType.DataTables);
+                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
                     t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "error", false)), a => a.Column("Status").Danger());
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "warn", false)), a => a.Column("Status").Warning());

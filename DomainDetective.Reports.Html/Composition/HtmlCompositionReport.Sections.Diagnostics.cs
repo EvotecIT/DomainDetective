@@ -65,9 +65,10 @@ public static partial class HtmlCompositionReport
             Add(domain, "NS", b.Ns?.Assessments);
             Add(domain, "SOA", b.Soa?.Assessments);
             Add(domain, "CAA", b.Caa?.Assessments);
+            Add(domain, "TTL", b.Ttl?.Assessments);
             Add(domain, "ZoneTransfer", b.ZoneTransfer?.Assessments);
             Add(domain, "Wildcard", b.Wildcard?.Assessments);
-            Add(domain, "Classification", b.Classification?.Assessments);
+            Add(domain, "Classification", b.Classification?.Assessments);       
             Add(domain, "MailTLS (SMTP)", b.SmtpTls?.Assessments);
             Add(domain, "MailTLS (IMAP)", b.ImapTls?.Assessments);
             Add(domain, "MailTLS (POP3)", b.PopTls?.Assessments);
@@ -83,11 +84,9 @@ public static partial class HtmlCompositionReport
             }
         }
 
-        page.Divider("Diagnostics");
-
         if (all.Count == 0)
         {
-            page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
+            page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>        
             {
                 c.Card(card =>
                 {
@@ -104,10 +103,13 @@ public static partial class HtmlCompositionReport
 
         page.Row(row =>
         {
-            row.Settings(s => s.AutoFit(TablerCardWidth.Small, maxColumns: 4, TablerAutoFitPolicy.Soft).EqualHeights());
+            row.Settings(s => s
+                .AutoFit(TablerCardWidth.Large, maxColumns: 4, policy: TablerAutoFitPolicy.WideOneLine)
+                .Engine(TablerAutoFitEngine.Flex)
+                .EqualHeights());
             row.WithBottomSpacing(TablerSpacing.Small);
 
-            row.Column(TablerColumnNumber.Auto, col =>
+            row.Column(col =>
             {
                 col.CardMini()
                    .Avatar(TablerIconType.AlertCircle)
@@ -116,7 +118,7 @@ public static partial class HtmlCompositionReport
                    .Title(errCount.ToString())
                    .Subtitle(errCount == 1 ? "Error" : "Errors");
             });
-            row.Column(TablerColumnNumber.Auto, col =>
+            row.Column(col =>
             {
                 col.CardMini()
                    .Avatar(TablerIconType.AlertTriangle)
@@ -125,7 +127,7 @@ public static partial class HtmlCompositionReport
                    .Title(warnCount.ToString())
                    .Subtitle(warnCount == 1 ? "Warning" : "Warnings");
             });
-            row.Column(TablerColumnNumber.Auto, col =>
+            row.Column(col =>
             {
                 col.CardMini()
                    .Avatar(TablerIconType.InfoCircle)
@@ -160,6 +162,7 @@ public static partial class HtmlCompositionReport
                         .ToList();
 
                     var t = (DataTablesTable)b.Table(rows, TableType.DataTables);
+                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
                     t.EnablePaging(25, new[] { 10, 25, 50, 100 })
                      .EnableSearching()
                      .EnableOrdering();

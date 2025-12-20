@@ -14,7 +14,6 @@ public static partial class HtmlCompositionReport
 {
     private static void RenderSingleDomain(Element page, string d, DomainBucket b, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder, bool includeDivider = true)
     {
-        if (includeDivider) page.Divider(d);
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {
@@ -89,17 +88,7 @@ public static partial class HtmlCompositionReport
                         card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors"));
                         card.Body(body =>
                         {
-                            body.DataGrid(g =>
-                            {
-                                g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                foreach (var f in topFindings)
-                                {
-                                    var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
-                                    var title = TrimForDisplay(label, 120);
-                                    var color = SeverityRank(f.Severity) == 0 ? TablerColor.Red : TablerColor.Orange;
-                                    g.AddItem(title, $"x{f.Count}").AsPanel(color, light: true);
-                                }
-                            });
+                            RenderTopFindingsList(body, topFindings, includeCode: false);
                         });
                     });
                 });

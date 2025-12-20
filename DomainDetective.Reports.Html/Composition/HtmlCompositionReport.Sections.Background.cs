@@ -35,7 +35,6 @@ public static partial class HtmlCompositionReport
             return;
         }
 
-        page.Divider("Background");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c =>
         {
             c.Card(card =>
@@ -55,7 +54,6 @@ public static partial class HtmlCompositionReport
                         {
                             b.Text(p);
                         }
-                        b.Divider();
                     }
 
                     AddSection("SPF Overview",

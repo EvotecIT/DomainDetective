@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using HtmlForgeX;
+using HtmlForgeX.Extensions;
 using HtmlForgeX.Containers.Tabler;
 using DomainDetective.Reports;
 
@@ -37,9 +38,78 @@ public static partial class HtmlCompositionReport {
            .Color(TablerColor.Blue);
     }
 
-    private static (int warn, int err) CountFindings(DomainBucket b) {
-        int warn = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount);
-        int err  = (b.Mx?.ErrorCount ?? 0)   + (b.Spf?.ErrorCount ?? 0)   + (b.Dmarc?.ErrorCount ?? 0)   + (b.Mtasts?.ErrorCount ?? 0)   + (b.TlsRpt?.ErrorCount ?? 0)   + b.Dkim.Sum(x => x.ErrorCount);
+    private static void ConfigureStandardDataTable(DataTablesTable table, ToggleViewMode defaultMode = ToggleViewMode.Responsive)
+    {
+        if (table == null)
+        {
+            return;
+        }
+
+        table.Style(BootStrapTableStyle.Striped)
+             .Style(BootStrapTableStyle.Hover)
+             .EnableResponsive(opts => opts.InlineDetails());
+
+        table.Settings(s =>
+        {
+            s.HeaderNaming(n => { n.Enabled = true; });
+            s.ToggleViewButton("Switch View", defaultMode: defaultMode, persist: true);
+            s.Preset(DataTablesPreset.MinimalWithExport);
+            s.NullsAs("—");
+            s.EnumFormatting(e => e.UseDisplay().UseDescription().SplitPascalCaseFallback(true));
+        });
+    }
+
+    private static (int warn, int err) CountFindings(DomainBucket b)
+    {
+        if (b == null)
+        {
+            return (0, 0);
+        }
+
+        int warn = 0;
+        int err = 0;
+
+        static void Add(ref int warn, ref int err, int w, int e)
+        {
+            warn += w;
+            err += e;
+        }
+
+        Add(ref warn, ref err, b.Mx?.WarningCount ?? 0, b.Mx?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Spf?.WarningCount ?? 0, b.Spf?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Dmarc?.WarningCount ?? 0, b.Dmarc?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Mtasts?.WarningCount ?? 0, b.Mtasts?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.TlsRpt?.WarningCount ?? 0, b.TlsRpt?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Dnsbl?.WarningCount ?? 0, b.Dnsbl?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Dnssec?.WarningCount ?? 0, b.Dnssec?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Dane?.WarningCount ?? 0, b.Dane?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Rpki?.WarningCount ?? 0, b.Rpki?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Ns?.WarningCount ?? 0, b.Ns?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Soa?.WarningCount ?? 0, b.Soa?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Caa?.WarningCount ?? 0, b.Caa?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Ttl?.WarningCount ?? 0, b.Ttl?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.ZoneTransfer?.WarningCount ?? 0, b.ZoneTransfer?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Wildcard?.WarningCount ?? 0, b.Wildcard?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Classification?.WarningCount ?? 0, b.Classification?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Arc?.WarningCount ?? 0, b.Arc?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Bimi?.WarningCount ?? 0, b.Bimi?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.SmtpTls?.WarningCount ?? 0, b.SmtpTls?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.ImapTls?.WarningCount ?? 0, b.ImapTls?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.PopTls?.WarningCount ?? 0, b.PopTls?.ErrorCount ?? 0);
+
+        if (b.Dkim != null && b.Dkim.Count > 0)
+        {
+            foreach (var d in b.Dkim)
+            {
+                if (d == null)
+                {
+                    continue;
+                }
+                warn += d.WarningCount;
+                err += d.ErrorCount;
+            }
+        }
+
         return (warn, err);
     }
 
@@ -94,11 +164,12 @@ public static partial class HtmlCompositionReport {
         foreach (var a in FromList(b.Ns?.Assessments)) yield return a;
         foreach (var a in FromList(b.Soa?.Assessments)) yield return a;
         foreach (var a in FromList(b.ZoneTransfer?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Wildcard?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dnssec?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dane?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Wildcard?.Assessments)) yield return a;    
+        foreach (var a in FromList(b.Ttl?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dnssec?.Assessments)) yield return a;      
+        foreach (var a in FromList(b.Dane?.Assessments)) yield return a;        
         foreach (var a in FromList(b.Caa?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;        
         foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
         foreach (var a in FromList(b.Arc?.Assessments)) yield return a;
         foreach (var a in FromList(b.Bimi?.Assessments)) yield return a;
@@ -116,8 +187,81 @@ public static partial class HtmlCompositionReport {
         if (string.IsNullOrWhiteSpace(severity)) return 3;
         var s = severity!.Trim().ToLowerInvariant();
         if (s.Contains("error")) return 0;
-        if (s.Contains("warning") || s.Contains("warn")) return 1;
+        if (s.Contains("warning") || s.Contains("warn")) return 1;        
         return 2;
+    }
+
+    private static (TablerColor color, TablerIconType icon, string label) FindingAlertStyle(string? severity)
+    {
+        var rank = SeverityRank(severity);
+        if (rank == 0)
+        {
+            return (TablerColor.Danger, TablerIconType.CircleX, "Error");
+        }
+        if (rank == 1)
+        {
+            return (TablerColor.Warning, TablerIconType.AlertTriangle, "Warning");
+        }
+        return (TablerColor.Info, TablerIconType.InfoCircle, "Info");
+    }
+
+    private static string? NormalizeFindingCodeForDisplay(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return null;
+        }
+
+        var c = code!.Trim();
+        if (c.Length > 80)
+        {
+            return null;
+        }
+
+        if (c.Contains("DomainDetective", StringComparison.OrdinalIgnoreCase) || c.Contains("Assessment", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return c;
+    }
+
+    private static void RenderTopFindingsList(Element container, IReadOnlyList<FindingSummary> topFindings, bool includeCode)
+    {
+        if (topFindings == null || topFindings.Count == 0)
+        {
+            container.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
+            return;
+        }
+
+        foreach (var f in topFindings)
+        {
+            var (color, icon, label) = FindingAlertStyle(f.Severity);
+            var message = TrimForDisplay(f.Title, 420);
+            var metaParts = new List<string>
+            {
+                label,
+                $"{f.Count} occurrence{(f.Count == 1 ? string.Empty : "s")}"
+            };
+
+            if (!string.IsNullOrWhiteSpace(f.Target))
+            {
+                metaParts.Add($"Target: {TrimForDisplay(f.Target, 160)}");
+            }
+
+            if (includeCode)
+            {
+                var code = NormalizeFindingCodeForDisplay(f.Code);
+                if (!string.IsNullOrWhiteSpace(code))
+                {
+                    metaParts.Add($"Code: {code}");
+                }
+            }
+
+            container.Alert(string.Join(" • ", metaParts), message, color)
+                .Icon(icon)
+                .Minor();
+        }
     }
 
     private static List<FindingSummary> BuildTopFindings(IEnumerable<DomainBucket> buckets, int maxItems)

@@ -18,7 +18,6 @@ public static partial class HtmlCompositionReport
         string[] normalizedCustom,
         Dictionary<string, List<string>> inputSectionOrder)
     {
-        page.Divider("Domains");
         page.Row(rr => rr.Column(TablerColumnNumber.Twelve, c =>
         {
             c.Card(card =>
@@ -35,25 +34,7 @@ public static partial class HtmlCompositionReport
                             var domain = kv.Key;
                             var b = kv.Value;
 
-                            var warnCount =
-                                (b.Mx?.WarningCount ?? 0) +
-                                (b.Spf?.WarningCount ?? 0) +
-                                (b.Dmarc?.WarningCount ?? 0) +
-                                (b.Mtasts?.WarningCount ?? 0) +
-                                (b.TlsRpt?.WarningCount ?? 0) +
-                                b.Dkim.Sum(x => x?.WarningCount ?? 0) +
-                                (b.Arc?.WarningCount ?? 0) +
-                                (b.Bimi?.WarningCount ?? 0);
-
-                            var errCount =
-                                (b.Mx?.ErrorCount ?? 0) +
-                                (b.Spf?.ErrorCount ?? 0) +
-                                (b.Dmarc?.ErrorCount ?? 0) +
-                                (b.Mtasts?.ErrorCount ?? 0) +
-                                (b.TlsRpt?.ErrorCount ?? 0) +
-                                b.Dkim.Sum(x => x?.ErrorCount ?? 0) +
-                                (b.Arc?.ErrorCount ?? 0) +
-                                (b.Bimi?.ErrorCount ?? 0);
+                            var (warnCount, errCount) = CountFindings(b);
 
                             var dkimSummary = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
                             var dnssecSummary = DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
@@ -141,17 +122,7 @@ public static partial class HtmlCompositionReport
                                         topCard.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors").Icon(TablerIconType.AlertTriangle));
                                         topCard.Body(body2 =>
                                         {
-                                            body2.DataGrid(g =>
-                                            {
-                                                g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                                foreach (var f in topFindings)
-                                                {
-                                                    var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
-                                                    var title = TrimForDisplay(label, 120);
-                                                    var color = SeverityRank(f.Severity) == 0 ? TablerColor.Red : TablerColor.Orange;
-                                                    g.AddItem(title, $"x{f.Count}").AsPanel(color, light: true);
-                                                }
-                                            });
+                                            RenderTopFindingsList(body2, topFindings, includeCode: false);
                                         });
                                     });
                                 }

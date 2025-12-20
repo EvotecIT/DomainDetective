@@ -51,9 +51,8 @@ public static partial class HtmlCompositionReport
             ? OrderDomainsByInput(items, grouped)
             : grouped.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase).ToList();
 
-        var title = BuildSubjectTitle(grouped.Keys.ToList());
         var theTitle = string.IsNullOrWhiteSpace(titleOverride)
-            ? $"Domain Security Compliance Report — {title}"
+            ? "Domain Security Compliance Report"
             : titleOverride!;
         var theAuthor = string.IsNullOrWhiteSpace(authorOverride) ? "DomainDetective" : authorOverride;
         var theDesc = string.IsNullOrWhiteSpace(descriptionOverride) ? "Security posture overview for domains" : descriptionOverride;
@@ -91,11 +90,35 @@ public static partial class HtmlCompositionReport
             var overviewLine = OverviewWording.ComposeFromItems(items);
 
             // Header banner stays above all tabs.
-            try { RenderHeaderBanner(page, theTitle); } catch { }
+            var headerTitle = theTitle;
+            if (grouped.Count > 1)
+            {
+                try
+                {
+                    var subjectTitle = BuildSubjectTitle(ordered.Select(kv => kv.Key).ToList());
+                    if (!string.IsNullOrWhiteSpace(subjectTitle))
+                    {
+                        var suffix = " — " + subjectTitle;
+                        var suffixAlt = " - " + subjectTitle;
+                        if (headerTitle.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerTitle = headerTitle.Substring(0, headerTitle.Length - suffix.Length);
+                        }
+                        else if (headerTitle.EndsWith(suffixAlt, StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerTitle = headerTitle.Substring(0, headerTitle.Length - suffixAlt.Length);
+                        }
+                    }
+                }
+                catch { }
+            }
+            try { RenderHeaderBanner(page, headerTitle); } catch { }
 
             var multiDomain = grouped.Count > 1;
-            var placeGlobal = narrativePlacement == NarrativePlacement.Global
-                || (narrativePlacement == NarrativePlacement.Auto && multiDomain);
+            if (narrativePlacement == NarrativePlacement.Global)
+            {
+                // Intentionally ignored for HTML dashboards; guidance is rendered per section.
+            }
 
             if (profile == HtmlProfile.Dashboard)
             {
@@ -104,10 +127,6 @@ public static partial class HtmlCompositionReport
                 try { RenderDashboardDmarc(page, ordered); } catch { }
                 try { RenderDashboardDkim(page, ordered); } catch { }
                 try { RenderDashboardMailTls(page, ordered); } catch { }
-                if (placeGlobal)
-                {
-                    try { RenderBackgroundSection(page, items); } catch { }
-                }
                 return;
             }
 
@@ -167,17 +186,6 @@ public static partial class HtmlCompositionReport
                         RenderDiagnosticsSection(diagTab, ordered);
                     }).WithIcon(TablerIconType.Activity)
                       .WithBadge(diagnosticsTotal.ToString(), diagnosticsBadge);
-
-                    tabs.AddTab("About", aboutTab =>
-                    {
-                        try { RenderProvidersSection(aboutTab, ordered); } catch { }
-                        try { RenderMailTlsFootnote(aboutTab, ordered); } catch { }
-                        try { RenderAllReferencesSection(aboutTab, items); } catch { }
-                        if (placeGlobal)
-                        {
-                            try { RenderBackgroundSection(aboutTab, items); } catch { }
-                        }
-                    }).WithIcon(TablerIconType.InfoCircle);
                 });
             }));
         });

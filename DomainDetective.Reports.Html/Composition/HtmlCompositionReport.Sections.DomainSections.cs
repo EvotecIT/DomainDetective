@@ -30,6 +30,7 @@ public static partial class HtmlCompositionReport
         if (b.Rpki != null) list.Add("RPKI");
         if (b.Ns != null) list.Add("NS");
         if (b.Soa != null) list.Add("SOA");
+        if (b.Ttl != null) list.Add("TTL");
         if (b.ZoneTransfer != null) list.Add("ZoneTransfer");
         if (b.Wildcard != null) list.Add("Wildcard");
         if (b.Caa != null) list.Add("CAA");
@@ -91,6 +92,9 @@ public static partial class HtmlCompositionReport
                 case "SOA":
                     RenderSoaSection(acc, b);
                     break;
+                case "TTL":
+                    RenderTtlSection(acc, b);
+                    break;
                 case "CAA":
                     RenderCaaSection(acc, b);
                     break;
@@ -135,6 +139,10 @@ public static partial class HtmlCompositionReport
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         var help = (spf.ProviderHelp != null && spf.ProviderHelp.Count > 0) ? spf.ProviderHelp : b.Mx?.ProviderHelp;
+                        var findingsCount = spf.WarningCount + spf.ErrorCount;
+                        var findingsBadgeColor = spf.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (spf.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
@@ -150,59 +158,87 @@ public static partial class HtmlCompositionReport
 
                         RenderGuidanceWizardCard(c2, spf.Narrative, help, new[] { "SPF" }, sec?.References);
 
-                        c2.Divider("Results");
-                        c2.Tabs(tabs =>
+                        RenderResultsTabsCard(
+                            c2,
+                            tabs =>
                         {
                             tabs.AddTab("Summary", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    RenderHighlights(col, sec?.Highlights);
-                                    RenderPositives(col, sec?.Positives);
+                                    RenderSignalsSummary(col, sec?.Highlights, sec?.Positives);
                                 }));
                             }).WithIcon(TablerIconType.Cards);
 
-                            tabs.AddTab("Findings", panel =>
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
                                     RenderFindings(col, sec?.Findings);
                                 }));
-                            }).WithIcon(TablerIconType.AlertTriangle)
-                              .WithBadge((spf.WarningCount + spf.ErrorCount).ToString(), spf.ErrorCount > 0 ? TablerBadgeColor.Danger : (spf.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
 
                             tabs.AddTab("Evidence", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
                                     var spfRecord = sec?.SpfRecord;
-                                    if (!string.IsNullOrWhiteSpace(spfRecord))
-                                    {
-                                        col.Text("SPF Record:").Style(TablerTextStyle.Muted);
-                                        col.Text(spfRecord!).Style(TablerTextStyle.Monospace);
-                                    }
+                                    bool hasRecord = !string.IsNullOrWhiteSpace(spfRecord);
+                                    bool hasMechanisms = sec != null && sec.Mechanisms.Count > 0;
+                                    bool hasFlattened = sec != null && (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0);
 
-                                    if (sec != null && sec.Mechanisms.Count > 0)
+                                    if (hasRecord)
                                     {
-                                        col.Divider("Mechanisms");
-                                        var rows = sec.Mechanisms.Select(m => new { m.Qualifier, m.Type, m.Value, m.Provider }).ToList();
-                                        var t = (TablerTable)col.Table(rows, TableType.Tabler);
-                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                                    }
-
-                                    if (sec != null && (sec.FlattenedUniqueIpCount + sec.FlattenedDuplicateIpCount + sec.FlattenedTokenCount > 0))
-                                    {
-                                        col.Divider("Flattened IP Analysis");
-                                        col.DataGrid(g =>
+                                        col.Card(card =>
                                         {
-                                            g.AsCompact();
-                                            g.AddItem("Unique IPs", sec.FlattenedUniqueIpCount.ToString());
-                                            g.AddItem("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString());
-                                            g.AddItem("Tokens Resolved", sec.FlattenedTokenCount.ToString());
+                                            card.Header(h => h.Title("SPF Record").Icon(TablerIconType.FileText));
+                                            card.Body(b =>
+                                            {
+                                                b.Text(spfRecord!).Style(TablerTextStyle.Monospace);
+                                            });
                                         });
                                     }
 
-                                    if (string.IsNullOrWhiteSpace(spfRecord) && (sec?.Mechanisms.Count ?? 0) == 0 && (sec?.FlattenedTokenCount ?? 0) == 0)
+                                    if (hasMechanisms)
+                                    {
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Mechanisms").Icon(TablerIconType.ListDetails));
+                                            card.Body(b =>
+                                            {
+                                                var rows = sec!.Mechanisms.Select(m => new { m.Qualifier, m.Type, m.Value, m.Provider }).ToList();
+                                                var t = (DataTablesTable)b.Table(rows, TableType.DataTables);
+                                                ConfigureStandardDataTable(t);
+                                                t.EnablePaging(10, new[] { 10, 25, 50 })
+                                                    .EnableSearching()
+                                                    .EnableOrdering();
+                                            });
+                                        });
+                                    }
+
+                                    if (hasFlattened)
+                                    {
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Flattened IP Analysis").Icon(TablerIconType.ChartBar));
+                                            card.Body(b =>
+                                            {
+                                                b.DataGrid(g =>
+                                                {
+                                                    g.AsCompact();
+                                                    g.AddItem("Unique IPs", sec!.FlattenedUniqueIpCount.ToString());
+                                                    g.AddItem("Duplicate IPs", sec.FlattenedDuplicateIpCount.ToString());
+                                                    g.AddItem("Tokens Resolved", sec.FlattenedTokenCount.ToString());
+                                                });
+                                            });
+                                        });
+                                    }
+
+                                    if (!(hasRecord || hasMechanisms || hasFlattened))
                                     {
                                         col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
                                     }
@@ -234,6 +270,10 @@ public static partial class HtmlCompositionReport
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                        var findingsCount = dmarc.WarningCount + dmarc.ErrorCount;
+                        var findingsBadgeColor = dmarc.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (dmarc.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
@@ -248,60 +288,75 @@ public static partial class HtmlCompositionReport
 
                         RenderGuidanceWizardCard(c2, dmarc.Narrative, help, new[] { "DMARC" }, sec?.References);
 
-                        c2.Divider("Results");
-                        c2.Tabs(tabs =>
+                        RenderResultsTabsCard(
+                            c2,
+                            tabs =>
                         {
                             tabs.AddTab("Summary", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    RenderHighlights(col, sec?.Highlights);
-                                    RenderPositives(col, sec?.Positives);
+                                    RenderSignalsSummary(col, sec?.Highlights, sec?.Positives);
                                 }));
                             }).WithIcon(TablerIconType.Cards);
 
-                            tabs.AddTab("Findings", panel =>
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
                                     RenderFindings(col, sec?.Findings);
                                 }));
-                            }).WithIcon(TablerIconType.AlertTriangle)
-                              .WithBadge((dmarc.WarningCount + dmarc.ErrorCount).ToString(), dmarc.ErrorCount > 0 ? TablerBadgeColor.Danger : (dmarc.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
 
                             tabs.AddTab("Evidence", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
                                     var dmarcRecord = sec?.DmarcRecord;
-                                    if (!string.IsNullOrWhiteSpace(dmarcRecord))
+                                    bool hasRecord = !string.IsNullOrWhiteSpace(dmarcRecord);
+                                    bool hasUris = sec != null && (sec.MailtoRua.Count + sec.HttpRua.Count + sec.MailtoRuf.Count + sec.HttpRuf.Count > 0);
+
+                                    if (hasRecord)
                                     {
-                                        col.Text("DMARC Record:").Style(TablerTextStyle.Muted);
-                                        col.Text(dmarcRecord!).Style(TablerTextStyle.Monospace);
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("DMARC Record").Icon(TablerIconType.FileText));
+                                            card.Body(b => b.Text(dmarcRecord!).Style(TablerTextStyle.Monospace));
+                                        });
                                     }
 
-                                    if (sec != null && (sec.MailtoRua.Count + sec.HttpRua.Count + sec.MailtoRuf.Count + sec.HttpRuf.Count > 0))
+                                    if (hasUris)
                                     {
-                                        col.Divider("Reporting URIs");
-                                        if (sec.MailtoRua.Count + sec.HttpRua.Count > 0)
+                                        col.Card(card =>
                                         {
-                                            col.Text("Aggregate (RUA)").Style(TablerTextStyle.Muted);
-                                            var rua = sec.MailtoRua.Select(x => new { Scheme = "mailto", Uri = x })
-                                                .Concat(sec.HttpRua.Select(x => new { Scheme = "http", Uri = x })).ToList();
-                                            var t = (TablerTable)col.Table(rua, TableType.Tabler);
-                                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                                        }
-                                        if (sec.MailtoRuf.Count + sec.HttpRuf.Count > 0)
-                                        {
-                                            col.Text("Forensic (RUF)").Style(TablerTextStyle.Muted);
-                                            var ruf = sec.MailtoRuf.Select(x => new { Scheme = "mailto", Uri = x })
-                                                .Concat(sec.HttpRuf.Select(x => new { Scheme = "http", Uri = x })).ToList();
-                                            var t2 = (TablerTable)col.Table(ruf, TableType.Tabler);
-                                            t2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                                        }
+                                            card.Header(h => h.Title("Reporting URIs").Icon(TablerIconType.Mail));
+                                            card.Body(b =>
+                                            {
+                                                if (sec!.MailtoRua.Count + sec.HttpRua.Count > 0)
+                                                {
+                                                    b.Text("Aggregate (RUA)").Style(TablerTextStyle.Muted);
+                                                    var rua = sec.MailtoRua.Select(x => new { Scheme = "mailto", Uri = x })
+                                                        .Concat(sec.HttpRua.Select(x => new { Scheme = "http", Uri = x })).ToList();
+                                                    var t = (TablerTable)b.Table(rua, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                }
+                                                if (sec.MailtoRuf.Count + sec.HttpRuf.Count > 0)
+                                                {
+                                                    b.Text("Forensic (RUF)").Style(TablerTextStyle.Muted);
+                                                    var ruf = sec.MailtoRuf.Select(x => new { Scheme = "mailto", Uri = x })
+                                                        .Concat(sec.HttpRuf.Select(x => new { Scheme = "http", Uri = x })).ToList();
+                                                    var t2 = (TablerTable)b.Table(ruf, TableType.Tabler);
+                                                    t2.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                }
+                                            });
+                                        });
                                     }
 
-                                    if (string.IsNullOrWhiteSpace(dmarcRecord) && (sec == null || (sec.MailtoRua.Count + sec.HttpRua.Count + sec.MailtoRuf.Count + sec.HttpRuf.Count == 0)))
+                                    if (!(hasRecord || hasUris))
                                     {
                                         col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
                                     }
@@ -341,6 +396,10 @@ public static partial class HtmlCompositionReport
                         var old = selectors.Count(x => x.OldKey);
                         var invalid = selectors.Count(x => !x.ValidPublicKey || !x.ValidKeyType || !x.ValidRsaKeyLength);
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                        var findingsCount = warnCount + errCount;
+                        var findingsBadgeColor = errCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (warnCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
 
                         RenderExecutionSnapshotCard(c2, g =>
                         {
@@ -355,26 +414,29 @@ public static partial class HtmlCompositionReport
 
                         RenderGuidanceWizardCard(c2, narrative, help, new[] { "DKIM" }, sec?.References);
 
-                        c2.Divider("Results");
-                        c2.Tabs(tabs =>
+                        RenderResultsTabsCard(
+                            c2,
+                            tabs =>
                         {
                             tabs.AddTab("Summary", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    RenderHighlights(col, sec?.Highlights);
-                                    RenderPositives(col, sec?.Positives);
+                                    RenderSignalsSummary(col, sec?.Highlights, sec?.Positives);
                                 }));
                             }).WithIcon(TablerIconType.Cards);
 
-                            tabs.AddTab("Findings", panel =>
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
                                 panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
                                     RenderFindings(col, sec?.Findings);
                                 }));
-                            }).WithIcon(TablerIconType.AlertTriangle)
-                              .WithBadge((warnCount + errCount).ToString(), errCount > 0 ? TablerBadgeColor.Danger : (warnCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
 
                             tabs.AddTab("Evidence", panel =>
                             {
@@ -394,9 +456,10 @@ public static partial class HtmlCompositionReport
                                         }).ToList();
 
                                         var table = (DataTablesTable)col.Table(rows, TableType.DataTables);
+                                        ConfigureStandardDataTable(table, defaultMode: ToggleViewMode.ScrollX);
                                         table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                                         table.HighlightWhen(
-                                            where: g => g.Or(c => { c.StringContains("Status", "error", false); c.StringContains("Status", "fail", false); }),
+                                            where: g => g.Or(c => { c.StringContains("Status", "error", false); c.StringContains("Status", "fail", false); }),  
                                             then: t => t.Column("Status").Danger());
                                         table.HighlightWhen(
                                             where: g => g.Or(c => { c.StringContains("Status", "warn", false); }),
@@ -405,12 +468,18 @@ public static partial class HtmlCompositionReport
 
                                     if (sec != null && sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record)))
                                     {
-                                        col.Divider("Records");
-                                        foreach (var r2 in sec.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record)))
+                                        col.Card(card =>
                                         {
-                                            col.Text($"Selector {r2.Selector}").Style(TablerTextStyle.Muted);
-                                            col.Text(r2.Record).Style(TablerTextStyle.Monospace);
-                                        }
+                                            card.Header(h => h.Title("Records").Icon(TablerIconType.Key));
+                                            card.Body(body =>
+                                            {
+                                                foreach (var r2 in sec.Rows.Where(r => !string.IsNullOrWhiteSpace(r.Record)))
+                                                {
+                                                    body.Text($"Selector {r2.Selector}").Style(TablerTextStyle.Muted);
+                                                    body.Text(r2.Record).Style(TablerTextStyle.Monospace);
+                                                }
+                                            });
+                                        });
                                     }
 
                                     if (sec == null || (sec.Rows.Count == 0 && !sec.Rows.Any(r => !string.IsNullOrWhiteSpace(r.Record))))
@@ -445,53 +514,136 @@ public static partial class HtmlCompositionReport
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
-                        RenderProviderHelpBadges(c2, mx.ProviderHelp, new[] { "DMARC", "SPF", "DKIM", "MTA-STS", "TLS-RPT", "Deliverability" });
-                        if (sec != null && sec.Records.Count > 0)
+                        var helpTopics = new[] { "DMARC", "SPF", "DKIM", "MTA-STS", "TLS-RPT", "Deliverability" };
+                        var findingsCount = mx.WarningCount + mx.ErrorCount;
+                        var findingsBadgeColor = mx.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (mx.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("MX Records");
-                            var rows = sec.Records.Select(r2 => new { Host = r2 }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                        }
-                        if (!string.IsNullOrWhiteSpace(sec?.MailTlsSmtp) || !string.IsNullOrWhiteSpace(sec?.MailTlsImap) || !string.IsNullOrWhiteSpace(sec?.MailTlsPop))
-                        {
-                            c2.Divider("MailTLS");
-                            var rows = new List<object>
+                            g.AddItem("Status", mx.Status ?? "-").AsPanel(PanelColorForStatus(mx.Status), light: true);
+                            g.AddItem("Warnings", mx.WarningCount.ToString()).AsPanel(mx.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", mx.ErrorCount.ToString()).AsPanel(mx.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
                             {
-                                new { Service = "SMTP", Status = sec?.MailTlsSmtp ?? "-" },
-                                new { Service = "IMAP", Status = sec?.MailTlsImap ?? "-" },
-                                new { Service = "POP3", Status = sec?.MailTlsPop ?? "-" }
-                            };
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                        }
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        var raw = mx.Raw;
-                        bool hasEvidence = raw != null && ((raw.MxRecords?.Count ?? 0) > 0 || (raw.MxRecordTtls?.Count ?? 0) > 0);
-                        if (hasEvidence && raw != null)
-                        {
-                            c2.Divider("Evidence");
-                            if (raw.MxRecords != null && raw.MxRecords.Count > 0)
-                            {
-                                c2.Text("MX records").Style(TablerTextStyle.Muted);
-                                foreach (var rr in raw.MxRecords)
+                                foreach (var kv in sec.Summary)
                                 {
-                                    if (!string.IsNullOrWhiteSpace(rr))
-                                    {
-                                        c2.Text(rr).Style(TablerTextStyle.Monospace);
-                                    }
+                                    g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                                if (sec.Records.Count > 0)
+                                {
+                                    g.AddItem("MX Records", sec.Records.Count.ToString()).AsPanel();
                                 }
                             }
-                            if (raw.MxRecordTtls != null && raw.MxRecordTtls.Count > 0)
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, mx.ProviderHelp, helpTopics, refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
                             {
-                                c2.Text("TTL (seconds)").Style(TablerTextStyle.Muted);
-                                c2.Text(string.Join(", ", raw.MxRecordTtls)).Style(TablerTextStyle.Monospace);
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    if (sec != null && sec.Records.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("MX Records").Icon(TablerIconType.Mail));
+                                            card.Body(body =>
+                                            {
+                                                var rows = sec.Records.Select(r2 => new { Host = r2 }).ToList();
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(sec?.MailTlsSmtp) || !string.IsNullOrWhiteSpace(sec?.MailTlsImap) || !string.IsNullOrWhiteSpace(sec?.MailTlsPop))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("MailTLS").Icon(TablerIconType.Lock));
+                                            card.Body(body =>
+                                            {
+                                                var rows = new List<object>
+                                                {
+                                                    new { Service = "SMTP", Status = sec?.MailTlsSmtp ?? "-" },
+                                                    new { Service = "IMAP", Status = sec?.MailTlsImap ?? "-" },
+                                                    new { Service = "POP3", Status = sec?.MailTlsPop ?? "-" }
+                                                };
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    var raw = mx.Raw;
+                                    if (raw != null && ((raw.MxRecords?.Count ?? 0) > 0 || (raw.MxRecordTtls?.Count ?? 0) > 0))
+                                    {
+                                        hasEvidence = true;
+                                        if (raw.MxRecords != null && raw.MxRecords.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("MX Records (raw)").Icon(TablerIconType.FileText));
+                                                card.Body(body =>
+                                                {
+                                                    foreach (var rr2 in raw.MxRecords)
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(rr2))
+                                                        {
+                                                            body.Text(rr2).Style(TablerTextStyle.Monospace);
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                        }
+                                        if (raw.MxRecordTtls != null && raw.MxRecordTtls.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("TTL (seconds)").Icon(TablerIconType.Clock));
+                                                card.Body(body =>
+                                                {
+                                                    body.Text(string.Join(", ", raw.MxRecordTtls)).Style(TablerTextStyle.Monospace);
+                                                });
+                                            });
+                                        }
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -508,69 +660,126 @@ public static partial class HtmlCompositionReport
         acc.AddItem("ARC (Authenticated Received Chain)", item => {
             item.Icon(TablerIconType.Link);
             item.HeaderRight(c => {
-                c.Badge(arc.Status ?? "-", ColorForStatus(arc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(arc.ErrorCount > 0 ? $"{arc.ErrorCount} Error" + (arc.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(arc.WarningCount > 0 ? $"{arc.WarningCount} Warning" + (arc.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(arc.Status ?? "Unknown", ColorForStatus(arc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        c2.DataGrid(g => {
-                            g.AsCompact();
-                            g.AddItem("Headers Present", arc.ArcHeadersFound ? "Yes" : "No");
-                            g.AddItem("ARC-Seal count", arc.SealCount.ToString());
-                            g.AddItem("AAR count", arc.AarCount.ToString());
-                            g.AddItem("Seals signed", arc.SealsIncludeSignatures ? "Yes" : "No");
-                            g.AddItem("Chain state", arc.ChainState ?? "-");
-                            g.AddItem("Status", arc.Status ?? "-");
-                        });
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                        RenderProviderHelpBadges(c2, help, new[] { "ARC" });
-                        RenderHighlights(c2, arc.Highlights);
-                        RenderPositives(c2, arc.Positives?
+                        var findingsCount = arc.WarningCount + arc.ErrorCount;
+                        var findingsBadgeColor = arc.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (arc.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var positives = (arc.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
                             .Select(p => p?.Title ?? p?.Code)
                             .Where(t => !string.IsNullOrWhiteSpace(t))
-                            .Select(t => t!));
-                        RenderFindingsFromAssessments(c2, arc.Assessments);     
-                        RenderNarrative(c2, arc.Narrative);
-                        c2.Divider("Evidence");
-                        c2.Text($"ARC-Seal headers: {arc.SealCount}");
-                        c2.Text($"ARC-Authentication-Results headers: {arc.AarCount}");
-                        c2.Text($"Chain: {arc.ChainState}");
-                        var raw = arc.Raw;
-                        if (raw != null)
+                            .Select(t => t!.Trim())
+                            .ToList();
+                        var refs = MergeReferences(arc.References, arc.Narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            const int maxHeaders = 5;
-                            if (raw.ArcSealHeaders.Count > 0)
+                            g.AddItem("Status", arc.Status ?? "-").AsPanel(PanelColorForStatus(arc.Status), light: true);
+                            g.AddItem("Warnings", arc.WarningCount.ToString()).AsPanel(arc.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", arc.ErrorCount.ToString()).AsPanel(arc.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            g.AddItem("Headers present", arc.ArcHeadersFound ? "Yes" : "No").AsPanel();
+                            g.AddItem("ARC-Seal", arc.SealCount.ToString()).AsPanel();
+                            g.AddItem("ARC-Auth-Results", arc.AarCount.ToString()).AsPanel();
+                            g.AddItem("Chain", arc.ChainState ?? "-").AsPanel();
+                        });
+
+                        RenderGuidanceWizardCard(c2, arc.Narrative, help, new[] { "ARC" }, refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
                             {
-                                c2.Text("ARC-Seal values").Style(TablerTextStyle.Muted);
-                                foreach (var header in raw.ArcSealHeaders.Take(maxHeaders))
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    if (!string.IsNullOrWhiteSpace(header))
-                                    {
-                                        c2.Text(header).Style(TablerTextStyle.Monospace);
-                                    }
-                                }
-                                if (raw.ArcSealHeaders.Count > maxHeaders)
-                                {
-                                    c2.Text($"+{raw.ArcSealHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
-                                }
-                            }
-                            if (raw.ArcAuthenticationResultsHeaders.Count > 0)
+                                    RenderSignalsSummary(col, arc.Highlights, positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
-                                c2.Text("ARC-Authentication-Results values").Style(TablerTextStyle.Muted);
-                                foreach (var header in raw.ArcAuthenticationResultsHeaders.Take(maxHeaders))
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    if (!string.IsNullOrWhiteSpace(header))
-                                    {
-                                        c2.Text(header).Style(TablerTextStyle.Monospace);
-                                    }
-                                }
-                                if (raw.ArcAuthenticationResultsHeaders.Count > maxHeaders)
-                                {
-                                    c2.Text($"+{raw.ArcAuthenticationResultsHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
-                                }
+                                    RenderFindingsFromAssessments(col, arc.Assessments);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                        }
-                        RenderReferences(c2, MergeReferences(arc.References, arc.Narrative?.References));
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    var raw = arc.Raw;
+                                    if (raw == null)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        return;
+                                    }
+                                    const int maxHeaders = 5;
+
+                                    if (raw.ArcSealHeaders.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("ARC-Seal values").Icon(TablerIconType.Key));
+                                            card.Body(body =>
+                                            {
+                                                foreach (var header in raw.ArcSealHeaders.Take(maxHeaders))
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(header))
+                                                    {
+                                                        body.Text(header).Style(TablerTextStyle.Monospace);
+                                                    }
+                                                }
+                                                if (raw.ArcSealHeaders.Count > maxHeaders)
+                                                {
+                                                    body.Text($"+{raw.ArcSealHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (raw.ArcAuthenticationResultsHeaders.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("ARC-Authentication-Results values").Icon(TablerIconType.FileText));
+                                            card.Body(body =>
+                                            {
+                                                foreach (var header in raw.ArcAuthenticationResultsHeaders.Take(maxHeaders))
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(header))
+                                                    {
+                                                        body.Text(header).Style(TablerTextStyle.Monospace);
+                                                    }
+                                                }
+                                                if (raw.ArcAuthenticationResultsHeaders.Count > maxHeaders)
+                                                {
+                                                    body.Text($"+{raw.ArcAuthenticationResultsHeaders.Count - maxHeaders} more").Style(TablerTextStyle.Muted);
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -588,56 +797,132 @@ public static partial class HtmlCompositionReport
         acc.AddItem("BIMI (Brand Indicators)", item => {
             item.Icon(TablerIconType.Photo);
             item.HeaderRight(c => {
-                c.Badge(bimi.Status ?? "-", ColorForStatus(bimi.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(bimi.ErrorCount > 0 ? $"{bimi.ErrorCount} Error" + (bimi.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(bimi.WarningCount > 0 ? $"{bimi.WarningCount} Warning" + (bimi.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(bimi.Status ?? "Unknown", ColorForStatus(bimi.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        c2.DataGrid(g => {
-                            g.AsCompact();
-                            g.AddItem("Record Present", bimi.BimiRecordExists ? "Yes" : "No");
-                            g.AddItem("Location (l=)", string.IsNullOrWhiteSpace(bimi.Location) ? "-" : bimi.Location);
-                            g.AddItem("Authority (a=)", string.IsNullOrWhiteSpace(bimi.Authority) ? "-" : bimi.Authority);
-                            g.AddItem("SVG Valid", bimi.SvgValid ? "Yes" : "No");
-                            g.AddItem("VMC Present", bimi.ValidVmc ? "Yes" : "No");
-                            g.AddItem("VMC Trusted", bimi.ValidVmc ? (bimi.VmcSignedByKnownRoot ? "Yes" : "Untrusted") : "-");
-                            g.AddItem("Declined (p=reject)", bimi.DeclinedToPublish ? "Yes" : "No");
-                            g.AddItem("Status", bimi.Status ?? "-");
-                        });
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                        RenderProviderHelpBadges(c2, help, new[] { "BIMI" });
-                        RenderPositives(c2, bimi.Positives?
+                        var findingsCount = bimi.WarningCount + bimi.ErrorCount;
+                        var findingsBadgeColor = bimi.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (bimi.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var positives = (bimi.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
                             .Select(p => p?.Title ?? p?.Code)
                             .Where(t => !string.IsNullOrWhiteSpace(t))
-                            .Select(t => t!));
-                        RenderFindingsFromAssessments(c2, bimi.Assessments);    
-                        RenderNarrative(c2, narrative);
-                        c2.Divider("Evidence");
-                        c2.Text("BIMI Record:").Style(TablerTextStyle.Muted);
-                        c2.Text(bimi.BimiRecord ?? string.Empty).Style(TablerTextStyle.Monospace);
-                        if (!string.IsNullOrWhiteSpace(bimi.Location)) c2.Text($"Location: {bimi.Location}");
-                        if (!string.IsNullOrWhiteSpace(bimi.Authority)) c2.Text($"Authority: {bimi.Authority}");
-                        if (!bimi.SvgValid && !string.IsNullOrWhiteSpace(bimi.SvgInvalidReason)) c2.Text($"SVG invalid: {bimi.SvgInvalidReason}");
-                        var raw = bimi.Raw;
-                        if (raw != null && !string.IsNullOrWhiteSpace(raw.FailureReason))
+                            .Select(t => t!.Trim())
+                            .ToList();
+                        var refs = MergeReferences(bimi.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Text("Failure").Style(TablerTextStyle.Muted);
-                            c2.Text(raw.FailureReason ?? string.Empty);
-                        }
-                        if (raw?.VmcCertificate != null)
+                            g.AddItem("Status", bimi.Status ?? "-").AsPanel(PanelColorForStatus(bimi.Status), light: true);
+                            g.AddItem("Warnings", bimi.WarningCount.ToString()).AsPanel(bimi.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", bimi.ErrorCount.ToString()).AsPanel(bimi.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            g.AddItem("Record present", bimi.BimiRecordExists ? "Yes" : "No").AsPanel();
+                            g.AddItem("SVG valid", bimi.SvgValid ? "Yes" : "No").AsPanel();
+                            g.AddItem("VMC present", bimi.ValidVmc ? "Yes" : "No").AsPanel();
+                            g.AddItem("VMC trusted", bimi.ValidVmc ? (bimi.VmcSignedByKnownRoot ? "Yes" : "Untrusted") : "-").AsPanel();
+                            g.AddItem("Declined (p=reject)", bimi.DeclinedToPublish ? "Yes" : "No").AsPanel();
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, help, new[] { "BIMI" }, refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
                         {
-                            var cert = raw.VmcCertificate;
-                            c2.Text("VMC certificate").Style(TablerTextStyle.Muted);
-                            c2.DataGrid(g => {
-                                g.AsCompact();
-                                g.AddItem("Subject", cert.Subject ?? "-");
-                                g.AddItem("Issuer", cert.Issuer ?? "-");
-                                g.AddItem("Valid from", cert.NotBefore.ToString("yyyy-MM-dd"));
-                                g.AddItem("Valid to", cert.NotAfter.ToString("yyyy-MM-dd"));
-                                g.AddItem("Serial", cert.SerialNumber ?? "-");
-                            });
-                        }
-                        RenderReferences(c2, MergeReferences(bimi.References, narrative?.References));
+                            tabs.AddTab("Summary", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindingsFromAssessments(col, bimi.Assessments);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    var raw = bimi.Raw;
+
+                                    if (!string.IsNullOrWhiteSpace(bimi.BimiRecord))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("BIMI Record").Icon(TablerIconType.FileText));
+                                            card.Body(body =>
+                                            {
+                                                body.Text(bimi.BimiRecord).Style(TablerTextStyle.Monospace);
+                                                if (!string.IsNullOrWhiteSpace(bimi.Location))
+                                                {
+                                                    body.Text($"Location: {bimi.Location}");
+                                                }
+                                                if (!string.IsNullOrWhiteSpace(bimi.Authority))
+                                                {
+                                                    body.Text($"Authority: {bimi.Authority}");
+                                                }
+                                                if (!bimi.SvgValid && !string.IsNullOrWhiteSpace(bimi.SvgInvalidReason))
+                                                {
+                                                    body.Text($"SVG invalid: {bimi.SvgInvalidReason}");
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (raw != null && !string.IsNullOrWhiteSpace(raw.FailureReason))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Failure").Icon(TablerIconType.AlertTriangle));
+                                            card.Body(body => body.Text(raw.FailureReason ?? string.Empty));
+                                        });
+                                    }
+
+                                    if (raw?.VmcCertificate != null)
+                                    {
+                                        hasEvidence = true;
+                                        var cert = raw.VmcCertificate;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("VMC Certificate").Icon(TablerIconType.Certificate));
+                                            card.Body(body =>
+                                            {
+                                                body.DataGrid(g =>
+                                                {
+                                                    g.AsCompact();
+                                                    g.AddItem("Subject", cert.Subject ?? "-");
+                                                    g.AddItem("Issuer", cert.Issuer ?? "-");
+                                                    g.AddItem("Valid from", cert.NotBefore.ToString("yyyy-MM-dd"));
+                                                    g.AddItem("Valid to", cert.NotAfter.ToString("yyyy-MM-dd"));
+                                                    g.AddItem("Serial", cert.SerialNumber ?? "-");
+                                                });
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -652,60 +937,133 @@ public static partial class HtmlCompositionReport
             return;
         }
         var sec = SectionProjectors.BuildDnsbl(dnsbl);
-        var narrative = DnsblNarrative.Build(dnsbl.Raw, dnsbl.Assessments);
-        var summaries = dnsbl.HostSummaries ?? Array.Empty<DnsblHostSummary>();
+        var narrative = DnsblNarrative.Build(dnsbl.Raw, dnsbl.Assessments);     
+        var summaries = dnsbl.HostSummaries ?? Array.Empty<DnsblHostSummary>(); 
         acc.AddItem("DNSBL (Reputation)", item => {
             item.Icon(TablerIconType.ListCheck);
-            item.HeaderRight(c => c.Badge(dnsbl.Status ?? "-", ColorForStatus(dnsbl.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(dnsbl.ErrorCount > 0 ? $"{dnsbl.ErrorCount} Error" + (dnsbl.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dnsbl.WarningCount > 0 ? $"{dnsbl.WarningCount} Warning" + (dnsbl.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dnsbl.Status ?? "Unknown", ColorForStatus(dnsbl.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
-                        if (summaries.Count > 0)
+                        var findingsCount = dnsbl.WarningCount + dnsbl.ErrorCount;
+                        var findingsBadgeColor = dnsbl.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (dnsbl.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("Provider Trust Grid");
-                            c2.DataGrid(g => {
-                                g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
-                                foreach (var s in summaries.OrderBy(h => h.Key, StringComparer.OrdinalIgnoreCase))
+                            g.AddItem("Status", dnsbl.Status ?? "-").AsPanel(PanelColorForStatus(dnsbl.Status), light: true);
+                            g.AddItem("Warnings", dnsbl.WarningCount.ToString()).AsPanel(dnsbl.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", dnsbl.ErrorCount.ToString()).AsPanel(dnsbl.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
+                            {
+                                foreach (var kv in sec.Summary)
                                 {
-                                    if (string.IsNullOrWhiteSpace(s.Key))
-                                    {
-                                        continue;
-                                    }
-                                    var label = s.Total > 0 ? $"{s.Listed}/{s.Total} listed" : "-";
-                                    var color = s.Total == 0 ? TablerColor.Blue : (s.Listed > 0 ? TablerColor.Red : TablerColor.Green);
-                                    g.AddItem(s.Key, label).AsPanel(color, light: true);
+                                    g.AddItem(kv.Key, kv.Value).AsPanel();
                                 }
-                            });
-                        }
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        var listed = dnsbl.ListedRecords ?? Array.Empty<DNSBLRecord>();
-                        bool hasEvidence = summaries.Count > 0 || listed.Count > 0;
-                        if (hasEvidence)
+                            }
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
                         {
-                            c2.Divider("Evidence");
-                            if (summaries.Count > 0)
+                            tabs.AddTab("Summary", panel =>
                             {
-                                c2.Text("Host summary").Style(TablerTextStyle.Muted);
-                                var rows = summaries.Select(s => new {
-                                    Host = s.Key,
-                                    Listed = $"{s.Listed}/{s.Total}",
-                                    Blacklists = s.Blacklists != null && s.Blacklists.Count > 0 ? string.Join(", ", s.Blacklists) : "-"
-                                }).ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                            }
-                            if (listed.Count > 0)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
-                                c2.Text("Listed records").Style(TablerTextStyle.Muted);
-                                var rows = listed.Select(r2 => new { Host = r2.SourceHost ?? r2.IpAddress, Blacklist = r2.BlackList, Reason = r2.ReplyMeaning }).ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    var listed = dnsbl.ListedRecords ?? Array.Empty<DNSBLRecord>();
+
+                                    if (summaries.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Provider Trust Grid").Icon(TablerIconType.ChartBar));
+                                            card.Body(body =>
+                                            {
+                                                body.DataGrid(g =>
+                                                {
+                                                    g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles());
+                                                    foreach (var s in summaries.OrderBy(h => h.Key, StringComparer.OrdinalIgnoreCase))
+                                                    {
+                                                        if (string.IsNullOrWhiteSpace(s.Key))
+                                                        {
+                                                            continue;
+                                                        }
+                                                        var label = s.Total > 0 ? $"{s.Listed}/{s.Total} listed" : "-";
+                                                        var color = s.Total == 0 ? TablerColor.Blue : (s.Listed > 0 ? TablerColor.Red : TablerColor.Green);
+                                                        g.AddItem(s.Key, label).AsPanel(color, light: true);
+                                                    }
+                                                });
+                                            });
+                                        });
+
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Host Summary").Icon(TablerIconType.Table));
+                                            card.Body(body =>
+                                            {
+                                                var rows = summaries.Select(s => new
+                                                {
+                                                    Host = s.Key,
+                                                    Listed = $"{s.Listed}/{s.Total}",
+                                                    Blacklists = s.Blacklists != null && s.Blacklists.Count > 0 ? string.Join(", ", s.Blacklists) : "-"
+                                                }).ToList();
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (listed.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Listed Records").Icon(TablerIconType.AlertTriangle));
+                                            card.Body(body =>
+                                            {
+                                                var rows = listed.Select(r2 => new { Host = r2.SourceHost ?? r2.IpAddress, Blacklist = r2.BlackList, Reason = r2.ReplyMeaning }).ToList();
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -722,10 +1080,245 @@ public static partial class HtmlCompositionReport
         var narrative = cls.Raw != null ? MailClassificationNarrative.Build(cls.Raw) : null;
         acc.AddItem("Classification", item => {
             item.Icon(TablerIconType.Tags);
-            item.HeaderRight(c => c.Badge(cls.Status ?? "-", ColorForStatus(cls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(cls.ErrorCount > 0 ? $"{cls.ErrorCount} Error" + (cls.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(cls.WarningCount > 0 ? $"{cls.WarningCount} Warning" + (cls.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(cls.Status ?? "Unknown", ColorForStatus(cls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
+                        var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
+                        var findingsCount = cls.WarningCount + cls.ErrorCount;
+                        var findingsBadgeColor = cls.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (cls.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var positives = (cls.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                            .Select(p => p?.Title ?? p?.Code)
+                            .Where(t => !string.IsNullOrWhiteSpace(t))
+                            .Select(t => t!.Trim())
+                            .ToList();
+                        var refs = MergeReferences(cls.References, narrative?.References);
+
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", cls.Status ?? "-").AsPanel(PanelColorForStatus(cls.Status), light: true);
+                                g.AddItem("Warnings", cls.WarningCount.ToString()).AsPanel(cls.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", cls.ErrorCount.ToString()).AsPanel(cls.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+
+                                g.AddItem("Classification", cls.Classification ?? "-").AsPanel();
+                                g.AddItem("Confidence", cls.Confidence ?? "-").AsPanel();
+                                g.AddItem("Score", cls.Score.ToString("0.##")).AsPanel();
+                                g.AddItem("Primary Provider", cls.ProviderPrimary ?? "-").AsPanel();
+                                g.AddItem("Gateways", cls.ProviderGateways != null && cls.ProviderGateways.Count > 0 ? string.Join(", ", cls.ProviderGateways) : "-").AsPanel();
+                                g.AddItem("Outbound", cls.ProviderOutbound != null && cls.ProviderOutbound.Count > 0 ? string.Join(", ", cls.ProviderOutbound) : "-").AsPanel();
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, help, new[] { "Deliverability" }, refs);
+
+                            RenderResultsTabsCard(c2, tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, narrative?.Highlights, positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindingsFromAssessments(col, cls.Assessments);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        bool hasEvidence = false;
+
+                                        if (cls.ScoreBreakdown != null && cls.ScoreBreakdown.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Score Breakdown").Icon(TablerIconType.ChartBar));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = cls.ScoreBreakdown.Select(kv => new { Metric = kv.Key, Value = kv.Value.ToString("0.##") }).ToList();
+                                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                });
+                                            });
+                                        }
+
+                                        if (cls.ReceivingSignals != null && cls.ReceivingSignals.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Receiving Signals").Icon(TablerIconType.InfoCircle));
+                                                card.Body(body =>
+                                                {
+                                                    var ul = body.TablerList();
+                                                    foreach (var s in cls.ReceivingSignals)
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(s))
+                                                        {
+                                                            ul.AddItem(s, TablerIconType.InfoCircle);
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                        }
+
+                                        if (cls.SendingSignals != null && cls.SendingSignals.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Sending Signals").Icon(TablerIconType.InfoCircle));
+                                                card.Body(body =>
+                                                {
+                                                    var ul = body.TablerList();
+                                                    foreach (var s in cls.SendingSignals)
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(s))
+                                                        {
+                                                            ul.AddItem(s, TablerIconType.InfoCircle);
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                        }
+
+                                        var raw = cls.Raw;
+                                        if (raw != null)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(raw.ClassificationReason))
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Reason").Icon(TablerIconType.FileText));
+                                                    card.Body(body => body.Text(raw.ClassificationReason));
+                                                });
+                                            }
+                                            if (raw.SPFIncludesResolved != null && raw.SPFIncludesResolved.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("SPF Includes").Icon(TablerIconType.FileText));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var include in raw.SPFIncludesResolved)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(include))
+                                                            {
+                                                                ul.AddItem(include, TablerIconType.FileText);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.DKIMSelectorsFound != null && raw.DKIMSelectorsFound.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("DKIM Selectors").Icon(TablerIconType.Key));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var sel in raw.DKIMSelectorsFound)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(sel))
+                                                            {
+                                                                ul.AddItem(sel, TablerIconType.Key);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.BimiEligible.HasValue || !string.IsNullOrWhiteSpace(raw.BimiEligibilityReason) || (raw.BimiNotes?.Count ?? 0) > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("BIMI Eligibility").Icon(TablerIconType.Photo));
+                                                    card.Body(body =>
+                                                    {
+                                                        if (raw.BimiEligible.HasValue)
+                                                        {
+                                                            body.Text(raw.BimiEligible.Value ? "Eligible" : "Not eligible");
+                                                        }
+                                                        if (!string.IsNullOrWhiteSpace(raw.BimiEligibilityReason))
+                                                        {
+                                                            body.Text(raw.BimiEligibilityReason ?? string.Empty).Style(TablerTextStyle.Muted);
+                                                        }
+                                                        if (raw.BimiNotes != null && raw.BimiNotes.Count > 0)
+                                                        {
+                                                            var ul = body.TablerList();
+                                                            foreach (var note in raw.BimiNotes)
+                                                            {
+                                                                if (!string.IsNullOrWhiteSpace(note))
+                                                                {
+                                                                    ul.AddItem(note, TablerIconType.InfoCircle);
+                                                                }
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (!string.IsNullOrWhiteSpace(raw.IdpTenantId)
+                                                || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
+                                                || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Identity Hints").Icon(TablerIconType.InfoCircle));
+                                                    card.Body(body =>
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(raw.IdpTenantId))
+                                                        {
+                                                            body.Text($"Tenant: {raw.IdpTenantId}");
+                                                        }
+                                                        if (!string.IsNullOrWhiteSpace(raw.IdpNameSpaceType))
+                                                        {
+                                                            body.Text($"Namespace: {raw.IdpNameSpaceType}");
+                                                        }
+                                                        if (!string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                                                        {
+                                                            body.Text($"Federation URL: {raw.IdpFederatedAuthUrl}");
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                        }
+
+                                        if (!hasEvidence)
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
                         c2.DataGrid(g => {
                             g.AsCompact();
                             g.AddItem("Classification", cls.Classification ?? "-");
@@ -737,99 +1330,162 @@ public static partial class HtmlCompositionReport
                         });
                         if (cls.ScoreBreakdown != null && cls.ScoreBreakdown.Count > 0)
                         {
-                            c2.Divider("Score Breakdown");
-                            var rows = cls.ScoreBreakdown.Select(kv => new { Metric = kv.Key, Value = kv.Value.ToString("0.##") }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Score Breakdown").Icon(TablerIconType.ChartBar));
+                                card.Body(body =>
+                                {
+                                    var rows = cls.ScoreBreakdown.Select(kv => new { Metric = kv.Key, Value = kv.Value.ToString("0.##") }).ToList();
+                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                });
+                            });
                         }
                         if (cls.ReceivingSignals != null && cls.ReceivingSignals.Count > 0)
                         {
-                            c2.Divider("Receiving Signals");
-                            foreach (var s in cls.ReceivingSignals) c2.Text("- " + s);
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Receiving Signals").Icon(TablerIconType.InfoCircle));
+                                card.Body(body =>
+                                {
+                                    var ul = body.TablerList();
+                                    foreach (var s in cls.ReceivingSignals)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(s))
+                                        {
+                                            ul.AddItem(s, TablerIconType.InfoCircle);
+                                        }
+                                    }
+                                });
+                            });
                         }
                         if (cls.SendingSignals != null && cls.SendingSignals.Count > 0)
                         {
-                            c2.Divider("Sending Signals");
-                            foreach (var s in cls.SendingSignals) c2.Text("- " + s);
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Sending Signals").Icon(TablerIconType.InfoCircle));
+                                card.Body(body =>
+                                {
+                                    var ul = body.TablerList();
+                                    foreach (var s in cls.SendingSignals)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(s))
+                                        {
+                                            ul.AddItem(s, TablerIconType.InfoCircle);
+                                        }
+                                    }
+                                });
+                            });
                         }
                         RenderPositives(c2, cls.Positives?
                             .Select(p => p?.Title ?? p?.Code)
-                            .Where(t => !string.IsNullOrWhiteSpace(t))
+                            .Where(t => !string.IsNullOrWhiteSpace(t))    
                             .Select(t => t!));
                         RenderFindingsFromAssessments(c2, cls.Assessments);
                         RenderNarrative(c2, narrative);
                         var raw = cls.Raw;
-                        bool hasEvidence = raw != null
-                            && (!string.IsNullOrWhiteSpace(raw.ClassificationReason)
-                                || (raw.SPFIncludesResolved?.Count ?? 0) > 0
-                                || (raw.DKIMSelectorsFound?.Count ?? 0) > 0
-                                || raw.BimiEligible.HasValue
-                                || (raw.BimiNotes?.Count ?? 0) > 0
-                                || !string.IsNullOrWhiteSpace(raw.IdpTenantId)
-                                || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
-                                || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl));
-                        if (hasEvidence && raw != null)
+                        if (raw != null)
                         {
-                            c2.Divider("Evidence");
                             if (!string.IsNullOrWhiteSpace(raw.ClassificationReason))
                             {
-                                c2.Text("Reason").Style(TablerTextStyle.Muted);
-                                c2.Text(raw.ClassificationReason);
+                                c2.Card(card =>
+                                {
+                                    card.Header(h => h.Title("Reason").Icon(TablerIconType.FileText));
+                                    card.Body(body => body.Text(raw.ClassificationReason));
+                                });
                             }
                             if (raw.SPFIncludesResolved != null && raw.SPFIncludesResolved.Count > 0)
                             {
-                                c2.Text("SPF includes").Style(TablerTextStyle.Muted);
-                                foreach (var include in raw.SPFIncludesResolved)
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + include);
-                                }
+                                    card.Header(h => h.Title("SPF Includes").Icon(TablerIconType.FileText));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var include in raw.SPFIncludesResolved)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(include))
+                                            {
+                                                ul.AddItem(include, TablerIconType.FileText);
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             if (raw.DKIMSelectorsFound != null && raw.DKIMSelectorsFound.Count > 0)
                             {
-                                c2.Text("DKIM selectors").Style(TablerTextStyle.Muted);
-                                foreach (var sel in raw.DKIMSelectorsFound)
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + sel);
-                                }
+                                    card.Header(h => h.Title("DKIM Selectors").Icon(TablerIconType.Key));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var sel in raw.DKIMSelectorsFound)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(sel))
+                                            {
+                                                ul.AddItem(sel, TablerIconType.Key);
+                                            }
+                                        }
+                                    });
+                                });
                             }
-                            if (raw.BimiEligible.HasValue)
+                            if (raw.BimiEligible.HasValue || !string.IsNullOrWhiteSpace(raw.BimiEligibilityReason) || (raw.BimiNotes?.Count ?? 0) > 0)
                             {
-                                c2.Text("BIMI eligibility").Style(TablerTextStyle.Muted);
-                                c2.Text(raw.BimiEligible.Value ? "Eligible" : "Not eligible");
-                            }
-                            if (!string.IsNullOrWhiteSpace(raw.BimiEligibilityReason))
-                            {
-                                c2.Text("BIMI note").Style(TablerTextStyle.Muted);
-                                c2.Text(raw.BimiEligibilityReason ?? string.Empty);
-                            }
-                            if (raw.BimiNotes != null && raw.BimiNotes.Count > 0)
-                            {
-                                c2.Text("BIMI notes").Style(TablerTextStyle.Muted);
-                                foreach (var note in raw.BimiNotes)
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + note);
-                                }
+                                    card.Header(h => h.Title("BIMI Eligibility").Icon(TablerIconType.Photo));
+                                    card.Body(body =>
+                                    {
+                                        if (raw.BimiEligible.HasValue)
+                                        {
+                                            body.Text(raw.BimiEligible.Value ? "Eligible" : "Not eligible");
+                                        }
+                                        if (!string.IsNullOrWhiteSpace(raw.BimiEligibilityReason))
+                                        {
+                                            body.Text(raw.BimiEligibilityReason ?? string.Empty).Style(TablerTextStyle.Muted);
+                                        }
+                                        if (raw.BimiNotes != null && raw.BimiNotes.Count > 0)
+                                        {
+                                            var ul = body.TablerList();
+                                            foreach (var note in raw.BimiNotes)
+                                            {
+                                                if (!string.IsNullOrWhiteSpace(note))
+                                                {
+                                                    ul.AddItem(note, TablerIconType.InfoCircle);
+                                                }
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             if (!string.IsNullOrWhiteSpace(raw.IdpTenantId)
                                 || !string.IsNullOrWhiteSpace(raw.IdpNameSpaceType)
                                 || !string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
                             {
-                                c2.Text("Identity hints").Style(TablerTextStyle.Muted);
-                                if (!string.IsNullOrWhiteSpace(raw.IdpTenantId))
+                                c2.Card(card =>
                                 {
-                                    c2.Text($"Tenant: {raw.IdpTenantId}");
-                                }
-                                if (!string.IsNullOrWhiteSpace(raw.IdpNameSpaceType))
-                                {
-                                    c2.Text($"Namespace: {raw.IdpNameSpaceType}");
-                                }
-                                if (!string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
-                                {
-                                    c2.Text($"Federation URL: {raw.IdpFederatedAuthUrl}");
-                                }
+                                    card.Header(h => h.Title("Identity Hints").Icon(TablerIconType.InfoCircle));
+                                    card.Body(body =>
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(raw.IdpTenantId))
+                                        {
+                                            body.Text($"Tenant: {raw.IdpTenantId}");
+                                        }
+                                        if (!string.IsNullOrWhiteSpace(raw.IdpNameSpaceType))
+                                        {
+                                            body.Text($"Namespace: {raw.IdpNameSpaceType}");
+                                        }
+                                        if (!string.IsNullOrWhiteSpace(raw.IdpFederatedAuthUrl))
+                                        {
+                                            body.Text($"Federation URL: {raw.IdpFederatedAuthUrl}");
+                                        }
+                                    });
+                                });
                             }
                         }
                         RenderReferences(c2, MergeReferences(cls.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -847,47 +1503,147 @@ public static partial class HtmlCompositionReport
         var narrative = MtaStsNarrative.Build(mtasts.Raw, mtasts.Assessments);
         acc.AddItem("MTA-STS", item => {
             item.Icon(TablerIconType.Lock);
-            item.HeaderRight(c => c.Badge(mtasts.Status ?? "-", ColorForStatus(mtasts.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(mtasts.ErrorCount > 0 ? $"{mtasts.ErrorCount} Error" + (mtasts.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(mtasts.WarningCount > 0 ? $"{mtasts.WarningCount} Warning" + (mtasts.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(mtasts.Status ?? "Unknown", ColorForStatus(mtasts.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                        RenderProviderHelpBadges(c2, help, new[] { "MTA-STS" });
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        var raw = mtasts.Raw;
-                        bool hasEvidence = raw != null
-                            && (!string.IsNullOrWhiteSpace(raw.PolicyId)
-                                || !string.IsNullOrWhiteSpace(raw.Policy)
-                                || (raw.Mx != null && raw.Mx.Count > 0)
-                                || (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0));
-                        if (hasEvidence && raw != null)
+                        var findingsCount = mtasts.WarningCount + mtasts.ErrorCount;
+                        var findingsBadgeColor = mtasts.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (mtasts.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("Evidence");
-                            if (!string.IsNullOrWhiteSpace(raw.PolicyId))
+                            g.AddItem("Status", mtasts.Status ?? "-").AsPanel(PanelColorForStatus(mtasts.Status), light: true);
+                            g.AddItem("Warnings", mtasts.WarningCount.ToString()).AsPanel(mtasts.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", mtasts.ErrorCount.ToString()).AsPanel(mtasts.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
                             {
-                                c2.Text("MTA-STS TXT:").Style(TablerTextStyle.Muted);
-                                c2.Text($"v=STSv1; id={raw.PolicyId}").Style(TablerTextStyle.Monospace);
+                                foreach (var kv in sec.Summary)
+                                {
+                                    g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
                             }
-                            if (!string.IsNullOrWhiteSpace(raw.Policy))
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, help, new[] { "MTA-STS" }, refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
                             {
-                                c2.Text("Policy (mta-sts.txt):").Style(TablerTextStyle.Muted);
-                                c2.Text(raw.Policy).Style(TablerTextStyle.Monospace);
-                            }
-                            if (raw.Mx != null && raw.Mx.Count > 0)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
-                                c2.Text("Policy MX Patterns:").Style(TablerTextStyle.Muted);
-                                foreach (var mx in raw.Mx) c2.Text("- " + mx);
-                            }
-                            if (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
                             {
-                                c2.Text("Missing MX in policy:").Style(TablerTextStyle.Muted);
-                                foreach (var mx in raw.MissingMxFromPolicy) c2.Text("- " + mx);
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    var raw = mtasts.Raw;
+                                    if (raw == null)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        return;
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(raw.PolicyId))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("DNS Record (TXT)").Icon(TablerIconType.FileText));
+                                            card.Body(body => body.Text($"v=STSv1; id={raw.PolicyId}").Style(TablerTextStyle.Monospace));
+                                        });
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(raw.Policy))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Policy (mta-sts.txt)").Icon(TablerIconType.FileText));
+                                            card.Body(body =>
+                                            {
+                                                foreach (var line in raw.Policy.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None))
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(line))
+                                                    {
+                                                        body.Text(line).Style(TablerTextStyle.Monospace);
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (raw.Mx != null && raw.Mx.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Policy MX Patterns").Icon(TablerIconType.Mail));
+                                            card.Body(body =>
+                                            {
+                                                var ul = body.TablerList();
+                                                foreach (var mx2 in raw.Mx)
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(mx2))
+                                                    {
+                                                        ul.AddItem(mx2, TablerIconType.Mail);
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (raw.MissingMxFromPolicy != null && raw.MissingMxFromPolicy.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Missing MX in Policy").Icon(TablerIconType.AlertTriangle));
+                                            card.Body(body =>
+                                            {
+                                                var ul = body.TablerList();
+                                                foreach (var mx2 in raw.MissingMxFromPolicy)
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(mx2))
+                                                    {
+                                                        ul.AddItem(mx2, TablerIconType.AlertTriangle);
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -905,52 +1661,141 @@ public static partial class HtmlCompositionReport
         var narrative = tls.Raw != null ? TlsRptNarrative.Build(tls.Raw) : null;
         acc.AddItem("TLS-RPT", item => {
             item.Icon(TablerIconType.FileAnalytics);
-            item.HeaderRight(c => c.Badge(tls.Status ?? "-", ColorForStatus(tls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(tls.ErrorCount > 0 ? $"{tls.ErrorCount} Error" + (tls.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(tls.WarningCount > 0 ? $"{tls.WarningCount} Warning" + (tls.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(tls.Status ?? "Unknown", ColorForStatus(tls.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
-                        RenderProviderHelpBadges(c2, help, new[] { "TLS-RPT" });
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        bool hasEvidence = !string.IsNullOrWhiteSpace(tls.TlsRptRecord)
-                            || (tls.MailtoRua != null && tls.MailtoRua.Count > 0)
-                            || (tls.HttpRua != null && tls.HttpRua.Count > 0)
-                            || (tls.InvalidRua != null && tls.InvalidRua.Count > 0)
-                            || (tls.UnknownTags != null && tls.UnknownTags.Count > 0);
-                        if (hasEvidence)
+                        var findingsCount = tls.WarningCount + tls.ErrorCount;
+                        var findingsBadgeColor = tls.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (tls.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("Evidence");
-                            if (!string.IsNullOrWhiteSpace(tls.TlsRptRecord))
+                            g.AddItem("Status", tls.Status ?? "-").AsPanel(PanelColorForStatus(tls.Status), light: true);
+                            g.AddItem("Warnings", tls.WarningCount.ToString()).AsPanel(tls.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", tls.ErrorCount.ToString()).AsPanel(tls.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
                             {
-                                c2.Text("TLS-RPT Record:").Style(TablerTextStyle.Muted);
-                                c2.Text(tls.TlsRptRecord!).Style(TablerTextStyle.Monospace);
+                                foreach (var kv in sec.Summary)
+                                {
+                                    g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
                             }
-                            if ((tls.MailtoRua?.Count ?? 0) + (tls.HttpRua?.Count ?? 0) > 0)
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, help, new[] { "TLS-RPT" }, refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
                             {
-                                c2.Text("Reporting URIs").Style(TablerTextStyle.Muted);
-                                var rows = (tls.MailtoRua ?? Array.Empty<string>())
-                                    .Select(x => new { Scheme = "mailto", Uri = x })
-                                    .Concat((tls.HttpRua ?? Array.Empty<string>())
-                                        .Select(x => new { Scheme = "https", Uri = x }))
-                                    .ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                            }
-                            if (tls.InvalidRua != null && tls.InvalidRua.Count > 0)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
-                                c2.Text("Invalid rua").Style(TablerTextStyle.Muted);
-                                foreach (var u in tls.InvalidRua) c2.Text("- " + u);
-                            }
-                            if (tls.UnknownTags != null && tls.UnknownTags.Count > 0)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
                             {
-                                c2.Text("Unknown tags").Style(TablerTextStyle.Muted);
-                                foreach (var t in tls.UnknownTags) c2.Text("- " + t);
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+
+                                    if (!string.IsNullOrWhiteSpace(tls.TlsRptRecord))
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("TLS-RPT Record").Icon(TablerIconType.FileText));
+                                            card.Body(body => body.Text(tls.TlsRptRecord!).Style(TablerTextStyle.Monospace));
+                                        });
+                                    }
+
+                                    if ((tls.MailtoRua?.Count ?? 0) + (tls.HttpRua?.Count ?? 0) > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Reporting URIs").Icon(TablerIconType.Link));
+                                            card.Body(body =>
+                                            {
+                                                var rows = (tls.MailtoRua ?? Array.Empty<string>())
+                                                    .Select(x => new { Scheme = "mailto", Uri = x })
+                                                    .Concat((tls.HttpRua ?? Array.Empty<string>())
+                                                        .Select(x => new { Scheme = "https", Uri = x }))
+                                                    .ToList();
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (tls.InvalidRua != null && tls.InvalidRua.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Invalid rua").Icon(TablerIconType.AlertTriangle));
+                                            card.Body(body =>
+                                            {
+                                                var ul = body.TablerList();
+                                                foreach (var u in tls.InvalidRua)
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(u))
+                                                    {
+                                                        ul.AddItem(u, TablerIconType.AlertTriangle);
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (tls.UnknownTags != null && tls.UnknownTags.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Unknown tags").Icon(TablerIconType.InfoCircle));
+                                            card.Body(body =>
+                                            {
+                                                var ul = body.TablerList();
+                                                foreach (var t in tls.UnknownTags)
+                                                {
+                                                    if (!string.IsNullOrWhiteSpace(t))
+                                                    {
+                                                        ul.AddItem(t, TablerIconType.InfoCircle);
+                                                    }
+                                                }
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
@@ -968,62 +1813,150 @@ public static partial class HtmlCompositionReport
         var narrative = ns.Raw != null ? NSNarrative.Build(ns.Raw) : null;
         acc.AddItem("NS (Authoritative)", item => {
             item.Icon(TablerIconType.Server);
-            item.HeaderRight(c => c.Badge(ns.Status ?? "-", ColorForStatus(ns.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(ns.ErrorCount > 0 ? $"{ns.ErrorCount} Error" + (ns.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(ns.WarningCount > 0 ? $"{ns.WarningCount} Warning" + (ns.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(ns.Status ?? "Unknown", ColorForStatus(ns.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        var raw = ns.Raw;
-                        bool hasEvidence = raw != null
-                            && ((raw.NsRecords?.Count ?? 0) > 0
-                                || (raw.ParentNsRecords?.Count ?? 0) > 0
-                                || (raw.RootServerResponses?.Count ?? 0) > 0
-                                || (raw.RecursionEnabled?.Count ?? 0) > 0);
-                        if (hasEvidence && raw != null)
+                        var findingsCount = ns.WarningCount + ns.ErrorCount;
+                        var findingsBadgeColor = ns.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (ns.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("Evidence");
-                            if (raw.NsRecords != null && raw.NsRecords.Count > 0)
+                            g.AddItem("Status", ns.Status ?? "-").AsPanel(PanelColorForStatus(ns.Status), light: true);
+                            g.AddItem("Warnings", ns.WarningCount.ToString()).AsPanel(ns.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", ns.ErrorCount.ToString()).AsPanel(ns.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
                             {
-                                c2.Text("Child NS").Style(TablerTextStyle.Muted);
-                                foreach (var name in raw.NsRecords)
+                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                            }
+                        }, subtitle: "Key metrics gathered during this check.");
+
+                        RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                        RenderResultsTabsCard(
+                            c2,
+                            tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    c2.Text("- " + name);
-                                }
-                            }
-                            if (raw.ParentNsRecords != null && raw.ParentNsRecords.Count > 0)
+                                    RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
                             {
-                                c2.Text("Parent NS").Style(TablerTextStyle.Muted);
-                                foreach (var name in raw.ParentNsRecords)
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
                                 {
-                                    c2.Text("- " + name);
-                                }
-                            }
-                            if (raw.RootServerResponses != null && raw.RootServerResponses.Count > 0)
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
                             {
-                                c2.Text("Root responses").Style(TablerTextStyle.Muted);
-                                var rows = raw.RootServerResponses.Select(kv => new { Server = kv.Key, Responded = kv.Value ? "Yes" : "No" }).ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
                             }
-                            if (raw.RecursionEnabled != null && raw.RecursionEnabled.Count > 0)
+
+                            tabs.AddTab("Evidence", panel =>
                             {
-                                c2.Text("Recursion status").Style(TablerTextStyle.Muted);
-                                var rows = raw.RecursionEnabled.Select(kv => new { Server = kv.Key, Recursion = kv.Value ? "Yes" : "No" }).ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
-                            }
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    bool hasEvidence = false;
+                                    var raw = ns.Raw;
+                                    if (raw != null)
+                                    {
+                                        if (raw.NsRecords != null && raw.NsRecords.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Child NS").Icon(TablerIconType.Server));
+                                                card.Body(body =>
+                                                {
+                                                    var ul = body.TablerList();
+                                                    foreach (var name in raw.NsRecords)
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(name))
+                                                        {
+                                                            ul.AddItem(name, TablerIconType.Server);
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                        }
+
+                                        if (raw.ParentNsRecords != null && raw.ParentNsRecords.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Parent NS").Icon(TablerIconType.Server));
+                                                card.Body(body =>
+                                                {
+                                                    var ul = body.TablerList();
+                                                    foreach (var name in raw.ParentNsRecords)
+                                                    {
+                                                        if (!string.IsNullOrWhiteSpace(name))
+                                                        {
+                                                            ul.AddItem(name, TablerIconType.Server);
+                                                        }
+                                                    }
+                                                });
+                                            });
+                                        }
+
+                                        if (raw.RootServerResponses != null && raw.RootServerResponses.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Root responses").Icon(TablerIconType.Table));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = raw.RootServerResponses.Select(kv => new { Server = kv.Key, Responded = kv.Value ? "Yes" : "No" }).ToList();
+                                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                });
+                                            });
+                                        }
+
+                                        if (raw.RecursionEnabled != null && raw.RecursionEnabled.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Recursion status").Icon(TablerIconType.Table));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = raw.RecursionEnabled.Select(kv => new { Server = kv.Key, Recursion = kv.Value ? "Yes" : "No" }).ToList();
+                                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                });
+                                            });
+                                        }
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
         });
     }
 
-    private static void RenderSoaSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderSoaSection(TablerAccordion acc, DomainBucket b)   
     {
         var soa = b.Soa;
         if (soa == null)
@@ -1034,39 +1967,301 @@ public static partial class HtmlCompositionReport
         var narrative = soa.Raw != null ? SoaNarrative.Build(soa.Raw) : null;
         acc.AddItem("SOA", item => {
             item.Icon(TablerIconType.FileInfo);
-            item.HeaderRight(c => c.Badge(soa.Status ?? "-", ColorForStatus(soa.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(soa.ErrorCount > 0 ? $"{soa.ErrorCount} Error" + (soa.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(soa.WarningCount > 0 ? $"{soa.WarningCount} Warning" + (soa.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(soa.Status ?? "Unknown", ColorForStatus(soa.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        var raw = soa.Raw;
-                        bool hasEvidence = raw != null && raw.RecordExists;
-                        if (hasEvidence && raw != null)
+                        var findingsCount = soa.WarningCount + soa.ErrorCount;
+                        var findingsBadgeColor = soa.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (soa.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                        var refs = MergeReferences(sec?.References, narrative?.References);
+
+                        RenderExecutionSnapshotCard(c2, g =>
                         {
-                            c2.Divider("Evidence");
-                            c2.DataGrid(g => {
-                                g.AsCompact();
-                                g.AddItem("Primary NS", raw.PrimaryNameServer ?? "-");
-                                g.AddItem("Responsible", raw.ResponsibleMailbox ?? "-");
-                                g.AddItem("Serial", raw.SerialNumber.ToString());
-                                g.AddItem("Serial format", raw.SerialFormatValid ? "Valid" : "Check");
-                                g.AddItem("Refresh", raw.Refresh.ToString());
-                                g.AddItem("Retry", raw.Retry.ToString());
-                                g.AddItem("Expire", raw.Expire.ToString());
-                                g.AddItem("Minimum", raw.Minimum.ToString());
-                                g.AddItem("Negative cache TTL", raw.NegativeCacheTtl.ToString());
-                            });
-                        }
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                            g.AddItem("Status", soa.Status ?? "-").AsPanel(PanelColorForStatus(soa.Status), light: true);
+                            g.AddItem("Warnings", soa.WarningCount.ToString()).AsPanel(soa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", soa.ErrorCount.ToString()).AsPanel(soa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                            if (sec != null)
+                            {
+                                foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                            }
+                        }, subtitle: "Key metrics gathered during this check.");
+
+                        RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                        RenderResultsTabsCard(
+                            c2,
+                            tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec?.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    var raw = soa.Raw;
+                                    if (raw != null && raw.RecordExists)
+                                    {
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("SOA Record").Icon(TablerIconType.FileInfo));
+                                            card.Body(body =>
+                                            {
+                                                body.DataGrid(g =>
+                                                {
+                                                    g.AsCompact();
+                                                    g.AddItem("Primary NS", raw.PrimaryNameServer ?? "-");
+                                                    g.AddItem("Responsible", raw.ResponsibleMailbox ?? "-");
+                                                    g.AddItem("Serial", raw.SerialNumber.ToString());
+                                                    g.AddItem("Serial format", raw.SerialFormatValid ? "Valid" : "Check");
+                                                    g.AddItem("Refresh", raw.Refresh.ToString());
+                                                    g.AddItem("Retry", raw.Retry.ToString());
+                                                    g.AddItem("Expire", raw.Expire.ToString());
+                                                    g.AddItem("Minimum", raw.Minimum.ToString());
+                                                    g.AddItem("Negative cache TTL", raw.NegativeCacheTtl.ToString());
+                                                });
+                                            });
+                                        });
+                                        return;
+                                    }
+
+                                    col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
                     });
                 });
             });
         });
     }
 
-    private static void RenderCaaSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderTtlSection(TablerAccordion acc, DomainBucket b)
+    {
+        var ttl = b.Ttl;
+        if (ttl == null)
+        {
+            return;
+        }
+        var narrative = ttl.Raw != null ? TtlNarrative.Build(ttl.Raw, ttl.Assessments) : null;
+        acc.AddItem("TTL", item =>
+        {
+            item.Icon(TablerIconType.Clock);
+            item.HeaderRight(c =>
+            {
+                c.Badge(ttl.ErrorCount > 0 ? $"{ttl.ErrorCount} Error" + (ttl.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(ttl.WarningCount > 0 ? $"{ttl.WarningCount} Warning" + (ttl.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(ttl.Status ?? "Unknown", ColorForStatus(ttl.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
+            item.Content(content =>
+            {
+                content.Row(r =>
+                {
+                    r.Column(TablerColumnNumber.Twelve, c2 =>
+                    {
+                        var findingsCount = ttl.WarningCount + ttl.ErrorCount;
+                        var findingsBadgeColor = ttl.ErrorCount > 0
+                            ? TablerBadgeColor.Danger
+                            : (ttl.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+
+                        var positives = (ttl.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+                            .Select(p => p?.Title ?? p?.Code)
+                            .Where(t => !string.IsNullOrWhiteSpace(t))
+                            .Select(t => t!.Trim())
+                            .ToList();
+
+                        var refs = MergeReferences(ttl.References, narrative?.References);
+
+                        static string MinMax(IReadOnlyList<int>? values)
+                        {
+                            if (values == null || values.Count == 0)
+                            {
+                                return "-";
+                            }
+                            var nonZero = values.Where(v => v > 0).ToList();
+                            if (nonZero.Count == 0)
+                            {
+                                return "0";
+                            }
+                            if (nonZero.Count == 1)
+                            {
+                                return nonZero[0].ToString();
+                            }
+                            return $"{nonZero.Min()}/{nonZero.Max()}";
+                        }
+
+                        RenderExecutionSnapshotCard(c2, g =>
+                        {
+                            g.AddItem("Status", ttl.Status ?? "-").AsPanel(PanelColorForStatus(ttl.Status), light: true);
+                            g.AddItem("Warnings", ttl.WarningCount.ToString()).AsPanel(ttl.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            g.AddItem("Errors", ttl.ErrorCount.ToString()).AsPanel(ttl.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+
+                            g.AddItem("DNSSEC signed", ttl.DnssecSigned ? "Yes" : "No").AsPanel();
+                            g.AddItem("SOA TTL (s)", ttl.SoaTtl.ToString()).AsPanel();
+                            g.AddItem("A TTL (min/max)", MinMax(ttl.ATtls)).AsPanel();
+                            g.AddItem("AAAA TTL (min/max)", MinMax(ttl.AaaaTtls)).AsPanel();
+                            g.AddItem("MX TTL (min/max)", MinMax(ttl.MxTtls)).AsPanel();
+                            g.AddItem("NS TTL (min/max)", MinMax(ttl.NsTtls)).AsPanel();
+                        });
+
+                        RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, narrative?.Highlights, positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindingsFromAssessments(col, ttl.Assessments);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                            }
+
+                            tabs.AddTab("Evidence", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    var evidenceRows = new List<object>();
+
+                                    static string Sample(IReadOnlyList<int>? values, int max = 10)
+                                    {
+                                        if (values == null || values.Count == 0) return "-";
+                                        var unique = values.Where(v => v > 0).Distinct().OrderBy(v => v).ToList();
+                                        if (unique.Count == 0) return "0";
+                                        var take = unique.Take(max).ToList();
+                                        var suffix = unique.Count > take.Count ? $" (+{unique.Count - take.Count} more)" : string.Empty;
+                                        return string.Join(", ", take) + suffix;
+                                    }
+
+                                    void AddRow(string record, IReadOnlyList<int>? values)
+                                    {
+                                        if (values == null || values.Count == 0)
+                                        {
+                                            return;
+                                        }
+                                        var nonZero = values.Where(v => v > 0).ToList();
+                                        evidenceRows.Add(new
+                                        {
+                                            Record = record,
+                                            Min = nonZero.Count > 0 ? nonZero.Min().ToString() : "0",
+                                            Max = nonZero.Count > 0 ? nonZero.Max().ToString() : "0",
+                                            Count = nonZero.Count.ToString(),
+                                            Values = Sample(values)
+                                        });
+                                    }
+
+                                    AddRow("A", ttl.ATtls);
+                                    AddRow("AAAA", ttl.AaaaTtls);
+                                    AddRow("MX", ttl.MxTtls);
+                                    AddRow("NS", ttl.NsTtls);
+                                    AddRow("TXT (SPF)", ttl.SpfTxtTtls);
+                                    AddRow("TXT (_dmarc)", ttl.DmarcTxtTtls);
+                                    AddRow("TXT (_mta-sts)", ttl.MtastsTxtTtls);
+                                    AddRow("TXT (_smtp._tls)", ttl.TlsRptTxtTtls);
+
+                                    bool hasEvidence = false;
+
+                                    if (ttl.SoaTtl > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("SOA TTL").Icon(TablerIconType.Clock));
+                                            card.Body(b => b.Text($"{ttl.SoaTtl} seconds").Style(TablerTextStyle.Muted));
+                                        });
+                                    }
+
+                                    if (evidenceRows.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("Observed TTLs").Icon(TablerIconType.Table));
+                                            card.Body(body =>
+                                            {
+                                                var t = (TablerTable)body.Table(evidenceRows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (ttl.DkimTxtTtls != null && ttl.DkimTxtTtls.Count > 0)
+                                    {
+                                        hasEvidence = true;
+                                        col.Card(card =>
+                                        {
+                                            card.Header(h => h.Title("DKIM Selector TTLs").Icon(TablerIconType.Key));
+                                            card.Body(body =>
+                                            {
+                                                var rows = ttl.DkimTxtTtls
+                                                    .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                                                    .Select(kv =>
+                                                    {
+                                                        var values = kv.Value ?? Array.Empty<int>();
+                                                        var nonZero = values.Where(v => v > 0).ToList();
+                                                        return new
+                                                        {
+                                                            Selector = kv.Key,
+                                                            Min = nonZero.Count > 0 ? nonZero.Min().ToString() : "0",
+                                                            Max = nonZero.Count > 0 ? nonZero.Max().ToString() : "0",
+                                                            Count = nonZero.Count.ToString(),
+                                                            Values = Sample(values)
+                                                        };
+                                                    })
+                                                    .ToList();
+                                                var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                            });
+                                        });
+                                    }
+
+                                    if (!hasEvidence)
+                                    {
+                                        col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                    }
+                                }));
+                            }).WithIcon(TablerIconType.FileText);
+                        });
+                    });
+                });
+            });
+        });
+    }
+
+    private static void RenderCaaSection(TablerAccordion acc, DomainBucket b)   
     {
         var caa = b.Caa;
         if (caa == null)
@@ -1077,31 +2272,126 @@ public static partial class HtmlCompositionReport
         var narrative = caa.Raw != null ? CaaNarrative.Build(caa.Raw) : null;
         acc.AddItem("CAA", item => {
             item.Icon(TablerIconType.Certificate);
-            item.HeaderRight(c => c.Badge(caa.Status ?? "-", ColorForStatus(caa.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(caa.ErrorCount > 0 ? $"{caa.ErrorCount} Error" + (caa.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(caa.WarningCount > 0 ? $"{caa.WarningCount} Warning" + (caa.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(caa.Status ?? "Unknown", ColorForStatus(caa.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = caa.WarningCount + caa.ErrorCount;
+                            var findingsBadgeColor = caa.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (caa.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", caa.Status ?? "-").AsPanel(PanelColorForStatus(caa.Status), light: true);
+                                g.AddItem("Warnings", caa.WarningCount.ToString()).AsPanel(caa.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", caa.ErrorCount.ToString()).AsPanel(caa.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        var raw = caa.Raw;
+                                        if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Analysis Results").Icon(TablerIconType.Table));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = raw.AnalysisResults.Select(r => new
+                                                    {
+                                                        Record = r.CAARecord,
+                                                        Flag = r.Flag,
+                                                        Tag = r.Tag.ToString(),
+                                                        Value = r.Value,
+                                                        Issuer = string.IsNullOrWhiteSpace(r.Issuer) ? "-" : r.Issuer,
+                                                        Critical = r.Critical ? "Yes" : "No",
+                                                        Invalid = r.Invalid ? "Yes" : "No"
+                                                    }).ToList();
+                                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                });
+                                            });
+                                        }
+                                        else
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         var raw = caa.Raw;
                         if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
                         {
-                            c2.Divider("Evidence");
-                            var rows = raw.AnalysisResults.Select(r => new {
-                                Record = r.CAARecord,
-                                Flag = r.Flag,
-                                Tag = r.Tag.ToString(),
-                                Value = r.Value,
-                                Issuer = string.IsNullOrWhiteSpace(r.Issuer) ? "-" : r.Issuer,
-                                Critical = r.Critical ? "Yes" : "No",
-                                Invalid = r.Invalid ? "Yes" : "No"
-                            }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Analysis Results").Icon(TablerIconType.Table));
+                                card.Body(body =>
+                                {
+                                    var rows = raw.AnalysisResults.Select(r => new
+                                    {
+                                        Record = r.CAARecord,
+                                        Flag = r.Flag,
+                                        Tag = r.Tag.ToString(),
+                                        Value = r.Value,
+                                        Issuer = string.IsNullOrWhiteSpace(r.Issuer) ? "-" : r.Issuer,
+                                        Critical = r.Critical ? "Yes" : "No",
+                                        Invalid = r.Invalid ? "Yes" : "No"
+                                    }).ToList();
+                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                });
+                            });
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1119,76 +2409,290 @@ public static partial class HtmlCompositionReport
         var narrative = DnssecNarrative.Build(dnssec.Raw, dnssec.Assessments);
         acc.AddItem("DNSSEC", item => {
             item.Icon(TablerIconType.ShieldBolt);
-            item.HeaderRight(c => c.Badge(dnssec.Status ?? "-", ColorForStatus(dnssec.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(dnssec.ErrorCount > 0 ? $"{dnssec.ErrorCount} Error" + (dnssec.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dnssec.WarningCount > 0 ? $"{dnssec.WarningCount} Warning" + (dnssec.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dnssec.Status ?? "Unknown", ColorForStatus(dnssec.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = dnssec.WarningCount + dnssec.ErrorCount;
+                            var findingsBadgeColor = dnssec.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (dnssec.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", dnssec.Status ?? "-").AsPanel(PanelColorForStatus(dnssec.Status), light: true);
+                                g.AddItem("Warnings", dnssec.WarningCount.ToString()).AsPanel(dnssec.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", dnssec.ErrorCount.ToString()).AsPanel(dnssec.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        bool hasEvidence = false;
+                                        var raw = dnssec.Raw;
+                                        if (raw != null)
+                                        {
+                                            if (raw.DsRecords != null && raw.DsRecords.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("DS Records").Icon(TablerIconType.FileText));
+                                                    card.Body(body =>
+                                                    {
+                                                        foreach (var ds in raw.DsRecords)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(ds))
+                                                            {
+                                                                body.Text(ds).Style(TablerTextStyle.Monospace);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.DnsKeys != null && raw.DnsKeys.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("DNSKEY Records").Icon(TablerIconType.Key));
+                                                    card.Body(body =>
+                                                    {
+                                                        foreach (var key in raw.DnsKeys)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(key))
+                                                            {
+                                                                body.Text(key).Style(TablerTextStyle.Monospace);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.Rrsigs != null && raw.Rrsigs.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("RRSIG Summary").Icon(TablerIconType.Table));
+                                                    card.Body(body =>
+                                                    {
+                                                        var rows = raw.Rrsigs.Select(r => new
+                                                        {
+                                                            Algorithm = r.Algorithm,
+                                                            KeyTag = r.KeyTag.ToString(),
+                                                            Inception = r.Inception == DateTimeOffset.MinValue ? "-" : r.Inception.UtcDateTime.ToString("yyyy-MM-dd"),
+                                                            Expiration = r.Expiration == DateTimeOffset.MinValue ? "-" : r.Expiration.UtcDateTime.ToString("yyyy-MM-dd")
+                                                        }).ToList();
+                                                        var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                    });
+                                                });
+                                            }
+                                            if (raw.RootAnchorExpiration.HasValue)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Root trust anchor").Icon(TablerIconType.Clock));
+                                                    card.Body(body => body.Text(raw.RootAnchorExpiration.Value.UtcDateTime.ToString("yyyy-MM-dd")));
+                                                });
+                                            }
+                                            if (raw.MismatchSummary != null && raw.MismatchSummary.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Mismatches").Icon(TablerIconType.AlertTriangle));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var m in raw.MismatchSummary)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(m))
+                                                            {
+                                                                ul.AddItem(m, TablerIconType.AlertTriangle);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.Warnings != null && raw.Warnings.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Warnings").Icon(TablerIconType.AlertTriangle));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var w in raw.Warnings)
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(w))
+                                                            {
+                                                                ul.AddItem(w, TablerIconType.AlertTriangle);
+                                                            }
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                        }
+
+                                        if (!hasEvidence)
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         var raw = dnssec.Raw;
-                        bool hasEvidence = raw != null
-                            && ((raw.DsRecords?.Count ?? 0) > 0
-                                || (raw.DnsKeys?.Count ?? 0) > 0
-                                || (raw.Rrsigs?.Count ?? 0) > 0
-                                || raw.RootAnchorExpiration.HasValue
-                                || (raw.MismatchSummary?.Count ?? 0) > 0
-                                || (raw.Warnings?.Count ?? 0) > 0);
-                        if (hasEvidence && raw != null)
+                        if (raw != null)
                         {
-                            c2.Divider("Evidence");
                             if (raw.DsRecords != null && raw.DsRecords.Count > 0)
                             {
-                                c2.Text("DS records").Style(TablerTextStyle.Muted);
-                                foreach (var ds in raw.DsRecords)
+                                c2.Card(card =>
                                 {
-                                    c2.Text(ds).Style(TablerTextStyle.Monospace);
-                                }
+                                    card.Header(h => h.Title("DS Records").Icon(TablerIconType.FileText));
+                                    card.Body(body =>
+                                    {
+                                        foreach (var ds in raw.DsRecords)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(ds))
+                                            {
+                                                body.Text(ds).Style(TablerTextStyle.Monospace);
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             if (raw.DnsKeys != null && raw.DnsKeys.Count > 0)
                             {
-                                c2.Text("DNSKEY records").Style(TablerTextStyle.Muted);
-                                foreach (var key in raw.DnsKeys)
+                                c2.Card(card =>
                                 {
-                                    c2.Text(key).Style(TablerTextStyle.Monospace);
-                                }
+                                    card.Header(h => h.Title("DNSKEY Records").Icon(TablerIconType.Key));
+                                    card.Body(body =>
+                                    {
+                                        foreach (var key in raw.DnsKeys)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(key))
+                                            {
+                                                body.Text(key).Style(TablerTextStyle.Monospace);
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             if (raw.Rrsigs != null && raw.Rrsigs.Count > 0)
                             {
-                                c2.Text("RRSIG summary").Style(TablerTextStyle.Muted);
-                                var rows = raw.Rrsigs.Select(r => new {
-                                    Algorithm = r.Algorithm,
-                                    KeyTag = r.KeyTag.ToString(),
-                                    Inception = r.Inception == DateTimeOffset.MinValue ? "-" : r.Inception.UtcDateTime.ToString("yyyy-MM-dd"),
-                                    Expiration = r.Expiration == DateTimeOffset.MinValue ? "-" : r.Expiration.UtcDateTime.ToString("yyyy-MM-dd")
-                                }).ToList();
-                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                c2.Card(card =>
+                                {
+                                    card.Header(h => h.Title("RRSIG Summary").Icon(TablerIconType.Table));
+                                    card.Body(body =>
+                                    {
+                                        var rows = raw.Rrsigs.Select(r => new
+                                        {
+                                            Algorithm = r.Algorithm,
+                                            KeyTag = r.KeyTag.ToString(),
+                                            Inception = r.Inception == DateTimeOffset.MinValue ? "-" : r.Inception.UtcDateTime.ToString("yyyy-MM-dd"),
+                                            Expiration = r.Expiration == DateTimeOffset.MinValue ? "-" : r.Expiration.UtcDateTime.ToString("yyyy-MM-dd")
+                                        }).ToList();
+                                        var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                        t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                    });
+                                });
                             }
                             if (raw.RootAnchorExpiration.HasValue)
                             {
-                                c2.Text("Root trust anchor expires").Style(TablerTextStyle.Muted);
-                                c2.Text(raw.RootAnchorExpiration.Value.UtcDateTime.ToString("yyyy-MM-dd"));
+                                c2.Card(card =>
+                                {
+                                    card.Header(h => h.Title("Root trust anchor").Icon(TablerIconType.Clock));
+                                    card.Body(body => body.Text(raw.RootAnchorExpiration.Value.UtcDateTime.ToString("yyyy-MM-dd")));
+                                });
                             }
                             if (raw.MismatchSummary != null && raw.MismatchSummary.Count > 0)
                             {
-                                c2.Text("Mismatch summary").Style(TablerTextStyle.Muted);
-                                foreach (var m in raw.MismatchSummary)
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + m);
-                                }
+                                    card.Header(h => h.Title("Mismatch summary").Icon(TablerIconType.AlertTriangle));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var m in raw.MismatchSummary)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(m))
+                                            {
+                                                ul.AddItem(m, TablerIconType.AlertTriangle);
+                                            }
+                                        }
+                                    });
+                                });
                             }
                             if (raw.Warnings != null && raw.Warnings.Count > 0)
                             {
-                                c2.Text("Warnings").Style(TablerTextStyle.Muted);
-                                foreach (var w in raw.Warnings)
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + w);
-                                }
+                                    card.Header(h => h.Title("Warnings").Icon(TablerIconType.AlertTriangle));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var w in raw.Warnings)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(w))
+                                            {
+                                                ul.AddItem(w, TablerIconType.AlertTriangle);
+                                            }
+                                        }
+                                    });
+                                });
                             }
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1206,29 +2710,122 @@ public static partial class HtmlCompositionReport
         var narrative = DaneNarrative.Build(dane.Raw, dane.Assessments);
         acc.AddItem("DANE", item => {
             item.Icon(TablerIconType.Fingerprint);
-            item.HeaderRight(c => c.Badge(dane.Status ?? "-", ColorForStatus(dane.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(dane.ErrorCount > 0 ? $"{dane.ErrorCount} Error" + (dane.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dane.WarningCount > 0 ? $"{dane.WarningCount} Warning" + (dane.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(dane.Status ?? "Unknown", ColorForStatus(dane.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = dane.WarningCount + dane.ErrorCount;
+                            var findingsBadgeColor = dane.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (dane.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", dane.Status ?? "-").AsPanel(PanelColorForStatus(dane.Status), light: true);
+                                g.AddItem("Warnings", dane.WarningCount.ToString()).AsPanel(dane.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", dane.ErrorCount.ToString()).AsPanel(dane.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        var raw = dane.Raw;
+                                        if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Analysis Results").Icon(TablerIconType.Table));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = raw.AnalysisResults.Select(r => new
+                                                    {
+                                                        Host = r.DomainName,
+                                                        Usage = r.CertificateUsage,
+                                                        Selector = r.SelectorField,
+                                                        Matching = r.MatchingTypeField,
+                                                        Valid = r.ValidDANERecord ? "Yes" : "No"
+                                                    }).ToList();
+                                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                                });
+                                            });
+                                        }
+                                        else
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         var raw = dane.Raw;
                         if (raw != null && raw.AnalysisResults != null && raw.AnalysisResults.Count > 0)
                         {
-                            c2.Divider("Evidence");
-                            var rows = raw.AnalysisResults.Select(r => new {
-                                Host = r.DomainName,
-                                Usage = r.CertificateUsage,
-                                Selector = r.SelectorField,
-                                Matching = r.MatchingTypeField,
-                                Valid = r.ValidDANERecord ? "Yes" : "No"
-                            }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Analysis Results").Icon(TablerIconType.Table));
+                                card.Body(body =>
+                                {
+                                    var rows = raw.AnalysisResults.Select(r => new
+                                    {
+                                        Host = r.DomainName,
+                                        Usage = r.CertificateUsage,
+                                        Selector = r.SelectorField,
+                                        Matching = r.MatchingTypeField,
+                                        Valid = r.ValidDANERecord ? "Yes" : "No"
+                                    }).ToList();
+                                    var t = (TablerTable)body.Table(rows, TableType.Tabler);
+                                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                });
+                            });
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1246,23 +2843,112 @@ public static partial class HtmlCompositionReport
         var narrative = RpkiNarrative.Build(rpki.Raw, rpki.Assessments);
         acc.AddItem("RPKI", item => {
             item.Icon(TablerIconType.Route);
-            item.HeaderRight(c => c.Badge(rpki.Status ?? "-", ColorForStatus(rpki.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(rpki.ErrorCount > 0 ? $"{rpki.ErrorCount} Error" + (rpki.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(rpki.WarningCount > 0 ? $"{rpki.WarningCount} Warning" + (rpki.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(rpki.Status ?? "Unknown", ColorForStatus(rpki.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = rpki.WarningCount + rpki.ErrorCount;
+                            var findingsBadgeColor = rpki.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (rpki.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", rpki.Status ?? "-").AsPanel(PanelColorForStatus(rpki.Status), light: true);
+                                g.AddItem("Warnings", rpki.WarningCount.ToString()).AsPanel(rpki.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", rpki.ErrorCount.ToString()).AsPanel(rpki.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        if (rpki.Results != null && rpki.Results.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Per-IP Results").Icon(TablerIconType.Route));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = rpki.Results.Select(r2 => new { r2.IpAddress, r2.Prefix, r2.Asn, Valid = r2.Valid ? "Yes" : "No" }).ToList();
+                                                    var t = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                                                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
+                                                    t.EnablePaging(10, new[] { 10, 25, 50 })
+                                                        .EnableSearching()
+                                                        .EnableOrdering();
+                                                });
+                                            });
+                                        }
+                                        else
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderPositives(c2, sec?.Positives);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         if (rpki.Results != null && rpki.Results.Count > 0)
                         {
-                            c2.Divider("Evidence");
-                            c2.Text("Per-IP results").Style(TablerTextStyle.Muted);
-                            var rows = rpki.Results.Select(r2 => new { r2.IpAddress, r2.Prefix, r2.Asn, Valid = r2.Valid ? "Yes" : "No" }).ToList();
-                            var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
-                            t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Per-IP Results").Icon(TablerIconType.Route));
+                                card.Body(body =>
+                                {
+                                    var rows = rpki.Results.Select(r2 => new { r2.IpAddress, r2.Prefix, r2.Asn, Valid = r2.Valid ? "Yes" : "No" }).ToList();
+                                    var t = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
+                                    t.EnablePaging(10, new[] { 10, 25, 50 })
+                                        .EnableSearching()
+                                        .EnableOrdering();
+                                });
+                            });
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1280,22 +2966,111 @@ public static partial class HtmlCompositionReport
         var narrative = ZoneTransferNarrative.Build(zone.Raw, zone.Assessments);
         acc.AddItem("Zone Transfer", item => {
             item.Icon(TablerIconType.ArrowsTransferUp);
-            item.HeaderRight(c => c.Badge(zone.Status ?? "-", ColorForStatus(zone.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(zone.ErrorCount > 0 ? $"{zone.ErrorCount} Error" + (zone.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(zone.WarningCount > 0 ? $"{zone.WarningCount} Warning" + (zone.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(zone.Status ?? "Unknown", ColorForStatus(zone.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = zone.WarningCount + zone.ErrorCount;
+                            var findingsBadgeColor = zone.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (zone.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", zone.Status ?? "-").AsPanel(PanelColorForStatus(zone.Status), light: true);
+                                g.AddItem("Warnings", zone.WarningCount.ToString()).AsPanel(zone.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", zone.ErrorCount.ToString()).AsPanel(zone.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        if (zone.ServerResults != null && zone.ServerResults.Count > 0)
+                                        {
+                                            col.Card(card =>
+                                            {
+                                                card.Header(h => h.Title("Server Results").Icon(TablerIconType.Table));
+                                                card.Body(body =>
+                                                {
+                                                    var rows = zone.ServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
+                                                    var t = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                                                    ConfigureStandardDataTable(t);
+                                                    t.EnablePaging(10, new[] { 10, 25, 50 })
+                                                        .EnableSearching()
+                                                        .EnableOrdering();
+                                                });
+                                            });
+                                        }
+                                        else
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         if (zone.ServerResults != null && zone.ServerResults.Count > 0)
                         {
-                            c2.Divider("Evidence");
-                            c2.Text("Server results").Style(TablerTextStyle.Muted);
-                            var rows = zone.ServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
-                            var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
-                            t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
+                            c2.Card(card =>
+                            {
+                                card.Header(h => h.Title("Server Results").Icon(TablerIconType.Table));
+                                card.Body(body =>
+                                {
+                                    var rows = zone.ServerResults.Select(kv => new { Server = kv.Key, Open = kv.Value ? "Yes" : "No" }).ToList();
+                                    var t = (DataTablesTable)body.Table(rows, TableType.DataTables);
+                                    ConfigureStandardDataTable(t);
+                                    t.EnablePaging(10, new[] { 10, 25, 50 })
+                                        .EnableSearching()
+                                        .EnableOrdering();
+                                });
+                            });
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1313,60 +3088,226 @@ public static partial class HtmlCompositionReport
         var narrative = WildcardNarrative.Build(wildcard.Raw, wildcard.Assessments);
         acc.AddItem("Wildcard DNS", item => {
             item.Icon(TablerIconType.Asterisk);
-            item.HeaderRight(c => c.Badge(wildcard.Status ?? "-", ColorForStatus(wildcard.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+            item.HeaderRight(c => {
+                c.Badge(wildcard.ErrorCount > 0 ? $"{wildcard.ErrorCount} Error" + (wildcard.ErrorCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(wildcard.WarningCount > 0 ? $"{wildcard.WarningCount} Warning" + (wildcard.WarningCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(wildcard.Status ?? "Unknown", ColorForStatus(wildcard.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        RenderSummaryGrid(c2, sec?.Summary);
+                        bool useNewLayout = true;
+                        if (useNewLayout)
+                        {
+                            var findingsCount = wildcard.WarningCount + wildcard.ErrorCount;
+                            var findingsBadgeColor = wildcard.ErrorCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (wildcard.WarningCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", wildcard.Status ?? "-").AsPanel(PanelColorForStatus(wildcard.Status), light: true);
+                                g.AddItem("Warnings", wildcard.WarningCount.ToString()).AsPanel(wildcard.WarningCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", wildcard.ErrorCount.ToString()).AsPanel(wildcard.ErrorCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+                                if (sec != null)
+                                {
+                                    foreach (var kv in sec.Summary) g.AddItem(kv.Key, kv.Value).AsPanel();
+                                }
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        bool hasEvidence = false;
+                                        var raw = wildcard.Raw;
+                                        if (raw != null)
+                                        {
+                                            const int maxItems = 10;
+                                            if (raw.TestedNames != null && raw.TestedNames.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Tested names").Icon(TablerIconType.Asterisk));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var name in raw.TestedNames.Take(maxItems))
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(name))
+                                                            {
+                                                                ul.AddItem(name, TablerIconType.Asterisk);
+                                                            }
+                                                        }
+                                                        if (raw.TestedNames.Count > maxItems)
+                                                        {
+                                                            body.Text($"+{raw.TestedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.ResolvedNames != null && raw.ResolvedNames.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Resolved names").Icon(TablerIconType.Asterisk));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var name in raw.ResolvedNames.Take(maxItems))
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(name))
+                                                            {
+                                                                ul.AddItem(name, TablerIconType.Asterisk);
+                                                            }
+                                                        }
+                                                        if (raw.ResolvedNames.Count > maxItems)
+                                                        {
+                                                            body.Text($"+{raw.ResolvedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                            if (raw.ResolvedAddresses != null && raw.ResolvedAddresses.Count > 0)
+                                            {
+                                                hasEvidence = true;
+                                                col.Card(card =>
+                                                {
+                                                    card.Header(h => h.Title("Resolved addresses").Icon(TablerIconType.Asterisk));
+                                                    card.Body(body =>
+                                                    {
+                                                        var ul = body.TablerList();
+                                                        foreach (var addr in raw.ResolvedAddresses.Take(maxItems))
+                                                        {
+                                                            if (!string.IsNullOrWhiteSpace(addr))
+                                                            {
+                                                                ul.AddItem(addr, TablerIconType.Asterisk);
+                                                            }
+                                                        }
+                                                        if (raw.ResolvedAddresses.Count > maxItems)
+                                                        {
+                                                            body.Text($"+{raw.ResolvedAddresses.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                                        }
+                                                    });
+                                                });
+                                            }
+                                        }
+
+                                        if (!hasEvidence)
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
+                        }
+                        else
+                        {
+                            RenderSummaryGrid(c2, sec?.Summary);
                         RenderFindings(c2, sec?.Findings);
                         RenderNarrative(c2, narrative);
                         var raw = wildcard.Raw;
-                        bool hasEvidence = raw != null
-                            && ((raw.TestedNames?.Count ?? 0) > 0
-                                || (raw.ResolvedNames?.Count ?? 0) > 0
-                                || (raw.ResolvedAddresses?.Count ?? 0) > 0);
-                        if (hasEvidence && raw != null)
+                        if (raw != null)
                         {
                             const int maxItems = 10;
-                            c2.Divider("Evidence");
                             if (raw.TestedNames != null && raw.TestedNames.Count > 0)
                             {
-                                c2.Text("Tested names").Style(TablerTextStyle.Muted);
-                                foreach (var name in raw.TestedNames.Take(maxItems))
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + name);
-                                }
-                                if (raw.TestedNames.Count > maxItems)
-                                {
-                                    c2.Text($"+{raw.TestedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
-                                }
+                                    card.Header(h => h.Title("Tested names").Icon(TablerIconType.Asterisk));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var name in raw.TestedNames.Take(maxItems))
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(name))
+                                            {
+                                                ul.AddItem(name, TablerIconType.Asterisk);
+                                            }
+                                        }
+                                        if (raw.TestedNames.Count > maxItems)
+                                        {
+                                            body.Text($"+{raw.TestedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                        }
+                                    });
+                                });
                             }
                             if (raw.ResolvedNames != null && raw.ResolvedNames.Count > 0)
                             {
-                                c2.Text("Resolved names").Style(TablerTextStyle.Muted);
-                                foreach (var name in raw.ResolvedNames.Take(maxItems))
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + name);
-                                }
-                                if (raw.ResolvedNames.Count > maxItems)
-                                {
-                                    c2.Text($"+{raw.ResolvedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
-                                }
+                                    card.Header(h => h.Title("Resolved names").Icon(TablerIconType.Asterisk));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var name in raw.ResolvedNames.Take(maxItems))
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(name))
+                                            {
+                                                ul.AddItem(name, TablerIconType.Asterisk);
+                                            }
+                                        }
+                                        if (raw.ResolvedNames.Count > maxItems)
+                                        {
+                                            body.Text($"+{raw.ResolvedNames.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                        }
+                                    });
+                                });
                             }
                             if (raw.ResolvedAddresses != null && raw.ResolvedAddresses.Count > 0)
                             {
-                                c2.Text("Resolved addresses").Style(TablerTextStyle.Muted);
-                                foreach (var addr in raw.ResolvedAddresses.Take(maxItems))
+                                c2.Card(card =>
                                 {
-                                    c2.Text("- " + addr);
-                                }
-                                if (raw.ResolvedAddresses.Count > maxItems)
-                                {
-                                    c2.Text($"+{raw.ResolvedAddresses.Count - maxItems} more").Style(TablerTextStyle.Muted);
-                                }
+                                    card.Header(h => h.Title("Resolved addresses").Icon(TablerIconType.Asterisk));
+                                    card.Body(body =>
+                                    {
+                                        var ul = body.TablerList();
+                                        foreach (var addr in raw.ResolvedAddresses.Take(maxItems))
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(addr))
+                                            {
+                                                ul.AddItem(addr, TablerIconType.Asterisk);
+                                            }
+                                        }
+                                        if (raw.ResolvedAddresses.Count > maxItems)
+                                        {
+                                            body.Text($"+{raw.ResolvedAddresses.Count - maxItems} more").Style(TablerTextStyle.Muted);
+                                        }
+                                    });
+                                });
                             }
                         }
                         RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
+                        }
                     });
                 });
             });
@@ -1380,6 +3321,9 @@ public static partial class HtmlCompositionReport
             return;
         }
         var sec = SectionProjectors.BuildMailTls(b.SmtpTls, b.ImapTls, b.PopTls);
+        int warnCount = (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
+        int errCount = (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);
+        var status = errCount > 0 ? "Error" : (warnCount > 0 ? "Warning" : "OK");
         var narrative = b.SmtpTls?.Raw != null
             ? MailTlsNarrative.Build(b.SmtpTls.Raw, DomainDetective.MailTlsAnalysis.MailProtocol.Smtp)
             : b.ImapTls?.Raw != null
@@ -1389,29 +3333,119 @@ public static partial class HtmlCompositionReport
                     : null;
         acc.AddItem("Mail TLS", item => {
             item.Icon(TablerIconType.LockCheck);
+            item.HeaderRight(c =>
+            {
+                c.Badge(errCount > 0 ? $"{errCount} Error" + (errCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(status, ColorForStatus(status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
             item.Content(content => {
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
-                        if (sec != null && sec.Rows.Count > 0)
+                        bool useNewLayout = true;
+                        if (useNewLayout)
                         {
-                            var rows = sec.Rows.Select(v => new { v.Service, v.Status, Protocol = string.IsNullOrWhiteSpace(v.Protocol) ? "-" : v.Protocol }).ToList();
-                            var t = (TablerTable)c2.Table(rows, TableType.Tabler);
-                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            var findingsCount = warnCount + errCount;
+                            var findingsBadgeColor = errCount > 0
+                                ? TablerBadgeColor.Danger
+                                : (warnCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+                            var refs = MergeReferences(sec?.References, narrative?.References);
+
+                            RenderExecutionSnapshotCard(c2, g =>
+                            {
+                                g.AddItem("Status", status).AsPanel(PanelColorForStatus(status), light: true);
+                                g.AddItem("Warnings", warnCount.ToString()).AsPanel(warnCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                                g.AddItem("Errors", errCount.ToString()).AsPanel(errCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+
+                                if (b.SmtpTls != null) g.AddItem("SMTP", b.SmtpTls.Status ?? "-").AsPanel(PanelColorForStatus(b.SmtpTls.Status), light: true);
+                                if (b.ImapTls != null) g.AddItem("IMAP", b.ImapTls.Status ?? "-").AsPanel(PanelColorForStatus(b.ImapTls.Status), light: true);
+                                if (b.PopTls != null) g.AddItem("POP3", b.PopTls.Status ?? "-").AsPanel(PanelColorForStatus(b.PopTls.Status), light: true);
+                            });
+
+                            RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: refs);
+
+                            RenderResultsTabsCard(
+                                c2,
+                                tabs =>
+                            {
+                                tabs.AddTab("Summary", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderSignalsSummary(col, sec?.Findings.Select(f => f.Message), sec?.Positives);
+                                    }));
+                                }).WithIcon(TablerIconType.Cards);
+
+                                var findingsTab = tabs.AddTab("Findings", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        RenderFindings(col, sec?.Findings);
+                                    }));
+                                }).WithIcon(TablerIconType.AlertTriangle);
+                                if (findingsCount > 0)
+                                {
+                                    findingsTab.WithBadge(findingsCount.ToString(), findingsBadgeColor);
+                                }
+
+                                tabs.AddTab("Evidence", panel =>
+                                {
+                                    panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                    {
+                                        bool hasEvidence = false;
+                                        if (sec != null && sec.Rows.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            var rows = sec.Rows.Select(v => new
+                                            {
+                                                v.Service,
+                                                v.Status,
+                                                Protocol = string.IsNullOrWhiteSpace(v.Protocol) ? "-" : v.Protocol
+                                            }).ToList();
+                                            var t = (TablerTable)col.Table(rows, TableType.Tabler);
+                                            t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                        }
+
+                                        if (b.SmtpTls?.Servers != null && b.SmtpTls.Servers.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            RenderMailTlsServers(col, "SMTP", b.SmtpTls);
+                                        }
+                                        if (b.ImapTls?.Servers != null && b.ImapTls.Servers.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            RenderMailTlsServers(col, "IMAP", b.ImapTls);
+                                        }
+                                        if (b.PopTls?.Servers != null && b.PopTls.Servers.Count > 0)
+                                        {
+                                            hasEvidence = true;
+                                            RenderMailTlsServers(col, "POP3", b.PopTls);
+                                        }
+
+                                        if (!hasEvidence)
+                                        {
+                                            col.Text("No evidence captured for this section.").Style(TablerTextStyle.Muted);
+                                        }
+                                    }));
+                                }).WithIcon(TablerIconType.FileText);
+                            });
                         }
-                        RenderPositives(c2, sec?.Positives);
-                        RenderFindings(c2, sec?.Findings);
-                        RenderNarrative(c2, narrative);
-                        bool hasEvidence = (b.SmtpTls?.Servers?.Count ?? 0) > 0
-                            || (b.ImapTls?.Servers?.Count ?? 0) > 0
-                            || (b.PopTls?.Servers?.Count ?? 0) > 0;
-                        if (hasEvidence)
+                        else
                         {
-                            c2.Divider("Evidence");
+                            if (sec != null && sec.Rows.Count > 0)
+                            {
+                                var rows = sec.Rows.Select(v => new { v.Service, v.Status, Protocol = string.IsNullOrWhiteSpace(v.Protocol) ? "-" : v.Protocol }).ToList();
+                                var t = (TablerTable)c2.Table(rows, TableType.Tabler);
+                                t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                            }
+                            RenderPositives(c2, sec?.Positives);
+                            RenderFindings(c2, sec?.Findings);
+                            RenderNarrative(c2, narrative);
+                            if (b.SmtpTls?.Servers != null && b.SmtpTls.Servers.Count > 0) RenderMailTlsServers(c2, "SMTP", b.SmtpTls);
+                            if (b.ImapTls?.Servers != null && b.ImapTls.Servers.Count > 0) RenderMailTlsServers(c2, "IMAP", b.ImapTls);
+                            if (b.PopTls?.Servers != null && b.PopTls.Servers.Count > 0) RenderMailTlsServers(c2, "POP3", b.PopTls);
+                            RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                         }
-                        if (b.SmtpTls?.Servers != null && b.SmtpTls.Servers.Count > 0) RenderMailTlsServers(c2, "SMTP", b.SmtpTls);
-                        if (b.ImapTls?.Servers != null && b.ImapTls.Servers.Count > 0) RenderMailTlsServers(c2, "IMAP", b.ImapTls);
-                        if (b.PopTls?.Servers != null && b.PopTls.Servers.Count > 0) RenderMailTlsServers(c2, "POP3", b.PopTls);
-                        RenderReferences(c2, MergeReferences(sec?.References, narrative?.References));
                     });
                 });
             });
@@ -1438,6 +3472,58 @@ public static partial class HtmlCompositionReport
         });
     }
 
+    private static void RenderSignalsSummary(TablerColumn c2, IEnumerable<string>? highlights, IEnumerable<string>? positives)
+    {
+        var issues = (highlights ?? Array.Empty<string>())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var good = (positives ?? Array.Empty<string>())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (issues.Count == 0 && good.Count == 0)
+        {
+            c2.Text("No notable signals captured for this check.").Style(TablerTextStyle.Muted);
+            return;
+        }
+
+        const int maxItems = 12;
+        int issuesMore = Math.Max(0, issues.Count - maxItems);
+        int goodMore = Math.Max(0, good.Count - maxItems);
+        issues = issues.Take(maxItems).ToList();
+        good = good.Take(maxItems).ToList();
+
+        c2.Card(card =>
+        {
+            card.Header(h => h.Title("Signals").Icon(TablerIconType.ListCheck));
+            card.Body(body =>
+            {
+                foreach (var t in issues)
+                {
+                    body.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Orange).Icon(TablerIconType.AlertTriangle).Minor();
+                }
+                if (issuesMore > 0)
+                {
+                    body.Text($"+{issuesMore} more issue(s)…").Style(TablerTextStyle.Muted);
+                }
+
+                foreach (var t in good)
+                {
+                    body.Alert(TrimForDisplay(t, 320), string.Empty, TablerColor.Green).Icon(TablerIconType.CircleCheck).Minor();
+                }
+                if (goodMore > 0)
+                {
+                    body.Text($"+{goodMore} more positive signal(s)…").Style(TablerTextStyle.Muted);
+                }
+            });
+        });
+    }
+
     private static void RenderHighlights(TablerColumn c2, IEnumerable<string>? highlights)
     {
         if (highlights == null)
@@ -1449,12 +3535,18 @@ public static partial class HtmlCompositionReport
         {
             return;
         }
-        c2.Divider("Highlights");
-        var ul = c2.TablerList();
-        foreach (var t in list)
+        c2.Card(card =>
         {
-            ul.AddItem(t, TablerIconType.AlertTriangle);
-        }
+            card.Header(h => h.Title("Highlights").Icon(TablerIconType.AlertTriangle));
+            card.Body(body =>
+            {
+                var ul = body.TablerList();
+                foreach (var t in list)
+                {
+                    ul.AddItem(t, TablerIconType.AlertTriangle);
+                }
+            });
+        });
     }
 
     private static void RenderPositives(TablerColumn c2, IEnumerable<string>? positives)
@@ -1468,12 +3560,18 @@ public static partial class HtmlCompositionReport
         {
             return;
         }
-        c2.Divider("Good Posture");
-        var ul = c2.TablerList();
-        foreach (var t in list)
+        c2.Card(card =>
         {
-            ul.AddItem(t, TablerIconType.CircleCheck);
-        }
+            card.Header(h => h.Title("Good Posture").Icon(TablerIconType.CircleCheck));
+            card.Body(body =>
+            {
+                var ul = body.TablerList();
+                foreach (var t in list)
+                {
+                    ul.AddItem(t, TablerIconType.CircleCheck);
+                }
+            });
+        });
     }
 
     private static void RenderFindings(TablerColumn c2, IEnumerable<SectionProjectors.SimpleFinding>? findings)
@@ -1482,14 +3580,24 @@ public static partial class HtmlCompositionReport
         {
             return;
         }
-        var rows = findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+        var rows = findings
+            .Select(a => new { a.Severity, a.Target, a.Message })
+            .ToList();
         if (rows.Count == 0)
         {
             return;
         }
-        c2.Divider("Findings");
         var t = (DataTablesTable)c2.Table(rows, TableType.DataTables);
-        t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
+        ConfigureStandardDataTable(t);
+        t.EnablePaging(10, new[] { 10, 25, 50 })
+            .EnableSearching()
+            .EnableOrdering()
+            .HighlightWhen(
+                where: g => g.And(c => c.StringContains("Severity", "error", false)),
+                then: tt => { tt.Column("Severity").Danger(); tt.HighlightParent(true); })
+            .HighlightWhen(
+                where: g => g.And(c => c.StringContains("Severity", "warn", false)),
+                then: tt => { tt.Column("Severity").Warning(); tt.HighlightParent(true); });
     }
 
     private static void RenderFindingsFromAssessments(TablerColumn c2, IEnumerable<Assessment>? assessments)
@@ -1506,47 +3614,7 @@ public static partial class HtmlCompositionReport
 
     private static void RenderNarrative(TablerColumn c2, NarrativeSections? narrative)
     {
-        if (narrative == null)
-        {
-            return;
-        }
-        var intro = narrative.Introduction;
-        var why = narrative.WhyItMatters;
-        var details = narrative.Details?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
-        var remediations = narrative.Remediations?.Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
-        bool hasIntro = !string.IsNullOrWhiteSpace(intro);
-        bool hasWhy = !string.IsNullOrWhiteSpace(why);
-        if (!hasIntro && !hasWhy && details.Count == 0 && remediations.Count == 0)
-        {
-            return;
-        }
-        c2.Divider("Guidance");
-        if (hasIntro)
-        {
-            c2.Text("Summary").Style(TablerTextStyle.Muted);
-            c2.Text(intro!);
-        }
-        if (hasWhy)
-        {
-            c2.Text("Why it matters").Style(TablerTextStyle.Muted);
-            c2.Text(why!);
-        }
-        if (details.Count > 0)
-        {
-            c2.Text("Details").Style(TablerTextStyle.Muted);
-            foreach (var d in details)
-            {
-                c2.Text("- " + d);
-            }
-        }
-        if (remediations.Count > 0)
-        {
-            c2.Text("How to fix").Style(TablerTextStyle.Muted);
-            foreach (var r in remediations)
-            {
-                c2.Text("- " + r);
-            }
-        }
+        RenderGuidanceWizardCard(c2, narrative, providerHelp: null, providerHelpTopics: null, references: null);
     }
 
     private static void RenderReferences(TablerColumn c2, IEnumerable<string>? references)
@@ -1560,14 +3628,29 @@ public static partial class HtmlCompositionReport
         {
             return;
         }
-        c2.Divider("References");
-        c2.Row(rr => {
-            rr.Gap(2);
-            foreach (var u in list)
+        c2.Card(card =>
+        {
+            card.Header(h => h.Title("References").Icon(TablerIconType.Link));
+            card.Body(body =>
             {
-                var f = LinkFormatter.Format(u);
-                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
-            }
+                body.Row(rr =>
+                {
+                    rr.Gap(2);
+                    foreach (var u in list)
+                    {
+                        var f = LinkFormatter.Format(u);
+                        rr.Column(
+                            TablerColumnNumber.Auto,
+                            cc => cc.Badge(
+                                f.Title,
+                                TablerBadgeColor.Blue,
+                                TablerBadgeVisualStyle.Light,
+                                TablerBadgeSize.Small,
+                                pill: true,
+                                href: f.Url));
+                    }
+                });
+            });
         });
     }
 
@@ -1606,22 +3689,29 @@ public static partial class HtmlCompositionReport
         {
             return;
         }
-        c2.Divider(title + " Servers");
-        var rows = servers.Select(s => new {
-            Host = s.Key,
-            Status = info?.Status ?? "-",
-            StartTLS = s.StartTlsAdvertised ? "Yes" : "No",
-            Grade = s.Grade.ToString(),
-            Proto = s.Protocol,
-            TLS13 = s.Tls13Used ? "Yes" : (s.SupportsTls13 ? "Supported" : "No"),
-            Cert = s.CertificateValid ? "Valid" : "Invalid",
-            Chain = s.ChainValid ? "Valid" : "Invalid",
-            Expires = s.ValidTo.HasValue ? s.ValidTo.Value.ToString("yyyy-MM-dd") : "-",
-            DaysToExpire = s.DaysToExpire,
-            Cipher = string.IsNullOrWhiteSpace(s.CipherSuite) ? "-" : s.CipherSuite
-        }).ToList();
-        var tt = (TablerTable)c2.Table(rows, TableType.Tabler);
-        tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+        c2.Card(card =>
+        {
+            card.Header(h => h.Title($"{title} Servers").Icon(TablerIconType.LockCheck));
+            card.Body(body =>
+            {
+                var rows = servers.Select(s => new
+                {
+                    Host = s.Key,
+                    Status = info?.Status ?? "-",
+                    StartTLS = s.StartTlsAdvertised ? "Yes" : "No",
+                    Grade = s.Grade.ToString(),
+                    Proto = s.Protocol,
+                    TLS13 = s.Tls13Used ? "Yes" : (s.SupportsTls13 ? "Supported" : "No"),
+                    Cert = s.CertificateValid ? "Valid" : "Invalid",
+                    Chain = s.ChainValid ? "Valid" : "Invalid",
+                    Expires = s.ValidTo.HasValue ? s.ValidTo.Value.ToString("yyyy-MM-dd") : "-",
+                    DaysToExpire = s.DaysToExpire,
+                    Cipher = string.IsNullOrWhiteSpace(s.CipherSuite) ? "-" : s.CipherSuite
+                }).ToList();
+                var tt = (TablerTable)body.Table(rows, TableType.Tabler);
+                tt.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+            });
+        });
     }
 
     private static void RenderProviderHelpBadges(TablerColumn c2, IReadOnlyList<ProviderHelpLinks>? help, IEnumerable<string>? topicFilter)
@@ -1657,47 +3747,53 @@ public static partial class HtmlCompositionReport
             return;
         }
 
-        c2.Divider("Provider Help");
-        foreach (var ph in help)
+        c2.Card(card =>
         {
-            if (ph == null)
+            card.Header(h => h.Title("Provider Help").Icon(TablerIconType.Link));
+            card.Body(body =>
             {
-                continue;
-            }
-            var topics = NormalizeProviderTopics(ph);
-            if (filter.Count > 0) topics = topics.Where(t => filter.Contains(t.Topic)).ToList();
-            if (topics.Count == 0)
-            {
-                continue;
-            }
-            var ordered = topics.OrderBy(t => TopicOrderIndex(t.Topic)).ThenBy(t => t.Topic, StringComparer.OrdinalIgnoreCase).ToList();
-            c2.Row(rr => {
-                rr.Gap(2);
-                if (!string.IsNullOrWhiteSpace(ph.ProviderName))
+                foreach (var ph in help)
                 {
-                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(ph.ProviderName, TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                    if (ph == null)
+                    {
+                        continue;
+                    }
+                    var topics = NormalizeProviderTopics(ph);
+                    if (filter.Count > 0) topics = topics.Where(t => filter.Contains(t.Topic)).ToList();
+                    if (topics.Count == 0)
+                    {
+                        continue;
+                    }
+                    var ordered = topics.OrderBy(t => TopicOrderIndex(t.Topic)).ThenBy(t => t.Topic, StringComparer.OrdinalIgnoreCase).ToList();
+                    body.Row(rr =>
+                    {
+                        rr.Gap(2);
+                        if (!string.IsNullOrWhiteSpace(ph.ProviderName))
+                        {
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(ph.ProviderName, TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                        }
+                        foreach (var t in ordered)
+                        {
+                            var title = string.IsNullOrWhiteSpace(t.Title) ? t.Topic : t.Title;
+                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title ?? t.Topic, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: t.Url));
+                            if (!t.IsPublic)
+                            {
+                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Login", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            }
+                            if (t.IsThirdParty)
+                            {
+                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Third-party", TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            }
+                            if (t.LastVerified.HasValue && t.LastVerified.Value != DateTime.MinValue)
+                            {
+                                rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Verified {t.LastVerified.Value:yyyy-MM-dd}", TablerBadgeColor.Info, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
+                            }
+                        }
+                    });
                 }
-                foreach (var t in ordered)
-                {
-                    var title = string.IsNullOrWhiteSpace(t.Title) ? t.Topic : t.Title;
-                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(title ?? t.Topic, TablerBadgeColor.Blue, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: t.Url));
-                    if (!t.IsPublic)
-                    {
-                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Login", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                    }
-                    if (t.IsThirdParty)
-                    {
-                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge("Third-party", TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                    }
-                    if (t.LastVerified.HasValue && t.LastVerified.Value != DateTime.MinValue)
-                    {
-                        rr.Column(TablerColumnNumber.Auto, cc => cc.Badge($"Verified {t.LastVerified.Value:yyyy-MM-dd}", TablerBadgeColor.Info, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true));
-                    }
-                }
+                body.Text("Legend: Login = requires provider login; Third-party = non-vendor resource; Verified = last verified date.").Style(TablerTextStyle.Muted);
             });
-        }
-        c2.Text("Legend: Login = requires provider login; Third-party = non-vendor resource; Verified = last verified date.")
-            .Style(TablerTextStyle.Muted);
+        });
     }
 
     private static List<ProviderHelpTopic> NormalizeProviderTopics(ProviderHelpLinks ph)

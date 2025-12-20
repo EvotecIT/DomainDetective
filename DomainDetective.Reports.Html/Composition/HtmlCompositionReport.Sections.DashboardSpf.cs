@@ -23,7 +23,6 @@ public static partial class HtmlCompositionReport
         }
         if (data.Count == 0) return;
 
-        page.Divider("SPF Details");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             // Overview table per domain
             var overviewRows = data.Select(d => new {
@@ -38,6 +37,7 @@ public static partial class HtmlCompositionReport
                 card.Header(h => h.Title("SPF Overview (per domain)"));
                 card.Body(b => {
                     var t = (DataTablesTable)b.Table(overviewRows, TableType.DataTables);
+                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
                     t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "error", false)), a => a.Column("Status").Danger());
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "warn", false)), a => a.Column("Status").Warning());
@@ -59,6 +59,7 @@ public static partial class HtmlCompositionReport
                     card.Header(h => h.Title("SPF Mechanisms (all domains)"));
                     card.Body(b => {
                         var t = (DataTablesTable)b.Table(mechRows, TableType.DataTables);
+                        ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
                         t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                     });
                 });

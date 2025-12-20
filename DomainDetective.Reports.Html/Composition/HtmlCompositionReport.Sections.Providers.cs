@@ -55,7 +55,6 @@ public static partial class HtmlCompositionReport {
             return;
         }
 
-        page.Divider("Mail Providers");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
                 card.Header(h => h.Title("Provider Chain by Domain").Subtitle("Primary · Gateways · Outbound"));
@@ -72,24 +71,30 @@ public static partial class HtmlCompositionReport {
 
                     if (helpByDomain.Count > 0)
                     {
-                        b.Divider("Provider Help");
-                        foreach (var (domain, topics) in helpByDomain)
+                        b.Card(helpCard =>
                         {
-                            b.Text(domain).Style(TablerTextStyle.Muted);
-                            b.Row(rr => {
-                                rr.Gap(2);
-                                foreach (var topic in topics.Take(6))
+                            helpCard.Header(h => h.Title("Provider Help").Icon(TablerIconType.Link));
+                            helpCard.Body(body =>
+                            {
+                                foreach (var (domain, topics) in helpByDomain)
                                 {
-                                    string titleSafe = !string.IsNullOrWhiteSpace(topic.Title)
-                                        ? topic.Title!
-                                        : (!string.IsNullOrWhiteSpace(topic.Topic) ? topic.Topic! : "Help");
-                                    rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(titleSafe, TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: topic.Url));
+                                    body.Text(domain).Style(TablerTextStyle.Muted);
+                                    body.Row(rr =>
+                                    {
+                                        rr.Gap(2);
+                                        foreach (var topic in topics.Take(6))
+                                        {
+                                            string titleSafe = !string.IsNullOrWhiteSpace(topic.Title)
+                                                ? topic.Title!
+                                                : (!string.IsNullOrWhiteSpace(topic.Topic) ? topic.Topic! : "Help");
+                                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(titleSafe, TablerBadgeColor.Secondary, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true, href: topic.Url));
+                                        }
+                                    });
                                 }
                             });
-                        }
+                        });
                     }
 
-                    b.Divider();
                     b.Text("Legend: Confidence = detection certainty; Single-MX OK = vendor supports single MX; Gateway = inbound security gateway; Outbound = separate sender platform.")
                      .Style(TablerTextStyle.Muted);
                 });

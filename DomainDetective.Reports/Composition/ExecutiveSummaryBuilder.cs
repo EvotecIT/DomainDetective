@@ -65,6 +65,7 @@ public static class ExecutiveSummaryBuilder
             warn += b.ZoneTransfer?.WarningCount ?? 0; err += b.ZoneTransfer?.ErrorCount ?? 0;
             warn += b.Wildcard?.WarningCount ?? 0; err += b.Wildcard?.ErrorCount ?? 0;
             warn += b.Caa?.WarningCount ?? 0; err += b.Caa?.ErrorCount ?? 0;
+            warn += b.Ttl?.WarningCount ?? 0; err += b.Ttl?.ErrorCount ?? 0;
             // Mail TLS trio
             warn += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
             err  += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);

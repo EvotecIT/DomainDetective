@@ -53,7 +53,6 @@ public static partial class HtmlCompositionReport
             addGrades(kv.Value.SmtpTls); addGrades(kv.Value.ImapTls); addGrades(kv.Value.PopTls);
         }
 
-        page.Divider("MailTLS Servers");
         // Grades KPI
         page.Row(r => {
             r.WithBottomSpacing(TablerSpacing.Small);
@@ -70,9 +69,10 @@ public static partial class HtmlCompositionReport
         });
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
-                card.Header(h => h.Title("MailTLS Servers (all domains)"));
+                card.Header(h => h.Title("MailTLS Servers (all domains)"));     
                 card.Body(b => {
                     var t = (DataTablesTable)b.Table(rows, TableType.DataTables);
+                    ConfigureStandardDataTable(t, defaultMode: ToggleViewMode.ScrollX);
                     t.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "error", false)), a => a.Column("Status").Danger());
                     t.HighlightWhen(g => g.Or(x => x.StringContains("Status", "warn", false)), a => a.Column("Status").Warning());

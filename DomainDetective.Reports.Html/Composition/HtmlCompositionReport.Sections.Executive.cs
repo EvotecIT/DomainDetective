@@ -40,6 +40,7 @@ public static partial class HtmlCompositionReport
         var grade = ComputeOverallGrade(rows);
         var gradeColor = GradeColor(grade);
         var totals = (warn: rows.Sum(r => r.Warnings), err: rows.Sum(r => r.Errors));
+        var domainsCount = ordered.Count;
         bool hasMx = rows.Any(r => !IsEmptyStatus(r.Mx));
         bool hasSpf = rows.Any(r => !IsEmptyStatus(r.Spf));
         bool hasDkim = rows.Any(r => !IsEmptyStatus(r.Dkim));
@@ -62,11 +63,14 @@ public static partial class HtmlCompositionReport
             _ => false
         };
 
-        // Hero stats row with CardMini widgets (AutoFit for responsive layout)
+        // Hero stats row with CardMini widgets (TestimoX-style AutoFit + Flex).
         page.Row(row => {
-            row.Settings(s => s.AutoFit(TablerCardWidth.Small, maxColumns: 4, TablerAutoFitPolicy.Soft).EqualHeights());
+            row.Settings(s => s
+                .AutoFit(TablerCardWidth.Large, maxColumns: 4, policy: TablerAutoFitPolicy.WideOneLine)
+                .Engine(TablerAutoFitEngine.Flex)
+                .EqualHeights());
             row.WithBottomSpacing(TablerSpacing.Small);
-            row.Column(TablerColumnNumber.Auto, col => {
+            row.Column(col => {
                 col.CardMini()
                     .Avatar(TablerIconType.Award)
                     .BackgroundColor(gradeColor)
@@ -74,23 +78,23 @@ public static partial class HtmlCompositionReport
                     .Title(grade)
                     .Subtitle("Overall Grade");
             });
-            row.Column(TablerColumnNumber.Auto, col => {
+            row.Column(col => {
                 col.CardMini()
                     .Avatar(TablerIconType.World)
-                    .BackgroundColor(TablerColor.Blue)
+                    .BackgroundColor(domainsCount > 0 ? TablerColor.Blue : TablerColor.Gray500)
                     .TextColor(TablerColor.White)
-                    .Title(rows.Count.ToString())
-                    .Subtitle(rows.Count == 1 ? "Domain" : "Domains");
+                    .Title(domainsCount.ToString())
+                    .Subtitle(domainsCount == 1 ? "Domain" : "Domains");
             });
-            row.Column(TablerColumnNumber.Auto, col => {
+            row.Column(col => {
                 col.CardMini()
                     .Avatar(TablerIconType.AlertTriangle)
                     .BackgroundColor(totals.warn > 0 ? TablerColor.Orange : TablerColor.Green)
                     .TextColor(TablerColor.White)
                     .Title(totals.warn.ToString())
-                    .Subtitle(totals.warn == 1 ? "Warning" : "Warnings");
+                    .Subtitle(totals.warn == 1 ? "Warning" : "Warnings");       
             });
-            row.Column(TablerColumnNumber.Auto, col => {
+            row.Column(col => {
                 col.CardMini()
                     .Avatar(TablerIconType.AlertCircle)
                     .BackgroundColor(totals.err > 0 ? TablerColor.Red : TablerColor.Green)
@@ -184,26 +188,7 @@ public static partial class HtmlCompositionReport
                             card.Header(h => h.Title("Top Findings").Subtitle("Most frequent warnings/errors").Icon(TablerIconType.AlertTriangle));
                             card.Body(b =>
                             {
-                                if (topFindings.Count == 0)
-                                {
-                                    b.Text("No warnings or errors detected.").Style(TablerTextStyle.Muted);
-                                    return;
-                                }
-                                var rows1 = topFindings.Select(f =>
-                                {
-                                    var label = string.IsNullOrWhiteSpace(f.Code) ? f.Title : $"{f.Code}: {f.Title}";
-                                    var rank = SeverityRank(f.Severity);
-                                    var severity = rank == 0 ? "🔴 Error" : (rank == 1 ? "🟠 Warning" : "🔵 Info");
-                                    return new
-                                    {
-                                        Severity = severity,
-                                        Count = f.Count,
-                                        Finding = TrimForDisplay(label, 220)
-                                    };
-                                }).ToList();
-
-                                var t1 = (TablerTable)b.Table(rows1, TableType.Tabler);
-                                t1.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
+                                RenderTopFindingsList(b, topFindings, includeCode: false);
                             });
                         });
                     });
@@ -348,46 +333,6 @@ public static partial class HtmlCompositionReport
             }));
         } catch { }
 
-        // Executive summary table (DataTables) with highlighters
-        page.Divider("Executive Summary");
-        page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
-            var summaryColumns = new List<(string Header, Func<DomainDetective.Reports.ExecutiveSummaryBuilder.Row, string> Get)>();
-            if (hasMx) summaryColumns.Add(("MX", r2 => r2.Mx));
-            if (hasSpf) summaryColumns.Add(("SPF", r2 => r2.Spf));
-            if (hasDkim) summaryColumns.Add(("DKIM", r2 => r2.Dkim));
-            if (hasDmarc) summaryColumns.Add(("DMARC", r2 => r2.Dmarc));
-            if (hasMtasts) summaryColumns.Add(("MTASTS", r2 => r2.Mtasts));
-            if (hasTlsRpt) summaryColumns.Add(("TLSRPT", r2 => r2.TlsRpt));
-            if (hasDnssec) summaryColumns.Add(("DNSSEC", r2 => r2.Dnssec));
-            if (hasRpki) summaryColumns.Add(("RPKI", r2 => r2.Rpki));
-            if (hasClass) summaryColumns.Add(("Classification", r2 => r2.Classification));
-            var tableRows = rows.Select(rw => {
-                var row = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["Domain"] = rw.Domain
-                };
-                foreach (var col in summaryColumns)
-                {
-                    row[col.Header] = col.Get(rw);
-                }
-                row["Findings"] = $"{rw.Warnings} / {rw.Errors}";
-                return (IDictionary<string, object>)row;
-            }).ToList();
-            c.Card(card => {
-                card.Header(h => h.Title("Domains").Icon(TablerIconType.World));
-                card.Body(body => {
-                    var table = (DataTablesTable)body.Table(tableRows, TableType.DataTables);
-                    table.EnablePaging(10, new[] { 10, 25, 50 }).EnableSearching().EnableOrdering();
-                    var statusColumns = summaryColumns
-                        .Where(s => !string.Equals(s.Header, "Classification", StringComparison.OrdinalIgnoreCase))
-                        .Select(s => s.Header)
-                        .ToList();
-                    foreach (var col in statusColumns)
-                        table.HighlightWhen(g => g.And(x => x.StringContains(col, "error", false)).Or(x => x.StringContains(col, "fail", false)), t => t.Column(col).Danger());
-                    foreach (var col in statusColumns)
-                        table.HighlightWhen(g => g.Or(x => x.StringContains(col, "warn", false)), t => t.Column(col).Warning());
-                });
-            });
-        }));
+        // Domain table intentionally removed from Summary; it lives in the Domains tab.
     }
 }

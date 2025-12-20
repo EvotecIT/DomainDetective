@@ -13,7 +13,6 @@ public static partial class HtmlCompositionReport
 {
     private static void RenderDomainsAccordion(Element page, List<KeyValuePair<string, DomainBucket>> ordered, SectionOrderMode sectionOrderMode, string[] normalizedCustom, Dictionary<string, List<string>> inputSectionOrder)
     {
-        page.Divider("Domains");
         page.Row(row => {
             row.Column(TablerColumnNumber.Twelve, col => {
                 col.Card(card => {
@@ -25,8 +24,7 @@ public static partial class HtmlCompositionReport
                             {
                                 var domain = kv.Key;
                                 var b = kv.Value;
-                                var warnCount = (b.Mx?.WarningCount ?? 0) + (b.Spf?.WarningCount ?? 0) + (b.Dmarc?.WarningCount ?? 0) + (b.Mtasts?.WarningCount ?? 0) + (b.TlsRpt?.WarningCount ?? 0) + b.Dkim.Sum(x => x.WarningCount) + (b.Arc?.WarningCount ?? 0) + (b.Bimi?.WarningCount ?? 0);
-                                var errCount = (b.Mx?.ErrorCount ?? 0) + (b.Spf?.ErrorCount ?? 0) + (b.Dmarc?.ErrorCount ?? 0) + (b.Mtasts?.ErrorCount ?? 0) + (b.TlsRpt?.ErrorCount ?? 0) + b.Dkim.Sum(x => x.ErrorCount) + (b.Arc?.ErrorCount ?? 0) + (b.Bimi?.ErrorCount ?? 0);
+                                var (warnCount, errCount) = CountFindings(b);
                                 var dkimSummary = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
                                 var dnssecSummary = DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
                                 var rpkiSummary = DisplayFormatting.ComposeRpkiSummary(b.Rpki);

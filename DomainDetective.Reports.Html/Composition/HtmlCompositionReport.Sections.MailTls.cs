@@ -19,7 +19,6 @@ public static partial class HtmlCompositionReport
             return;
         }
 
-        page.Divider("MailTLS Sources");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
                 card.Header(h => h.Title("MailTLS rollup sources by domain").Subtitle("Protocol shown in parentheses"));

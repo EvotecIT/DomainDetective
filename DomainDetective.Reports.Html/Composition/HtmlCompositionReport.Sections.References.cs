@@ -20,7 +20,6 @@ public static partial class HtmlCompositionReport
             return;
         }
 
-        page.Divider("All References");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
                 card.Header(h => h.Title("References cited across all sections"));

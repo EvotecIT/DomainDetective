@@ -13,6 +13,19 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
+    private static void RenderResultsTabsCard(
+        TablerColumn c2,
+        Action<TablerTabs> buildTabs)
+    {
+        c2.Card(card =>
+        {
+            card.Body(body =>
+            {
+                body.Tabs(buildTabs);
+            });
+        });
+    }
+
     private static void RenderExecutionSnapshotCard(
         TablerColumn c2,
         Action<TablerDataGrid> gridConfig,
