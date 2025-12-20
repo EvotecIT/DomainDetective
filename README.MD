@@ -138,7 +138,7 @@ We’re designing persona‑driven narratives to present findings in different t
 | `Test-DDEmailMtaSts`           | `Test-EmailMtaSts`         | Verify MTA-STS policy         |
 | `Test-DDEmailStartTls`         | `Test-EmailStartTls`       | Check STARTTLS advertisement  |
 | `Test-DDEmailSmtpTls`          | `Test-EmailSmtpTls`        | Check SMTP TLS posture        |
-| `Test-DDEmailMxTls`            | `Test-EmailMxTls`          | MX-based SMTP/IMAP/POP3 TLS   |
+| `Test-DDEmailProtocolTls`      | `Test-EmailProtocolTls`    | SMTP/IMAP/POP3 TLS checks     |
 | `Test-DDEmailOpenRelay`        | `Test-EmailOpenRelay`      | Detect open SMTP relay        |
 | `Get-DDEmailMessageHeaderInfo` | `Get-EmailHeaderInfo`      | Parse raw email headers       |
 | `Test-DDEmailLatency`          | `Test-EmailLatency`        | Measure SMTP responsiveness   |

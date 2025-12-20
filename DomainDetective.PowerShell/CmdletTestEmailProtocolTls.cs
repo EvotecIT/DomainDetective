@@ -10,20 +10,20 @@ using DomainDetective;
 
 namespace DomainDetective.PowerShell;
 
-/// <summary>Checks MX hosts for SMTP/IMAP/POP3 TLS configuration.</summary>
+/// <summary>Checks SMTP/IMAP/POP3 TLS configuration for a domain.</summary>
 /// <para>Returns view objects with full raw analysis attached at Raw.</para>
 /// <example>
 ///   <summary>Check mail TLS for a domain.</summary>
-///   <code>Test-DDEmailMxTls -DomainName example.com</code>
+///   <code>Test-DDEmailProtocolTls -DomainName example.com</code>
 /// </example>
 /// <example>
 ///   <summary>Only run SMTP TLS checks.</summary>
-///   <code>Test-DDEmailMxTls -DomainName example.com -Protocol Smtp</code>
+///   <code>Test-DDEmailProtocolTls -DomainName example.com -Protocol Smtp</code>
 /// </example>
-[Cmdlet(VerbsDiagnostic.Test, "DDEmailMxTls", DefaultParameterSetName = "ServerName")]
-[Alias("Test-EmailMxTls", "Test-MailTls")]
+[Cmdlet(VerbsDiagnostic.Test, "DDEmailProtocolTls", DefaultParameterSetName = "ServerName")]
+[Alias("Test-EmailProtocolTls", "Test-MailTls")]
 [OutputType(typeof(DomainDetective.Views.MailTlsInfo))]
-public sealed class CmdletTestMxTls : ExportableAsyncPSCmdlet {
+public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
     /// <summary>Domain(s) to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
@@ -107,7 +107,7 @@ public sealed class CmdletTestMxTls : ExportableAsyncPSCmdlet {
         }
 
         foreach (var domain in DomainName) {
-            _logger.WriteVerbose("Checking MX TLS for domain: {0}", domain);
+            _logger.WriteVerbose("Checking mail protocol TLS for domain: {0}", domain);
             await _healthCheck.Verify(domain, checkTypes.ToArray(), cancellationToken: CancelToken);
 
             var hasAny = false;
@@ -152,7 +152,7 @@ public sealed class CmdletTestMxTls : ExportableAsyncPSCmdlet {
                             WriteWarning($"Mail TLS export failed: {ex.Message}");
                         }
                     } else if (fmt != DomainDetective.Reports.ReportFormat.Word && fmt != DomainDetective.Reports.ReportFormat.Html) {
-                        await ExportNotImplementedAsync("Test-DDEmailMxTls");
+                        await ExportNotImplementedAsync("Test-DDEmailProtocolTls");
                     }
                 }
             }

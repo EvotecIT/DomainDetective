@@ -32,7 +32,7 @@ Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -Scope Detail
 
         try {
             Test-DDEmailMtaSts -DomainName $domain
-            Test-DDEmailMxTls -DomainName $domain
+            Test-DDEmailProtocolTls -DomainName $domain
         } catch {
             Write-Warning -Message "Mail TLS/MTA-STS checks failed for ${domain}: $($_.Exception.Message)"
         }
