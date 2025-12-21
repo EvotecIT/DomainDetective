@@ -11,49 +11,44 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsDelegation", DefaultParameterSetName = "ServerName")]
     [Alias("Test-DnsDelegation", "Test-Delegation")]
     public sealed class CmdletTestDelegation : ExportableAsyncPSCmdlet {
-        /// <para>Domain to query.</para>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <para>Domain(s) to query.</para>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
-
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>
-        /// Prepares the delegation check and logging.
-        /// </summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var psLogger = new InternalLoggerPowerShell(
-                _logger,
-                WriteVerbose,
-                WriteWarning,
-                WriteDebug,
-                WriteError,
-                WriteProgress,
-                WriteInformation);
-            psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            ApplyExecutionOptions(_healthCheck);
-            return Task.CompletedTask;
-        }
 
         /// <summary>
         /// Validates parent zone delegation for the target domain.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Checking delegation for domain: {0}", DomainName);
-            await _healthCheck.VerifyDelegation(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.NSAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var psLogger = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                psLogger.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Checking delegation for domain: {0}", domain);
+                await healthCheck.VerifyDelegation(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDDnsDelegation");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
-

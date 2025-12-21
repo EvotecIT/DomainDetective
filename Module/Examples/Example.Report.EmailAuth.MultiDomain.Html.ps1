@@ -18,18 +18,16 @@ Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -Scope Detail
     Test-DDRpki -DomainName $domains
     Test-DDMailDomainClassification -DomainName $domains
 
-    foreach ($domain in $domains) {
-        Test-DDDnsMxRecord -DomainName $domain
-        Test-DDDnsNsRecord -DomainName $domain
-        Test-DDDnsSoaRecord -DomainName $domain
-        Test-DDDnsCaaRecord -DomainName $domain
-        Test-DDDnsSecStatus -DomainName $domain
-        Test-DDTlsDaneRecord -DomainName $domain -Ports 25 -FullResponse
-        Test-DDDnsTtl -DomainName $domain
-        Test-DDDnsZoneTransfer -DomainName $domain
-        Test-DDDnsWildcard -DomainName $domain
-        Test-DDEmailBimiRecord -DomainName $domain
-        Test-DDEmailMtaSts -DomainName $domain
-        Test-DDEmailProtocolTls -DomainName $domain
-    }
+    Test-DDDnsMxRecord -DomainName $domains
+    Test-DDDnsNsRecord -DomainName $domains
+    Test-DDDnsSoaRecord -DomainName $domains
+    Test-DDDnsCaaRecord -DomainName $domains
+    Test-DDDnsSecStatus -DomainName $domains
+    Test-DDTlsDaneRecord -DomainName $domains -Ports 25 -FullResponse
+    Test-DDDnsTtl -DomainName $domains
+    Test-DDDnsZoneTransfer -DomainName $domains
+    Test-DDDnsWildcard -DomainName $domains
+    Test-DDEmailBimiRecord -DomainName $domains
+    Test-DDEmailMtaSts -DomainName $domains
+    Test-DDEmailProtocolTls -DomainName $domains
 } -Verbose

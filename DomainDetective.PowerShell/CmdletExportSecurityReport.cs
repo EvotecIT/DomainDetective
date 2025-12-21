@@ -7,6 +7,7 @@ using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Management.Automation.Language;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -271,6 +272,10 @@ namespace DomainDetective.PowerShell {
                                 }
                             }
                         }
+                    } catch (OperationCanceledException) {
+                        throw;
+                    } catch (PipelineStoppedException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"Compose parallel execution failed: {ex.Message}");
                         WriteVerbose(ex.ToString());
@@ -279,6 +284,7 @@ namespace DomainDetective.PowerShell {
 
                 if (!ranParallel) {
                     try {
+                        CancelToken.ThrowIfCancellationRequested();
                         var results = InvokeComposeWithPreferences(Compose);
                         if (results != null) {
                             foreach (var obj in results) {
@@ -288,6 +294,10 @@ namespace DomainDetective.PowerShell {
                                 }
                             }
                         }
+                    } catch (OperationCanceledException) {
+                        throw;
+                    } catch (PipelineStoppedException) {
+                        throw;
                     } catch (Exception ex) {
                         WriteWarning($"Compose block failed: {ex.Message}");
                         WriteVerbose(ex.ToString());
@@ -624,10 +634,21 @@ namespace DomainDetective.PowerShell {
 
             var tasks = new List<Task<ComposeInvocationResult>>(plan.Items.Count);
             foreach (var item in plan.Items) {
-                tasks.Add(Task.Run(() => InvokeComposeItem(pool, item)));
+                tasks.Add(Task.Run(() => InvokeComposeItem(pool, item, CancelToken), CancelToken));
             }
 
-            Task.WaitAll(tasks.ToArray());
+            try {
+                Task.WaitAll(tasks.ToArray(), CancelToken);
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (AggregateException ex) {
+                var flat = ex.Flatten().InnerExceptions;
+                var cancelled = flat.FirstOrDefault(e => e is OperationCanceledException || e is PipelineStoppedException);
+                if (cancelled != null) {
+                    throw cancelled;
+                }
+                throw;
+            }
             var ordered = tasks.Select(t => t.Result).OrderBy(r => r.Index).ToList();
             foreach (var result in ordered) {
                 foreach (var message in result.Verbose) {
@@ -662,10 +683,18 @@ namespace DomainDetective.PowerShell {
             return compose.InvokeWithContext(null, vars);
         }
 
-        private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ParallelComposeWorkItem item) {
+        private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ParallelComposeWorkItem item, CancellationToken cancellationToken) {
             var result = new ComposeInvocationResult { Index = item.Index };
             using var ps = System.Management.Automation.PowerShell.Create();
             ps.RunspacePool = pool;
+            using var reg = cancellationToken.Register(() => {
+                try {
+                    ps.Stop();
+                } catch {
+                    // Ignore stop exceptions during cancellation.
+                }
+            });
+            cancellationToken.ThrowIfCancellationRequested();
 
             foreach (var kvp in item.Variables) {
                 ps.AddCommand("Set-Variable")
@@ -688,6 +717,11 @@ namespace DomainDetective.PowerShell {
                 if (output != null) {
                     result.Output.AddRange(output);
                 }
+                cancellationToken.ThrowIfCancellationRequested();
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (PipelineStoppedException) {
+                throw;
             } catch (Exception ex) {
                 result.Warnings.Add($"Compose item failed: {ex.Message}");
             }
@@ -723,31 +757,110 @@ namespace DomainDetective.PowerShell {
                 reason = "Compose is empty";
                 return null;
             }
+            var items = new List<ParallelComposeWorkItem>();
+            var index = 0;
+            foreach (var stmt in end.Statements) {
+                switch (stmt) {
+                    case PipelineAst pipelineAst:
+                        if (!TryAppendPipelineItem(pipelineAst, null, items, ref index)) {
+                            continue;
+                        }
+                        break;
+                    case ForEachStatementAst foreachAst:
+                        if (!TryAppendForeachItems(foreachAst, items, ref index, out reason)) {
+                            return null;
+                        }
+                        break;
+                    default:
+                        reason = "Compose contains non-parallelizable statements";
+                        return null;
+                }
+            }
+            if (items.Count == 0) {
+                reason = "Compose contained no runnable statements";
+                return null;
+            }
+            return new ParallelComposePlan(items, $"statements={items.Count}");
+        }
 
-            if (end.Statements.Count == 1 && end.Statements[0] is ForEachStatementAst foreachAst) {
-                return BuildForeachPlan(foreachAst, out reason);
+        private bool TryAppendPipelineItem(
+            PipelineAst pipelineAst,
+            string? excludeVar,
+            List<ParallelComposeWorkItem> items,
+            ref int index) {
+            var text = pipelineAst.Extent.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(text)) {
+                return false;
+            }
+            var vars = CollectVariables(pipelineAst, excludeVar);
+            items.Add(new ParallelComposeWorkItem(text, vars, index++));
+            return true;
+        }
+
+        private bool TryAppendForeachItems(
+            ForEachStatementAst foreachAst,
+            List<ParallelComposeWorkItem> items,
+            ref int index,
+            out string? reason) {
+            reason = null;
+            var varName = foreachAst.Variable?.VariablePath?.UserPath;
+            if (string.IsNullOrWhiteSpace(varName)) {
+                reason = "foreach variable missing";
+                return false;
+            }
+            var varNameValue = varName!;
+
+            var collectionText = foreachAst.Condition?.Extent.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(collectionText)) {
+                reason = "foreach collection is empty";
+                return false;
             }
 
-            if (end.Statements.All(s => s is PipelineAst)) {
-                var items = new List<ParallelComposeWorkItem>();
-                var index = 0;
-                foreach (var stmt in end.Statements.Cast<PipelineAst>()) {
+            Collection<PSObject>? values = null;
+            try {
+                values = this.InvokeCommand.InvokeScript(collectionText);
+            } catch (Exception ex) {
+                reason = $"foreach collection failed: {ex.Message}";
+                return false;
+            }
+
+            if (values == null || values.Count == 0) {
+                reason = "foreach collection yielded no values";
+                return false;
+            }
+
+            var bodyStatements = foreachAst.Body?.Statements;
+            if (bodyStatements == null || bodyStatements.Count == 0) {
+                reason = "foreach body is empty";
+                return false;
+            }
+            if (bodyStatements.Any(s => s is not PipelineAst)) {
+                reason = "foreach body contains non-parallelizable statements";
+                return false;
+            }
+
+            var startCount = items.Count;
+            foreach (var value in values) {
+                var itemValue = value?.BaseObject ?? value;
+                foreach (var stmt in bodyStatements.Cast<PipelineAst>()) {
                     var text = stmt.Extent.Text?.Trim() ?? string.Empty;
                     if (string.IsNullOrWhiteSpace(text)) {
                         continue;
                     }
-                    var vars = CollectVariables(stmt, null);
-                    items.Add(new ParallelComposeWorkItem(text, vars, index++));
+                    var vars = CollectVariables(stmt, varNameValue);
+                    var map = new Dictionary<string, object?>(vars, StringComparer.OrdinalIgnoreCase) {
+                        [varNameValue] = itemValue
+                    };
+                    items.Add(new ParallelComposeWorkItem(text, map, index++));
                 }
-                if (items.Count == 0) {
-                    reason = "Compose contained no runnable statements";
-                    return null;
-                }
-                return new ParallelComposePlan(items, $"statements={items.Count}");
             }
 
-            reason = "Compose contains non-parallelizable statements";
-            return null;
+            if (items.Count == startCount) {
+                reason = "foreach produced no work items";
+                return false;
+            }
+
+            return true;
         }
 
         private ParallelComposePlan? BuildForeachPlan(ForEachStatementAst foreachAst, out string? reason) {

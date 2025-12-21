@@ -18,6 +18,11 @@ public sealed class HealthCheckExecutionOptions {
     public int? MaxParallelism { get; set; }
 
     /// <summary>
+    /// Optional override for maximum concurrent domain runs in batch execution.
+    /// </summary>
+    public int? MaxDomainParallelism { get; set; }
+
+    /// <summary>
     /// Optional override for DNS resolver concurrency hints.
     /// </summary>
     public int? DnsParallelism { get; set; }
@@ -37,6 +42,13 @@ public sealed class HealthCheckExecutionOptions {
             return MaxParallelism.Value;
         }
         return Clamp(Environment.ProcessorCount * 4, 4, 32);
+    }
+
+    internal int GetEffectiveDomainParallelism() {
+        if (MaxDomainParallelism.HasValue && MaxDomainParallelism.Value > 0) {
+            return MaxDomainParallelism.Value;
+        }
+        return Clamp(Environment.ProcessorCount * 2, 2, 16);
     }
 
     internal int GetEffectiveDnsParallelism() {

@@ -10,40 +10,35 @@ namespace DomainDetective.PowerShell {
     /// </example>
     [Cmdlet(VerbsCommon.Get, "DDIdpInfo", DefaultParameterSetName = "ByName")]
     [Alias("Get-IdpInfo")]
-    public sealed class CmdletGetIdpInfo : AsyncPSCmdlet {
-        /// <para>Domain to probe for identity tenant information.</para>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName")]
+    public sealed class CmdletGetIdpInfo : ParallelAsyncPSCmdlet {
+        /// <para>Domain(s) to probe for identity tenant information.</para>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-    public string DomainName = string.Empty;
-
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and context.</summary>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(
-                _logger,
-                this.WriteVerbose,
-                this.WriteWarning,
-                this.WriteDebug,
-                this.WriteError,
-                this.WriteProgress,
-                this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, _logger);
-            _healthCheck.ConfigureExecution();
-            return Task.CompletedTask;
-        }
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>Retrieves IdP details and writes a view object.</summary>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying IdP information for domain: {0}", DomainName);
-            await _healthCheck.VerifyIdpInfo(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.IdpInfoAnalysis);
-            WriteObject(view);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying IdP information for domain: {0}", domain);
+                await healthCheck.VerifyIdpInfo(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.IdpInfoAnalysis);
+                WriteObject(view);
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
-
-

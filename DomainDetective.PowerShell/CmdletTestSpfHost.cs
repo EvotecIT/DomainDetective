@@ -15,11 +15,11 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDSpfHost", DefaultParameterSetName = "ByDomain")]
     [Alias("Test-SpfHost")]
     [OutputType(typeof(DomainDetective.SpfHostEvaluation))]
-    public sealed class CmdletTestSpfHost : AsyncPSCmdlet {
-        /// <para>Domain to evaluate.</para>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByDomain")]
+    public sealed class CmdletTestSpfHost : ParallelAsyncPSCmdlet {
+        /// <para>Domain(s) to evaluate.</para>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByDomain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>IPv4/IPv6 address of the host to test.</para>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ByDomain")]
@@ -46,53 +46,48 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter AsJson;
 
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
-
-    /// <summary>Initializes logging and helper classes.</summary>
-    /// <returns>A completed task.</returns>
-    protected override Task BeginProcessingAsync() {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(
-            _logger,
-            this.WriteVerbose,
-            this.WriteWarning,
-                this.WriteDebug,
-                this.WriteError,
-                this.WriteProgress,
-                this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-        _healthCheck.ConfigureExecution();
-        return Task.CompletedTask;
-    }
-
-    /// <summary>Evaluates the provided host against the domain's SPF policy.</summary>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    protected override async Task ProcessRecordAsync() {
-        if (!IPAddress.TryParse(IpAddress, out var ip)) {
-            ThrowTerminatingError(new ErrorRecord(new ArgumentException("Invalid IP address."), "InvalidIp", ErrorCategory.InvalidArgument, IpAddress));
-            return;
-        }
-
-            if (!string.IsNullOrWhiteSpace(TestSpfRecord)) {
-                _healthCheck.SpfAnalysis.Subject = DomainName;
-                await _healthCheck.CheckSPF(TestSpfRecord);
-            } else {
-                await _healthCheck.VerifySPF(DomainName);
+        /// <summary>Evaluates the provided host against the domain's SPF policy.</summary>
+        /// <returns>A task that represents the asynchronous operation.</returns>
+        protected override async Task ProcessRecordAsync() {
+            if (!IPAddress.TryParse(IpAddress, out var ip)) {
+                ThrowTerminatingError(new ErrorRecord(new ArgumentException("Invalid IP address."), "InvalidIp", ErrorCategory.InvalidArgument, IpAddress));
+                return;
             }
 
-            var sender = string.IsNullOrWhiteSpace(Sender) ? $"postmaster@{DomainName}" : Sender;
-            var helo = string.IsNullOrWhiteSpace(Helo) ? $"mail.{DomainName}" : Helo;
-            var eval = await _healthCheck.SpfAnalysis.EvaluateHostAsync(DomainName, ip, sender, helo, _logger);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
 
-            if (AsJson.IsPresent) {
-                var json = System.Text.Json.JsonSerializer.Serialize(eval, DomainDetective.Helpers.JsonOptions.Default);
-                WriteObject(json);
-            } else {
-                WriteObject(eval);
+                if (!string.IsNullOrWhiteSpace(TestSpfRecord)) {
+                    healthCheck.SpfAnalysis.Subject = domain;
+                    await healthCheck.CheckSPF(TestSpfRecord, cancellationToken: CancelToken);
+                } else {
+                    await healthCheck.VerifySPF(domain, cancellationToken: CancelToken);
+                }
+
+                var sender = string.IsNullOrWhiteSpace(Sender) ? $"postmaster@{domain}" : Sender;
+                var helo = string.IsNullOrWhiteSpace(Helo) ? $"mail.{domain}" : Helo;
+                var eval = await healthCheck.SpfAnalysis.EvaluateHostAsync(domain, ip, sender, helo, logger);
+
+                if (AsJson.IsPresent) {
+                    var json = System.Text.Json.JsonSerializer.Serialize(eval, DomainDetective.Helpers.JsonOptions.Default);
+                    WriteObject(json);
+                } else {
+                    WriteObject(eval);
+                }
             }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
-

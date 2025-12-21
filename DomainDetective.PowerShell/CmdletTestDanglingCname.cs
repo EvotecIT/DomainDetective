@@ -1,4 +1,5 @@
 using DnsClientX;
+using System;
 using System.Management.Automation;
 using System.Threading.Tasks;
 
@@ -13,42 +14,47 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsDanglingCname", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DnsDanglingCname")]
     public sealed class CmdletTestDanglingCname : ExportableAsyncPSCmdlet {
-        /// <para>Domain to query.</para>
+        /// <para>Domain(s) to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
-
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>
-        /// Initializes the dangling CNAME checker.
-        /// </summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            ApplyExecutionOptions(_healthCheck);
-            return Task.CompletedTask;
-        }
 
         /// <summary>
         /// Checks for dangling CNAME entries on the domain.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Checking dangling CNAME for domain: {0}", DomainName);
-            await _healthCheck.Verify(DomainName, new[] { HealthCheckType.DANGLINGCNAME });
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.DanglingCnameAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Checking dangling CNAME for domain: {0}", domain);
+                await healthCheck.Verify(domain, new[] { HealthCheckType.DANGLINGCNAME }, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DanglingCnameAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync();
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
+
+
 

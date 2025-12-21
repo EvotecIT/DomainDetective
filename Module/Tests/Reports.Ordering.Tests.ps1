@@ -4,7 +4,7 @@ Describe 'Report ordering and composition (Pester)' {
         $script:originalOpen = [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser
         [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $false
 
-        Set-Item -Path Function:New-TestViews -Value {
+        Set-Item -Path Function:global:New-TestViews -Value {
             param(
                 [Parameter(Mandatory = $true)]
                 [string] $Domain
@@ -22,7 +22,7 @@ Describe 'Report ordering and composition (Pester)' {
             @($spf, $dmarc)
         }
 
-        Set-Item -Path Function:Get-WordXml -Value {
+        Set-Item -Path Function:global:Get-WordXml -Value {
             param(
                 [Parameter(Mandatory = $true)]
                 [string] $Path
@@ -48,7 +48,7 @@ Describe 'Report ordering and composition (Pester)' {
             }
         }
 
-        Set-Item -Path Function:Get-WordHeadings -Value {
+        Set-Item -Path Function:global:Get-WordHeadings -Value {
             param(
                 [Parameter(Mandatory = $true)]
                 [string] $Path
@@ -80,9 +80,9 @@ Describe 'Report ordering and composition (Pester)' {
 
     AfterAll {
         [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $script:originalOpen
-        Remove-Item -Path Function:New-TestViews -ErrorAction SilentlyContinue
-        Remove-Item -Path Function:Get-WordXml -ErrorAction SilentlyContinue
-        Remove-Item -Path Function:Get-WordHeadings -ErrorAction SilentlyContinue
+        Remove-Item -Path Function:global:New-TestViews -ErrorAction SilentlyContinue
+        Remove-Item -Path Function:global:Get-WordXml -ErrorAction SilentlyContinue
+        Remove-Item -Path Function:global:Get-WordHeadings -ErrorAction SilentlyContinue
     }
 
     It 'respects domain and section order in Word composition' {

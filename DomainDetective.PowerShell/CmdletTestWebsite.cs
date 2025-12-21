@@ -7,10 +7,10 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDWebsite", DefaultParameterSetName = "Domain")]
     [Alias("Test-Website")]
     public sealed class CmdletTestWebsite : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to analyze.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
+        /// <summary>Domain(s) to analyze.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-    public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>HTTPS port number.</summary>
         [Parameter(Mandatory = false)]
@@ -20,32 +20,35 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter SkipRevocation;
 
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, _logger);
-            ApplyExecutionOptions(_healthCheck);
-            return Task.CompletedTask;
-        }
-
         /// <summary>Runs certificate and HTTPS security checks.</summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _healthCheck.CertificateAnalysis.SkipRevocation = SkipRevocation;
-            await _healthCheck.VerifyWebsiteCertificate(DomainName, Port);
-            await _healthCheck.VerifyWebsiteHttps(DomainName);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, logger);
+            ApplyExecutionOptions(healthCheck);
 
-            var certView = DomainDetective.Views.Converters.Convert(_healthCheck.CertificateAnalysis);
-            var httpView = DomainDetective.Views.Converters.Convert(_healthCheck.HttpAnalysis);
-            var combined = DomainDetective.Views.Converters.CombineWebsite(certView, httpView);
-            WriteObject(combined);
+            logger.WriteVerbose("Checking website certificate and HTTPS for {0}:{1}", domain, Port);
+            healthCheck.CertificateAnalysis.SkipRevocation = SkipRevocation;
+                await healthCheck.VerifyWebsiteCertificate(domain, Port, cancellationToken: CancelToken);
+                await healthCheck.VerifyWebsiteHttps(domain, cancellationToken: CancelToken);
+
+                var certView = DomainDetective.Views.Converters.Convert(healthCheck.CertificateAnalysis);
+                var httpView = DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis);
+                var combined = DomainDetective.Views.Converters.CombineWebsite(certView, httpView);
+                WriteObject(combined);
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
-

@@ -9,13 +9,13 @@ namespace DomainDetective.PowerShell {
     ///   <summary>Verify STARTTLS.</summary>
     ///   <code>Test-DDEmailStartTls -DomainName example.com -Port 587</code>
     /// </example>
-[Cmdlet(VerbsDiagnostic.Test, "DDEmailStartTls", DefaultParameterSetName = "ServerName")]
-[Alias("Test-EmailStartTls")]
+    [Cmdlet(VerbsDiagnostic.Test, "DDEmailStartTls", DefaultParameterSetName = "ServerName")]
+    [Alias("Test-EmailStartTls")]
     public sealed class CmdletTestStartTls : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to test.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <summary>Domain(s) to test.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -29,29 +29,33 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter FullResponse;
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            ApplyExecutionOptions(healthCheck);
-            return Task.CompletedTask;
-        }
-
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", DomainName, Port);
-            await healthCheck.VerifySTARTTLS(DomainName, Port);
-            var view = DomainDetective.Views.Converters.Convert(healthCheck.StartTlsAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying STARTTLS for domain: {0} on port {1}", domain, Port);
+                await healthCheck.VerifySTARTTLS(domain, Port, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.StartTlsAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDEmailStartTls");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
-

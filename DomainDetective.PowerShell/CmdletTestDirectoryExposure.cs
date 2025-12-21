@@ -20,42 +20,45 @@ namespace DomainDetective.PowerShell;
 [Cmdlet(VerbsDiagnostic.Test, "DDDirectoryExposure", DefaultParameterSetName = "ServerName")]
 [Alias("Test-DirectoryExposure")]
 [OutputType(typeof(DirectoryExposureInfo))]
-public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
-{
-    /// <summary>Domain to query.</summary>
-    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet {
+    /// <summary>Domain(s) to query.</summary>
+    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string DomainName = string.Empty;
+    public string[] DomainName = System.Array.Empty<string>();
 
     /// <summary>Use HTTPS instead of HTTP.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter UseHttps;
 
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
     /// <summary>DNS server used for queries.</summary>
     [Parameter(Mandatory = false)]
     public DnsClientX.DnsEndpoint DnsEndpoint = DnsClientX.DnsEndpoint.System;
 
-    /// <summary>Initializes logging and helper classes.</summary>
-    protected override Task BeginProcessingAsync()
-    {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-        internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-        ApplyExecutionOptions(_healthCheck);
-        return Task.CompletedTask;
-    }
-
     /// <summary>Executes the cmdlet operation.</summary>
-    protected override async Task ProcessRecordAsync()
-    {
-        var url = (UseHttps.IsPresent ? "https://" : "http://") + DomainName.Trim().TrimEnd('/');
-        await _healthCheck.DirectoryExposureAnalysis.Analyze(url, _logger);
-        var view = DomainDetective.Views.Converters.Convert(_healthCheck.DirectoryExposureAnalysis);
-        WriteObject(view);
-        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+    protected override async Task ProcessRecordAsync() {
+        async Task ProcessDomainAsync(string domain) {
+            var logger = new InternalLogger(false);
+            var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                logger,
+                WriteVerbose,
+                WriteWarning,
+                WriteDebug,
+                WriteError,
+                WriteProgress,
+                WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+            ApplyExecutionOptions(healthCheck);
+
+            var url = (UseHttps.IsPresent ? "https://" : "http://") + domain.Trim().TrimEnd('/');
+            await healthCheck.DirectoryExposureAnalysis.Analyze(url, logger, cancellationToken: CancelToken);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.DirectoryExposureAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDDirectoryExposure");
+            }
+        }
+
+        await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 }
-
