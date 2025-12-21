@@ -84,39 +84,7 @@ namespace DomainDetective.PowerShell {
         protected string ResolveOutPathForFormat(string? explicitPath, string? defaultOutputDirectory, string label, ReportFormat fmt, IReadOnlyList<ReportFormat>? all = null)
         {
             var fmts = all ?? GetRequestedFormatsOrDefault(fallback: fmt);
-            if (!string.IsNullOrWhiteSpace(explicitPath))
-            {
-                try
-                {
-                    var p = explicitPath!;
-                    var looksLikeDirectory = false;
-                    if (System.IO.Directory.Exists(p)) looksLikeDirectory = true;
-                    else if (p.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) || p.EndsWith(System.IO.Path.AltDirectorySeparatorChar.ToString())) looksLikeDirectory = true;
-                    else if (!System.IO.Path.HasExtension(p)) looksLikeDirectory = true;
-
-                    if (!looksLikeDirectory && fmts.Count > 1)
-                    {
-                        // User provided a file path but asked for multiple formats; derive per-format paths by swapping extension.
-                        var dir = System.IO.Path.GetDirectoryName(p) ?? string.Empty;
-                        var name = System.IO.Path.GetFileNameWithoutExtension(p);
-                        var ext = fmt switch {
-                            ReportFormat.Html => ".html",
-                            ReportFormat.Word => ".docx",
-                            ReportFormat.Excel => ".xlsx",
-                            ReportFormat.Pdf => ".pdf",
-                            ReportFormat.Json => ".json",
-                            ReportFormat.Markdown => ".md",
-                            ReportFormat.MarkdownHtml => ".html",
-                            _ => ".html"
-                        };
-                        var combined = System.IO.Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);
-                        try { System.IO.Directory.CreateDirectory(string.IsNullOrEmpty(dir) ? "." : dir); } catch { }
-                        return combined;
-                    }
-                }
-                catch { /* fall through */ }
-            }
-            return ReportPathHelper.ResolveOutputPath(explicitPath, defaultOutputDirectory, label, fmt);
+            return ReportPathHelper.ResolveOutputPathForFormat(explicitPath, defaultOutputDirectory, label, fmt, fmts);
         }
 
     }

@@ -311,268 +311,77 @@ namespace DomainDetective.PowerShell {
                 return;
             }
 
-            var fmts = (ExportFormat != null && ExportFormat.Length > 0)
-                ? ExportFormat
-                : new[] { ExportDefaults.Format };
-            // Flatten nested arrays/lists from pipeline variables ($spf, $dmarc, $mx)
-            var flat = new List<object>();
-            IEnumerable<object> Flatten(object o) {
-                object Unwrap(object x) => (x is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : x;
-                if (o is System.Collections.IEnumerable en && o is not string) {
-                    foreach (var e in en) if (e != null) yield return Unwrap(e);
-                } else {
-                    yield return Unwrap(o);
-                }
-            }
-            foreach (var raw in _items) foreach (var it in Flatten(raw)) flat.Add(it);
+            var logger = new DomainDetective.InternalLogger(false);
+            _ = new InternalLoggerPowerShell(
+                logger,
+                IsVerboseEnabled() ? WriteVerbose : null,
+                WriteWarning,
+                WriteDebug,
+                WriteError,
+                WriteProgress,
+                WriteInformation);
 
-            // Auto-collect TTL data when DKIM is present and no TTL views supplied for that domain
-            try
-            {
-                var dkimSubjects = new HashSet<string>(flat.OfType<DomainDetective.Views.DkimRecordInfo>()
-                    .Select(x => x?.Subject)
-                    .Where(s => !string.IsNullOrWhiteSpace(s))!
-                    .Select(s => s!), StringComparer.OrdinalIgnoreCase);
-                if (dkimSubjects.Count > 0)
-                {
-                    var ttlPresent = new HashSet<string>(flat.OfType<DomainDetective.Views.TtlInfo>()
-                        .Select(x => x?.Subject)
-                        .Where(s => !string.IsNullOrWhiteSpace(s))!
-                        .Select(s => s!), StringComparer.OrdinalIgnoreCase);
-                    var need = dkimSubjects.Except(ttlPresent, StringComparer.OrdinalIgnoreCase).ToList();
-                    if (need.Count > 0)
-                    {
-                        WriteVerbose($"Export-DDSecurityReport: adding TTL analysis for {need.Count} domain(s) to populate DKIM TTLs.");
-                        foreach (var domain in need)
-                        {
-                            try
-                            {
-                                WriteVerbose($"Export-DDSecurityReport: TTL analysis for '{domain}' started.");
-                                var ana = new DomainDetective.DnsTtlAnalysis();
-                                // Provide known selectors to speed up TXT lookup
-                                var sels = flat.OfType<DomainDetective.Views.DkimRecordInfo>()
-                                               .Where(r => string.Equals(r?.Subject, domain, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(r?.Selector))
-                                               .Select(r => r!.Selector!)
-                                               .Distinct(StringComparer.OrdinalIgnoreCase)
-                                               .ToList();
-                                if (sels.Count > 0) ana.DkimSelectors = sels;
-                                ana.Analyze(domain, new DomainDetective.InternalLogger()).GetAwaiter().GetResult();
-                                var ttlView = DomainDetective.Views.Converters.Convert(ana);
-                                if (ttlView != null) flat.Add(ttlView);
-                                WriteVerbose($"Export-DDSecurityReport: TTL analysis for '{domain}' completed.");
-                            }
-                            catch (Exception ex)
-                            {
-                                WriteVerbose($"TTL analysis for '{domain}' failed: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                WriteVerbose($"TTL auto-collection skipped due to error: {ex.Message}");
-            }
-
-            // Build label from first two domains we can detect
-            var subjects = ExtractSubjects(flat);
-            WriteVerbose($"Export-DDSecurityReport: composing {flat.Count} item(s) across {subjects.Count} domain(s).");
-            if (IsVerboseEnabled()) {
-                try {
-                    var orderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(
-                        typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true);
-                    var custom = DomainDetective.Reports.SectionOrdering.NormalizeSectionList(SectionOrder ?? Array.Empty<string>());
-                    var inputOrder = DomainDetective.Reports.SectionOrdering.DetermineSectionOrderByDomain(flat);
-                    var grouped = DomainDetective.Reports.CompositionBuilder.GroupBySubject(flat);
-                    foreach (var kv in grouped) {
-                        var domain = kv.Key;
-                        var b = kv.Value;
-                        var present = new List<string>();
-                        if (b.Mx != null) present.Add("MX");
-                        if (b.Spf != null) present.Add("SPF");
-                        if (b.Dkim.Count > 0) present.Add("DKIM");
-                        if (b.Dmarc != null) present.Add("DMARC");
-                        if (b.Arc != null) present.Add("ARC");
-                        if (b.Bimi != null) present.Add("BIMI");
-                        if (b.Dnsbl != null) present.Add("DNSBL");
-                        if (b.Classification != null) present.Add("Classification");
-                        if (b.Mtasts != null) present.Add("MTA-STS");
-                        if (b.TlsRpt != null) present.Add("TLS-RPT");
-                        if (b.Ns != null) present.Add("NS");
-                        if (b.Soa != null) present.Add("SOA");
-                        if (b.ZoneTransfer != null) present.Add("ZoneTransfer");
-                        if (b.Wildcard != null) present.Add("Wildcard");
-                        if (b.Caa != null) present.Add("CAA");
-                        if (b.Dnssec != null) present.Add("DNSSEC");
-                        if (b.Dane != null) present.Add("DANE");
-                        if (b.Rpki != null) present.Add("RPKI");
-                        if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null) present.Add("MAILTLS");
-                        var input = inputOrder.TryGetValue(domain, out var list) ? list : null;
-                        var resolved = DomainDetective.Reports.SectionOrdering.ResolveOrder(orderMode, present, input, custom);
-                        if (resolved.Count > 0) {
-                            WriteVerbose($"Export-DDSecurityReport: section order for {domain}: {string.Join(", ", resolved)}");
-                        }
-                    }
-                } catch (Exception ex) {
-                    WriteVerbose($"Export-DDSecurityReport: failed to compute section order: {ex.Message}");
-                }
-            }
-            var label = subjects.Count switch {
-                0 => "report",
-                1 => subjects[0],
-                2 => $"{subjects[0]}+{subjects[1]}",
-                _ => $"{subjects[0]}+{subjects[1]}(+{subjects.Count - 2})"
+            var ordering = new DomainDetective.Reports.OrderingOptions {
+                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
+                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
+                SectionOrder = SectionOrder
             };
-            // Helper to compute per-format output path when multiple formats were requested
-            string ResolveOutPathForFormat(DomainDetective.Reports.ReportFormat f)
-            {
-                if (!string.IsNullOrWhiteSpace(ExportPath))
-                {
-                    try
-                    {
-                        var p = ExportPath!;
-                        var looksLikeDirectory = false;
-                        if (System.IO.Directory.Exists(p)) looksLikeDirectory = true;
-                        else if (p.EndsWith(System.IO.Path.DirectorySeparatorChar.ToString()) || p.EndsWith(System.IO.Path.AltDirectorySeparatorChar.ToString())) looksLikeDirectory = true;
-                        else if (!System.IO.Path.HasExtension(p)) looksLikeDirectory = true;
 
-                        if (!looksLikeDirectory && fmts.Length > 1)
-                        {
-                            // User provided a file path but asked for multiple formats; derive unique paths by replacing extension
-                            var dir = System.IO.Path.GetDirectoryName(p) ?? string.Empty;
-                            var name = System.IO.Path.GetFileNameWithoutExtension(p);
-                            var ext = f switch {
-                                DomainDetective.Reports.ReportFormat.Html => ".html",
-                                DomainDetective.Reports.ReportFormat.Word => ".docx",
-                                DomainDetective.Reports.ReportFormat.Excel => ".xlsx",
-                                DomainDetective.Reports.ReportFormat.Pdf => ".pdf",
-                                DomainDetective.Reports.ReportFormat.Json => ".json",
-                                DomainDetective.Reports.ReportFormat.Markdown => ".md",
-                                DomainDetective.Reports.ReportFormat.MarkdownHtml => ".html",
-                                _ => ".html"
-                            };
-                            var combined = System.IO.Path.Combine(string.IsNullOrEmpty(dir) ? "." : dir, name + ext);
-                            try { System.IO.Directory.CreateDirectory(string.IsNullOrEmpty(dir) ? "." : dir); } catch { }
-                            return combined;
-                        }
-                    }
-                    catch { /* fall through to helper */ }
+            var titleOverride = string.IsNullOrWhiteSpace(Title)
+                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle)
+                : Title;
+            var subjectOverride = string.IsNullOrWhiteSpace(Subject)
+                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject)
+                : Subject;
+            var categoryOverride = string.IsNullOrWhiteSpace(Category)
+                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory)
+                : Category;
+            var keywordsOverride = string.IsNullOrWhiteSpace(Keywords)
+                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords)
+                : Keywords;
+            var creatorOverride = string.IsNullOrWhiteSpace(Creator)
+                ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator)
+                : Creator;
+
+            var formats = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            var providerHelp = DomainDetective.Reports.ProviderHelpOptionsFactory.Build(ProviderHelpPreset, ProviderHelpOptions);
+            var openInBrowser = OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser;
+            var request = new DomainDetective.Reports.CompositionExportRequest {
+                Items = _items,
+                Formats = formats,
+                Scope = Scope,
+                ShowInfoFindings = ShowInfoFindings.IsPresent,
+                Ordering = ordering,
+                HtmlProfile = this.HtmlProfile,
+                ExcelProfile = this.ExcelProfile,
+                Title = titleOverride,
+                Subject = subjectOverride,
+                Category = categoryOverride,
+                Keywords = keywordsOverride,
+                Creator = creatorOverride,
+                NarrativePlacement = ExportDefaults.NarrativePlacement,
+                CompanyName = ExportDefaults.CompanyName,
+                CompanyAddress = ExportDefaults.CompanyAddress,
+                CompanyYear = ExportDefaults.CompanyYear,
+                LogoPath = string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
+                HeaderText = string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
+                WatermarkText = string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
+                SummaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap,
+                HeaderLogoSizePx = ExportDefaults.HeaderLogoSizePx,
+                FooterLogoSizePx = ExportDefaults.FooterLogoSizePx,
+                ProviderHelpOptions = providerHelp,
+                ExportPath = ExportPath,
+                DefaultOutputDirectory = ExportDefaults.OutputDirectory,
+                OpenInBrowser = openInBrowser,
+                LogSectionOrder = IsVerboseEnabled(),
+                AutoCollectTtl = true,
+                ExecutionOptions = new DomainDetective.Reports.CompositionExecutionOptions {
+                    EnableParallelism = !DisableParallel.IsPresent,
+                    MaxParallelism = MaxParallelism
                 }
-                return DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, label, f);
-            }
+            };
 
-            try {
-                var summaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap;
-                foreach (var fmt in fmts) {
-                    var outPath = ResolveOutPathForFormat(fmt);
-                    var fmtSw = Stopwatch.StartNew();
-                    WriteVerbose($"Export-DDSecurityReport: generating {fmt} report to {outPath} (items: {flat.Count}, domains: {subjects.Count}).");
-                    switch (fmt) {
-                        case DomainDetective.Reports.ReportFormat.Word:
-                            var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
-                            DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                                outPath,
-                                flat,
-                            Scope,
-                            ShowInfoFindings.IsPresent,
-                            ExportDefaults.NarrativePlacement,
-                            string.IsNullOrWhiteSpace(Title) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle) : Title,
-                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject,
-                            string.IsNullOrWhiteSpace(Category) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory) : Category,
-                            string.IsNullOrWhiteSpace(Keywords) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords) : Keywords,
-                            string.IsNullOrWhiteSpace(Creator) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator) : Creator,
-                            ExportDefaults.CompanyName,
-                            ExportDefaults.CompanyAddress,
-                            ExportDefaults.CompanyYear,
-                            string.IsNullOrWhiteSpace(ExportDefaults.LogoPath) ? null : ExportDefaults.LogoPath,
-                            string.IsNullOrWhiteSpace(ExportDefaults.HeaderText) ? null : ExportDefaults.HeaderText,
-                            string.IsNullOrWhiteSpace(ExportDefaults.WatermarkText) ? null : ExportDefaults.WatermarkText,
-                            true,
-                            true,
-                            helpOpts,
-                            (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                            (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                            SectionOrder,
-                            summaryColumnCap: summaryColumnCap,
-                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                            WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
-                            TryOpenReport(outPath);
-                        }
-                        break;
-                        case DomainDetective.Reports.ReportFormat.Html:
-                        DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
-                            outPath,
-                            flat,
-                            Scope,
-                            OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
-                            ExportDefaults.NarrativePlacement,
-                            string.IsNullOrWhiteSpace(Title) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle) : Title,
-                            string.IsNullOrWhiteSpace(Creator) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator) : Creator,
-                            string.IsNullOrWhiteSpace(Subject) ? (string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject) : Subject,
-                            (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                            (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                            SectionOrder,
-                            (DomainDetective.Reports.Html.HtmlProfile)Enum.Parse(typeof(DomainDetective.Reports.Html.HtmlProfile), HtmlProfile, ignoreCase: true));
-                        break;
-                        case DomainDetective.Reports.ReportFormat.Excel:
-                            DomainDetective.Reports.Office.ExcelCompositionReport.Generate(
-                                outPath,
-                                flat,
-                                Scope,
-                            new DomainDetective.Reports.OrderingOptions {
-                                DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                                SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                                SectionOrder = SectionOrder
-                            },
-                            (DomainDetective.Reports.Office.ExcelProfile)Enum.Parse(typeof(DomainDetective.Reports.Office.ExcelProfile), ExcelProfile, ignoreCase: true));
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                            WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
-                            TryOpenReport(outPath);
-                        }
-                        break;
-                        case DomainDetective.Reports.ReportFormat.Markdown:
-                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.Generate(
-                                outPath,
-                                flat,
-                                Scope,
-                                new DomainDetective.Reports.OrderingOptions {
-                                    DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                                    SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                                    SectionOrder = SectionOrder
-                                });
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
-                                TryOpenReport(outPath);
-                            }
-                        break;
-                        case DomainDetective.Reports.ReportFormat.MarkdownHtml:
-                            DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateMarkdownHtml(
-                                outPath,
-                                flat,
-                                Scope,
-                                new DomainDetective.Reports.OrderingOptions {
-                                    DomainOrder = (DomainDetective.Reports.DomainOrder)Enum.Parse(typeof(DomainDetective.Reports.DomainOrder), DomainOrder, ignoreCase: true),
-                                    SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
-                                    SectionOrder = SectionOrder
-                                });
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
-                                WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
-                                TryOpenReport(outPath);
-                            }
-                        break;
-                        default:
-                            await ExportNotImplementedAsync("Export-DDSecurityReport");
-                            return;
-                    }
-                    fmtSw.Stop();
-                    WriteVerbose($"Export-DDSecurityReport: {fmt} report generated in {fmtSw.ElapsedMilliseconds} ms.");
-                }
-            } catch (Exception ex) {
-                WriteWarning($"Export failed: {ex.Message}");
-            }
-
+            await DomainDetective.Reports.CompositionExportService.ExportAsync(request, logger, CancelToken).ConfigureAwait(false);
             return;
         }
 
@@ -963,101 +772,7 @@ namespace DomainDetective.PowerShell {
 
             return vars;
         }
-
-            private static List<string> ExtractSubjects(IEnumerable<object> items) {
-                var list = new List<string>();
-                IEnumerable<object> Flatten(object o) {
-                    object Unwrap(object x) => (x is PSObject pso && pso.BaseObject != null) ? pso.BaseObject : x;
-                    if (o is System.Collections.IEnumerable en && o is not string) {
-                        foreach (var e in en) if (e != null) yield return Unwrap(e);
-                    } else {
-                        yield return Unwrap(o);
-                    }
-                }
-                foreach (var raw in items ?? Array.Empty<object>()) {
-                    foreach (var it in Flatten(raw)) {
-                        switch (it) {
-                            case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): list.Add(mx.Subject); break;
-                            case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): list.Add(spf.Subject); break;
-                            case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): list.Add(dmarc.Subject); break;
-                            case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): list.Add(dkim.Subject); break;
-                            case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): list.Add(arc.Subject); break;
-                            case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): list.Add(bimi.Subject); break;
-                            case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject): list.Add(mc.Subject); break;
-                            case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject): list.Add(ms.Subject); break;
-                            case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): list.Add(tr.Subject!); break;
-                            case DomainDetective.Views.DnsblInfo db when !string.IsNullOrWhiteSpace(db.Subject): list.Add(db.Subject!); break;
-                        }
-                    }
-                }
-                return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            }
-
-        private static DomainDetective.Reports.Office.ProviderHelpRenderOptions BuildProviderHelpOptions(string preset, Hashtable? overrides)
-        {
-            var o = new DomainDetective.Reports.Office.ProviderHelpRenderOptions();
-            switch ((preset ?? "Standard").Trim())
-            {
-                case "Off":
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = false; break;
-                case "Minimal":
-                    o.ShowUnderMx = true; o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = false;
-                    o.ShowSummaries = false; o.ShowNotes = false; o.ShowVerified = false; o.ShowBadges = false;
-                    break;
-                case "Detailed":
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = true;
-                    o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
-                    break;
-                default: // Standard
-                    o.ShowUnderMx = o.ShowUnderSpf = o.ShowUnderDkim = o.ShowUnderDmarc = o.ShowUnderBimi = o.ShowUnderArc = true;
-                    o.ShowSummaries = true; o.ShowNotes = true; o.ShowVerified = true; o.ShowBadges = true;
-                    break;
-            }
-            if (overrides != null)
-            {
-                foreach (DictionaryEntry de in overrides)
-                {
-                    var key = (de.Key?.ToString() ?? string.Empty).Trim();
-                    var val = de.Value;
-                    if (string.Equals(key, "Under", StringComparison.OrdinalIgnoreCase) && val is System.Collections.IEnumerable en)
-                    {
-                        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var v in en) if (v != null) set.Add(v.ToString()!);
-                        o.ShowUnderMx = set.Contains("MX");
-                        o.ShowUnderSpf = set.Contains("SPF");
-                        o.ShowUnderDkim = set.Contains("DKIM");
-                        o.ShowUnderDmarc = set.Contains("DMARC");
-                        // Optional new sections
-                        try { o.ShowUnderBimi = set.Contains("BIMI"); } catch {}
-                        try { o.ShowUnderArc  = set.Contains("ARC"); } catch {}
-                        continue;
-                    }
-                    if (string.Equals(key, "Topics", StringComparison.OrdinalIgnoreCase) && val is System.Collections.IEnumerable en2)
-                    {
-                        var list = new List<string>();
-                        foreach (var v in en2) if (v != null) list.Add(v.ToString()!.ToUpperInvariant());
-                        if (list.Count > 0) o.TopicOrder = list.ToArray();
-                        continue;
-                    }
-                    void setBool(System.Action<bool> assign)
-                    {
-                        if (val is bool b) assign(b);
-                        else if (val is SwitchParameter sp) assign(sp.IsPresent);
-                        else if (val != null && bool.TryParse(val.ToString(), out var bb)) assign(bb);
-                    }
-                    switch (key.ToLowerInvariant())
-                    {
-                        case "showsummaries": setBool(v => o.ShowSummaries = v); break;
-                        case "shownotes": setBool(v => o.ShowNotes = v); break;
-                        case "showbadges": setBool(v => o.ShowBadges = v); break;
-                        case "showverified": setBool(v => o.ShowVerified = v); break;
-                        case "includerestricted": setBool(v => o.IncludeRestricted = v); break;
-                        case "includethirdparty": setBool(v => o.IncludeThirdParty = v); break;
-                        case "maxproviders": if (val != null && int.TryParse(val.ToString(), out var m)) o.MaxProviders = m; break;
-                    }
-                }
-            }
-            return o;
-        }
     }
 }
+
+

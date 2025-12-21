@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using DomainDetective.Reports;
 using OfficeIMO.Word;
 
 namespace DomainDetective.Reports.Office;
