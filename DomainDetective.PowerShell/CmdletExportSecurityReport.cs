@@ -943,7 +943,7 @@ namespace DomainDetective.PowerShell {
             var vars = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var name in names) {
                 try {
-                    var val = SessionState?.PSVariable?.GetValue(name);
+                    var val = GetVariableValue(name, null);
                     if (val != null) {
                         vars[name] = val;
                     }
