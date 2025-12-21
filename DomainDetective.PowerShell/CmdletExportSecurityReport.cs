@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
@@ -255,6 +256,9 @@ namespace DomainDetective.PowerShell {
         protected override async Task EndProcessingAsync() {
             // If a script block was provided, invoke and append its results
             if (Compose != null) {
+                WriteVerbose("Export-DDSecurityReport: Compose execution started.");
+                var composeSw = Stopwatch.StartNew();
+                var composeAdded = 0;
                 var ranParallel = false;
                 if (!DisableParallel.IsPresent) {
                     try {
@@ -263,24 +267,34 @@ namespace DomainDetective.PowerShell {
                             foreach (var obj in parallelResults) {
                                 if (obj != null) {
                                     _items.Add(obj.BaseObject ?? obj);
+                                    composeAdded++;
                                 }
                             }
                         }
                     } catch (Exception ex) {
                         WriteWarning($"Compose parallel execution failed: {ex.Message}");
+                        WriteVerbose(ex.ToString());
                     }
                 }
 
                 if (!ranParallel) {
                     try {
-                        var results = Compose.Invoke();
+                        var results = InvokeComposeWithPreferences(Compose);
                         if (results != null) {
-                            foreach (var obj in results) if (obj != null) _items.Add(obj.BaseObject ?? obj);
+                            foreach (var obj in results) {
+                                if (obj != null) {
+                                    _items.Add(obj.BaseObject ?? obj);
+                                    composeAdded++;
+                                }
+                            }
                         }
                     } catch (Exception ex) {
                         WriteWarning($"Compose block failed: {ex.Message}");
+                        WriteVerbose(ex.ToString());
                     }
                 }
+                composeSw.Stop();
+                WriteVerbose($"Export-DDSecurityReport: Compose completed in {composeSw.ElapsedMilliseconds} ms (items added: {composeAdded}).");
             }
 
             if (_items.Count == 0) {
@@ -323,6 +337,7 @@ namespace DomainDetective.PowerShell {
                         {
                             try
                             {
+                                WriteVerbose($"Export-DDSecurityReport: TTL analysis for '{domain}' started.");
                                 var ana = new DomainDetective.DnsTtlAnalysis();
                                 // Provide known selectors to speed up TXT lookup
                                 var sels = flat.OfType<DomainDetective.Views.DkimRecordInfo>()
@@ -334,6 +349,7 @@ namespace DomainDetective.PowerShell {
                                 ana.Analyze(domain, new DomainDetective.InternalLogger()).GetAwaiter().GetResult();
                                 var ttlView = DomainDetective.Views.Converters.Convert(ana);
                                 if (ttlView != null) flat.Add(ttlView);
+                                WriteVerbose($"Export-DDSecurityReport: TTL analysis for '{domain}' completed.");
                             }
                             catch (Exception ex)
                             {
@@ -439,6 +455,8 @@ namespace DomainDetective.PowerShell {
                 var summaryColumnCap = SummaryColumnCap ?? ExportDefaults.SummaryColumnCap;
                 foreach (var fmt in fmts) {
                     var outPath = ResolveOutPathForFormat(fmt);
+                    var fmtSw = Stopwatch.StartNew();
+                    WriteVerbose($"Export-DDSecurityReport: generating {fmt} report to {outPath} (items: {flat.Count}, domains: {subjects.Count}).");
                     switch (fmt) {
                         case DomainDetective.Reports.ReportFormat.Word:
                             var helpOpts = BuildProviderHelpOptions(ProviderHelpPreset, ProviderHelpOptions);
@@ -468,7 +486,10 @@ namespace DomainDetective.PowerShell {
                             summaryColumnCap: summaryColumnCap,
                             headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
                             footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
+                            TryOpenReport(outPath);
+                        }
                         break;
                         case DomainDetective.Reports.ReportFormat.Html:
                         DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
@@ -496,7 +517,10 @@ namespace DomainDetective.PowerShell {
                                 SectionOrder = SectionOrder
                             },
                             (DomainDetective.Reports.Office.ExcelProfile)Enum.Parse(typeof(DomainDetective.Reports.Office.ExcelProfile), ExcelProfile, ignoreCase: true));
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                            WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
+                            TryOpenReport(outPath);
+                        }
                         break;
                         case DomainDetective.Reports.ReportFormat.Markdown:
                             DomainDetective.Reports.Markdown.MarkdownCompositionReport.Generate(
@@ -508,7 +532,10 @@ namespace DomainDetective.PowerShell {
                                     SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                                     SectionOrder = SectionOrder
                                 });
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
+                                TryOpenReport(outPath);
+                            }
                         break;
                         case DomainDetective.Reports.ReportFormat.MarkdownHtml:
                             DomainDetective.Reports.Markdown.MarkdownCompositionReport.GenerateMarkdownHtml(
@@ -520,12 +547,17 @@ namespace DomainDetective.PowerShell {
                                     SectionOrderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true),
                                     SectionOrder = SectionOrder
                                 });
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                WriteVerbose($"Export-DDSecurityReport: opening report {outPath}.");
+                                TryOpenReport(outPath);
+                            }
                         break;
                         default:
                             await ExportNotImplementedAsync("Export-DDSecurityReport");
                             return;
                     }
+                    fmtSw.Stop();
+                    WriteVerbose($"Export-DDSecurityReport: {fmt} report generated in {fmtSw.ElapsedMilliseconds} ms.");
                 }
             } catch (Exception ex) {
                 WriteWarning($"Export failed: {ex.Message}");
@@ -572,6 +604,7 @@ namespace DomainDetective.PowerShell {
                 if (!string.IsNullOrWhiteSpace(reason)) {
                     WriteVerbose($"Export-DDSecurityReport: Compose not parallelized ({reason}).");
                 }
+                WriteVerbose("Export-DDSecurityReport: executing Compose serially.");
                 return false;
             }
 
@@ -614,7 +647,19 @@ namespace DomainDetective.PowerShell {
                 }
             }
 
+            WriteVerbose($"Export-DDSecurityReport: parallel Compose produced {results.Count} item(s).");
             return true;
+        }
+
+        private Collection<PSObject>? InvokeComposeWithPreferences(ScriptBlock compose) {
+            if (!IsVerboseEnabled()) {
+                return compose.Invoke();
+            }
+
+            var vars = new List<PSVariable> {
+                new PSVariable("VerbosePreference", ActionPreference.Continue)
+            };
+            return compose.InvokeWithContext(null, vars);
         }
 
         private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ParallelComposeWorkItem item) {
@@ -626,6 +671,13 @@ namespace DomainDetective.PowerShell {
                 ps.AddCommand("Set-Variable")
                     .AddParameter("Name", kvp.Key)
                     .AddParameter("Value", kvp.Value);
+                ps.AddStatement();
+            }
+
+            if (IsVerboseEnabled()) {
+                ps.AddCommand("Set-Variable")
+                    .AddParameter("Name", "VerbosePreference")
+                    .AddParameter("Value", ActionPreference.Continue);
                 ps.AddStatement();
             }
 

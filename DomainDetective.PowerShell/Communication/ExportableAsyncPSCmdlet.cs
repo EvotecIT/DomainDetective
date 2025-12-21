@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Management.Automation;
 using System.Collections.Generic;
 using System.Threading;
@@ -163,10 +164,34 @@ namespace DomainDetective.PowerShell {
             if (items == null || items.Count == 0) {
                 return;
             }
+            async Task InvokeSafeAsync(T item) {
+                var label = item?.ToString() ?? "<null>";
+                var isVerbose = IsVerboseEnabled();
+                Stopwatch? sw = null;
+                if (isVerbose) {
+                    WriteVerbose($"Starting item '{label}'.");
+                    sw = Stopwatch.StartNew();
+                }
+                try {
+                    await action(item);
+                } catch (OperationCanceledException) {
+                    throw;
+                } catch (PipelineStoppedException) {
+                    throw;
+                } catch (Exception ex) {
+                    WriteWarning($"Parallel item '{label}' failed: {ex.Message}");
+                    WriteVerbose(ex.ToString());
+                } finally {
+                    if (sw != null) {
+                        sw.Stop();
+                        WriteVerbose($"Completed item '{label}' in {sw.ElapsedMilliseconds} ms.");
+                    }
+                }
+            }
             if (DisableParallel.IsPresent || items.Count == 1) {
                 foreach (var item in items) {
                     CancelToken.ThrowIfCancellationRequested();
-                    await action(item);
+                    await InvokeSafeAsync(item);
                 }
                 return;
             }
@@ -180,7 +205,7 @@ namespace DomainDetective.PowerShell {
                 tasks[i] = Task.Run(async () => {
                     await gate.WaitAsync(CancelToken);
                     try {
-                        await action(local);
+                        await InvokeSafeAsync(local);
                     } finally {
                         gate.Release();
                     }
