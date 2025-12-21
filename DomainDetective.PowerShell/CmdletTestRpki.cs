@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -23,59 +24,107 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
+        private readonly System.Collections.Generic.List<object> _items = new();
+        private readonly System.Collections.Generic.List<string> _subjects = new();
+        private readonly object _exportLock = new();
 
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var psLogger = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-            psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
+        // BeginProcessing handled per-domain to allow safe parallelism.
 
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            var items = new System.Collections.Generic.List<object>();
-            foreach (var domain in DomainName) {
-                _logger.WriteVerbose("Querying RPKI for domain: {0}", domain);
-                await _healthCheck.VerifyRPKI(domain);
-                var view = DomainDetective.Views.Converters.Convert(_healthCheck.RpkiAnalysis);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var psLogger = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                psLogger.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying RPKI for domain: {0}", domain);
+                await healthCheck.VerifyRPKI(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis);
                 WriteObject(view);
-                if (IsExportRequested()) items.Add(view);
-            }
-            if (IsExportRequested()) {
-                var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
-                if (fmt == DomainDetective.Reports.ReportFormat.Word) {
-                    var key = DomainName.Length switch { 0 => "rpki", 1 => DomainName[0], 2 => $"{DomainName[0]}+{DomainName[1]}", _ => $"{DomainName[0]}+{DomainName[1]}(+{DomainName.Length-2})" };
-                    var outPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(ExportPath, ExportDefaults.OutputDirectory, key, fmt);
-                    try {
-                        DomainDetective.Reports.Office.WordCompositionReport.Generate(
-                            outPath,
-                            items,
-                            DomainDetective.Reports.ReportScope.Normal,
-                            showInfoFindings: true,
-                            narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"RPKI Report — {key}" : ExportDefaults.NarrativeTitle,
-                            subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
-                            categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
-                            keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                            creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
-                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
-                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
-                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
-                        if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
-                    } catch (System.Exception ex) {
-                        WriteWarning($"RPKI export failed: {ex.Message}");
-                    }
-                } else {
-                    await ExportNotImplementedAsync("Test-DDRpki");
+                if (!IsExportRequested()) {
+                    return;
                 }
-                return;
+                var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+                foreach (var fmt in fmts) {
+                    if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
+                        lock (_exportLock) {
+                            _items.Add(view);
+                            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                                _subjects.Add(domain);
+                            }
+                        }
+                    } else {
+                        await ExportNotImplementedAsync("Test-DDRpki");
+                    }
+                }
             }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
+        }
+
+        /// <summary>Finalizes multi-domain exports for Word/HTML by composing a single file.</summary>
+        protected override Task EndProcessingAsync() {
+            if (_items.Count == 0) {
+                return Task.CompletedTask;
+            }
+            var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
+            var needsWord = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Word);
+            var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
+            if (!needsWord && !needsHtml) {
+                return Task.CompletedTask;
+            }
+
+            var label = _subjects.Count switch {
+                0 => "rpki",
+                1 => _subjects[0],
+                2 => $"{_subjects[0]}+{_subjects[1]}",
+                _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
+            };
+            try {
+                if (needsWord) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Word, fmts);
+                    DomainDetective.Reports.Office.WordCompositionReport.Generate(
+                        outPath,
+                        _items,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        showInfoFindings: true,
+                        narrativePlacement: ExportDefaults.NarrativePlacement,
+                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"RPKI Report — {label}" : ExportDefaults.NarrativeTitle,
+                        subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
+                        categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
+                        keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
+                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
+                    if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                }
+                if (needsHtml) {
+                    var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, label, DomainDetective.Reports.ReportFormat.Html, fmts);
+                    DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
+                        outPath,
+                        _items,
+                        DomainDetective.Reports.ReportScope.Normal,
+                        OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser,
+                        ExportDefaults.NarrativePlacement,
+                        titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? null : ExportDefaults.NarrativeTitle,
+                        authorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                        descriptionOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject);
+                }
+            } catch (System.Exception ex) {
+                WriteWarning($"RPKI export failed: {ex.Message}");
+            }
+            return Task.CompletedTask;
         }
     }
 }

@@ -58,7 +58,8 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
 
@@ -72,3 +73,4 @@ public sealed class CmdletTestPortScan : ExportableAsyncPSCmdlet
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+

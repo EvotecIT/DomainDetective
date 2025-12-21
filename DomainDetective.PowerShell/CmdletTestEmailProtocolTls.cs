@@ -38,52 +38,11 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
     [ValidateSet("Smtp", "Imap", "Pop3")]
     public string[] Protocol = new[] { "Smtp", "Imap", "Pop3" };
 
-    /// <summary>Disable parallel execution of health checks.</summary>
-    [Parameter(Mandatory = false)]
-    public SwitchParameter DisableParallel { get; set; }
-
-    /// <summary>Maximum concurrent health checks.</summary>
-    [Parameter(Mandatory = false)]
-    [ValidateRange(1, 128)]
-    public int? MaxParallelism { get; set; }
-
-    /// <summary>DNS resolver concurrency hint.</summary>
-    [Parameter(Mandatory = false)]
-    [ValidateRange(1, 128)]
-    public int? DnsParallelism { get; set; }
-
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
     private readonly List<object> _items = new();
     private readonly List<string> _subjects = new();
+    private readonly object _exportLock = new();
 
-    /// <summary>Initializes logging and helper classes.</summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    protected override Task BeginProcessingAsync() {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(
-            _logger,
-            this.WriteVerbose,
-            this.WriteWarning,
-            this.WriteDebug,
-            this.WriteError,
-            this.WriteProgress,
-            this.WriteInformation);
-        internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-        ApplyExecutionOptions();
-        return Task.CompletedTask;
-    }
-
-    private void ApplyExecutionOptions() {
-        _healthCheck.ExecutionOptions.EnableParallelism = !DisableParallel.IsPresent;
-        if (MaxParallelism.HasValue) {
-            _healthCheck.ExecutionOptions.MaxParallelism = MaxParallelism.Value;
-        }
-        if (DnsParallelism.HasValue) {
-            _healthCheck.ExecutionOptions.DnsParallelism = DnsParallelism.Value;
-        }
-    }
+    // BeginProcessing handled per-domain to allow safe parallelism.
 
     /// <summary>Executes the cmdlet operation.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
@@ -106,25 +65,38 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
             checkTypes.AddRange(new[] { HealthCheckType.SMTPTLS, HealthCheckType.IMAPTLS, HealthCheckType.POP3TLS });
         }
 
-        foreach (var domain in DomainName) {
-            _logger.WriteVerbose("Checking mail protocol TLS for domain: {0}", domain);
-            await _healthCheck.Verify(domain, checkTypes.ToArray(), cancellationToken: CancelToken);
+        async Task ProcessDomainAsync(string domain) {
+            var logger = new InternalLogger(false);
+            var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                logger,
+                this.WriteVerbose,
+                this.WriteWarning,
+                this.WriteDebug,
+                this.WriteError,
+                this.WriteProgress,
+                this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+            ApplyExecutionOptions(healthCheck);
+
+            logger.WriteVerbose("Checking mail protocol TLS for domain: {0}", domain);
+            await healthCheck.Verify(domain, checkTypes.ToArray(), cancellationToken: CancelToken);
 
             var hasAny = false;
             if (checkTypes.Contains(HealthCheckType.SMTPTLS)) {
-                var view = DomainDetective.Views.Converters.Convert(_healthCheck.SmtpTlsAnalysis);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.SmtpTlsAnalysis);
                 WriteObject(view);
                 AddForExport(view, domain);
                 hasAny = true;
             }
             if (checkTypes.Contains(HealthCheckType.IMAPTLS)) {
-                var view = DomainDetective.Views.Converters.Convert(_healthCheck.ImapTlsAnalysis);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.ImapTlsAnalysis);
                 WriteObject(view);
                 AddForExport(view, domain);
                 hasAny = true;
             }
             if (checkTypes.Contains(HealthCheckType.POP3TLS)) {
-                var view = DomainDetective.Views.Converters.Convert(_healthCheck.Pop3TlsAnalysis);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.Pop3TlsAnalysis);
                 WriteObject(view);
                 AddForExport(view, domain);
                 hasAny = true;
@@ -138,9 +110,9 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
                         try {
                             var payload = new {
                                 Domain = domain,
-                                SmtpTls = checkTypes.Contains(HealthCheckType.SMTPTLS) ? _healthCheck.SmtpTlsAnalysis : null,
-                                ImapTls = checkTypes.Contains(HealthCheckType.IMAPTLS) ? _healthCheck.ImapTlsAnalysis : null,
-                                Pop3Tls = checkTypes.Contains(HealthCheckType.POP3TLS) ? _healthCheck.Pop3TlsAnalysis : null
+                                SmtpTls = checkTypes.Contains(HealthCheckType.SMTPTLS) ? healthCheck.SmtpTlsAnalysis : null,
+                                ImapTls = checkTypes.Contains(HealthCheckType.IMAPTLS) ? healthCheck.ImapTlsAnalysis : null,
+                                Pop3Tls = checkTypes.Contains(HealthCheckType.POP3TLS) ? healthCheck.Pop3TlsAnalysis : null
                             };
                             var json = JsonSerializer.Serialize(payload, DomainDetective.Helpers.JsonOptions.Default);
                             File.WriteAllText(outPath, json);
@@ -157,6 +129,8 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
                 }
             }
         }
+
+        await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 
     private void AddForExport(object view, string domain) {
@@ -166,9 +140,11 @@ public sealed class CmdletTestEmailProtocolTls : ExportableAsyncPSCmdlet {
         var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
         foreach (var fmt in fmts) {
             if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                _items.Add(view);
-                if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
-                    _subjects.Add(domain);
+                lock (_exportLock) {
+                    _items.Add(view);
+                    if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                        _subjects.Add(domain);
+                    }
                 }
             }
         }

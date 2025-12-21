@@ -5,7 +5,13 @@ namespace DomainDetective.PowerShell {
     /// <summary>Sets global export defaults for DomainDetective reports.</summary>
     [Cmdlet(VerbsCommon.Set, "DDExportOptions")]
     [Alias("Set-ExportOptions")] // convenience alias
-    public sealed class CmdletSetExportOptions : PSCmdlet {
+public sealed class CmdletSetExportOptions : PSCmdlet {
+        // Logo size bounds: below 8px becomes unreadable; above 512px can distort Word layouts.
+        private const int MinLogoSizePx = 8;
+        private const int MaxLogoSizePx = 512;
+        private const int MinSummaryColumns = 1;
+        private const int MaxSummaryColumns = 12;
+
         /// <summary>Default format for exports.</summary>
         [Parameter(Mandatory = false)]
         public ReportFormat? DefaultFormat { get; set; }
@@ -24,12 +30,12 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Header logo height in pixels (optional).</summary>
         [Parameter(Mandatory = false)]
-        [ValidateRange(8, 512)]
+        [ValidateRange(MinLogoSizePx, MaxLogoSizePx)]
         public int? HeaderLogoSizePx { get; set; }
 
         /// <summary>Footer logo height in pixels (optional).</summary>
         [Parameter(Mandatory = false)]
-        [ValidateRange(8, 512)]
+        [ValidateRange(MinLogoSizePx, MaxLogoSizePx)]
         public int? FooterLogoSizePx { get; set; }
 
         /// <summary>Header text (optional; shown in Word header if provided).</summary>
@@ -46,7 +52,7 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Max status columns in Word executive summary tables.</summary>
         [Parameter(Mandatory = false)]
-        [ValidateRange(1, 12)]
+        [ValidateRange(MinSummaryColumns, MaxSummaryColumns)]
         public int? SummaryColumnCap { get; set; }
 
         /// <summary>Company name for custom document properties.</summary>

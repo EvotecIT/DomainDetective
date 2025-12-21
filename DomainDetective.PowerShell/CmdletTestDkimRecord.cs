@@ -1,3 +1,4 @@
+using System;
 using DnsClientX;
 using System.Linq;
 using System.Management.Automation;
@@ -32,35 +33,35 @@ namespace DomainDetective.PowerShell {
 
         // View-by-default: Raw analysis is attached to view.Raw
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
+        private readonly object _exportLock = new();
 
-        /// <summary>
-        /// Initializes DKIM checking with the current settings.
-        /// </summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            // Initialize the logger to be able to see verbose, warning, debug, error, progress, and information messages.
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            // initialize the health check object
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
+        // BeginProcessing handled per-domain to allow safe parallelism.
         /// <summary>
         /// Validates DKIM records for the provided selectors.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         /// <summary>Processes each domain, emits DKIM view(s), and accumulates for optional composition export.</summary>
         protected override async Task ProcessRecordAsync() {
-            foreach (var domain in DomainName) {
-                _logger.WriteVerbose("Querying DKIM records for domain: {0}", domain);
-                var selectors = Selectors ?? System.Array.Empty<string>();
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying DKIM records for domain: {0}", domain);
+                var selectors = Selectors ?? Array.Empty<string>();
                 var includeMissingSelectors = selectors.Length > 0;
-                await healthCheck.VerifyDKIM(domain, selectors, includeMissingSelectors);
+                await healthCheck.VerifyDKIM(domain, selectors, includeMissingSelectors, cancellationToken: CancelToken);
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis).ToList();
                 if (!includeMissingSelectors && output.Count == 0) {
                     WriteWarning($"No DKIM selectors found for {domain}. Provide -Selectors to test specific selectors.");
@@ -77,13 +78,19 @@ namespace DomainDetective.PowerShell {
                 if (IsExportRequested()) {
                     var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                        _items.AddRange(output);
-                        _subjects.Add(domain);
+                        lock (_exportLock) {
+                            _items.AddRange(output);
+                            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                                _subjects.Add(domain);
+                            }
+                        }
                     } else {
                         await ExportNotImplementedAsync("Test-DDEmailDkimRecord");
                     }
                 }
             }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
 
         /// <summary>Composes DKIM sections into one document for Word/HTML export.</summary>

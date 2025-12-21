@@ -43,7 +43,8 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
 
@@ -57,3 +58,4 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+

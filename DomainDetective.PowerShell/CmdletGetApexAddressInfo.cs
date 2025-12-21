@@ -35,7 +35,8 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
             this.WriteProgress,
             this.WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck.ConfigureExecution();
         return Task.CompletedTask;
     }
 
@@ -47,3 +48,4 @@ public sealed class CmdletGetApexAddressInfo : AsyncPSCmdlet {
         WriteObject(view);
     }
 }
+

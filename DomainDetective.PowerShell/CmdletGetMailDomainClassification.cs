@@ -25,33 +25,30 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ByName")]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
     private readonly System.Collections.Generic.List<object> _items = new();
     private readonly System.Collections.Generic.List<string> _subjects = new();
+    private readonly object _exportLock = new();
 
-    /// <summary>Initializes logging and health-check helpers.</summary>
-    /// <returns>A completed task.</returns>
-    protected override Task BeginProcessingAsync() {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(
-            _logger,
-            this.WriteVerbose,
-            this.WriteWarning,
-            this.WriteDebug,
-            this.WriteError,
-            this.WriteProgress,
-            this.WriteInformation);
-        internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-        return Task.CompletedTask;
-    }
+    // BeginProcessing handled per-domain to allow safe parallelism.
 
     /// <summary>Executes classification for each domain.</summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
     protected override async Task ProcessRecordAsync() {
-        foreach (var domain in DomainName) {
-            var classifier = new MailDomainClassifier(_healthCheck, _logger);
+        async Task ProcessDomainAsync(string domain) {
+            var logger = new InternalLogger(false);
+            var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                logger,
+                this.WriteVerbose,
+                this.WriteWarning,
+                this.WriteDebug,
+                this.WriteError,
+                this.WriteProgress,
+                this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+            ApplyExecutionOptions(healthCheck);
+
+            var classifier = new MailDomainClassifier(healthCheck, logger);
             var result = await classifier.ClassifyAsync(domain);
             var view = DomainDetective.Views.Converters.Convert(result);
             WriteObject(view);
@@ -72,22 +69,25 @@ public sealed class CmdletTestMailDomainClassification : ExportableAsyncPSCmdlet
                 var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                 if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
                     // Ensure DMARC is available (not required by classifier but expected in composed reports)
-                    try { await _healthCheck.VerifyDMARC(domain); } catch { }
+                    try { await healthCheck.VerifyDMARC(domain, cancellationToken: CancelToken); } catch { }
 
-                    // Compose available views for the same subject
-                    _subjects.Add(domain);
-                    _items.Add(view); // Mail Classification
-                    if (_healthCheck.MXAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MXAnalysis));
-                    if (_healthCheck.SpfAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.SpfAnalysis));
-                    if (_healthCheck.DKIMAnalysis != null) _items.AddRange(DomainDetective.Views.Converters.Convert(_healthCheck.DKIMAnalysis));
-                    if (_healthCheck.DmarcAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.DmarcAnalysis));
-                    if (_healthCheck.MTASTSAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.MTASTSAnalysis));
-                    if (_healthCheck.TLSRPTAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(_healthCheck.TLSRPTAnalysis));
+                    lock (_exportLock) {
+                        _subjects.Add(domain);
+                        _items.Add(view); // Mail Classification
+                        if (healthCheck.MXAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
+                        if (healthCheck.SpfAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
+                        if (healthCheck.DKIMAnalysis != null) _items.AddRange(DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
+                        if (healthCheck.DmarcAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
+                        if (healthCheck.MTASTSAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
+                        if (healthCheck.TLSRPTAnalysis != null) _items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
+                    }
                 } else {
                     await ExportNotImplementedAsync("Test-DDMailDomainClassification");
                 }
             }
         }
+
+        await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 
     /// <summary>When export is requested, compose Mail Classification sections into a single file.</summary>

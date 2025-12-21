@@ -30,6 +30,12 @@ public partial class DomainHealthCheck {
     }
 
     private void EnsureCacheDomain(string domainName) {
+        lock (_executionLock) {
+            EnsureCacheDomainLocked(domainName);
+        }
+    }
+
+    private void EnsureCacheDomainLocked(string domainName) {
         if (!string.Equals(_cacheDomain, domainName, StringComparison.OrdinalIgnoreCase)) {
             _mxRecordsTask = null;
             _mxHostsTask = null;
@@ -46,7 +52,7 @@ public partial class DomainHealthCheck {
             return DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
         }
         lock (_executionLock) {
-            EnsureCacheDomain(domainName);
+            EnsureCacheDomainLocked(domainName);
             if (_mxRecordsTask == null) {
                 _mxRecordsTask = DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
             }
@@ -59,7 +65,7 @@ public partial class DomainHealthCheck {
             return BuildMxHostsAsync(domainName, cancellationToken);
         }
         lock (_executionLock) {
-            EnsureCacheDomain(domainName);
+            EnsureCacheDomainLocked(domainName);
             if (_mxHostsTask == null) {
                 _mxHostsTask = BuildMxHostsAsync(domainName, cancellationToken);
             }
@@ -81,7 +87,7 @@ public partial class DomainHealthCheck {
 
     private Task EnsureSmtpTlsAsync(string domainName, int port, CancellationToken cancellationToken) {
         lock (_executionLock) {
-            EnsureCacheDomain(domainName);
+            EnsureCacheDomainLocked(domainName);
             _smtpTlsTasks ??= new Dictionary<int, Task>();
             if (!_smtpTlsTasks.TryGetValue(port, out var task)) {
                 task = VerifySmtpTlsInternal(domainName, port, cancellationToken);
@@ -93,7 +99,7 @@ public partial class DomainHealthCheck {
 
     private Task EnsureReverseDnsAsync(string domainName, CancellationToken cancellationToken) {
         lock (_executionLock) {
-            EnsureCacheDomain(domainName);
+            EnsureCacheDomainLocked(domainName);
             if (_reverseDnsTask == null) {
                 _reverseDnsTask = VerifyReverseDnsInternal(domainName, cancellationToken);
             }
@@ -103,7 +109,7 @@ public partial class DomainHealthCheck {
 
     private Task EnsureDaneAsync(string domainName, ServiceType[]? serviceTypes, int[]? ports, CancellationToken cancellationToken) {
         lock (_executionLock) {
-            EnsureCacheDomain(domainName);
+            EnsureCacheDomainLocked(domainName);
             var key = BuildDaneKey(serviceTypes, ports);
             if (_daneTask == null || !string.Equals(_daneKey, key, StringComparison.OrdinalIgnoreCase)) {
                 _daneKey = key;
@@ -124,4 +130,7 @@ public partial class DomainHealthCheck {
         var distinctTypes = new SortedSet<int>(types.Select(t => (int)t));
         return "types:" + string.Join(",", distinctTypes);
     }
+
+    internal Task<DnsAnswer[]> GetMxRecordsAsyncForTest(string domainName, CancellationToken cancellationToken)
+        => GetMxRecordsAsync(domainName, cancellationToken);
 }

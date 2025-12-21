@@ -49,10 +49,14 @@ namespace DomainDetective {
                 if (_daneTask != null) {
                     try {
                         await _daneTask;
-                    } catch { }
+                    } catch (Exception ex) {
+                        _logger.WriteVerbose("DANE task failed for {0}: {1}", domainName, ex.Message);
+                    }
                 }
                 EvaluateDaneAlignment(domainName, tlsHosts);
-            } catch { }
+            } catch (Exception ex) {
+                _logger.WriteVerbose("DANE alignment evaluation failed for {0}: {1}", domainName, ex.Message);
+            }
         }
 
         /// <summary>

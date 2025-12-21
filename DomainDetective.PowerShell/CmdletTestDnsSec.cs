@@ -33,7 +33,8 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            ApplyExecutionOptions(healthCheck);
             return Task.CompletedTask;
         }
 
@@ -75,4 +76,5 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+
 

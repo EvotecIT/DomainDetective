@@ -39,20 +39,6 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int? MultiResolverMaxParallelism { get; set; }
 
-        /// <summary>Disable parallel execution of health checks.</summary>
-        [Parameter(Mandatory = false)]
-        public SwitchParameter DisableParallel { get; set; }
-
-        /// <summary>Maximum concurrent health checks.</summary>
-        [Parameter(Mandatory = false)]
-        [ValidateRange(1, 128)]
-        public int? MaxParallelism { get; set; }
-
-        /// <summary>DNS resolver concurrency hint.</summary>
-        [Parameter(Mandatory = false)]
-        [ValidateRange(1, 128)]
-        public int? DnsParallelism { get; set; }
-
         /// <summary>Specific tests to run.</summary>
         [Parameter(Mandatory = false)]
         public HealthCheckType[]? HealthCheckType;
@@ -98,15 +84,7 @@ namespace DomainDetective.PowerShell {
                 _healthCheck.MultiResolverStrategy = MultiResolverStrategy;
                 _healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism;
             }
-            if (DisableParallel.IsPresent) {
-                _healthCheck.ExecutionOptions.EnableParallelism = false;
-            }
-            if (MaxParallelism.HasValue) {
-                _healthCheck.ExecutionOptions.MaxParallelism = MaxParallelism.Value;
-            }
-            if (DnsParallelism.HasValue) {
-                _healthCheck.ExecutionOptions.DnsParallelism = DnsParallelism.Value;
-            }
+            ApplyExecutionOptions(_healthCheck);
             if (BrandKeyword != null) {
                 _healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
             }

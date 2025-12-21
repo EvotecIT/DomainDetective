@@ -34,7 +34,8 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var psLogger = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
             psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            ApplyExecutionOptions(_healthCheck);
             _healthCheck.RdapAnalysis.CacheDuration = CacheDuration;
             return Task.CompletedTask;
         }
@@ -49,3 +50,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

@@ -36,10 +36,11 @@ Describe 'Word composition (Pester)' {
                 $zip.Dispose()
             }
 
-            $xml | Should -Match 'Executive Summary'
-            $xml | Should -Match 'Overview'
-            $xml | Should -Match 'All References'
-            $xml | Should -Match 'Findings \\(W/E\\)'
+            $text = ($xml -replace '<[^>]+>', ' ') -replace '\s+', ' '
+            $text | Should -Match 'Executive Summary'
+            $text | Should -Match 'Overview'
+            $text | Should -Match 'All References'
+            $text | Should -Match 'Findings\s*\(W/E\)'
         } finally {
             [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $originalOpen
         }

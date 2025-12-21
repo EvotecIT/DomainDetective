@@ -38,7 +38,8 @@ namespace DomainDetective.PowerShell {
                 WriteProgress,
                 WriteInformation);
             psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
 
@@ -55,3 +56,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

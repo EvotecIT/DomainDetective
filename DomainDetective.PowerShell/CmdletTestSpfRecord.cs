@@ -26,44 +26,53 @@ namespace DomainDetective.PowerShell {
         //[Parameter(Mandatory = false, ParameterSetName = "ServerName")]
         //public SwitchParameter FullResponse;
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
+        private readonly object _exportLock = new();
 
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override Task BeginProcessingAsync() {
-            // Initialize the logger to be able to see verbose, warning, debug, error, progress, and information messages.
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            // initialize the health check object
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            foreach (var domain in DomainName) {
-                _logger.WriteVerbose("Querying SPF record for domain: {0}", domain);
-                await healthCheck.VerifySPF(domain);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying SPF record for domain: {0}", domain);
+                await healthCheck.VerifySPF(domain, cancellationToken: CancelToken);
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis);
                 WriteObject(output);
 
-                if (!IsExportRequested()) continue;
+                if (!IsExportRequested()) {
+                    return;
+                }
                 var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
                 foreach (var fmt in fmts) {
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                        _items.Add(output);
-                        if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) _subjects.Add(domain);
+                        lock (_exportLock) {
+                            _items.Add(output);
+                            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                                _subjects.Add(domain);
+                            }
+                        }
                     } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
                         var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
                         try {
                             var json = System.Text.Json.JsonSerializer.Serialize(healthCheck.SpfAnalysis, DomainDetective.Helpers.JsonOptions.Default);
                             System.IO.File.WriteAllText(outPath, json);
                             WriteVerbose($"SPF JSON saved: {outPath}");
-                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
+                            if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
+                                TryOpenReport(outPath);
+                            }
                         } catch (System.Exception ex) {
                             WriteWarning($"SPF export failed: {ex.Message}");
                         }
@@ -72,6 +81,8 @@ namespace DomainDetective.PowerShell {
                     }
                 }
             }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
 
         /// <summary>
@@ -84,11 +95,11 @@ namespace DomainDetective.PowerShell {
             var needsHtml = Array.Exists(fmts.ToArray(), f => f == DomainDetective.Reports.ReportFormat.Html);
             if (!needsWord && !needsHtml) return Task.CompletedTask;
 
-            var label = _subjects.Count switch {
+            var label = DomainName.Length switch {
                 0 => "spf",
-                1 => _subjects[0],
-                2 => $"{_subjects[0]}+{_subjects[1]}",
-                _ => $"{_subjects[0]}+{_subjects[1]}(+{_subjects.Count - 2})"
+                1 => DomainName[0],
+                2 => $"{DomainName[0]}+{DomainName[1]}",
+                _ => $"{DomainName[0]}+{DomainName[1]}(+{DomainName.Length - 2})"
             };
             try {
                 if (needsWord) {

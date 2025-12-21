@@ -3,83 +3,86 @@ Describe 'Report ordering and composition (Pester)' {
         Import-Module "$PSScriptRoot/../DomainDetective.psd1" -Force
         $script:originalOpen = [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser
         [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $false
+
+        Set-Item -Path Function:New-TestViews -Value {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string] $Domain
+            )
+
+            $spf = [DomainDetective.Views.SpfRecordInfo]::new()
+            $spf.Subject = $Domain
+            $spf.Status = 'OK'
+
+            $dmarc = [DomainDetective.Views.DmarcRecordInfo]::new()
+            $dmarc.Subject = $Domain
+            $dmarc.Status = 'Warning'
+            $dmarc.WarningCount = 1
+
+            @($spf, $dmarc)
+        }
+
+        Set-Item -Path Function:Get-WordXml -Value {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string] $Path
+            )
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+            try {
+                $docEntry = $zip.Entries | Where-Object { $_.FullName -ieq 'word/document.xml' } | Select-Object -First 1
+                $stream = $docEntry.Open()
+                try {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    try {
+                        $reader.ReadToEnd()
+                    } finally {
+                        $reader.Dispose()
+                    }
+                } finally {
+                    $stream.Dispose()
+                }
+            } finally {
+                $zip.Dispose()
+            }
+        }
+
+        Set-Item -Path Function:Get-WordHeadings -Value {
+            param(
+                [Parameter(Mandatory = $true)]
+                [string] $Path
+            )
+
+            $xmlText = Get-WordXml -Path $Path
+            [xml] $doc = $xmlText
+            $ns = New-Object System.Xml.XmlNamespaceManager($doc.NameTable)
+            $ns.AddNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main')
+
+            $nodes = $doc.SelectNodes('//w:p[w:pPr/w:pStyle]', $ns)
+            $list = New-Object System.Collections.Generic.List[object]
+            foreach ($n in $nodes) {
+                $styleNode = $n.SelectSingleNode('w:pPr/w:pStyle/@w:val', $ns)
+                if ($styleNode -eq $null) {
+                    continue
+                }
+                $style = $styleNode.Value
+                $textNodes = $n.SelectNodes('.//w:t', $ns)
+                $text = ''
+                foreach ($t in $textNodes) {
+                    $text += $t.InnerText
+                }
+                $list.Add([pscustomobject]@{ Style = $style; Text = $text })
+            }
+            $list
+        }
     }
 
     AfterAll {
         [DomainDetective.PowerShell.ExportDefaults]::OpenInBrowser = $script:originalOpen
-    }
-
-    function New-TestViews {
-        param(
-            [Parameter(Mandatory = $true)]
-            [string] $Domain
-        )
-
-        $spf = [DomainDetective.Views.SpfRecordInfo]::new()
-        $spf.Subject = $Domain
-        $spf.Status = 'OK'
-
-        $dmarc = [DomainDetective.Views.DmarcRecordInfo]::new()
-        $dmarc.Subject = $Domain
-        $dmarc.Status = 'Warning'
-        $dmarc.WarningCount = 1
-
-        @($spf, $dmarc)
-    }
-
-    function Get-WordXml {
-        param(
-            [Parameter(Mandatory = $true)]
-            [string] $Path
-        )
-
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
-        try {
-            $docEntry = $zip.Entries | Where-Object { $_.FullName -ieq 'word/document.xml' } | Select-Object -First 1
-            $stream = $docEntry.Open()
-            try {
-                $reader = New-Object System.IO.StreamReader($stream)
-                try {
-                    $reader.ReadToEnd()
-                } finally {
-                    $reader.Dispose()
-                }
-            } finally {
-                $stream.Dispose()
-            }
-        } finally {
-            $zip.Dispose()
-        }
-    }
-
-    function Get-WordHeadings {
-        param(
-            [Parameter(Mandatory = $true)]
-            [string] $Path
-        )
-
-        $xmlText = Get-WordXml -Path $Path
-        [xml] $doc = $xmlText
-        $ns = New-Object System.Xml.XmlNamespaceManager($doc.NameTable)
-        $ns.AddNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main')
-
-        $nodes = $doc.SelectNodes('//w:p[w:pPr/w:pStyle]', $ns)
-        $list = New-Object System.Collections.Generic.List[object]
-        foreach ($n in $nodes) {
-            $styleNode = $n.SelectSingleNode('w:pPr/w:pStyle/@w:val', $ns)
-            if ($styleNode -eq $null) {
-                continue
-            }
-            $style = $styleNode.Value
-            $textNodes = $n.SelectNodes('.//w:t', $ns)
-            $text = ''
-            foreach ($t in $textNodes) {
-                $text += $t.InnerText
-            }
-            $list.Add([pscustomobject]@{ Style = $style; Text = $text })
-        }
-        $list
+        Remove-Item -Path Function:New-TestViews -ErrorAction SilentlyContinue
+        Remove-Item -Path Function:Get-WordXml -ErrorAction SilentlyContinue
+        Remove-Item -Path Function:Get-WordHeadings -ErrorAction SilentlyContinue
     }
 
     It 'respects domain and section order in Word composition' {
@@ -147,11 +150,9 @@ Describe 'Report ordering and composition (Pester)' {
         $idxDmarcB | Should -BeLessThan $idxSpfB
         $idxDmarcB | Should -BeLessThan $idxDomainA
 
-        $idxExec = $html.IndexOf('Executive Summary')
-        $idxExec | Should -BeGreaterThan -1
-        $idxDomainInExec = $html.IndexOf('b.example', $idxExec)
-        $idxDomainInExec | Should -BeGreaterThan $idxExec
-        $idxDomainInExec | Should -BeLessThan $idxDomainB
+        $idxSummary = $html.IndexOf('Overall Grade')
+        $idxSummary | Should -BeGreaterThan -1
+        $idxSummary | Should -BeLessThan $idxDomainB
     }
 
     It 'flattens piped arrays for HTML composition' {

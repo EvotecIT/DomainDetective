@@ -86,6 +86,7 @@ namespace DomainDetective {
         /// <param name="danePorts">Custom ports to check for DANE. Overrides <paramref name="daneServiceType"/> when provided.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
         /// <param name="portScanProfiles">Optional port scan profiles to use.</param>
+        /// <param name="executionOptions">Optional execution settings for this verification run.</param>
         public async Task Verify(
             string domainName,
             HealthCheckType[]? healthCheckTypes = null,

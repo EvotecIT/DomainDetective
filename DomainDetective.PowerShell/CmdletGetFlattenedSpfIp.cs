@@ -46,7 +46,8 @@ namespace DomainDetective.PowerShell {
                 this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
 
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck.ConfigureExecution();
             if (!string.IsNullOrEmpty(TestSpfRecord)) {
                 _healthCheck.SpfAnalysis.TestSpfRecords[DomainName] = TestSpfRecord;
             }
@@ -70,3 +71,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

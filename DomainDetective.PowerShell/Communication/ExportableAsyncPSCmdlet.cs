@@ -1,6 +1,9 @@
+using System;
 using System.Management.Automation;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective;
 using DomainDetective.Reports;
 
 namespace DomainDetective.PowerShell {
@@ -33,6 +36,25 @@ namespace DomainDetective.PowerShell {
         [Alias("ArtifactsPath")]
         public string? ArtifactsDirectory { get; set; }
 
+        /// <summary>Disable parallel execution (cmdlet-level and health checks).</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter DisableParallel { get; set; }
+
+        /// <summary>Maximum number of concurrent items for cmdlet-level parallel work.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(ParallelExecutionDefaults.MinParallelism, ParallelExecutionDefaults.MaxParallelism)]
+        public int? ThrottleLimit { get; set; }
+
+        /// <summary>Maximum concurrent health checks within a single domain run.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(ParallelExecutionDefaults.MinParallelism, ParallelExecutionDefaults.MaxParallelism)]
+        public int? MaxParallelism { get; set; }
+
+        /// <summary>DNS resolver concurrency hint for health checks.</summary>
+        [Parameter(Mandatory = false)]
+        [ValidateRange(ParallelExecutionDefaults.MinParallelism, ParallelExecutionDefaults.MaxParallelism)]
+        public int? DnsParallelism { get; set; }
+
         /// <summary>Attempts to open the specified report file.</summary>
         /// <param name="path">Path to the report.</param>
         protected void TryOpenReport(string? path)
@@ -54,7 +76,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Emits a warning indicating export is not implemented.</summary>
         /// <param name="cmdletName">Name of the cmdlet requesting export.</param>
         /// <returns>A completed task.</returns>
-        protected Task ExportNotImplementedAsync(string? cmdletName = null) {
+        protected Task ExportNotImplementedAsync(string? cmdletName = null) {   
             var name = cmdletName ?? GetCmdletName();
             WriteWarning($"Export for {name} is not yet implemented (TODO). Use Test-DDDomainOverallHealth for full reports.");
             WriteError(new ErrorRecord(
@@ -116,6 +138,72 @@ namespace DomainDetective.PowerShell {
                 catch { /* fall through */ }
             }
             return ReportPathHelper.ResolveOutputPath(explicitPath, defaultOutputDirectory, label, fmt);
+        }
+
+        /// <summary>Applies shared execution options to a health check instance.</summary>
+        protected void ApplyExecutionOptions(DomainHealthCheck healthCheck) {   
+            healthCheck.ExecutionOptions.EnableParallelism = !DisableParallel.IsPresent;
+            if (MaxParallelism.HasValue) {
+                healthCheck.ExecutionOptions.MaxParallelism = MaxParallelism.Value;
+            }
+            if (DnsParallelism.HasValue) {
+                healthCheck.ExecutionOptions.DnsParallelism = DnsParallelism.Value;
+                if (healthCheck.DnsConfiguration.SupportsResolverConcurrency) {
+                    healthCheck.ResolverMaxConcurrency = DnsParallelism.Value;
+                }
+                if (!healthCheck.MultiResolverMaxParallelism.HasValue) {
+                    healthCheck.MultiResolverMaxParallelism = DnsParallelism.Value;
+                }
+            }
+            healthCheck.ConfigureExecution();
+        }
+
+        /// <summary>Runs the provided action over inputs with optional throttling.</summary>
+        protected async Task ForEachAsync<T>(IReadOnlyList<T> items, Func<T, Task> action) {
+            if (items == null || items.Count == 0) {
+                return;
+            }
+            if (DisableParallel.IsPresent || items.Count == 1) {
+                foreach (var item in items) {
+                    CancelToken.ThrowIfCancellationRequested();
+                    await action(item);
+                }
+                return;
+            }
+
+            var throttle = GetEffectiveThrottleLimit();
+            WriteVerbose($"Parallel execution enabled: {items.Count} item(s), throttle {throttle}.");
+            using var gate = new SemaphoreSlim(throttle, throttle);
+            var tasks = new Task[items.Count];
+            for (var i = 0; i < items.Count; i++) {
+                var local = items[i];
+                tasks[i] = Task.Run(async () => {
+                    await gate.WaitAsync(CancelToken);
+                    try {
+                        await action(local);
+                    } finally {
+                        gate.Release();
+                    }
+                }, CancelToken);
+            }
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>Returns the effective throttle limit for cmdlet-level parallelism.</summary>
+        protected int GetEffectiveThrottleLimit() {
+            return ParallelExecutionDefaults.GetThrottleLimit(ThrottleLimit);
+        }
+
+        /// <summary>Returns true when verbose output is enabled for this invocation.</summary>
+        protected bool IsVerboseEnabled() {
+            if (MyInvocation?.BoundParameters?.ContainsKey("Verbose") == true) {
+                return true;
+            }
+            var pref = GetVariableValue("VerbosePreference");
+            if (pref is ActionPreference ap) {
+                return ap != ActionPreference.SilentlyContinue;
+            }
+            return false;
         }
     }
 }

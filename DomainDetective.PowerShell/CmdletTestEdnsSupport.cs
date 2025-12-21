@@ -34,7 +34,8 @@ public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        ApplyExecutionOptions(healthCheck);
         return Task.CompletedTask;
     }
 
@@ -49,3 +50,4 @@ public sealed class CmdletTestEdnsSupport : ExportableAsyncPSCmdlet
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+

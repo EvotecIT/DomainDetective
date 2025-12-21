@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Management.Automation;
+using System.Management.Automation.Runspaces;
+using System.Management.Automation.Language;
 using System.Threading.Tasks;
 
 namespace DomainDetective.PowerShell {
@@ -169,6 +172,44 @@ namespace DomainDetective.PowerShell {
 
         private readonly List<object> _items = new();
 
+        private static readonly HashSet<string> _autoVariables = new(StringComparer.OrdinalIgnoreCase) {
+            "_",
+            "PSItem",
+            "args",
+            "PSBoundParameters",
+            "MyInvocation",
+            "ExecutionContext",
+            "input",
+            "null",
+            "true",
+            "false",
+            "Error",
+            "HOME",
+            "Host",
+            "PID",
+            "PSCommandPath",
+            "PSCulture",
+            "PSHome",
+            "PSScriptRoot",
+            "PSSessionApplicationName",
+            "PSSessionConfigurationName",
+            "PSSessionOption",
+            "PSUICulture",
+            "PSVersionTable",
+            "PWD",
+            "ShellId"
+        };
+
+        private static readonly string[] _preferenceVariables = {
+            "VerbosePreference",
+            "DebugPreference",
+            "ErrorActionPreference",
+            "WarningPreference",
+            "InformationPreference",
+            "ProgressPreference",
+            "PSDefaultParameterValues"
+        };
+
         // Recursively append objects, executing ScriptBlocks when provided via InputObject
         private void AppendObject(object obj)
         {
@@ -211,20 +252,40 @@ namespace DomainDetective.PowerShell {
     }
 
         /// <summary>Generates the report at the end of the pipeline.</summary>
-        protected override Task EndProcessingAsync() {
+        protected override async Task EndProcessingAsync() {
             // If a script block was provided, invoke and append its results
             if (Compose != null) {
-                try {
-                    var results = Compose.Invoke();
-                    if (results != null) {
-                        foreach (var obj in results) if (obj != null) _items.Add(obj.BaseObject ?? obj);
+                var ranParallel = false;
+                if (!DisableParallel.IsPresent) {
+                    try {
+                        ranParallel = TryExecuteComposeInParallel(Compose, out var parallelResults);
+                        if (ranParallel && parallelResults.Count > 0) {
+                            foreach (var obj in parallelResults) {
+                                if (obj != null) {
+                                    _items.Add(obj.BaseObject ?? obj);
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        WriteWarning($"Compose parallel execution failed: {ex.Message}");
                     }
-                } catch (Exception ex) {
-                    WriteWarning($"Compose block failed: {ex.Message}");
+                }
+
+                if (!ranParallel) {
+                    try {
+                        var results = Compose.Invoke();
+                        if (results != null) {
+                            foreach (var obj in results) if (obj != null) _items.Add(obj.BaseObject ?? obj);
+                        }
+                    } catch (Exception ex) {
+                        WriteWarning($"Compose block failed: {ex.Message}");
+                    }
                 }
             }
 
-            if (_items.Count == 0) return Task.CompletedTask;
+            if (_items.Count == 0) {
+                return;
+            }
 
             var fmts = (ExportFormat != null && ExportFormat.Length > 0)
                 ? ExportFormat
@@ -290,46 +351,45 @@ namespace DomainDetective.PowerShell {
             // Build label from first two domains we can detect
             var subjects = ExtractSubjects(flat);
             WriteVerbose($"Export-DDSecurityReport: composing {flat.Count} item(s) across {subjects.Count} domain(s).");
-            try
-            {
-                var orderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(
-                    typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true);
-                var custom = DomainDetective.Reports.SectionOrdering.NormalizeSectionList(SectionOrder ?? Array.Empty<string>());
-                var inputOrder = DomainDetective.Reports.SectionOrdering.DetermineSectionOrderByDomain(flat);
-                var grouped = DomainDetective.Reports.CompositionBuilder.GroupBySubject(flat);
-                foreach (var kv in grouped)
-                {
-                    var domain = kv.Key;
-                    var b = kv.Value;
-                    var present = new List<string>();
-                    if (b.Mx != null) present.Add("MX");
-                    if (b.Spf != null) present.Add("SPF");
-                    if (b.Dkim.Count > 0) present.Add("DKIM");
-                    if (b.Dmarc != null) present.Add("DMARC");
-                    if (b.Arc != null) present.Add("ARC");
-                    if (b.Bimi != null) present.Add("BIMI");
-                    if (b.Dnsbl != null) present.Add("DNSBL");
-                    if (b.Classification != null) present.Add("Classification");
-                    if (b.Mtasts != null) present.Add("MTA-STS");
-                    if (b.TlsRpt != null) present.Add("TLS-RPT");
-                    if (b.Ns != null) present.Add("NS");
-                    if (b.Soa != null) present.Add("SOA");
-                    if (b.ZoneTransfer != null) present.Add("ZoneTransfer");
-                    if (b.Wildcard != null) present.Add("Wildcard");
-                    if (b.Caa != null) present.Add("CAA");
-                    if (b.Dnssec != null) present.Add("DNSSEC");
-                    if (b.Dane != null) present.Add("DANE");
-                    if (b.Rpki != null) present.Add("RPKI");
-                    if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null) present.Add("MAILTLS");
-                    var input = inputOrder.TryGetValue(domain, out var list) ? list : null;
-                    var resolved = DomainDetective.Reports.SectionOrdering.ResolveOrder(orderMode, present, input, custom);
-                    if (resolved.Count > 0)
-                        WriteVerbose($"Export-DDSecurityReport: section order for {domain}: {string.Join(", ", resolved)}");
+            if (IsVerboseEnabled()) {
+                try {
+                    var orderMode = (DomainDetective.Reports.SectionOrderMode)Enum.Parse(
+                        typeof(DomainDetective.Reports.SectionOrderMode), SectionOrderMode, ignoreCase: true);
+                    var custom = DomainDetective.Reports.SectionOrdering.NormalizeSectionList(SectionOrder ?? Array.Empty<string>());
+                    var inputOrder = DomainDetective.Reports.SectionOrdering.DetermineSectionOrderByDomain(flat);
+                    var grouped = DomainDetective.Reports.CompositionBuilder.GroupBySubject(flat);
+                    foreach (var kv in grouped) {
+                        var domain = kv.Key;
+                        var b = kv.Value;
+                        var present = new List<string>();
+                        if (b.Mx != null) present.Add("MX");
+                        if (b.Spf != null) present.Add("SPF");
+                        if (b.Dkim.Count > 0) present.Add("DKIM");
+                        if (b.Dmarc != null) present.Add("DMARC");
+                        if (b.Arc != null) present.Add("ARC");
+                        if (b.Bimi != null) present.Add("BIMI");
+                        if (b.Dnsbl != null) present.Add("DNSBL");
+                        if (b.Classification != null) present.Add("Classification");
+                        if (b.Mtasts != null) present.Add("MTA-STS");
+                        if (b.TlsRpt != null) present.Add("TLS-RPT");
+                        if (b.Ns != null) present.Add("NS");
+                        if (b.Soa != null) present.Add("SOA");
+                        if (b.ZoneTransfer != null) present.Add("ZoneTransfer");
+                        if (b.Wildcard != null) present.Add("Wildcard");
+                        if (b.Caa != null) present.Add("CAA");
+                        if (b.Dnssec != null) present.Add("DNSSEC");
+                        if (b.Dane != null) present.Add("DANE");
+                        if (b.Rpki != null) present.Add("RPKI");
+                        if (b.SmtpTls != null || b.ImapTls != null || b.PopTls != null) present.Add("MAILTLS");
+                        var input = inputOrder.TryGetValue(domain, out var list) ? list : null;
+                        var resolved = DomainDetective.Reports.SectionOrdering.ResolveOrder(orderMode, present, input, custom);
+                        if (resolved.Count > 0) {
+                            WriteVerbose($"Export-DDSecurityReport: section order for {domain}: {string.Join(", ", resolved)}");
+                        }
+                    }
+                } catch (Exception ex) {
+                    WriteVerbose($"Export-DDSecurityReport: failed to compute section order: {ex.Message}");
                 }
-            }
-            catch (Exception ex)
-            {
-                WriteVerbose($"Export-DDSecurityReport: failed to compute section order: {ex.Message}");
             }
             var label = subjects.Count switch {
                 0 => "report",
@@ -463,14 +523,280 @@ namespace DomainDetective.PowerShell {
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         break;
                         default:
-                            return ExportNotImplementedAsync("Export-DDSecurityReport");
+                            await ExportNotImplementedAsync("Export-DDSecurityReport");
+                            return;
                     }
                 }
             } catch (Exception ex) {
                 WriteWarning($"Export failed: {ex.Message}");
             }
 
-            return Task.CompletedTask;
+            return;
+        }
+
+        private sealed class ParallelComposePlan {
+            public ParallelComposePlan(List<ParallelComposeWorkItem> items, string description) {
+                Items = items;
+                Description = description;
+            }
+
+            public List<ParallelComposeWorkItem> Items { get; }
+            public string Description { get; }
+        }
+
+        private sealed class ParallelComposeWorkItem {
+            public ParallelComposeWorkItem(string scriptText, Dictionary<string, object?> variables, int index) {
+                ScriptText = scriptText;
+                Variables = variables;
+                Index = index;
+            }
+
+            public string ScriptText { get; }
+            public Dictionary<string, object?> Variables { get; }
+            public int Index { get; }
+        }
+
+        private sealed class ComposeInvocationResult {
+            public int Index { get; set; }
+            public List<PSObject> Output { get; set; } = new();
+            public List<string> Verbose { get; set; } = new();
+            public List<string> Warnings { get; set; } = new();
+            public List<ErrorRecord> Errors { get; set; } = new();
+            public List<InformationRecord> Information { get; set; } = new();
+        }
+
+        private bool TryExecuteComposeInParallel(ScriptBlock compose, out List<PSObject> results) {
+            results = new List<PSObject>();
+            var plan = BuildParallelComposePlan(compose, out var reason);
+            if (plan == null) {
+                if (!string.IsNullOrWhiteSpace(reason)) {
+                    WriteVerbose($"Export-DDSecurityReport: Compose not parallelized ({reason}).");
+                }
+                return false;
+            }
+
+            var throttle = GetEffectiveThrottleLimit();
+            WriteVerbose($"Export-DDSecurityReport: executing Compose in parallel ({plan.Description}, throttle {throttle}).");
+
+            var modulePath = this.MyInvocation?.MyCommand?.Module?.Path;
+            var iss = InitialSessionState.CreateDefault();
+            if (!string.IsNullOrWhiteSpace(modulePath)) {
+                iss.ImportPSModule(new[] { modulePath });
+            }
+
+            var min = 1;
+            using var pool = RunspaceFactory.CreateRunspacePool(min, throttle, iss, this.Host);
+            pool.ThreadOptions = PSThreadOptions.ReuseThread;
+            pool.Open();
+
+            var tasks = new List<Task<ComposeInvocationResult>>(plan.Items.Count);
+            foreach (var item in plan.Items) {
+                tasks.Add(Task.Run(() => InvokeComposeItem(pool, item)));
+            }
+
+            Task.WaitAll(tasks.ToArray());
+            var ordered = tasks.Select(t => t.Result).OrderBy(r => r.Index).ToList();
+            foreach (var result in ordered) {
+                foreach (var message in result.Verbose) {
+                    WriteVerbose(message);
+                }
+                foreach (var message in result.Warnings) {
+                    WriteWarning(message);
+                }
+                foreach (var info in result.Information) {
+                    WriteInformation(info);
+                }
+                foreach (var error in result.Errors) {
+                    WriteError(error);
+                }
+                if (result.Output.Count > 0) {
+                    results.AddRange(result.Output);
+                }
+            }
+
+            return true;
+        }
+
+        private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ParallelComposeWorkItem item) {
+            var result = new ComposeInvocationResult { Index = item.Index };
+            using var ps = System.Management.Automation.PowerShell.Create();
+            ps.RunspacePool = pool;
+
+            foreach (var kvp in item.Variables) {
+                ps.AddCommand("Set-Variable")
+                    .AddParameter("Name", kvp.Key)
+                    .AddParameter("Value", kvp.Value);
+                ps.AddStatement();
+            }
+
+            ps.AddScript(item.ScriptText);
+
+            try {
+                var output = ps.Invoke();
+                if (output != null) {
+                    result.Output.AddRange(output);
+                }
+            } catch (Exception ex) {
+                result.Warnings.Add($"Compose item failed: {ex.Message}");
+            }
+
+            if (ps.Streams.Verbose != null) {
+                result.Verbose.AddRange(ps.Streams.Verbose.Select(v => v.Message));
+            }
+            if (ps.Streams.Warning != null) {
+                result.Warnings.AddRange(ps.Streams.Warning.Select(w => w.Message));
+            }
+            if (ps.Streams.Information != null) {
+                result.Information.AddRange(ps.Streams.Information);
+            }
+            if (ps.Streams.Error != null && ps.Streams.Error.Count > 0) {
+                result.Errors.AddRange(ps.Streams.Error);
+            }
+
+            return result;
+        }
+
+        private ParallelComposePlan? BuildParallelComposePlan(ScriptBlock compose, out string? reason) {
+            reason = null;
+            if (compose.Ast is not ScriptBlockAst ast) {
+                reason = "missing AST";
+                return null;
+            }
+            if (ast.ParamBlock != null || ast.BeginBlock != null || ast.ProcessBlock != null) {
+                reason = "Compose has parameters or Begin/Process blocks";
+                return null;
+            }
+            var end = ast.EndBlock;
+            if (end == null || end.Statements.Count == 0) {
+                reason = "Compose is empty";
+                return null;
+            }
+
+            if (end.Statements.Count == 1 && end.Statements[0] is ForEachStatementAst foreachAst) {
+                return BuildForeachPlan(foreachAst, out reason);
+            }
+
+            if (end.Statements.All(s => s is PipelineAst)) {
+                var items = new List<ParallelComposeWorkItem>();
+                var index = 0;
+                foreach (var stmt in end.Statements.Cast<PipelineAst>()) {
+                    var text = stmt.Extent.Text?.Trim() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(text)) {
+                        continue;
+                    }
+                    var vars = CollectVariables(stmt, null);
+                    items.Add(new ParallelComposeWorkItem(text, vars, index++));
+                }
+                if (items.Count == 0) {
+                    reason = "Compose contained no runnable statements";
+                    return null;
+                }
+                return new ParallelComposePlan(items, $"statements={items.Count}");
+            }
+
+            reason = "Compose contains non-parallelizable statements";
+            return null;
+        }
+
+        private ParallelComposePlan? BuildForeachPlan(ForEachStatementAst foreachAst, out string? reason) {
+            reason = null;
+            var varName = foreachAst.Variable?.VariablePath?.UserPath;
+            if (string.IsNullOrWhiteSpace(varName)) {
+                reason = "foreach variable missing";
+                return null;
+            }
+            var varNameValue = varName!;
+
+            var bodyText = foreachAst.Body?.Extent.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(bodyText)) {
+                reason = "foreach body is empty";
+                return null;
+            }
+            if (bodyText.StartsWith("{", StringComparison.Ordinal) && bodyText.EndsWith("}", StringComparison.Ordinal)) {
+                bodyText = bodyText.Substring(1, bodyText.Length - 2).Trim();
+            }
+            if (string.IsNullOrWhiteSpace(bodyText)) {
+                reason = "foreach body is empty";
+                return null;
+            }
+
+            var collectionText = foreachAst.Condition?.Extent.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(collectionText)) {
+                reason = "foreach collection is empty";
+                return null;
+            }
+
+            Collection<PSObject>? values = null;
+            try {
+                values = this.InvokeCommand.InvokeScript(collectionText);
+            } catch (Exception ex) {
+                reason = $"foreach collection failed: {ex.Message}";
+                return null;
+            }
+
+            if (values == null || values.Count == 0) {
+                reason = "foreach collection yielded no values";
+                return null;
+            }
+
+            var vars = CollectVariables(foreachAst.Body!, varNameValue);
+            var items = new List<ParallelComposeWorkItem>();
+            var index = 0;
+            foreach (var value in values) {
+                var map = new Dictionary<string, object?>(vars, StringComparer.OrdinalIgnoreCase) {
+                    [varNameValue] = value?.BaseObject ?? value
+                };
+                items.Add(new ParallelComposeWorkItem(bodyText, map, index++));
+            }
+            if (items.Count == 0) {
+                reason = "foreach produced no work items";
+                return null;
+            }
+            return new ParallelComposePlan(items, $"foreach({varNameValue}) x {items.Count}");
+        }
+
+        private Dictionary<string, object?> CollectVariables(Ast ast, string? excludeVar) {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var variable in ast.FindAll(n => n is VariableExpressionAst, true).Cast<VariableExpressionAst>()) {
+                var name = variable.VariablePath?.UserPath;
+                if (string.IsNullOrWhiteSpace(name)) {
+                    continue;
+                }
+                var nameValue = name!;
+                if (_autoVariables.Contains(nameValue)) {
+                    continue;
+                }
+                if (!string.IsNullOrWhiteSpace(excludeVar) && string.Equals(nameValue, excludeVar, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (nameValue.Contains(":", StringComparison.Ordinal)) {
+                    continue;
+                }
+                names.Add(nameValue);
+            }
+
+            var vars = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in names) {
+                try {
+                    var val = SessionState?.PSVariable?.GetValue(name);
+                    if (val != null) {
+                        vars[name] = val;
+                    }
+                } catch { }
+            }
+
+            foreach (var pref in _preferenceVariables) {
+                if (!vars.ContainsKey(pref)) {
+                    try {
+                        var val = SessionState?.PSVariable?.GetValue(pref);
+                        if (val != null) {
+                            vars[pref] = val;
+                        }
+                    } catch { }
+                }
+            }
+
+            return vars;
         }
 
             private static List<string> ExtractSubjects(IEnumerable<object> items) {

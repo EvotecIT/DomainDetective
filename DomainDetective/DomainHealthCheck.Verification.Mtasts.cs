@@ -86,7 +86,7 @@ namespace DomainDetective {
                     }
                 }
             } catch (Exception ex) {
-                _logger?.WriteVerbose($"MTA-STS TLS correlation skipped: {ex.Message}");
+                _logger.WriteVerbose("MTA-STS TLS correlation skipped for {0}: {1}", domainName, ex.Message);
             }
         }
     }

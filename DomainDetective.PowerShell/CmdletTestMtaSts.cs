@@ -29,77 +29,51 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-    /// <summary>Disable parallel execution of health checks.</summary>
-    [Parameter(Mandatory = false)]
-    public SwitchParameter DisableParallel { get; set; }
-
-    /// <summary>Maximum concurrent health checks.</summary>
-    [Parameter(Mandatory = false)]
-    [ValidateRange(1, 128)]
-    public int? MaxParallelism { get; set; }
-
-    /// <summary>DNS resolver concurrency hint.</summary>
-    [Parameter(Mandatory = false)]
-    [ValidateRange(1, 128)]
-    public int? DnsParallelism { get; set; }
-
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
     private readonly List<object> _items = new();
     private readonly List<string> _subjects = new();
+    private readonly object _exportLock = new();
 
-    /// <summary>Initializes logging and helper classes.</summary>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    protected override Task BeginProcessingAsync() {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(
-            _logger,
-            this.WriteVerbose,
-            this.WriteWarning,
-            this.WriteDebug,
-            this.WriteError,
-            this.WriteProgress,
-            this.WriteInformation);
-        internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-        ApplyExecutionOptions();
-        return Task.CompletedTask;
-    }
-
-    private void ApplyExecutionOptions() {
-        _healthCheck.ExecutionOptions.EnableParallelism = !DisableParallel.IsPresent;
-        if (MaxParallelism.HasValue) {
-            _healthCheck.ExecutionOptions.MaxParallelism = MaxParallelism.Value;
-        }
-        if (DnsParallelism.HasValue) {
-            _healthCheck.ExecutionOptions.DnsParallelism = DnsParallelism.Value;
-        }
-    }
+    // BeginProcessing handled per-domain to allow safe parallelism.
 
     /// <summary>Executes the cmdlet operation.</summary>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     protected override async Task ProcessRecordAsync() {
-        foreach (var domain in DomainName) {
-            _logger.WriteVerbose("Checking MTA-STS for domain: {0}", domain);
-            await _healthCheck.Verify(domain, new[] { HealthCheckType.MTASTS }, cancellationToken: CancelToken);
+        async Task ProcessDomainAsync(string domain) {
+            var logger = new InternalLogger(false);
+            var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                logger,
+                this.WriteVerbose,
+                this.WriteWarning,
+                this.WriteDebug,
+                this.WriteError,
+                this.WriteProgress,
+                this.WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+            ApplyExecutionOptions(healthCheck);
 
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.MTASTSAnalysis);
+            logger.WriteVerbose("Checking MTA-STS for domain: {0}", domain);
+            await healthCheck.Verify(domain, new[] { HealthCheckType.MTASTS }, cancellationToken: CancelToken);
+
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis);
             WriteObject(view);
 
             if (!IsExportRequested()) {
-                continue;
+                return;
             }
             var fmts = GetRequestedFormatsOrDefault(ExportDefaults.Format);
             foreach (var fmt in fmts) {
                 if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                    _items.Add(view);
-                    if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
-                        _subjects.Add(domain);
+                    lock (_exportLock) {
+                        _items.Add(view);
+                        if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                            _subjects.Add(domain);
+                        }
                     }
                 } else if (fmt == DomainDetective.Reports.ReportFormat.Json) {
                     var outPath = ResolveOutPathForFormat(ExportPath, ExportDefaults.OutputDirectory, domain, fmt, fmts);
                     try {
-                        var json = JsonSerializer.Serialize(_healthCheck.MTASTSAnalysis, DomainDetective.Helpers.JsonOptions.Default);
+                        var json = JsonSerializer.Serialize(healthCheck.MTASTSAnalysis, DomainDetective.Helpers.JsonOptions.Default);
                         File.WriteAllText(outPath, json);
                         WriteVerbose($"MTA-STS JSON saved: {outPath}");
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) {
@@ -113,6 +87,8 @@ public sealed class CmdletTestMtaSts : ExportableAsyncPSCmdlet {
                 }
             }
         }
+
+        await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 
     /// <summary>Finalizes multi-domain exports for Word/HTML by composing a single file.</summary>

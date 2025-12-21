@@ -45,7 +45,8 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
         _logger = new InternalLogger(false);
         var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
         internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
+        ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
 
@@ -61,3 +62,4 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+

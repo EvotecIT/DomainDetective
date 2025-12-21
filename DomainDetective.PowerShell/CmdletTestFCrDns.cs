@@ -40,7 +40,8 @@ public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet
             this.WriteProgress,
             this.WriteInformation);
         psLogger.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
 
@@ -55,3 +56,4 @@ public sealed class CmdletTestFCrDns : ExportableAsyncPSCmdlet
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+
