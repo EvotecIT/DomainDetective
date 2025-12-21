@@ -7,7 +7,7 @@ $dkimSelectors = @('s1', 's2')
 $reportPath = Join-Path -Path $PSScriptRoot -ChildPath 'Reports'
 
 Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -Scope Detailed -DomainOrder Input -SectionOrderMode Custom `
-    -SectionOrder MX,SPF,DKIM,DMARC,BIMI,MTA-STS,TLS-RPT,DNSBL,DNSSEC,DANE,RPKI,NS,SOA,CAA,TTL,ZoneTransfer,Wildcard,Classification,MAILTLS `
+    -SectionOrder MX, SPF, DKIM, DMARC, BIMI, MTA-STS, TLS-RPT, DNSBL, DNSSEC, DANE, RPKI, NS, SOA, CAA, TTL, ZoneTransfer, Wildcard, Classification, MAILTLS `
     -OpenInBrowser -Compose {
     Test-DDEmailSpfRecord -DomainName $domains
     Test-DDEmailDkimRecord -DomainName $domains -Selectors $dkimSelectors -FullResponse
@@ -29,12 +29,7 @@ Export-DDSecurityReport -ExportFormat Html -ExportPath $reportPath -Scope Detail
         Test-DDDnsZoneTransfer -DomainName $domain
         Test-DDDnsWildcard -DomainName $domain
         Test-DDEmailBimiRecord -DomainName $domain
-
-        try {
-            Test-DDEmailMtaSts -DomainName $domain
-            Test-DDEmailProtocolTls -DomainName $domain
-        } catch {
-            Write-Warning -Message "Mail TLS/MTA-STS checks failed for ${domain}: $($_.Exception.Message)"
-        }
+        Test-DDEmailMtaSts -DomainName $domain
+        Test-DDEmailProtocolTls -DomainName $domain
     }
-}
+} -Verbose
