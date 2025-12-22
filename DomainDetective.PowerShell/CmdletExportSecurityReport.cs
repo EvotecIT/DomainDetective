@@ -385,30 +385,17 @@ namespace DomainDetective.PowerShell {
             return;
         }
 
-        private sealed class ParallelComposePlan {
-            public ParallelComposePlan(List<ParallelComposeWorkItem> items, string description) {
-                Items = items;
-                Description = description;
-            }
-
-            public List<ParallelComposeWorkItem> Items { get; }
-            public string Description { get; }
-        }
-
-        private sealed class ParallelComposeWorkItem {
-            public ParallelComposeWorkItem(string scriptText, Dictionary<string, object?> variables, int index) {
+        private sealed class ComposeScriptItem {
+            public ComposeScriptItem(string scriptText, Dictionary<string, object?> variables) {
                 ScriptText = scriptText;
                 Variables = variables;
-                Index = index;
             }
 
             public string ScriptText { get; }
             public Dictionary<string, object?> Variables { get; }
-            public int Index { get; }
         }
 
         private sealed class ComposeInvocationResult {
-            public int Index { get; set; }
             public List<PSObject> Output { get; set; } = new();
             public List<string> Verbose { get; set; } = new();
             public List<string> Warnings { get; set; } = new();
@@ -428,7 +415,16 @@ namespace DomainDetective.PowerShell {
             }
 
             var throttle = GetEffectiveThrottleLimit();
-            WriteVerbose($"Export-DDSecurityReport: executing Compose in parallel ({plan.Description}, throttle {throttle}).");
+            var execOptions = new DomainDetective.Reports.CompositionExecutionOptions {
+                EnableParallelism = !DisableParallel.IsPresent,
+                MaxParallelism = throttle
+            };
+            if (execOptions.EnableParallelism && plan.Items.Count > 1) {
+                WriteVerbose($"Export-DDSecurityReport: executing Compose in parallel ({plan.Description}, throttle {throttle}).");
+            } else {
+                var note = execOptions.EnableParallelism ? "single item" : "parallel disabled";
+                WriteVerbose($"Export-DDSecurityReport: executing Compose serially ({note}).");
+            }
 
             var modulePath = this.MyInvocation?.MyCommand?.Module?.Path;
             var iss = InitialSessionState.CreateDefault();
@@ -441,24 +437,16 @@ namespace DomainDetective.PowerShell {
             pool.ThreadOptions = PSThreadOptions.ReuseThread;
             pool.Open();
 
-            var tasks = new List<Task<ComposeInvocationResult>>(plan.Items.Count);
-            foreach (var item in plan.Items) {
-                tasks.Add(Task.Run(() => InvokeComposeItem(pool, item, CancelToken), CancelToken));
-            }
-
-            try {
-                Task.WaitAll(tasks.ToArray(), CancelToken);
-            } catch (OperationCanceledException) {
-                throw;
-            } catch (AggregateException ex) {
-                var flat = ex.Flatten().InnerExceptions;
-                var cancelled = flat.FirstOrDefault(e => e is OperationCanceledException || e is PipelineStoppedException);
-                if (cancelled != null) {
-                    throw cancelled;
-                }
-                throw;
-            }
-            var ordered = tasks.Select(t => t.Result).OrderBy(r => r.Index).ToList();
+            var ordered = DomainDetective.Reports.CompositionWorkExecutor
+                .ExecuteAsync(
+                    plan,
+                    (item, ct) => Task.FromResult(InvokeComposeItem(pool, item, ct)),
+                    execOptions,
+                    null,
+                    null,
+                    CancelToken)
+                .GetAwaiter()
+                .GetResult();
             foreach (var result in ordered) {
                 foreach (var message in result.Verbose) {
                     WriteVerbose(message);
@@ -477,7 +465,7 @@ namespace DomainDetective.PowerShell {
                 }
             }
 
-            WriteVerbose($"Export-DDSecurityReport: parallel Compose produced {results.Count} item(s).");
+            WriteVerbose($"Export-DDSecurityReport: Compose produced {results.Count} item(s).");
             return true;
         }
 
@@ -492,8 +480,8 @@ namespace DomainDetective.PowerShell {
             return compose.InvokeWithContext(null, vars);
         }
 
-        private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ParallelComposeWorkItem item, CancellationToken cancellationToken) {
-            var result = new ComposeInvocationResult { Index = item.Index };
+        private ComposeInvocationResult InvokeComposeItem(RunspacePool pool, ComposeScriptItem item, CancellationToken cancellationToken) {
+            var result = new ComposeInvocationResult();
             using var ps = System.Management.Automation.PowerShell.Create();
             ps.RunspacePool = pool;
             using var reg = cancellationToken.Register(() => {
@@ -551,7 +539,7 @@ namespace DomainDetective.PowerShell {
             return result;
         }
 
-        private ParallelComposePlan? BuildParallelComposePlan(ScriptBlock compose, out string? reason) {
+        private DomainDetective.Reports.CompositionWorkPlan<ComposeScriptItem>? BuildParallelComposePlan(ScriptBlock compose, out string? reason) {
             reason = null;
             if (compose.Ast is not ScriptBlockAst ast) {
                 reason = "missing AST";
@@ -566,17 +554,16 @@ namespace DomainDetective.PowerShell {
                 reason = "Compose is empty";
                 return null;
             }
-            var items = new List<ParallelComposeWorkItem>();
-            var index = 0;
+            var items = new List<ComposeScriptItem>();
             foreach (var stmt in end.Statements) {
                 switch (stmt) {
                     case PipelineAst pipelineAst:
-                        if (!TryAppendPipelineItem(pipelineAst, null, items, ref index)) {
+                        if (!TryAppendPipelineItem(pipelineAst, null, items)) {
                             continue;
                         }
                         break;
                     case ForEachStatementAst foreachAst:
-                        if (!TryAppendForeachItems(foreachAst, items, ref index, out reason)) {
+                        if (!TryAppendForeachItems(foreachAst, items, out reason)) {
                             return null;
                         }
                         break;
@@ -589,27 +576,25 @@ namespace DomainDetective.PowerShell {
                 reason = "Compose contained no runnable statements";
                 return null;
             }
-            return new ParallelComposePlan(items, $"statements={items.Count}");
+            return new DomainDetective.Reports.CompositionWorkPlan<ComposeScriptItem>(items, $"statements={items.Count}");
         }
 
         private bool TryAppendPipelineItem(
             PipelineAst pipelineAst,
             string? excludeVar,
-            List<ParallelComposeWorkItem> items,
-            ref int index) {
+            List<ComposeScriptItem> items) {
             var text = pipelineAst.Extent.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(text)) {
                 return false;
             }
             var vars = CollectVariables(pipelineAst, excludeVar);
-            items.Add(new ParallelComposeWorkItem(text, vars, index++));
+            items.Add(new ComposeScriptItem(text, vars));
             return true;
         }
 
         private bool TryAppendForeachItems(
             ForEachStatementAst foreachAst,
-            List<ParallelComposeWorkItem> items,
-            ref int index,
+            List<ComposeScriptItem> items,
             out string? reason) {
             reason = null;
             var varName = foreachAst.Variable?.VariablePath?.UserPath;
@@ -660,7 +645,7 @@ namespace DomainDetective.PowerShell {
                     var map = new Dictionary<string, object?>(vars, StringComparer.OrdinalIgnoreCase) {
                         [varNameValue] = itemValue
                     };
-                    items.Add(new ParallelComposeWorkItem(text, map, index++));
+                    items.Add(new ComposeScriptItem(text, map));
                 }
             }
 
@@ -672,7 +657,7 @@ namespace DomainDetective.PowerShell {
             return true;
         }
 
-        private ParallelComposePlan? BuildForeachPlan(ForEachStatementAst foreachAst, out string? reason) {
+        private DomainDetective.Reports.CompositionWorkPlan<ComposeScriptItem>? BuildForeachPlan(ForEachStatementAst foreachAst, out string? reason) {
             reason = null;
             var varName = foreachAst.Variable?.VariablePath?.UserPath;
             if (string.IsNullOrWhiteSpace(varName)) {
@@ -714,19 +699,18 @@ namespace DomainDetective.PowerShell {
             }
 
             var vars = CollectVariables(foreachAst.Body!, varNameValue);
-            var items = new List<ParallelComposeWorkItem>();
-            var index = 0;
+            var items = new List<ComposeScriptItem>();
             foreach (var value in values) {
                 var map = new Dictionary<string, object?>(vars, StringComparer.OrdinalIgnoreCase) {
                     [varNameValue] = value?.BaseObject ?? value
                 };
-                items.Add(new ParallelComposeWorkItem(bodyText, map, index++));
+                items.Add(new ComposeScriptItem(bodyText, map));
             }
             if (items.Count == 0) {
                 reason = "foreach produced no work items";
                 return null;
             }
-            return new ParallelComposePlan(items, $"foreach({varNameValue}) x {items.Count}");
+            return new DomainDetective.Reports.CompositionWorkPlan<ComposeScriptItem>(items, $"foreach({varNameValue}) x {items.Count}");
         }
 
         private Dictionary<string, object?> CollectVariables(Ast ast, string? excludeVar) {
