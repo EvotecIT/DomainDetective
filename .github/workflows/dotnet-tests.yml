@@ -42,8 +42,12 @@ jobs:
             - name: Build net472 (explicit)
               run: dotnet build DomainDetective.Reports.Html/DomainDetective.Reports.Html.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-restore
 
-            - name: Run tests
+            - name: Run tests (net8.0)
               run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+            - name: Run tests (net472)
+              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+            - name: Run CLI tests (net8.0)
+              run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
             - name: Summarize failing tests
               if: failure() && env.SUMMARIZE_FAILURES == 'true'
@@ -120,8 +124,10 @@ jobs:
             - name: Build solution
               run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
 
-            - name: Run tests
+            - name: Run tests (net8.0)
               run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+            - name: Run CLI tests (net8.0)
+              run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
             - name: Summarize failing tests
               if: failure() && env.SUMMARIZE_FAILURES == 'true'

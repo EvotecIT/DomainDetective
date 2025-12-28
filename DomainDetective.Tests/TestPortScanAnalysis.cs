@@ -9,6 +9,8 @@ using Xunit;
 namespace DomainDetective.Tests {
     [Collection("PortScan")]
     public class TestPortScanAnalysis {
+        private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(2);
+
         [Fact]
         public async Task DetectsTcpAndUdpOpenPorts() {
             var tcpListener = new TcpListener(IPAddress.Loopback, 0);
@@ -24,7 +26,7 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromSeconds(2) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { tcpPort, udpPort }, new InternalLogger());
                 using var _ = await tcpAccept; // ensure connection completes
 
@@ -54,7 +56,7 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("::1", new[] { tcpPort, udpPort }, new InternalLogger());
                 using var _ = await tcpAccept;
 
@@ -96,7 +98,7 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { udpPort }, new InternalLogger());
 
                 Assert.False(analysis.Results[udpPort].UdpOpen);
@@ -113,7 +115,7 @@ namespace DomainDetective.Tests {
             var udpTask = udpServer.ReceiveAsync();
 
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { udpPort }, new InternalLogger());
 
                 Assert.False(analysis.Results[udpPort].UdpOpen);
@@ -126,7 +128,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task DetectsTcpClosedPort() {
             var port = GetFreePort();
-            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
             await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
             Assert.False(analysis.Results[port].TcpOpen);
             Assert.False(string.IsNullOrEmpty(analysis.Results[port].Error));
@@ -135,7 +137,7 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task UnresolvableHostRecordsError() {
-            var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+            var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
             await analysis.Scan("nonexistent.example.invalid", new[] { 80 }, new InternalLogger());
             Assert.False(analysis.Results[80].TcpOpen);
             Assert.False(string.IsNullOrEmpty(analysis.Results[80].Error));
@@ -149,7 +151,7 @@ namespace DomainDetective.Tests {
             var accept = listener.AcceptTcpClientAsync();
             try {
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.SMB, new[] { port });
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromSeconds(1) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", PortScanProfile.SMB, new InternalLogger());
                 using var _ = await accept;
                 Assert.True(analysis.Results[port].TcpOpen);
@@ -169,7 +171,7 @@ namespace DomainDetective.Tests {
             });
             try {
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.NTP, new[] { port });
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", PortScanProfile.NTP, new InternalLogger());
                 Assert.True(analysis.Results[port].UdpOpen);
             } finally {
@@ -188,7 +190,7 @@ namespace DomainDetective.Tests {
             });
             try {
                 PortScanProfileDefinition.OverrideProfilePorts(PortScanProfile.RADIUS, new[] { port });
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", PortScanProfile.RADIUS, new InternalLogger());
                 Assert.True(analysis.Results[port].UdpOpen);
             } finally {
@@ -211,7 +213,7 @@ namespace DomainDetective.Tests {
             });
 
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
                 Assert.Equal("SSH-2.0-Test", analysis.Results[port].Banner);
             } finally {
@@ -229,7 +231,7 @@ namespace DomainDetective.Tests {
                 await udp.SendAsync(new byte[] { 1 }, 1, r.RemoteEndPoint);
             });
             try {
-                var analysis = new PortScanAnalysis { Timeout = TimeSpan.FromMilliseconds(200) };
+                var analysis = new PortScanAnalysis { Timeout = ScanTimeout };
                 await analysis.Scan("127.0.0.1", new[] { port }, new InternalLogger());
                 Assert.Equal("SNMP", analysis.Results[port].Banner);
             } finally {
