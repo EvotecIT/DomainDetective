@@ -41,7 +41,7 @@ Below are concise PowerShell examples for evotec.xyz, evotec.pl, and evo.yt that
       Test-DDDnsNsRecord      -DomainName 'evotec.pl'
       Test-DDDnsSecStatus     -DomainName 'evotec.pl'
     }
-    # Note: Excel composition requires .NET 8.0 (we reference OfficeIMO.Excel 0.3.0)
+    # Note: Excel composition requires .NET 8.0 (OfficeIMO.Excel 0.6.0+)
   - Single domain, single section (keeps output minimal)
 
     Test-DDEmailSpfRecord   -DomainName 'evotec.xyz' |

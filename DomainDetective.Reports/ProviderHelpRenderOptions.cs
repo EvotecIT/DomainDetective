@@ -1,4 +1,6 @@
-namespace DomainDetective.Reports.Office;
+using System;
+
+namespace DomainDetective.Reports;
 
 /// <summary>
 /// Controls how vendor/provider reference material is embedded in Office-based reports
@@ -27,7 +29,7 @@ public sealed class ProviderHelpRenderOptions
     /// <summary>Include provider notes and caveats.</summary>
     public bool ShowNotes { get; set; } = true;
     /// <summary>Include visual badges such as “Requires login” or “Third‑party”.</summary>
-    public bool ShowBadges { get; set; } = true; // [Requires login] / [Third‑party]
+    public bool ShowBadges { get; set; } = true;
     /// <summary>Mark providers that are verified/endorsed when applicable.</summary>
     public bool ShowVerified { get; set; } = true;
     /// <summary>Include providers that have restricted availability.</summary>

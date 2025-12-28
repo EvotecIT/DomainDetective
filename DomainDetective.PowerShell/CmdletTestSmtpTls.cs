@@ -41,7 +41,8 @@ namespace DomainDetective.PowerShell {
             _logger = new InternalLogger(false);
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            ApplyExecutionOptions(_healthCheck);
             return Task.CompletedTask;
         }
 
@@ -72,7 +73,10 @@ namespace DomainDetective.PowerShell {
                             DomainDetective.Reports.ReportScope.Normal,
                             showInfoFindings: true,
                             narrativePlacement: ExportDefaults.NarrativePlacement,
-                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SMTP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle);
+                            titleOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeTitle) ? $"SMTP TLS — {HostName}:{Port}" : ExportDefaults.NarrativeTitle,
+                            summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                            headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                            footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                         if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                     } catch (System.Exception ex) {
                         WriteWarning($"SMTP TLS export failed: {ex.Message}");
@@ -85,3 +89,5 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+
+

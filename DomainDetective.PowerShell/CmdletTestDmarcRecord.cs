@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using DnsClientX;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -23,40 +25,50 @@ namespace DomainDetective.PowerShell {
 
         // View-by-default: Raw analysis is attached to view.Raw
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck healthCheck = null!;
         private readonly System.Collections.Generic.List<object> _items = new();
         private readonly System.Collections.Generic.List<string> _subjects = new();
+        private readonly object _exportLock = new();
 
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
+        // BeginProcessing handled per-domain to allow safe parallelism.
 
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         /// <summary>Processes each domain, emits DMARC view, and accumulates for optional composition export.</summary>
         protected override async Task ProcessRecordAsync() {
-            foreach (var domain in DomainName) {
-                _logger.WriteVerbose("Querying DMARC record for domain: {0}", domain);
-                await healthCheck.VerifyDMARC(domain);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying DMARC record for domain: {0}", domain);
+                await healthCheck.VerifyDMARC(domain, cancellationToken: CancelToken);
                 var output = DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis);
                 WriteObject(output);
                 if (IsExportRequested()) {
                     var fmt = (ExportFormat != null && ExportFormat.Length > 0) ? ExportFormat[0] : ExportDefaults.Format;
                     if (fmt == DomainDetective.Reports.ReportFormat.Word || fmt == DomainDetective.Reports.ReportFormat.Html) {
-                        _items.Add(output);
-                        _subjects.Add(domain);
+                        lock (_exportLock) {
+                            _items.Add(output);
+                            if (!_subjects.Contains(domain, StringComparer.OrdinalIgnoreCase)) {
+                                _subjects.Add(domain);
+                            }
+                        }
                     } else {
                         await ExportNotImplementedAsync("Test-DDEmailDmarcRecord");
                     }
                 }
             }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
 
         /// <summary>Composes DMARC sections into one document for Word/HTML export.</summary>
@@ -84,7 +96,10 @@ namespace DomainDetective.PowerShell {
                         subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
                         categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
                         keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator);
+                        creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                        summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                        headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                        footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                     if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                 } else {
                     DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
@@ -104,3 +119,4 @@ namespace DomainDetective.PowerShell {
         }
     }
 }
+

@@ -11,32 +11,38 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsHealth", DefaultParameterSetName = "Domain")]
     [Alias("Test-DnsHealth")]
     public sealed class CmdletTestDnsHealth : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to query.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
+        /// <summary>Domain(s) to query.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
-
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, _logger);
-            return Task.CompletedTask;
-        }
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>Runs DNS health verification.</summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Running DNS health checks for {0}", DomainName);
-            await _healthCheck.Verify(DomainName, new[] { HealthCheckType.DNSHEALTH });
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.DnsHealthAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Running DNS health checks for {0}", domain);
+                await healthCheck.Verify(domain, new[] { HealthCheckType.DNSHEALTH }, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsHealthAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDDnsHealth");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }

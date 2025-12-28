@@ -13,10 +13,10 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsCommon.Get, "DDRdap", DefaultParameterSetName = "ServerName")]
     [Alias("Get-Rdap", "Test-Rdap")]
     public sealed class CmdletTestRdap : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to query.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <summary>Domain(s) to query.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -26,26 +26,33 @@ namespace DomainDetective.PowerShell {
         [Parameter]
         public TimeSpan CacheDuration = TimeSpan.FromHours(1);
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var psLogger = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-            psLogger.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            _healthCheck.RdapAnalysis.CacheDuration = CacheDuration;
-            return Task.CompletedTask;
-        }
-
         /// <summary>Executes the cmdlet operation.</summary>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying RDAP for domain: {0}", DomainName);
-            await _healthCheck.QueryRDAP(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.RdapAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var psLogger = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                psLogger.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+                healthCheck.RdapAnalysis.CacheDuration = CacheDuration;
+
+                logger.WriteVerbose("Querying RDAP for domain: {0}", domain);
+                await healthCheck.QueryRDAP(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.RdapAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Get-DDRdap");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }

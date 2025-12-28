@@ -4,8 +4,7 @@ $Private = @( Get-ChildItem -Path $PSScriptRoot\Private\*.ps1 -ErrorAction Silen
 $Classes = @( Get-ChildItem -Path $PSScriptRoot\Classes\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
 $Enums = @( Get-ChildItem -Path $PSScriptRoot\Enums\*.ps1 -ErrorAction SilentlyContinue -Recurse -File)
 # Get all assemblies
-$AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\Lib -Directory -ErrorAction SilentlyContinue -File
-$AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\bin\Debug\net472 -File -ErrorAction SilentlyContinue
+$AssemblyFolders = Get-ChildItem -Path $PSScriptRoot\Lib -Directory -ErrorAction SilentlyContinue
 
 # to speed up development adding direct path to binaries, instead of the the Lib folder
 $Development = $true
@@ -66,11 +65,13 @@ $BinaryDev = @(
 )
 
 $Assembly = @(
-    if ($Framework -and $PSEdition -eq 'Core') {
-        Get-ChildItem -Path $PSScriptRoot\Lib\$Framework\*.dll -ErrorAction SilentlyContinue -Recurse
-    }
-    if ($FrameworkNet -and $PSEdition -ne 'Core') {
-        Get-ChildItem -Path $PSScriptRoot\Lib\$FrameworkNet\*.dll -ErrorAction SilentlyContinue -Recurse
+    if (-not $Development) {
+        if ($Framework -and $PSEdition -eq 'Core') {
+            Get-ChildItem -Path $PSScriptRoot\Lib\$Framework\*.dll -ErrorAction SilentlyContinue -Recurse
+        }
+        if ($FrameworkNet -and $PSEdition -ne 'Core') {
+            Get-ChildItem -Path $PSScriptRoot\Lib\$FrameworkNet\*.dll -ErrorAction SilentlyContinue -Recurse
+        }
     }
 )
 

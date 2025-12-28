@@ -20,12 +20,11 @@ namespace DomainDetective.PowerShell;
 [Cmdlet(VerbsDiagnostic.Test, "DDEmailSmtpAuth", DefaultParameterSetName = "ServerName")]
 [Alias("Test-EmailSmtpAuth")]
 [OutputType(typeof(SmtpAuthInfo))]
-public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
-{
-    /// <summary>Domain to query.</summary>
-    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet {
+    /// <summary>Domain(s) to query.</summary>
+    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
-    public string DomainName = string.Empty;
+    public string[] DomainName = System.Array.Empty<string>();
 
     /// <summary>SMTP port number.</summary>
     [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -35,29 +34,33 @@ public sealed class CmdletTestSmtpAuth : ExportableAsyncPSCmdlet
     [Parameter(Mandatory = false)]
     public SwitchParameter InspectCapabilities;
 
-    private InternalLogger _logger = null!;
-    private DomainHealthCheck _healthCheck = null!;
-
-    /// <summary>Initializes logging and helper classes.</summary>
-    /// <returns>A completed task.</returns>
-    protected override Task BeginProcessingAsync()
-    {
-        _logger = new InternalLogger(false);
-        var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-        internalLoggerPowerShell.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(internalLogger: _logger);
-        return Task.CompletedTask;
-    }
-
     /// <summary>Runs SMTP AUTH checks and writes results.</summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    protected override async Task ProcessRecordAsync()
-    {
-        _logger.WriteVerbose("Checking SMTP AUTH for {0}:{1}", DomainName, Port);
-        _healthCheck.SmtpAuthAnalysis.InspectCapabilities = InspectCapabilities.IsPresent;
-        await _healthCheck.VerifySmtpAuth(DomainName, Port);
-        var view = DomainDetective.Views.Converters.Convert(_healthCheck.SmtpAuthAnalysis);
-        WriteObject(view);
-        if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+    protected override async Task ProcessRecordAsync() {
+        async Task ProcessDomainAsync(string domain) {
+            var logger = new InternalLogger(false);
+            var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                logger,
+                WriteVerbose,
+                WriteWarning,
+                WriteDebug,
+                WriteError,
+                WriteProgress,
+                WriteInformation);
+            internalLoggerPowerShell.ResetActivityIdCounter();
+            var healthCheck = new DomainHealthCheck(internalLogger: logger);
+            ApplyExecutionOptions(healthCheck);
+
+            logger.WriteVerbose("Checking SMTP AUTH for {0}:{1}", domain, Port);
+            healthCheck.SmtpAuthAnalysis.InspectCapabilities = InspectCapabilities.IsPresent;
+            await healthCheck.VerifySmtpAuth(domain, Port, cancellationToken: CancelToken);
+            var view = DomainDetective.Views.Converters.Convert(healthCheck.SmtpAuthAnalysis);
+            WriteObject(view);
+            if (IsExportRequested()) {
+                await ExportNotImplementedAsync("Test-DDEmailSmtpAuth");
+            }
+        }
+
+        await ForEachAsync(DomainName, ProcessDomainAsync);
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Management.Automation;
 using System.Threading.Tasks;
@@ -13,16 +14,14 @@ namespace DomainDetective.PowerShell {
 [Cmdlet(VerbsDiagnostic.Test, "DDDnsTunneling", DefaultParameterSetName = "File")]
 [Alias("Test-DnsTunneling")]
     public sealed class CmdletTestDnsTunneling : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to inspect.</summary>
+        /// <summary>Domain(s) to inspect.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = Array.Empty<string>();
 
         /// <summary>Log file path.</summary>
         [Parameter(Mandatory = true, Position = 1)]
         public string Path = string.Empty;
-
-        private DomainHealthCheck _hc = new();
 
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
@@ -33,11 +32,19 @@ namespace DomainDetective.PowerShell {
             }
 
             var lines = File.ReadAllLines(Path);
-            _hc.DnsTunnelingLogs = lines;
-            await _hc.CheckDnsTunnelingAsync(DomainName, CancelToken);
-            var view = DomainDetective.Views.Converters.Convert(_hc.DnsTunnelingAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var healthCheck = new DomainHealthCheck();
+                healthCheck.DnsTunnelingLogs = lines;
+                await healthCheck.CheckDnsTunnelingAsync(domain, CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsTunnelingAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync();
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }
+

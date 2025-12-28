@@ -12,43 +12,42 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDDnsReverseDns", DefaultParameterSetName = "ServerName")]
     [Alias("Test-DnsReverseDns", "Test-ReverseDns")]
     public sealed class CmdletTestReverseDns : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to analyze.</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <summary>Domain(s) to analyze.</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(
-                _logger,
-                this.WriteVerbose,
-                this.WriteWarning,
-                this.WriteDebug,
-                this.WriteError,
-                this.WriteProgress,
-                this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
-
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying reverse DNS for domain: {0}", DomainName);
-            await _healthCheck.Verify(DomainName, new[] { HealthCheckType.REVERSEDNS });
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.ReverseDnsAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying reverse DNS for domain: {0}", domain);
+                await healthCheck.Verify(domain, new[] { HealthCheckType.REVERSEDNS }, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.ReverseDnsAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDDnsReverseDns");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }

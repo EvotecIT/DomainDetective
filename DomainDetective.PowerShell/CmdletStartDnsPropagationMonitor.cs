@@ -2,6 +2,7 @@ using DnsClientX;
 using DomainDetective.Monitoring;
 using DomainDetective;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Management.Automation;
 using System.Reflection;
@@ -21,11 +22,11 @@ namespace DomainDetective.PowerShell {
         DefaultParameterSetName = "File")]
     [Alias("Start-DnsPropagationMonitor")]
     public sealed class CmdletStartDnsPropagationMonitor : AsyncPSCmdlet {
-        /// <summary>Domain to monitor.</summary>
+        /// <summary>Domain(s) to monitor.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "File")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Custom")]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = Array.Empty<string>();
 
         /// <summary>DNS record type.</summary>
         [Parameter(Mandatory = true, Position = 1, ParameterSetName = "File")]
@@ -63,51 +64,65 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public int MaxParallelism = 0;
 
-        private readonly DnsPropagationMonitor _monitor = new();
-
         /// <summary>
         /// Configures and starts the DNS propagation monitor.
         /// </summary>
         /// <returns>A completed task.</returns>
         protected override Task BeginProcessingAsync() {
-            _monitor.Domain = DomainName;
-            _monitor.RecordType = RecordType;
-            _monitor.Interval = TimeSpan.FromSeconds(IntervalSeconds);
-            _monitor.Country = Country;
-            _monitor.Location = Location;
-            _monitor.MaxParallelism = MaxParallelism;
             var moduleBase = this.MyInvocation.MyCommand.Module?.ModuleBase
                 ?? Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
                 ?? string.Empty;
-            if (!string.IsNullOrWhiteSpace(ServersFile)) {
-                var path = Path.IsPathRooted(ServersFile)
-                    ? ServersFile
-                    : Path.Combine(moduleBase, ServersFile);
-                _monitor.LoadServers(path);
-            } else {
-                var defaultFile = Path.Combine(moduleBase, "Data", "DNS", "PublicDNS.json");
-                if (File.Exists(defaultFile)) {
-                    _monitor.LoadServers(defaultFile);
-                } else {
-                    _monitor.LoadBuiltinServers();
-                }
-            }
+            var defaultFile = Path.Combine(moduleBase, "Data", "DNS", "PublicDNS.json");
+            var parsedServers = new List<PublicDnsEntry>();
             if (ParameterSetName == "Custom") {
                 foreach (var ip in DnsServer) {
                     if (System.Net.IPAddress.TryParse(ip, out var parsed)) {
-                        _monitor.AddServer(new PublicDnsEntry { IPAddress = parsed, Enabled = true });
+                        parsedServers.Add(new PublicDnsEntry { IPAddress = parsed, Enabled = true });
                     } else {
                         WriteWarning($"Invalid DNS server IP: {ip}");
                     }
                 }
             }
-            if (!string.IsNullOrWhiteSpace(WebhookUrl)) {
-                var url = WebhookUrl!; // guarded by IsNullOrWhiteSpace
-                _monitor.Notifier = NotificationSenderFactory.CreateWebhook(url);
+
+            foreach (var domain in DomainName) {
+                CancelToken.ThrowIfCancellationRequested();
+                var monitor = new DnsPropagationMonitor {
+                    Domain = domain,
+                    RecordType = RecordType,
+                    Interval = TimeSpan.FromSeconds(IntervalSeconds),
+                    Country = Country,
+                    Location = Location,
+                    MaxParallelism = MaxParallelism
+                };
+
+                if (!string.IsNullOrWhiteSpace(ServersFile)) {
+                    var path = Path.IsPathRooted(ServersFile)
+                        ? ServersFile
+                        : Path.Combine(moduleBase, ServersFile);
+                    monitor.LoadServers(path);
+                } else if (File.Exists(defaultFile)) {
+                    monitor.LoadServers(defaultFile);
+                } else {
+                    monitor.LoadBuiltinServers();
+                }
+
+                if (ParameterSetName == "Custom" && parsedServers.Count > 0) {
+                    foreach (var entry in parsedServers) {
+                        monitor.AddServer(entry);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(WebhookUrl)) {
+                    var url = WebhookUrl!; // guarded by IsNullOrWhiteSpace
+                    monitor.Notifier = NotificationSenderFactory.CreateWebhook(url);
+                }
+
+                monitor.Start();
+                WriteObject(monitor);
             }
-            _monitor.Start();
-            WriteObject(_monitor);
+
             return Task.CompletedTask;
         }
     }
 }
+

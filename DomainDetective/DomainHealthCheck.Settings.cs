@@ -58,6 +58,18 @@ namespace DomainDetective {
             }
         }
 
+        /// <summary>Optional concurrency hint for DNS resolver queries.</summary>
+        public int? ResolverMaxConcurrency {
+            get => DnsConfiguration.ResolverMaxConcurrency;
+            set {
+                _logger.WriteVerbose("Setting ResolverMaxConcurrency to {0}", value);
+                DnsConfiguration.ResolverMaxConcurrency = value;
+            }
+        }
+
+        /// <summary>Execution options for running health checks.</summary>
+        public HealthCheckExecutionOptions ExecutionOptions { get; } = new HealthCheckExecutionOptions();
+
         /// <summary>Optional override for the MTA-STS policy URL.</summary>
         /// <value>A URL to use instead of querying DNS.</value>
         public string? MtaStsPolicyUrlOverride {

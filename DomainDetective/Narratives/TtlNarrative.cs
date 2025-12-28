@@ -11,23 +11,24 @@ public static class TtlNarrative
 
     public static Sections Build(DnsTtlAnalysis? analysis, IEnumerable<Assessment>? assessments = null)
     {
-        var subjCandidate = analysis?.Subject;
-        string subj;
-        if (subjCandidate != null && !string.IsNullOrWhiteSpace(subjCandidate))
+        var subjectCandidate = analysis?.Subject;
+        string subject;
+        if (subjectCandidate != null && !string.IsNullOrWhiteSpace(subjectCandidate))
         {
-            subj = subjCandidate;
+            subject = subjectCandidate;
         }
         else
         {
-            subj = "(domain)";
+            subject = "(domain)";
         }
-        var title = $"DNS TTL Report — {subj}";
+
+        var title = $"TTL Report — {subject}";
         var subtitle = "DNS TTL Assessment";
-        var category = "DNS";
-        var keywords = $"DNS, TTL, caching, DomainDetective, {subj}";
+        var category = "DNS Hygiene";
+        var keywords = $"TTL, DNS, caching, propagation, DomainDetective, {subject}";
         var creator = "DomainDetective";
-        var intro = "Time to Live (TTL) values control how long DNS data stays cached before revalidation.";
-        var why = "Appropriate TTLs balance caching efficiency with agility for updates; inconsistent values can cause cache churn or stale records.";
+        var intro = "DNS Time To Live (TTL) values control how long resolvers cache records. TTLs that are too low can increase query load and latency, while TTLs that are too high can slow down propagation when changes are needed.";
+        var why = "Well-chosen TTLs balance stability and agility. Consistent TTLs across authoritative name servers reduce inconsistent caching behavior and help avoid confusing, intermittent results.";
 
         var hi = new List<string>();
         var det = new List<string>();
@@ -39,85 +40,66 @@ public static class TtlNarrative
         {
             return new Sections
             {
+                Title = title,
+                Subtitle = subtitle,
+                Category = category,
+                Keywords = keywords,
+                Creator = creator,
                 Introduction = intro,
                 WhyItMatters = why,
                 Highlights = new List<string> { "No TTL data available." },
                 Details = det,
-                References = new List<string> { "https://www.rfc-editor.org/rfc/rfc1035" }
+                References = DefaultRefs()
             };
         }
 
-        hi.Add($"SOA TTL: {analysis.SoaTtl}s.");
-        if (analysis.ATtls?.Count > 0)
+        static string MinMax(IReadOnlyList<int> values)
         {
-            hi.Add($"A TTLs min/max {analysis.ATtls.Min()}/{analysis.ATtls.Max()}s.");
-        }
-        if (analysis.AaaaTtls?.Count > 0)
-        {
-            hi.Add($"AAAA TTLs min/max {analysis.AaaaTtls.Min()}/{analysis.AaaaTtls.Max()}s.");
-        }
-        if (analysis.AUniformAcrossServers)
-        {
-            hi.Add("A TTLs uniform across name servers.");
-        }
-        else if (analysis.ServerTtlA.Count > 0)
-        {
-            hi.Add("A TTLs vary across name servers.");
-        }
-        if (analysis.AaaaUniformAcrossServers)
-        {
-            hi.Add("AAAA TTLs uniform across name servers.");
-        }
-        else if (analysis.ServerTtlAaaa.Count > 0)
-        {
-            hi.Add("AAAA TTLs vary across name servers.");
-        }
-        if (analysis.NsUniformAcrossServers)
-        {
-            hi.Add("NS TTLs uniform across name servers.");
-        }
-        else if (analysis.ServerTtlNs.Count > 0)
-        {
-            hi.Add("NS TTLs vary across name servers.");
+            if (values == null || values.Count == 0)
+            {
+                return "-";
+            }
+            var nonZero = values.Where(v => v > 0).ToList();
+            if (nonZero.Count == 0)
+            {
+                return "0";
+            }
+            if (nonZero.Count == 1)
+            {
+                return nonZero[0].ToString();
+            }
+            return $"{nonZero.Min()}/{nonZero.Max()}";
         }
 
-        if (analysis.Warnings != null && analysis.Warnings.Count > 0)
+        hi.Add($"DNSSEC signed: {(analysis.DnsSecSigned ? "Yes" : "No")}.");
+        if (analysis.SoaTtl > 0)
         {
-            hi.AddRange(analysis.Warnings);
+            hi.Add($"SOA TTL: {analysis.SoaTtl}s.");
         }
-        else
-        {
-            hi.Add("TTL values appear balanced for caching and agility.");
-        }
+        hi.Add($"A TTL (min/max): {MinMax(analysis.ATtls)}.");
+        hi.Add($"AAAA TTL (min/max): {MinMax(analysis.AaaaTtls)}.");
+        hi.Add($"MX TTL (min/max): {MinMax(analysis.MxTtls)}.");
+        hi.Add($"NS TTL (min/max): {MinMax(analysis.NsTtls)}.");
 
-        if (analysis.ATtls?.Count > 0)
-        {
-            det.Add($"A: {string.Join(", ", analysis.ATtls)}");
-        }
-        if (analysis.AaaaTtls?.Count > 0)
-        {
-            det.Add($"AAAA: {string.Join(", ", analysis.AaaaTtls)}");
-        }
-        if (analysis.MxTtls?.Count > 0)
-        {
-            det.Add($"MX: {string.Join(", ", analysis.MxTtls)}");
-        }
-        if (analysis.NsTtls?.Count > 0)
-        {
-            det.Add($"NS: {string.Join(", ", analysis.NsTtls)}");
-        }
+        hi.Add(analysis.AUniformAcrossServers ? "A TTL uniform across name servers." : "A TTL varies across name servers.");
+        hi.Add(analysis.AaaaUniformAcrossServers ? "AAAA TTL uniform across name servers." : "AAAA TTL varies across name servers.");
+        hi.Add(analysis.NsUniformAcrossServers ? "NS TTL uniform across name servers." : "NS TTL varies across name servers.");
 
-        var refs = new List<string> { "https://www.rfc-editor.org/rfc/rfc1035" };
+        if (!analysis.CnameUniformAcrossServers)
+        {
+            hi.Add("CNAME TTL varies across name servers.");
+        }
 
         try
         {
-            var ass = assessments ?? analysis.Assessments;
-            if (ass != null)
-            {
-                (positives, negatives, remediations) = AssessmentSplit.SplitTitles(ass);
-            }
+            var assess = assessments ?? analysis.Assessments;
+            (positives, negatives, remediations) = AssessmentSplit.SplitTitles(assess);
         }
-        catch { }
+        catch
+        {
+        }
+
+        var refs = DefaultRefs();
 
         return new Sections
         {
@@ -136,4 +118,10 @@ public static class TtlNarrative
             Remediations = remediations
         };
     }
+
+    private static List<string> DefaultRefs() => new()
+    {
+        "https://www.rfc-editor.org/rfc/rfc1035"
+    };
 }
+

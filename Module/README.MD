@@ -204,7 +204,7 @@ Test-DDDomainOverallHealth -DomainName "example.com"
 ```
 
 Notes:
-- `-ExportFormat` is an enum: Html, Json, Pdf, Word, Excel. Only Html/Json are implemented for overall health currently (basic Word/Excel/PDF summaries available).
+- `-ExportFormat` supports Html, Word, Excel, Pdf, Json, Markdown, and MarkdownHtml (availability depends on the cmdlet; composition-based exports support Word/Excel/Markdown).
 - `-ExportPath` can be a file or a directory. When a directory is provided, a smart filename is generated automatically.
 - `-OpenInBrowser` (alias: `-OpenReport`) opens the generated report using the system shell (browser, Word, Excel, etc.).
 - Artifacts (scan.json, metrics.json, progress.jsonl, index.jsonl) are optional. Use `-Artifacts` per-call or `Set-DDExportOptions -Artifacts` to enable. Default artifacts path is `./artifacts` unless overridden via `-ArtifactsDirectory` on the cmdlet or `Set-DDExportOptions -ArtifactsDirectory`.
@@ -226,5 +226,24 @@ Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\Reports
   Test-DDEmailSpfRecord   -DomainName 'contoso.com'
   Test-DDDnsBlacklist     -NameOrIpAddress '203.0.113.5'
   Test-DDMailDomainClassification -DomainName 'contoso.com'
+}
+```
+
+### Ordering controls
+
+- `-DomainOrder`: `Alphabetical` (default) or `Input` (preserve first-seen order)
+- `-SectionOrderMode`: `Canonical` (default), `Input`, or `Custom`
+- `-SectionOrder`: explicit list of section keys when using `Custom`
+
+Canonical section order:
+MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, MAILTLS, DNSSEC, DANE.
+
+Executive Summary columns remain canonical across Word/HTML/Markdown/Excel; ordering only affects per-domain section layout.
+
+```powershell
+Export-DDSecurityReport -ExportFormat Html -ExportPath .\Reports -DomainOrder Input `
+  -SectionOrderMode Custom -SectionOrder SPF,DMARC -OpenReport {
+  Test-DDEmailSpfRecord   -DomainName 'contoso.com','fabrikam.com'
+  Test-DDEmailDmarcRecord -DomainName 'contoso.com','fabrikam.com'
 }
 ```

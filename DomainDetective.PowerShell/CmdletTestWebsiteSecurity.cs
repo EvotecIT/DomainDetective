@@ -11,32 +11,38 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDWebsiteSecurity", DefaultParameterSetName = "Domain")]
     [Alias("Test-WebsiteSecurity")]
     public sealed class CmdletTestWebsiteSecurity : ExportableAsyncPSCmdlet {
-        /// <summary>Domain to query (host or host:port).</summary>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain")]
+        /// <summary>Domain(s) to query (host or host:port).</summary>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
-
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>Initializes logging and helper classes.</summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, WriteVerbose, WriteWarning, WriteDebug, WriteError, WriteProgress, WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, _logger);
-            return Task.CompletedTask;
-        }
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>Runs HTTPS security checks.</summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Checking HTTPS security for {0}", DomainName);
-            await _healthCheck.VerifyWebsiteHttps(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.HttpAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    WriteVerbose,
+                    WriteWarning,
+                    WriteDebug,
+                    WriteError,
+                    WriteProgress,
+                    WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsClientX.DnsEndpoint.System, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Checking HTTPS security for {0}", domain);
+                await healthCheck.VerifyWebsiteHttps(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis);
+                WriteObject(view);
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDWebsiteSecurity");
+                }
+            }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }

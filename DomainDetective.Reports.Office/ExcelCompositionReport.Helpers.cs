@@ -17,6 +17,8 @@ public static partial class ExcelCompositionReport
             Mx = s.Mx,
             Spf = s.Spf,
             Dmarc = s.Dmarc,
+            Arc = s.Arc,
+            Bimi = s.Bimi,
             Mtasts = s.Mtasts,
             TlsRpt = s.TlsRpt,
             Dnsbl = s.Dnsbl,

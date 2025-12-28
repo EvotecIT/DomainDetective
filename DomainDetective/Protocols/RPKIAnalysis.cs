@@ -41,11 +41,15 @@ public class RPKIAnalysis : IHasAssessments {
     }
 
     private async Task<(string Prefix, int Asn, bool Valid)> QueryRpki(string ip, InternalLogger? logger) {
+        string? prefix = null;
         if (QueryRpkiOverride != null) {
-            return await QueryRpkiOverride(ip);
+            try {
+                return await QueryRpkiOverride(ip);
+            } catch (Exception ex) {
+                return Fail(prefix, logger, "RPKI query failed for {0}: {1}", ip, ex.Message);
+            }
         }
 
-        string? prefix = null;
         try {
             HttpClient client = SharedHttpClient.Instance;
             using var prefixResp = await client.GetAsync($"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");

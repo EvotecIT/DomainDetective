@@ -73,7 +73,20 @@ Network Services
 
 Reporting & UX
 
-- HTML and JSON reports, interactive CLI wizard, PowerShell views
+- HTML, Word, Excel, Markdown, and JSON reports
+- Interactive CLI wizard, PowerShell views, and pipeline-friendly composition
+- Ordering controls for per-domain sections across Word/HTML/Markdown/Excel
+
+### Report ordering (Word/HTML/Markdown/Excel)
+
+- `DomainOrder`: Alphabetical (default) or Input (first-seen order)
+- `SectionOrderMode`: Canonical (default), Input, or Custom
+- `SectionOrder`: explicit list of section keys when using Custom
+
+Canonical section order:
+MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, MAILTLS, DNSSEC, DANE.
+
+Executive Summary columns remain canonical across formats; ordering affects per-domain sections only.
 
 ### Project Goals
 
@@ -100,7 +113,7 @@ These layers are available both from the CLI and PowerShell; use summaries for q
 
 ### Roadmap (short)
 
-- Exports: Word (.docx), Excel (.xlsx), PDF, Markdown summaries.
+- Exports: PDF generation, and parity/polish for Word/Excel/Markdown outputs.
 - CLI packaging for Windows, macOS and Linux (single‑file and native package feeds).
 - Live persona narration across CLI/PowerShell with per‑section highlights.
 - More opinionated presets and batch modes for scheduled audits.
@@ -122,8 +135,10 @@ We’re designing persona‑driven narratives to present findings in different t
 | `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`          | Verify DMARC policy           |
 | `Test-DDEmailSpfRecord`        | `Test-EmailSpf`            | Verify SPF policy             |
 | `Test-DDEmailTlsRptRecord`     | `Test-EmailTlsRpt`         | Inspect TLS-RPT               |
+| `Test-DDEmailMtaSts`           | `Test-EmailMtaSts`         | Verify MTA-STS policy         |
 | `Test-DDEmailStartTls`         | `Test-EmailStartTls`       | Check STARTTLS advertisement  |
 | `Test-DDEmailSmtpTls`          | `Test-EmailSmtpTls`        | Check SMTP TLS posture        |
+| `Test-DDEmailProtocolTls`      | `Test-EmailProtocolTls`    | SMTP/IMAP/POP3 TLS checks     |
 | `Test-DDEmailOpenRelay`        | `Test-EmailOpenRelay`      | Detect open SMTP relay        |
 | `Get-DDEmailMessageHeaderInfo` | `Get-EmailHeaderInfo`      | Parse raw email headers       |
 | `Test-DDEmailLatency`          | `Test-EmailLatency`        | Measure SMTP responsiveness   |
@@ -508,7 +523,7 @@ ddcli RunsOpen --subject example.com
 - Dns endpoint: most cmdlets accept `-DnsEndpoint` to control resolution.
 - Scope selection: DNS propagation supports `-Country`, `-Location`, `-Take` and background monitor with start/stop cmdlets.
 - Snapshots and diffs: `-SnapshotPath` and `-Diff` compare against stored snapshots.
-- Output formats: report tooling supports HTML/Word/Excel/PDF/JSON (work-in-progress where noted).
+- Output formats: HTML/Word/Excel/Markdown/MarkdownHtml/JSON (availability varies by cmdlet); PDF is planned.
 
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:

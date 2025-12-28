@@ -11,12 +11,14 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderMailTlsFootnote(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)
+    private static void RenderMailTlsFootnote(Element page, List<KeyValuePair<string, DomainBucket>> ordered)
     {
         bool any = ordered.Any(kv => kv.Value.SmtpTls != null || kv.Value.ImapTls != null || kv.Value.PopTls != null);
-        if (!any) return;
+        if (!any)
+        {
+            return;
+        }
 
-        page.Divider("MailTLS Sources");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
                 card.Header(h => h.Title("MailTLS rollup sources by domain").Subtitle("Protocol shown in parentheses"));

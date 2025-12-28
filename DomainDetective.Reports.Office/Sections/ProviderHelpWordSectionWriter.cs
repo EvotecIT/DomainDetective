@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using DomainDetective.Reports;
 using OfficeIMO.Word;
 using System.Linq;
 

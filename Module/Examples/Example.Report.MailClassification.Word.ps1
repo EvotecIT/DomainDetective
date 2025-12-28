@@ -1,6 +1,6 @@
 Import-Module $PSScriptRoot\..\DomainDetective.psd1 -Force
 
-$Output = Test-DDMailDomainClassification -DomainName 'evotec.pl', 'evotec.xyz', 'eurofins.com' -ExportFormat Word, Html,Excel -ExportPath "$PSScriptRoot\Reports" -OpenReport
+$Output = Test-DDMailDomainClassification -DomainName 'evotec.pl', 'evotec.xyz', 'eurofins.com' -ExportFormat Html -ExportPath "$PSScriptRoot\Reports" -OpenReport
 $Output | Format-List
 return
 

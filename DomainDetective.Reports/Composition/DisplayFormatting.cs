@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace DomainDetective.Reports;
 
@@ -12,9 +11,25 @@ public static class DisplayFormatting
     public static string ComposeDkimSummary(IReadOnlyList<DomainDetective.Views.DkimRecordInfo>? dkim, bool includeSelectorCount)
     {
         if (dkim == null || dkim.Count == 0) return "-";
-        int err = dkim.Sum(x => x?.ErrorCount ?? 0);
-        int warn = dkim.Sum(x => x?.WarningCount ?? 0);
-        string core = err > 0 ? "Error" : (warn > 0 ? "Warning" : "OK");
+        bool any = false;
+        bool anyError = false;
+        bool anyWarning = false;
+        foreach (var item in dkim)
+        {
+            if (item == null) continue;
+            any = true;
+            var status = item.Status;
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                if (string.Equals(status, "Error", StringComparison.OrdinalIgnoreCase)) { anyError = true; continue; }
+                if (string.Equals(status, "Warning", StringComparison.OrdinalIgnoreCase)) { anyWarning = true; continue; }
+                if (string.Equals(status, "OK", StringComparison.OrdinalIgnoreCase)) continue;
+            }
+            if (item.ErrorCount > 0) anyError = true;
+            else if (item.WarningCount > 0) anyWarning = true;
+        }
+        if (!any) return "-";
+        string core = anyError ? "Error" : (anyWarning ? "Warning" : "OK");
         if (includeSelectorCount)
         {
             int n = dkim.Count;

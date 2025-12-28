@@ -18,6 +18,8 @@ public static class CompositionBuilder
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
+        public DomainDetective.Views.ArcInfo? Arc { get; set; }
+        public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
         public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
@@ -49,6 +51,8 @@ public static class CompositionBuilder
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
                 case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
+                case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
+                case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
                 case DomainDetective.Views.DnsblInfo dnsbl when !string.IsNullOrWhiteSpace(dnsbl.Subject):
                 {
                     var subject = dnsbl.Subject!;

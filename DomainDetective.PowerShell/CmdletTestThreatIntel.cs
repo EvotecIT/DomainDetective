@@ -48,7 +48,8 @@ namespace DomainDetective.PowerShell;
             this.WriteProgress,
             this.WriteInformation);
         loggerPs.ResetActivityIdCounter();
-        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+        ApplyExecutionOptions(_healthCheck);
         return Task.CompletedTask;
     }
 
@@ -66,3 +67,4 @@ namespace DomainDetective.PowerShell;
         if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
     }
 }
+

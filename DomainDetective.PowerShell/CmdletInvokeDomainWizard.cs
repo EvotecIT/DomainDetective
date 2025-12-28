@@ -164,10 +164,11 @@ namespace DomainDetective.PowerShell {
                 Host.UI.WriteLine($"Analyzing domain: {domain}");
                 Host.UI.WriteLine(new string('-', 50));
                 
-                var hc = new DomainHealthCheck { 
+                var hc = new DomainHealthCheck {
                     Verbose = false,
                     Progress = false // Disable progress for PowerShell
                 };
+                hc.ConfigureExecution();
                 
                 await hc.Verify(domain, checks);
                 

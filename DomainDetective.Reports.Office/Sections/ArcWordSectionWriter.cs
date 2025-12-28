@@ -42,6 +42,7 @@ public static class ArcWordSectionWriter
         if (scope != ReportScope.Minimal && arc.Positives != null && arc.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var p in arc.Positives) if (!string.IsNullOrWhiteSpace(p?.Title)) list.AddItem(p!.Title);
         }
@@ -55,6 +56,7 @@ public static class ArcWordSectionWriter
         if (assess.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(assess.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].AddParagraph("Severity");
             ft.Rows[0].Cells[1].AddParagraph("Code");

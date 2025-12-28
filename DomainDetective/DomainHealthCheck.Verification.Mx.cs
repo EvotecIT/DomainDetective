@@ -21,7 +21,7 @@ namespace DomainDetective {
             if (IsPublicSuffix) {
                 return;
             }
-            var mx = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.MX, cancellationToken: cancellationToken);
+            var mx = await GetMxRecordsAsync(domainName, cancellationToken);
             MXAnalysis.Subject = domainName;
             await MXAnalysis.AnalyzeMxRecords(mx, _logger);
         }

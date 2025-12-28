@@ -106,7 +106,8 @@ namespace DomainDetective.PowerShell {
             var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
             internalLoggerPowerShell.ResetActivityIdCounter();
             // initialize the health check object
-            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
+            ApplyExecutionOptions(healthCheck);
             if (MaxConcurrency.HasValue) {
                 healthCheck.DnsConfiguration.ResolverMaxConcurrency = MaxConcurrency.Value;
             }
@@ -230,7 +231,10 @@ AfterWrite:
                                 subjectOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeSubject) ? null : ExportDefaults.NarrativeSubject,
                                 categoryOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCategory) ? null : ExportDefaults.NarrativeCategory,
                                 keywordsOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeKeywords) ? null : ExportDefaults.NarrativeKeywords,
-                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator);
+                                creatorOverride: string.IsNullOrWhiteSpace(ExportDefaults.NarrativeCreator) ? null : ExportDefaults.NarrativeCreator,
+                                summaryColumnCap: ExportDefaults.SummaryColumnCap,
+                                headerLogoSizePx: ExportDefaults.HeaderLogoSizePx,
+                                footerLogoSizePx: ExportDefaults.FooterLogoSizePx);
                             if (OpenInBrowser.IsPresent || ExportDefaults.OpenInBrowser) TryOpenReport(outPath);
                         } else {
                             DomainDetective.Reports.Html.HtmlCompositionReport.Generate(
@@ -254,3 +258,5 @@ AfterWrite:
         }
     }
 }
+
+

@@ -4,7 +4,10 @@ using System.Threading.Tasks;
 
 namespace DomainDetective {
     public partial class DomainHealthCheck {
-        private async Task VerifyDaneAsync(string domainName, ServiceType[]? serviceTypes, int[]? ports, CancellationToken cancellationToken) {
+        private Task VerifyDaneAsync(string domainName, ServiceType[]? serviceTypes, int[]? ports, CancellationToken cancellationToken)
+            => EnsureDaneAsync(domainName, serviceTypes, ports, cancellationToken);
+
+        private async Task VerifyDaneInternal(string domainName, ServiceType[]? serviceTypes, int[]? ports, CancellationToken cancellationToken) {
             if (ports != null && ports.Length > 0) {
                 await VerifyDANE(domainName, ports, cancellationToken);
             } else {

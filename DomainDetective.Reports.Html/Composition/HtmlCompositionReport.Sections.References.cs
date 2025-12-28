@@ -11,27 +11,28 @@ namespace DomainDetective.Reports.Html;
 /// </summary>
 public static partial class HtmlCompositionReport
 {
-    private static void RenderAllReferencesSection(HtmlForgeX.TablerPage page, IReadOnlyList<object> items)
+    private static void RenderAllReferencesSection(Element page, IReadOnlyList<object> items)
     {
         var comp = DomainDetective.Reports.CompositionBuilder.GroupBySubject(items);
         var refs = DomainDetective.Reports.ReferencesCollector.CollectAll(comp.Values);
-        if (refs.Count == 0) return;
+        if (refs.Count == 0)
+        {
+            return;
+        }
 
-        page.Divider("All References");
         page.Row(r => r.Column(TablerColumnNumber.Twelve, c => {
             c.Card(card => {
                 card.Header(h => h.Title("References cited across all sections"));
                 card.Body(b => {
-                    b.Row(rr => {
-                        rr.Gap(2);
-                        foreach (var u in refs)
-                        {
-                            var f = DomainDetective.Reports.LinkFormatter.Format(u);
-                            rr.Column(TablerColumnNumber.Auto, cc => cc.Badge(f.Title, TablerBadgeColor.Blue, HtmlForgeX.Containers.Tabler.TablerBadgeStyle.Light, TablerBadgeSize.Small, pill: true, href: f.Url));
-                        }
-                    });
+                    var rows = refs.Select(u => {
+                        var f = DomainDetective.Reports.LinkFormatter.Format(u);
+                        return new { Title = f.Title, Url = f.Url };
+                    }).ToList();
+                    var t = (TablerTable)b.Table(rows, TableType.Tabler);
+                    t.Style(BootStrapTableStyle.Striped).Style(BootStrapTableStyle.Hover);
                 });
             });
         }));
     }
 }
+

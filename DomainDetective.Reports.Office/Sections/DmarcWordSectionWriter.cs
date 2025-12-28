@@ -195,6 +195,7 @@ public static class DmarcWordSectionWriter
         if (sec.Positives.Count > 0)
         {
             headings.AddItem("Good posture", baseLevel);
+            doc.AddParagraph("This domain demonstrates the following positive posture:");
             var list = doc.AddList(WordListStyle.Bulleted);
             foreach (var p in sec.Positives) list.AddItem(p);
         }
@@ -205,6 +206,7 @@ public static class DmarcWordSectionWriter
         if (f.Count > 0)
         {
             headings.AddItem("Findings", baseLevel);
+            doc.AddParagraph("The following issues were detected:");
             var ft = doc.AddTable(f.Count + 1, 4, WordTableStyle.TableGrid);
             ft.Rows[0].Cells[0].Paragraphs[0].Text = "Severity";
             ft.Rows[0].Cells[1].Paragraphs[0].Text = "Code";

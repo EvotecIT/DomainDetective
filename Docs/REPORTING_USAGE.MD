@@ -56,9 +56,20 @@ $null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html 
 # Export to different formats
 # JSON (implemented)
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/PDF (not yet implemented, will emit TODO)
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Word
-Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Excel
+# Word/Excel/Markdown via composition (Excel requires .NET 8.0)
+Export-DDSecurityReport -ExportFormat Word -ExportPath "report.docx" {
+    Test-DDEmailSpfRecord -DomainName "example.com"
+    Test-DDEmailDmarcRecord -DomainName "example.com"
+}
+Export-DDSecurityReport -ExportFormat Excel -ExportPath "report.xlsx" {
+    Test-DDEmailSpfRecord -DomainName "example.com"
+    Test-DDEmailDmarcRecord -DomainName "example.com"
+}
+Export-DDSecurityReport -ExportFormat Markdown -ExportPath "report.md" {
+    Test-DDEmailSpfRecord -DomainName "example.com"
+    Test-DDEmailDmarcRecord -DomainName "example.com"
+}
+# PDF (planned)
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Pdf
 
 # Protocol-specific exports (TODO)
@@ -69,25 +80,26 @@ Test-DDEmailDmarcRecord -DomainName "example.com" -ExportFormat Html # TODO: rep
 
 ## Report Types
 
-### 1. HTML Reports (Available Now)
+### 1. HTML Reports (Available)
 - Interactive dashboard with charts
 - Responsive design for mobile/desktop
 - Export capabilities (PDF, Excel from browser)
 - Real-time score calculations
 
-### 2. Word Reports (Coming Soon)
+### 2. Word Reports (Available)
 - Professional document format
-- Executive summary
-- Detailed technical appendix
+- Executive summary and per-domain sections
 - Print-ready formatting
 
-### 3. Excel Reports (Coming Soon)
-- Raw data export
-- Pivot table ready
-- Multiple worksheets for categories
-- Trend analysis data
+### 3. Excel Reports (Available)
+- Overview + per-domain sheets (composition-based)
+- Pivot table ready data grid
+- Multiple worksheets for categories (where applicable)
+### 4. Markdown Reports (Available)
+- Document-style layout mirroring Word
+- Executive summary + per-domain sections
 
-### 4. PDF Reports (Coming Soon)
+### 5. PDF Reports (Planned)
 - Print-optimized layout
 - Compliance documentation
 - Digital signatures support

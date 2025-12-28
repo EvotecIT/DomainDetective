@@ -74,6 +74,30 @@ public static partial class ExcelCompositionReport
             }
         } catch { }
 
+        try
+        {
+            var providerRows = new List<object>();
+            foreach (var kv in domains)
+            {
+                var chain = DomainDetective.Reports.ProviderChainBuilder.Build(kv.Value.Mx, kv.Value.Spf);
+                var primary = string.IsNullOrWhiteSpace(chain.Primary) ? "-" : chain.Primary;
+                var gateways = chain.Gateways.Count > 0 ? string.Join(", ", chain.Gateways) : "-";
+                var outbound = chain.Outbound.Count > 0 ? string.Join(", ", chain.Outbound) : "-";
+                providerRows.Add(new { Domain = kv.Key, Primary = primary, Gateways = gateways, Outbound = outbound });
+            }
+            if (providerRows.Count > 0)
+            {
+                var providerRange = overview.TableFrom(providerRows, title: "Mail Providers", configure: o => { o.HeaderCase = HeaderCase.Title; }, visuals: v => { v.FreezeHeaderRow = true; });
+                overview.ApplyColumnSizing(providerRange, opt =>
+                {
+                    opt.MediumHeaders.Add("Domain");
+                    opt.LongHeaders.UnionWith(new[] { "Gateways", "Outbound" });
+                    opt.WrapHeaders.UnionWith(new[] { "Gateways", "Outbound" });
+                });
+            }
+        }
+        catch { }
+
         overview.Finish(autoFitColumns: true);
     }
 #endif

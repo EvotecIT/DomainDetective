@@ -31,12 +31,18 @@ namespace DomainDetective.PowerShell {
         // Branding / report cosmetics
         /// <summary>Logo image path.</summary>
         public static string LogoPath { get; set; } = string.Empty;
+        /// <summary>Header logo height (px).</summary>
+        public static int? HeaderLogoSizePx { get; set; }
+        /// <summary>Footer logo height (px).</summary>
+        public static int? FooterLogoSizePx { get; set; }
         /// <summary>Header text.</summary>
         public static string HeaderText { get; set; } = string.Empty;
         /// <summary>Footer text.</summary>
         public static string FooterText { get; set; } = string.Empty;
         /// <summary>Watermark text.</summary>
         public static string WatermarkText { get; set; } = string.Empty;
+        /// <summary>Executive Summary max content columns for Word composition.</summary>
+        public static int SummaryColumnCap { get; set; } = 4;
         // Company custom properties (exposed to Word reports)
         /// <summary>Company name.</summary>
         public static string CompanyName { get; set; } = string.Empty;

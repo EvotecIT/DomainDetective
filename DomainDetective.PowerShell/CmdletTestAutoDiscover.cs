@@ -13,10 +13,10 @@ namespace DomainDetective.PowerShell {
     [Cmdlet(VerbsDiagnostic.Test, "DDEmailAutoDiscover", DefaultParameterSetName = "ServerName")]
     [Alias("Test-EmailAutoDiscover")]
     public sealed class CmdletTestAutoDiscover : ExportableAsyncPSCmdlet {
-        /// <para>Domain to query.</para>
-        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName")]
+        /// <para>Domain(s) to query.</para>
+        [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
-        public string DomainName = string.Empty;
+        public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
@@ -27,34 +27,38 @@ namespace DomainDetective.PowerShell {
         [Parameter]
         public SwitchParameter IncludeEndpoints;
 
-        private InternalLogger _logger = null!;
-        private DomainHealthCheck _healthCheck = null!;
-
-        /// <summary>
-        /// Initializes the Autodiscover health checker.
-        /// </summary>
-        /// <returns>A completed task.</returns>
-        protected override Task BeginProcessingAsync() {
-            _logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(_logger, this.WriteVerbose, this.WriteWarning, this.WriteDebug, this.WriteError, this.WriteProgress, this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
-            _healthCheck = new DomainHealthCheck(DnsEndpoint, _logger);
-            return Task.CompletedTask;
-        }
-
         /// <summary>
         /// Checks Autodiscover settings for the specified domain.
         /// </summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
-            _logger.WriteVerbose("Querying Autodiscover for domain: {0}", DomainName);
-            await _healthCheck.VerifyAutodiscover(DomainName);
-            var view = DomainDetective.Views.Converters.Convert(_healthCheck.AutodiscoverAnalysis);
-            WriteObject(view);
-            if (IncludeEndpoints) {
-                WriteObject(_healthCheck.AutodiscoverHttpAnalysis.Endpoints, true);
+            async Task ProcessDomainAsync(string domain) {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
+
+                logger.WriteVerbose("Querying Autodiscover for domain: {0}", domain);
+                await healthCheck.VerifyAutodiscover(domain, cancellationToken: CancelToken);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.AutodiscoverAnalysis);
+                WriteObject(view);
+                if (IncludeEndpoints) {
+                    WriteObject(healthCheck.AutodiscoverHttpAnalysis.Endpoints, true);
+                }
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDEmailAutoDiscover");
+                }
             }
-            if (IsExportRequested()) { await ExportNotImplementedAsync(); return; }
+
+            await ForEachAsync(DomainName, ProcessDomainAsync);
         }
     }
 }

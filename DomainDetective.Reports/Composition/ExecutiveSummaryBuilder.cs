@@ -50,6 +50,8 @@ public static class ExecutiveSummaryBuilder
             warn += b.Spf?.WarningCount ?? 0; err += b.Spf?.ErrorCount ?? 0;
             warn += b.Dmarc?.WarningCount ?? 0; err += b.Dmarc?.ErrorCount ?? 0;
             warn += b.Dkim?.Sum(x => x.WarningCount) ?? 0; err += b.Dkim?.Sum(x => x.ErrorCount) ?? 0;
+            warn += b.Arc?.WarningCount ?? 0; err += b.Arc?.ErrorCount ?? 0;
+            warn += b.Bimi?.WarningCount ?? 0; err += b.Bimi?.ErrorCount ?? 0;
             // Optional sections
             warn += b.Mtasts?.WarningCount ?? 0; err += b.Mtasts?.ErrorCount ?? 0;
             warn += b.TlsRpt?.WarningCount ?? 0; err += b.TlsRpt?.ErrorCount ?? 0;
@@ -63,19 +65,12 @@ public static class ExecutiveSummaryBuilder
             warn += b.ZoneTransfer?.WarningCount ?? 0; err += b.ZoneTransfer?.ErrorCount ?? 0;
             warn += b.Wildcard?.WarningCount ?? 0; err += b.Wildcard?.ErrorCount ?? 0;
             warn += b.Caa?.WarningCount ?? 0; err += b.Caa?.ErrorCount ?? 0;
+            warn += b.Ttl?.WarningCount ?? 0; err += b.Ttl?.ErrorCount ?? 0;
             // Mail TLS trio
             warn += (b.SmtpTls?.WarningCount ?? 0) + (b.ImapTls?.WarningCount ?? 0) + (b.PopTls?.WarningCount ?? 0);
             err  += (b.SmtpTls?.ErrorCount ?? 0) + (b.ImapTls?.ErrorCount ?? 0) + (b.PopTls?.ErrorCount ?? 0);
             string status(string? s) => string.IsNullOrWhiteSpace(s) ? "-" : s!;
-            string dkimStatus;
-            if (includeExtras)
-            {
-                dkimStatus = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: true);
-            }
-            else
-            {
-                dkimStatus = (b.Dkim != null && b.Dkim.Count > 0) ? (b.Dkim.Max(x => x.Status) ?? "-") : "-";
-            }
+            string dkimStatus = DisplayFormatting.ComposeDkimSummary(b.Dkim, includeSelectorCount: includeExtras);
 
             var dnssec = DisplayFormatting.ComposeDnssecSummary(b.Dnssec);
             var rpki = DisplayFormatting.ComposeRpkiSummary(b.Rpki);
