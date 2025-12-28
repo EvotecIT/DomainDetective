@@ -72,15 +72,26 @@ namespace DomainDetective {
             }
 
             var dkimRecordList = dnsResults.ToList();
+
+            // Capture CNAME TTL before filtering
+            var cnameRecords = dkimRecordList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
+            var txtRecords = dkimRecordList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
+
             var analysis = new DkimRecordAnalysis {
-                DkimRecordExists = dkimRecordList.Any(),
+                DkimRecordExists = txtRecords.Any(),
                 ValidKeyType = true,
                 ValidFlags = true
             };
-            analysis.DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dkimRecordList, expectedType: DnsRecordType.TXT);
+
+            if (cnameRecords.Any(r => r.TTL > 0)) {
+                analysis.IsCnameResolved = true;
+                analysis.CnameTtl = cnameRecords.Where(r => r.TTL > 0).Min(r => r.TTL);
+            }
+
+            analysis.DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
 
             // create a single string from the list of DnsResult objects
-            foreach (var record in dkimRecordList) {
+            foreach (var record in txtRecords) {
                 if (string.IsNullOrEmpty(analysis.Name) && !string.IsNullOrEmpty(record.Name)) {
                     analysis.Name = record.Name;
                 }
@@ -542,6 +553,10 @@ namespace DomainDetective {
         public string? CnameTarget { get; set; }
         /// <summary>DNS TTL (seconds) of the selector TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; set; }
+        /// <summary>TTL (seconds) of the CNAME record when this record was resolved via CNAME alias.</summary>
+        public int? CnameTtl { get; set; }
+        /// <summary>True when the DKIM record was resolved through a CNAME alias.</summary>
+        public bool IsCnameResolved { get; set; }
     }
 
     internal static partial class DKIMProviders

@@ -18,6 +18,8 @@ public static partial class Converters
             DnsRecordPresent = analysis.DnsRecordPresent,
             DnsRecordValid = analysis.DnsRecordValid,
             DnsRecordTtl = analysis.DnsRecordTtl,
+            CnameTtl = analysis.CnameTtl,
+            IsCnameResolved = analysis.IsCnameResolved,
             PolicyPresent = analysis.PolicyPresent,
             PolicyValid = analysis.PolicyValid,
             Mode = analysis.Mode,
@@ -47,6 +49,10 @@ public class MtastsInfo
     public bool DnsRecordValid { get; set; }
     /// <summary>DNS TTL (seconds) of the _mta-sts TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
+    /// <summary>TTL (seconds) of the CNAME record when resolved via CNAME alias.</summary>
+    public int? CnameTtl { get; set; }
+    /// <summary>True when the MTA-STS TXT record was resolved through a CNAME alias.</summary>
+    public bool IsCnameResolved { get; set; }
     public bool PolicyPresent { get; set; }
     public bool PolicyValid { get; set; }
     public string Mode { get; set; } = null!;

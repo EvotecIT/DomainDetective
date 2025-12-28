@@ -133,6 +133,10 @@ public class MTASTSAnalysis : IHasAssessments {
 
         /// <summary>DNS TTL (seconds) of the _mta-sts TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; private set; }
+        /// <summary>TTL (seconds) of the CNAME record when this record was resolved via CNAME alias.</summary>
+        public int? CnameTtl { get; private set; }
+        /// <summary>True when the MTA-STS TXT record was resolved through a CNAME alias.</summary>
+        public bool IsCnameResolved { get; private set; }
 
         /// <summary>Summary message describing MTA-STS status.</summary>
         public string Advisory { get; private set; } = string.Empty;
@@ -171,6 +175,8 @@ public class MTASTSAnalysis : IHasAssessments {
             MxAligned = false;
             MissingMxFromPolicy = new List<string>();
             DnsRecordTtl = null;
+            CnameTtl = null;
+            IsCnameResolved = false;
         }
 
         /// <summary>
@@ -190,15 +196,25 @@ public class MTASTSAnalysis : IHasAssessments {
             Domain = domainName;
 
             var dns = await QueryDns($"_mta-sts.{domainName}", DnsRecordType.TXT);
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dns, expectedType: DnsRecordType.TXT);
-            DnsRecordPresent = dns?.Any() == true;
+            var dnsList = dns?.ToList() ?? new List<DnsAnswer>();
+
+            // Capture CNAME TTL before filtering
+            var cnameRecords = dnsList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            if (cnameRecords.Any()) {
+                IsCnameResolved = true;
+                CnameTtl = cnameRecords.Min(r => r.TTL);
+            }
+
+            var txtRecords = dnsList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            DnsRecordPresent = txtRecords.Any();
             if (!DnsRecordPresent) {
                 PolicyValid = false;
                 UpdateAdvisory();
                 return;
             }
 
-            ParseDnsRecord(string.Join(string.Empty, (dns ?? Array.Empty<DnsAnswer>()).Select(r => r.Data ?? string.Empty)));
+            ParseDnsRecord(string.Join(string.Empty, txtRecords.Select(r => r.Data ?? string.Empty)));
             if (!DnsRecordValid) {
                 PolicyValid = false;
                 UpdateAdvisory();
