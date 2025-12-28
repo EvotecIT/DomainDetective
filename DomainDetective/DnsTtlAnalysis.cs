@@ -169,6 +169,7 @@ namespace DomainDetective {
             var an = ReadUInt16(data, ref offset);
             offset += 4; // nscount + arcount
             for (int i = 0; i < qd; i++) { SkipName(data, ref offset); offset += 4; }
+            int? cnameTtl = null;
             for (int i = 0; i < an; i++) {
                 SkipName(data, ref offset);
                 var type = ReadUInt16(data, ref offset);
@@ -177,9 +178,12 @@ namespace DomainDetective {
                 offset += 4;
                 var rdlen = ReadUInt16(data, ref offset);
                 if (type == qtype) return ttl;
+                // Capture CNAME TTL - when authoritative NS returns only CNAME (for aliased records),
+                // return the CNAME TTL as the authoritative value since that's what the domain owner controls.
+                if (type == 5 && cnameTtl == null) cnameTtl = ttl;
                 offset += rdlen;
             }
-            return null;
+            return cnameTtl;
         }
         private async Task<int?> QueryTtlFromServer(System.Net.IPAddress ip, string name, ushort qtype, System.Threading.CancellationToken ct, int timeoutMs) {
             var q = BuildQuery(name, qtype);
