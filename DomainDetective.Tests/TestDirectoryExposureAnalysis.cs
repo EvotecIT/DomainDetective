@@ -59,6 +59,8 @@ public class TestDirectoryExposureAnalysis
         PortHelper.ReleasePort(port2);
         var serverTask = Task.Run(async () =>
         {
+            // DirectoryExposureAnalysis probes multiple paths, so serve all requests
+            // until the listener is stopped in the teardown.
             while (listener.IsListening)
             {
                 HttpListenerContext? ctx = null;

@@ -24,6 +24,8 @@ namespace DomainDetective.Tests {
             } finally {
                 ARCAnalysis.CreateStream = original;
             }
+            // MimeKit can dispose the stream more than once; ensure at least the
+            // expected disposals occurred.
             Assert.True(CountingMemoryStream.DisposeCount >= 2);
         }
     }
