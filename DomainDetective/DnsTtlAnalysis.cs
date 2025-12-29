@@ -101,6 +101,13 @@ namespace DomainDetective {
                 return await QueryDnsOverride(name, type);
             }
 
+            if (type == DnsRecordType.TXT) {
+                return await DnsConfiguration.QueryDNS(
+                    name,
+                    type,
+                    filter: string.Empty,
+                    includeAliasesInFilter: true);
+            }
             return await DnsConfiguration.QueryDNS(name, type);
         }
 

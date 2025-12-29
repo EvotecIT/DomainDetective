@@ -32,7 +32,12 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             TLSRPTAnalysis = new TLSRPTAnalysis { Subject = domainName };
-            var tlsrpt = await DnsConfiguration.QueryDNS("_smtp._tls." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+            var tlsrpt = await DnsConfiguration.QueryDNS(
+                "_smtp._tls." + domainName,
+                DnsRecordType.TXT,
+                filter: string.Empty,
+                includeAliasesInFilter: true,
+                cancellationToken: cancellationToken);
             await TLSRPTAnalysis.AnalyzeTlsRptRecords(tlsrpt, _logger, cancellationToken);
         }
     }

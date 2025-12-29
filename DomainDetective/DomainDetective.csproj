@@ -14,7 +14,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DnsClientX" Version="1.0.4" />
+        <PackageReference Include="DnsClientX" Version="1.0.5" />
         <PackageReference Include="MailKit" Version="4.13.0" />
         <PackageReference Include="PgpCore" Version="6.5.2" />
     </ItemGroup>

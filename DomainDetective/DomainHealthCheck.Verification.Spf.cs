@@ -24,7 +24,12 @@ namespace DomainDetective {
             SpfAnalysis.Subject = domainName;
             DnsAnswer[] spf = Array.Empty<DnsAnswer>();
             try {
-                spf = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.TXT, "SPF1", cancellationToken);
+                spf = await DnsConfiguration.QueryDNS(
+                    domainName,
+                    DnsRecordType.TXT,
+                    "SPF1",
+                    includeAliasesInFilter: true,
+                    cancellationToken: cancellationToken);
             } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                 _logger.WriteWarningCode(SpfCodes.QueryFailed, "SPF DNS query failed for {0}: {1}", domainName, ex.Message);
                 // proceed with empty results to keep tests deterministic on transient network failures
