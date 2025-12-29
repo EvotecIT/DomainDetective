@@ -457,7 +457,9 @@ public static partial class HtmlCompositionReport
                                             Alg = string.IsNullOrEmpty(k.Hash) ? "?" : k.Hash,
                                             Weak = k.Weak ? "Yes" : "No",
                                             Flags = k.Flags,
-                                            TTL = k.TtlSeconds?.ToString() ?? "-"
+                                            TTL = k.TtlSeconds?.ToString() ?? "-",
+                                            CnameResolved = k.CnameResolved ? "Yes" : "No",
+                                            CnameTtl = k.CnameTtlSeconds?.ToString() ?? "-"
                                         }).ToList();
 
                                         var table = (DataTablesTable)col.Table(rows, TableType.DataTables);
