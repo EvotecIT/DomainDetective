@@ -46,7 +46,11 @@ namespace DomainDetective
                     }
                     else
                     {
-                        var answers = await DnsConfiguration.QueryDNS(inc, DnsRecordType.TXT, "SPF1");
+                        var answers = await DnsConfiguration.QueryDNS(
+                            inc,
+                            DnsRecordType.TXT,
+                            "SPF1",
+                            includeAliasesInFilter: true);
                         if (answers != null && answers.Length > 0) includeRecord = answers[0].Data;
                     }
                     if (!string.IsNullOrWhiteSpace(includeRecord))
@@ -64,7 +68,11 @@ namespace DomainDetective
                     if (TestSpfRecords.TryGetValue(redir, out var fakeR)) redirectRecord = fakeR;
                     else
                     {
-                        var answers = await DnsConfiguration.QueryDNS(redir, DnsRecordType.TXT, "SPF1");
+                        var answers = await DnsConfiguration.QueryDNS(
+                            redir,
+                            DnsRecordType.TXT,
+                            "SPF1",
+                            includeAliasesInFilter: true);
                         if (answers != null && answers.Length > 0) redirectRecord = answers[0].Data;
                     }
                     if (!string.IsNullOrWhiteSpace(redirectRecord))

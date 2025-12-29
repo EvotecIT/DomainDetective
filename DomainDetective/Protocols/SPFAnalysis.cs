@@ -182,7 +182,7 @@ namespace DomainDetective {
             var spfRecordList = dnsResults.ToList();
 
             // Capture CNAME TTL before filtering
-            var cnameRecords = spfRecordList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            var cnameRecords = spfRecordList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
             if (cnameRecords.Any()) {
                 IsCnameResolved = true;
                 CnameTtl = cnameRecords.Min(r => r.TTL);
@@ -376,7 +376,11 @@ namespace DomainDetective {
                         } else {
                             DnsAnswer[] dnsResults = Array.Empty<DnsAnswer>();
                             try {
-                                dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                                dnsResults = await DnsConfiguration.QueryDNS(
+                                    domain,
+                                    DnsRecordType.TXT,
+                                    "SPF1",
+                                    includeAliasesInFilter: true);
                             } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                                 logger?.WriteWarningCode(SpfCodes.QueryFailed, $"SPF include lookup failed for {domain}: {ex.Message}");
                             }
@@ -416,7 +420,11 @@ namespace DomainDetective {
                         } else {
                             DnsAnswer[] dnsResults = Array.Empty<DnsAnswer>();
                             try {
-                                dnsResults = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                                dnsResults = await DnsConfiguration.QueryDNS(
+                                    domain,
+                                    DnsRecordType.TXT,
+                                    "SPF1",
+                                    includeAliasesInFilter: true);
                             } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                                 logger?.WriteWarningCode(SpfCodes.QueryFailed, $"SPF redirect lookup failed for {domain}: {ex.Message}");
                             }
@@ -1096,7 +1104,11 @@ namespace DomainDetective {
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             includeRecord = fakeRecord;
                         } else {
-                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            var answers = await DnsConfiguration.QueryDNS(
+                                domain,
+                                DnsRecordType.TXT,
+                                "SPF1",
+                                includeAliasesInFilter: true);
                             if (answers != null && answers.Length > 0) {
                                 includeRecord = answers[0].Data;
                             }
@@ -1119,7 +1131,11 @@ namespace DomainDetective {
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             redirectRecord = fakeRecord;
                         } else {
-                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            var answers = await DnsConfiguration.QueryDNS(
+                                domain,
+                                DnsRecordType.TXT,
+                                "SPF1",
+                                includeAliasesInFilter: true);
                             if (answers != null && answers.Length > 0) {
                                 redirectRecord = answers[0].Data;
                             }
@@ -1158,7 +1174,11 @@ namespace DomainDetective {
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             includeRecord = fakeRecord;
                         } else {
-                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            var answers = await DnsConfiguration.QueryDNS(
+                                domain,
+                                DnsRecordType.TXT,
+                                "SPF1",
+                                includeAliasesInFilter: true);
                             if (answers != null && answers.Length > 0) {
                                 includeRecord = answers[0].Data;
                             }
@@ -1177,7 +1197,11 @@ namespace DomainDetective {
                         if (TestSpfRecords.TryGetValue(domain, out var fakeRecord)) {
                             redirectRecord = fakeRecord;
                         } else {
-                            var answers = await DnsConfiguration.QueryDNS(domain, DnsRecordType.TXT, "SPF1");
+                            var answers = await DnsConfiguration.QueryDNS(
+                                domain,
+                                DnsRecordType.TXT,
+                                "SPF1",
+                                includeAliasesInFilter: true);
                             if (answers != null && answers.Length > 0) {
                                 redirectRecord = answers[0].Data;
                             }
@@ -1208,6 +1232,13 @@ namespace DomainDetective {
                 return new[] { new DnsAnswer { DataRaw = txt, Type = DnsRecordType.TXT } };
             }
 
+            if (type == DnsRecordType.TXT) {
+                return await DnsConfiguration.QueryDNS(
+                    name,
+                    type,
+                    filter: string.Empty,
+                    includeAliasesInFilter: true);
+            }
             return await DnsConfiguration.QueryDNS(name, type);
         }
 

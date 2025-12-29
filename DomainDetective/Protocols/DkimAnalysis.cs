@@ -83,9 +83,9 @@ namespace DomainDetective {
                 ValidFlags = true
             };
 
-            if (cnameRecords.Any(r => r.TTL > 0)) {
+            if (cnameRecords.Any()) {
                 analysis.IsCnameResolved = true;
-                analysis.CnameTtl = cnameRecords.Where(r => r.TTL > 0).Min(r => r.TTL);
+                analysis.CnameTtl = cnameRecords.Min(r => r.TTL);
             }
 
             analysis.DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
@@ -459,7 +459,12 @@ namespace DomainDetective {
         public async Task<string?> QueryWellKnownSelectors(string domainName, DnsConfiguration dnsConfiguration, InternalLogger logger, CancellationToken cancellationToken = default) {
             Reset();
             logger.WriteVerbose("Auto-detecting DKIM selectors for {0}", domainName);
-            var adsp = await dnsConfiguration.QueryDNS($"_adsp._domainkey.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+            var adsp = await dnsConfiguration.QueryDNS(
+                $"_adsp._domainkey.{domainName}",
+                DnsRecordType.TXT,
+                filter: string.Empty,
+                includeAliasesInFilter: true,
+                cancellationToken: cancellationToken);
             if (adsp.Any()) {
                 await AnalyzeAdspRecord(adsp, logger);
             }
@@ -469,7 +474,12 @@ namespace DomainDetective {
             foreach (var selector in DKIMSelectors.GuessSelectors()) {
                 cancellationToken.ThrowIfCancellationRequested();
                 logger.WriteVerbose("Trying DKIM selector '{0}'", selector);
-                var dkim = await dnsConfiguration.QueryDNS($"{selector}._domainkey.{domainName}", DnsRecordType.TXT, "DKIM1", cancellationToken);
+                var dkim = await dnsConfiguration.QueryDNS(
+                    $"{selector}._domainkey.{domainName}",
+                    DnsRecordType.TXT,
+                    "DKIM1",
+                    includeAliasesInFilter: true,
+                    cancellationToken: cancellationToken);
                 if (dkim.Any()) {
                     logger.WriteVerbose("Found DKIM record with selector '{0}'", selector);
                     await AnalyzeDkimRecords(selector, dkim, logger);

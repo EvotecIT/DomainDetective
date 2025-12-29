@@ -86,7 +86,7 @@ public class TLSRPTAnalysis : IHasAssessments {
             var allRecords = dnsResults.ToList();
 
             // Capture CNAME TTL before filtering
-            var cnameRecords = allRecords.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            var cnameRecords = allRecords.Where(r => r.Type == DnsRecordType.CNAME).ToList();
             if (cnameRecords.Any()) {
                 IsCnameResolved = true;
                 CnameTtl = cnameRecords.Min(r => r.TTL);

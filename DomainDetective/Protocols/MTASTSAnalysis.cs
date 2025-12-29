@@ -199,7 +199,7 @@ public class MTASTSAnalysis : IHasAssessments {
             var dnsList = dns?.ToList() ?? new List<DnsAnswer>();
 
             // Capture CNAME TTL before filtering
-            var cnameRecords = dnsList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            var cnameRecords = dnsList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
             if (cnameRecords.Any()) {
                 IsCnameResolved = true;
                 CnameTtl = cnameRecords.Min(r => r.TTL);
@@ -323,6 +323,9 @@ public class MTASTSAnalysis : IHasAssessments {
                 return await QueryDnsOverride(name, type);
             }
 
+            if (type == DnsRecordType.TXT) {
+                return await DnsConfiguration.QueryDNS(name, type, filter: string.Empty, includeAliasesInFilter: true);
+            }
             return await DnsConfiguration.QueryDNS(name, type);
         }
 

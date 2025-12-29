@@ -48,7 +48,12 @@ public partial class WebStaticScanAnalysis
                 if (texts == null)
                 {
                     texts = new System.Collections.Generic.List<string>();
-                    var txtRecords = await DnsConfiguration.QueryDNS(name, DnsRecordType.TXT, cancellationToken: cancellationToken).ConfigureAwait(false);
+                    var txtRecords = await DnsConfiguration.QueryDNS(
+                        name,
+                        DnsRecordType.TXT,
+                        filter: string.Empty,
+                        includeAliasesInFilter: true,
+                        cancellationToken: cancellationToken).ConfigureAwait(false);
                     foreach (var rec in txtRecords)
                     {
                         var txt = rec.Data ?? rec.DataRaw ?? string.Empty;
