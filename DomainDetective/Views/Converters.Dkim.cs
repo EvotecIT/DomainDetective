@@ -23,6 +23,8 @@ public static partial class Converters
                 Selector = kvp.Key,
                 Name = result.Name ?? string.Empty,
                 DnsRecordTtl = result.DnsRecordTtl,
+                CnameTtl = result.CnameTtl,
+                IsCnameResolved = result.IsCnameResolved,
                 DkimRecord = result.DkimRecord,
                 DkimRecordExists = result.DkimRecordExists,
                 StartsCorrectly = result.StartsCorrectly,
@@ -79,6 +81,10 @@ public class DkimRecordInfo
     public string Name { get; set; } = string.Empty;
     /// <summary>DNS TTL (seconds) of the selector TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
+    /// <summary>TTL (seconds) of the CNAME record when resolved via CNAME alias.</summary>
+    public int? CnameTtl { get; set; }
+    /// <summary>True when the DKIM record was resolved through a CNAME alias.</summary>
+    public bool IsCnameResolved { get; set; }
     /// <summary>Raw DKIM TXT record.</summary>
     public string DkimRecord { get; set; } = string.Empty;
     public bool DkimRecordExists { get; set; }

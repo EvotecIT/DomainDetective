@@ -100,6 +100,8 @@ public static partial class Converters
             Subject = analysis.Subject ?? string.Empty,
             SpfRecord = analysis.SpfRecord,
             DnsRecordTtl = analysis.DnsRecordTtl,
+            CnameTtl = analysis.CnameTtl,
+            IsCnameResolved = analysis.IsCnameResolved,
             RecordLength = analysis.SpfRecord?.Length ?? 0,
             SpfRecordExists = analysis.SpfRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -159,6 +161,10 @@ public class SpfRecordInfo
     public string SpfRecord { get; set; } = string.Empty;
     /// <summary>DNS TTL (seconds) of the SPF TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
+    /// <summary>TTL (seconds) of the CNAME record when resolved via CNAME alias.</summary>
+    public int? CnameTtl { get; set; }
+    /// <summary>True when the SPF record was resolved through a CNAME alias.</summary>
+    public bool IsCnameResolved { get; set; }
     public int RecordLength { get; set; }
     public bool SpfRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }

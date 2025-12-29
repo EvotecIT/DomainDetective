@@ -18,6 +18,10 @@ public class TLSRPTAnalysis : IHasAssessments {
         public string? Subject { get; set; }
         /// <summary>DNS TTL (seconds) of the TLSRPT TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; private set; }
+        /// <summary>TTL (seconds) of the CNAME record when this record was resolved via CNAME alias.</summary>
+        public int? CnameTtl { get; private set; }
+        /// <summary>True when the TLSRPT record was resolved through a CNAME alias.</summary>
+        public bool IsCnameResolved { get; private set; }
         /// <summary>The concatenated TLSRPT record.</summary>
         public string? TlsRptRecord { get; private set; }
 
@@ -71,13 +75,24 @@ public class TLSRPTAnalysis : IHasAssessments {
             UnknownTags = new List<string>();
             RuaHttpStatus = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
             DnsRecordTtl = null;
+            CnameTtl = null;
+            IsCnameResolved = false;
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
                 return;
             }
 
-            var recordList = dnsResults
+            var allRecords = dnsResults.ToList();
+
+            // Capture CNAME TTL before filtering
+            var cnameRecords = allRecords.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            if (cnameRecords.Any()) {
+                IsCnameResolved = true;
+                CnameTtl = cnameRecords.Min(r => r.TTL);
+            }
+
+            var recordList = allRecords
                 .Where(r => r.Type != DnsRecordType.CNAME)
                 .ToList();
             DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(recordList, expectedType: DnsRecordType.TXT);

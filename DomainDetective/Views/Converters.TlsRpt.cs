@@ -17,6 +17,8 @@ public static partial class Converters
             Subject = analysis.Subject,
             TlsRptRecord = analysis.TlsRptRecord,
             DnsRecordTtl = analysis.DnsRecordTtl,
+            CnameTtl = analysis.CnameTtl,
+            IsCnameResolved = analysis.IsCnameResolved,
             TlsRptRecordExists = analysis.TlsRptRecordExists,
             MultipleRecords = analysis.MultipleRecords,
             StartsCorrectly = analysis.StartsCorrectly,
@@ -47,6 +49,10 @@ public class TlsRptInfo
     public string? TlsRptRecord { get; set; }
     /// <summary>DNS TTL (seconds) of the TLS-RPT TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
+    /// <summary>TTL (seconds) of the CNAME record when resolved via CNAME alias.</summary>
+    public int? CnameTtl { get; set; }
+    /// <summary>True when the TLSRPT record was resolved through a CNAME alias.</summary>
+    public bool IsCnameResolved { get; set; }
     public bool TlsRptRecordExists { get; set; }
     public bool MultipleRecords { get; set; }
     public bool StartsCorrectly { get; set; }

@@ -17,6 +17,8 @@ public static partial class Converters
             Subject = analysis.Subject ?? string.Empty,
             DmarcRecord = analysis.DmarcRecord,
             DnsRecordTtl = analysis.DnsRecordTtl,
+            CnameTtl = analysis.CnameTtl,
+            IsCnameResolved = analysis.IsCnameResolved,
             DmarcRecordExists = analysis.DmarcRecordExists,
             StartsCorrectly = analysis.StartsCorrectly,
             IsPolicyValid = analysis.IsPolicyValid,
@@ -68,6 +70,10 @@ public class DmarcRecordInfo
     public string DmarcRecord { get; set; } = string.Empty;
     /// <summary>DNS TTL (seconds) of the DMARC TXT record.</summary>
     public int? DnsRecordTtl { get; set; }
+    /// <summary>TTL (seconds) of the CNAME record when resolved via CNAME alias.</summary>
+    public int? CnameTtl { get; set; }
+    /// <summary>True when the DMARC record was resolved through a CNAME alias.</summary>
+    public bool IsCnameResolved { get; set; }
     public bool DmarcRecordExists { get; set; }
     public bool StartsCorrectly { get; set; }
     public bool IsPolicyValid { get; set; }

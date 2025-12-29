@@ -25,6 +25,10 @@ namespace DomainDetective {
 
         /// <summary>DNS TTL (seconds) of the SPF TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; private set; }
+        /// <summary>TTL (seconds) of the CNAME record when this record was resolved via CNAME alias.</summary>
+        public int? CnameTtl { get; private set; }
+        /// <summary>True when the SPF record was resolved through a CNAME alias.</summary>
+        public bool IsCnameResolved { get; private set; }
 
         /// <summary>Combined SPF record text.</summary>
         public string SpfRecord { get; private set; } = string.Empty;
@@ -119,6 +123,8 @@ namespace DomainDetective {
             SpfRecords = new List<string>();
             SpfRecordExists = false;
             DnsRecordTtl = null;
+            CnameTtl = null;
+            IsCnameResolved = false;
             MultipleSpfRecords = false;
             StartsCorrectly = false;
             ExceedsTotalCharacterLimit = false;
@@ -174,22 +180,31 @@ namespace DomainDetective {
                 return;
             }
             var spfRecordList = dnsResults.ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(spfRecordList, expectedType: DnsRecordType.TXT);
-            SpfRecordExists = spfRecordList.Any();
-            MultipleSpfRecords = spfRecordList.Count > 1;
+
+            // Capture CNAME TTL before filtering
+            var cnameRecords = spfRecordList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            if (cnameRecords.Any()) {
+                IsCnameResolved = true;
+                CnameTtl = cnameRecords.Min(r => r.TTL);
+            }
+
+            var txtRecords = spfRecordList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            SpfRecordExists = txtRecords.Any();
+            MultipleSpfRecords = txtRecords.Count > 1;
 
             // create a list of strings from the list of DnsResult objects
             // we use DataStringsEscaped to get the escaped strings, as provided by DnsClientX
             // this will allow us to test if the record length exceeds 255 characters
-            foreach (var record in spfRecordList) {
+            foreach (var record in txtRecords) {
                 foreach (var chunk in record.DataStringsEscaped) {
                     SpfRecords.Add(TrimQuotes(chunk));
                 }
             }
             WarnIfSpfRecordChunksTooLong(logger);
             // However for analysis we only need the record text. Prefer Data, but fall back to DataRaw when supplied directly (tests).
-            if (dnsResults.Count() == 1) {
-                var first = dnsResults.First();
+            if (txtRecords.Count == 1) {
+                var first = txtRecords.First();
                 SpfRecord = TrimQuotes(first.DataRaw ?? first.Data ?? string.Empty);
             } else {
                 // if there are multiple records, we need to join them together to analyze them
@@ -199,7 +214,7 @@ namespace DomainDetective {
             logger.WriteVerbose($"Analyzing SPF record {SpfRecord}");
 
             // check the character limits
-            CheckCharacterLimits(spfRecordList);
+            CheckCharacterLimits(txtRecords);
 
             // check the SPF record starts correctly
             StartsCorrectly = StartsCorrectly || SpfRecord.StartsWith("v=spf1", StringComparison.OrdinalIgnoreCase);

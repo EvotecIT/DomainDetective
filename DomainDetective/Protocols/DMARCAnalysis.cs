@@ -30,6 +30,10 @@ namespace DomainDetective {
         public string? Subject { get; set; }
         /// <summary>DNS TTL (seconds) of the DMARC TXT record as returned by DNS.</summary>
         public int? DnsRecordTtl { get; private set; }
+        /// <summary>TTL (seconds) of the CNAME record when this record was resolved via CNAME alias.</summary>
+        public int? CnameTtl { get; private set; }
+        /// <summary>True when the DMARC record was resolved through a CNAME alias.</summary>
+        public bool IsCnameResolved { get; private set; }
         private const string TagVersion = "v";
         private const string TagPolicy = "p";
         private const string TagSubPolicy = "sp";
@@ -159,6 +163,8 @@ namespace DomainDetective {
             ExternalReportAuthorization = new Dictionary<string, bool>();
             Advisory = string.Empty;
             DnsRecordTtl = null;
+            CnameTtl = null;
+            IsCnameResolved = false;
 
             if (dnsResults == null) {
                 logger?.WriteVerbose("DNS query returned no results.");
@@ -166,12 +172,21 @@ namespace DomainDetective {
             }
 
             var dmarcRecordList = dnsResults.ToList();
-            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(dmarcRecordList, expectedType: DnsRecordType.TXT);
-            DmarcRecordExists = dmarcRecordList.Any();
-            MultipleRecords = dmarcRecordList.Count > 1;
+
+            // Capture CNAME TTL before filtering
+            var cnameRecords = dmarcRecordList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            if (cnameRecords.Any()) {
+                IsCnameResolved = true;
+                CnameTtl = cnameRecords.Min(r => r.TTL);
+            }
+
+            var txtRecords = dmarcRecordList.Where(r => r.Type != DnsRecordType.CNAME).ToList();
+            DnsRecordTtl = DnsAnswerTtlHelper.MinPositiveTtl(txtRecords, expectedType: DnsRecordType.TXT);
+            DmarcRecordExists = txtRecords.Any();
+            MultipleRecords = txtRecords.Count > 1;
 
             // concatenate all TXT chunks into a single string separated by spaces
-            DmarcRecord = string.Join(" ", dmarcRecordList.Select(record => record.Data));
+            DmarcRecord = string.Join(" ", txtRecords.Select(record => record.Data));
 
             if (!DmarcRecordExists || DmarcRecord == null) {
                 logger.WriteVerbose("No DMARC record found.");
