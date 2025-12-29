@@ -73,7 +73,7 @@ Network Services
 
 Reporting & UX
 
-- HTML, Word, Excel, Markdown, and JSON reports
+- HTML, Word, Excel, PDF (basic), Markdown/MarkdownHtml, and JSON reports
 - Interactive CLI wizard, PowerShell views, and pipeline-friendly composition
 - Ordering controls for per-domain sections across Word/HTML/Markdown/Excel
 
@@ -111,16 +111,9 @@ These layers are available both from the CLI and PowerShell; use summaries for q
 - DANE/TLSA: RFC 6698 • SMIMEA: RFC 8162
 - HSTS: RFC 6797 • EDNS(0): RFC 6891 • RDAP: RFC 9083
 
-### Roadmap (short)
+### Roadmap
 
-- Exports: PDF generation, and parity/polish for Word/Excel/Markdown outputs.
-- CLI packaging for Windows, macOS and Linux (single‑file and native package feeds).
-- Live persona narration across CLI/PowerShell with per‑section highlights.
-- More opinionated presets and batch modes for scheduled audits.
-
-## Narratives & Persona (planned)
-
-We’re designing persona‑driven narratives to present findings in different tones (e.g., business, geek) without changing the underlying data. Live streaming of persona output and per‑section summaries are part of the roadmap. The raw objects and reports remain clean and automation‑friendly.
+See TODO.md for the current backlog and roadmap.
 
 ## Available Cmdlets and Aliases
 
@@ -523,7 +516,7 @@ ddcli RunsOpen --subject example.com
 - Dns endpoint: most cmdlets accept `-DnsEndpoint` to control resolution.
 - Scope selection: DNS propagation supports `-Country`, `-Location`, `-Take` and background monitor with start/stop cmdlets.
 - Snapshots and diffs: `-SnapshotPath` and `-Diff` compare against stored snapshots.
-- Output formats: HTML/Word/Excel/Markdown/MarkdownHtml/JSON (availability varies by cmdlet); PDF is planned.
+- Output formats: HTML/Word/Excel/PDF (basic)/Markdown/MarkdownHtml/JSON (availability varies by cmdlet).
 
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:

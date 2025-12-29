@@ -1,6 +1,6 @@
 # DomainDetective — Open TODO (Consolidated)
 
-This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-19.
+This file consolidates outstanding items from TODO-TOMORROW.MD, TODO-DAYAFTER.MD, IDEAS.MD, and README.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-29.
 
 ## High Priority
 - Golden report pass (Word): single-domain and multi-domain; verify one-liner intros and References blocks across sections.
@@ -8,52 +8,48 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 ## Reports — Word
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
-## Composition Parity (Next Day)
-- Provider docs (dev-only)
-  - Provider Docs Verifier task tracked; no public cmdlet.
-
 ## Competitive Parity (External Feature Gaps)
 - DMARC Aggregate (RUA) ingestion and analysis
-  - Ingest `.xml`, `.xml.gz`, and `.zip` aggregate reports from a folder and/or mailbox.
-  - Parse v1 and v2 formats; normalize into internal JSON snapshots.
-  - Rollups: by source IP, by header-from, by result (pass/fail/alignment), and by enforcement mode.
+  - Ingest aggregate reports from folder and mailbox (ZIP/GZ/XML parsing already in core).
+  - Normalize into internal JSON snapshots and time-series storage.
+  - Rollups: by source IP, header-from, auth result (pass/fail/alignment), and enforcement mode.
   - Trends: daily/weekly pass rate, top failing sources, alignment gaps; export time series.
-  - Reports: Word/HTML sections for Aggregate Reports with posture one‑liners and remediation hints.
+  - Reports: Word/HTML sections for Aggregate Reports with posture one-liners and remediation hints.
+- TLS-RPT report ingestion and analysis
+  - Ingest JSON reports from folder/mailbox; normalize into snapshots + time series.
+  - Rollups by policy/result/MX host; surface top failures and trends.
+  - Reports: Word/HTML sections for TLS-RPT outcomes and remediation hints.
 - Mail transport security posture
-  - Surface in HTML Good Posture/Findings; include references.
-- DNSSEC presence and resolver‑based validation
-  - Summarize as Good Posture tile in HTML; include warnings when chain/validation missing.
+  - Surface STARTTLS/SMTP/IMAP/POP posture in HTML/Word Good Posture/Findings; include references.
 - Registration snapshot (WHOIS/RDAP)
-  - Query WHOIS (port 43) with server/port override; RDAP fallback when available.
+  - Add server/port override for WHOIS queries; RDAP fallback when available.
   - Snapshot registrar, creation/update/expiry, domain status codes, nameservers.
-  - Compute `DaysUntilExpiration`; warn at configurable thresholds (e.g., <60 days).
-  - Track drift across runs (registrar/nameserver changes).
+  - Track drift across runs (registrar/nameserver changes) as structured diffs.
 - Resolver override everywhere
-  - Expose multi‑resolver lists across CLI/PS beyond Test-DDDomainOverallHealth; pipe through to DNS layer.
+  - Expose multi-resolver lists across CLI/PS beyond Test-DDDomainOverallHealth; pipe through to DNS layer.
 - Bulk input and CSV export
   - Add `-InputFile` to CLI/PS to process domain lists.
-  - Add `-CsvPath` for first‑class CSV export without requiring downstream piping.
-- DKIM selector targeting
-  - Allow explicit selector list override in addition to enumeration; roll up worst severity across selectors.
-- SPF advisories
-  - Enforce single‑record rule; flag >255‑char segments; count DNS lookups; hint on `-all` vs `~all` vs `?all`.
+  - Add `-CsvPath` for first-class CSV export without requiring downstream piping.
+- DKIM selector targeting (CLI)
+  - Expose explicit selector list override; roll up worst severity across selectors.
+
 ## Surpass Moves (Go Beyond Parity)
-- RDAP‑first with WHOIS fallback; structured JSON with IANA/IETF status semantics.
+- RDAP-first with WHOIS fallback; structured JSON with IANA/IETF status semantics.
 - Enforcement readiness scores
   - DMARC: compute readiness to move to `p=reject` (alignment, pass rate trends, authenticated percentage).
-  - MTA‑STS/TLS‑RPT: readiness to move to `mode=enforce` (MX coverage, TLS grades, report coverage).
+  - MTA-STS/TLS-RPT: readiness to move to `mode=enforce` (MX coverage, TLS grades, report coverage).
 - Portfolio drift detection across runs (registrar, NS, MX, TLS posture) with concise diff in reports.
 - MX TLS coverage matrix per domain (each MX host: STARTTLS, min TLS version, cert validity, SNI behavior) summarized in Word/HTML.
-- PS/CLI: `-Server` multi‑resolver strategies exposed (FirstSuccess/FastestWins/SequentialAll) with timeouts and IPv6 preference.
-- HTML report polish: sticky TOC, anchors, and expandable “+N more” lists consistent with Word summary behavior.
-
+- PS/CLI: `-Server` multi-resolver strategies exposed (FirstSuccess/FastestWins/SequentialAll) with timeouts and IPv6 preference.
+- HTML report polish: sticky TOC, anchors, and expandable "+N more" lists consistent with Word summary behavior.
 ## CLI / PowerShell
 - CLI: expose company branding options (CompanyName/Address/Year/Logo/Header/Watermark) and pass to composition.
+- CLI packaging: single-file builds + native package feeds (Windows/macOS/Linux).
+- CLI/PS: opinionated presets and batch modes for scheduled audits.
 - PS: `-ShowPositives` switch for table views to list posture signals quickly.
 - Posture one-liner: CLI `--posture`, PS `-Posture` to emit condensed controls line and JSON variant.
 - Wizard: HTML export parity (reuse posture panels).
 - Persona: optional concise mode (cap line length per stage).
-
 ## Networking / Resolvers
 - DNS Resolver Override (PS + Core)
   - Batch API preserving order. (pending)
@@ -92,6 +88,7 @@ This file consolidates outstanding items from TODO-TOMORROW.MD and TODO-DAYAFTER
 - Narratives in core for all areas; views surface `.Narrative`.
 - Word (OfficeIMO): cover, TOC, numbered headings, header/footer branding, watermark, styled tables; charts later.
 - HTML (HtmlForgeX): anchors + sticky TOC, info cards, provider summaries, explainers; charts later.
+- PDF: move from minimal output to composition-based parity (Word/HTML structure, branding, references).
 - Multi-domain aggregate: portfolio matrix + per-domain sections.
 
 ## Composition Unification — End-to-End Checklist (Added 2025-09-14)
