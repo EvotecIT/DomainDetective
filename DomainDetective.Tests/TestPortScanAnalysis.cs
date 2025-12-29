@@ -9,6 +9,7 @@ using Xunit;
 namespace DomainDetective.Tests {
     [Collection("PortScan")]
     public class TestPortScanAnalysis {
+        // Timeout increased to 2s for CI stability on shared runners.
         private static readonly TimeSpan ScanTimeout = TimeSpan.FromSeconds(2);
 
         [Fact]
