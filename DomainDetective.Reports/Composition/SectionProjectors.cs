@@ -66,6 +66,8 @@ public static class SectionProjectors
             public bool Weak { get; set; }
             public string Flags { get; set; } = string.Empty;
             public int? TtlSeconds { get; set; }
+            public bool CnameResolved { get; set; }
+            public int? CnameTtlSeconds { get; set; }
             public string Record { get; set; } = string.Empty;
         }
         public List<Row> Rows { get; } = new List<Row>();
@@ -161,6 +163,8 @@ public static class SectionProjectors
         sec.Summary.Add(("DNS Lookups", spf.DnsLookupsCount.ToString()));
         sec.Summary.Add(("Record Present", spf.SpfRecordExists ? "Yes" : "No"));
         sec.Summary.Add(("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"));
+        sec.Summary.Add(("CNAME Resolved", spf.IsCnameResolved ? "Yes" : "No"));
+        sec.Summary.Add(("CNAME TTL (s)", spf.CnameTtl?.ToString() ?? "-"));
         if (spf.StartsCorrectly) sec.Summary.Add(("Starts Correctly", "Yes")); else sec.Summary.Add(("Starts Correctly", "No"));
         if (!string.IsNullOrWhiteSpace(spf.Raw?.AllMechanism)) sec.Summary.Add(("All Mechanism", spf.Raw!.AllMechanism!));
         // Findings (exclude Info)
@@ -225,6 +229,8 @@ public static class SectionProjectors
         sec.Summary.Add(("Status", sec.Status));
         sec.Summary.Add(("Policy", sec.Policy));
         sec.Summary.Add(("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"));
+        sec.Summary.Add(("CNAME Resolved", d.IsCnameResolved ? "Yes" : "No"));
+        sec.Summary.Add(("CNAME TTL (s)", d.CnameTtl?.ToString() ?? "-"));
         sec.Summary.Add(("rua", sec.RuaCount.ToString()));
         sec.Summary.Add(("ruf", sec.RufCount.ToString()));
         if (!string.IsNullOrWhiteSpace(d.DkimAlignment)) sec.Summary.Add(("adkim", d.DkimAlignment));
@@ -259,6 +265,8 @@ public static class SectionProjectors
                 Weak = k.WeakKey,
                 Flags = k.Flags ?? string.Empty,
                 TtlSeconds = k.DnsRecordTtl,
+                CnameResolved = k.IsCnameResolved,
+                CnameTtlSeconds = k.CnameTtl,
                 Record = k.DkimRecord ?? string.Empty
             });
         }
@@ -341,6 +349,8 @@ public static class SectionProjectors
         s.Summary.Add(("Max-Age", m.MaxAge.ToString()));
         s.Summary.Add(("DNS Present", m.DnsRecordPresent ? "Yes" : "No"));
         s.Summary.Add(("DNS TTL (s)", m.DnsRecordTtl?.ToString() ?? "-"));
+        s.Summary.Add(("CNAME Resolved", m.IsCnameResolved ? "Yes" : "No"));
+        s.Summary.Add(("CNAME TTL (s)", m.CnameTtl?.ToString() ?? "-"));
         s.Summary.Add(("Policy Valid", m.PolicyValid ? "Yes" : "No"));
         s.Summary.Add(("MX Aligned", m.MxAligned ? "Yes" : "No"));
         foreach (var a in m.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
@@ -356,6 +366,8 @@ public static class SectionProjectors
         s.Summary.Add(("Status", s.Status));
         s.Summary.Add(("rua", s.RuaCount.ToString()));
         s.Summary.Add(("DNS TTL (s)", t.DnsRecordTtl?.ToString() ?? "-"));
+        s.Summary.Add(("CNAME Resolved", t.IsCnameResolved ? "Yes" : "No"));
+        s.Summary.Add(("CNAME TTL (s)", t.CnameTtl?.ToString() ?? "-"));
         foreach (var a in t.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         foreach (var p in t.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var tt = p?.Title ?? p?.Code; if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!); }
         foreach (var r in t.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(r)) s.References.Add(r);
