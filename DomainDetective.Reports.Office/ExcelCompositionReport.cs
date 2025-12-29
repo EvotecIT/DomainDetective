@@ -333,6 +333,8 @@ public static partial class ExcelCompositionReport {
                 ("Record Present", spf.SpfRecordExists ? "Yes" : "No"),
                 ("Starts Correctly", spf.StartsCorrectly ? "Yes" : "No"),
                 ("DNS TTL (s)", spf.DnsRecordTtl?.ToString() ?? "-"),
+                ("CNAME Resolved", spf.IsCnameResolved ? "Yes" : "No"),
+                ("CNAME TTL (s)", spf.CnameTtl?.ToString() ?? "-"),
                 ("DNS Lookups", projection?.DnsLookupsCount ?? spf.DnsLookupsCount)
             };
 
@@ -421,12 +423,14 @@ public static partial class ExcelCompositionReport {
                     Alg = string.IsNullOrWhiteSpace(r.Hash) ? "-" : r.Hash,
                     Weak = r.Weak ? "Yes" : "No",
                     Flags = string.IsNullOrWhiteSpace(r.Flags) ? string.Empty : r.Flags,
-                    TTL = r.TtlSeconds.HasValue ? r.TtlSeconds.Value.ToString() : "-"
+                    TTL = r.TtlSeconds.HasValue ? r.TtlSeconds.Value.ToString() : "-",
+                    CnameResolved = r.CnameResolved ? "Yes" : "No",
+                    CnameTtl = r.CnameTtlSeconds?.ToString() ?? "-"
                 }).ToList();
                 var range = column.TableFrom(rows, title: "Selectors", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
                 composer.ApplyColumnSizing(range, opt =>
                 {
-                    opt.ShortHeaders.UnionWith(new[] { "Status", "Weak", "Key Bits", "Alg", "TTL" });
+                    opt.ShortHeaders.UnionWith(new[] { "Status", "Weak", "Key Bits", "Alg", "TTL", "Cname Resolved", "Cname Ttl" });
                     opt.MediumHeaders.UnionWith(new[] { "Selector", "Flags" });
                 });
             }
@@ -476,6 +480,8 @@ public static partial class ExcelCompositionReport {
                 ("Record Present", d.DmarcRecordExists ? "Yes" : "No"),
                 ("Starts Correctly", d.StartsCorrectly ? "Yes" : "No"),
                 ("DNS TTL (s)", d.DnsRecordTtl?.ToString() ?? "-"),
+                ("CNAME Resolved", d.IsCnameResolved ? "Yes" : "No"),
+                ("CNAME TTL (s)", d.CnameTtl?.ToString() ?? "-"),
                 ("Policy (p)", d.Policy ?? "-"),
                 ("Subdomain Policy (sp)", d.SubPolicy ?? "-"),
                 ("Percent (pct)", d.Percent ?? "-"),
@@ -672,6 +678,8 @@ public static partial class ExcelCompositionReport {
                 details.Add(("Max-Age", m.MaxAge));
                 details.Add(("DNS Present", m.DnsRecordPresent ? "Yes" : "No"));
                 details.Add(("DNS TTL (s)", m.DnsRecordTtl?.ToString() ?? "-"));
+                details.Add(("CNAME Resolved", m.IsCnameResolved ? "Yes" : "No"));
+                details.Add(("CNAME TTL (s)", m.CnameTtl?.ToString() ?? "-"));
                 details.Add(("Policy Valid", m.PolicyValid ? "Yes" : "No"));
                 details.Add(("Has MX", m.HasMx ? "Yes" : "No"));
                 details.Add(("MX Aligned", m.MxAligned ? "Yes" : "No"));
@@ -683,6 +691,8 @@ public static partial class ExcelCompositionReport {
                 details.Add(("TLS-RPT", t.Status ?? "-"));
                 details.Add(("Record Exists", t.TlsRptRecordExists ? "Yes" : "No"));
                 details.Add(("DNS TTL (s)", t.DnsRecordTtl?.ToString() ?? "-"));
+                details.Add(("CNAME Resolved", t.IsCnameResolved ? "Yes" : "No"));
+                details.Add(("CNAME TTL (s)", t.CnameTtl?.ToString() ?? "-"));
                 details.Add(("Policy Valid", t.PolicyValid ? "Yes" : "No"));
                 details.Add(("mailto RUA", t.MailtoRua?.Count ?? 0));
                 details.Add(("http RUA", t.HttpRua?.Count ?? 0));
