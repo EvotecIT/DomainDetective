@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Tests;
 
+[Collection("PortScan")]
 public class TestPortScanProgressCounts {
     [Fact]
     public async Task ReportsEventsPerPort() {

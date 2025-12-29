@@ -75,6 +75,12 @@ public partial class BimiAnalysis : IHasAssessments {
         };
 
         /// <summary>Factory for creating custom HTTP handlers.</summary>
+        /// <remarks>
+        /// Use this only in controlled scenarios (for example, tests that trust
+        /// a local self-signed certificate). The default handler performs
+        /// platform TLS certificate validation and should remain unchanged for
+        /// production checks.
+        /// </remarks>
         internal Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
         /// <summary>Skip downloading the BIMI indicator image.</summary>
@@ -157,6 +163,9 @@ public partial class BimiAnalysis : IHasAssessments {
             }
         }
 
+        /// <summary>
+        /// Shared HTTP client that enforces default TLS certificate validation.
+        /// </summary>
         private static readonly HttpClient _client;
         private static readonly HttpClientHandler _handler;
 
@@ -164,11 +173,6 @@ public partial class BimiAnalysis : IHasAssessments {
         {
             NetFrameworkTls.EnsureEnabled();
             _handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-#if NET6_0_OR_GREATER
-            _handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-#elif NETFRAMEWORK
-            _handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
-#endif
             _client = new HttpClient(_handler, disposeHandler: false);
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
         }
@@ -396,11 +400,4 @@ public partial class BimiAnalysis : IHasAssessments {
             }
         }
 
-        private (HttpMessageHandler handler, bool dispose) GetHandler() {
-            if (HttpHandlerFactory != null) {
-                return (HttpHandlerFactory(), true);
-            }
-
-            return (_handler, false);
-        }
     }}

@@ -186,7 +186,12 @@ namespace DomainDetective {
                     if (certificate == null) {
                         return false;
                     }
-                    Certificate = new X509Certificate2(certificate.Export(X509ContentType.Cert));
+
+                    var leaf = chain != null && chain.ChainElements.Count > 0
+                        ? chain.ChainElements[0].Certificate
+                        : certificate;
+                    Certificate = new X509Certificate2(leaf.Export(X509ContentType.Cert));
+
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
@@ -199,6 +204,7 @@ namespace DomainDetective {
                     return IsValid;
                 };
                 using (var client = new HttpClient(handler)) {
+                    client.Timeout = Timeout;
                     try {
 #if NET6_0_OR_GREATER
                         var request = new HttpRequestMessage(HttpMethod.Get, url) {
@@ -259,6 +265,7 @@ namespace DomainDetective {
                             }
                         }
                         if (Certificate != null) {
+                            EnsureChainBuilt(Certificate);
                             PopulateKeyInfo();
                             if (CaptureTlsDetails) {
                                 await PopulateTlsInfo(new Uri(url), port, cancellationToken);
@@ -468,6 +475,36 @@ namespace DomainDetective {
             }
             PopulateSubjectAlternativeNames();
             await QueryCtLogs(cancellationToken);
+        }
+
+        private void EnsureChainBuilt(X509Certificate2 certificate) {
+            if (Chain.Count > 1) {
+                return;
+            }
+
+            if (TryBuildChain(certificate, SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online)) {
+                return;
+            }
+
+            if (!SkipRevocation) {
+                TryBuildChain(certificate, X509RevocationMode.NoCheck);
+            }
+        }
+
+        private bool TryBuildChain(X509Certificate2 certificate, X509RevocationMode revocationMode) {
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = revocationMode;
+            chain.ChainPolicy.UrlRetrievalTimeout = Timeout;
+            chain.Build(certificate);
+            if (chain.ChainElements.Count <= Chain.Count) {
+                return false;
+            }
+
+            Chain.Clear();
+            foreach (var element in chain.ChainElements) {
+                Chain.Add(new X509Certificate2(element.Certificate.RawData));
+            }
+            return true;
         }
 
         private void PopulateSubjectAlternativeNames() {
@@ -728,11 +765,12 @@ namespace DomainDetective {
 #else
                 var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
 #endif
-                await Task.WhenAny(delayTask, waitTask);
-                string output = string.Empty;
-                try { output = await readOut; } catch { }
-                string error = string.Empty;
-                try { error = await readErr; } catch { }
+                var completed = await Task.WhenAny(delayTask, waitTask);
+                if (completed != waitTask) {
+                    try { if (!proc.HasExited) { proc.Kill(); } } catch { }
+                }
+                string output = await ReadWithTimeout(readOut, TimeSpan.FromSeconds(1), cts.Token);
+                string error = await ReadWithTimeout(readErr, TimeSpan.FromSeconds(1), cts.Token);
                 var text = (output ?? string.Empty) + "\n" + (error ?? string.Empty);
                 if (string.IsNullOrWhiteSpace(text)) return;
                 bool present = text.IndexOf("OCSP Response Status:", StringComparison.OrdinalIgnoreCase) >= 0 ||
@@ -751,19 +789,32 @@ namespace DomainDetective {
             catch { }
         }
 
+        private static async Task<string> ReadWithTimeout(Task<string> readTask, TimeSpan timeout, CancellationToken token) {
+            try {
+                var completed = await Task.WhenAny(readTask, Task.Delay(timeout, token));
+                if (completed == readTask) {
+                    return await readTask;
+                }
+            } catch {
+            }
+            return string.Empty;
+        }
+
         private async Task ProbeProtocolSupport(Uri uri, int port, InternalLogger logger, CancellationToken token)
         {
             SupportsTls10 = false; SupportsTls11 = false; SupportsTls12 = false; SupportsTls13 = false;
             async Task<bool> TryHandshake(System.Security.Authentication.SslProtocols proto)
             {
                 try {
-                    using var tcp = await ConnectWithProxy(uri.Host, port, token);
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                    timeoutCts.CancelAfter(Timeout);
+                    using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
                     using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
 #if NET5_0_OR_GREATER
                     var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
-                    await ssl.AuthenticateAsClientAsync(options, token);
+                    await ssl.AuthenticateAsClientAsync(options, timeoutCts.Token);
 #else
-                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(token);
+                    await ssl.AuthenticateAsClientAsync(uri.Host, null, proto, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
 #endif
                     return ssl.SslProtocol == proto;
                 } catch { return false; }

@@ -284,11 +284,23 @@ public class PortScanAnalysis : IHasAssessments
                 // Allow banner/protocol detection to run up to the caller's Timeout budget
                 // to reduce flakiness on slower CI environments.
                 cts.CancelAfter(Timeout);
-                var result = await strategy(stream, cts.Token).ConfigureAwait(false);
+                var result = await strategy(stream, cts.Token)
+                    .WaitWithCancellation(cts.Token)
+                    .ConfigureAwait(false);
                 if (!string.IsNullOrEmpty(result))
                 {
                     return result;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                if (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+
+                // Timeout: stop further detection to avoid overlapping reads on NET472.
+                break;
             }
             catch
             {

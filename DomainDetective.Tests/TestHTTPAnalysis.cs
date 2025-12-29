@@ -208,6 +208,7 @@ namespace DomainDetective.Tests {
             }
         }
 
+#if NET6_0_OR_GREATER
         [Fact]
         public async Task LogsWarningWhenHttp3Downgraded() {
             Skip.If(!HttpListener.IsSupported, "HttpListener not supported");
@@ -235,6 +236,7 @@ namespace DomainDetective.Tests {
                 await serverTask;
             }
         }
+#endif
 
         [Fact]
         public async Task ThrowsWhenMaxRedirectsExceeded() {

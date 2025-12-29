@@ -59,9 +59,26 @@ public class TestDirectoryExposureAnalysis
         PortHelper.ReleasePort(port2);
         var serverTask = Task.Run(async () =>
         {
-            var ctx = await listener.GetContextAsync();
-            ctx.Response.StatusCode = 404;
-            ctx.Response.Close();
+            while (listener.IsListening)
+            {
+                HttpListenerContext? ctx = null;
+                try
+                {
+                    ctx = await listener.GetContextAsync();
+                }
+                catch
+                {
+                    break;
+                }
+
+                if (ctx == null)
+                {
+                    continue;
+                }
+
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+            }
         });
 
         try

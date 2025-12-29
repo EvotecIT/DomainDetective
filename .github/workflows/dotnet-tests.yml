@@ -32,11 +32,9 @@ jobs:
           - os: windows-latest
             framework: net8.0
             run_cli_tests: true
-            ensure_netfx: true
           - os: windows-latest
             framework: net472
             run_cli_tests: false
-            ensure_netfx: true
           - os: ubuntu-latest
             framework: net8.0
             run_cli_tests: true
@@ -53,24 +51,23 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Ensure .NET Framework 4.7.2 targeting pack
-        if: matrix.ensure_netfx == true
+      - name: Verify .NET Framework 4.7.2 targeting pack
+        if: matrix.framework == 'net472'
         shell: pwsh
         run: |
           $frameworkPath = "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2"
           if (-not (Test-Path $frameworkPath)) {
-            Write-Host "Installing .NET Framework 4.7.2 Developer Pack..."
-            choco install netfx-4.7.2-devpack -y
-          } else {
-            Write-Host ".NET Framework 4.7.2 targeting pack already available."
+            Write-Error ".NET Framework 4.7.2 targeting pack not found. Install the developer pack on the runner."
+            exit 1
           }
+          Write-Host ".NET Framework 4.7.2 targeting pack available."
 
       - name: Restore dependencies
         run: dotnet restore DomainDetective.sln
 
       - name: Build solution (net8.0)
         if: matrix.framework == 'net8.0'
-        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-restore
 
       - name: Build tests (net472)
         if: matrix.framework == 'net472'
