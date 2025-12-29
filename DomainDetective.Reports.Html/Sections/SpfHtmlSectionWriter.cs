@@ -19,6 +19,8 @@ public static class SpfHtmlSectionWriter
             new { Name = "Record Present", Value = spf.SpfRecordExists ? "Yes" : "No" },
             new { Name = "Starts Correctly", Value = spf.StartsCorrectly ? "Yes" : "No" },
             new { Name = "DNS TTL (s)", Value = spf.DnsRecordTtl?.ToString() ?? "-" },
+            new { Name = "CNAME Resolved", Value = spf.IsCnameResolved ? "Yes" : "No" },
+            new { Name = "CNAME TTL (s)", Value = spf.CnameTtl?.ToString() ?? "-" },
             new { Name = "DNS Lookups", Value = spf.DnsLookupsCount.ToString() },
             new { Name = "Multiple 'all'", Value = spf.MultipleAllMechanisms ? "Yes" : "No" },
         });

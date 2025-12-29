@@ -19,6 +19,8 @@ public static class DmarcHtmlSectionWriter
             new { Name = "Record Present", Value = dmarc.DmarcRecordExists ? "Yes" : "No" },
             new { Name = "Policy", Value = dmarc.Policy ?? string.Empty },
             new { Name = "DNS TTL (s)", Value = dmarc.DnsRecordTtl?.ToString() ?? "-" },
+            new { Name = "CNAME Resolved", Value = dmarc.IsCnameResolved ? "Yes" : "No" },
+            new { Name = "CNAME TTL (s)", Value = dmarc.CnameTtl?.ToString() ?? "-" },
             new { Name = "adkim/aspf", Value = $"{dmarc.DkimAlignment ?? "?"}/{dmarc.SpfAlignment ?? "?"}" },
             new { Name = "pct", Value = dmarc.Percent ?? string.Empty },
             new { Name = "rua", Value = (dmarc.MailtoRua?.Count ?? 0).ToString() },
