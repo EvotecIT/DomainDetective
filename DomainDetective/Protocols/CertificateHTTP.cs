@@ -193,7 +193,7 @@ namespace DomainDetective {
                             Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
-                    IsSelfSigned = Chain.Count == 1;
+                    IsSelfSigned = IsSelfSignedCertificate(Certificate);
                     IsValid = policyErrors == SslPolicyErrors.None;
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return IsValid;
@@ -252,7 +252,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
-                                    IsSelfSigned = Chain.Count == 1;
+                                    IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
                             } catch (Exception ex) {
                                 logger.WriteErrorCode(CertificateHttpCodes.FetchFailed, "Error retrieving certificate for {0}: {1}", url, ex.ToString());
@@ -458,7 +458,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
-            IsSelfSigned = Chain.Count == 1;
+            IsSelfSigned = IsSelfSignedCertificate(Certificate);
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
             DaysValid = (int)(certificate.NotAfter - certificate.NotBefore).TotalDays;
@@ -531,6 +531,20 @@ namespace DomainDetective {
                 }
             }
             SecuresUnrelatedHosts = baseDomains.Count > 1 && SubjectAlternativeNames.Count > 5;
+        }
+
+        private static bool IsSelfSignedCertificate(X509Certificate2? certificate) {
+            if (certificate == null) {
+                return false;
+            }
+
+            var subject = certificate.Subject;
+            var issuer = certificate.Issuer;
+            if (string.IsNullOrWhiteSpace(subject) || string.IsNullOrWhiteSpace(issuer)) {
+                return false;
+            }
+
+            return string.Equals(subject, issuer, StringComparison.OrdinalIgnoreCase);
         }
 
         private void PopulateKeyInfo() {

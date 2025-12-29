@@ -134,7 +134,8 @@ namespace DomainDetective {
                             }
                         }
                         if (config.DomainBlockLists != null)
-                            _defaultDomainBlockLists.AddRange(config.DomainBlockLists);
+                            _defaultDomainBlockLists.AddRange(config.DomainBlockLists
+                                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Domain)));
                         if (config.IpBlockLists != null)
                             _defaultIpBlockLists.AddRange(config.IpBlockLists);
                     }
@@ -165,7 +166,9 @@ namespace DomainDetective {
                     entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(e.ReplyCodes, StringComparer.OrdinalIgnoreCase);
                 return entry;
             }));
-            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
+            _domainBlockLists.AddRange(_defaultDomainBlockLists
+                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Domain))
+                .Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
             foreach (var entry in _defaultIpBlockLists) {
                 BlockLists.Entries.Add(new BlockListEntry {
                     Name = entry.Name,
@@ -756,7 +759,8 @@ namespace DomainDetective {
 
             if (config.DomainBlockLists != null) {
                 lock (_domainListLock) {
-                    foreach (var entry in config.DomainBlockLists) {
+                    foreach (var entry in config.DomainBlockLists
+                        .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Domain))) {
                         var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
                         if (existing == null) {
                             _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));

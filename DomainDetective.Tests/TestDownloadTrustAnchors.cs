@@ -5,6 +5,7 @@ using DomainDetective;
 using Xunit;
 
 namespace DomainDetective.Tests {
+    [Collection("DnssecCache")]
     public class TestDownloadTrustAnchors {
         [Fact]
         public async Task FetchesAnchors() {
