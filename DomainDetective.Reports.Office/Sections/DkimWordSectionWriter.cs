@@ -43,15 +43,17 @@ public static class DkimWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("DKIM selectors discovered and their key properties.");
-        var table = doc.AddTable(dkim.Count + 1, 8, WordTableStyle.TableGrid);
+        var table = doc.AddTable(dkim.Count + 1, 10, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Record";
         table.Rows[0].Cells[2].Paragraphs[0].Text = "Key Bits";
         table.Rows[0].Cells[3].Paragraphs[0].Text = "Alg";
         table.Rows[0].Cells[4].Paragraphs[0].Text = "TTL (s)";
-        table.Rows[0].Cells[5].Paragraphs[0].Text = "Key Age";
-        table.Rows[0].Cells[6].Paragraphs[0].Text = "Public Key";
-        table.Rows[0].Cells[7].Paragraphs[0].Text = "Status";
+        table.Rows[0].Cells[5].Paragraphs[0].Text = "CNAME Resolved";
+        table.Rows[0].Cells[6].Paragraphs[0].Text = "CNAME TTL (s)";
+        table.Rows[0].Cells[7].Paragraphs[0].Text = "Key Age";
+        table.Rows[0].Cells[8].Paragraphs[0].Text = "Public Key";
+        table.Rows[0].Cells[9].Paragraphs[0].Text = "Status";
         for (int i = 0; i < dkim.Count; i++)
         {
             var r = dkim[i];
@@ -60,9 +62,11 @@ public static class DkimWordSectionWriter
             table.Rows[i + 1].Cells[2].Paragraphs[0].Text = r.PublicKeyExists ? r.KeyLength.ToString() : "-";
             table.Rows[i + 1].Cells[3].Paragraphs[0].Text = r.HashAlgorithm ?? string.Empty;
             table.Rows[i + 1].Cells[4].Paragraphs[0].Text = r.DnsRecordTtl?.ToString() ?? "-";
-            table.Rows[i + 1].Cells[5].Paragraphs[0].Text = r.KeyAgeDays > 0 ? r.KeyAgeDays.ToString() : "-";
-            table.Rows[i + 1].Cells[6].Paragraphs[0].Text = r.PublicKeyExists ? "Yes" : "No";
-            table.Rows[i + 1].Cells[7].Paragraphs[0].Text = r.Status ?? string.Empty;
+            table.Rows[i + 1].Cells[5].Paragraphs[0].Text = r.IsCnameResolved ? "Yes" : "No";
+            table.Rows[i + 1].Cells[6].Paragraphs[0].Text = r.CnameTtl?.ToString() ?? "-";
+            table.Rows[i + 1].Cells[7].Paragraphs[0].Text = r.KeyAgeDays > 0 ? r.KeyAgeDays.ToString() : "-";
+            table.Rows[i + 1].Cells[8].Paragraphs[0].Text = r.PublicKeyExists ? "Yes" : "No";
+            table.Rows[i + 1].Cells[9].Paragraphs[0].Text = r.Status ?? string.Empty;
         }
 
         if (scope == ReportScope.Minimal) return;
@@ -197,12 +201,14 @@ public static class DkimWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         // Include TTL for selectors when available (parity with Markdown/HTML/Excel)
-        var table = doc.AddTable(Math.Max(sec.Rows.Count, 0) + 1, 5, WordTableStyle.TableGrid);
+        var table = doc.AddTable(Math.Max(sec.Rows.Count, 0) + 1, 7, WordTableStyle.TableGrid);
         table.Rows[0].Cells[0].Paragraphs[0].Text = "Selector";
         table.Rows[0].Cells[1].Paragraphs[0].Text = "Key Bits";
         table.Rows[0].Cells[2].Paragraphs[0].Text = "Alg";
         table.Rows[0].Cells[3].Paragraphs[0].Text = "TTL (s)";
-        table.Rows[0].Cells[4].Paragraphs[0].Text = "Status";
+        table.Rows[0].Cells[4].Paragraphs[0].Text = "CNAME Resolved";
+        table.Rows[0].Cells[5].Paragraphs[0].Text = "CNAME TTL (s)";
+        table.Rows[0].Cells[6].Paragraphs[0].Text = "Status";
         for (int i = 0; i < sec.Rows.Count; i++)
         {
             var r = sec.Rows[i];
@@ -210,7 +216,9 @@ public static class DkimWordSectionWriter
             table.Rows[i + 1].Cells[1].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.KeyBits) ? "-" : r.KeyBits;
             table.Rows[i + 1].Cells[2].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Hash) ? "-" : r.Hash;
             table.Rows[i + 1].Cells[3].Paragraphs[0].Text = r.TtlSeconds.HasValue ? r.TtlSeconds.Value.ToString() : "-";
-            table.Rows[i + 1].Cells[4].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
+            table.Rows[i + 1].Cells[4].Paragraphs[0].Text = r.CnameResolved ? "Yes" : "No";
+            table.Rows[i + 1].Cells[5].Paragraphs[0].Text = r.CnameTtlSeconds?.ToString() ?? "-";
+            table.Rows[i + 1].Cells[6].Paragraphs[0].Text = string.IsNullOrWhiteSpace(r.Status) ? "-" : r.Status;
         }
 
         if (sec.Positives.Count > 0)
