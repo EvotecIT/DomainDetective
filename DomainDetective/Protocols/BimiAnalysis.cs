@@ -75,6 +75,12 @@ public partial class BimiAnalysis : IHasAssessments {
         };
 
         /// <summary>Factory for creating custom HTTP handlers.</summary>
+        /// <remarks>
+        /// Use this only in controlled scenarios (for example, tests that trust
+        /// a local self-signed certificate). The default handler performs
+        /// platform TLS certificate validation and should remain unchanged for
+        /// production checks.
+        /// </remarks>
         internal Func<HttpMessageHandler>? HttpHandlerFactory { get; set; }
 
         /// <summary>Skip downloading the BIMI indicator image.</summary>
@@ -157,15 +163,16 @@ public partial class BimiAnalysis : IHasAssessments {
             }
         }
 
+        /// <summary>
+        /// Shared HTTP client that enforces default TLS certificate validation.
+        /// </summary>
         private static readonly HttpClient _client;
         private static readonly HttpClientHandler _handler;
 
         static BimiAnalysis()
         {
+            NetFrameworkTls.EnsureEnabled();
             _handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10 };
-#if NET6_0_OR_GREATER
-            _handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-#endif
             _client = new HttpClient(_handler, disposeHandler: false);
             _client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0");
         }
@@ -257,6 +264,11 @@ public partial class BimiAnalysis : IHasAssessments {
                 }
 #endif
                 var trusted = trustedChain.Build(cert);
+#if NETFRAMEWORK
+                if (TrustedRoots.Count > 0) {
+                    trusted = IsTrustedByRoots(cert, TrustedRoots);
+                }
+#endif
 
                 var hasLogo = CertificateHasLogo(cert);
 
@@ -347,6 +359,28 @@ public partial class BimiAnalysis : IHasAssessments {
             return false;
         }
 
+#if NETFRAMEWORK
+        private static bool IsTrustedByRoots(X509Certificate2 cert, ICollection<X509Certificate2> roots) {
+            if (roots == null || roots.Count == 0) {
+                return false;
+            }
+
+            using var chain = new X509Chain();
+            chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+            chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+            foreach (var root in roots) {
+                chain.ChainPolicy.ExtraStore.Add(root);
+            }
+
+            if (!chain.Build(cert) || chain.ChainElements.Count == 0) {
+                return false;
+            }
+
+            var rootCert = chain.ChainElements[chain.ChainElements.Count - 1].Certificate;
+            return roots.Any(r => string.Equals(r.Thumbprint, rootCert.Thumbprint, StringComparison.OrdinalIgnoreCase));
+        }
+#endif
+
         private static byte[] DecodePem(string pem) {
             const string header = "-----BEGIN CERTIFICATE-----";
             const string footer = "-----END CERTIFICATE-----";
@@ -366,11 +400,4 @@ public partial class BimiAnalysis : IHasAssessments {
             }
         }
 
-        private (HttpMessageHandler handler, bool dispose) GetHandler() {
-            if (HttpHandlerFactory != null) {
-                return (HttpHandlerFactory(), true);
-            }
-
-            return (_handler, false);
-        }
     }}

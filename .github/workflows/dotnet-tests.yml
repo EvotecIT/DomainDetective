@@ -12,246 +12,126 @@ on:
   pull_request:
     branches:
       - '**'
-  workflow_dispatch:  # 👈 enables manual triggering
+  workflow_dispatch:
 
 env:
-    DOTNET_VERSION: '8.x'
-    BUILD_CONFIGURATION: 'Release'
-    TEST_VERBOSITY: minimal # set to 'detailed' to restore full test output
-    SUMMARIZE_FAILURES: true # set to 'false' to disable summarizing failing tests
+  DOTNET_VERSION: '8.x'
+  BUILD_CONFIGURATION: 'Release'
+  TEST_VERBOSITY: minimal
+  SUMMARIZE_FAILURES: true
 
 jobs:
-    test-windows:
-        name: 'Windows'
-        runs-on: windows-latest
-        timeout-minutes: 20
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  test:
+    name: ${{ matrix.os }} / ${{ matrix.framework }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            framework: net8.0
+            run_cli_tests: true
+          - os: windows-latest
+            framework: net472
+            run_cli_tests: false
+          - os: ubuntu-latest
+            framework: net8.0
+            run_cli_tests: true
+          - os: macos-latest
+            framework: net8.0
+            run_cli_tests: true
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+      - name: Verify .NET Framework 4.7.2 targeting pack
+        if: matrix.framework == 'net472'
+        shell: pwsh
+        run: |
+          $frameworkPath = "C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.7.2"
+          if (-not (Test-Path $frameworkPath)) {
+            Write-Error ".NET Framework 4.7.2 targeting pack not found. Install the developer pack on the runner."
+            exit 1
+          }
+          Write-Host ".NET Framework 4.7.2 targeting pack available."
 
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
+      - name: Restore dependencies
+        run: dotnet restore DomainDetective.sln
 
-            - name: Summarize failing tests
-              if: failure() && env.SUMMARIZE_FAILURES == 'true'
-              shell: pwsh
-              run: |
-                  $trxFiles = Get-ChildItem -Recurse -Filter *.trx
-                  if ($trxFiles.Count -eq 0) {
-                    Write-Host "No TRX files found for failure analysis"
-                    exit 0
-                  }
+      - name: Build solution (net8.0)
+        if: matrix.framework == 'net8.0'
+        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-restore
 
-                  Write-Host "=== Failed Tests Summary ==="
-                  $failureCount = 0
+      - name: Build tests (net472)
+        if: matrix.framework == 'net472'
+        run: dotnet build DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-restore
 
-                  $trxFiles | ForEach-Object {
-                    try {
-                      Select-Xml -Path $_.FullName -XPath "//UnitTestResult[@outcome='Failed']" |
-                        ForEach-Object {
-                          $name = $_.Node.testName
-                          $msg = $_.Node.Output.ErrorInfo.Message ?? "No error message available"
-                          Write-Host "❌ $name"
-                          Write-Host "   $msg"
-                          $failureCount++
-                        }
-                    } catch {
-                      Write-Host "Warning: Could not parse TRX file $($_.Name): $($_.Exception.Message)"
-                    }
-                  }
+      - name: Run tests (DomainDetective.Tests)
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
-                  if ($failureCount -eq 0) {
-                    Write-Host "No failed tests found in TRX files"
-                  } else {
-                    Write-Host "=== Total failed tests: $failureCount ==="
-                  }
+      - name: Run tests (DomainDetective.CLI.Tests)
+        if: matrix.run_cli_tests == true
+        run: dotnet test DomainDetective.CLI.Tests/DomainDetective.CLI.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-windows
-                  path: '**/*.trx'
+      - name: Summarize failing tests
+        if: failure() && env.SUMMARIZE_FAILURES == 'true'
+        shell: pwsh
+        run: |
+          $trxFiles = Get-ChildItem -Recurse -Filter *.trx
+          if ($trxFiles.Count -eq 0) {
+            Write-Host "No TRX files found for failure analysis"
+            exit 0
+          }
 
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-windows
-                  path: '**/coverage.cobertura.xml'
+          Write-Host "=== Failed Tests Summary ==="
+          $failureCount = 0
 
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              if: always()
-              continue-on-error: true
-              with:
-                  files: '**/coverage.cobertura.xml'
-                  fail_ci_if_error: false
+          $trxFiles | ForEach-Object {
+            try {
+              Select-Xml -Path $_.FullName -XPath "//UnitTestResult[@outcome='Failed']" |
+                ForEach-Object {
+                  $name = $_.Node.testName
+                  $msg = $_.Node.Output.ErrorInfo.Message ?? "No error message available"
+                  Write-Host "❌ $name"
+                  Write-Host "   $msg"
+                  $failureCount++
+                }
+            } catch {
+              Write-Host "Warning: Could not parse TRX file $($_.Name): $($_.Exception.Message)"
+            }
+          }
 
-    test-ubuntu:
-        name: 'Ubuntu'
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+          if ($failureCount -eq 0) {
+            Write-Host "No failed tests found in TRX files"
+          } else {
+            Write-Host "=== Total failed tests: $failureCount ==="
+          }
 
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.framework }}
+          path: '**/*.trx'
 
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports-${{ matrix.os }}-${{ matrix.framework }}
+          path: '**/coverage.cobertura.xml'
 
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
-
-            - name: Summarize failing tests
-              if: failure() && env.SUMMARIZE_FAILURES == 'true'
-              shell: pwsh
-              run: |
-                  $trxFiles = Get-ChildItem -Recurse -Filter *.trx
-                  if ($trxFiles.Count -eq 0) {
-                    Write-Host "No TRX files found for failure analysis"
-                    exit 0
-                  }
-
-                  Write-Host "=== Failed Tests Summary ==="
-                  $failureCount = 0
-
-                  $trxFiles | ForEach-Object {
-                    try {
-                      Select-Xml -Path $_.FullName -XPath "//UnitTestResult[@outcome='Failed']" |
-                        ForEach-Object {
-                          $name = $_.Node.testName
-                          $msg = $_.Node.Output.ErrorInfo.Message ?? "No error message available"
-                          Write-Host "❌ $name"
-                          Write-Host "   $msg"
-                          $failureCount++
-                        }
-                    } catch {
-                      Write-Host "Warning: Could not parse TRX file $($_.Name): $($_.Exception.Message)"
-                    }
-                  }
-
-                  if ($failureCount -eq 0) {
-                    Write-Host "No failed tests found in TRX files"
-                  } else {
-                    Write-Host "=== Total failed tests: $failureCount ==="
-                  }
-
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-ubuntu
-                  path: '**/*.trx'
-
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-ubuntu
-                  path: '**/coverage.cobertura.xml'
-
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              if: always()
-              continue-on-error: true
-              with:
-                  files: '**/coverage.cobertura.xml'
-                  fail_ci_if_error: false
-
-    test-macos:
-        if: false # Temporarily disabled
-        name: 'macOS'
-        runs-on: macos-latest
-        timeout-minutes: 20
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-
-            - name: Setup .NET
-              uses: actions/setup-dotnet@v4
-              with:
-                  dotnet-version: ${{ env.DOTNET_VERSION }}
-
-            - name: Restore dependencies
-              run: dotnet restore DomainDetective.sln
-
-            - name: Build solution
-              run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
-            - name: Run tests
-              run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net8.0 --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
-
-            - name: Summarize failing tests
-              if: failure() && env.SUMMARIZE_FAILURES == 'true'
-              shell: pwsh
-              run: |
-                  $trxFiles = Get-ChildItem -Recurse -Filter *.trx
-                  if ($trxFiles.Count -eq 0) {
-                    Write-Host "No TRX files found for failure analysis"
-                    exit 0
-                  }
-
-                  Write-Host "=== Failed Tests Summary ==="
-                  $failureCount = 0
-
-                  $trxFiles | ForEach-Object {
-                    try {
-                      Select-Xml -Path $_.FullName -XPath "//UnitTestResult[@outcome='Failed']" |
-                        ForEach-Object {
-                          $name = $_.Node.testName
-                          $msg = $_.Node.Output.ErrorInfo.Message ?? "No error message available"
-                          Write-Host "❌ $name"
-                          Write-Host "   $msg"
-                          $failureCount++
-                        }
-                    } catch {
-                      Write-Host "Warning: Could not parse TRX file $($_.Name): $($_.Exception.Message)"
-                    }
-                  }
-
-                  if ($failureCount -eq 0) {
-                    Write-Host "No failed tests found in TRX files"
-                  } else {
-                    Write-Host "=== Total failed tests: $failureCount ==="
-                  }
-
-            - name: Upload test results
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: test-results-macos
-                  path: '**/*.trx'
-
-            - name: Upload coverage reports
-              uses: actions/upload-artifact@v4
-              if: always()
-              with:
-                  name: coverage-reports-macos
-                  path: '**/coverage.cobertura.xml'
-
-            - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
-              if: always()
-              continue-on-error: true
-              with:
-                  files: '**/coverage.cobertura.xml'
-                  fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        if: always()
+        continue-on-error: true
+        with:
+          files: '**/coverage.cobertura.xml'
+          fail_ci_if_error: false

@@ -18,7 +18,7 @@ namespace DomainDetective {
             get {
                 lock (_domainListLock) {
                     return _domainBlockLists
-                        .Where(e => e.Enabled)
+                        .Where(e => e != null && e.Enabled && !string.IsNullOrWhiteSpace(e.Domain))
                         .Select(e => e.Domain)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToList();

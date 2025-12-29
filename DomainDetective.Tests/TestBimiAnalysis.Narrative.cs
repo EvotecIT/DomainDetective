@@ -21,7 +21,7 @@ namespace DomainDetective.Tests {
             try {
                 var record = $"v=BIMI1; l={prefix}logo.svg; a={prefix}vmc.cer";
                 var answers = new List<DnsAnswer> { new() { DataRaw = record, Type = DnsRecordType.TXT } };
-                var analysis = new BimiAnalysis();
+                var analysis = CreateBimiAnalysisIgnoreSsl();
                 analysis.TrustedRoots.Add(root);
                 await analysis.AnalyzeBimiRecords(answers, new InternalLogger());
 

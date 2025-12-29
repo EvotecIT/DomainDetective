@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Threading.Tasks;
 using Xunit.Sdk;
 
@@ -17,12 +18,31 @@ public class TestDirectoryExposureAnalysis
         listener.Prefixes.Add(prefix);
         listener.Start();
         PortHelper.ReleasePort(port);
+        var expectedRequests = GetExpectedRequestCount();
+        var requestCount = 0;
         var serverTask = Task.Run(async () =>
         {
-            while (listener.IsListening)
+            // DirectoryExposureAnalysis probes multiple paths, so serve all requests
+            // until the expected count is reached or the listener is stopped.
+            while (listener.IsListening && requestCount < expectedRequests)
             {
-                var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url?.AbsolutePath.StartsWith("/.git") == true)
+                HttpListenerContext? ctx = null;
+                try
+                {
+                    ctx = await listener.GetContextAsync();
+                }
+                catch
+                {
+                    break;
+                }
+
+                if (ctx == null)
+                {
+                    continue;
+                }
+
+                requestCount++;
+                if (ctx.Request.Url?.AbsolutePath.StartsWith("/.git") == true)  
                 {
                     ctx.Response.StatusCode = 200;
                 }
@@ -57,11 +77,33 @@ public class TestDirectoryExposureAnalysis
         listener.Prefixes.Add(prefix);
         listener.Start();
         PortHelper.ReleasePort(port2);
+        var expectedRequests = GetExpectedRequestCount();
+        var requestCount = 0;
         var serverTask = Task.Run(async () =>
         {
-            var ctx = await listener.GetContextAsync();
-            ctx.Response.StatusCode = 404;
-            ctx.Response.Close();
+            // DirectoryExposureAnalysis probes multiple paths, so serve all requests
+            // until the listener is stopped in the teardown.
+            while (listener.IsListening && requestCount < expectedRequests)
+            {
+                HttpListenerContext? ctx = null;
+                try
+                {
+                    ctx = await listener.GetContextAsync();
+                }
+                catch
+                {
+                    break;
+                }
+
+                if (ctx == null)
+                {
+                    continue;
+                }
+
+                requestCount++;
+                ctx.Response.StatusCode = 404;
+                ctx.Response.Close();
+            }
         });
 
         try
@@ -78,4 +120,23 @@ public class TestDirectoryExposureAnalysis
     }
 
     private static int GetFreePort() => PortHelper.GetFreePort();
+
+    private static int GetExpectedRequestCount()
+    {
+        try
+        {
+            var field = typeof(DirectoryExposureAnalysis).GetField("_defaultPaths", BindingFlags.NonPublic | BindingFlags.Static);
+            var paths = field?.GetValue(null) as string[];
+            if (paths != null && paths.Length > 0)
+            {
+                return paths.Length;
+            }
+        }
+        catch
+        {
+            // Fallback below.
+        }
+
+        return 20;
+    }
 }

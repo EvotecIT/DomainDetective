@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Xunit;
 
 namespace DomainDetective.Tests {
+    [Collection("DnssecCache")]
     public class TestDnssecAnchorExpiry {
         [Fact]
         public async Task DetectsAnchorExpiry() {

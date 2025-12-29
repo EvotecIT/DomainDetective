@@ -133,10 +133,22 @@ namespace DomainDetective {
                                 }
                             }
                         }
-                        if (config.DomainBlockLists != null)
-                            _defaultDomainBlockLists.AddRange(config.DomainBlockLists);
-                        if (config.IpBlockLists != null)
+                        if (config.DomainBlockLists != null) {
+                            var domainBlockLists = config.DomainBlockLists
+                                .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Domain))
+                                .Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port))
+                                .ToList();
+                            if (domainBlockLists.Count > 0) {
+                                _defaultDomainBlockLists.AddRange(domainBlockLists);
+                                lock (_domainListLock) {
+                                    _domainBlockLists.AddRange(domainBlockLists.Select(e =>
+                                        new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
+                                }
+                            }
+                        }
+                        if (config.IpBlockLists != null) {
                             _defaultIpBlockLists.AddRange(config.IpBlockLists);
+                        }
                     }
                 }
             } catch (Exception ex) {
@@ -161,11 +173,11 @@ namespace DomainDetective {
             DnsConfiguration = dnsConfiguration ?? new DnsConfiguration();
             DnsblEntries.AddRange(_defaultEntries.Select(e => {
                 var entry = new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port);
-                if (e.ReplyCodes?.Count > 0)
+                if (e.ReplyCodes?.Count > 0) {
                     entry.ReplyCodes = new Dictionary<string, DnsblReplyCode>(e.ReplyCodes, StringComparer.OrdinalIgnoreCase);
+                }
                 return entry;
             }));
-            _domainBlockLists.AddRange(_defaultDomainBlockLists.Select(e => new DnsblEntry(e.Domain, e.Enabled, e.Comment, e.Port)));
             foreach (var entry in _defaultIpBlockLists) {
                 BlockLists.Entries.Add(new BlockListEntry {
                     Name = entry.Name,
@@ -561,6 +573,10 @@ namespace DomainDetective {
                         var blacklist = record.Name.Length > name.Length + 1
                             ? record.Name.Substring(name.Length + 1)
                             : string.Empty;
+                        var answer = record.Data;
+                        if (string.IsNullOrWhiteSpace(answer)) {
+                            answer = record.DataRaw;
+                        }
                         var dnsblRecord = new DNSBLRecord {
                             Query = name,
                             IpAddress = isIp ? ipAddressOrHostname : null,
@@ -570,7 +586,7 @@ namespace DomainDetective {
                             FQDN = record.Name,
                             BlackList = blacklist,
                             IsBlackListed = true,
-                            Answer = record.Data,
+                            Answer = answer ?? string.Empty,
                         };
 
                         var info = GetReplyCodeMeaning(dnsblRecord.BlackList, dnsblRecord.Answer);
@@ -756,7 +772,8 @@ namespace DomainDetective {
 
             if (config.DomainBlockLists != null) {
                 lock (_domainListLock) {
-                    foreach (var entry in config.DomainBlockLists) {
+                    foreach (var entry in config.DomainBlockLists
+                        .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Domain))) {
                         var existing = _domainBlockLists.FirstOrDefault(e => StringComparer.OrdinalIgnoreCase.Equals(e.Domain, entry.Domain));
                         if (existing == null) {
                             _domainBlockLists.Add(new DnsblEntry(entry.Domain, entry.Enabled, entry.Comment, entry.Port));

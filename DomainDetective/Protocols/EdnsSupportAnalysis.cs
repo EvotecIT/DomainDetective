@@ -245,18 +245,24 @@ public class EdnsSupportAnalysis : IHasAssessments
             var a = await QueryDns(host, DnsRecordType.A);
             foreach (var addr in a)
             {
+                var serverAddress = addr.Data ?? addr.DataRaw;
+                if (string.IsNullOrWhiteSpace(serverAddress))
+                {
+                    continue;
+                }
+
                 EdnsSupportInfo support;
                 if (QueryServerOverride != null)
                 {
-                    support = await QueryServerOverride(addr.Data);
+                    support = await QueryServerOverride(serverAddress);
                 }
                 else
                 {
-                    support = await QueryServerAsync(addr.Data);
+                    support = await QueryServerAsync(serverAddress);
                 }
 
-                ServerSupport[$"{host} ({addr.Data})"] = support;
-                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, addr.Data, support.Supported);
+                ServerSupport[$"{host} ({serverAddress})"] = support;
+                logger?.WriteVerbose("EDNS support for {0} ({1}): {2}", host, serverAddress, support.Supported);
                 if (!support.Supported)
                 {
                     logger?.WriteWarningCode(EdnsCodes.NotSupported, "EDNS not supported on {0} ({1})", host, addr.Data);

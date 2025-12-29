@@ -295,7 +295,8 @@ public static partial class HtmlCompositionReport {
             return null;
         }
 
-        if (c.Contains("DomainDetective", StringComparison.OrdinalIgnoreCase) || c.Contains("Assessment", StringComparison.OrdinalIgnoreCase))
+        if (c.IndexOf("DomainDetective", StringComparison.OrdinalIgnoreCase) >= 0
+            || c.IndexOf("Assessment", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return null;
         }

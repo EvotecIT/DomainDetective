@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace DomainDetective.Tests;
 
+[Collection("PortScan")]
 public class TestPortScanProgressOutput
 {
     [Fact]

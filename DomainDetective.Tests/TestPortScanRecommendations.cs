@@ -7,6 +7,7 @@ using Xunit;
 
 namespace DomainDetective.Tests
 {
+    [Collection("PortScan")]
     public class TestPortScanRecommendations
     {
         [Fact]
