@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Xunit;
 
 namespace DomainDetective.Tests {
+    [Collection("DnssecCache")]
     public class TestDnssecCacheCleanup {
         [Fact]
         public async Task DeletesCacheFileOnCancel() {

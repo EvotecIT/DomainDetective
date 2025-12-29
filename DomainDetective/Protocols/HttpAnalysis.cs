@@ -189,7 +189,7 @@ namespace DomainDetective {
             var manualRedirect = RequestVersion >= HttpVersion.Version30;
             using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
 #else
-            using var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = MaxRedirects };
+            using var handler = new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects };
 #endif
             using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
@@ -262,15 +262,36 @@ namespace DomainDetective {
                 }
                 HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
 #else
-                VisitedUrls.Add(url);
-                HttpResponseMessage response = await client.GetAsync(url, cancellationToken);
-                if (response.RequestMessage?.RequestUri != null && !string.Equals(response.RequestMessage.RequestUri.AbsoluteUri, url, StringComparison.OrdinalIgnoreCase)) {
-                    VisitedUrls.Add(response.RequestMessage.RequestUri.AbsoluteUri);
+                var currentUri = new Uri(url);
+                HttpResponseMessage? response = null;
+                var redirects = 0;
+                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (true) {
+                    if (!visited.Add(currentUri.AbsoluteUri)) {
+                        throw new InvalidOperationException("Redirect loop detected.");
+                    }
+                    VisitedUrls.Add(currentUri.AbsoluteUri);
+                    response?.Dispose();
+                    response = await client.GetAsync(currentUri, cancellationToken);
+                    if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
+                        redirects++;
+                        if (redirects > MaxRedirects) {
+                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
+                        }
+                        currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
+                        continue;
+                    }
+                    currentUri = response.RequestMessage?.RequestUri ?? currentUri;
+                    break;
                 }
+                if (!visited.Contains(currentUri.AbsoluteUri)) {
+                    VisitedUrls.Add(currentUri.AbsoluteUri);
+                }
+                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
 #endif
-#if !NET6_0_OR_GREATER
-                HstsPreloaded = _hstsPreload.Contains(new Uri(url).Host);
-#endif
+                if (response == null) {
+                    throw new InvalidOperationException("HTTP request did not produce a response.");
+                }
                 if (VisitedUrls.Count > 1) {
                     var first = VisitedUrls.First();
                     var last = VisitedUrls.Last();

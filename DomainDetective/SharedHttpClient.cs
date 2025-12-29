@@ -18,6 +18,7 @@ public sealed class SharedHttpClient : IHttpClientFactory
 
     static SharedHttpClient()
     {
+        NetFrameworkTls.EnsureEnabled();
         Instance = new HttpClient();
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Instance.Dispose();
     }

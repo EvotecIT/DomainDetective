@@ -10,7 +10,7 @@ public class TestCliCancellation
     public async Task RunChecks_HandlesUserCancellation()
     {
         using var cts = new CancellationTokenSource(100);
-        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
             await CommandUtilities.RunChecks(
                 ["example.com"],
                 null,

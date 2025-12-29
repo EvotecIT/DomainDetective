@@ -1,12 +1,12 @@
 using DomainDetective;
 using DnsClientX;
-using Xunit.Sdk;
+using System.IO;
+using Xunit;
 
 namespace DomainDetective.Tests {
     public class TestDomainBlocklist {
         private static DNSBLAnalysis CreateAnalysis(Dictionary<string, DnsAnswer[]> map) {
-            return new DNSBLAnalysis {
-                DnsConfiguration = new DnsConfiguration(),
+            var analysis = new DNSBLAnalysis(new DnsConfiguration()) {
                 QueryDnsFullOverride = (names, _) => {
                     var list = new List<DnsResponse>();
                     foreach (var n in names) {
@@ -17,6 +17,19 @@ namespace DomainDetective.Tests {
                     return Task.FromResult<IEnumerable<DnsResponse>>(list);
                 }
             };
+            EnsureDomainBlockLists(analysis);
+            return analysis;
+        }
+
+        private static void EnsureDomainBlockLists(DNSBLAnalysis analysis) {
+            var json = "{\"domainBlockLists\":[{\"domain\":\"multi.uribl.com\",\"enabled\":true},{\"domain\":\"dbl.spamhaus.org\",\"enabled\":true}]}";
+            var tempFile = Path.GetTempFileName();
+            try {
+                File.WriteAllText(tempFile, json);
+                analysis.LoadDnsblConfig(tempFile);
+            } finally {
+                File.Delete(tempFile);
+            }
         }
 
         [Fact]
@@ -44,7 +57,7 @@ namespace DomainDetective.Tests {
 
             await analysis.IsDomainListedAsync("dbltest.com", new InternalLogger());
             var resultSpamhaus = analysis.Results["dbltest.com"];
-            Skip.If(!resultSpamhaus.ListedBlacklist.Contains("dbl.spamhaus.org"), "Spamhaus DNSBL not reachable");
+            Assert.Contains("dbl.spamhaus.org", resultSpamhaus.ListedBlacklist);
             Assert.True(resultSpamhaus.IsBlacklisted);
 
             await analysis.IsDomainListedAsync("test.uribl.com", new InternalLogger());

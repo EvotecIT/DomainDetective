@@ -59,9 +59,13 @@ namespace DomainDetective.Tests {
         [Fact]
         public async Task VerifyPlainHttpUsesExplicitPort() {
             var healthCheck = new DomainHealthCheck();
-            healthCheck.HttpAnalysis.Timeout = TimeSpan.FromMilliseconds(500);
+            healthCheck.HttpAnalysis.Timeout = TimeSpan.FromMilliseconds(500);  
             await healthCheck.VerifyPlainHttp("example.com:8080");
-            Assert.Equal("http://example.com:8080/", healthCheck.HttpAnalysis.VisitedUrls[0]);
+            var visited = Assert.Single(healthCheck.HttpAnalysis.VisitedUrls);
+            var visitedUri = new Uri(visited, UriKind.Absolute);
+            Assert.Equal("http", visitedUri.Scheme);
+            Assert.Equal("example.com", visitedUri.Host);
+            Assert.Equal(8080, visitedUri.Port);
         }
 
         private static int GetFreePort() {
