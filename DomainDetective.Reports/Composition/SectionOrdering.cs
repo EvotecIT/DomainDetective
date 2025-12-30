@@ -13,6 +13,7 @@ public static class SectionOrdering
     private static readonly string[] Canonical = new[]
     {
         "MX",
+        "Mail Transport Posture",
         "SPF",
         "DKIM",
         "DMARC",
@@ -81,6 +82,8 @@ public static class SectionOrdering
             "DMARCAGG" => "DMARC Aggregate",
             "TLSRPT" => "TLS-RPT",
             "TLSRPTREPORTS" => "TLS-RPT Reports",
+            "MAILTRANSPORTPOSTURE" => "Mail Transport Posture",
+            "MAILTRANSPORT" => "Mail Transport Posture",
             "REGISTRATION" => "Registration",
             "WHOIS" => "Registration",
             "RDAP" => "Registration",

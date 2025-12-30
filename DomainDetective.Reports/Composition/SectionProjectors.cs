@@ -150,6 +150,18 @@ public static class SectionProjectors
         public List<string> References { get; } = new();
     }
 
+    // Mail Transport Posture (rollup: MX + MailTLS + MTA-STS + TLS-RPT + DANE)
+    public sealed class MailTransportPostureSection
+    {
+        public string Status { get; set; } = "-";
+        public int WarningCount { get; set; }
+        public int ErrorCount { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
     // Other
     public sealed class RpkiSection { public string Status { get; set; } = "-"; public List<(string Key, string Value)> Summary { get; } = new(); public List<SimpleFinding> Findings { get; } = new(); public List<string> Positives { get; } = new(); public List<string> References { get; } = new(); }
     public sealed class ZoneTransferSection { public string Status { get; set; } = "-"; public List<(string Key, string Value)> Summary { get; } = new(); public List<SimpleFinding> Findings { get; } = new(); public List<string> Positives { get; } = new(); public List<string> References { get; } = new(); }
@@ -468,7 +480,207 @@ public static class SectionProjectors
         return s;
     }
 
-    public static RpkiSection? BuildRpki(DomainDetective.Views.RpkiInfo r)
+    public static MailTransportPostureSection? BuildMailTransportPosture(
+        DomainDetective.Views.MxInfo? mx,
+        DomainDetective.Views.MailTlsInfo? smtp,
+        DomainDetective.Views.MailTlsInfo? imap,
+        DomainDetective.Views.MailTlsInfo? pop,
+        DomainDetective.Views.MtastsInfo? mtasts,
+        DomainDetective.Views.TlsRptInfo? tlsRpt,
+        DomainDetective.Views.TlsRptReportsTimeSeriesInfo? tlsRptReports,
+        DomainDetective.Views.DaneRecordInfo? dane)
+    {
+        if (mx == null && smtp == null && imap == null && pop == null && mtasts == null && tlsRpt == null && tlsRptReports == null && dane == null)
+        {
+            return null;
+        }
+
+        int mailTlsWarn = (smtp?.WarningCount ?? 0) + (imap?.WarningCount ?? 0) + (pop?.WarningCount ?? 0);
+        int mailTlsErr = (smtp?.ErrorCount ?? 0) + (imap?.ErrorCount ?? 0) + (pop?.ErrorCount ?? 0);
+        string mailTlsStatus = (smtp != null || imap != null || pop != null)
+            ? (mailTlsErr > 0 ? "Error" : (mailTlsWarn > 0 ? "Warning" : "OK"))
+            : "-";
+
+        var sec = new MailTransportPostureSection
+        {
+            WarningCount = (mx?.WarningCount ?? 0) + mailTlsWarn + (mtasts?.WarningCount ?? 0) + (tlsRpt?.WarningCount ?? 0) + (tlsRptReports?.WarningCount ?? 0) + (dane?.WarningCount ?? 0),
+            ErrorCount = (mx?.ErrorCount ?? 0) + mailTlsErr + (mtasts?.ErrorCount ?? 0) + (tlsRpt?.ErrorCount ?? 0) + (tlsRptReports?.ErrorCount ?? 0) + (dane?.ErrorCount ?? 0),
+        };
+        sec.Status = sec.ErrorCount > 0 ? "Error" : (sec.WarningCount > 0 ? "Warning" : "OK");
+
+        var summaryKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddSummary(string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+            if (!summaryKeys.Add(key))
+            {
+                return;
+            }
+            sec.Summary.Add((key, string.IsNullOrWhiteSpace(value) ? "-" : value!.Trim()));
+        }
+
+        AddSummary("Status", sec.Status);
+        AddSummary("Warnings", sec.WarningCount.ToString());
+        AddSummary("Errors", sec.ErrorCount.ToString());
+
+        if (mx != null) AddSummary("MX", mx.Status);
+        if (smtp != null) AddSummary("SMTP TLS", smtp.Status);
+        if (imap != null) AddSummary("IMAP TLS", imap.Status);
+        if (pop != null) AddSummary("POP3 TLS", pop.Status);
+        if (smtp != null || imap != null || pop != null) AddSummary("Mail TLS", mailTlsStatus);
+
+        if (mtasts != null) AddSummary("MTA-STS", mtasts.Status);
+        if (tlsRpt != null) AddSummary("TLS-RPT", tlsRpt.Status);
+
+        if (tlsRptReports != null)
+        {
+            AddSummary("TLS-RPT Reports", tlsRptReports.Status);
+            AddSummary("TLS-RPT Reports (snapshots)", tlsRptReports.SnapshotCount.ToString());
+
+            int total = tlsRptReports.TotalSuccessfulSessions + tlsRptReports.TotalFailedSessions;
+            AddSummary("TLS-RPT Failure Rate", total > 0 ? tlsRptReports.FailureRatePercent.ToString("0.0") + "%" : "-");
+            AddSummary("TLS-RPT Failed Sessions", tlsRptReports.TotalFailedSessions.ToString());
+
+            var start = tlsRptReports.PeriodStartUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            var end = tlsRptReports.PeriodEndUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            AddSummary("TLS-RPT Period (UTC)", $"{start}..{end}");
+        }
+
+        if (dane != null) AddSummary("DANE", dane.Status);
+
+        var findingSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddFinding(SimpleFinding f)
+        {
+            if (f == null)
+            {
+                return;
+            }
+            var key = $"{f.Severity}|{f.Code}|{f.Target}|{f.Message}".Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+            if (findingSet.Add(key))
+            {
+                sec.Findings.Add(f);
+            }
+        }
+        void AddFindings(IEnumerable<SimpleFinding>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var f in list)
+            {
+                if (f != null) AddFinding(f);
+            }
+        }
+
+        var positiveSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddPositive(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+            var v = text!.Trim();
+            if (positiveSet.Add(v))
+            {
+                sec.Positives.Add(v);
+            }
+        }
+        void AddPositives(IEnumerable<string>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var p in list)
+            {
+                AddPositive(p);
+            }
+        }
+
+        var referenceSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddReference(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+            var v = url!.Trim();
+            if (referenceSet.Add(v))
+            {
+                sec.References.Add(v);
+            }
+        }
+        void AddReferences(IEnumerable<string>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var r in list)
+            {
+                AddReference(r);
+            }
+        }
+
+        var mxSec = mx != null ? BuildMx(mx, smtp, imap, pop) : null;
+        AddFindings(mxSec?.Findings);
+        AddPositives(mxSec?.Positives);
+        AddReferences(mxSec?.References);
+
+        var mailTlsSec = BuildMailTls(smtp, imap, pop);
+        AddFindings(mailTlsSec?.Findings);
+        AddPositives(mailTlsSec?.Positives);
+        AddReferences(mailTlsSec?.References);
+
+        var mtastsSec = mtasts != null ? BuildMtasts(mtasts) : null;
+        AddFindings(mtastsSec?.Findings);
+        AddPositives(mtastsSec?.Positives);
+        AddReferences(mtastsSec?.References);
+
+        var tlsSec = tlsRpt != null ? BuildTlsRpt(tlsRpt) : null;
+        AddFindings(tlsSec?.Findings);
+        AddPositives(tlsSec?.Positives);
+        AddReferences(tlsSec?.References);
+
+        if (tlsRptReports != null)
+        {
+            foreach (var a in tlsRptReports.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+            {
+                if (a == null || a.Severity == DomainDetective.AssessmentSeverity.Info)
+                {
+                    continue;
+                }
+                AddFinding(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+            }
+            foreach (var p in tlsRptReports.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+            {
+                AddPositive(p?.Title ?? p?.Code);
+            }
+            AddReferences(tlsRptReports.References);
+        }
+
+        var daneSec = dane != null ? BuildDane(dane) : null;
+        AddFindings(daneSec?.Findings);
+        AddPositives(daneSec?.Positives);
+        AddReferences(daneSec?.References);
+
+        if (mtasts != null) AddReference("https://www.rfc-editor.org/rfc/rfc8461");
+        if (tlsRpt != null || tlsRptReports != null) AddReference("https://www.rfc-editor.org/rfc/rfc8460");
+        if (dane != null) AddReference("https://www.rfc-editor.org/rfc/rfc7672");
+        if (smtp != null || imap != null || pop != null) AddReference("https://www.rfc-editor.org/rfc/rfc8314");
+
+        return sec;
+    }
+
+    public static RpkiSection? BuildRpki(DomainDetective.Views.RpkiInfo r)      
     {
         if (r == null) return null;
         var s = new RpkiSection { Status = r.Status ?? "-" };
