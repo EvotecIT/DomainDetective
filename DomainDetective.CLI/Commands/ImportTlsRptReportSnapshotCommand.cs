@@ -79,6 +79,11 @@ internal sealed class ImportTlsRptReportSnapshotSettings : CommandSettings {
     [DefaultValue("INBOX")]
     public string Mailbox { get; set; } = "INBOX";
 
+    /// <summary>Only scan messages with a subject containing this string (IMAP mode).</summary>
+    [Description("Only scan messages with a subject containing this string (IMAP mode).")]
+    [CommandOption("--imap-subject-contains")]
+    public string? ImapSubjectContains { get; set; }
+
     /// <summary>Only fetch messages delivered since this UTC date/time.</summary>
     [Description("Only fetch messages delivered since this UTC date/time.")]
     [CommandOption("--since-utc")]
@@ -90,7 +95,13 @@ internal sealed class ImportTlsRptReportSnapshotSettings : CommandSettings {
     [DefaultValue(500)]
     public int MaxMessages { get; set; } = 500;
 
-    /// <summary>Include seen messages (default scans only unseen).</summary>
+    /// <summary>Maximum attachment size to decode in MB (0 for unlimited).</summary>
+    [Description("Maximum attachment size to decode in MB (0 for unlimited).")]
+    [CommandOption("--max-attachment-mb")]
+    [DefaultValue(50)]
+    public int MaxAttachmentMb { get; set; } = 50;
+
+    /// <summary>Include seen messages (default scans only unseen).</summary>   
     [Description("Include seen messages (default scans only unseen).")]
     [CommandOption("--include-seen")]
     public bool IncludeSeen { get; set; }
@@ -144,7 +155,14 @@ internal sealed class ImportTlsRptReportSnapshotCommand : AsyncCommand<ImportTls
                 Mailbox = string.IsNullOrWhiteSpace(settings.Mailbox) ? "INBOX" : settings.Mailbox.Trim(),
                 MaxMessages = settings.MaxMessages,
                 OnlyUnseen = !settings.IncludeSeen,
+                RequireAttachments = true,
+                MaxAttachmentBytes = settings.MaxAttachmentMb <= 0
+                    ? 0
+                    : (long)settings.MaxAttachmentMb * 1024L * 1024L,
             };
+            if (!string.IsNullOrWhiteSpace(settings.ImapSubjectContains)) {
+                options.SubjectContains = settings.ImapSubjectContains;
+            }
             if (settings.SinceUtc.HasValue) {
                 options.SinceUtc = new DateTimeOffset(DateTime.SpecifyKind(settings.SinceUtc.Value, DateTimeKind.Utc));
             }
