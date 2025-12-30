@@ -546,6 +546,10 @@ ddcli ImportDmarcAggregateSnapshot ./Reports/DMARC --store-path ./Store
 ddcli ImportTlsRptReportSnapshot   example.com ./Reports/TLSRPT --store-path ./Store
 ddcli ImportRegistrationSnapshot   example.com --store-path ./Store
 
+# Optional: IMAP ingestion (use --imap-subject-contains to narrow scan; attachment size limit; 0 = unlimited)
+ddcli ImportDmarcAggregateSnapshot --store-path ./Store --imap-host imap.example.com --imap-user user@example.com --imap-password-env DMARC_IMAP_PASSWORD --mailbox INBOX --since-utc 2025-01-01 --max-attachment-mb 50
+ddcli ImportTlsRptReportSnapshot   example.com --store-path ./Store --imap-host imap.example.com --imap-user user@example.com --imap-password-env TLSRPT_IMAP_PASSWORD --mailbox INBOX --since-utc 2025-01-01 --max-attachment-mb 50
+
 # Generate report with time-series sections
 ddcli GenerateReport example.com --format word --store-path ./Store
 ddcli GenerateReport example.com --format html --store-path ./Store
