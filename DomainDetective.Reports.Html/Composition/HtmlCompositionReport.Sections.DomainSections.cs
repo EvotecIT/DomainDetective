@@ -21,6 +21,8 @@ public static partial class HtmlCompositionReport
     {
         var list = new List<string>();
         if (b.Mx != null) list.Add("MX");
+        if (b.Mx != null || b.SmtpTls != null || b.ImapTls != null || b.PopTls != null || b.Mtasts != null || b.TlsRpt != null || b.TlsRptReports != null || b.Dane != null)
+            list.Add("Mail Transport Posture");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dkim.Count > 0) list.Add("DKIM");
         if (b.Dmarc != null) list.Add("DMARC");
@@ -61,6 +63,9 @@ public static partial class HtmlCompositionReport
             {
                 case "MX":
                     RenderMxSection(acc, b);
+                    break;
+                case "Mail Transport Posture":
+                    RenderMailTransportPostureSection(acc, b);
                     break;
                 case "SPF":
                     RenderSpfSection(acc, b);
@@ -132,7 +137,113 @@ public static partial class HtmlCompositionReport
         }
     }
 
-    private static void RenderSpfSection(TablerAccordion acc, DomainBucket b)
+    private static void RenderMailTransportPostureSection(TablerAccordion acc, DomainBucket b)
+    {
+        if (b.Mx == null && b.SmtpTls == null && b.ImapTls == null && b.PopTls == null && b.Mtasts == null && b.TlsRpt == null && b.TlsRptReports == null && b.Dane == null)
+        {
+            return;
+        }
+
+        var sec = SectionProjectors.BuildMailTransportPosture(b.Mx, b.SmtpTls, b.ImapTls, b.PopTls, b.Mtasts, b.TlsRpt, b.TlsRptReports, b.Dane);
+        if (sec == null)
+        {
+            return;
+        }
+
+        int warnCount = sec.WarningCount;
+        int errCount = sec.ErrorCount;
+        var status = sec.Status ?? "Unknown";
+        var findingsCount = warnCount + errCount;
+        var findingsBadgeColor = errCount > 0
+            ? TablerBadgeColor.Danger
+            : (warnCount > 0 ? TablerBadgeColor.Warning : TablerBadgeColor.Success);
+
+        acc.AddItem("Mail Transport Posture", item =>
+        {
+            item.Icon(TablerIconType.Mail);
+            item.HeaderRight(c =>
+            {
+                c.Badge(errCount > 0 ? $"{errCount} Error" + (errCount > 1 ? "s" : "") : "0 Error", TablerBadgeColor.Danger, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(warnCount > 0 ? $"{warnCount} Warning" + (warnCount > 1 ? "s" : "") : "0 Warning", TablerBadgeColor.Warning, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                c.Badge(status, ColorForStatus(status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+            });
+            item.Content(content =>
+            {
+                content.Row(r =>
+                {
+                    r.Column(TablerColumnNumber.Twelve, c2 =>
+                    {
+                        RenderExecutionSnapshotCard(c2, g =>
+                        {
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            AddGridPanelUnique(g, seen, "Status", status, PanelColorForStatus(status), light: true);
+                            AddGridPanelUnique(g, seen, "Warnings", warnCount.ToString(), warnCount > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            AddGridPanelUnique(g, seen, "Errors", errCount.ToString(), errCount > 0 ? TablerColor.Red : TablerColor.Green, light: true);
+
+                            if (b.Mx != null) AddGridPanelUnique(g, seen, "MX", b.Mx.Status ?? "-", PanelColorForStatus(b.Mx.Status), light: true);
+                            if (b.SmtpTls != null) AddGridPanelUnique(g, seen, "SMTP TLS", b.SmtpTls.Status ?? "-", PanelColorForStatus(b.SmtpTls.Status), light: true);
+                            if (b.ImapTls != null) AddGridPanelUnique(g, seen, "IMAP TLS", b.ImapTls.Status ?? "-", PanelColorForStatus(b.ImapTls.Status), light: true);
+                            if (b.PopTls != null) AddGridPanelUnique(g, seen, "POP3 TLS", b.PopTls.Status ?? "-", PanelColorForStatus(b.PopTls.Status), light: true);
+                            if (b.Mtasts != null) AddGridPanelUnique(g, seen, "MTA-STS", b.Mtasts.Status ?? "-", PanelColorForStatus(b.Mtasts.Status), light: true);
+                            if (b.TlsRpt != null) AddGridPanelUnique(g, seen, "TLS-RPT", b.TlsRpt.Status ?? "-", PanelColorForStatus(b.TlsRpt.Status), light: true);
+                            if (b.TlsRptReports != null) AddGridPanelUnique(g, seen, "TLS-RPT Reports", b.TlsRptReports.Status ?? "-", PanelColorForStatus(b.TlsRptReports.Status), light: true);
+                            if (b.TlsRptReports != null)
+                            {
+                                int total = b.TlsRptReports.TotalSuccessfulSessions + b.TlsRptReports.TotalFailedSessions;
+                                AddGridPanelUnique(g, seen, "TLS-RPT Fail %", total > 0 ? b.TlsRptReports.FailureRatePercent.ToString("0.0") : "-", b.TlsRptReports.TotalFailedSessions > 0 ? TablerColor.Orange : TablerColor.Green, light: true);
+                            }
+                            if (b.Dane != null) AddGridPanelUnique(g, seen, "DANE", b.Dane.Status ?? "-", PanelColorForStatus(b.Dane.Status), light: true);
+                        }, subtitle: "Roll-up of transport security signals used by mail senders when delivering email to this domain.");
+
+                        RenderResultsTabsCard(c2, tabs =>
+                        {
+                            tabs.AddTab("Summary", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSummaryGrid(col, sec.Summary);
+                                }));
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderSignalsSummary(col, sec.Findings.Select(f => f.Message), sec.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.Cards);
+
+                            tabs.AddTab("Good Posture", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderPositives(col, sec.Positives);
+                                }));
+                            }).WithIcon(TablerIconType.CircleCheck);
+
+                            var findingsTab = tabs.AddTab("Findings", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderFindings(col, sec.Findings);
+                                }));
+                            }).WithIcon(TablerIconType.AlertTriangle);
+                            if (findingsCount > 0)
+                            {
+                                findingsTab.Badge(findingsCount.ToString(), findingsBadgeColor, TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
+                            }
+
+                            tabs.AddTab("References", panel =>
+                            {
+                                panel.Row(rr => rr.Column(TablerColumnNumber.Twelve, col =>
+                                {
+                                    RenderReferences(col, sec.References);
+                                }));
+                            }).WithIcon(TablerIconType.Link);
+                        });
+                    });
+                });
+            });
+        });
+    }
+
+    private static void RenderSpfSection(TablerAccordion acc, DomainBucket b)   
     {
         var spf = b.Spf;
         if (spf == null)
