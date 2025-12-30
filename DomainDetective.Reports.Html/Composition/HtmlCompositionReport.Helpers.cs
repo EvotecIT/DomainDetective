@@ -155,8 +155,11 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Mx?.WarningCount ?? 0, b.Mx?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Spf?.WarningCount ?? 0, b.Spf?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dmarc?.WarningCount ?? 0, b.Dmarc?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DmarcAggregate?.WarningCount ?? 0, b.DmarcAggregate?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Registration?.WarningCount ?? 0, b.Registration?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Mtasts?.WarningCount ?? 0, b.Mtasts?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRpt?.WarningCount ?? 0, b.TlsRpt?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.TlsRptReports?.WarningCount ?? 0, b.TlsRptReports?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dnsbl?.WarningCount ?? 0, b.Dnsbl?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dnssec?.WarningCount ?? 0, b.Dnssec?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dane?.WarningCount ?? 0, b.Dane?.ErrorCount ?? 0);
@@ -232,13 +235,16 @@ public static partial class HtmlCompositionReport {
             }
         }
 
-        foreach (var a in FromList(b.Mx?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Spf?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Mtasts?.Assessments)) yield return a;
-        foreach (var a in FromList(b.TlsRpt?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dnsbl?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Ns?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Mx?.Assessments)) yield return a;    
+        foreach (var a in FromList(b.Spf?.Assessments)) yield return a;   
+        foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;       
+        foreach (var a in FromList(b.DmarcAggregate?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Registration?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Mtasts?.Assessments)) yield return a;      
+        foreach (var a in FromList(b.TlsRpt?.Assessments)) yield return a;      
+        foreach (var a in FromList(b.TlsRptReports?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dnsbl?.Assessments)) yield return a;  
+        foreach (var a in FromList(b.Ns?.Assessments)) yield return a;    
         foreach (var a in FromList(b.Soa?.Assessments)) yield return a;
         foreach (var a in FromList(b.ZoneTransfer?.Assessments)) yield return a;
         foreach (var a in FromList(b.Wildcard?.Assessments)) yield return a;    
@@ -464,6 +470,9 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }       
+        public DomainDetective.Views.DmarcAggregateTimeSeriesInfo? DmarcAggregate { get; set; }
+        public DomainDetective.Views.RegistrationDriftInfo? Registration { get; set; }
+        public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.ArcInfo? Arc { get; set; }
         public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
@@ -551,12 +560,15 @@ public static partial class HtmlCompositionReport {
             Mx = s.Mx,
             Spf = s.Spf,
             Dmarc = s.Dmarc,
+            DmarcAggregate = s.DmarcAggregate,
+            Registration = s.Registration,
             Arc = s.Arc,
             Bimi = s.Bimi,
             Dnsbl = s.Dnsbl,
             Classification = s.Classification,
             Mtasts = s.Mtasts,
             TlsRpt = s.TlsRpt,
+            TlsRptReports = s.TlsRptReports,
             Ns = s.Ns,
             Soa = s.Soa,
             Caa = s.Caa,
