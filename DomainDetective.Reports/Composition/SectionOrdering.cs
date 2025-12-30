@@ -16,10 +16,12 @@ public static class SectionOrdering
         "SPF",
         "DKIM",
         "DMARC",
+        "DMARC Aggregate",
         "ARC",
         "BIMI",
         "DNSBL",
         "RPKI",
+        "Registration",
         "NS",
         "SOA",
         "TTL",
@@ -29,6 +31,7 @@ public static class SectionOrdering
         "Classification",
         "MTA-STS",
         "TLS-RPT",
+        "TLS-RPT Reports",
         "MAILTLS",
         "DNSSEC",
         "DANE"
@@ -74,7 +77,13 @@ public static class SectionOrdering
         var u = t.ToUpperInvariant().Replace(" ", string.Empty).Replace("-", string.Empty);
         return u switch
         {
+            "DMARCAGGREGATE" => "DMARC Aggregate",
+            "DMARCAGG" => "DMARC Aggregate",
             "TLSRPT" => "TLS-RPT",
+            "TLSRPTREPORTS" => "TLS-RPT Reports",
+            "REGISTRATION" => "Registration",
+            "WHOIS" => "Registration",
+            "RDAP" => "Registration",
             "MTASTS" => "MTA-STS",
             "ZONEXFR" => "ZoneTransfer",
             "ZONETRANSFER" => "ZoneTransfer",
@@ -190,6 +199,11 @@ public static class SectionOrdering
     {
         try
         {
+            var keyProp = it.GetType().GetProperty("SectionKey");
+            if (keyProp != null && keyProp.GetValue(it) is string sectionKey && !string.IsNullOrWhiteSpace(sectionKey))
+            {
+                return NormalizeSection(sectionKey);
+            }
             var p = it.GetType().GetProperty("Check");
             if (p == null) return null;
             if (p.GetValue(it) is not HealthCheckType h) return null;
