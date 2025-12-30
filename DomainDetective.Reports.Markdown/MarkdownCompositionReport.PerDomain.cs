@@ -201,7 +201,7 @@ public static partial class MarkdownCompositionReport
                 var narrative = b.Dkim.FirstOrDefault()?.Narrative;
                 if (sec != null)
                 {
-                    if (sec.Rows.Count > 0) { var dkimRows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash, x.Weak ? "Yes" : "No", x.Flags, (x.TtlSeconds?.ToString() ?? "-") }).ToList(); md.Table(t => t.Headers("Selector","Status","Key Bits","Alg","Weak","Flags","TTL (s)").Rows(dkimRows).AlignLeft(0,1,2,3,4,5,6)); }
+                    if (sec.Rows.Count > 0) { var dkimRows = sec.Rows.Select(x => (IReadOnlyList<string>)new[]{ x.Selector, x.Status, x.KeyBits, x.Hash, x.Weak ? "Yes" : "No", x.Flags, (x.TtlSeconds?.ToString() ?? "-"), x.CnameResolved ? "Yes" : "No", (x.CnameTtlSeconds?.ToString() ?? "-") }).ToList(); md.Table(t => t.Headers("Selector","Status","Key Bits","Alg","Weak","Flags","TTL (s)","CNAME Resolved","CNAME TTL (s)").Rows(dkimRows).AlignLeft(0,1,2,3,4,5,6,7,8)); }
                     if (sec.Highlights.Count > 0) md.H3("Highlights").Ul(sec.Highlights.ToArray());
                     if (sec.Positives.Count > 0) md.H3("Positives").Ul(sec.Positives.ToArray());
                     var dkFind = sec.Findings.Select(a => (IReadOnlyList<string>)new[]{ a.Severity, a.Code, a.Target, a.Message }).ToList();

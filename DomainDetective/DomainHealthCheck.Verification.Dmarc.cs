@@ -22,7 +22,12 @@ namespace DomainDetective {
                 return;
             }
             DmarcAnalysis.Subject = domainName;
-            var dmarc = await DnsConfiguration.QueryDNS("_dmarc." + domainName, DnsRecordType.TXT, "DMARC1", cancellationToken);
+            var dmarc = await DnsConfiguration.QueryDNS(
+                "_dmarc." + domainName,
+                DnsRecordType.TXT,
+                "DMARC1",
+                includeAliasesInFilter: true,
+                cancellationToken: cancellationToken);
             await DmarcAnalysis.AnalyzeDmarcRecords(dmarc, _logger, domainName, _publicSuffixList.GetRegistrableDomain);
             DmarcAnalysis.EvaluatePolicyStrength(UseSubdomainPolicy);
         }

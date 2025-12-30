@@ -70,7 +70,14 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the DNS for a specific name and record type, optionally applying a filter.
         /// </summary>
-        public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+        public Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+            return QueryDNS(name, recordType, filter, includeAliasesInFilter: false, cancellationToken);
+        }
+
+        /// <summary>
+        /// Queries the DNS for a specific name and record type, optionally applying a filter.
+        /// </summary>
+        public async Task<DnsAnswer[]> QueryDNS(string name, DnsRecordType recordType, string filter, bool includeAliasesInFilter, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(name)) {
                 throw new ArgumentNullException(nameof(name), $"Domain name cannot be null or empty when querying {recordType} records.");
@@ -78,10 +85,11 @@ namespace DomainDetective {
             if (QueryDnsOverride != null) {
                 return await QueryDnsOverride(name, recordType);
             }
+            var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
             try {
                 // Multi-resolver path
                 if (DnsEndpoints.Count > 0) {
-                    var answers = await ResolveWithEndpoints(name, recordType, filter, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
+                    var answers = await ResolveWithEndpoints(name, recordType, filter, includeAliasesInFilter, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
                     if (answers.Length > 0) return answers;
                 }
                 using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
@@ -89,8 +97,8 @@ namespace DomainDetective {
                 if (ResolverMaxConcurrency.HasValue) {
                     client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                 }
-                if (filter != string.Empty) {
-                    var data = await client.ResolveFilter(name, recordType, filter);
+                if (filter != string.Empty || includeAliasesInFilter) {
+                    var data = await client.ResolveFilter(name, recordType, filter, filterOptions);
                     return data.Answers;
                 }
 
@@ -107,8 +115,8 @@ namespace DomainDetective {
                         if (ResolverMaxConcurrency.HasValue) {
                             clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                         }
-                        if (filter != string.Empty) {
-                            var dataFb = await clientFb.ResolveFilter(name, recordType, filter);
+                        if (filter != string.Empty || includeAliasesInFilter) {
+                            var dataFb = await clientFb.ResolveFilter(name, recordType, filter, filterOptions);
                             return dataFb.Answers;
                         }
                         var resFb = await clientFb.Resolve(name, recordType);
@@ -124,7 +132,14 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the DNS for a list of names and a record type, optionally applying a filter.
         /// </summary>
-        public async Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+        public Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+            return QueryDNS(names, recordType, filter, includeAliasesInFilter: false, cancellationToken);
+        }
+
+        /// <summary>
+        /// Queries the DNS for a list of names and a record type, optionally applying a filter.
+        /// </summary>
+        public async Task<IEnumerable<DnsAnswer>> QueryDNS(string[] names, DnsRecordType recordType, string filter, bool includeAliasesInFilter, CancellationToken cancellationToken = default) {
             cancellationToken.ThrowIfCancellationRequested();
             if (names == null || names.Length == 0) {
                 throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
@@ -137,11 +152,12 @@ namespace DomainDetective {
                 return all;
             }
             List<DnsAnswer> allAnswers = new();
+            var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
             try {
                 if (DnsEndpoints.Count > 0) {
                     foreach (var n in names) {
                         cancellationToken.ThrowIfCancellationRequested();
-                        var arr = await ResolveWithEndpoints(n, recordType, filter, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
+                        var arr = await ResolveWithEndpoints(n, recordType, filter, includeAliasesInFilter, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
                         allAnswers.AddRange(arr);
                     }
                     return allAnswers;
@@ -152,12 +168,9 @@ namespace DomainDetective {
                 if (ResolverMaxConcurrency.HasValue) {
                     client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                 }
-                DnsResponse[] data;
-                if (filter != string.Empty) {
-                    data = await client.ResolveFilter(names, recordType, filter);
-                } else {
-                    data = await client.Resolve(names, recordType);
-                }
+                DnsResponse[] data = (filter != string.Empty || includeAliasesInFilter)
+                    ? await client.ResolveFilter(names, recordType, filter, filterOptions)
+                    : await client.Resolve(names, recordType);
 
                 foreach (var response in data) {
                     allAnswers.AddRange(response.Answers);
@@ -174,12 +187,9 @@ namespace DomainDetective {
                         if (ResolverMaxConcurrency.HasValue) {
                             clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                         }
-                        DnsResponse[] dataFb;
-                        if (filter != string.Empty) {
-                            dataFb = await clientFb.ResolveFilter(names, recordType, filter);
-                        } else {
-                            dataFb = await clientFb.Resolve(names, recordType);
-                        }
+                        DnsResponse[] dataFb = (filter != string.Empty || includeAliasesInFilter)
+                            ? await clientFb.ResolveFilter(names, recordType, filter, filterOptions)
+                            : await clientFb.Resolve(names, recordType);
                         foreach (var response in dataFb) {
                             allAnswers.AddRange(response.Answers);
                         }
@@ -211,7 +221,7 @@ namespace DomainDetective {
             } catch { return false; }
         }
 
-        private async Task<DnsAnswer[]> ResolveWithEndpoints(string name, DnsRecordType recordType, string filter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
+        private async Task<DnsAnswer[]> ResolveWithEndpoints(string name, DnsRecordType recordType, string filter, bool includeAliasesInFilter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
         {
             if (endpoints == null || endpoints.Length == 0) return Array.Empty<DnsAnswer>();
 
@@ -222,8 +232,9 @@ namespace DomainDetective {
                         using var c = new ClientX(endpoint: ep, DnsSelectionStrategy);
                         c.EndpointConfiguration.UserAgent = UserAgent;
                         if (ResolverMaxConcurrency.HasValue) c.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-                        var resp = filter != string.Empty
-                            ? await c.ResolveFilter(name, recordType, filter).ConfigureAwait(false)
+                        var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
+                        var resp = filter != string.Empty || includeAliasesInFilter
+                            ? await c.ResolveFilter(name, recordType, filter, filterOptions).ConfigureAwait(false)
                             : await c.Resolve(name, recordType).ConfigureAwait(false);
                         if (IsAnswerUseful(resp)) return resp.Answers;
                     } catch { }
@@ -239,8 +250,9 @@ namespace DomainDetective {
                         using var c = new ClientX(endpoint: ep, DnsSelectionStrategy);
                         c.EndpointConfiguration.UserAgent = UserAgent;
                         if (ResolverMaxConcurrency.HasValue) c.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-                        return filter != string.Empty
-                            ? await c.ResolveFilter(name, recordType, filter).ConfigureAwait(false)
+                        var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
+                        return filter != string.Empty || includeAliasesInFilter
+                            ? await c.ResolveFilter(name, recordType, filter, filterOptions).ConfigureAwait(false)
                             : await c.Resolve(name, recordType).ConfigureAwait(false);
                     } catch { return null; }
                 }, ct));
@@ -277,7 +289,7 @@ namespace DomainDetective {
             if (DnsEndpoints.Count > 0) {
                 var list = new List<DnsResponse>(names.Length);
                 foreach (var n in names) {
-                    var resp = await ResolveResponseWithEndpoints(n, recordType, filter, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
+                    var resp = await ResolveResponseWithEndpoints(n, recordType, filter, includeAliasesInFilter: false, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
                     if (resp != null) list.Add(resp);
                 }
                 return list;
@@ -296,7 +308,7 @@ namespace DomainDetective {
         }
 
         // No concurrency hint is applied in this build.
-        private async Task<DnsResponse?> ResolveResponseWithEndpoints(string name, DnsRecordType recordType, string filter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
+        private async Task<DnsResponse?> ResolveResponseWithEndpoints(string name, DnsRecordType recordType, string filter, bool includeAliasesInFilter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
         {
             if (endpoints == null || endpoints.Length == 0) return null;
             if (strategy == MultiResolverStrategy.SequentialAll) {
@@ -306,8 +318,9 @@ namespace DomainDetective {
                         using var c = new ClientX(endpoint: ep, DnsSelectionStrategy);
                         c.EndpointConfiguration.UserAgent = UserAgent;
                         if (ResolverMaxConcurrency.HasValue) c.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-                        var resp = filter != string.Empty
-                            ? await c.ResolveFilter(name, recordType, filter).ConfigureAwait(false)
+                        var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
+                        var resp = filter != string.Empty || includeAliasesInFilter
+                            ? await c.ResolveFilter(name, recordType, filter, filterOptions).ConfigureAwait(false)
                             : await c.Resolve(name, recordType).ConfigureAwait(false);
                         if (IsAnswerUseful(resp)) return resp;
                     } catch { }
@@ -322,8 +335,9 @@ namespace DomainDetective {
                         using var c = new ClientX(endpoint: ep, DnsSelectionStrategy);
                         c.EndpointConfiguration.UserAgent = UserAgent;
                         if (ResolverMaxConcurrency.HasValue) c.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-                        return filter != string.Empty
-                            ? await c.ResolveFilter(name, recordType, filter).ConfigureAwait(false)
+                        var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
+                        return filter != string.Empty || includeAliasesInFilter
+                            ? await c.ResolveFilter(name, recordType, filter, filterOptions).ConfigureAwait(false)
                             : await c.Resolve(name, recordType).ConfigureAwait(false);
                     } catch { return null; }
                 }, ct));

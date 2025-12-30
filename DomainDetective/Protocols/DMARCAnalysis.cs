@@ -174,7 +174,7 @@ namespace DomainDetective {
             var dmarcRecordList = dnsResults.ToList();
 
             // Capture CNAME TTL before filtering
-            var cnameRecords = dmarcRecordList.Where(r => r.Type == DnsRecordType.CNAME && r.TTL > 0).ToList();
+            var cnameRecords = dmarcRecordList.Where(r => r.Type == DnsRecordType.CNAME).ToList();
             if (cnameRecords.Any()) {
                 IsCnameResolved = true;
                 CnameTtl = cnameRecords.Min(r => r.TTL);
@@ -454,6 +454,13 @@ namespace DomainDetective {
                 return await QueryDnsOverride(name, type);
             }
             try {
+                if (type == DnsRecordType.TXT) {
+                    return await DnsConfiguration.QueryDNS(
+                        name,
+                        type,
+                        filter: string.Empty,
+                        includeAliasesInFilter: true);
+                }
                 return await DnsConfiguration.QueryDNS(name, type);
             } catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException) {
                 // Log and continue with empty results to avoid flaky failures in constrained CI/network

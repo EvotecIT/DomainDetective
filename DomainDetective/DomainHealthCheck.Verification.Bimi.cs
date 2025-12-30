@@ -36,7 +36,12 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(domainName);
             BimiAnalysis = new BimiAnalysis { SkipIndicatorDownload = skipIndicatorDownload };
             BimiAnalysis.Subject = domainName;
-            var bimi = await DnsConfiguration.QueryDNS($"default._bimi.{domainName}", DnsRecordType.TXT, cancellationToken: cancellationToken);
+            var bimi = await DnsConfiguration.QueryDNS(
+                $"default._bimi.{domainName}",
+                DnsRecordType.TXT,
+                filter: string.Empty,
+                includeAliasesInFilter: true,
+                cancellationToken: cancellationToken);
             await BimiAnalysis.AnalyzeBimiRecords(bimi, _logger, cancellationToken: cancellationToken);
         }
     }

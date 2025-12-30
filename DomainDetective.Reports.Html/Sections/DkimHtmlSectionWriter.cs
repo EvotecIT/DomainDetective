@@ -20,7 +20,17 @@ public static class DkimHtmlSectionWriter
             html.AddParagraph("No DKIM selectors discovered.");
             return;
         }
-        var rowsWithTtl = dkim.Select(x => new { x.Selector, Record = x.DkimRecordExists ? "Present" : "Missing", Bits = x.PublicKeyExists ? x.KeyLength.ToString() : "-", Alg = x.HashAlgorithm ?? "", AgeDays = x.KeyAgeDays, TtlSeconds = x.DnsRecordTtl?.ToString() ?? "-", Status = x.Status });
+        var rowsWithTtl = dkim.Select(x => new {
+            x.Selector,
+            Record = x.DkimRecordExists ? "Present" : "Missing",
+            Bits = x.PublicKeyExists ? x.KeyLength.ToString() : "-",
+            Alg = x.HashAlgorithm ?? string.Empty,
+            AgeDays = x.KeyAgeDays,
+            TtlSeconds = x.DnsRecordTtl?.ToString() ?? "-",
+            CnameResolved = x.IsCnameResolved ? "Yes" : "No",
+            CnameTtlSeconds = x.CnameTtl?.ToString() ?? "-",
+            Status = x.Status
+        });
         html.AddTable(rowsWithTtl);
 
         if (scope != Reports.ReportScope.Minimal)

@@ -34,25 +34,29 @@ public static class DmarcWordSectionWriter
 
         headings.AddItem("Summary", baseLevel);
         doc.AddParagraph("DMARC record presence, policy, alignment and reporting endpoints.");
-        var t = doc.AddTable(9, 2, WordTableStyle.TableGrid);
+        var t = doc.AddTable(11, 2, WordTableStyle.TableGrid);
         t.Rows[0].Cells[0].Paragraphs[0].Text = "Record Present";
         t.Rows[0].Cells[1].Paragraphs[0].Text = dmarc.DmarcRecordExists ? "Yes" : "No";
         t.Rows[1].Cells[0].Paragraphs[0].Text = "Policy";
         t.Rows[1].Cells[1].Paragraphs[0].Text = dmarc.Policy ?? string.Empty;
         t.Rows[2].Cells[0].Paragraphs[0].Text = "DNS TTL (s)";
         t.Rows[2].Cells[1].Paragraphs[0].Text = dmarc.DnsRecordTtl?.ToString() ?? "-";
-        t.Rows[3].Cells[0].Paragraphs[0].Text = "adkim/aspf";
-        t.Rows[3].Cells[1].Paragraphs[0].Text = $"{dmarc.DkimAlignment ?? "?"}/{dmarc.SpfAlignment ?? "?"}";
-        t.Rows[4].Cells[0].Paragraphs[0].Text = "pct";
-        t.Rows[4].Cells[1].Paragraphs[0].Text = dmarc.Percent ?? string.Empty;
-        t.Rows[5].Cells[0].Paragraphs[0].Text = "rua";
-        t.Rows[5].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRua?.Count ?? 0).ToString();
-        t.Rows[6].Cells[0].Paragraphs[0].Text = "ruf";
-        t.Rows[6].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRuf?.Count ?? 0).ToString();
-        t.Rows[7].Cells[0].Paragraphs[0].Text = "ext auth";
-        t.Rows[7].Cells[1].Paragraphs[0].Text = (dmarc.ExternalReportAuthorization?.Count ?? 0).ToString();
-        t.Rows[8].Cells[0].Paragraphs[0].Text = "Status";
-        t.Rows[8].Cells[1].Paragraphs[0].Text = dmarc.Status ?? string.Empty;
+        t.Rows[3].Cells[0].Paragraphs[0].Text = "CNAME Resolved";
+        t.Rows[3].Cells[1].Paragraphs[0].Text = dmarc.IsCnameResolved ? "Yes" : "No";
+        t.Rows[4].Cells[0].Paragraphs[0].Text = "CNAME TTL (s)";
+        t.Rows[4].Cells[1].Paragraphs[0].Text = dmarc.CnameTtl?.ToString() ?? "-";
+        t.Rows[5].Cells[0].Paragraphs[0].Text = "adkim/aspf";
+        t.Rows[5].Cells[1].Paragraphs[0].Text = $"{dmarc.DkimAlignment ?? "?"}/{dmarc.SpfAlignment ?? "?"}";
+        t.Rows[6].Cells[0].Paragraphs[0].Text = "pct";
+        t.Rows[6].Cells[1].Paragraphs[0].Text = dmarc.Percent ?? string.Empty;
+        t.Rows[7].Cells[0].Paragraphs[0].Text = "rua";
+        t.Rows[7].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRua?.Count ?? 0).ToString();
+        t.Rows[8].Cells[0].Paragraphs[0].Text = "ruf";
+        t.Rows[8].Cells[1].Paragraphs[0].Text = (dmarc.MailtoRuf?.Count ?? 0).ToString();
+        t.Rows[9].Cells[0].Paragraphs[0].Text = "ext auth";
+        t.Rows[9].Cells[1].Paragraphs[0].Text = (dmarc.ExternalReportAuthorization?.Count ?? 0).ToString();
+        t.Rows[10].Cells[0].Paragraphs[0].Text = "Status";
+        t.Rows[10].Cells[1].Paragraphs[0].Text = dmarc.Status ?? string.Empty;
 
         if (scope == ReportScope.Minimal) return;
 

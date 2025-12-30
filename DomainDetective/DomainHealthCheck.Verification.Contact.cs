@@ -32,7 +32,12 @@ namespace DomainDetective {
             domainName = NormalizeDomain(domainName);
             UpdateIsPublicSuffix(domainName);
             ContactInfoAnalysis = new ContactInfoAnalysis { Subject = domainName };
-            var contact = await DnsConfiguration.QueryDNS("contact." + domainName, DnsRecordType.TXT, cancellationToken: cancellationToken);
+            var contact = await DnsConfiguration.QueryDNS(
+                "contact." + domainName,
+                DnsRecordType.TXT,
+                filter: string.Empty,
+                includeAliasesInFilter: true,
+                cancellationToken: cancellationToken);
             await ContactInfoAnalysis.AnalyzeContactRecords(contact, _logger);
         }
     }

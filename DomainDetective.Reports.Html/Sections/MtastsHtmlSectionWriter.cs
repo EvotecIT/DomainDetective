@@ -17,6 +17,8 @@ public static class MtastsHtmlSectionWriter
         html.AddTable(new [] {
             new { Name = "DNS Policy TXT", Value = mtasts.DnsRecordPresent ? (mtasts.DnsRecordValid ? "Present (valid)" : "Present (invalid)") : "Missing" },
             new { Name = "DNS TTL (s)", Value = mtasts.DnsRecordTtl?.ToString() ?? "-" },
+            new { Name = "CNAME Resolved", Value = mtasts.IsCnameResolved ? "Yes" : "No" },
+            new { Name = "CNAME TTL (s)", Value = mtasts.CnameTtl?.ToString() ?? "-" },
             new { Name = "Policy File", Value = mtasts.PolicyPresent ? (mtasts.PolicyValid ? "Present (valid)" : "Present (invalid)") : "Missing" },
             new { Name = "Mode", Value = mtasts.Mode ?? string.Empty },
             new { Name = "Max-Age", Value = mtasts.MaxAge.ToString() },

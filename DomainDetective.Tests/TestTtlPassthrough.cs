@@ -197,6 +197,58 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task Analysis_CapturesZeroCnameTtl() {
+            var logger = new InternalLogger();
+
+            var dmarc = new DmarcAnalysis { Subject = "example.com" };
+            await dmarc.AnalyzeDmarcRecords(
+                new[] {
+                    new DnsAnswer { Type = DnsRecordType.CNAME, TTL = 0, DataRaw = "dmarc.provider.com" },
+                    new DnsAnswer { Type = DnsRecordType.TXT, TTL = 7200, DataRaw = "v=DMARC1; p=none" }
+                },
+                logger,
+                domainName: "example.com",
+                getOrgDomain: _ => "example.com");
+            Assert.True(dmarc.IsCnameResolved);
+            Assert.Equal(0, dmarc.CnameTtl);
+
+            var spf = new SpfAnalysis { Subject = "example.com" };
+            await spf.AnalyzeSpfRecords(new[] {
+                new DnsAnswer { Type = DnsRecordType.CNAME, TTL = 0, DataRaw = "spf.provider.com" },
+                new DnsAnswer { Type = DnsRecordType.TXT, TTL = 3600, DataRaw = "v=spf1 -all" }
+            }, logger);
+            Assert.True(spf.IsCnameResolved);
+            Assert.Equal(0, spf.CnameTtl);
+
+            var tlsrpt = new TLSRPTAnalysis { Subject = "example.com" };
+            await tlsrpt.AnalyzeTlsRptRecords(new[] {
+                new DnsAnswer { Type = DnsRecordType.CNAME, TTL = 0, DataRaw = "tlsrpt.provider.com" },
+                new DnsAnswer { Type = DnsRecordType.TXT, TTL = 900, DataRaw = "v=TLSRPTv1; rua=mailto:tlsrpt@example.com" }
+            }, logger);
+            Assert.True(tlsrpt.IsCnameResolved);
+            Assert.Equal(0, tlsrpt.CnameTtl);
+
+            var mtasts = new MTASTSAnalysis {
+                QueryDnsOverride = (_, _) => Task.FromResult(new[] {
+                    new DnsAnswer { Type = DnsRecordType.CNAME, TTL = 0, DataRaw = "mtasts.provider.com" },
+                    new DnsAnswer { Type = DnsRecordType.TXT, TTL = 1800, DataRaw = "v=STSv1; id=20231201" }
+                })
+            };
+            await mtasts.AnalyzePolicy("example.com", logger);
+            Assert.True(mtasts.IsCnameResolved);
+            Assert.Equal(0, mtasts.CnameTtl);
+
+            var dkim = new DkimAnalysis { Subject = "example.com" };
+            await dkim.AnalyzeDkimRecords("s1", new[] {
+                new DnsAnswer { Type = DnsRecordType.CNAME, TTL = 0, DataRaw = "dkim.provider.com" },
+                new DnsAnswer { Type = DnsRecordType.TXT, TTL = 300, Name = "s1._domainkey.example.com", DataRaw = "v=DKIM1; p=dGVzdA==" }
+            }, logger);
+            Assert.True(dkim.AnalysisResults.TryGetValue("s1", out var res));
+            Assert.True(res.IsCnameResolved);
+            Assert.Equal(0, res.CnameTtl);
+        }
+
+        [Fact]
         public async Task Analysis_NoCname_PropertiesRemainFalseAndNull() {
             var dmarc = new DmarcAnalysis { Subject = "example.com" };
             await dmarc.AnalyzeDmarcRecords(

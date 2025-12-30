@@ -36,8 +36,13 @@ namespace DomainDetective
                 if (TestSpfRecords.TryGetValue(d, out var fake)) return fake;
                 lookups++;
                 if (lookups > MaxDnsLookups) { eval.LookupsExceeded = true; return null; }
-                var answers = await DnsConfiguration.QueryDNS(d, DnsRecordType.TXT, "SPF1");
-                return answers != null && answers.Length > 0 ? answers[0].Data : null;
+                var answers = await DnsConfiguration.QueryDNS(
+                    d,
+                    DnsRecordType.TXT,
+                    "SPF1",
+                    includeAliasesInFilter: true);
+                var txt = answers?.FirstOrDefault(a => a.Type == DnsRecordType.TXT);
+                return txt?.Data;
             }
 
             async Task<(bool matched, string verdict, string token, string type, string? source, List<string> chain)> EvalDomainAsync(string d, List<string> chain)
