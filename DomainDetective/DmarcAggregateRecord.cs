@@ -24,10 +24,12 @@ public sealed class DmarcAggregateRecord {
     public string Disposition { get; set; } = string.Empty;
 
     /// <summary>Indicates whether the record passed DMARC evaluation.</summary>
-    public bool IsPass => (string.Equals(Dkim, "pass", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(Spf, "pass", StringComparison.OrdinalIgnoreCase))
-        && !string.Equals(Disposition, "reject", StringComparison.OrdinalIgnoreCase)
-        && !string.Equals(Disposition, "quarantine", StringComparison.OrdinalIgnoreCase);
+    /// <remarks>
+    /// DMARC pass/fail is determined by the aligned SPF/DKIM results (policy_evaluated/spf|dkim),
+    /// not by the disposition (p=none can still have failures with disposition=none).
+    /// </remarks>
+    public bool IsPass => string.Equals(Dkim, "pass", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Spf, "pass", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>SPF authenticated domain (auth_results/spf/domain).</summary>
     public string? SpfDomain { get; set; }
