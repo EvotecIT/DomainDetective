@@ -1,10 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using DomainDetective.Reports;
 using DomainDetective.Reports.Artifacts;
+using DomainDetective.Reports.Html;
+using DomainDetective.Reports.Office;
+using DomainDetective.TimeSeries.DmarcAggregate;
+using DomainDetective.TimeSeries.Registration;
+using DomainDetective.TimeSeries.TlsRpt;
+using HtmlForgeX;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -50,6 +58,10 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandOption("--recommendations")]
         [DefaultValue(true)]
         public bool IncludeRecommendations { get; set; } = true;
+
+        [Description("Optional time-series store root path (adds DMARC Aggregate / TLS-RPT Reports / Registration drift sections when available)")]
+        [CommandOption("--store|--store-path")]
+        public string? StorePath { get; set; }
     }
     
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
@@ -72,7 +84,28 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     healthCheck = new DomainHealthCheck(healthCheck.DnsEndpoint, logger);
                     var artifactsBase = DomainDetective.Reports.FilePathHelper.ResolveBaseDirectory(settings.OutputPath, null);
                     using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
-                    await healthCheck.Verify(settings.Domain);
+
+                    // Report-oriented default check set (broader than DomainHealthCheck.Verify defaults).
+                    var reportChecks = new[]
+                    {
+                        HealthCheckType.MX,
+                        HealthCheckType.SPF,
+                        HealthCheckType.DKIM,
+                        HealthCheckType.DMARC,
+                        HealthCheckType.CAA,
+                        HealthCheckType.DNSBL,
+                        HealthCheckType.RPKI,
+                        HealthCheckType.NS,
+                        HealthCheckType.SOA,
+                        HealthCheckType.TTL,
+                        HealthCheckType.ZONETRANSFER,
+                        HealthCheckType.WILDCARDDNS,
+                        HealthCheckType.MTASTS,
+                        HealthCheckType.TLSRPT,
+                        HealthCheckType.DANE,
+                        HealthCheckType.DNSSEC,
+                    };
+                    await healthCheck.Verify(settings.Domain, reportChecks);
                     analyzeTask.Value = 100;
                     
                     // Step 2: Generate report + artifacts
@@ -92,21 +125,68 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     };
                     var outputPath = DomainDetective.Reports.ReportPathHelper.ResolveOutputPath(settings.OutputPath, null, settings.Domain, formatEnum);
                     
-                    // Generate report and write artifacts (centralized)
-                    var options = new ReportOptions {
-                        Format = formatEnum,
-                        OutputPath = outputPath
-                    };
-                    options.CustomProperties["Domain"] = settings.Domain;
-                    options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
-                    var (dir, result) = await coord.EndAndExportAsync(
-                        healthCheck,
-                        options,
-                        settings.Domain,
-                        settings.OpenInBrowser);
-                    if (!result.Success) {
-                        AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
-                        return;
+                    // Always emit JSON artifacts for the run.
+                    var runDir = coord.End(healthCheck);
+
+                    // HTML/Word: use composition generators for parity with PowerShell export.
+                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
+                    {
+                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath);
+
+                        if (formatEnum == ReportFormat.Word)
+                        {
+                            WordCompositionReport.Generate(
+                                outputPath,
+                                items,
+                                ReportScope.Normal,
+                                showInfoFindings: true,
+                                narrativePlacement: NarrativePlacement.Auto,
+                                titleOverride: $"Security Report — {settings.Domain}");
+
+                            if (settings.OpenInBrowser)
+                            {
+                                TryOpenWithShell(outputPath);
+                            }
+                        }
+                        else
+                        {
+                            var profile = (settings.Template ?? "default").Equals("executive", StringComparison.OrdinalIgnoreCase)
+                                ? HtmlProfile.Dashboard
+                                : HtmlProfile.Document;
+                            var themeMode = (settings.Theme ?? "light").Equals("dark", StringComparison.OrdinalIgnoreCase)
+                                ? ThemeMode.Dark
+                                : ThemeMode.Light;
+
+                            HtmlCompositionReport.Generate(
+                                outputPath,
+                                items,
+                                ReportScope.Normal,
+                                openInBrowser: settings.OpenInBrowser,
+                                narrativePlacement: NarrativePlacement.Auto,
+                                titleOverride: $"Security Report — {settings.Domain}",
+                                authorOverride: "DomainDetective CLI",
+                                descriptionOverride: "Domain security posture overview",
+                                profile: profile,
+                                themeMode: themeMode);
+                        }
+                    }
+                    else
+                    {
+                        // Fallback: use the IReportGenerator adapter (may be minimal depending on the format).
+                        var dispatcher = new ReportDispatcher();
+                        var options = new ReportOptions
+                        {
+                            Format = formatEnum,
+                            OutputPath = outputPath
+                        };
+                        options.CustomProperties["Domain"] = settings.Domain;
+                        options.CustomProperties["OpenInBrowser"] = settings.OpenInBrowser;
+                        var result = await dispatcher.GenerateAsync(healthCheck, options, settings.Domain, settings.OpenInBrowser);
+                        if (!result.Success)
+                        {
+                            AnsiConsole.MarkupLine($"[red]{result.ErrorMessage}[/]");
+                            return;
+                        }
                     }
 
                     generateTask.Value = 100;
@@ -118,6 +198,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         $"[blue]Domain:[/] {settings.Domain}\n" +
                         $"[blue]Format:[/] {settings.Format}\n" +
                         $"[blue]Output:[/] {outputPath}\n" +
+                        $"[blue]Artifacts:[/] {runDir}\n" +
                         $"[blue]Template:[/] {settings.Template}\n" +
                         $"[blue]Theme:[/] {settings.Theme}"
                     ) {
@@ -133,5 +214,78 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
             AnsiConsole.MarkupLine($"[red]Error generating report: {ex.Message}[/]");
             return 1;
         }
+    }
+
+    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath)
+    {
+        var items = new List<object>();
+
+        // Core DNS/mail policy checks from this run
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis)); } catch { }
+        try { items.AddRange(DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis)); } catch { }
+
+        // Optional time-series sections from a store (only when data exists)
+        if (!string.IsNullOrWhiteSpace(storePath))
+        {
+            try
+            {
+                var dmarcStore = new DmarcAggregateTimeSeriesStore(storePath!);
+                var snaps = dmarcStore.LoadSnapshots(domain);
+                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
+            }
+            catch { }
+
+            try
+            {
+                var tlsStore = new TlsRptTimeSeriesStore(storePath!);
+                var snaps = tlsStore.LoadSnapshots(domain);
+                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
+            }
+            catch { }
+
+            try
+            {
+                var regStore = new RegistrationTimeSeriesStore(storePath!);
+                var snaps = regStore.LoadSnapshots(domain);
+                if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
+            }
+            catch { }
+        }
+
+        // Composition generators require at least one supported view object.
+        if (items.Count == 0)
+        {
+            items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
+        }
+
+        return items;
+    }
+
+    private static void TryOpenWithShell(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch { }
     }
 }

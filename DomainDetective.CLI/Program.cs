@@ -77,8 +77,21 @@ internal static class Program {
             config.AddCommand<ImportDmarcForensicCommand>("ImportDmarcForensic")
                 .WithDescription("Import DMARC forensic reports")
                 .WithExample(new[] { "ImportDmarcForensic", "forensic.zip" });
-            config.AddCommand<RefreshSuffixListCommand>("RefreshSuffixList")
-                .WithDescription("Download the latest public suffix list")
+
+            // Time-series ingestion (store)
+            config.AddCommand<DomainDetective.CLI.Commands.ImportDmarcAggregateSnapshotCommand>("ImportDmarcAggregateSnapshot")
+                .WithDescription("Import DMARC aggregate (RUA) reports into a time-series store")
+                .WithExample(new[] { "ImportDmarcAggregateSnapshot", "./Reports/DMARC", "--store-path", "./Store" })
+                .WithExample(new[] { "ImportDmarcAggregateSnapshot", "--store-path", "./Store", "--imap-host", "imap.example.com", "--imap-user", "user@example.com", "--imap-password-env", "DMARC_IMAP_PASSWORD", "--mailbox", "INBOX", "--since-utc", "2025-01-01" });
+            config.AddCommand<DomainDetective.CLI.Commands.ImportTlsRptReportSnapshotCommand>("ImportTlsRptReportSnapshot")
+                .WithDescription("Import TLS-RPT JSON reports into a time-series store")
+                .WithExample(new[] { "ImportTlsRptReportSnapshot", "example.com", "./Reports/TLSRPT", "--store-path", "./Store" })
+                .WithExample(new[] { "ImportTlsRptReportSnapshot", "example.com", "--store-path", "./Store", "--imap-host", "imap.example.com", "--imap-user", "user@example.com", "--imap-password-env", "TLSRPT_IMAP_PASSWORD", "--mailbox", "INBOX", "--since-utc", "2025-01-01" });
+            config.AddCommand<DomainDetective.CLI.Commands.ImportRegistrationSnapshotCommand>("ImportRegistrationSnapshot")
+                .WithDescription("Capture WHOIS/RDAP registration snapshot into a time-series store")
+                .WithExample(new[] { "ImportRegistrationSnapshot", "example.com", "--store-path", "./Store" });
+            config.AddCommand<RefreshSuffixListCommand>("RefreshSuffixList")    
+                .WithDescription("Download the latest public suffix list")      
                 .WithExample(new[] { "RefreshSuffixList", "--force" });
             config.AddCommand<SearchDomainCommand>("SearchDomain")
                 .WithDescription("Search for available domains")
@@ -119,12 +132,21 @@ internal static class Program {
                 .WithExample(new[] { "TestOpenResolver", "8.8.8.8" });
             config.AddCommand<TestNtpServerCommand>("TestNtpServer")
                 .WithDescription("Query NTP server for clock offset")
-                .WithExample(new[] { "TestNtpServer", "--builtin", "Pool" });
+                .WithExample(new[] { "TestNtpServer", "--builtin", "Pool" });   
+
+            // Reports
+            config.AddCommand<DomainDetective.CLI.Commands.GenerateReportCommand>("GenerateReport")
+                .WithDescription("Generate reports (HTML/Word/Markdown/etc.)")
+                .WithExample(new[] { "GenerateReport", "example.com", "--format", "html" })
+                .WithExample(new[] { "GenerateReport", "example.com", "--format", "word", "--store-path", "./Store" });
+            config.AddCommand<DomainDetective.CLI.Commands.GenerateReportCommand>("report")
+                .WithDescription("Generate reports (alias)")
+                .WithExample(new[] { "report", "example.com", "--format", "html" });
 
             // Artifacts utilities
             config.AddCommand<DomainDetective.CLI.Commands.RunsListCommand>("RunsList")
                 .WithDescription("List recent artifact runs (reads index.jsonl)")
-                .WithExample(new[] { "RunsList", "--subject", "example.com" })
+                .WithExample(new[] { "RunsList", "--subject", "example.com" })  
                 .WithExample(new[] { "RunsList", "--count", "5" });
             config.AddCommand<DomainDetective.CLI.Commands.RunsOpenCommand>("RunsOpen")
                 .WithDescription("Open most recent run directory or scan.json")
