@@ -395,6 +395,26 @@ public static class WordCompositionReport {
                 if (dto != null) MxWordSectionWriter.Write(doc, headings, 2, dto, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
                 else MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx!, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
             }, bucket.Mx != null);
+            add("Mail Transport Posture", () => {
+                headings.AddItem("Mail Transport Posture", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildMailTransportPosture(
+                    bucket.Mx,
+                    bucket.SmtpTls,
+                    bucket.ImapTls,
+                    bucket.PopTls,
+                    bucket.Mtasts,
+                    bucket.TlsRpt,
+                    bucket.TlsRptReports,
+                    bucket.Dane);
+                if (dto != null)
+                {
+                    MailTransportPostureWordSectionWriter.Write(doc, headings, 2, dto, domain, scope, showInfoFindings);
+                }
+                else
+                {
+                    doc.AddParagraph("No mail transport posture data.").SetItalic(true);
+                }
+            }, bucket.Mx != null || bucket.SmtpTls != null || bucket.ImapTls != null || bucket.PopTls != null || bucket.Mtasts != null || bucket.TlsRpt != null || bucket.TlsRptReports != null || bucket.Dane != null);
             add("SPF", () => {
                 headings.AddItem("SPF", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildSpf(bucket.Spf!);
