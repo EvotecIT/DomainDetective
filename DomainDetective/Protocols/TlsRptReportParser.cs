@@ -22,7 +22,20 @@ public static class TlsRptReportParser
     /// <summary>Parses a TLS-RPT JSON report from a stream.</summary>
     public static TlsRptReport Parse(Stream stream, string? name = null)
     {
+        return Parse(stream, name, maxUncompressedBytes: 0);
+    }
+
+    /// <summary>Parses a TLS-RPT JSON report from a stream with size limits.</summary>
+    /// <param name="stream">Input stream containing the report data.</param>
+    /// <param name="name">Optional name used to determine the format (.json, .gz, .zip).</param>
+    /// <param name="maxUncompressedBytes">Maximum uncompressed size to read (0 means unlimited).</param>
+    public static TlsRptReport Parse(Stream stream, string? name, long maxUncompressedBytes)
+    {
         if (stream == null) throw new ArgumentNullException(nameof(stream));
+        if (maxUncompressedBytes < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxUncompressedBytes), "maxUncompressedBytes must be >= 0 (0 means unlimited).");
+        }
 
         var ext = name != null ? Path.GetExtension(name).ToLowerInvariant() : ".json";
         using var buffer = new MemoryStream();
@@ -36,17 +49,22 @@ public static class TlsRptReportParser
                 throw new FormatException("ZIP archive does not contain a .json TLS-RPT report.");
             }
 
+            if (maxUncompressedBytes > 0 && entry.Length > maxUncompressedBytes)
+            {
+                throw new IOException($"TLS-RPT ZIP entry '{entry.FullName}' exceeds max uncompressed size {maxUncompressedBytes} bytes.");
+            }
+
             using var entryStream = entry.Open();
-            entryStream.CopyTo(buffer);
+            CopyToWithLimit(entryStream, buffer, maxUncompressedBytes);
         }
         else if (ext == ".gz" || ext == ".gzip")
         {
             using var gz = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true);
-            gz.CopyTo(buffer);
+            CopyToWithLimit(gz, buffer, maxUncompressedBytes);
         }
         else
         {
-            stream.CopyTo(buffer);
+            CopyToWithLimit(stream, buffer, maxUncompressedBytes);
         }
 
         buffer.Position = 0;
@@ -107,6 +125,28 @@ public static class TlsRptReportParser
         }
 
         return report;
+    }
+
+    private static void CopyToWithLimit(Stream source, Stream destination, long maxBytes)
+    {
+        if (maxBytes <= 0)
+        {
+            source.CopyTo(destination);
+            return;
+        }
+
+        var buf = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = source.Read(buf, 0, buf.Length)) > 0)
+        {
+            total += read;
+            if (total > maxBytes)
+            {
+                throw new IOException($"Stream exceeds max size {maxBytes} bytes.");
+            }
+            destination.Write(buf, 0, read);
+        }
     }
 
     private static void ValidateSchema(JsonElement root)
