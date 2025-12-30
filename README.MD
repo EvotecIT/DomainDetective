@@ -84,7 +84,7 @@ Reporting & UX
 - `SectionOrder`: explicit list of section keys when using Custom
 
 Canonical section order:
-MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, MAILTLS, DNSSEC, DANE.
+MX, SPF, DKIM, DMARC, DMARC Aggregate, ARC, BIMI, DNSBL, RPKI, Registration, NS, SOA, TTL, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, TLS-RPT Reports, MAILTLS, DNSSEC, DANE.
 
 Executive Summary columns remain canonical across formats; ordering affects per-domain sections only.
 
@@ -212,6 +212,17 @@ See TODO.md for the current backlog and roadmap.
 | `Import-DDDmarcForensic`    | `Import-DmarcForensic` | DMARC forensic zip  |
 | `Import-DDEmailTlsRpt`      | `Import-EmailTlsRpt`   | TLS-RPT JSON        |
 
+### Time Series
+
+| Prefixed Name                     | Alias Name                      | Purpose                                             |
+| --------------------------------- | ------------------------------- | --------------------------------------------------- |
+| `Import-DDDmarcAggregateSnapshot` | `Import-DmarcAggregateSnapshot` | DMARC aggregate snapshots (path/IMAP) → store       |
+| `Get-DDDmarcAggregateTimeSeries`  | `Get-DmarcAggregateTimeSeries`  | DMARC aggregate time-series view (report section)   |
+| `Import-DDTlsRptReportSnapshot`   | `Import-TlsRptReportSnapshot`   | TLS-RPT reports (path/IMAP) → store                 |
+| `Get-DDTlsRptReportsTimeSeries`   | `Get-TlsRptReportsTimeSeries`   | TLS-RPT reports time-series view (report section)   |
+| `Import-DDRegistrationSnapshot`   | `Import-RegistrationSnapshot`   | WHOIS/RDAP registration snapshot → store            |
+| `Get-DDRegistrationDrift`         | `Get-RegistrationDrift`         | Registration structured drift view (report section) |
+
 ## Reports / Exporting
 
 - Compose any mix via pipeline:
@@ -222,6 +233,24 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 $spf   = Test-DDEmailSpfRecord -DomainName 'evotec.pl'
 $dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress 'evotec.pl'
 ($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
+```
+
+- Time-series sections (DMARC Aggregate / TLS-RPT Reports / Registration drift):
+
+```
+Import-Module ./Module/DomainDetective.psd1 -Force
+
+# Ingest reports/snapshots (run on a schedule)
+Import-DDDmarcAggregateSnapshot -StorePath .\\Store -Path .\\Reports\\DMARC
+Import-DDTlsRptReportSnapshot   -DomainName example.com -StorePath .\\Store -Path .\\Reports\\TLSRPT
+Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
+
+# Build report sections from the store
+$dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store
+$tlsRpt   = Get-DDTlsRptReportsTimeSeries  -DomainName example.com -StorePath .\\Store
+$reg      = Get-DDRegistrationDrift        -DomainName example.com -StorePath .\\Store
+
+($dmarcAgg + $tlsRpt + $reg) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
 ```
 
 - Or inline with a script block:
@@ -515,7 +544,8 @@ ddcli RunsOpen --subject example.com
 
 - Dns endpoint: most cmdlets accept `-DnsEndpoint` to control resolution.
 - Scope selection: DNS propagation supports `-Country`, `-Location`, `-Take` and background monitor with start/stop cmdlets.
-- Snapshots and diffs: `-SnapshotPath` and `-Diff` compare against stored snapshots.
+- Snapshots and diffs: `-SnapshotPath` and `-Diff` (WHOIS) compare against stored snapshots.
+- Time-series stores: `-StorePath` (DMARC Aggregate / TLS-RPT Reports / Registration drift).
 - Output formats: HTML/Word/Excel/PDF (basic)/Markdown/MarkdownHtml/JSON (availability varies by cmdlet).
 
 ## Alternatives
@@ -560,7 +590,14 @@ Console.WriteLine($"Registrar lock: {summary.RegistrarLocked}");
 Console.WriteLine($"Is public suffix: {summary.IsPublicSuffix}");
 ```
 
-WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet. Comparing the latest data to the previous snapshot highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.
+WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet (`-SnapshotPath`). Comparing the latest data to the previous snapshot (`-Diff`) highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.
+
+For unified WHOIS/RDAP snapshots and structured drift (registrar, status codes, nameservers) that can be embedded in Word/HTML exports, use the time-series store:
+
+```
+Import-DDRegistrationSnapshot -DomainName example.com -StorePath .\\Store
+Get-DDRegistrationDrift       -DomainName example.com -StorePath .\\Store
+```
 
 ## Check Descriptions
 

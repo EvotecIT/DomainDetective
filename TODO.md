@@ -1,6 +1,6 @@
 # DomainDetective — Open TODO (Consolidated)
 
-This file consolidates outstanding items from TODO-TOMORROW.MD, TODO-DAYAFTER.MD, IDEAS.MD, and README.MD. Completed entries were removed; items below were validated against the codebase on 2025-12-29.
+This is the single backlog/roadmap file for DomainDetective. Items below were last validated against the codebase on 2025-12-30.
 
 ## High Priority
 - Golden report pass (Word): single-domain and multi-domain; verify one-liner intros and References blocks across sections.
@@ -9,22 +9,10 @@ This file consolidates outstanding items from TODO-TOMORROW.MD, TODO-DAYAFTER.MD
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
 ## Competitive Parity (External Feature Gaps)
-- DMARC Aggregate (RUA) ingestion and analysis
-  - Ingest aggregate reports from folder and mailbox (ZIP/GZ/XML parsing already in core).
-  - Normalize into internal JSON snapshots and time-series storage.
-  - Rollups: by source IP, header-from, auth result (pass/fail/alignment), and enforcement mode.
-  - Trends: daily/weekly pass rate, top failing sources, alignment gaps; export time series.
-  - Reports: Word/HTML sections for Aggregate Reports with posture one-liners and remediation hints.
-- TLS-RPT report ingestion and analysis
-  - Ingest JSON reports from folder/mailbox; normalize into snapshots + time series.
-  - Rollups by policy/result/MX host; surface top failures and trends.
-  - Reports: Word/HTML sections for TLS-RPT outcomes and remediation hints.
-- Mail transport security posture
-  - Surface STARTTLS/SMTP/IMAP/POP posture in HTML/Word Good Posture/Findings; include references.
-- Registration snapshot (WHOIS/RDAP)
-  - Add server/port override for WHOIS queries; RDAP fallback when available.
-  - Snapshot registrar, creation/update/expiry, domain status codes, nameservers.
-  - Track drift across runs (registrar/nameserver changes) as structured diffs.
+- CLI: time-series ingestion parity for mail/registration
+  - DMARC Aggregate: import from path + IMAP; build time-series; export Word/HTML sections.
+  - TLS-RPT Reports: import from path + IMAP; build time-series; export Word/HTML sections.
+  - Registration: import snapshots; emit structured drift section.
 - Resolver override everywhere
   - Expose multi-resolver lists across CLI/PS beyond Test-DDDomainOverallHealth; pipe through to DNS layer.
 - Bulk input and CSV export
@@ -88,8 +76,10 @@ This file consolidates outstanding items from TODO-TOMORROW.MD, TODO-DAYAFTER.MD
 - Narratives in core for all areas; views surface `.Narrative`.
 - Word (OfficeIMO): cover, TOC, numbered headings, header/footer branding, watermark, styled tables; charts later.
 - HTML (HtmlForgeX): anchors + sticky TOC, info cards, provider summaries, explainers; charts later.
-- PDF: move from minimal output to composition-based parity (Word/HTML structure, branding, references).
 - Multi-domain aggregate: portfolio matrix + per-domain sections.
+
+## Deferred (Not Needed Now)
+- PDF: move from minimal output to composition-based parity (Word/HTML structure, branding, references).
 
 ## Composition Unification — End-to-End Checklist (Added 2025-09-14)
 - Shared Data Model (SectionProjectors)
