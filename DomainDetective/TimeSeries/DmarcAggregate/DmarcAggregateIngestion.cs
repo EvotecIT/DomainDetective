@@ -71,32 +71,25 @@ public static class DmarcAggregateIngestion
             return Extensions.Contains(ext, StringComparer.OrdinalIgnoreCase);
         }
 
-        async Task<DmarcAggregateSnapshot?> Parse(Stream stream, string fileName, CancellationToken ct)
+        Task<DmarcAggregateSnapshot?> Parse(Stream stream, string fileName, CancellationToken ct)
         {
-            try
+            var report = DmarcReportParser.Parse(stream, fileName, validationMessages: null, maxUncompressedBytes: options.MaxAttachmentBytes);
+            if (deduplicate)
             {
-                var report = DmarcReportParser.Parse(stream, fileName);
-                if (deduplicate)
+                var key = $"{report.ReportId}|{report.RangeBeginUtc?.UtcDateTime:o}|{report.RangeEndUtc?.UtcDateTime:o}|{report.ReporterOrgName}|{report.PolicyPublished?.Domain}";
+                if (!string.IsNullOrWhiteSpace(report.ReportId) && !seen.Add(key))
                 {
-                    var key = $"{report.ReportId}|{report.RangeBeginUtc?.UtcDateTime:o}|{report.RangeEndUtc?.UtcDateTime:o}|{report.ReporterOrgName}|{report.PolicyPublished?.Domain}";
-                    if (!string.IsNullOrWhiteSpace(report.ReportId) && !seen.Add(key))
-                    {
-                        return null;
-                    }
+                    return Task.FromResult<DmarcAggregateSnapshot?>(null);
                 }
+            }
 
-                var snapshot = DmarcAggregateSnapshotBuilder.Build(report, source: "IMAP", sourceId: fileName);
-                var outPath = store.SaveSnapshot(snapshot);
-                lock (savedLock)
-                {
-                    savedPaths.Add(outPath);
-                }
-                return snapshot;
-            }
-            catch
+            var snapshot = DmarcAggregateSnapshotBuilder.Build(report, source: "IMAP", sourceId: fileName);
+            var outPath = store.SaveSnapshot(snapshot);
+            lock (savedLock)
             {
-                return null;
+                savedPaths.Add(outPath);
             }
+            return Task.FromResult<DmarcAggregateSnapshot?>(snapshot);
         }
 
         var ingest = await ImapAttachmentIngestor.IngestAsync(options, Include, Parse, cancellationToken).ConfigureAwait(false);
