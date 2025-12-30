@@ -27,19 +27,21 @@ public static partial class HtmlCompositionReport
     /// <param name="sectionOrderMode">How to order sections within a domain (Canonical, Input, or Custom).</param>
     /// <param name="sectionOrder">Explicit section order used when <paramref name="sectionOrderMode"/> is Custom.</param>
     /// <param name="profile">Presentation profile for HTML (Document or Dashboard).</param>
+    /// <param name="themeMode">Theme mode for HTML (Light or Dark).</param>
     public static void Generate(
         string path,
         IReadOnlyList<object> items,
         ReportScope scope,
         bool openInBrowser = false,
-        NarrativePlacement narrativePlacement = NarrativePlacement.Auto,
+        NarrativePlacement narrativePlacement = NarrativePlacement.Auto,        
         string? titleOverride = null,
         string? authorOverride = null,
         string? descriptionOverride = null,
         DomainOrder domainOrder = DomainOrder.Alphabetical,
         SectionOrderMode sectionOrderMode = SectionOrderMode.Canonical,
         string[]? sectionOrder = null,
-        HtmlProfile profile = HtmlProfile.Document)
+        HtmlProfile profile = HtmlProfile.Document,
+        ThemeMode themeMode = ThemeMode.Light)
     {
         if (items == null || items.Count == 0)
         {
@@ -74,7 +76,7 @@ public static partial class HtmlCompositionReport
                 Revised = DateTime.Now
             },
             LibraryMode = LibraryMode.Online,
-            ThemeMode = ThemeMode.Light
+            ThemeMode = themeMode
         };
 
         // Performance: lazy init tables/charts, avoid URL hash navigation for tabs.

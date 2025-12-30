@@ -462,14 +462,14 @@ Run the example project and CLI scenarios:
 
 ```bash
 dotnet run --project DomainDetective.Example example.com --json
-ddcli example.com --checks autodiscover
-ddcli example.com --subdomain-policy
-ddcli example.com --checks fcrdns
+ddcli check example.com --checks autodiscover
+ddcli check example.com --subdomain-policy
+ddcli check example.com --checks fcrdns
 ddcli TestSMIMEA user@example.com
 ddcli DnsPropagation --domain example.com --record-type A
 
- ddcli example.com --check-web
- ddcli example.com --checks DNSHEALTH
+ ddcli check example.com --check-web
+ ddcli check example.com --checks DNSHEALTH
 
 #### SPF host simulation
 
@@ -536,6 +536,19 @@ ddcli RunsList --subject example.com --count 5
 
 # Open the most recent run (scan.json or directory)
 ddcli RunsOpen --subject example.com
+```
+
+### CLI: time-series store (DMARC Aggregate / TLS-RPT / Registration)
+
+```bash
+# Ingest reports/snapshots (run on a schedule)
+ddcli ImportDmarcAggregateSnapshot ./Reports/DMARC --store-path ./Store
+ddcli ImportTlsRptReportSnapshot   example.com ./Reports/TLSRPT --store-path ./Store
+ddcli ImportRegistrationSnapshot   example.com --store-path ./Store
+
+# Generate report with time-series sections
+ddcli GenerateReport example.com --format word --store-path ./Store
+ddcli GenerateReport example.com --format html --store-path ./Store
 ```
 
 <!-- Tables moved to top under "Available Cmdlets and Aliases" -->

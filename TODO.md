@@ -9,10 +9,6 @@ This is the single backlog/roadmap file for DomainDetective. Items below were la
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
 
 ## Competitive Parity (External Feature Gaps)
-- CLI: time-series ingestion parity for mail/registration
-  - DMARC Aggregate: import from path + IMAP; build time-series; export Word/HTML sections.
-  - TLS-RPT Reports: import from path + IMAP; build time-series; export Word/HTML sections.
-  - Registration: import snapshots; emit structured drift section.
 - Resolver override everywhere
   - Expose multi-resolver lists across CLI/PS beyond Test-DDDomainOverallHealth; pipe through to DNS layer.
 - Bulk input and CSV export

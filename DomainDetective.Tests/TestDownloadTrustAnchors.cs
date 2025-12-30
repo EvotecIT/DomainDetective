@@ -9,12 +9,12 @@ namespace DomainDetective.Tests {
     public class TestDownloadTrustAnchors {
         [Fact]
         public async Task FetchesAnchors() {
-            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");
+            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective.Tests", nameof(TestDownloadTrustAnchors), Guid.NewGuid().ToString("N"));
             string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");
             if (File.Exists(cacheFile)) {
                 File.Delete(cacheFile);
             }
-            var result = await DnsSecAnalysis.DownloadTrustAnchors();
+            var result = await DnsSecAnalysis.DownloadTrustAnchors(cacheDirectory: cacheDir);
             bool fallbackWritten = false;
             if (result.anchors.Count == 0) {
                 Directory.CreateDirectory(cacheDir);
@@ -29,7 +29,7 @@ namespace DomainDetective.Tests {
                 File.WriteAllText(cacheFile, xml);
                 File.SetLastWriteTimeUtc(cacheFile, DateTime.UtcNow);
                 fallbackWritten = true;
-                result = await DnsSecAnalysis.DownloadTrustAnchors();
+                result = await DnsSecAnalysis.DownloadTrustAnchors(cacheDirectory: cacheDir);
             }
             try {
                 Assert.NotEmpty(result.anchors);
@@ -42,8 +42,8 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task IgnoresExpiredKeyDigestsWhenActivePresent() {
-            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");
-            string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");
+            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective.Tests", nameof(TestDownloadTrustAnchors), Guid.NewGuid().ToString("N"));
+            string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");      
             Directory.CreateDirectory(cacheDir);
 
             string xml =
@@ -63,7 +63,7 @@ namespace DomainDetective.Tests {
             File.SetLastWriteTimeUtc(cacheFile, DateTime.UtcNow);
 
             try {
-                var result = await DnsSecAnalysis.DownloadTrustAnchors();
+                var result = await DnsSecAnalysis.DownloadTrustAnchors(cacheDirectory: cacheDir);       
                 Assert.Contains(result.anchors, a => a.StartsWith("20326 ", StringComparison.Ordinal));
                 Assert.DoesNotContain(result.anchors, a => a.StartsWith("19036 ", StringComparison.Ordinal));
                 Assert.DoesNotContain(result.anchors, a => a.StartsWith("99999 ", StringComparison.Ordinal));
@@ -75,14 +75,14 @@ namespace DomainDetective.Tests {
 
         [Fact]
         public async Task MalformedXmlReturnsEmpty() {
-            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");
-            string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");
+            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective.Tests", nameof(TestDownloadTrustAnchors), Guid.NewGuid().ToString("N"));
+            string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");      
             Directory.CreateDirectory(cacheDir);
-            File.WriteAllText(cacheFile, "<trustanchors><bad></trust>");
+            File.WriteAllText(cacheFile, "<trustanchors><bad></trust>");        
             File.SetLastWriteTimeUtc(cacheFile, DateTime.UtcNow);
 
             try {
-                var result = await DnsSecAnalysis.DownloadTrustAnchors();
+                var result = await DnsSecAnalysis.DownloadTrustAnchors(cacheDirectory: cacheDir);       
                 Assert.Empty(result.anchors);
             } finally {
                 File.Delete(cacheFile);
