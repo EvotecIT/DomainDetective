@@ -51,6 +51,10 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
     public string Mailbox { get; set; } = "INBOX";
 
+    /// <summary>Only scan messages with a subject containing this string.</summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Imap")]
+    public string? SubjectContains { get; set; }
+
     /// <summary>Only fetch messages delivered since this UTC date/time.</summary>
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
     public DateTime? SinceUtc { get; set; }
@@ -59,7 +63,11 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
     public int MaxMessages { get; set; } = 500;
 
-    /// <summary>Only consider unseen messages (default true).</summary>
+    /// <summary>Maximum attachment size to decode in MB (0 for unlimited).</summary>
+    [Parameter(Mandatory = false, ParameterSetName = "Imap")]
+    public int MaxAttachmentMb { get; set; } = 50;
+
+    /// <summary>Only consider unseen messages (default true).</summary>        
     [Parameter(Mandatory = false, ParameterSetName = "Imap")]
     public bool OnlyUnseen { get; set; } = true;
 
@@ -89,8 +97,15 @@ public sealed class CmdletImportDmarcAggregateSnapshot : PSCmdlet
                 Password = Credential.GetNetworkCredential().Password ?? string.Empty,
                 Mailbox = Mailbox ?? "INBOX",
                 MaxMessages = MaxMessages,
-                OnlyUnseen = OnlyUnseen
+                OnlyUnseen = OnlyUnseen,
+                RequireAttachments = true,
+                MaxAttachmentBytes = MaxAttachmentMb <= 0
+                    ? 0
+                    : (long)MaxAttachmentMb * 1024L * 1024L,
             };
+            if (!string.IsNullOrWhiteSpace(SubjectContains)) {
+                options.SubjectContains = SubjectContains;
+            }
             if (SinceUtc.HasValue)
             {
                 options.SinceUtc = new DateTimeOffset(DateTime.SpecifyKind(SinceUtc.Value, DateTimeKind.Utc));
