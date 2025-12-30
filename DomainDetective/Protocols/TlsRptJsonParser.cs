@@ -11,36 +11,23 @@ namespace DomainDetective {
         /// <param name="path">Path to the JSON file.</param>
         /// <returns>Enumerable of summary results.</returns>
         public static IEnumerable<TlsRptSummary> ParseReport(string path) {
-            var json = File.ReadAllText(path);
-            using var doc = JsonDocument.Parse(json);
-
-            ValidateSchema(doc.RootElement);
-
             var list = new List<TlsRptSummary>();
-            var policies = doc.RootElement.GetProperty("policies");
-
-            foreach (var policy in policies.EnumerateArray()) {
-                var pol = policy.GetProperty("policy");
-                var mxHost = pol.GetProperty("mx-host").GetString() ?? string.Empty;
-                var summary = policy.GetProperty("summary");
-                int success = summary.GetProperty("total-successful-session-count").GetInt32();
-                int failure = summary.GetProperty("total-failure-session-count").GetInt32();
-
-                var entry = new TlsRptSummary {
-                    MxHost = mxHost,
-                    SuccessfulSessions = success,
-                    FailedSessions = failure,
+            var report = TlsRptReportParser.Parse(path);
+            foreach (var p in report.Policies)
+            {
+                var entry = new TlsRptSummary
+                {
+                    MxHost = p.Policy.MxHost,
+                    SuccessfulSessions = p.Summary.SuccessfulSessionCount,
+                    FailedSessions = p.Summary.FailedSessionCount,
                     FailureByType = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase)
                 };
 
-                if (policy.TryGetProperty("failure-details", out var details) && details.ValueKind == JsonValueKind.Array)
+                foreach (var fd in p.FailureDetails)
                 {
-                    foreach (var fd in details.EnumerateArray())
-                    {
-                        string resultType = fd.TryGetProperty("result-type", out var rt) ? (rt.GetString() ?? "unknown") : "unknown";
-                        int cnt = fd.TryGetProperty("failed-session-count", out var fc) ? fc.GetInt32() : 0;
-                        entry.FailureByType[resultType] = (entry.FailureByType.TryGetValue(resultType, out var prev) ? prev : 0) + cnt;
-                    }
+                    string resultType = string.IsNullOrWhiteSpace(fd.ResultType) ? "unknown" : fd.ResultType;
+                    int cnt = fd.FailedSessionCount;
+                    entry.FailureByType[resultType] = (entry.FailureByType.TryGetValue(resultType, out var prev) ? prev : 0) + cnt;
                 }
 
                 list.Add(entry);
