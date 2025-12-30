@@ -41,7 +41,8 @@ namespace DomainDetective
                     DnsRecordType.TXT,
                     "SPF1",
                     includeAliasesInFilter: true);
-                return answers != null && answers.Length > 0 ? answers[0].Data : null;
+                var txt = answers?.FirstOrDefault(a => a.Type == DnsRecordType.TXT);
+                return txt?.Data;
             }
 
             async Task<(bool matched, string verdict, string token, string type, string? source, List<string> chain)> EvalDomainAsync(string d, List<string> chain)

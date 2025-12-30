@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Threading.Tasks;
 using Xunit;
@@ -52,7 +53,7 @@ namespace DomainDetective.Tests
         }
 
         [Fact(Skip="Pending fine-tuning; skip in CI for now")]
-        public async Task EvaluateHost_LookupsExceeded_PermError()
+        public async Task EvaluateHost_LookupsExceeded_PermError()        
         {
             var hc = new DomainDetective.DomainHealthCheck();
             // 11 'a:' mechanisms to drive lookup counter over 10
@@ -61,6 +62,29 @@ namespace DomainDetective.Tests
             var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("198.51.100.20"), "postmaster@example.com", "mail.example.com");
             Assert.True(eval.LookupsExceeded);
             Assert.Equal("permerror", eval.Verdict);
+        }
+
+        [Fact]
+        public async Task EvaluateHost_SpfTxtWithCnameFirst_PicksTxt()
+        {
+            var hc = new DomainDetective.DomainHealthCheck();
+            hc.DnsConfiguration.QueryDnsOverride = (name, type) =>
+            {
+                if (type == DnsClientX.DnsRecordType.TXT && string.Equals(name, "example.com", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Task.FromResult(new[]
+                    {
+                        new DnsClientX.DnsAnswer { Type = DnsClientX.DnsRecordType.CNAME, DataRaw = "alias.example.net." },
+                        new DnsClientX.DnsAnswer { Type = DnsClientX.DnsRecordType.TXT, DataRaw = "v=spf1 -all" }
+                    });
+                }
+
+                return Task.FromResult(System.Array.Empty<DnsClientX.DnsAnswer>());
+            };
+
+            var eval = await hc.SpfAnalysis.EvaluateHostAsync("example.com", IPAddress.Parse("192.0.2.10"), "postmaster@example.com", "mail.example.com");
+            Assert.Equal("fail", eval.Verdict);
+            Assert.Equal("all", eval.MatchedType);
         }
     }
 }

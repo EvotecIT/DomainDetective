@@ -168,12 +168,9 @@ namespace DomainDetective {
                 if (ResolverMaxConcurrency.HasValue) {
                     client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                 }
-                DnsResponse[] data;
-                if (filter != string.Empty || includeAliasesInFilter) {
-                    data = await client.ResolveFilter(names, recordType, filter, filterOptions);
-                } else {
-                    data = await client.Resolve(names, recordType);
-                }
+                DnsResponse[] data = (filter != string.Empty || includeAliasesInFilter)
+                    ? await client.ResolveFilter(names, recordType, filter, filterOptions)
+                    : await client.Resolve(names, recordType);
 
                 foreach (var response in data) {
                     allAnswers.AddRange(response.Answers);
@@ -190,12 +187,9 @@ namespace DomainDetective {
                         if (ResolverMaxConcurrency.HasValue) {
                             clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
                         }
-                        DnsResponse[] dataFb;
-                        if (filter != string.Empty || includeAliasesInFilter) {
-                            dataFb = await clientFb.ResolveFilter(names, recordType, filter, filterOptions);
-                        } else {
-                            dataFb = await clientFb.Resolve(names, recordType);
-                        }
+                        DnsResponse[] dataFb = (filter != string.Empty || includeAliasesInFilter)
+                            ? await clientFb.ResolveFilter(names, recordType, filter, filterOptions)
+                            : await clientFb.Resolve(names, recordType);
                         foreach (var response in dataFb) {
                             allAnswers.AddRange(response.Answers);
                         }
