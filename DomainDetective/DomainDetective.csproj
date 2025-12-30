@@ -16,7 +16,7 @@
     <ItemGroup>
         <PackageReference Include="DnsClientX" Version="1.0.4" />
         <PackageReference Include="MailKit" Version="4.13.0" />
-        <PackageReference Include="PgpCore" Version="6.5.2" />
+        <PackageReference Include="PgpCore" Version="6.5.3" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
