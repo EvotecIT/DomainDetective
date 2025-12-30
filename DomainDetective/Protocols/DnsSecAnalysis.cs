@@ -778,12 +778,16 @@ namespace DomainDetective {
         /// </summary>
         /// <param name="logger">Optional logger for diagnostics.</param>
         /// <param name="cancellationToken">Propagation token for the HTTP request.</param>
+        /// <param name="cacheDirectory">Optional override for the trust anchor cache directory.</param>
         /// <returns>List of DS record strings for the root zone.</returns>
         public static async Task<(IReadOnlyList<string> anchors, DateTimeOffset? expiration)> DownloadTrustAnchors(
             InternalLogger? logger = null,
-            CancellationToken cancellationToken = default) {
+            CancellationToken cancellationToken = default,
+            string? cacheDirectory = null) {
             const string url = "https://data.iana.org/root-anchors/root-anchors.xml";
-            string cacheDir = Path.Combine(Path.GetTempPath(), "DomainDetective");
+            string cacheDir = string.IsNullOrWhiteSpace(cacheDirectory)
+                ? Path.Combine(Path.GetTempPath(), "DomainDetective")
+                : cacheDirectory!;
             string cacheFile = Path.Combine(cacheDir, "root-anchors.xml");
 
             bool fileCreated = false;
