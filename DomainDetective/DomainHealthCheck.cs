@@ -356,6 +356,18 @@ namespace DomainDetective {
         /// <value>Results of static (non-browser) web scanning.</value>
         public WebStaticScanAnalysis WebStaticScanAnalysis { get; private set; } = new WebStaticScanAnalysis();
 
+        /// <summary>Gets the subdomain discovery analysis.</summary>
+        /// <value>CT-backed subdomain discovery with optional DNS verification.</value>
+        public SubdomainsAnalysis SubdomainsAnalysis { get; private set; } = new SubdomainsAnalysis();
+
+        /// <summary>Gets the DNS inventory analysis.</summary>
+        /// <value>Common record inventory with TTLs and optional authority/additional capture.</value>
+        public DnsInventoryAnalysis DnsInventoryAnalysis { get; private set; } = new DnsInventoryAnalysis();
+
+        /// <summary>Gets the DNS trace analysis.</summary>
+        /// <value>Iterative authoritative trace log for explainability and debugging.</value>
+        public DnsTraceAnalysis DnsTraceAnalysis { get; private set; } = new DnsTraceAnalysis();
+
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
         /// <summary>
@@ -418,6 +430,9 @@ namespace DomainDetective {
             };
 
             DanglingCnameAnalysis.DnsConfiguration = DnsConfiguration;
+            SubdomainsAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsInventoryAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsTraceAnalysis.DnsConfiguration = DnsConfiguration;
 
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
