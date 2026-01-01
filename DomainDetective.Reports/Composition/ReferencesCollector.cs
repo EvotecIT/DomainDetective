@@ -48,6 +48,9 @@ public static class ReferencesCollector
             Pull(b.ImapTls?.References);
             Pull(b.PopTls?.References);
             Pull(b.Classification?.References);
+            Pull(b.Subdomains?.References);
+            Pull(b.DnsInventory?.References);
+            Pull(b.DnsTrace?.References);
         }
 
         return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();

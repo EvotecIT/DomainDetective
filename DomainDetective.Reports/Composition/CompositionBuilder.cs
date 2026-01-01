@@ -39,6 +39,9 @@ public static class CompositionBuilder
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
     }
 
     public static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
@@ -117,6 +120,9 @@ public static class CompositionBuilder
                 }
                 case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
                 case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
+                case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject): Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
+                case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject): Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
+                case DomainDetective.Views.DnsTraceInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].DnsTrace = tr; break;
                 default: break;
             }
         }
