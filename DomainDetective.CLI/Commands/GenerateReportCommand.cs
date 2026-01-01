@@ -62,6 +62,11 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [Description("Optional time-series store root path (adds DMARC Aggregate / TLS-RPT Reports / Registration drift sections when available)")]
         [CommandOption("--store|--store-path")]
         public string? StorePath { get; set; }
+
+        [Description("Include authoritative DNS trace section (can be slow)")]
+        [CommandOption("--dns-trace")]
+        [DefaultValue(false)]
+        public bool IncludeDnsTrace { get; set; }
     }
     
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
@@ -86,8 +91,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
 
                     // Report-oriented default check set (broader than DomainHealthCheck.Verify defaults).
-                    var reportChecks = new[]
-                    {
+                    var reportChecks = new List<HealthCheckType> {
                         HealthCheckType.MX,
                         HealthCheckType.SPF,
                         HealthCheckType.DKIM,
@@ -104,8 +108,13 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         HealthCheckType.TLSRPT,
                         HealthCheckType.DANE,
                         HealthCheckType.DNSSEC,
+                        HealthCheckType.SUBDOMAINS,
+                        HealthCheckType.DNSINVENTORY,
                     };
-                    await healthCheck.Verify(settings.Domain, reportChecks);
+                    if (settings.IncludeDnsTrace) {
+                        reportChecks.Add(HealthCheckType.DNSTRACE);
+                    }
+                    await healthCheck.Verify(settings.Domain, reportChecks.ToArray());
                     analyzeTask.Value = 100;
                     
                     // Step 2: Generate report + artifacts
@@ -131,7 +140,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     // HTML/Word: use composition generators for parity with PowerShell export.
                     if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
                     {
-                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath);
+                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace);
 
                         if (formatEnum == ReportFormat.Word)
                         {
@@ -216,7 +225,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         }
     }
 
-    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath)
+    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath, bool includeDnsTrace)
     {
         var items = new List<object>();
 
@@ -237,6 +246,12 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis)); } catch { }
+        if (includeDnsTrace)
+        {
+            try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis)); } catch { }
+        }
 
         // Optional time-series sections from a store (only when data exists)
         if (!string.IsNullOrWhiteSpace(storePath))

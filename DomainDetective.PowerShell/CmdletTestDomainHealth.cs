@@ -172,6 +172,15 @@ namespace DomainDetective.PowerShell {
                                         items.Add(DomainDetective.Views.Converters.Convert(mc));
                                         break;
                                     }
+                                case DomainDetective.HealthCheckType.SUBDOMAINS:
+                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
+                                    break;
+                                case DomainDetective.HealthCheckType.DNSINVENTORY:
+                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
+                                    break;
+                                case DomainDetective.HealthCheckType.DNSTRACE:
+                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
+                                    break;
                                 default:
                                     break; // unsupported here falls back to default path
                             }
