@@ -28,6 +28,9 @@ public static partial class HtmlCompositionReport
         if (b.Dmarc != null) list.Add("DMARC");
         if (b.DmarcAggregate != null) list.Add("DMARC Aggregate");
         if (b.Registration != null) list.Add("Registration");
+        if (b.Subdomains != null) list.Add("Subdomains");
+        if (b.DnsInventory != null) list.Add("DNS Inventory");
+        if (b.DnsTrace != null) list.Add("DNS Trace");
         if (b.Arc != null) list.Add("ARC");
         if (b.Bimi != null) list.Add("BIMI");
         if (b.Dnsbl != null) list.Add("DNSBL");
@@ -102,6 +105,15 @@ public static partial class HtmlCompositionReport
                     break;
                 case "Registration":
                     RenderRegistrationSection(acc, b);
+                    break;
+                case "Subdomains":
+                    RenderSubdomainsSection(acc, b);
+                    break;
+                case "DNS Inventory":
+                    RenderDnsInventorySection(acc, b);
+                    break;
+                case "DNS Trace":
+                    RenderDnsTraceSection(acc, b);
                     break;
                 case "NS":
                     RenderNsSection(acc, b);

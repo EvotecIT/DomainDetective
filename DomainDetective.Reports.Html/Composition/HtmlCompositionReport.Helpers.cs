@@ -170,6 +170,9 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Ttl?.WarningCount ?? 0, b.Ttl?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.ZoneTransfer?.WarningCount ?? 0, b.ZoneTransfer?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Wildcard?.WarningCount ?? 0, b.Wildcard?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Subdomains?.WarningCount ?? 0, b.Subdomains?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsInventory?.WarningCount ?? 0, b.DnsInventory?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsTrace?.WarningCount ?? 0, b.DnsTrace?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Classification?.WarningCount ?? 0, b.Classification?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Arc?.WarningCount ?? 0, b.Arc?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Bimi?.WarningCount ?? 0, b.Bimi?.ErrorCount ?? 0);
@@ -491,6 +494,9 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
     }
 
@@ -580,6 +586,9 @@ public static partial class HtmlCompositionReport {
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
+            Subdomains = s.Subdomains,
+            DnsInventory = s.DnsInventory,
+            DnsTrace = s.DnsTrace,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
