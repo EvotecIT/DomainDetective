@@ -448,6 +448,26 @@ public static class WordCompositionReport {
                 headings.AddItem("Registration", 1);
                 RegistrationWordSectionWriter.Write(doc, headings, 2, bucket.Registration!, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }, bucket.Registration != null);
+            add("Subdomains", () => {
+                headings.AddItem("Subdomains", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildSubdomains(bucket.Subdomains!);
+                if (dto != null) SubdomainsWordSectionWriter.Write(doc, headings, 2, dto, bucket.Subdomains, domain, scope, showInfoFindings);
+                else SubdomainsWordSectionWriter.Write(doc, headings, 2, bucket.Subdomains!, domain, scope, showInfoFindings);
+            }, bucket.Subdomains != null);
+            add("DNS Inventory", () =>
+            {
+                headings.AddItem("DNS Inventory", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsInventory(bucket.DnsInventory!);
+                if (dto != null) DnsInventoryWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsInventory, domain, scope, showInfoFindings);
+                else DnsInventoryWordSectionWriter.Write(doc, headings, 2, bucket.DnsInventory!, domain, scope, showInfoFindings);
+            }, bucket.DnsInventory != null);
+            add("DNS Trace", () =>
+            {
+                headings.AddItem("DNS Trace", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsTrace(bucket.DnsTrace!);
+                if (dto != null) DnsTraceWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsTrace, domain, scope, showInfoFindings);
+                else DnsTraceWordSectionWriter.Write(doc, headings, 2, bucket.DnsTrace!, domain, scope, showInfoFindings);
+            }, bucket.DnsTrace != null);
             add("ARC", () => { headings.AddItem("ARC", 1); ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Arc != null);  
             add("BIMI", () => { headings.AddItem("BIMI", 1); BimiWordSectionWriter.Write(doc, headings, 2, bucket.Bimi!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderBimi) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Bimi != null);
             add("DNSBL", () => { headings.AddItem("DNSBL", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildDnsbl(bucket.Dnsbl!); if (dto != null) DnsblWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dnsbl, domain, scope, showInfoFindings); else DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl!, domain, scope, showInfoFindings); }, bucket.Dnsbl != null);
@@ -507,6 +527,9 @@ public static class WordCompositionReport {
                 PullAssessments(b.SmtpTls?.Assessments);
                 PullAssessments(b.ImapTls?.Assessments);
                 PullAssessments(b.PopTls?.Assessments);
+                PullAssessments(b.Subdomains?.Assessments);
+                PullAssessments(b.DnsInventory?.Assessments);
+                PullAssessments(b.DnsTrace?.Assessments);
             }
             string NormalizeRec(string? text) {
                 if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -778,6 +801,9 @@ public static class WordCompositionReport {
         public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
         public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; } 
         public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }   
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
         // Mail TLS (per protocol) for rollup column
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
@@ -909,6 +935,12 @@ public static class WordCompositionReport {
                             default: break;
                         }
                         break;
+                    case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject):
+                        Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
+                    case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject):
+                        Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
+                    case DomainDetective.Views.DnsTraceInfo trc when !string.IsNullOrWhiteSpace(trc.Subject):
+                        Ensure(trc.Subject); map[trc.Subject].DnsTrace = trc; break;
                     default:
                         break;
                 }
