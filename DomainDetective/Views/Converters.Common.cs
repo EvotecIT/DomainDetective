@@ -23,6 +23,9 @@ public static partial class Converters
             case HealthCheckType.ZONETRANSFER:
             case HealthCheckType.DNSHEALTH:
             case HealthCheckType.APEXADDRESS:
+            case HealthCheckType.SUBDOMAINS:
+            case HealthCheckType.DNSINVENTORY:
+            case HealthCheckType.DNSTRACE:
                 return AnalysisArea.DNS;
 
             // Mail group
