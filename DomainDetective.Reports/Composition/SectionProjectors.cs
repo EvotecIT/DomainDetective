@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace DomainDetective.Reports;
 
-public static class SectionProjectors
+public static partial class SectionProjectors
 {
     public sealed class SimpleFinding
     {
@@ -184,6 +184,7 @@ public static class SectionProjectors
         public int CertificateObservationCount { get; set; }
         public int DistinctIssuerCount { get; set; }
         public bool ResolutionReduced { get; set; }
+        public bool ResultsCapped { get; set; }
         public string? FailureReason { get; set; }
         public List<(string Key, string Value)> Summary { get; } = new();
         public List<Row> Rows { get; } = new();
@@ -248,6 +249,84 @@ public static class SectionProjectors
         public int TotalSteps { get; set; }
         public List<(string Key, string Value)> Summary { get; } = new();
         public List<Row> Rows { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
+    // Discovery: Certificate Transparency (CT) Timeline
+    public sealed class CtTimelineSection
+    {
+        public sealed class BucketRow
+        {
+            public string Month { get; set; } = string.Empty;
+            public int Certificates { get; set; }
+            public int Issuers { get; set; }
+        }
+
+        public sealed class RecentRow
+        {
+            public string EntryUtc { get; set; } = string.Empty;
+            public string NotAfterUtc { get; set; } = string.Empty;
+            public string Issuer { get; set; } = string.Empty;
+            public string CommonName { get; set; } = string.Empty;
+            public CtCertificateValidityStatus Validity { get; set; }
+            public bool Wildcard { get; set; }
+        }
+
+        public string Status { get; set; } = "-";
+        public bool QuerySucceeded { get; set; }
+        public bool ResultsCapped { get; set; }
+        public string? FailureReason { get; set; }
+        public int Observations { get; set; }
+        public int UniqueCertificates { get; set; }
+        public int ActiveCertificates { get; set; }
+        public int ExpiredCertificates { get; set; }
+        public int NotYetValidCertificates { get; set; }
+        public int WildcardCertificates { get; set; }
+        public int IssuedLast7Days { get; set; }
+        public int IssuedLast30Days { get; set; }
+        public string FirstSeenUtc { get; set; } = "-";
+        public string LastSeenUtc { get; set; } = "-";
+        public int DistinctIssuers { get; set; }
+        public string TopIssuers { get; set; } = "-";
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<BucketRow> Timeline { get; } = new();
+        public List<RecentRow> RecentCertificates { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
+    // Web: HTTP (headers + basic posture)
+    public sealed class HttpSection
+    {
+        public sealed class HeaderRow
+        {
+            public string Name { get; set; } = string.Empty;
+            public string Value { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public bool IsReachable { get; set; }
+        public int? StatusCode { get; set; }
+        public string? FailureReason { get; set; }
+        public string? EffectiveUrl { get; set; }
+        public HttpRequestMethod Method { get; set; }
+        public bool TlsValidationDisabled { get; set; }
+        public string? ProxyUsed { get; set; }
+        public bool HstsPresent { get; set; }
+        public bool Http2Supported { get; set; }
+        public bool Http3Supported { get; set; }
+        public bool CspFrameAncestorsPresent { get; set; }
+        public int MissingSecurityHeaderCount { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<HeaderRow> PresentSecurityHeaders { get; } = new();
+        public List<string> MissingSecurityHeaders { get; } = new();
+        public List<HeaderRow> InformationDisclosureHeaders { get; } = new();
+        public List<HeaderRow> CachingHeaders { get; } = new();
+        public List<string> DeprecatedPresent { get; } = new();
+        public List<string> DeprecatedMissing { get; } = new();
         public List<SimpleFinding> Findings { get; } = new();
         public List<string> Positives { get; } = new();
         public List<string> References { get; } = new();
@@ -801,6 +880,249 @@ public static class SectionProjectors
         return s;
     }
 
+    public static CtTimelineSection? BuildCtTimeline(DomainDetective.Views.CtTimelineInfo ct)
+    {
+        if (ct == null) return null;
+
+        string FormatDate(DateTimeOffset? dt) => dt.HasValue ? dt.Value.ToString("yyyy-MM-dd") : "-";
+
+        string FormatIssuerList(IReadOnlyDictionary<string, int>? counts, int take)
+        {
+            if (counts == null || counts.Count == 0) return "-";
+            var items = counts
+                .OrderByDescending(kv => kv.Value)
+                .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                .Take(Math.Max(0, take))
+                .Select(kv => kv.Key)
+                .ToList();
+            if (items.Count == 0) return "-";
+            var extra = counts.Count - items.Count;
+            return extra > 0 ? string.Join(", ", items) + $" (+{extra})" : string.Join(", ", items);
+        }
+
+        var s = new CtTimelineSection
+        {
+            Status = ct.Status ?? "-",
+            QuerySucceeded = ct.QuerySucceeded,
+            ResultsCapped = ct.ResultsCapped,
+            FailureReason = ct.FailureReason,
+            Observations = ct.CertificateObservationCount,
+            UniqueCertificates = ct.UniqueCertificateCount,
+            ActiveCertificates = ct.ActiveCertificateCount,
+            ExpiredCertificates = ct.ExpiredCertificateCount,
+            NotYetValidCertificates = ct.NotYetValidCertificateCount,
+            WildcardCertificates = ct.WildcardCertificateCount,
+            IssuedLast7Days = ct.IssuedLast7Days,
+            IssuedLast30Days = ct.IssuedLast30Days,
+            FirstSeenUtc = FormatDate(ct.FirstSeenUtc),
+            LastSeenUtc = FormatDate(ct.LastSeenUtc),
+            DistinctIssuers = ct.IssuerCounts?.Count ?? 0,
+            TopIssuers = FormatIssuerList(ct.IssuerCounts, 3)
+        };
+
+        s.Summary.Add(("Status", s.Status));
+        s.Summary.Add(("Query OK", s.QuerySucceeded ? "Yes" : "No"));
+        if (!string.IsNullOrWhiteSpace(s.FailureReason)) s.Summary.Add(("Failure", s.FailureReason!));
+        s.Summary.Add(("Observations", s.Observations.ToString()));
+        s.Summary.Add(("Unique Certificates", s.UniqueCertificates.ToString()));
+        s.Summary.Add(("Active", s.ActiveCertificates.ToString()));
+        s.Summary.Add(("Expired", s.ExpiredCertificates.ToString()));
+        if (s.NotYetValidCertificates > 0) s.Summary.Add(("Not Yet Valid", s.NotYetValidCertificates.ToString()));
+        s.Summary.Add(("Wildcards", s.WildcardCertificates.ToString()));
+        s.Summary.Add(("Issued (7d)", s.IssuedLast7Days.ToString()));
+        s.Summary.Add(("Issued (30d)", s.IssuedLast30Days.ToString()));
+        s.Summary.Add(("First Seen (UTC)", s.FirstSeenUtc));
+        s.Summary.Add(("Last Seen (UTC)", s.LastSeenUtc));
+        s.Summary.Add(("Issuer Diversity", s.DistinctIssuers.ToString()));
+        s.Summary.Add(("Top Issuers", s.TopIssuers));
+        if (s.ResultsCapped) s.Summary.Add(("Capped", "Yes"));
+
+        try
+        {
+            foreach (var b in ct.Timeline ?? Array.Empty<DomainDetective.CtTimelineBucket>())
+            {
+                s.Timeline.Add(new CtTimelineSection.BucketRow
+                {
+                    Month = b.ToString(),
+                    Certificates = b.UniqueCertificates,
+                    Issuers = b.DistinctIssuers
+                });
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (var r in ct.RecentCertificates ?? Array.Empty<DomainDetective.CtCertificateSample>())
+            {
+                s.RecentCertificates.Add(new CtTimelineSection.RecentRow
+                {
+                    EntryUtc = r.EntryTimestampUtc?.ToString("yyyy-MM-dd") ?? "-",
+                    NotAfterUtc = r.NotAfterUtc?.ToString("yyyy-MM-dd") ?? "-",
+                    Issuer = r.IssuerName,
+                    CommonName = r.CommonName,
+                    Validity = r.ValidityStatus,
+                    Wildcard = r.Wildcard
+                });
+                if (s.RecentCertificates.Count >= 200) break;
+            }
+        }
+        catch
+        {
+        }
+
+        foreach (var a in ct.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        {
+            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+        }
+        foreach (var p in ct.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        {
+            var tt = p?.Title ?? p?.Code;
+            if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!);
+        }
+        foreach (var rr in ct.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+
+        return s;
+    }
+
+    public static HttpSection? BuildHttp(DomainDetective.Views.HttpInfo http)
+    {
+        if (http == null) return null;
+
+        string? effectiveUrl = null;
+        try
+        {
+            var visited = http.Raw?.VisitedUrls;
+            if (visited != null && visited.Count > 0)
+            {
+                effectiveUrl = visited[visited.Count - 1];
+            }
+        }
+        catch
+        {
+        }
+        effectiveUrl ??= http.Url ?? http.Subject;
+
+        var s = new HttpSection
+        {
+            Status = http.Status ?? "-",
+            IsReachable = http.IsReachable,
+            StatusCode = http.StatusCode,
+            FailureReason = http.Raw?.FailureReason,
+            EffectiveUrl = effectiveUrl,
+            Method = http.RequestMethodUsed,
+            TlsValidationDisabled = http.TlsValidationDisabled,
+            ProxyUsed = http.ProxyUsed,
+            HstsPresent = http.HstsPresent,
+            Http2Supported = http.Http2Supported,
+            Http3Supported = http.Http3Supported,
+            CspFrameAncestorsPresent = http.CspFrameAncestorsPresent,
+            MissingSecurityHeaderCount = http.MissingSecurityHeaders?.Count ?? 0
+        };
+
+        s.Summary.Add(("Status", s.Status));
+        s.Summary.Add(("Reachable", s.IsReachable ? "Yes" : "No"));
+        s.Summary.Add(("Status Code", s.StatusCode?.ToString() ?? "-"));
+        s.Summary.Add(("Method", s.Method.ToString()));
+        if (!string.IsNullOrWhiteSpace(s.EffectiveUrl)) s.Summary.Add(("Effective URL", s.EffectiveUrl!));
+        if (!string.IsNullOrWhiteSpace(s.ProxyUsed)) s.Summary.Add(("Proxy", s.ProxyUsed!));
+        s.Summary.Add(("TLS Validation", s.TlsValidationDisabled ? "Disabled" : "Enabled"));
+        s.Summary.Add(("HSTS", s.HstsPresent ? "Present" : "Missing"));
+        s.Summary.Add(("HTTP/2", s.Http2Supported ? "Yes" : "No"));
+        s.Summary.Add(("HTTP/3", s.Http3Supported ? "Yes" : "No"));
+        if (s.CspFrameAncestorsPresent) s.Summary.Add(("CSP frame-ancestors", "Yes"));
+        s.Summary.Add(("Missing Security Headers", s.MissingSecurityHeaderCount.ToString()));
+        s.Summary.Add(("Info Disclosure Headers", (http.InformationDisclosureHeaders?.Count ?? 0).ToString()));
+        s.Summary.Add(("Caching Headers", (http.CachingHeaders?.Count ?? 0).ToString()));
+
+        if (!string.IsNullOrWhiteSpace(s.FailureReason))
+        {
+            s.Summary.Add(("Failure", s.FailureReason!));
+        }
+
+        try
+        {
+            foreach (var kv in http.Raw?.SecurityHeaders ?? new Dictionary<string, DomainDetective.SecurityHeader>(StringComparer.OrdinalIgnoreCase))
+            {
+                s.PresentSecurityHeaders.Add(new HttpSection.HeaderRow { Name = kv.Key, Value = kv.Value?.Value ?? string.Empty });
+            }
+            s.PresentSecurityHeaders.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (var miss in http.MissingSecurityHeaders ?? Array.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(miss)) s.MissingSecurityHeaders.Add(miss);
+            }
+            s.MissingSecurityHeaders.Sort(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (var kv in http.InformationDisclosureHeaders ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+            {
+                s.InformationDisclosureHeaders.Add(new HttpSection.HeaderRow { Name = kv.Key, Value = kv.Value ?? string.Empty });
+            }
+            s.InformationDisclosureHeaders.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (var kv in http.CachingHeaders ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase))
+            {
+                s.CachingHeaders.Add(new HttpSection.HeaderRow { Name = kv.Key, Value = kv.Value ?? string.Empty });
+            }
+            s.CachingHeaders.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            foreach (var d in http.DeprecatedHeadersPresent ?? Array.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(d)) s.DeprecatedPresent.Add(d);
+            }
+            s.DeprecatedPresent.Sort(StringComparer.OrdinalIgnoreCase);
+            foreach (var d in http.MissingDeprecatedHeaders ?? Array.Empty<string>())
+            {
+                if (!string.IsNullOrWhiteSpace(d)) s.DeprecatedMissing.Add(d);
+            }
+            s.DeprecatedMissing.Sort(StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+        }
+
+        foreach (var a in http.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        {
+            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+        }
+        foreach (var p in http.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        {
+            var tt = p?.Title ?? p?.Code;
+            if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!);
+        }
+        foreach (var rr in http.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+
+        return s;
+    }
+
     public static SubdomainsSection? BuildSubdomains(DomainDetective.Views.SubdomainsInfo sub)
     {
         if (sub == null) return null;
@@ -812,7 +1134,8 @@ public static class SectionProjectors
             SubdomainCount = sub.SubdomainCount,
             CertificateObservationCount = sub.CertificateObservationCount,
             DistinctIssuerCount = sub.DistinctIssuerCount,
-            ResolutionReduced = sub.ResolutionReduced
+            ResolutionReduced = sub.ResolutionReduced,
+            ResultsCapped = sub.ResultsCapped
         };
 
         string range = "-";
@@ -828,6 +1151,7 @@ public static class SectionProjectors
         if (!string.IsNullOrWhiteSpace(s.FailureReason)) s.Summary.Add(("Failure", s.FailureReason!));
         s.Summary.Add(("Subdomains", s.SubdomainCount.ToString()));
         s.Summary.Add(("CT Rows", s.CertificateObservationCount.ToString()));
+        s.Summary.Add(("CT Processing", s.ResultsCapped ? "Capped" : "OK"));
         s.Summary.Add(("Issuer Diversity", s.DistinctIssuerCount.ToString()));
         s.Summary.Add(("Seen (UTC)", range));
         s.Summary.Add(("DNS Verification", sub.Raw?.VerifyStillResolves == true ? (s.ResolutionReduced ? "Capped" : "Yes") : "No"));
