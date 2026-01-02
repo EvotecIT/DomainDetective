@@ -87,6 +87,8 @@ public enum HealthCheckType {
     SNMP,
     /// <summary>List domains hosted on the same IP address.</summary>
     IPNEIGHBOR,
+    /// <summary>Enrich discovered IPs with reverse DNS, ASN/org and geo hints.</summary>
+    IPENRICHMENT,
     /// <summary>Validate RPKI origins for domain IP addresses.</summary>
     RPKI,
     /// <summary>Analyze DNS logs for tunneling patterns.</summary>
@@ -128,5 +130,13 @@ public enum HealthCheckType {
     /// <summary>Inventory common DNS records and TTLs for a domain.</summary>
     DNSINVENTORY,
     /// <summary>Trace authoritative DNS resolution from root servers.</summary>
-    DNSTRACE
+    DNSTRACE,
+    /// <summary>Certificate transparency timeline (first/last seen, issuers, validity).</summary>
+    CTTIMELINE,
+    /// <summary>Compare DNS answers across multiple public resolvers (global visibility).</summary>
+    DNSPROPAGATION,
+    /// <summary>Assess DNS amplification posture (recursion + EDNS + response size probes).</summary>
+    DNSAMPLIFICATION,
+    /// <summary>Check DNS over TLS (DoT) support on authoritative name servers.</summary>
+    DNSOVERTLS
 }
