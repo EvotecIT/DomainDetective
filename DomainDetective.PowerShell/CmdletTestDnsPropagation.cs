@@ -62,6 +62,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter CompareResults;
 
+        /// <summary>Return a typed view object suitable for composition reports.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter AsView;
+
+        /// <summary>Maximum number of resolver results retained in the view (default: 500).</summary>
+        [Parameter(Mandatory = false)]
+        public int MaxResultsToKeep = 500;
+
         /// <summary>Directory used to store DNS snapshots.</summary>
         [Parameter(Mandatory = false)]
         public string SnapshotPath = string.Empty;
@@ -134,6 +142,11 @@ namespace DomainDetective.PowerShell {
                 if (CompareResults) {
                     var details = DnsPropagationAnalysis.GetComparisonDetails(results);
                     WriteObject(details, true);
+                } else if (AsView.IsPresent) {
+                    var report = new DnsPropagationReportAnalysis();
+                    report.Load(domain, RecordType, results, maxResultsToKeep: MaxResultsToKeep);
+                    var view = DomainDetective.Views.Converters.Convert(report);
+                    WriteObject(view);
                 } else {
                     WriteObject(results, true);
                 }

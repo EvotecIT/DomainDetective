@@ -16,6 +16,30 @@ namespace DomainDetective.PowerShell {
         [ValidateNotNullOrEmpty]
         public string[] DomainName = System.Array.Empty<string>();
 
+        /// <summary>HTTP method to use (default: GET).</summary>
+        [Parameter(Mandatory = false)]
+        public HttpRequestMethod Method = HttpRequestMethod.Get;
+
+        /// <summary>Optional Cookie header value to send.</summary>
+        [Parameter(Mandatory = false)]
+        public string? Cookie;
+
+        /// <summary>Additional request headers to send. Use format: 'Header: value'.</summary>
+        [Parameter(Mandatory = false)]
+        public string[] RequestHeader = System.Array.Empty<string>();
+
+        /// <summary>Optional proxy URL (e.g. http://127.0.0.1:8080).</summary>
+        [Parameter(Mandatory = false)]
+        public string? Proxy;
+
+        /// <summary>Disable TLS certificate validation (unsafe; off by default).</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter DisableTlsValidation;
+
+        /// <summary>Skip response body capture (disables mixed content / insecure form action checks).</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter NoBody;
+
         /// <summary>Runs HTTPS security checks.</summary>
         /// <returns>A task that represents the asynchronous operation.</returns>
         protected override async Task ProcessRecordAsync() {
@@ -34,7 +58,34 @@ namespace DomainDetective.PowerShell {
                 ApplyExecutionOptions(healthCheck);
 
                 logger.WriteVerbose("Checking HTTPS security for {0}", domain);
-                await healthCheck.VerifyWebsiteHttps(domain, cancellationToken: CancelToken);
+                var options = new HttpRequestOptions
+                {
+                    Method = Method,
+                    Cookie = Cookie,
+                    ProxyUrl = Proxy,
+                    DisableTlsValidation = DisableTlsValidation.IsPresent
+                };
+                if (RequestHeader != null && RequestHeader.Length > 0)
+                {
+                    foreach (var h in RequestHeader)
+                    {
+                        if (string.IsNullOrWhiteSpace(h)) continue;
+                        var idx = h.IndexOf(':');
+                        if (idx <= 0)
+                        {
+                            WriteError(new ErrorRecord(new System.ArgumentException("RequestHeader values must be in 'Header: value' format."), "InvalidHeaderFormat", ErrorCategory.InvalidArgument, h));
+                            continue;
+                        }
+                        var name = h.Substring(0, idx).Trim();
+                        var value = h.Substring(idx + 1).Trim();
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            options.Headers[name] = value;
+                        }
+                    }
+                }
+
+                await healthCheck.VerifyWebsiteHttps(domain, options, captureBody: !NoBody.IsPresent, cancellationToken: CancelToken);
                 var view = DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis);
                 WriteObject(view);
                 if (IsExportRequested()) {
