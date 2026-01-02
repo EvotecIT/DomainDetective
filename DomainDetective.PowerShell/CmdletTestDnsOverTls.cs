@@ -17,6 +17,7 @@ public sealed class CmdletTestDnsOverTls : ExportableAsyncPSCmdlet {
     /// <summary>Domain(s) to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string[] DomainName = Array.Empty<string>();
 
     /// <summary>DNS server used for discovery queries (NS/A/AAAA).</summary>
@@ -42,14 +43,21 @@ public sealed class CmdletTestDnsOverTls : ExportableAsyncPSCmdlet {
 
             logger.WriteVerbose("Checking DNS over TLS support for domain: {0}", domain);
             await healthCheck.Verify(domain, new[] { HealthCheckType.DNSOVERTLS }, cancellationToken: CancelToken).ConfigureAwait(false);
-            var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis);
-            WriteObject(view);
-            if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDDnsOverTls").ConfigureAwait(false);
+            try
+            {
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis);
+                WriteObject(view);
+                if (IsExportRequested())
+                {
+                    await ExportNotImplementedAsync("Test-DDDnsOverTls").ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteError(new ErrorRecord(ex, "DomainDetective.ConvertFailed", ErrorCategory.InvalidData, domain));
             }
         }
 
         await ForEachAsync(DomainName, ProcessDomainAsync).ConfigureAwait(false);
     }
 }
-

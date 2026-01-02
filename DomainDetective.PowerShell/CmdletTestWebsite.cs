@@ -10,6 +10,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>HTTPS port number.</summary>

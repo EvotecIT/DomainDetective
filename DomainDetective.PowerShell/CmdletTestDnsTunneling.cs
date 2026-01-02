@@ -17,6 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to inspect.</summary>
         [Parameter(Mandatory = true, Position = 0)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = Array.Empty<string>();
 
         /// <summary>Log file path.</summary>

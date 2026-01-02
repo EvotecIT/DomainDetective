@@ -18,6 +18,7 @@ public sealed class CmdletTestDnsAmplification : ExportableAsyncPSCmdlet
     /// <summary>Domain(s) to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string[] DomainName = Array.Empty<string>();
 
     /// <summary>DNS server used for discovery queries (NS/A/AAAA).</summary>
@@ -45,15 +46,21 @@ public sealed class CmdletTestDnsAmplification : ExportableAsyncPSCmdlet
 
             logger.WriteVerbose("Checking DNS amplification posture for domain: {0}", domain);
             await healthCheck.Verify(domain, new[] { HealthCheckType.DNSAMPLIFICATION }, cancellationToken: CancelToken).ConfigureAwait(false);
-            var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis);
-            WriteObject(view);
-            if (IsExportRequested())
+            try
             {
-                await ExportNotImplementedAsync("Test-DDDnsAmplification").ConfigureAwait(false);
+                var view = DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis);
+                WriteObject(view);
+                if (IsExportRequested())
+                {
+                    await ExportNotImplementedAsync("Test-DDDnsAmplification").ConfigureAwait(false);
+                }
+            }
+            catch (Exception ex)
+            {
+                WriteError(new ErrorRecord(ex, "DomainDetective.ConvertFailed", ErrorCategory.InvalidData, domain));
             }
         }
 
         await ForEachAsync(DomainName, ProcessDomainAsync).ConfigureAwait(false);
     }
 }
-

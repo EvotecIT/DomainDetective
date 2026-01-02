@@ -16,6 +16,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain(s) to retrieve WHOIS information for.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>DNS server used for queries.</para>

@@ -14,6 +14,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain(s) to probe for identity tenant information.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>Retrieves IdP details and writes a view object.</summary>

@@ -23,6 +23,7 @@ public sealed class CmdletImportTlsRptReportSnapshot : PSCmdlet
     /// <summary>Domain these TLS-RPT reports belong to (policy domain).</summary>
     [Parameter(Mandatory = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string DomainName { get; set; } = string.Empty;
 
     /// <summary>Path to a report file/folder/wildcard.</summary>

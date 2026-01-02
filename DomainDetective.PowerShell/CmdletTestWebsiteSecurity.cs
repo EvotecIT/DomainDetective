@@ -14,6 +14,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to query (host or host:port).</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Domain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>HTTP method to use (default: GET).</summary>

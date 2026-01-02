@@ -19,6 +19,7 @@ public sealed class CmdletGetTlsRptReportsTimeSeries : PSCmdlet
     /// <summary>Domain(s) to load.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string[] DomainName { get; set; } = Array.Empty<string>();
 
     /// <summary>Root directory for snapshot storage.</summary>
