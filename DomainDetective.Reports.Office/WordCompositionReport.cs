@@ -395,6 +395,26 @@ public static class WordCompositionReport {
                 if (dto != null) MxWordSectionWriter.Write(doc, headings, 2, dto, bucket.Mx, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
                 else MxWordSectionWriter.Write(doc, headings, 2, bucket.Mx!, domain, scope, showInfoFindings, includeNarrativePerDomain, providerHelp ?? new ProviderHelpRenderOptions());
             }, bucket.Mx != null);
+            add("Mail Transport Posture", () => {
+                headings.AddItem("Mail Transport Posture", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildMailTransportPosture(
+                    bucket.Mx,
+                    bucket.SmtpTls,
+                    bucket.ImapTls,
+                    bucket.PopTls,
+                    bucket.Mtasts,
+                    bucket.TlsRpt,
+                    bucket.TlsRptReports,
+                    bucket.Dane);
+                if (dto != null)
+                {
+                    MailTransportPostureWordSectionWriter.Write(doc, headings, 2, dto, domain, scope, showInfoFindings);
+                }
+                else
+                {
+                    doc.AddParagraph("No mail transport posture data.").SetItalic(true);
+                }
+            }, bucket.Mx != null || bucket.SmtpTls != null || bucket.ImapTls != null || bucket.PopTls != null || bucket.Mtasts != null || bucket.TlsRpt != null || bucket.TlsRptReports != null || bucket.Dane != null);
             add("SPF", () => {
                 headings.AddItem("SPF", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildSpf(bucket.Spf!);
@@ -420,7 +440,35 @@ public static class WordCompositionReport {
                 else DmarcWordSectionWriter.Write(doc, headings, 2, bucket.Dmarc!, domain, scope, showInfoFindings, includeNarrativePerDomain);
                 try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderDmarc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { }
             }, bucket.Dmarc != null);
-            add("ARC", () => { headings.AddItem("ARC", 1); ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Arc != null);
+            add("DMARC Aggregate", () => {
+                headings.AddItem("DMARC Aggregate", 1);
+                DmarcAggregateWordSectionWriter.Write(doc, headings, 2, bucket.DmarcAggregate!, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }, bucket.DmarcAggregate != null);
+            add("Registration", () => {
+                headings.AddItem("Registration", 1);
+                RegistrationWordSectionWriter.Write(doc, headings, 2, bucket.Registration!, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }, bucket.Registration != null);
+            add("Subdomains", () => {
+                headings.AddItem("Subdomains", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildSubdomains(bucket.Subdomains!);
+                if (dto != null) SubdomainsWordSectionWriter.Write(doc, headings, 2, dto, bucket.Subdomains, domain, scope, showInfoFindings);
+                else SubdomainsWordSectionWriter.Write(doc, headings, 2, bucket.Subdomains!, domain, scope, showInfoFindings);
+            }, bucket.Subdomains != null);
+            add("DNS Inventory", () =>
+            {
+                headings.AddItem("DNS Inventory", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsInventory(bucket.DnsInventory!);
+                if (dto != null) DnsInventoryWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsInventory, domain, scope, showInfoFindings);
+                else DnsInventoryWordSectionWriter.Write(doc, headings, 2, bucket.DnsInventory!, domain, scope, showInfoFindings);
+            }, bucket.DnsInventory != null);
+            add("DNS Trace", () =>
+            {
+                headings.AddItem("DNS Trace", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsTrace(bucket.DnsTrace!);
+                if (dto != null) DnsTraceWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsTrace, domain, scope, showInfoFindings);
+                else DnsTraceWordSectionWriter.Write(doc, headings, 2, bucket.DnsTrace!, domain, scope, showInfoFindings);
+            }, bucket.DnsTrace != null);
+            add("ARC", () => { headings.AddItem("ARC", 1); ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Arc != null);  
             add("BIMI", () => { headings.AddItem("BIMI", 1); BimiWordSectionWriter.Write(doc, headings, 2, bucket.Bimi!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderBimi) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Bimi != null);
             add("DNSBL", () => { headings.AddItem("DNSBL", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildDnsbl(bucket.Dnsbl!); if (dto != null) DnsblWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dnsbl, domain, scope, showInfoFindings); else DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl!, domain, scope, showInfoFindings); }, bucket.Dnsbl != null);
             add("RPKI", () => { headings.AddItem("RPKI", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildRpki(bucket.Rpki!); if (dto != null) RpkiWordSectionWriter.Write(doc, headings, 2, dto, bucket.Rpki, domain, scope, showInfoFindings); else RpkiWordSectionWriter.Write(doc, headings, 2, bucket.Rpki!, domain, scope, showInfoFindings); }, bucket.Rpki != null);
@@ -432,6 +480,10 @@ public static class WordCompositionReport {
             add("Classification", () => { headings.AddItem("Mail Classification", 1); MailClassificationWordSectionWriter.Write(doc, headings, 2, bucket.Classification!, domain, scope, showInfoFindings); }, bucket.Classification != null);
             add("MTA-STS", () => { headings.AddItem("MTA-STS", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildMtasts(bucket.Mtasts!); if (dto != null) MtastsWordSectionWriter.Write(doc, headings, 2, dto, bucket.Mtasts, domain, scope, showInfoFindings, includeNarrativePerDomain); else MtastsWordSectionWriter.Write(doc, headings, 2, bucket.Mtasts!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Mtasts != null);
             add("TLS-RPT", () => { headings.AddItem("TLS-RPT", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildTlsRpt(bucket.TlsRpt!); if (dto != null) TlsRptWordSectionWriter.Write(doc, headings, 2, dto, bucket.TlsRpt, domain, scope, showInfoFindings, includeNarrativePerDomain); else TlsRptWordSectionWriter.Write(doc, headings, 2, bucket.TlsRpt!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.TlsRpt != null);
+            add("TLS-RPT Reports", () => {
+                headings.AddItem("TLS-RPT Reports", 1);
+                TlsRptReportsWordSectionWriter.Write(doc, headings, 2, bucket.TlsRptReports!, domain, scope, showInfoFindings, includeNarrativePerDomain);
+            }, bucket.TlsRptReports != null);
             add("DNSSEC", () => { headings.AddItem("DNSSEC", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildDnssec(bucket.Dnssec!); if (dto != null) DnssecWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dnssec, domain, scope, showInfoFindings, includeNarrativePerDomain); else DnssecWordSectionWriter.Write(doc, headings, 2, bucket.Dnssec!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Dnssec != null);
             add("DANE", () => { headings.AddItem("DANE", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildDane(bucket.Dane!); if (dto != null) DaneWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dane, domain, scope, showInfoFindings, includeNarrativePerDomain); else DaneWordSectionWriter.Write(doc, headings, 2, bucket.Dane!, domain, scope, showInfoFindings, includeNarrativePerDomain); }, bucket.Dane != null);
 
@@ -457,11 +509,14 @@ public static class WordCompositionReport {
                 var b = kv.Value;
                 void PullAssessments(System.Collections.Generic.IReadOnlyList<DomainDetective.Assessment>? a) { if (a != null && a.Count > 0) allAssessments.AddRange(a); }
                 PullAssessments(b.Spf?.Assessments);
-                foreach (var d in b.Dkim) PullAssessments(d.Assessments);
+                foreach (var d in b.Dkim) PullAssessments(d.Assessments);       
                 PullAssessments(b.Dmarc?.Assessments);
+                PullAssessments(b.DmarcAggregate?.Assessments);
+                PullAssessments(b.Registration?.Assessments);
                 PullAssessments(b.Mx?.Assessments);
                 PullAssessments(b.Mtasts?.Assessments);
                 PullAssessments(b.TlsRpt?.Assessments);
+                PullAssessments(b.TlsRptReports?.Assessments);
                 PullAssessments(b.Dnsbl?.Assessments);
                 PullAssessments(b.Ns?.Assessments);
                 PullAssessments(b.Soa?.Assessments);
@@ -472,6 +527,9 @@ public static class WordCompositionReport {
                 PullAssessments(b.SmtpTls?.Assessments);
                 PullAssessments(b.ImapTls?.Assessments);
                 PullAssessments(b.PopTls?.Assessments);
+                PullAssessments(b.Subdomains?.Assessments);
+                PullAssessments(b.DnsInventory?.Assessments);
+                PullAssessments(b.DnsTrace?.Assessments);
             }
             string NormalizeRec(string? text) {
                 if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -680,9 +738,13 @@ public static class WordCompositionReport {
 
     private static string? TryGetSectionKey(object it) {
         try {
+            var keyProp = it.GetType().GetProperty("SectionKey");
+            if (keyProp != null && keyProp.GetValue(it) is string sectionKey && !string.IsNullOrWhiteSpace(sectionKey)) {
+                return NormalizeSection(sectionKey);
+            }
             var p = it.GetType().GetProperty("Check");
             if (p == null) return null;
-            if (p.GetValue(it) is not HealthCheckType h) return null;
+            if (p.GetValue(it) is not HealthCheckType h) return null;     
             return SectionKeyFor(h);
         } catch { return null; }
     }
@@ -719,7 +781,9 @@ public static class WordCompositionReport {
         public string Subject { get; set; } = string.Empty;
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
-        public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
+        public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }       
+        public DomainDetective.Views.DmarcAggregateTimeSeriesInfo? DmarcAggregate { get; set; }
+        public DomainDetective.Views.RegistrationDriftInfo? Registration { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
         public DomainDetective.Views.ArcInfo? Arc { get; set; }
@@ -732,10 +796,14 @@ public static class WordCompositionReport {
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
-        public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
-        public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
-        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
-        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
+        public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }     
+        public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }     
+        public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
+        public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; } 
+        public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }   
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
         // Mail TLS (per protocol) for rollup column
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
@@ -800,6 +868,10 @@ public static class WordCompositionReport {
                         Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                     case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject):
                         Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
+                    case DomainDetective.Views.DmarcAggregateTimeSeriesInfo da when !string.IsNullOrWhiteSpace(da.Subject):
+                        Ensure(da.Subject); map[da.Subject].DmarcAggregate = da; break;
+                    case DomainDetective.Views.RegistrationDriftInfo reg when !string.IsNullOrWhiteSpace(reg.Subject):
+                        Ensure(reg.Subject); map[reg.Subject].Registration = reg; break;
                     case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject):
                         Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
                     case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject):
@@ -841,6 +913,8 @@ public static class WordCompositionReport {
                         map[subject].TlsRpt = tr;
                         break;
                     }
+                    case DomainDetective.Views.TlsRptReportsTimeSeriesInfo trr when !string.IsNullOrWhiteSpace(trr.Subject):
+                        Ensure(trr.Subject); map[trr.Subject].TlsRptReports = trr; break;
                     case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
                         Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                     case DomainDetective.Views.DaneRecordInfo dn when !string.IsNullOrWhiteSpace(dn.Subject):
@@ -861,6 +935,12 @@ public static class WordCompositionReport {
                             default: break;
                         }
                         break;
+                    case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject):
+                        Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
+                    case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject):
+                        Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
+                    case DomainDetective.Views.DnsTraceInfo trc when !string.IsNullOrWhiteSpace(trc.Subject):
+                        Ensure(trc.Subject); map[trc.Subject].DnsTrace = trc; break;
                     default:
                         break;
                 }

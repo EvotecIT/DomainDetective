@@ -155,8 +155,11 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Mx?.WarningCount ?? 0, b.Mx?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Spf?.WarningCount ?? 0, b.Spf?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dmarc?.WarningCount ?? 0, b.Dmarc?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DmarcAggregate?.WarningCount ?? 0, b.DmarcAggregate?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Registration?.WarningCount ?? 0, b.Registration?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Mtasts?.WarningCount ?? 0, b.Mtasts?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.TlsRpt?.WarningCount ?? 0, b.TlsRpt?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.TlsRptReports?.WarningCount ?? 0, b.TlsRptReports?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dnsbl?.WarningCount ?? 0, b.Dnsbl?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dnssec?.WarningCount ?? 0, b.Dnssec?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Dane?.WarningCount ?? 0, b.Dane?.ErrorCount ?? 0);
@@ -167,6 +170,9 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Ttl?.WarningCount ?? 0, b.Ttl?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.ZoneTransfer?.WarningCount ?? 0, b.ZoneTransfer?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Wildcard?.WarningCount ?? 0, b.Wildcard?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.Subdomains?.WarningCount ?? 0, b.Subdomains?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsInventory?.WarningCount ?? 0, b.DnsInventory?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsTrace?.WarningCount ?? 0, b.DnsTrace?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Classification?.WarningCount ?? 0, b.Classification?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Arc?.WarningCount ?? 0, b.Arc?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Bimi?.WarningCount ?? 0, b.Bimi?.ErrorCount ?? 0);
@@ -232,13 +238,16 @@ public static partial class HtmlCompositionReport {
             }
         }
 
-        foreach (var a in FromList(b.Mx?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Spf?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Mtasts?.Assessments)) yield return a;
-        foreach (var a in FromList(b.TlsRpt?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Dnsbl?.Assessments)) yield return a;
-        foreach (var a in FromList(b.Ns?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Mx?.Assessments)) yield return a;    
+        foreach (var a in FromList(b.Spf?.Assessments)) yield return a;   
+        foreach (var a in FromList(b.Dmarc?.Assessments)) yield return a;       
+        foreach (var a in FromList(b.DmarcAggregate?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Registration?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Mtasts?.Assessments)) yield return a;      
+        foreach (var a in FromList(b.TlsRpt?.Assessments)) yield return a;      
+        foreach (var a in FromList(b.TlsRptReports?.Assessments)) yield return a;
+        foreach (var a in FromList(b.Dnsbl?.Assessments)) yield return a;  
+        foreach (var a in FromList(b.Ns?.Assessments)) yield return a;    
         foreach (var a in FromList(b.Soa?.Assessments)) yield return a;
         foreach (var a in FromList(b.ZoneTransfer?.Assessments)) yield return a;
         foreach (var a in FromList(b.Wildcard?.Assessments)) yield return a;    
@@ -464,6 +473,9 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }       
+        public DomainDetective.Views.DmarcAggregateTimeSeriesInfo? DmarcAggregate { get; set; }
+        public DomainDetective.Views.RegistrationDriftInfo? Registration { get; set; }
+        public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.ArcInfo? Arc { get; set; }
         public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
@@ -482,6 +494,9 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
     }
 
@@ -551,12 +566,15 @@ public static partial class HtmlCompositionReport {
             Mx = s.Mx,
             Spf = s.Spf,
             Dmarc = s.Dmarc,
+            DmarcAggregate = s.DmarcAggregate,
+            Registration = s.Registration,
             Arc = s.Arc,
             Bimi = s.Bimi,
             Dnsbl = s.Dnsbl,
             Classification = s.Classification,
             Mtasts = s.Mtasts,
             TlsRpt = s.TlsRpt,
+            TlsRptReports = s.TlsRptReports,
             Ns = s.Ns,
             Soa = s.Soa,
             Caa = s.Caa,
@@ -568,6 +586,9 @@ public static partial class HtmlCompositionReport {
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
+            Subdomains = s.Subdomains,
+            DnsInventory = s.DnsInventory,
+            DnsTrace = s.DnsTrace,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);

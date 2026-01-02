@@ -27,11 +27,14 @@ public static class ReferencesCollector
         foreach (var b in buckets ?? Enumerable.Empty<CompositionBuilder.DomainBucket>())
         {
             Pull(b.Spf?.References);
-            if (b.Dkim != null) foreach (var d in b.Dkim) Pull(d.References);
+            if (b.Dkim != null) foreach (var d in b.Dkim) Pull(d.References);   
             Pull(b.Dmarc?.References);
+            Pull(b.DmarcAggregate?.References);
+            Pull(b.Registration?.References);
             Pull(b.Mx?.References);
             Pull(b.Mtasts?.References);
             Pull(b.TlsRpt?.References);
+            Pull(b.TlsRptReports?.References);
             Pull(b.Dnsbl?.References);
             Pull(b.Rpki?.References);
             Pull(b.Ns?.References);
@@ -45,6 +48,9 @@ public static class ReferencesCollector
             Pull(b.ImapTls?.References);
             Pull(b.PopTls?.References);
             Pull(b.Classification?.References);
+            Pull(b.Subdomains?.References);
+            Pull(b.DnsInventory?.References);
+            Pull(b.DnsTrace?.References);
         }
 
         return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();

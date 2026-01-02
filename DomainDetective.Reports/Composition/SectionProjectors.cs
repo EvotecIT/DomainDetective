@@ -150,10 +150,108 @@ public static class SectionProjectors
         public List<string> References { get; } = new();
     }
 
+    // Mail Transport Posture (rollup: MX + MailTLS + MTA-STS + TLS-RPT + DANE)
+    public sealed class MailTransportPostureSection
+    {
+        public string Status { get; set; } = "-";
+        public int WarningCount { get; set; }
+        public int ErrorCount { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
     // Other
     public sealed class RpkiSection { public string Status { get; set; } = "-"; public List<(string Key, string Value)> Summary { get; } = new(); public List<SimpleFinding> Findings { get; } = new(); public List<string> Positives { get; } = new(); public List<string> References { get; } = new(); }
     public sealed class ZoneTransferSection { public string Status { get; set; } = "-"; public List<(string Key, string Value)> Summary { get; } = new(); public List<SimpleFinding> Findings { get; } = new(); public List<string> Positives { get; } = new(); public List<string> References { get; } = new(); }
     public sealed class WildcardSection { public string Status { get; set; } = "-"; public List<(string Key, string Value)> Summary { get; } = new(); public List<SimpleFinding> Findings { get; } = new(); public List<string> Positives { get; } = new(); public List<string> References { get; } = new(); }
+
+    // Discovery: Subdomains (CT-backed)
+    public sealed class SubdomainsSection
+    {
+        public sealed class Row
+        {
+            public string Name { get; set; } = string.Empty;
+            public string FirstSeenUtc { get; set; } = string.Empty;
+            public string LastSeenUtc { get; set; } = string.Empty;
+            public string Resolution { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public bool QuerySucceeded { get; set; }
+        public int SubdomainCount { get; set; }
+        public int CertificateObservationCount { get; set; }
+        public int DistinctIssuerCount { get; set; }
+        public bool ResolutionReduced { get; set; }
+        public string? FailureReason { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<Row> Rows { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
+    // Discovery: DNS Inventory (common record types)
+    public sealed class DnsInventorySection
+    {
+        public sealed class Row
+        {
+            public DnsClientX.DnsRecordType QueryType { get; set; }
+            public DomainDetective.DnsInventorySection Section { get; set; }
+            public DnsClientX.DnsRecordType RecordType { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public int Ttl { get; set; }
+            public string Data { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public bool QuerySucceeded { get; set; }
+        public int RecordTypesQueried { get; set; }
+        public int RecordTypesFailed { get; set; }
+        public int TotalRecords { get; set; }
+        public bool IncludeAuthorities { get; set; }
+        public bool IncludeAdditional { get; set; }
+        public string? FailureReason { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<Row> Rows { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
+
+    // Discovery: DNS Trace (iterative root-to-answer)
+    public sealed class DnsTraceSection
+    {
+        public sealed class Row
+        {
+            public DnsClientX.DnsRecordType TraceType { get; set; }
+            public DomainDetective.DnsTraceStepKind Kind { get; set; }
+            public int Depth { get; set; }
+            public string Server { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+            public DnsClientX.DnsRecordType RecordType { get; set; }
+            public DnsClientX.DnsResponseCode ResponseStatus { get; set; }
+            public int Answers { get; set; }
+            public int Authorities { get; set; }
+            public int Additional { get; set; }
+            public int RttMs { get; set; }
+            public string CnameTarget { get; set; } = string.Empty;
+            public string NextServers { get; set; } = string.Empty;
+        }
+
+        public string Status { get; set; } = "-";
+        public bool TraceSucceeded { get; set; }
+        public string? FailureReason { get; set; }
+        public int TraceQueries { get; set; }
+        public int TraceQueriesFailed { get; set; }
+        public int TotalSteps { get; set; }
+        public List<(string Key, string Value)> Summary { get; } = new();
+        public List<Row> Rows { get; } = new();
+        public List<SimpleFinding> Findings { get; } = new();
+        public List<string> Positives { get; } = new();
+        public List<string> References { get; } = new();
+    }
 
     public static SpfSection? BuildSpf(DomainDetective.Views.SpfRecordInfo spf)
     {
@@ -468,7 +566,207 @@ public static class SectionProjectors
         return s;
     }
 
-    public static RpkiSection? BuildRpki(DomainDetective.Views.RpkiInfo r)
+    public static MailTransportPostureSection? BuildMailTransportPosture(
+        DomainDetective.Views.MxInfo? mx,
+        DomainDetective.Views.MailTlsInfo? smtp,
+        DomainDetective.Views.MailTlsInfo? imap,
+        DomainDetective.Views.MailTlsInfo? pop,
+        DomainDetective.Views.MtastsInfo? mtasts,
+        DomainDetective.Views.TlsRptInfo? tlsRpt,
+        DomainDetective.Views.TlsRptReportsTimeSeriesInfo? tlsRptReports,
+        DomainDetective.Views.DaneRecordInfo? dane)
+    {
+        if (mx == null && smtp == null && imap == null && pop == null && mtasts == null && tlsRpt == null && tlsRptReports == null && dane == null)
+        {
+            return null;
+        }
+
+        int mailTlsWarn = (smtp?.WarningCount ?? 0) + (imap?.WarningCount ?? 0) + (pop?.WarningCount ?? 0);
+        int mailTlsErr = (smtp?.ErrorCount ?? 0) + (imap?.ErrorCount ?? 0) + (pop?.ErrorCount ?? 0);
+        string mailTlsStatus = (smtp != null || imap != null || pop != null)
+            ? (mailTlsErr > 0 ? "Error" : (mailTlsWarn > 0 ? "Warning" : "OK"))
+            : "-";
+
+        var sec = new MailTransportPostureSection
+        {
+            WarningCount = (mx?.WarningCount ?? 0) + mailTlsWarn + (mtasts?.WarningCount ?? 0) + (tlsRpt?.WarningCount ?? 0) + (tlsRptReports?.WarningCount ?? 0) + (dane?.WarningCount ?? 0),
+            ErrorCount = (mx?.ErrorCount ?? 0) + mailTlsErr + (mtasts?.ErrorCount ?? 0) + (tlsRpt?.ErrorCount ?? 0) + (tlsRptReports?.ErrorCount ?? 0) + (dane?.ErrorCount ?? 0),
+        };
+        sec.Status = sec.ErrorCount > 0 ? "Error" : (sec.WarningCount > 0 ? "Warning" : "OK");
+
+        var summaryKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddSummary(string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+            if (!summaryKeys.Add(key))
+            {
+                return;
+            }
+            sec.Summary.Add((key, string.IsNullOrWhiteSpace(value) ? "-" : value!.Trim()));
+        }
+
+        AddSummary("Status", sec.Status);
+        AddSummary("Warnings", sec.WarningCount.ToString());
+        AddSummary("Errors", sec.ErrorCount.ToString());
+
+        if (mx != null) AddSummary("MX", mx.Status);
+        if (smtp != null) AddSummary("SMTP TLS", smtp.Status);
+        if (imap != null) AddSummary("IMAP TLS", imap.Status);
+        if (pop != null) AddSummary("POP3 TLS", pop.Status);
+        if (smtp != null || imap != null || pop != null) AddSummary("Mail TLS", mailTlsStatus);
+
+        if (mtasts != null) AddSummary("MTA-STS", mtasts.Status);
+        if (tlsRpt != null) AddSummary("TLS-RPT", tlsRpt.Status);
+
+        if (tlsRptReports != null)
+        {
+            AddSummary("TLS-RPT Reports", tlsRptReports.Status);
+            AddSummary("TLS-RPT Reports (snapshots)", tlsRptReports.SnapshotCount.ToString());
+
+            int total = tlsRptReports.TotalSuccessfulSessions + tlsRptReports.TotalFailedSessions;
+            AddSummary("TLS-RPT Failure Rate", total > 0 ? tlsRptReports.FailureRatePercent.ToString("0.0") + "%" : "-");
+            AddSummary("TLS-RPT Failed Sessions", tlsRptReports.TotalFailedSessions.ToString());
+
+            var start = tlsRptReports.PeriodStartUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            var end = tlsRptReports.PeriodEndUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            AddSummary("TLS-RPT Period (UTC)", $"{start}..{end}");
+        }
+
+        if (dane != null) AddSummary("DANE", dane.Status);
+
+        var findingSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddFinding(SimpleFinding f)
+        {
+            if (f == null)
+            {
+                return;
+            }
+            var key = $"{f.Severity}|{f.Code}|{f.Target}|{f.Message}".Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return;
+            }
+            if (findingSet.Add(key))
+            {
+                sec.Findings.Add(f);
+            }
+        }
+        void AddFindings(IEnumerable<SimpleFinding>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var f in list)
+            {
+                if (f != null) AddFinding(f);
+            }
+        }
+
+        var positiveSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddPositive(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+            var v = text!.Trim();
+            if (positiveSet.Add(v))
+            {
+                sec.Positives.Add(v);
+            }
+        }
+        void AddPositives(IEnumerable<string>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var p in list)
+            {
+                AddPositive(p);
+            }
+        }
+
+        var referenceSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void AddReference(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+            var v = url!.Trim();
+            if (referenceSet.Add(v))
+            {
+                sec.References.Add(v);
+            }
+        }
+        void AddReferences(IEnumerable<string>? list)
+        {
+            if (list == null)
+            {
+                return;
+            }
+            foreach (var r in list)
+            {
+                AddReference(r);
+            }
+        }
+
+        var mxSec = mx != null ? BuildMx(mx, smtp, imap, pop) : null;
+        AddFindings(mxSec?.Findings);
+        AddPositives(mxSec?.Positives);
+        AddReferences(mxSec?.References);
+
+        var mailTlsSec = BuildMailTls(smtp, imap, pop);
+        AddFindings(mailTlsSec?.Findings);
+        AddPositives(mailTlsSec?.Positives);
+        AddReferences(mailTlsSec?.References);
+
+        var mtastsSec = mtasts != null ? BuildMtasts(mtasts) : null;
+        AddFindings(mtastsSec?.Findings);
+        AddPositives(mtastsSec?.Positives);
+        AddReferences(mtastsSec?.References);
+
+        var tlsSec = tlsRpt != null ? BuildTlsRpt(tlsRpt) : null;
+        AddFindings(tlsSec?.Findings);
+        AddPositives(tlsSec?.Positives);
+        AddReferences(tlsSec?.References);
+
+        if (tlsRptReports != null)
+        {
+            foreach (var a in tlsRptReports.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+            {
+                if (a == null || a.Severity == DomainDetective.AssessmentSeverity.Info)
+                {
+                    continue;
+                }
+                AddFinding(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+            }
+            foreach (var p in tlsRptReports.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+            {
+                AddPositive(p?.Title ?? p?.Code);
+            }
+            AddReferences(tlsRptReports.References);
+        }
+
+        var daneSec = dane != null ? BuildDane(dane) : null;
+        AddFindings(daneSec?.Findings);
+        AddPositives(daneSec?.Positives);
+        AddReferences(daneSec?.References);
+
+        if (mtasts != null) AddReference("https://www.rfc-editor.org/rfc/rfc8461");
+        if (tlsRpt != null || tlsRptReports != null) AddReference("https://www.rfc-editor.org/rfc/rfc8460");
+        if (dane != null) AddReference("https://www.rfc-editor.org/rfc/rfc7672");
+        if (smtp != null || imap != null || pop != null) AddReference("https://www.rfc-editor.org/rfc/rfc8314");
+
+        return sec;
+    }
+
+    public static RpkiSection? BuildRpki(DomainDetective.Views.RpkiInfo r)      
     {
         if (r == null) return null;
         var s = new RpkiSection { Status = r.Status ?? "-" };
@@ -500,6 +798,223 @@ public static class SectionProjectors
         foreach (var a in w.Assessments ?? Array.Empty<DomainDetective.Assessment>()) if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info) s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
         foreach (var p in w.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>()) { var tt = p?.Title ?? p?.Code; if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!); }
         foreach (var rr in w.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+        return s;
+    }
+
+    public static SubdomainsSection? BuildSubdomains(DomainDetective.Views.SubdomainsInfo sub)
+    {
+        if (sub == null) return null;
+        var s = new SubdomainsSection
+        {
+            Status = sub.Status ?? "-",
+            QuerySucceeded = sub.QuerySucceeded,
+            FailureReason = sub.FailureReason,
+            SubdomainCount = sub.SubdomainCount,
+            CertificateObservationCount = sub.CertificateObservationCount,
+            DistinctIssuerCount = sub.DistinctIssuerCount,
+            ResolutionReduced = sub.ResolutionReduced
+        };
+
+        string range = "-";
+        if (sub.FirstSeenUtc.HasValue || sub.LastSeenUtc.HasValue)
+        {
+            var a = sub.FirstSeenUtc?.ToString("yyyy-MM-dd") ?? "-";
+            var b = sub.LastSeenUtc?.ToString("yyyy-MM-dd") ?? "-";
+            range = a + " .. " + b;
+        }
+
+        s.Summary.Add(("Status", s.Status));
+        s.Summary.Add(("Query OK", s.QuerySucceeded ? "Yes" : "No"));
+        if (!string.IsNullOrWhiteSpace(s.FailureReason)) s.Summary.Add(("Failure", s.FailureReason!));
+        s.Summary.Add(("Subdomains", s.SubdomainCount.ToString()));
+        s.Summary.Add(("CT Rows", s.CertificateObservationCount.ToString()));
+        s.Summary.Add(("Issuer Diversity", s.DistinctIssuerCount.ToString()));
+        s.Summary.Add(("Seen (UTC)", range));
+        s.Summary.Add(("DNS Verification", sub.Raw?.VerifyStillResolves == true ? (s.ResolutionReduced ? "Capped" : "Yes") : "No"));
+
+        var rows = sub.Subdomains ?? Array.Empty<DomainDetective.SubdomainDiscoveryEntry>();
+        int take = Math.Min(rows.Count, 200);
+        for (int i = 0; i < take; i++)
+        {
+            var r = rows[i];
+            s.Rows.Add(new SubdomainsSection.Row
+            {
+                Name = r.Name,
+                FirstSeenUtc = r.FirstSeenUtc?.ToString("yyyy-MM-dd") ?? "-",
+                LastSeenUtc = r.LastSeenUtc?.ToString("yyyy-MM-dd") ?? "-",
+                Resolution = r.ResolutionStatus.ToString()
+            });
+        }
+
+        foreach (var a in sub.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        {
+            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+        }
+        foreach (var p in sub.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        {
+            var tt = p?.Title ?? p?.Code;
+            if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!);
+        }
+        foreach (var rr in sub.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+
+        return s;
+    }
+
+    public static DnsInventorySection? BuildDnsInventory(DomainDetective.Views.DnsInventoryInfo inv)
+    {
+        if (inv == null) return null;
+
+        var s = new DnsInventorySection
+        {
+            Status = inv.Status ?? "-",
+            QuerySucceeded = inv.QuerySucceeded,
+            FailureReason = inv.FailureReason,
+            RecordTypesQueried = inv.RecordTypesQueried,
+            RecordTypesFailed = inv.RecordTypesFailed,
+            TotalRecords = inv.TotalRecords,
+            IncludeAuthorities = inv.IncludeAuthorities,
+            IncludeAdditional = inv.IncludeAdditional
+        };
+
+        s.Summary.Add(("Status", s.Status));
+        s.Summary.Add(("Query OK", s.QuerySucceeded ? "Yes" : "No"));
+        if (!string.IsNullOrWhiteSpace(s.FailureReason)) s.Summary.Add(("Failure", s.FailureReason!));
+        s.Summary.Add(("Types Queried", s.RecordTypesQueried.ToString()));
+        s.Summary.Add(("Types Failed", s.RecordTypesFailed.ToString()));
+        s.Summary.Add(("Records", s.TotalRecords.ToString()));
+        s.Summary.Add(("DNS Provider", inv.Provider != DomainDetective.Providers.Dns.DnsProvider.Unknown ? inv.Provider.ToString() : "-"));
+        s.Summary.Add(("Mail Provider", inv.MailProvider != DomainDetective.Providers.Email.MailProviderKind.Unknown ? inv.MailProvider.ToString() : "-"));
+        s.Summary.Add(("Apex CNAME Provider", inv.CnameTargetProvider != DomainDetective.Providers.Dns.DnsCnameTargetProvider.Unknown ? inv.CnameTargetProvider.ToString() : "-"));
+        s.Summary.Add(("Apex CNAME Flags", inv.CnameTargetFlags != DomainDetective.Providers.Dns.DnsCnameTargetFlags.None ? inv.CnameTargetFlags.ToString() : "-"));
+        s.Summary.Add(("TXT Signals", inv.TxtSignals != DomainDetective.Providers.Dns.DnsTxtSignals.None ? inv.TxtSignals.ToString() : "-"));
+        s.Summary.Add(("CAA Issuers", inv.CaaIssuers != DomainDetective.Providers.Dns.DnsCaaIssuers.None ? inv.CaaIssuers.ToString() : "-"));
+        s.Summary.Add(("Authority Included", s.IncludeAuthorities ? "Yes" : "No"));
+        s.Summary.Add(("Additional Included", s.IncludeAdditional ? "Yes" : "No"));
+
+        try
+        {
+            const int maxRows = 400;
+            foreach (var q in inv.Queries)
+            {
+                foreach (var r in q.Records)
+                {
+                    if (s.Rows.Count >= maxRows) break;
+                    s.Rows.Add(new DnsInventorySection.Row
+                    {
+                        QueryType = q.RecordType,
+                        Section = r.Section,
+                        RecordType = r.Type,
+                        Name = r.Name,
+                        Ttl = r.Ttl,
+                        Data = r.Data
+                    });
+                }
+                if (s.Rows.Count >= maxRows) break;
+            }
+        }
+        catch
+        {
+        }
+
+        foreach (var a in inv.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        {
+            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+        }
+        foreach (var p in inv.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        {
+            var tt = p?.Title ?? p?.Code;
+            if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!);
+        }
+        foreach (var rr in inv.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+
+        return s;
+    }
+
+    public static DnsTraceSection? BuildDnsTrace(DomainDetective.Views.DnsTraceInfo tr)
+    {
+        if (tr == null) return null;
+
+        var s = new DnsTraceSection
+        {
+            Status = tr.Status ?? "-",
+            TraceSucceeded = tr.TraceSucceeded,
+            FailureReason = tr.FailureReason,
+            TraceQueries = tr.TraceQueries,
+            TraceQueriesFailed = tr.TraceQueriesFailed,
+            TotalSteps = tr.TotalSteps
+        };
+
+        s.Summary.Add(("Status", s.Status));
+        s.Summary.Add(("Trace OK", s.TraceSucceeded ? "Yes" : "No"));
+        if (!string.IsNullOrWhiteSpace(s.FailureReason)) s.Summary.Add(("Failure", s.FailureReason!));
+        s.Summary.Add(("Queries", s.TraceQueries.ToString()));
+        s.Summary.Add(("Queries Failed", s.TraceQueriesFailed.ToString()));
+        s.Summary.Add(("Steps", s.TotalSteps.ToString()));
+        try
+        {
+            var raw = tr.Raw;
+            if (raw != null)
+            {
+                s.Summary.Add(("IPv6 Roots", raw.IncludeIpv6RootServers ? "Yes" : "No"));
+                s.Summary.Add(("Max Depth", raw.MaxDepth.ToString()));
+                s.Summary.Add(("Max Steps", raw.MaxTotalSteps.ToString()));
+            }
+        }
+        catch { }
+
+        string FormatList(IReadOnlyList<string>? list, int take)
+        {
+            if (list == null || list.Count == 0) return "-";
+            var items = list.Where(x => !string.IsNullOrWhiteSpace(x)).Take(take).ToList();
+            if (items.Count == 0) return "-";
+            var extra = list.Count - items.Count;
+            return extra > 0 ? string.Join(", ", items) + $" (+{extra})" : string.Join(", ", items);
+        }
+
+        try
+        {
+            const int maxRows = 400;
+            foreach (var q in tr.Queries ?? Array.Empty<DomainDetective.DnsTraceQuery>())
+            {
+                foreach (var st in q.Steps)
+                {
+                    if (s.Rows.Count >= maxRows) break;
+                    s.Rows.Add(new DnsTraceSection.Row
+                    {
+                        TraceType = q.RecordType,
+                        Kind = st.Kind,
+                        Depth = st.Depth,
+                        Server = st.Server,
+                        Name = st.QueryName,
+                        RecordType = st.RecordType,
+                        ResponseStatus = st.ResponseStatus,
+                        Answers = st.AnswerCount,
+                        Authorities = st.AuthorityCount,
+                        Additional = st.AdditionalCount,
+                        RttMs = st.RoundTripTimeMs,
+                        CnameTarget = string.IsNullOrWhiteSpace(st.CnameTarget) ? "-" : st.CnameTarget!,
+                        NextServers = FormatList(st.NextServers, 3)
+                    });
+                }
+                if (s.Rows.Count >= maxRows) break;
+            }
+        }
+        catch { }
+
+        foreach (var a in tr.Assessments ?? Array.Empty<DomainDetective.Assessment>())
+        {
+            if (a != null && a.Severity != DomainDetective.AssessmentSeverity.Info)
+                s.Findings.Add(new SimpleFinding(a.Severity.ToString(), a.Code ?? string.Empty, a.Target ?? string.Empty, a.Message ?? string.Empty));
+        }
+        foreach (var p in tr.Positives ?? Array.Empty<DomainDetective.RecommendationAdvice>())
+        {
+            var tt = p?.Title ?? p?.Code;
+            if (!string.IsNullOrWhiteSpace(tt)) s.Positives.Add(tt!);
+        }
+        foreach (var rr in tr.References ?? Array.Empty<string>()) if (!string.IsNullOrWhiteSpace(rr)) s.References.Add(rr);
+
         return s;
     }
 }

@@ -67,7 +67,34 @@ jobs:
 
       - name: Build solution (net8.0)
         if: matrix.framework == 'net8.0'
-        run: dotnet build DomainDetective.sln --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-restore
+        shell: pwsh
+        run: |
+          $args = @(
+            "build",
+            "DomainDetective.sln",
+            "--configuration", "${{ env.BUILD_CONFIGURATION }}",
+            "--framework", "${{ matrix.framework }}",
+            "--no-restore"
+          )
+
+          dotnet @args 2>&1 | Tee-Object -Variable buildOutput
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -ne 0) {
+            $text = $buildOutput -join "`n"
+            $isTransientCliLock = ($text -match "GenerateRuntimeConfigurationFiles" -or $text -match "CS2012") -and
+                                  $text -match "DomainDetective\\.CLI" -and
+                                  $text -match "being used by another process"
+
+            if ($isTransientCliLock) {
+              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying with -m:1..."
+              Start-Sleep -Seconds 2
+              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1
+              exit $LASTEXITCODE
+            }
+
+            exit $exitCode
+          }
 
       - name: Build tests (net472)
         if: matrix.framework == 'net472'

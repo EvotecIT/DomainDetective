@@ -40,6 +40,20 @@ public static class DmarcReportParser {
     /// <param name="validationMessages">Optional list collecting schema validation errors.</param>
     /// <returns>The parsed aggregate report.</returns>
     public static DmarcAggregateReport Parse(Stream stream, string? name = null, IList<string>? validationMessages = null) {
+        return Parse(stream, name, validationMessages, maxUncompressedBytes: 0);
+    }
+
+    /// <summary>Parses a DMARC feedback report from a stream with size limits.</summary>
+    /// <param name="stream">Input stream containing the report data.</param>
+    /// <param name="name">Optional name used to determine the format (.xml, .gz, .zip).</param>
+    /// <param name="validationMessages">Optional list collecting schema validation errors.</param>
+    /// <param name="maxUncompressedBytes">Maximum uncompressed size to read (0 means unlimited).</param>
+    /// <returns>The parsed aggregate report.</returns>
+    public static DmarcAggregateReport Parse(Stream stream, string? name, IList<string>? validationMessages, long maxUncompressedBytes) {
+        if (maxUncompressedBytes < 0) {
+            throw new ArgumentOutOfRangeException(nameof(maxUncompressedBytes), "maxUncompressedBytes must be >= 0 (0 means unlimited).");
+        }
+
         string ext = name != null ? Path.GetExtension(name).ToLowerInvariant() : ".xml";
         using var buffer = new MemoryStream();
 
@@ -50,13 +64,17 @@ public static class DmarcReportParser {
                 return new DmarcAggregateReport();
             }
 
+            if (maxUncompressedBytes > 0 && entry.Length > maxUncompressedBytes) {
+                throw new IOException($"DMARC ZIP entry '{entry.FullName}' exceeds max uncompressed size {maxUncompressedBytes} bytes.");
+            }
+
             using var entryStream = entry.Open();
-            entryStream.CopyTo(buffer);
+            CopyToWithLimit(entryStream, buffer, maxUncompressedBytes);
         } else if (ext == ".gz" || ext == ".gzip") {
             using var gz = new GZipStream(stream, CompressionMode.Decompress, leaveOpen: true);
-            gz.CopyTo(buffer);
+            CopyToWithLimit(gz, buffer, maxUncompressedBytes);
         } else {
-            stream.CopyTo(buffer);
+            CopyToWithLimit(stream, buffer, maxUncompressedBytes);
         }
 
         buffer.Position = 0;
@@ -177,6 +195,24 @@ public static class DmarcReportParser {
         }
 
         return report;
+    }
+
+    private static void CopyToWithLimit(Stream source, Stream destination, long maxBytes) {
+        if (maxBytes <= 0) {
+            source.CopyTo(destination);
+            return;
+        }
+
+        var buf = new byte[81920];
+        long total = 0;
+        int read;
+        while ((read = source.Read(buf, 0, buf.Length)) > 0) {
+            total += read;
+            if (total > maxBytes) {
+                throw new IOException($"Stream exceeds max size {maxBytes} bytes.");
+            }
+            destination.Write(buf, 0, read);
+        }
     }
 
     private static DmarcPolicyPublished ParsePolicy(XElement? policy, XNamespace ns) {

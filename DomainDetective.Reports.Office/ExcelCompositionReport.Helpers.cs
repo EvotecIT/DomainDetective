@@ -34,7 +34,10 @@ public static partial class ExcelCompositionReport
             Rpki = s.Rpki,
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
-            Classification = s.Classification
+            Classification = s.Classification,
+            Subdomains = s.Subdomains,
+            DnsInventory = s.DnsInventory,
+            DnsTrace = s.DnsTrace
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
         return b;
@@ -65,6 +68,9 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
     }
 
     private static string MakeUniqueSheetName(string domain, HashSet<string> used)

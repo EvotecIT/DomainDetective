@@ -13,13 +13,19 @@ public static class SectionOrdering
     private static readonly string[] Canonical = new[]
     {
         "MX",
+        "Mail Transport Posture",
         "SPF",
         "DKIM",
         "DMARC",
+        "DMARC Aggregate",
         "ARC",
         "BIMI",
         "DNSBL",
         "RPKI",
+        "Registration",
+        "Subdomains",
+        "DNS Inventory",
+        "DNS Trace",
         "NS",
         "SOA",
         "TTL",
@@ -29,6 +35,7 @@ public static class SectionOrdering
         "Classification",
         "MTA-STS",
         "TLS-RPT",
+        "TLS-RPT Reports",
         "MAILTLS",
         "DNSSEC",
         "DANE"
@@ -48,6 +55,9 @@ public static class SectionOrdering
         HealthCheckType.BIMI => "BIMI",
         HealthCheckType.DNSBL => "DNSBL",
         HealthCheckType.RPKI => "RPKI",
+        HealthCheckType.SUBDOMAINS => "Subdomains",
+        HealthCheckType.DNSINVENTORY => "DNS Inventory",
+        HealthCheckType.DNSTRACE => "DNS Trace",
         HealthCheckType.NS => "NS",
         HealthCheckType.SOA => "SOA",
         HealthCheckType.TTL => "TTL",
@@ -74,7 +84,20 @@ public static class SectionOrdering
         var u = t.ToUpperInvariant().Replace(" ", string.Empty).Replace("-", string.Empty);
         return u switch
         {
+            "DMARCAGGREGATE" => "DMARC Aggregate",
+            "DMARCAGG" => "DMARC Aggregate",
             "TLSRPT" => "TLS-RPT",
+            "TLSRPTREPORTS" => "TLS-RPT Reports",
+            "MAILTRANSPORTPOSTURE" => "Mail Transport Posture",
+            "MAILTRANSPORT" => "Mail Transport Posture",
+            "REGISTRATION" => "Registration",
+            "WHOIS" => "Registration",
+            "RDAP" => "Registration",
+            "SUBDOMAINS" => "Subdomains",
+            "DNSINVENTORY" => "DNS Inventory",
+            "DNSINVENTORYRECORDS" => "DNS Inventory",
+            "DNSTRACE" => "DNS Trace",
+            "DNSAUTHORITATIVETRACE" => "DNS Trace",
             "MTASTS" => "MTA-STS",
             "ZONEXFR" => "ZoneTransfer",
             "ZONETRANSFER" => "ZoneTransfer",
@@ -190,6 +213,11 @@ public static class SectionOrdering
     {
         try
         {
+            var keyProp = it.GetType().GetProperty("SectionKey");
+            if (keyProp != null && keyProp.GetValue(it) is string sectionKey && !string.IsNullOrWhiteSpace(sectionKey))
+            {
+                return NormalizeSection(sectionKey);
+            }
             var p = it.GetType().GetProperty("Check");
             if (p == null) return null;
             if (p.GetValue(it) is not HealthCheckType h) return null;

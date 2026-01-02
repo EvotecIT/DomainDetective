@@ -1,0 +1,42 @@
+# Subdomains (Discovery)
+
+## What this check does
+
+The Subdomains check discovers hostnames for a target domain using certificate transparency (CT) observations. It can optionally verify whether each discovered hostname still resolves in DNS (bounded and concurrent).
+
+Use this to build an inventory of potential attack surface (historical, stale, or unintended subdomains) and to prioritize cleanup or monitoring.
+
+## Data captured
+
+- Query status: success/failure + reason (when available)
+- CT observation counts: total rows observed, first/last seen timestamps (UTC)
+- Issuer diversity: issuer counts (best-effort, based on CT payload)
+- Discovered subdomains:
+  - `Name`
+  - `FirstSeenUtc` / `LastSeenUtc` (when provided by CT)
+  - `ResolutionStatus` (`Unknown`, `Resolves`, `DoesNotResolve`, `QueryFailed`)
+
+## Controls / tuning
+
+The primary implementation lives in `DomainDetective.SubdomainsAnalysis`.
+
+- `VerifyStillResolves` (default: `true`): enables DNS verification.
+- `MaxResolutionChecks` (default: `500`): caps the number of hostnames verified for DNS resolution.
+- `ResolutionConcurrency` (default: `20`): limits concurrent DNS checks.
+- `CrtShUrlTemplate`: CT query URL template (override for self-hosted or alternative endpoints).
+- `QueryOverride`: test/offline hook to supply CT JSON directly.
+
+DNS verification uses `DomainDetective.DnsConfiguration` and supports overriding DNS queries via `DnsConfiguration.QueryDnsOverride` (tests/offline).
+
+## Output surfaces
+
+- HTML report: renders a “Subdomains (Discovery)” section with summary, findings, evidence tables, and references.
+- Word report: renders a “Subdomains” section (summary + findings + evidence).
+- Excel report (net8.0): renders a “Subdomains (Discovery)” block (summary + issuer/subdomain tables).
+
+## Notes and limitations
+
+- CT-derived hostnames are an observation set, not a complete inventory (and may include historical names).
+- DNS verification is intentionally bounded for performance; entries beyond the cap remain `Unknown`.
+- IDN normalization is applied; invalid hostnames are skipped.
+

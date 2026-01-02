@@ -17,13 +17,16 @@ public static class CompositionBuilder
         public DomainDetective.Views.MxInfo? Mx { get; set; }
         public DomainDetective.Views.SpfRecordInfo? Spf { get; set; }
         public DomainDetective.Views.DmarcRecordInfo? Dmarc { get; set; }
+        public DomainDetective.Views.DmarcAggregateTimeSeriesInfo? DmarcAggregate { get; set; }
+        public DomainDetective.Views.RegistrationDriftInfo? Registration { get; set; }
         public List<DomainDetective.Views.DkimRecordInfo> Dkim { get; } = new();
         public DomainDetective.Views.ArcInfo? Arc { get; set; }
         public DomainDetective.Views.BimiRecordInfo? Bimi { get; set; }
         public DomainDetective.Views.DnsblInfo? Dnsbl { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
-        public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }
-        public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }
+        public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }      
+        public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }      
+        public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
         public DomainDetective.Views.NsInfo? Ns { get; set; }
         public DomainDetective.Views.SoaInfo? Soa { get; set; }
         public DomainDetective.Views.CaaInfo? Caa { get; set; }
@@ -36,6 +39,9 @@ public static class CompositionBuilder
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
     }
 
     public static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
@@ -50,6 +56,8 @@ public static class CompositionBuilder
                 case DomainDetective.Views.MxInfo mx when !string.IsNullOrWhiteSpace(mx.Subject): Ensure(mx.Subject); map[mx.Subject].Mx = mx; break;
                 case DomainDetective.Views.SpfRecordInfo spf when !string.IsNullOrWhiteSpace(spf.Subject): Ensure(spf.Subject); map[spf.Subject].Spf = spf; break;
                 case DomainDetective.Views.DmarcRecordInfo dmarc when !string.IsNullOrWhiteSpace(dmarc.Subject): Ensure(dmarc.Subject); map[dmarc.Subject].Dmarc = dmarc; break;
+                case DomainDetective.Views.DmarcAggregateTimeSeriesInfo da when !string.IsNullOrWhiteSpace(da.Subject): Ensure(da.Subject); map[da.Subject].DmarcAggregate = da; break;
+                case DomainDetective.Views.RegistrationDriftInfo reg when !string.IsNullOrWhiteSpace(reg.Subject): Ensure(reg.Subject); map[reg.Subject].Registration = reg; break;
                 case DomainDetective.Views.DkimRecordInfo dkim when !string.IsNullOrWhiteSpace(dkim.Subject): Ensure(dkim.Subject); map[dkim.Subject].Dkim.Add(dkim); break;
                 case DomainDetective.Views.ArcInfo arc when !string.IsNullOrWhiteSpace(arc.Subject): Ensure(arc.Subject); map[arc.Subject].Arc = arc; break;
                 case DomainDetective.Views.BimiRecordInfo bimi when !string.IsNullOrWhiteSpace(bimi.Subject): Ensure(bimi.Subject); map[bimi.Subject].Bimi = bimi; break;
@@ -69,9 +77,16 @@ public static class CompositionBuilder
                     map[subject].TlsRpt = tr;
                     break;
                 }
-                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject): Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;
-                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject): Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;
-                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;
+                case DomainDetective.Views.TlsRptReportsTimeSeriesInfo trr when !string.IsNullOrWhiteSpace(trr.Subject):
+                {
+                    var subject = trr.Subject;
+                    Ensure(subject);
+                    map[subject].TlsRptReports = trr;
+                    break;
+                }
+                case DomainDetective.Views.NsInfo ns when !string.IsNullOrWhiteSpace(ns.Subject): Ensure(ns.Subject); map[ns.Subject].Ns = ns; break;      
+                case DomainDetective.Views.SoaInfo soa when !string.IsNullOrWhiteSpace(soa.Subject): Ensure(soa.Subject); map[soa.Subject].Soa = soa; break;    
+                case DomainDetective.Views.CaaInfo caa when !string.IsNullOrWhiteSpace(caa.Subject): Ensure(caa.Subject); map[caa.Subject].Caa = caa; break;    
                 case DomainDetective.Views.DnssecStatusInfo ds when !string.IsNullOrWhiteSpace(ds.Subject): Ensure(ds.Subject); map[ds.Subject].Dnssec = ds; break;
                 case DomainDetective.Views.DaneRecordInfo dr when !string.IsNullOrWhiteSpace(dr.Subject): Ensure(dr.Subject); map[dr.Subject].Dane = dr; break;
                 case DomainDetective.Views.TtlInfo ttl when !string.IsNullOrWhiteSpace(ttl.Subject):
@@ -105,6 +120,9 @@ public static class CompositionBuilder
                 }
                 case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
                 case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
+                case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject): Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
+                case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject): Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
+                case DomainDetective.Views.DnsTraceInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].DnsTrace = tr; break;
                 default: break;
             }
         }

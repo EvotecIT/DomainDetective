@@ -178,7 +178,10 @@ namespace DomainDetective {
                 [HealthCheckType.FLATTENINGSERVICE] = () => VerifyFlatteningServiceAsync(domainName, cancellationToken),
                 [HealthCheckType.THREATINTEL] = () => VerifyThreatIntel(domainName, cancellationToken),
                 [HealthCheckType.THREATFEED] = () => VerifyThreatFeed(domainName, cancellationToken),
-                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken)
+                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken),
+                [HealthCheckType.SUBDOMAINS] = () => VerifySubdomainsAsync(domainName, cancellationToken),
+                [HealthCheckType.DNSINVENTORY] = () => VerifyDnsInventoryAsync(domainName, cancellationToken),
+                [HealthCheckType.DNSTRACE] = () => VerifyDnsTraceAsync(domainName, cancellationToken)
             };
 
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {

@@ -259,7 +259,19 @@ public static class CheckDescriptions {
             [HealthCheckType.NTP] = new(
                 "Query NTP server for clock offset.",
                 "https://datatracker.ietf.org/doc/html/rfc5905",
-                "Ensure NTP responds with valid time data.")
+                "Ensure NTP responds with valid time data."),
+            [HealthCheckType.SUBDOMAINS] = new(
+                "Discover subdomains using certificate transparency (CT).",
+                "https://datatracker.ietf.org/doc/html/rfc6962",
+                "Review discovered names and remove stale or unintended subdomains."),
+            [HealthCheckType.DNSINVENTORY] = new(
+                "Inventory common DNS records and TTLs.",
+                "https://www.rfc-editor.org/rfc/rfc1035",
+                "Review exposed records, remove stale entries, and validate delegations and mail/web targets."),
+            [HealthCheckType.DNSTRACE] = new(
+                "Trace authoritative DNS resolution (root to answer).",
+                "https://www.rfc-editor.org/rfc/rfc1035",
+                "Use the trace log to identify broken delegations, missing glue, and authoritative misconfiguration.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

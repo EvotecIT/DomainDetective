@@ -73,7 +73,7 @@ Network Services
 
 Reporting & UX
 
-- HTML, Word, Excel, Markdown, and JSON reports
+- HTML, Word, Excel, PDF (basic), Markdown/MarkdownHtml, and JSON reports
 - Interactive CLI wizard, PowerShell views, and pipeline-friendly composition
 - Ordering controls for per-domain sections across Word/HTML/Markdown/Excel
 
@@ -84,7 +84,7 @@ Reporting & UX
 - `SectionOrder`: explicit list of section keys when using Custom
 
 Canonical section order:
-MX, SPF, DKIM, DMARC, ARC, BIMI, DNSBL, RPKI, NS, SOA, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, MAILTLS, DNSSEC, DANE.
+MX, SPF, DKIM, DMARC, DMARC Aggregate, ARC, BIMI, DNSBL, RPKI, Registration, NS, SOA, TTL, ZoneTransfer, Wildcard, CAA, Classification, MTA-STS, TLS-RPT, TLS-RPT Reports, MAILTLS, DNSSEC, DANE.
 
 Executive Summary columns remain canonical across formats; ordering affects per-domain sections only.
 
@@ -111,16 +111,9 @@ These layers are available both from the CLI and PowerShell; use summaries for q
 - DANE/TLSA: RFC 6698 • SMIMEA: RFC 8162
 - HSTS: RFC 6797 • EDNS(0): RFC 6891 • RDAP: RFC 9083
 
-### Roadmap (short)
+### Roadmap
 
-- Exports: PDF generation, and parity/polish for Word/Excel/Markdown outputs.
-- CLI packaging for Windows, macOS and Linux (single‑file and native package feeds).
-- Live persona narration across CLI/PowerShell with per‑section highlights.
-- More opinionated presets and batch modes for scheduled audits.
-
-## Narratives & Persona (planned)
-
-We’re designing persona‑driven narratives to present findings in different tones (e.g., business, geek) without changing the underlying data. Live streaming of persona output and per‑section summaries are part of the roadmap. The raw objects and reports remain clean and automation‑friendly.
+See TODO.md for the current backlog and roadmap.
 
 ## Available Cmdlets and Aliases
 
@@ -219,6 +212,17 @@ We’re designing persona‑driven narratives to present findings in different t
 | `Import-DDDmarcForensic`    | `Import-DmarcForensic` | DMARC forensic zip  |
 | `Import-DDEmailTlsRpt`      | `Import-EmailTlsRpt`   | TLS-RPT JSON        |
 
+### Time Series
+
+| Prefixed Name                     | Alias Name                      | Purpose                                             |
+| --------------------------------- | ------------------------------- | --------------------------------------------------- |
+| `Import-DDDmarcAggregateSnapshot` | `Import-DmarcAggregateSnapshot` | DMARC aggregate snapshots (path/IMAP) → store       |
+| `Get-DDDmarcAggregateTimeSeries`  | `Get-DmarcAggregateTimeSeries`  | DMARC aggregate time-series view (report section)   |
+| `Import-DDTlsRptReportSnapshot`   | `Import-TlsRptReportSnapshot`   | TLS-RPT reports (path/IMAP) → store                 |
+| `Get-DDTlsRptReportsTimeSeries`   | `Get-TlsRptReportsTimeSeries`   | TLS-RPT reports time-series view (report section)   |
+| `Import-DDRegistrationSnapshot`   | `Import-RegistrationSnapshot`   | WHOIS/RDAP registration snapshot → store            |
+| `Get-DDRegistrationDrift`         | `Get-RegistrationDrift`         | Registration structured drift view (report section) |
+
 ## Reports / Exporting
 
 - Compose any mix via pipeline:
@@ -229,6 +233,24 @@ Import-Module ./Module/DomainDetective.psd1 -Force
 $spf   = Test-DDEmailSpfRecord -DomainName 'evotec.pl'
 $dnsbl = Test-DDDnsBlacklist   -NameOrIpAddress 'evotec.pl'
 ($spf + $dnsbl) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
+```
+
+- Time-series sections (DMARC Aggregate / TLS-RPT Reports / Registration drift):
+
+```
+Import-Module ./Module/DomainDetective.psd1 -Force
+
+# Ingest reports/snapshots (run on a schedule)
+Import-DDDmarcAggregateSnapshot -StorePath .\\Store -Path .\\Reports\\DMARC
+Import-DDTlsRptReportSnapshot   -DomainName example.com -StorePath .\\Store -Path .\\Reports\\TLSRPT
+Import-DDRegistrationSnapshot   -DomainName example.com -StorePath .\\Store
+
+# Build report sections from the store
+$dmarcAgg = Get-DDDmarcAggregateTimeSeries -DomainName example.com -StorePath .\\Store
+$tlsRpt   = Get-DDTlsRptReportsTimeSeries  -DomainName example.com -StorePath .\\Store
+$reg      = Get-DDRegistrationDrift        -DomainName example.com -StorePath .\\Store
+
+($dmarcAgg + $tlsRpt + $reg) | Export-DDSecurityReport -Scope Detailed -ExportFormat Word -ExportPath .\\Reports -OpenReport
 ```
 
 - Or inline with a script block:
@@ -440,14 +462,14 @@ Run the example project and CLI scenarios:
 
 ```bash
 dotnet run --project DomainDetective.Example example.com --json
-ddcli example.com --checks autodiscover
-ddcli example.com --subdomain-policy
-ddcli example.com --checks fcrdns
+ddcli check example.com --checks autodiscover
+ddcli check example.com --subdomain-policy
+ddcli check example.com --checks fcrdns
 ddcli TestSMIMEA user@example.com
 ddcli DnsPropagation --domain example.com --record-type A
 
- ddcli example.com --check-web
- ddcli example.com --checks DNSHEALTH
+ ddcli check example.com --check-web
+ ddcli check example.com --checks DNSHEALTH
 
 #### SPF host simulation
 
@@ -516,14 +538,32 @@ ddcli RunsList --subject example.com --count 5
 ddcli RunsOpen --subject example.com
 ```
 
+### CLI: time-series store (DMARC Aggregate / TLS-RPT / Registration)
+
+```bash
+# Ingest reports/snapshots (run on a schedule)
+ddcli ImportDmarcAggregateSnapshot ./Reports/DMARC --store-path ./Store
+ddcli ImportTlsRptReportSnapshot   example.com ./Reports/TLSRPT --store-path ./Store
+ddcli ImportRegistrationSnapshot   example.com --store-path ./Store
+
+# Optional: IMAP ingestion (use --imap-subject-contains to narrow scan; attachment size limit; 0 = unlimited)
+ddcli ImportDmarcAggregateSnapshot --store-path ./Store --imap-host imap.example.com --imap-user user@example.com --imap-password-env DMARC_IMAP_PASSWORD --mailbox INBOX --since-utc 2025-01-01 --max-attachment-mb 50
+ddcli ImportTlsRptReportSnapshot   example.com --store-path ./Store --imap-host imap.example.com --imap-user user@example.com --imap-password-env TLSRPT_IMAP_PASSWORD --mailbox INBOX --since-utc 2025-01-01 --max-attachment-mb 50
+
+# Generate report with time-series sections
+ddcli GenerateReport example.com --format word --store-path ./Store
+ddcli GenerateReport example.com --format html --store-path ./Store
+```
+
 <!-- Tables moved to top under "Available Cmdlets and Aliases" -->
 
 ## Configuration knobs (common)
 
 - Dns endpoint: most cmdlets accept `-DnsEndpoint` to control resolution.
 - Scope selection: DNS propagation supports `-Country`, `-Location`, `-Take` and background monitor with start/stop cmdlets.
-- Snapshots and diffs: `-SnapshotPath` and `-Diff` compare against stored snapshots.
-- Output formats: HTML/Word/Excel/Markdown/MarkdownHtml/JSON (availability varies by cmdlet); PDF is planned.
+- Snapshots and diffs: `-SnapshotPath` and `-Diff` (WHOIS) compare against stored snapshots.
+- Time-series stores: `-StorePath` (DMARC Aggregate / TLS-RPT Reports / Registration drift).
+- Output formats: HTML/Word/Excel/PDF (basic)/Markdown/MarkdownHtml/JSON (availability varies by cmdlet).
 
 ## Alternatives
 If you don't need to automate the process, or if you just want to quickly query for your domain name, you can use the following web based tools:
@@ -567,7 +607,14 @@ Console.WriteLine($"Registrar lock: {summary.RegistrarLocked}");
 Console.WriteLine($"Is public suffix: {summary.IsPublicSuffix}");
 ```
 
-WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet. Comparing the latest data to the previous snapshot highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.
+WHOIS snapshots can be stored by specifying a snapshot directory when running the CLI or PowerShell cmdlet (`-SnapshotPath`). Comparing the latest data to the previous snapshot (`-Diff`) highlights registrar changes. Querying once a day is typically sufficient for monitoring purposes and avoids unnecessary load on WHOIS servers.
+
+For unified WHOIS/RDAP snapshots and structured drift (registrar, status codes, nameservers) that can be embedded in Word/HTML exports, use the time-series store:
+
+```
+Import-DDRegistrationSnapshot -DomainName example.com -StorePath .\\Store
+Get-DDRegistrationDrift       -DomainName example.com -StorePath .\\Store
+```
 
 ## Check Descriptions
 

@@ -114,8 +114,7 @@ public enum HealthCheckType {
     /// <summary>Query NTP servers for clock information.</summary>
     NTP,
     /// <summary>Composite website check (certificate + HTTP security).</summary>
-    WEBSITE
-    ,
+    WEBSITE,
     /// <summary>WHOIS registration lookup.</summary>
     WHOIS,
     /// <summary>Apex A/AAAA analysis (SMTP fallback posture).</summary>
@@ -123,5 +122,11 @@ public enum HealthCheckType {
     /// <summary>Flattened SPF (IPs expanded from mechanisms).</summary>
     SPFFLATTENED,
     /// <summary>Mail domain classification (sending/receiving posture).</summary>
-    MAILCLASSIFICATION
+    MAILCLASSIFICATION,
+    /// <summary>Discover subdomains using certificate transparency data.</summary>
+    SUBDOMAINS,
+    /// <summary>Inventory common DNS records and TTLs for a domain.</summary>
+    DNSINVENTORY,
+    /// <summary>Trace authoritative DNS resolution from root servers.</summary>
+    DNSTRACE
 }
