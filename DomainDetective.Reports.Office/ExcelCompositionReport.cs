@@ -41,6 +41,10 @@ public static partial class ExcelCompositionReport {
             .Keywords("excel,report,domains")).End();
 
         BuildOverviewSheet(doc, items, order, domains);
+        if (profile == ExcelProfile.Dashboard)
+        {
+            try { BuildDiscoveryDashboardSheet(doc, domains); } catch { }
+        }
 
         // Per-domain sheets (skip in Dashboard profile)
         if (profile != ExcelProfile.Dashboard)
@@ -95,6 +99,10 @@ public static partial class ExcelCompositionReport {
                 ApplyBlock(infra, BuildSoaBlock(b));
                 ApplyBlock(infra, BuildDnsInventoryBlock(b));
                 ApplyBlock(infra, BuildDnsTraceBlock(b));
+                ApplyBlock(infra, BuildDnsPropagationBlock(b));
+                ApplyBlock(infra, BuildCtTimelineBlock(b));
+                ApplyBlock(infra, BuildHttpBlock(b));
+                ApplyBlock(infra, BuildIpEnrichmentBlock(b));
                 ApplyBlock(infra, BuildCaaBlock(b));
                 ApplyBlock(infra, BuildRpkiBlock(b));
                 ApplyBlock(infra, BuildZoneTransferBlock(b));
@@ -1189,6 +1197,262 @@ public static partial class ExcelCompositionReport {
         };
     }
 
+    private static Action<SheetComposer.ColumnComposer>? BuildCtTimelineBlock(DomainBucket bucket)
+    {
+        if (bucket.CtTimeline == null)
+        {
+            return null;
+        }
+
+        var ct = bucket.CtTimeline;
+        var projection = DomainDetective.Reports.SectionProjectors.BuildCtTimeline(ct);
+
+        return column =>
+        {
+            column.Section("CT Timeline").KeyValues(new (string, object?)[]
+            {
+                ("Status", ct.Status ?? "-"),
+                ("Query OK", ct.QuerySucceeded ? "Yes" : "No"),
+                ("Failure", string.IsNullOrWhiteSpace(ct.FailureReason) ? "-" : ct.FailureReason),
+                ("Observations", ct.CertificateObservationCount),
+                ("Unique Certificates", ct.UniqueCertificateCount),
+                ("Active", ct.ActiveCertificateCount),
+                ("Expired", ct.ExpiredCertificateCount),
+                ("Not Yet Valid", ct.NotYetValidCertificateCount),
+                ("Wildcards", ct.WildcardCertificateCount),
+                ("Issued (7d)", ct.IssuedLast7Days),
+                ("Issued (30d)", ct.IssuedLast30Days),
+                ("First Seen (UTC)", ct.FirstSeenUtc?.ToString("yyyy-MM-dd") ?? "-"),
+                ("Last Seen (UTC)", ct.LastSeenUtc?.ToString("yyyy-MM-dd") ?? "-"),
+                ("Issuer Diversity", ct.IssuerCounts?.Count ?? 0),
+                ("Capped", ct.ResultsCapped ? "Yes" : "No")
+            });
+
+            if (projection != null && projection.Timeline.Count > 0)
+            {
+                var rows = projection.Timeline
+                    .Select(x => new { x.Month, Certificates = x.Certificates, Issuers = x.Issuers })
+                    .ToList();
+
+                column.TableFrom(rows, title: "Timeline (Monthly)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
+                {
+                    v.NumericColumnFormats["Certificates"] = "0";
+                    v.NumericColumnFormats["Issuers"] = "0";
+                    v.FreezeHeaderRow = true;
+                });
+            }
+
+            if (projection != null && projection.RecentCertificates.Count > 0)
+            {
+                const int maxRows = 200;
+                var rows = projection.RecentCertificates
+                    .Take(maxRows)
+                    .Select(x => new
+                    {
+                        x.EntryUtc,
+                        x.NotAfterUtc,
+                        Validity = x.Validity.ToString(),
+                        Wildcard = x.Wildcard ? "Yes" : "No",
+                        x.Issuer,
+                        x.CommonName
+                    })
+                    .ToList();
+
+                column.TableFrom(rows, title: "Recent Certificates (Sample)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v =>
+                {
+                    v.FreezeHeaderRow = true;
+                });
+            }
+
+            if (projection != null && projection.Findings.Count > 0)
+            {
+                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+        };
+    }
+
+    private static Action<SheetComposer.ColumnComposer>? BuildHttpBlock(DomainBucket bucket)
+    {
+        if (bucket.Http == null)
+        {
+            return null;
+        }
+
+        var http = bucket.Http;
+        var projection = DomainDetective.Reports.SectionProjectors.BuildHttp(http);
+
+        return column =>
+        {
+            column.Section("HTTP").KeyValues(new (string, object?)[]
+            {
+                ("Status", http.Status ?? "-"),
+                ("Reachable", http.IsReachable ? "Yes" : "No"),
+                ("Status Code", http.StatusCode?.ToString() ?? "-"),
+                ("Grade", http.Grade != GradeLevel.Unknown ? http.Grade.ToString() : "-"),
+                ("Method", http.RequestMethodUsed.ToString()),
+                ("Effective URL", projection?.EffectiveUrl ?? (http.Url ?? http.Subject ?? "-")),
+                ("Proxy", string.IsNullOrWhiteSpace(http.ProxyUsed) ? "-" : http.ProxyUsed),
+                ("TLS Validation", http.TlsValidationDisabled ? "Disabled" : "Enabled"),
+                ("HSTS", http.HstsPresent ? "Yes" : "No"),
+                ("HTTP/2", http.Http2Supported ? "Yes" : "No"),
+                ("HTTP/3", http.Http3Supported ? "Yes" : "No"),
+                ("CSP frame-ancestors", http.CspFrameAncestorsPresent ? "Yes" : "No"),
+                ("Missing Security Headers", http.MissingSecurityHeaders?.Count ?? 0),
+                ("Info Disclosure Headers", http.InformationDisclosureHeaders?.Count ?? 0),
+                ("Caching Headers", http.CachingHeaders?.Count ?? 0),
+                ("Deprecated Present", http.DeprecatedHeadersPresent?.Count ?? 0),
+                ("Deprecated Missing", http.MissingDeprecatedHeaders?.Count ?? 0),
+                ("Mixed Content", http.MixedContentDetected ? "Yes" : "No"),
+                ("Response Time", http.ResponseTime.ToString()),
+                ("Body Length (bytes)", http.BodyLength?.ToString() ?? "-"),
+                ("Body SHA-256", string.IsNullOrWhiteSpace(http.BodySha256) ? "-" : http.BodySha256)
+            });
+
+            try
+            {
+                var visited = http.Raw?.VisitedUrls;
+                if (visited != null && visited.Count > 0)
+                {
+                    var rows = visited.Select((u, i) => new { Step = i + 1, Url = u }).ToList();
+                    column.TableFrom(rows, title: "Redirect Chain", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+                }
+            }
+            catch
+            {
+            }
+
+            if (projection != null && projection.PresentSecurityHeaders.Count > 0)
+            {
+                var rows = projection.PresentSecurityHeaders.Select(x => new { x.Name, x.Value }).ToList();
+                column.TableFrom(rows, title: "Present Security Headers", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.MissingSecurityHeaders.Count > 0)
+            {
+                var rows = projection.MissingSecurityHeaders.Select(x => new { Header = x }).ToList();
+                column.TableFrom(rows, title: "Missing Security Headers", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.InformationDisclosureHeaders.Count > 0)
+            {
+                var rows = projection.InformationDisclosureHeaders.Select(x => new { x.Name, x.Value }).ToList();
+                column.TableFrom(rows, title: "Information Disclosure Headers", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.CachingHeaders.Count > 0)
+            {
+                var rows = projection.CachingHeaders.Select(x => new { x.Name, x.Value }).ToList();
+                column.TableFrom(rows, title: "Caching Headers", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && (projection.DeprecatedPresent.Count > 0 || projection.DeprecatedMissing.Count > 0))
+            {
+                var rows = new[]
+                {
+                    new { Group = "Deprecated Present", Headers = projection.DeprecatedPresent.Count > 0 ? string.Join(", ", projection.DeprecatedPresent) : "-" },
+                    new { Group = "Deprecated Missing", Headers = projection.DeprecatedMissing.Count > 0 ? string.Join(", ", projection.DeprecatedMissing) : "-" }
+                }.ToList();
+                column.TableFrom(rows, title: "Deprecated Header Signals", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.Findings.Count > 0)
+            {
+                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+        };
+    }
+
+    private static Action<SheetComposer.ColumnComposer>? BuildIpEnrichmentBlock(DomainBucket bucket)
+    {
+        if (bucket.IpEnrichment == null)
+        {
+            return null;
+        }
+
+        var ip = bucket.IpEnrichment;
+        var projection = DomainDetective.Reports.SectionProjectors.BuildIpEnrichment(ip);
+
+        return column =>
+        {
+            column.Section("IP Enrichment").KeyValues(new (string, object?)[]
+            {
+                ("Status", ip.Status ?? "-"),
+                ("Query OK", ip.QuerySucceeded ? "Yes" : "No"),
+                ("Failure", string.IsNullOrWhiteSpace(ip.FailureReason) ? "-" : ip.FailureReason),
+                ("Unique IPs", ip.UniqueIpCount),
+                ("Rows", ip.RowCount),
+                ("ASNs", ip.DistinctAsnCount),
+                ("Countries", ip.DistinctCountryCount),
+                ("Capped", ip.ResultsCapped ? "Yes" : "No")
+            });
+
+            try
+            {
+                if (ip.AsnCounts != null && ip.AsnCounts.Count > 0)
+                {
+                    var rows = ip.AsnCounts
+                        .OrderByDescending(kv => kv.Value)
+                        .ThenBy(kv => kv.Key)
+                        .Take(50)
+                        .Select(kv => new { Asn = "AS" + kv.Key, Count = kv.Value })
+                        .ToList();
+                    column.TableFrom(rows, title: "ASN Counts (Top)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => { v.FreezeHeaderRow = true; v.NumericColumnFormats["Count"] = "0"; });
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                if (ip.CountryCounts != null && ip.CountryCounts.Count > 0)
+                {
+                    var rows = ip.CountryCounts
+                        .OrderByDescending(kv => kv.Value)
+                        .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                        .Take(50)
+                        .Select(kv => new { Country = kv.Key, Count = kv.Value })
+                        .ToList();
+                    column.TableFrom(rows, title: "Country Counts (Top)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => { v.FreezeHeaderRow = true; v.NumericColumnFormats["Count"] = "0"; });
+                }
+            }
+            catch
+            {
+            }
+
+            if (projection != null && projection.Rows.Count > 0)
+            {
+                const int maxRows = 500;
+                var rows = projection.Rows
+                    .Take(maxRows)
+                    .Select(x => new
+                    {
+                        x.IpAddress,
+                        Family = x.Family.ToString(),
+                        SourceKind = x.SourceKind.ToString(),
+                        x.SourceHost,
+                        x.Ptr,
+                        Asn = x.Asn.HasValue ? "AS" + x.Asn.Value : string.Empty,
+                        x.AsName,
+                        x.Cidr,
+                        x.Country,
+                        x.Region
+                    })
+                    .ToList();
+
+                column.TableFrom(rows, title: "Enriched IP Rows (Sample)", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+
+            if (projection != null && projection.Findings.Count > 0)
+            {
+                var frows = projection.Findings.Select(a => new { a.Severity, a.Code, a.Target, a.Message }).ToList();
+                column.TableFrom(frows, title: "Findings", configure: o => o.HeaderCase = HeaderCase.Title, visuals: v => v.FreezeHeaderRow = true);
+            }
+        };
+    }
+
     private static Action<SheetComposer.ColumnComposer>? BuildCaaBlock(DomainBucket bucket)
     {
         if (bucket.Caa == null)
@@ -1332,6 +1596,7 @@ public static partial class ExcelCompositionReport {
                 ("Failure", string.IsNullOrWhiteSpace(sub.FailureReason) ? "-" : sub.FailureReason),
                 ("Subdomains", sub.SubdomainCount),
                 ("CT Rows", sub.CertificateObservationCount),
+                ("CT Processing", sub.ResultsCapped ? "Capped" : "OK"),
                 ("Issuer Diversity", sub.DistinctIssuerCount),
                 ("Seen (UTC)", range),
                 ("DNS Verification", dnsVerification)
