@@ -27,7 +27,9 @@ public sealed class DmarcAggregateTimeSeriesStore
         {
             throw new ArgumentException("Domain is required.", nameof(domain));
         }
-        return Path.Combine(RootPath, "dmarc-aggregate", domain.Trim());
+
+        var safeDomain = PathHelper.NormalizeDomainPathSegment(domain);
+        return PathHelper.CombineUnderRoot(RootPath, "dmarc-aggregate", safeDomain);
     }
 
     public string SaveSnapshot(DmarcAggregateSnapshot snapshot)

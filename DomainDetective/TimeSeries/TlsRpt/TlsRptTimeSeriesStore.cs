@@ -27,7 +27,9 @@ public sealed class TlsRptTimeSeriesStore
         {
             throw new ArgumentException("Domain is required.", nameof(domain));
         }
-        return Path.Combine(RootPath, "tls-rpt", domain.Trim());
+
+        var safeDomain = PathHelper.NormalizeDomainPathSegment(domain);
+        return PathHelper.CombineUnderRoot(RootPath, "tls-rpt", safeDomain);
     }
 
     public string SaveSnapshot(TlsRptSnapshot snapshot)
