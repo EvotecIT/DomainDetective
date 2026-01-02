@@ -1,5 +1,6 @@
 using Spectre.Console.Cli;
 using System.IO;
+using DnsClientX;
 
 namespace DomainDetective.CLI;
 
@@ -140,4 +141,20 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Link-only mode: skip static resource discovery and only check links.</summary>
     [CommandOption("--webscan-link-only")]
     public bool WebScanLinkOnly { get; set; }
+
+    /// <summary>Primary DNS endpoint used for resolver queries.</summary>
+    [CommandOption("--dns-endpoint <ENDPOINT>")]
+    public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+    /// <summary>Optional list of DNS endpoints to use (multi-resolver). Use multiple flags or comma-separated values.</summary>
+    [CommandOption("--dns-endpoints <ENDPOINTS>")]
+    public string[] DnsEndpoints { get; set; } = Array.Empty<string>();
+
+    /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
+    [CommandOption("--dns-strategy <STRATEGY>")]
+    public DomainDetective.MultiResolverStrategy MultiResolverStrategy { get; set; } = DomainDetective.MultiResolverStrategy.FirstSuccess;
+
+    /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
+    [CommandOption("--dns-endpoints-parallelism <N>")]
+    public int? MultiResolverMaxParallelism { get; set; }
 }

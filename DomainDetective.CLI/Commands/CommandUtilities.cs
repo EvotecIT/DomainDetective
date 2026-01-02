@@ -1,4 +1,5 @@
 using DomainDetective;
+using DnsClientX;
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
 using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
@@ -138,17 +139,24 @@ internal static class CommandUtilities {
         var autodiscoverEndpoints = AnsiConsole.Confirm("Show Autodiscover HTTP endpoints?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken);
+        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
         return 0;
     }
 
-internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken) {
-        foreach (var domain in domains) {
-            var logger = new InternalLogger { IsProgress = showProgress };
-            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
-            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
-
-            if (showProgress) {
+	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, CancellationToken cancellationToken = default) {
+	        foreach (var domain in domains) {
+	            var logger = new InternalLogger { IsProgress = showProgress };
+	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
+                if (dnsEndpoints != null && dnsEndpoints.Length > 0)
+                {
+                    hc.DnsEndpoints.Clear();
+                    hc.DnsEndpoints.AddRange(dnsEndpoints);
+                    hc.MultiResolverStrategy = multiResolverStrategy;
+                    hc.MultiResolverMaxParallelism = multiResolverMaxParallelism;
+                }
+	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
+	
+	            if (showProgress) {
                 ProgressContext? ctxRef = null;
                 try {
                     await AnsiConsole.Progress().StartAsync(async ctx => {
@@ -243,6 +251,8 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                     HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
                     HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
                     HealthCheckType.DNSHEALTH => hc.DnsHealthAnalysis,
+                    HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,
+                    HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
                     _ => null
                 };
                 if (data != null) {

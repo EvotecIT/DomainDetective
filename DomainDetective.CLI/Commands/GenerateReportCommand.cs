@@ -13,6 +13,7 @@ using DomainDetective.TimeSeries.DmarcAggregate;
 using DomainDetective.TimeSeries.Registration;
 using DomainDetective.TimeSeries.TlsRpt;
 using HtmlForgeX;
+using DnsClientX;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -67,6 +68,29 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandOption("--dns-trace")]
         [DefaultValue(false)]
         public bool IncludeDnsTrace { get; set; }
+
+        [Description("Include DNS propagation section (multi-resolver global visibility; can be slow)")]
+        [CommandOption("--dns-propagation|--dns-prop")]
+        [DefaultValue(false)]
+        public bool IncludeDnsPropagation { get; set; }
+
+        [Description("Primary DNS endpoint used for resolver queries")]
+        [CommandOption("--dns-endpoint <ENDPOINT>")]
+        [DefaultValue(DnsEndpoint.System)]
+        public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+        [Description("Optional list of DNS endpoints to use (multi-resolver). Use multiple flags or comma-separated values.")]
+        [CommandOption("--dns-endpoints <ENDPOINTS>")]
+        public string[] DnsEndpoints { get; set; } = Array.Empty<string>();
+
+        [Description("Strategy used when multiple DNS endpoints are provided")]
+        [CommandOption("--dns-strategy <STRATEGY>")]
+        [DefaultValue(MultiResolverStrategy.FirstSuccess)]
+        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
+
+        [Description("Maximum number of resolvers to query in parallel (null = all)")]
+        [CommandOption("--dns-endpoints-parallelism <N>")]
+        public int? MultiResolverMaxParallelism { get; set; }
     }
     
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
@@ -83,10 +107,51 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 .StartAsync(async ctx => {
                     // Step 1: Analyze domain
                     var analyzeTask = ctx.AddTask($"[green]Analyzing {settings.Domain}[/]");
-                    var healthCheck = new DomainHealthCheck();
                     var logger = new InternalLogger(false);
-                    // Use same logger in health check for consistent events
-                    healthCheck = new DomainHealthCheck(healthCheck.DnsEndpoint, logger);
+                    var healthCheck = new DomainHealthCheck(settings.DnsEndpoint, logger);
+
+                    static DnsEndpoint[]? ParseDnsEndpoints(string[] raw, out List<string> invalid)
+                    {
+                        invalid = new List<string>();
+                        if (raw == null || raw.Length == 0)
+                        {
+                            return null;
+                        }
+
+                        var endpoints = new List<DnsEndpoint>();
+                        foreach (var part in raw)
+                        {
+                            if (string.IsNullOrWhiteSpace(part)) continue;
+                            foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                            {
+                                if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
+                                {
+                                    endpoints.Add(ep);
+                                }
+                                else
+                                {
+                                    invalid.Add(token);
+                                }
+                            }
+                        }
+
+                        return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
+                    }
+
+                    var dnsEndpoints = ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
+                    if (invalidDnsEndpoints.Count > 0)
+                    {
+                        var joined = string.Join(", ", invalidDnsEndpoints.Distinct(StringComparer.OrdinalIgnoreCase));
+                        AnsiConsole.MarkupLine($"[yellow]Ignoring invalid --dns-endpoints value(s):[/] {joined}");
+                    }
+
+                    if (dnsEndpoints != null && dnsEndpoints.Length > 0)
+                    {
+                        healthCheck.DnsEndpoints.Clear();
+                        healthCheck.DnsEndpoints.AddRange(dnsEndpoints);
+                        healthCheck.MultiResolverStrategy = settings.MultiResolverStrategy;
+                        healthCheck.MultiResolverMaxParallelism = settings.MultiResolverMaxParallelism;
+                    }
                     var artifactsBase = DomainDetective.Reports.FilePathHelper.ResolveBaseDirectory(settings.OutputPath, null);
                     using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
 
@@ -108,11 +173,17 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                         HealthCheckType.TLSRPT,
                         HealthCheckType.DANE,
                         HealthCheckType.DNSSEC,
+                        HealthCheckType.HTTP,
+                        HealthCheckType.CTTIMELINE,
                         HealthCheckType.SUBDOMAINS,
                         HealthCheckType.DNSINVENTORY,
+                        HealthCheckType.IPENRICHMENT,
                     };
                     if (settings.IncludeDnsTrace) {
                         reportChecks.Add(HealthCheckType.DNSTRACE);
+                    }
+                    if (settings.IncludeDnsPropagation) {
+                        reportChecks.Add(HealthCheckType.DNSPROPAGATION);
                     }
                     await healthCheck.Verify(settings.Domain, reportChecks.ToArray());
                     analyzeTask.Value = 100;
@@ -246,8 +317,23 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis)); } catch { }
+        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis)); } catch { }
         try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis)); } catch { }
+        try { if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject)) items.Add(DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis)); } catch { }
+        try { if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject)) items.Add(DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis)); } catch { }
+        try
+        {
+            var set = healthCheck.DnsPropagationSet;
+            if (set != null && set.Items.Count > 0)
+            {
+                foreach (var a in set.Items)
+                {
+                    items.Add(DomainDetective.Views.Converters.Convert(a));
+                }
+            }
+        }
+        catch { }
         if (includeDnsTrace)
         {
             try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis)); } catch { }

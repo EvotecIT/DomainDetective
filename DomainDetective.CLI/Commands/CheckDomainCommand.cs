@@ -1,4 +1,5 @@
 using DomainDetective;
+using DnsClientX;
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -15,6 +16,42 @@ namespace DomainDetective.CLI;
 internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
     /// <inheritdoc/>
     public override async Task<int> ExecuteAsync(CommandContext context, CheckDomainSettings settings) {
+        static DnsEndpoint[]? ParseDnsEndpoints(string[] raw, out List<string> invalid)
+        {
+            invalid = new List<string>();
+            if (raw == null || raw.Length == 0)
+            {
+                return null;
+            }
+
+            var endpoints = new List<DnsEndpoint>();
+            foreach (var part in raw)
+            {
+                if (string.IsNullOrWhiteSpace(part)) continue;
+                foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
+                    {
+                        endpoints.Add(ep);
+                    }
+                    else
+                    {
+                        invalid.Add(token);
+                    }
+                }
+            }
+
+            return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
+        }
+
+        var dnsEndpoint = settings.DnsEndpoint;
+        var dnsEndpoints = ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
+        if (invalidDnsEndpoints.Count > 0)
+        {
+            var joined = string.Join(", ", invalidDnsEndpoints.Distinct(StringComparer.OrdinalIgnoreCase));
+            AnsiConsole.MarkupLine($"[yellow]Ignoring invalid --dns-endpoints value(s):[/] {joined}");
+        }
+
         if (settings.Smime != null) {
             if (!settings.Smime.Exists) {
                 throw new FileNotFoundException("S/MIME certificate file not found", settings.Smime.FullName);
@@ -39,10 +76,17 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
         var webScanTarget = !string.IsNullOrWhiteSpace(settings.WebScanStatic) ? settings.WebScanStatic : settings.WebScan;
         if (!string.IsNullOrWhiteSpace(webScanTarget)) {
             var raw = webScanTarget!.Trim();
-            var hc = new DomainHealthCheck {
+            var hc = new DomainHealthCheck(dnsEndpoint) {
                 Progress = false,
                 Verbose = false
             };
+            if (dnsEndpoints != null && dnsEndpoints.Length > 0)
+            {
+                hc.DnsEndpoints.Clear();
+                hc.DnsEndpoints.AddRange(dnsEndpoints);
+                hc.MultiResolverStrategy = settings.MultiResolverStrategy;
+                hc.MultiResolverMaxParallelism = settings.MultiResolverMaxParallelism;
+            }
             hc.WebStaticScanAnalysis.Timeout = TimeSpan.FromSeconds(Math.Max(1, settings.WebScanMaxSeconds));
             hc.WebStaticScanAnalysis.MaxResources = Math.Max(1, settings.WebScanMaxResources);
             hc.WebStaticScanAnalysis.DiscoveryConcurrency = Math.Max(0, settings.WebScanDiscoveryThreads);
@@ -130,7 +174,11 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             !settings.NoProgress,
             settings.SkipRevocation,
             scanProfiles,
-            Program.CancellationToken);
+            dnsEndpoint: dnsEndpoint,
+            dnsEndpoints: dnsEndpoints,
+            multiResolverStrategy: settings.MultiResolverStrategy,
+            multiResolverMaxParallelism: settings.MultiResolverMaxParallelism,
+            cancellationToken: Program.CancellationToken);
 
         return 0;
     }
