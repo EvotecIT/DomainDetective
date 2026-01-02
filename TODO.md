@@ -16,7 +16,8 @@ This is the single backlog/roadmap file for DomainDetective. Items below were la
 - DNS amplification: cap resource limits, harden DNS response parsing, and remove null-forgiving misuse. [done]
 - TLS probe: remove empty catch blocks and refactor duplicated probe logic. [done]
 - CT timeline parsing: split `ParseCtJson` into focused helpers. [done]
-- Follow-up: consider upstreaming DNS parsing/rate limiting helpers to `DnsClientX`. [pending]
+- Upstream DNS wire parsing + interval gate to `DnsClientX` (header/EDNS parsing, RD control). [done]
+- Follow-up: publish `DnsClientX` update and bump `DnsClientX` package version in `DomainDetective/DomainDetective.csproj`. [done]
 
 ## Reports — Word
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.

@@ -354,63 +354,16 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         }
     }
 
-    private static byte[] EncodeDomainName(string name)
-    {
-        var parts = name.TrimEnd('.').Split('.');
-        using var ms = new System.IO.MemoryStream();
-        foreach (var part in parts)
-        {
-            var bytes = System.Text.Encoding.ASCII.GetBytes(part);
-            ms.WriteByte((byte)bytes.Length);
-            ms.Write(bytes, 0, bytes.Length);
-        }
-        ms.WriteByte(0);
-        return ms.ToArray();
-    }
-
     private static byte[] BuildQuery(string domain, DnsRecordType qtype, bool recursionDesired, bool includeEdns, int clientUdpPayloadSize, bool dnsSecOk)
     {
-        var header = new byte[12];
-        var id = Helpers.DnsQueryIdGenerator.NextUShort();
-        header[0] = (byte)(id >> 8);
-        header[1] = (byte)id;
-        header[2] = recursionDesired ? (byte)0x01 : (byte)0x00; // RD in low byte of flags
-        header[5] = 0x01; // QDCOUNT
-        if (includeEdns)
-        {
-            header[11] = 0x01; // ARCOUNT (OPT)
-        }
+        var options = new DnsMessageOptions(
+            RequestDnsSec: dnsSecOk,
+            EnableEdns: includeEdns,
+            UdpBufferSize: includeEdns ? clientUdpPayloadSize : 4096,
+            RecursionDesired: recursionDesired);
 
-        var qname = EncodeDomainName(domain);
-        int additional = includeEdns ? 11 : 0;
-        var query = new byte[header.Length + qname.Length + 4 + additional];
-        Buffer.BlockCopy(header, 0, query, 0, header.Length);
-        Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
-        var offset = header.Length + qname.Length;
-        query[offset] = (byte)(((ushort)qtype) >> 8);
-        query[offset + 1] = (byte)((ushort)qtype);
-        query[offset + 2] = 0x00;
-        query[offset + 3] = 0x01; // IN
-        offset += 4;
-
-        if (!includeEdns)
-        {
-            return query;
-        }
-
-        // OPT RR
-        query[offset] = 0x00;
-        query[offset + 1] = 0x00;
-        query[offset + 2] = 0x29;
-        query[offset + 3] = (byte)(clientUdpPayloadSize >> 8);
-        query[offset + 4] = (byte)(clientUdpPayloadSize & 0xFF);
-        query[offset + 5] = 0x00; // ext rcode
-        query[offset + 6] = 0x00; // version
-        query[offset + 7] = dnsSecOk ? (byte)0x80 : (byte)0x00; // flags high byte (DO=1)
-        query[offset + 8] = 0x00; // flags low byte
-        query[offset + 9] = 0x00;
-        query[offset + 10] = 0x00; // RDLEN = 0
-        return query;
+        var message = new DnsMessage(domain, qtype, options);
+        return message.SerializeDnsWireFormat();
     }
 
     private readonly struct DnsHeaderInfo
@@ -423,171 +376,29 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     private static bool TryParseHeader(byte[] data, out DnsHeaderInfo header)
     {
         header = default;
-        if (data == null || data.Length < 12)
+        if (!DnsWireMessageParser.TryParseHeader(data, out var parsed))
         {
             return false;
         }
 
-        ushort flags = (ushort)((data[2] << 8) | data[3]);
         header = new DnsHeaderInfo
         {
-            Truncated = (flags & 0x0200) != 0,
-            RecursionAvailable = (flags & 0x0080) != 0,
-            Rcode = flags & 0x000F
+            Truncated = parsed.IsTruncated,
+            RecursionAvailable = parsed.IsRecursionAvailable,
+            Rcode = (int)parsed.ResponseCode
         };
-        return true;
-    }
-
-    private const int DnsHeaderLength = 12;
-    private const int MaxNameSegmentsToSkip = 50;
-
-    private static bool TrySkipName(byte[] buffer, ref int offset)
-    {
-        int segments = 0;
-        while (true)
-        {
-            if (buffer == null || offset < 0 || offset >= buffer.Length)
-            {
-                return false;
-            }
-
-            var len = buffer[offset++];
-            if (len == 0)
-            {
-                return true;
-            }
-
-            // Compression pointer (RFC 1035 4.1.4): 2 bytes total.
-            if ((len & 0xC0) == 0xC0)
-            {
-                if (offset >= buffer.Length)
-                {
-                    return false;
-                }
-                offset++;
-                return true;
-            }
-
-            if (len > 63)
-            {
-                return false;
-            }
-
-            if (offset + len > buffer.Length)
-            {
-                return false;
-            }
-
-            offset += len;
-            if (++segments > MaxNameSegmentsToSkip)
-            {
-                return false;
-            }
-        }
-    }
-
-    private static bool TryReadUInt16(byte[] buffer, ref int offset, out ushort value)
-    {
-        value = 0;
-        if (buffer == null || offset < 0 || offset + 2 > buffer.Length)
-        {
-            return false;
-        }
-
-        value = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
-        offset += 2;
-        return true;
-    }
-
-    private static bool TryReadUInt32(byte[] buffer, ref int offset, out uint value)
-    {
-        value = 0;
-        if (buffer == null || offset < 0 || offset + 4 > buffer.Length)
-        {
-            return false;
-        }
-
-        value = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
-        offset += 4;
         return true;
     }
 
     private static bool TryParseEdns(byte[] data, out (bool supported, int udpPayloadSize) edns)
     {
         edns = default;
-        if (data == null || data.Length < DnsHeaderLength)
+        if (!DnsWireMessageParser.TryParseEdns(data, out var parsed))
         {
             return false;
         }
 
-        int offset = 4;
-        if (!TryReadUInt16(data, ref offset, out var qd))
-        {
-            return false;
-        }
-        if (!TryReadUInt16(data, ref offset, out var an))
-        {
-            return false;
-        }
-        if (!TryReadUInt16(data, ref offset, out var ns))
-        {
-            return false;
-        }
-        if (!TryReadUInt16(data, ref offset, out var ar))
-        {
-            return false;
-        }
-
-        offset = DnsHeaderLength;
-        for (int i = 0; i < qd; i++)
-        {
-            if (!TrySkipName(data, ref offset))
-            {
-                return false;
-            }
-            if (offset + 4 > data.Length)
-            {
-                return false;
-            }
-            offset += 4;
-        }
-
-        int rrCount = an + ns + ar;
-        for (int i = 0; i < rrCount; i++)
-        {
-            if (!TrySkipName(data, ref offset))
-            {
-                return false;
-            }
-            if (!TryReadUInt16(data, ref offset, out var type))
-            {
-                return false;
-            }
-            if (!TryReadUInt16(data, ref offset, out var rrClass))
-            {
-                return false;
-            }
-            if (!TryReadUInt32(data, ref offset, out _))
-            {
-                return false;
-            }
-            if (!TryReadUInt16(data, ref offset, out var rdlen))
-            {
-                return false;
-            }
-            if (offset + rdlen > data.Length)
-            {
-                return false;
-            }
-            if (type == 41)
-            {
-                edns = (supported: true, udpPayloadSize: rrClass);
-                return true;
-            }
-            offset += rdlen;
-        }
-
-        edns = (supported: false, udpPayloadSize: 0);
+        edns = (supported: parsed.Supported, udpPayloadSize: parsed.UdpPayloadSize);
         return true;
     }
 }

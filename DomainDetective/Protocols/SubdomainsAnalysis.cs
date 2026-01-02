@@ -1,4 +1,5 @@
 using DnsClientX;
+using AsyncIntervalGate = DnsClientX.Throttling.AsyncIntervalGate;
 using DomainDetective.Helpers;
 using DomainDetective.Network;
 using DomainDetective.Providers.Dns;
@@ -864,62 +865,20 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         }
     }
 
-    private async Task<DnsAnswer[]?> QueryDnsWithRateLimitAsync(string name, DnsRecordType type, AsyncIntervalGate? rateGate, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (rateGate != null)
-        {
-            await rateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
+	    private async Task<DnsAnswer[]?> QueryDnsWithRateLimitAsync(string name, DnsRecordType type, AsyncIntervalGate? rateGate, CancellationToken cancellationToken)
+	    {
+	        cancellationToken.ThrowIfCancellationRequested();
+	        if (rateGate != null)
+	        {
+	            await rateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+	        }
+	        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
+	    }
 
-    private sealed class AsyncIntervalGate : IDisposable
-    {
-        private readonly TimeSpan _interval;
-        private readonly SemaphoreSlim _mutex = new(1, 1);
-        private DateTime _nextUtc;
-
-        public AsyncIntervalGate(TimeSpan interval)
-        {
-            _interval = interval < TimeSpan.Zero ? TimeSpan.Zero : interval;
-            _nextUtc = DateTime.MinValue;
-        }
-
-        public async Task WaitAsync(CancellationToken cancellationToken)
-        {
-            await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-            try
-            {
-                var now = DateTime.UtcNow;
-                if (_nextUtc > now)
-                {
-                    var delay = _nextUtc - now;
-                    if (delay > TimeSpan.Zero)
-                    {
-                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-                    }
-                    now = DateTime.UtcNow;
-                }
-
-                _nextUtc = now + _interval;
-            }
-            finally
-            {
-                _mutex.Release();
-            }
-        }
-
-        public void Dispose()
-        {
-            _mutex.Dispose();
-        }
-    }
-
-    private static string? NormalizeCandidate(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
+	    private static string? NormalizeCandidate(string value)
+	    {
+	        if (string.IsNullOrWhiteSpace(value))
+	        {
             return null;
         }
 
