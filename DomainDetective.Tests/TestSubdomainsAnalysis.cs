@@ -120,4 +120,37 @@ public class TestSubdomainsAnalysis
         Assert.Empty(analysis.Subdomains);
         Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.CtNoResults);
     }
+
+    [Fact]
+    public async Task AiInfrastructureExposureProducesAssessmentWhenEnabled()
+    {
+        const string json = @"
+[
+  { ""issuer_name"": ""Issuer A"", ""entry_timestamp"": ""2020-01-01T00:00:00Z"", ""name_value"": ""mlflow.example.com"" }
+]";
+
+        var analysis = new SubdomainsAnalysis
+        {
+            VerifyStillResolves = true,
+            DetectAiInfrastructureExposure = true,
+            MaxResolutionChecks = 10,
+            ResolutionConcurrency = 2,
+            QueryOverride = (_, _) => Task.FromResult(json),
+            DnsConfiguration = new DnsConfiguration
+            {
+                QueryDnsOverride = (name, type) =>
+                {
+                    if (name.Equals("mlflow.example.com", StringComparison.OrdinalIgnoreCase) && type == DnsRecordType.A)
+                    {
+                        return Task.FromResult(new[] { new DnsAnswer { Type = DnsRecordType.A, DataRaw = "192.0.2.1" } });
+                    }
+                    return Task.FromResult(Array.Empty<DnsAnswer>());
+                }
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.AiInfrastructureExposed);
+    }
 }

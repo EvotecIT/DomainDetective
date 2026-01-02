@@ -59,16 +59,37 @@ public class TestEdnsSupportAnalysis {
 
     [Fact]
     public async Task RetriesOverTcpWhenTruncated() {
-        var port = PortHelper.GetFreePort();
+        var port = 0;
         UdpClient? udpServer = null;
-        var tcpListener = new TcpListener(IPAddress.Loopback, port);
+        TcpListener? tcpListener = null;
         Task? udpTask = null;
         Task? tcpTask = null;
 
         try {
-            udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+            for (var attempt = 0; attempt < 20; attempt++) {
+                tcpListener?.Stop();
+                udpServer?.Dispose();
+
+                tcpListener = new TcpListener(IPAddress.Loopback, 0);
+                tcpListener.Start();
+                port = ((IPEndPoint)tcpListener.LocalEndpoint).Port;
+
+                try {
+                    udpServer = new UdpClient(new IPEndPoint(IPAddress.Loopback, port));
+                    break;
+                } catch (SocketException) {
+                    tcpListener.Stop();
+                    tcpListener = null;
+                    udpServer = null;
+                }
+            }
+
+            if (tcpListener == null || udpServer == null || port == 0) {
+                throw new InvalidOperationException("Failed to allocate a shared UDP/TCP port for the test harness.");
+            }
+
             var udp = udpServer;
-            tcpListener.Start();
+            var listener = tcpListener;
 
             udpTask = Task.Run(async () => {
                 var r = await udp.ReceiveAsync();
@@ -82,7 +103,7 @@ public class TestEdnsSupportAnalysis {
             });
 
             tcpTask = Task.Run(async () => {
-                using var client = await tcpListener.AcceptTcpClientAsync();
+                using var client = await listener.AcceptTcpClientAsync();
                 using var stream = client.GetStream();
 
                 var prefix = new byte[2];
@@ -137,13 +158,12 @@ public class TestEdnsSupportAnalysis {
         }
         finally {
             try {
-                tcpListener.Stop();
+                tcpListener?.Stop();
             } catch {
                 // ignore cleanup failures
             }
 
             udpServer?.Dispose();
-            PortHelper.ReleasePort(port);
 
             if (udpTask != null) {
                 try {
