@@ -68,7 +68,7 @@ public partial class DomainHealthCheck
         }
     }
 
-    private static List<PublicDnsEntry> SelectServersDistributed(IReadOnlyList<PublicDnsEntry> servers, int max)
+    internal static List<PublicDnsEntry> SelectServersDistributed(IReadOnlyList<PublicDnsEntry> servers, int max)
     {
         if (servers == null || servers.Count == 0 || max <= 0)
         {
@@ -78,8 +78,11 @@ public partial class DomainHealthCheck
         var byCountry = servers
             .Where(s => s != null && s.Enabled)
             .GroupBy(s => s.Country)
-            .OrderBy(g => g.Key.ToString(), StringComparer.OrdinalIgnoreCase)
-            .Select(g => g.OrderBy(x => x.Location.ToString()).ThenBy(x => x.IPAddress.ToString(), StringComparer.OrdinalIgnoreCase).ToList())
+            .OrderBy(g => g.Key?.ToString() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g
+                .OrderBy(x => x.Location?.ToString() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(x => x.IPAddress?.ToString() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .ToList())
             .ToList();
 
         var selected = new List<PublicDnsEntry>(Math.Min(max, servers.Count));
@@ -103,4 +106,3 @@ public partial class DomainHealthCheck
         return selected;
     }
 }
-
