@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -118,7 +119,7 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
             {
                 throw;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
             {
                 logger.WriteWarningCode(DnsOverTlsCodes.ProbeFailed, "DNS over TLS probe failed: {0}", ex.Message);
                 result = new DnsOverTlsEndpointResult
@@ -190,7 +191,7 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
         {
             return new DnsOverTlsEndpointResult
             {
@@ -203,4 +204,3 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
         }
     }
 }
-

@@ -1,4 +1,5 @@
 using DnsClientX;
+using DomainDetective.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -44,6 +45,9 @@ public sealed record DnsAmplificationServerResult
 /// <para>Part of the DomainDetective project.</para>
 public sealed class DnsAmplificationAnalysis : IHasAssessments
 {
+    private const int MaxServersToProbeUpperBound = 50;
+    private static readonly TimeSpan MaxTimeoutUpperBound = TimeSpan.FromSeconds(15);
+
     public string? Subject { get; set; }
 
     public DnsConfiguration DnsConfiguration { get; set; } = new();
@@ -77,6 +81,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         Subject = domainName;
         Assessments.Clear();
         ServerResults.Clear();
+        NormalizeLimits(logger);
 
         var nsAnswers = await QueryDns(domainName, DnsRecordType.NS, cancellationToken).ConfigureAwait(false);
         var nsHosts = nsAnswers
@@ -95,14 +100,19 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         foreach (var host in nsHosts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var ans in await QueryDns(host, DnsRecordType.A, cancellationToken).ConfigureAwait(false))
+
+            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
+            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+
+            foreach (var ans in aTask.Result)
             {
                 if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
                 {
                     endpoints.Add((host, ip));
                 }
             }
-            foreach (var ans in await QueryDns(host, DnsRecordType.AAAA, cancellationToken).ConfigureAwait(false))
+            foreach (var ans in aaaaTask.Result)
             {
                 if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
                 {
@@ -137,7 +147,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             {
                 throw;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!ExceptionHelper.IsFatal(ex))
             {
                 logger.WriteWarningCode(DnsAmplificationCodes.CheckFailed, "DNS amplification probe failed: {0}", ex.Message);
                 continue;
@@ -273,10 +283,15 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
     private void EmitAssessmentsForServer(DnsAmplificationServerResult result, InternalLogger logger)
     {
         var worst = result.Probes?.OrderByDescending(p => p.ResponseBytes).FirstOrDefault();
-        bool hasProbe = worst != null && worst.ResponseBytes > 0;
-        bool largeUdp = hasProbe && worst!.ResponseBytes > LargeUdpResponseThreshold && !worst.Truncated;
-        bool highAmp = hasProbe && worst!.AmplificationFactor >= HighAmplificationFactorThreshold && !worst.Truncated;
         bool ednsOversize = result.EdnsSupported && (result.EdnsUdpPayloadSize ?? 0) > LargeUdpResponseThreshold;
+
+        bool largeUdp = false;
+        bool highAmp = false;
+        if (worst != null && worst.ResponseBytes > 0)
+        {
+            largeUdp = worst.ResponseBytes > LargeUdpResponseThreshold && !worst.Truncated;
+            highAmp = worst.AmplificationFactor >= HighAmplificationFactorThreshold && !worst.Truncated;
+        }
 
         if (result.OpenRecursion && (largeUdp || highAmp))
         {
@@ -295,9 +310,9 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             logger.WriteWarningCode(DnsAmplificationCodes.EdnsUdpPayloadTooLarge, "Server advertises EDNS UDP payload size {0} (> {1})", udpSize, LargeUdpResponseThreshold);
         }
 
-        if (largeUdp || highAmp)
+        if (worst != null && worst.ResponseBytes > 0 && (largeUdp || highAmp))
         {
-            var q = worst!;
+            var q = worst;
             var msg = string.Format(
                 CultureInfo.InvariantCulture,
                 "Large UDP DNS response observed ({0} bytes, {1:F1}x) for {2} {3}.",
@@ -311,6 +326,31 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         if (!result.OpenRecursion && !ednsOversize && !largeUdp && !highAmp)
         {
             logger.WriteInformationCode(DnsAmplificationCodes.NoIndicators, "No amplification indicators detected for this name server.");
+        }
+    }
+
+    private void NormalizeLimits(InternalLogger logger)
+    {
+        if (Timeout <= TimeSpan.Zero)
+        {
+            logger.WriteVerbose("DNS amplification timeout was invalid ({0}); defaulting to 4 seconds", Timeout);
+            Timeout = TimeSpan.FromSeconds(4);
+        }
+        else if (Timeout > MaxTimeoutUpperBound)
+        {
+            logger.WriteVerbose("DNS amplification timeout capped from {0} to {1}", Timeout, MaxTimeoutUpperBound);
+            Timeout = MaxTimeoutUpperBound;
+        }
+
+        if (MaxServersToProbe <= 0)
+        {
+            logger.WriteVerbose("DNS amplification MaxServersToProbe was invalid ({0}); defaulting to 1", MaxServersToProbe);
+            MaxServersToProbe = 1;
+        }
+        else if (MaxServersToProbe > MaxServersToProbeUpperBound)
+        {
+            logger.WriteVerbose("DNS amplification MaxServersToProbe capped from {0} to {1}", MaxServersToProbe, MaxServersToProbeUpperBound);
+            MaxServersToProbe = MaxServersToProbeUpperBound;
         }
     }
 
@@ -398,97 +438,143 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         return true;
     }
 
-    private static void SkipName(byte[] buffer, ref int offset)
+    private const int DnsHeaderLength = 12;
+    private const int MaxNameSegmentsToSkip = 50;
+
+    private static bool TrySkipName(byte[] buffer, ref int offset)
     {
-        int jumps = 0;
+        int segments = 0;
         while (true)
         {
-            if (offset >= buffer.Length)
+            if (buffer == null || offset < 0 || offset >= buffer.Length)
             {
-                offset = buffer.Length;
-                return;
+                return false;
             }
 
             var len = buffer[offset++];
             if (len == 0)
             {
-                break;
+                return true;
             }
 
+            // Compression pointer (RFC 1035 4.1.4): 2 bytes total.
             if ((len & 0xC0) == 0xC0)
             {
-                if (offset < buffer.Length)
+                if (offset >= buffer.Length)
                 {
-                    offset++;
+                    return false;
                 }
-                break;
+                offset++;
+                return true;
+            }
+
+            if (len > 63)
+            {
+                return false;
+            }
+
+            if (offset + len > buffer.Length)
+            {
+                return false;
             }
 
             offset += len;
-            if (++jumps > 50)
+            if (++segments > MaxNameSegmentsToSkip)
             {
-                break;
+                return false;
             }
         }
     }
 
-    private static ushort ReadUInt16(byte[] buffer, ref int offset)
+    private static bool TryReadUInt16(byte[] buffer, ref int offset, out ushort value)
     {
-        if (offset + 2 > buffer.Length)
+        value = 0;
+        if (buffer == null || offset < 0 || offset + 2 > buffer.Length)
         {
-            offset = buffer.Length;
-            return 0;
+            return false;
         }
-        var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+
+        value = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
         offset += 2;
-        return v;
+        return true;
     }
 
-    private static uint ReadUInt32(byte[] buffer, ref int offset)
+    private static bool TryReadUInt32(byte[] buffer, ref int offset, out uint value)
     {
-        if (offset + 4 > buffer.Length)
+        value = 0;
+        if (buffer == null || offset < 0 || offset + 4 > buffer.Length)
         {
-            offset = buffer.Length;
-            return 0;
+            return false;
         }
-        uint v = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
+
+        value = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
         offset += 4;
-        return v;
+        return true;
     }
 
     private static bool TryParseEdns(byte[] data, out (bool supported, int udpPayloadSize) edns)
     {
         edns = default;
-        if (data == null || data.Length < 12)
+        if (data == null || data.Length < DnsHeaderLength)
         {
             return false;
         }
 
         int offset = 4;
-        var qd = ReadUInt16(data, ref offset);
-        var an = ReadUInt16(data, ref offset);
-        var ns = ReadUInt16(data, ref offset);
-        var ar = ReadUInt16(data, ref offset);
+        if (!TryReadUInt16(data, ref offset, out var qd))
+        {
+            return false;
+        }
+        if (!TryReadUInt16(data, ref offset, out var an))
+        {
+            return false;
+        }
+        if (!TryReadUInt16(data, ref offset, out var ns))
+        {
+            return false;
+        }
+        if (!TryReadUInt16(data, ref offset, out var ar))
+        {
+            return false;
+        }
 
-        offset = 12;
+        offset = DnsHeaderLength;
         for (int i = 0; i < qd; i++)
         {
-            SkipName(data, ref offset);
-            offset += 4;
-            if (offset >= data.Length)
+            if (!TrySkipName(data, ref offset))
             {
                 return false;
             }
+            if (offset + 4 > data.Length)
+            {
+                return false;
+            }
+            offset += 4;
         }
 
         int rrCount = an + ns + ar;
         for (int i = 0; i < rrCount; i++)
         {
-            SkipName(data, ref offset);
-            var type = ReadUInt16(data, ref offset);
-            var rrClass = ReadUInt16(data, ref offset);
-            _ = ReadUInt32(data, ref offset);
-            var rdlen = ReadUInt16(data, ref offset);
+            if (!TrySkipName(data, ref offset))
+            {
+                return false;
+            }
+            if (!TryReadUInt16(data, ref offset, out var type))
+            {
+                return false;
+            }
+            if (!TryReadUInt16(data, ref offset, out var rrClass))
+            {
+                return false;
+            }
+            if (!TryReadUInt32(data, ref offset, out _))
+            {
+                return false;
+            }
+            if (!TryReadUInt16(data, ref offset, out var rdlen))
+            {
+                return false;
+            }
             if (offset + rdlen > data.Length)
             {
                 return false;

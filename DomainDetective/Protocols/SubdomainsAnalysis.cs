@@ -85,6 +85,12 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>Maximum number of concurrent DNS checks for subdomain resolution.</summary>
     public int ResolutionConcurrency { get; set; } = 20;
 
+    /// <summary>
+    /// Minimum interval between DNS queries performed during subdomain resolution verification.
+    /// Set to <see cref="TimeSpan.Zero"/> (default) to disable rate limiting.
+    /// </summary>
+    public TimeSpan ResolutionMinInterval { get; set; } = TimeSpan.Zero;
+
     /// <summary>When true (default), flags discovered subdomains with sensitive/admin-sounding labels.</summary>
     public bool DetectSensitiveSubdomains { get; set; } = true;
 
@@ -795,6 +801,17 @@ public sealed class SubdomainsAnalysis : IHasAssessments
 
         var toCheck = entries.Take(cap).ToList();
         var concurrency = ResolutionConcurrency <= 0 ? 1 : ResolutionConcurrency;
+        var minInterval = ResolutionMinInterval;
+        if (minInterval < TimeSpan.Zero)
+        {
+            minInterval = TimeSpan.Zero;
+        }
+
+        AsyncIntervalGate? rateGate = null;
+        if (minInterval > TimeSpan.Zero)
+        {
+            rateGate = new AsyncIntervalGate(minInterval);
+        }
 
         using var sem = new SemaphoreSlim(concurrency, concurrency);
         var tasks = toCheck.Select(async e =>
@@ -803,8 +820,8 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var a = await DnsConfiguration.QueryDNS(e.Name, DnsRecordType.A, cancellationToken: cancellationToken).ConfigureAwait(false);
-                var aaaa = await DnsConfiguration.QueryDNS(e.Name, DnsRecordType.AAAA, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var a = await QueryDnsWithRateLimitAsync(e.Name, DnsRecordType.A, rateGate, cancellationToken).ConfigureAwait(false);
+                var aaaa = await QueryDnsWithRateLimitAsync(e.Name, DnsRecordType.AAAA, rateGate, cancellationToken).ConfigureAwait(false);
 
                 var aVals = (a ?? Array.Empty<DnsAnswer>())
                     .Select(x => x.Data ?? x.DataRaw ?? string.Empty)
@@ -837,7 +854,66 @@ public sealed class SubdomainsAnalysis : IHasAssessments
             }
         }).ToList();
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        finally
+        {
+            rateGate?.Dispose();
+        }
+    }
+
+    private async Task<DnsAnswer[]?> QueryDnsWithRateLimitAsync(string name, DnsRecordType type, AsyncIntervalGate? rateGate, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (rateGate != null)
+        {
+            await rateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        return await DnsConfiguration.QueryDNS(name, type, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed class AsyncIntervalGate : IDisposable
+    {
+        private readonly TimeSpan _interval;
+        private readonly SemaphoreSlim _mutex = new(1, 1);
+        private DateTime _nextUtc;
+
+        public AsyncIntervalGate(TimeSpan interval)
+        {
+            _interval = interval < TimeSpan.Zero ? TimeSpan.Zero : interval;
+            _nextUtc = DateTime.MinValue;
+        }
+
+        public async Task WaitAsync(CancellationToken cancellationToken)
+        {
+            await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var now = DateTime.UtcNow;
+                if (_nextUtc > now)
+                {
+                    var delay = _nextUtc - now;
+                    if (delay > TimeSpan.Zero)
+                    {
+                        await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    }
+                    now = DateTime.UtcNow;
+                }
+
+                _nextUtc = now + _interval;
+            }
+            finally
+            {
+                _mutex.Release();
+            }
+        }
+
+        public void Dispose()
+        {
+            _mutex.Dispose();
+        }
     }
 
     private static string? NormalizeCandidate(string value)

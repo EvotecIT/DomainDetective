@@ -303,6 +303,38 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
     }
 
+    private readonly struct CtRow
+    {
+        public CtRow(
+            string? issuerName,
+            string? commonName,
+            string? nameValue,
+            string? serialNumber,
+            int? id,
+            DateTimeOffset? entryTimestampUtc,
+            DateTimeOffset? notBeforeUtc,
+            DateTimeOffset? notAfterUtc)
+        {
+            IssuerName = issuerName;
+            CommonName = commonName;
+            NameValue = nameValue;
+            SerialNumber = serialNumber;
+            Id = id;
+            EntryTimestampUtc = entryTimestampUtc;
+            NotBeforeUtc = notBeforeUtc;
+            NotAfterUtc = notAfterUtc;
+        }
+
+        public string? IssuerName { get; }
+        public string? CommonName { get; }
+        public string? NameValue { get; }
+        public string? SerialNumber { get; }
+        public int? Id { get; }
+        public DateTimeOffset? EntryTimestampUtc { get; }
+        public DateTimeOffset? NotBeforeUtc { get; }
+        public DateTimeOffset? NotAfterUtc { get; }
+    }
+
     private void ParseCtJson(
         string json,
         DateTimeOffset nowUtc,
@@ -324,120 +356,200 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
         foreach (var item in doc.RootElement.EnumerateArray())
         {
-            if (MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess)
+            if (!TryStartNextCtObservation())
             {
-                ResultsCapped = true;
                 break;
             }
 
-            CertificateObservationCount++;
+            var row = ReadCtRow(item);
+            UpdateFirstAndLastSeen(row.EntryTimestampUtc);
 
-            var issuerName = GetString(item, "issuer_name");
-            var commonName = GetString(item, "common_name");
-            var nameValue = GetString(item, "name_value");
-            var serial = GetString(item, "serial_number");
-            var id = GetInt(item, "id") ?? GetInt(item, "min_cert_id");
-
-            var entryTs = ParseTimestamp(GetString(item, "entry_timestamp"));
-            var notBefore = ParseTimestamp(GetString(item, "not_before"));
-            var notAfter = ParseTimestamp(GetString(item, "not_after"));
-
-            if (entryTs.HasValue)
-            {
-                FirstSeenUtc = !FirstSeenUtc.HasValue ? entryTs : (entryTs < FirstSeenUtc.Value ? entryTs : FirstSeenUtc.Value);
-                LastSeenUtc = !LastSeenUtc.HasValue ? entryTs : (entryTs > LastSeenUtc.Value ? entryTs : LastSeenUtc.Value);
-            }
-
-            var key = BuildCertificateKey(id, issuerName, serial, notBefore, notAfter, commonName, nameValue);
+            var key = BuildCertificateKey(row.Id, row.IssuerName, row.SerialNumber, row.NotBeforeUtc, row.NotAfterUtc, row.CommonName, row.NameValue);
             if (string.IsNullOrWhiteSpace(key))
             {
                 continue;
             }
 
-            if (!certs.ContainsKey(key))
+            if (certs.ContainsKey(key))
             {
-                if (MaxUniqueCertificates > 0 && certs.Count >= MaxUniqueCertificates)
-                {
-                    ResultsCapped = true;
-                    break;
-                }
+                continue;
+            }
 
-                var isWildcard = DetectWildcard(commonName, nameValue);
-                var status = GetValidityStatus(nowUtc, notBefore, notAfter);
-
-                certs[key] = new CtCertificateAggregate
-                {
-                    Key = key,
-                    IssuerName = issuerName ?? string.Empty,
-                    CommonName = commonName ?? string.Empty,
-                    EntryTimestampUtc = entryTs,
-                    NotBeforeUtc = notBefore,
-                    NotAfterUtc = notAfter,
-                    ValidityStatus = status,
-                    Wildcard = isWildcard
-                };
-
-                if (!string.IsNullOrWhiteSpace(issuerName))
-                {
-                    issuerCounts[issuerName!] = issuerCounts.TryGetValue(issuerName!, out var c) ? c + 1 : 1;
-                }
-
-                if (isWildcard)
-                {
-                    WildcardCertificateCount++;
-                }
-
-                switch (status)
-                {
-                    case CtCertificateValidityStatus.Active:
-                        ActiveCertificateCount++;
-                        break;
-                    case CtCertificateValidityStatus.Expired:
-                        ExpiredCertificateCount++;
-                        break;
-                    case CtCertificateValidityStatus.NotYetValid:
-                        NotYetValidCertificateCount++;
-                        break;
-                    default:
-                        break;
-                }
-
-                if (entryTs.HasValue)
-                {
-                    var age = nowUtc - entryTs.Value;
-                    if (age <= TimeSpan.FromDays(7))
-                    {
-                        IssuedLast7Days++;
-                    }
-                    if (age <= TimeSpan.FromDays(30))
-                    {
-                        IssuedLast30Days++;
-                    }
-
-                    var ym = YearMonthKey(entryTs.Value);
-                    if (ym > 0)
-                    {
-                        if (!bucketAgg.TryGetValue(ym, out var b))
-                        {
-                            if (MaxTimelineBuckets > 0 && bucketAgg.Count >= MaxTimelineBuckets)
-                            {
-                                ResultsCapped = true;
-                                break;
-                            }
-                            b = new CtBucketAggregate(ym);
-                            bucketAgg[ym] = b;
-                        }
-                        b.UniqueCertificates++;
-                        if (!string.IsNullOrWhiteSpace(issuerName))
-                        {
-                            b.Issuers.Add(issuerName!);
-                        }
-                    }
-                }
+            if (!TryAddUniqueCertificate(key, row, nowUtc, issuerCounts, certs, bucketAgg))
+            {
+                break;
             }
         }
 
         logger?.WriteVerbose("CT timeline processed {0} row(s), {1} unique certificate(s) for {2}", CertificateObservationCount, certs.Count, Subject);
+    }
+
+    private bool TryStartNextCtObservation()
+    {
+        if (MaxCtRowsToProcess > 0 && CertificateObservationCount >= MaxCtRowsToProcess)
+        {
+            ResultsCapped = true;
+            return false;
+        }
+
+        CertificateObservationCount++;
+        return true;
+    }
+
+    private static CtRow ReadCtRow(JsonElement item)
+    {
+        var issuerName = GetString(item, "issuer_name");
+        var commonName = GetString(item, "common_name");
+        var nameValue = GetString(item, "name_value");
+        var serial = GetString(item, "serial_number");
+        var id = GetInt(item, "id") ?? GetInt(item, "min_cert_id");
+
+        var entryTs = ParseTimestamp(GetString(item, "entry_timestamp"));
+        var notBefore = ParseTimestamp(GetString(item, "not_before"));
+        var notAfter = ParseTimestamp(GetString(item, "not_after"));
+
+        return new CtRow(
+            issuerName: issuerName,
+            commonName: commonName,
+            nameValue: nameValue,
+            serialNumber: serial,
+            id: id,
+            entryTimestampUtc: entryTs,
+            notBeforeUtc: notBefore,
+            notAfterUtc: notAfter);
+    }
+
+    private void UpdateFirstAndLastSeen(DateTimeOffset? entryTimestampUtc)
+    {
+        if (!entryTimestampUtc.HasValue)
+        {
+            return;
+        }
+
+        var entry = entryTimestampUtc.Value;
+        if (!FirstSeenUtc.HasValue || entry < FirstSeenUtc.Value)
+        {
+            FirstSeenUtc = entry;
+        }
+        if (!LastSeenUtc.HasValue || entry > LastSeenUtc.Value)
+        {
+            LastSeenUtc = entry;
+        }
+    }
+
+    private bool TryAddUniqueCertificate(
+        string key,
+        CtRow row,
+        DateTimeOffset nowUtc,
+        Dictionary<string, int> issuerCounts,
+        Dictionary<string, CtCertificateAggregate> certs,
+        Dictionary<int, CtBucketAggregate> bucketAgg)
+    {
+        if (MaxUniqueCertificates > 0 && certs.Count >= MaxUniqueCertificates)
+        {
+            ResultsCapped = true;
+            return false;
+        }
+
+        var isWildcard = DetectWildcard(row.CommonName, row.NameValue);
+        var status = GetValidityStatus(nowUtc, row.NotBeforeUtc, row.NotAfterUtc);
+
+        certs[key] = new CtCertificateAggregate
+        {
+            Key = key,
+            IssuerName = row.IssuerName ?? string.Empty,
+            CommonName = row.CommonName ?? string.Empty,
+            EntryTimestampUtc = row.EntryTimestampUtc,
+            NotBeforeUtc = row.NotBeforeUtc,
+            NotAfterUtc = row.NotAfterUtc,
+            ValidityStatus = status,
+            Wildcard = isWildcard
+        };
+
+        UpdateIssuerCounts(issuerCounts, row.IssuerName);
+
+        if (isWildcard)
+        {
+            WildcardCertificateCount++;
+        }
+
+        IncrementValidityCounters(status);
+
+        if (row.EntryTimestampUtc.HasValue)
+        {
+            return UpdateIssuedCountersAndTimeline(nowUtc, row.EntryTimestampUtc.Value, row.IssuerName, bucketAgg);
+        }
+
+        return true;
+    }
+
+    private static void UpdateIssuerCounts(Dictionary<string, int> issuerCounts, string? issuerName)
+    {
+        if (string.IsNullOrWhiteSpace(issuerName))
+        {
+            return;
+        }
+
+        issuerCounts[issuerName] = issuerCounts.TryGetValue(issuerName, out var c) ? c + 1 : 1;
+    }
+
+    private void IncrementValidityCounters(CtCertificateValidityStatus status)
+    {
+        switch (status)
+        {
+            case CtCertificateValidityStatus.Active:
+                ActiveCertificateCount++;
+                break;
+            case CtCertificateValidityStatus.Expired:
+                ExpiredCertificateCount++;
+                break;
+            case CtCertificateValidityStatus.NotYetValid:
+                NotYetValidCertificateCount++;
+                break;
+        }
+    }
+
+    private bool UpdateIssuedCountersAndTimeline(
+        DateTimeOffset nowUtc,
+        DateTimeOffset entryTimestampUtc,
+        string? issuerName,
+        Dictionary<int, CtBucketAggregate> bucketAgg)
+    {
+        var age = nowUtc - entryTimestampUtc;
+        if (age <= TimeSpan.FromDays(7))
+        {
+            IssuedLast7Days++;
+        }
+        if (age <= TimeSpan.FromDays(30))
+        {
+            IssuedLast30Days++;
+        }
+
+        var ym = YearMonthKey(entryTimestampUtc);
+        if (ym <= 0)
+        {
+            return true;
+        }
+
+        if (!bucketAgg.TryGetValue(ym, out var b))
+        {
+            if (MaxTimelineBuckets > 0 && bucketAgg.Count >= MaxTimelineBuckets)
+            {
+                ResultsCapped = true;
+                return false;
+            }
+
+            b = new CtBucketAggregate(ym);
+            bucketAgg[ym] = b;
+        }
+
+        b.UniqueCertificates++;
+        if (!string.IsNullOrWhiteSpace(issuerName))
+        {
+            b.Issuers.Add(issuerName);
+        }
+
+        return true;
     }
 
     private static string? GetString(JsonElement obj, string prop)
