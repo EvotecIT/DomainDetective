@@ -29,11 +29,13 @@ public class OpenResolverAnalysis : IHasAssessments {
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default) {
         using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "OpenResolver", target: $"{host}:{port}");
         Subject ??= $"{host}:{port}";
+        Assessments.Clear();
         ServerResults.Clear();
         ServerDetails.Clear();
         var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);
         ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
         ServerDetails[$"{host}:{port}"] = detail;
+        LogAnomalies(detail, logger, host, port);
         if (detail.IsOpenResolver) {
             logger.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
         } else {
@@ -43,6 +45,7 @@ public class OpenResolverAnalysis : IHasAssessments {
 
     /// <summary>Tests multiple servers and ports for open recursion.</summary>
     public async Task AnalyzeServers(IEnumerable<string> hosts, IEnumerable<int> ports, InternalLogger logger, CancellationToken cancellationToken = default) {
+        Assessments.Clear();
         ServerResults.Clear();
         ServerDetails.Clear();
         foreach (var host in hosts) {
@@ -52,12 +55,56 @@ public class OpenResolverAnalysis : IHasAssessments {
                 var detail = await CheckRecursionDetailAsync(host, port, logger, cancellationToken);
                 ServerResults[$"{host}:{port}"] = detail.IsOpenResolver;
                 ServerDetails[$"{host}:{port}"] = detail;
+                LogAnomalies(detail, logger, host, port);
                 if (detail.IsOpenResolver) {
                     logger.WriteWarningCode(OpenResolverCodes.RecursionDetected, "Recursion allowed on {0}:{1}", host, port);
                 } else {
                     logger.WriteInformationCode(OpenResolverCodes.RecursionClosed, "Recursion disabled on {0}:{1}", host, port);
                 }
             }
+        }
+    }
+
+    private static void LogAnomalies(OpenResolverResult detail, InternalLogger logger, string host, int port)
+    {
+        try
+        {
+            if (detail == null || detail.IsOpenResolver)
+            {
+                return;
+            }
+
+            var reasons = new List<string>();
+            if (detail.QrBitSet == false)
+            {
+                reasons.Add("QR=0");
+            }
+            if (detail.Opcode.HasValue && detail.Opcode.Value != 0)
+            {
+                reasons.Add($"opcode={detail.Opcode.Value}");
+            }
+            if (detail.TcBitSet == true)
+            {
+                reasons.Add("TC=1");
+            }
+            if (detail.RaBitSet == true && detail.Rcode.HasValue && detail.Rcode.Value != 0)
+            {
+                reasons.Add($"RA=1 rcode={detail.Rcode.Value}");
+            }
+            if (detail.Rcode.HasValue && detail.Rcode.Value != 0 && detail.Rcode.Value != 5)
+            {
+                reasons.Add($"rcode={detail.Rcode.Value}");
+            }
+
+            if (reasons.Count == 0)
+            {
+                return;
+            }
+
+            logger.WriteInformationCode(OpenResolverCodes.AnomalousResponse, "Anomalous DNS response from {0}:{1} ({2})", host, port, string.Join(", ", reasons));
+        }
+        catch
+        {
         }
     }
 

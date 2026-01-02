@@ -40,6 +40,16 @@ namespace DomainDetective {
         public Dictionary<string, bool> RootServerResponses { get; private set; } = new();
         public Dictionary<string, bool> RecursionEnabled { get; private set; } = new();
 
+        // CHAOS TXT fingerprinting (best-effort)
+        public bool EnableChaosFingerprinting { get; set; } = true;
+        public int ChaosQueryTimeoutMs { get; set; } = 2500;
+        public int ChaosMaxServerIpsToQuery { get; set; } = 10;
+        public Dictionary<string, string> ChaosVersionByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> ChaosHostnameByServer { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Optional override for raw UDP DNS queries (tests/offline).</summary>
+        public Func<IPAddress, byte[], CancellationToken, Task<byte[]?>>? QueryUdpOverride { get; set; }
+
         // ASN diversity (provider diversity)
         public Dictionary<string, int> AsnByIp { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
         public int AsnDistinctCount { get; private set; }
@@ -133,6 +143,8 @@ namespace DomainDetective {
             AllHaveAOrAaaa = true;
             PointsToCname = false;
             HasDiverseLocations = false;
+            ChaosVersionByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ChaosHostnameByServer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             if (dnsResults == null) {
                 logger.WriteVerbose("DNS query returned no results.");
@@ -154,6 +166,7 @@ namespace DomainDetective {
             HashSet<string> subnets = new(StringComparer.OrdinalIgnoreCase);
 
             var allIps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var nsIps = new List<(string Host, IPAddress Ip)>();
             foreach (var ns in NsRecords) {
                 var cname = await QueryDns(ns, DnsRecordType.CNAME);
                 PointsToCname = PointsToCname || (cname != null && cname.Any());
@@ -169,6 +182,7 @@ namespace DomainDetective {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
+                        nsIps.Add((ns, ip));
                     }
                 }
 
@@ -176,6 +190,7 @@ namespace DomainDetective {
                     if (IPAddress.TryParse(answer.Data, out var ip)) {
                         subnets.Add(ip.GetSubnetKey());
                         allIps.Add(ip.ToString());
+                        nsIps.Add((ns, ip));
                     }
                 }
             }
@@ -219,6 +234,15 @@ namespace DomainDetective {
             } else {
                 // Surface a clear positive that highlights ASN/vendor diversity explicitly
                 logger.WriteInformationCode(NSCodes.HighDiversity, $"Authoritative NS are diverse across networks/providers (ASNs: {AsnDistinctCount})");
+            }
+
+            // Best-effort CHAOS TXT fingerprinting for version/hostname disclosure
+            try
+            {
+                await FingerprintChaosAsync(nsIps, logger, _collector, CancellationToken.None);
+            }
+            catch
+            {
             }
         }
 
@@ -366,6 +390,237 @@ namespace DomainDetective {
             query[offset + 2] = 0x00;
             query[offset + 3] = 0x01;
             return query;
+        }
+
+        private static byte[] BuildChaosQuery(string name, ushort qtype, ushort qclass)
+        {
+            var header = new byte[12];
+            var id = Helpers.DnsQueryIdGenerator.NextUShort();
+            header[0] = (byte)(id >> 8);
+            header[1] = (byte)(id & 0xFF);
+            header[2] = 0x00; // no recursion desired
+            header[5] = 0x01; // QDCOUNT
+
+            var qname = EncodeDomainName(name, true);
+            var query = new byte[header.Length + qname.Length + 4];
+            Buffer.BlockCopy(header, 0, query, 0, header.Length);
+            Buffer.BlockCopy(qname, 0, query, header.Length, qname.Length);
+            var offset = header.Length + qname.Length;
+            query[offset] = (byte)(qtype >> 8);
+            query[offset + 1] = (byte)(qtype & 0xFF);
+            query[offset + 2] = (byte)(qclass >> 8);
+            query[offset + 3] = (byte)(qclass & 0xFF);
+            return query;
+        }
+
+        private static void SkipName(byte[] buffer, ref int offset)
+        {
+            int jumps = 0;
+            while (true)
+            {
+                if (offset >= buffer.Length)
+                {
+                    offset = buffer.Length;
+                    return;
+                }
+
+                var len = buffer[offset++];
+                if (len == 0)
+                {
+                    break;
+                }
+
+                if ((len & 0xC0) == 0xC0)
+                {
+                    if (offset < buffer.Length)
+                    {
+                        offset++;
+                    }
+                    break;
+                }
+
+                offset += len;
+                if (++jumps > 50)
+                {
+                    break;
+                }
+            }
+        }
+
+        private static ushort ReadUInt16(byte[] buffer, ref int offset)
+        {
+            if (offset + 2 > buffer.Length)
+            {
+                offset = buffer.Length;
+                return 0;
+            }
+            var v = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+            offset += 2;
+            return v;
+        }
+
+        private static uint ReadUInt32(byte[] buffer, ref int offset)
+        {
+            if (offset + 4 > buffer.Length)
+            {
+                offset = buffer.Length;
+                return 0;
+            }
+            uint v = (uint)((buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3]);
+            offset += 4;
+            return v;
+        }
+
+        private async Task<byte[]?> QueryUdp(IPAddress server, byte[] query, CancellationToken token, int timeoutMs)
+        {
+            if (QueryUdpOverride != null)
+            {
+                return await QueryUdpOverride(server, query, token);
+            }
+
+            using var udp = new System.Net.Sockets.UdpClient(
+                new IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
+            udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 2500;
+
+#if NET6_0_OR_GREATER
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 2500);
+            await udp.SendAsync(query, new IPEndPoint(server, 53));
+            var res = await udp.ReceiveAsync(cts.Token);
+            return res.Buffer;
+#else
+            await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(token);
+            var res = await udp.ReceiveAsync().WaitWithCancellation(token);
+            return res.Buffer;
+#endif
+        }
+
+        private static string? ParseFirstTxtAnswer(byte[] data, ushort expectedClass)
+        {
+            if (data == null || data.Length < 12)
+            {
+                return null;
+            }
+
+            int offset = 0;
+            offset += 4; // id+flags
+            var qd = ReadUInt16(data, ref offset);
+            var an = ReadUInt16(data, ref offset);
+            var ns = ReadUInt16(data, ref offset);
+            var ar = ReadUInt16(data, ref offset);
+
+            offset = 12;
+            for (int i = 0; i < qd; i++)
+            {
+                SkipName(data, ref offset);
+                offset += 4; // type + class
+                if (offset >= data.Length)
+                {
+                    return null;
+                }
+            }
+
+            int rrCount = an + ns + ar;
+            for (int i = 0; i < rrCount; i++)
+            {
+                SkipName(data, ref offset);
+                var type = ReadUInt16(data, ref offset);
+                var rrClass = ReadUInt16(data, ref offset);
+                _ = ReadUInt32(data, ref offset); // ttl
+                var rdlen = ReadUInt16(data, ref offset);
+                if (offset + rdlen > data.Length)
+                {
+                    return null;
+                }
+
+                if (type == 16 && rrClass == expectedClass)
+                {
+                    int end = offset + rdlen;
+                    var parts = new List<string>();
+                    while (offset < end)
+                    {
+                        int len = data[offset++];
+                        if (len <= 0 || offset + len > end)
+                        {
+                            break;
+                        }
+                        var s = System.Text.Encoding.ASCII.GetString(data, offset, len);
+                        parts.Add(s);
+                        offset += len;
+                    }
+                    return string.Join(string.Empty, parts).Trim();
+                }
+
+                offset += rdlen;
+            }
+
+            return null;
+        }
+
+        private async Task<string?> QueryChaosTxtAsync(IPAddress server, string name, InternalLogger logger, CancellationToken token)
+        {
+            try
+            {
+                var query = BuildChaosQuery(name, qtype: 16, qclass: 3); // TXT, CH
+                var timeout = ChaosQueryTimeoutMs > 0 ? ChaosQueryTimeoutMs : 2500;
+                var buf = await QueryUdp(server, query, token, timeout);
+                if (buf == null)
+                {
+                    return null;
+                }
+                return ParseFirstTxtAnswer(buf, expectedClass: 3);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger?.WriteVerbose("CHAOS TXT query failed for {0} on {1}: {2}", name, server, ex.Message);
+                return null;
+            }
+        }
+
+        private async Task FingerprintChaosAsync(IEnumerable<(string Host, IPAddress Ip)> servers, InternalLogger logger, AssessmentCollector collector, CancellationToken token)
+        {
+            if (!EnableChaosFingerprinting)
+            {
+                return;
+            }
+
+            var limit = ChaosMaxServerIpsToQuery <= 0 ? 0 : ChaosMaxServerIpsToQuery;
+            if (limit == 0)
+            {
+                return;
+            }
+
+            var list = (servers ?? Array.Empty<(string Host, IPAddress Ip)>())
+                .Where(s => s.Ip != null)
+                .Select(s => (s.Host, s.Ip, Key: $"{s.Host} ({s.Ip})"))
+                .Distinct()
+                .Take(limit)
+                .ToList();
+
+            foreach (var s in list)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var version = await QueryChaosTxtAsync(s.Ip, "version.bind", logger, token);
+                if (!string.IsNullOrWhiteSpace(version))
+                {
+                    ChaosVersionByServer[s.Key] = version;
+                    using (collector.PushTarget(s.Key))
+                        logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", version);
+                }
+
+                var hostname = await QueryChaosTxtAsync(s.Ip, "hostname.bind", logger, token);
+                if (!string.IsNullOrWhiteSpace(hostname))
+                {
+                    ChaosHostnameByServer[s.Key] = hostname;
+                    using (collector.PushTarget(s.Key))
+                        logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", hostname);
+                }
+            }
         }
 
         private async Task<bool> CheckRecursionAsync(string server, InternalLogger logger) {
