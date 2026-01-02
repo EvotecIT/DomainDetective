@@ -25,6 +25,9 @@ ddcli report example.com --format html --template executive --output executive_r
 # Generate without opening browser
 ddcli report example.com --no-open
 
+# Include discovery add-ons (can be slow)
+ddcli report example.com --dns-trace --dns-propagation
+
 # List and open recent artifact runs
 ddcli RunsList --subject example.com --count 5
 ddcli RunsOpen --subject example.com
@@ -41,6 +44,11 @@ Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html
 
 # HTML report with custom path
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html -ExportPath "C:\Reports\exec_report.html"
+
+# HTML dashboard profile (compact KPIs + grids)
+Export-DDSecurityReport -ExportFormat Html -HtmlProfile Dashboard -ExportPath ".\\dashboard.html" {
+    Test-DDDomainOverallHealth -DomainName "example.com"
+}
 
 # Return a View with Raw included; then export separately
 $view = Test-DDDomainOverallHealth -DomainName "example.com"
@@ -65,6 +73,12 @@ Export-DDSecurityReport -ExportFormat Excel -ExportPath "report.xlsx" {
     Test-DDEmailSpfRecord -DomainName "example.com"
     Test-DDEmailDmarcRecord -DomainName "example.com"
 }
+
+# Excel dashboard profile (single overview + dashboard sheet)
+Export-DDSecurityReport -ExportFormat Excel -ExcelProfile Dashboard -ExportPath "dashboard.xlsx" {
+    Test-DDDomainOverallHealth -DomainName "example.com"
+}
+
 Export-DDSecurityReport -ExportFormat Markdown -ExportPath "report.md" {
     Test-DDEmailSpfRecord -DomainName "example.com"
     Test-DDEmailDmarcRecord -DomainName "example.com"

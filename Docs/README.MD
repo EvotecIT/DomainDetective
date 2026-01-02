@@ -11,9 +11,24 @@ Organization of the reporting system code and components.
 ### 3. [REPORTING_USAGE.MD](REPORTING_USAGE.MD)
 User guide for generating reports via CLI, PowerShell, and C# library.
 
+### 4. [HTTP_POSTURE.MD](HTTP_POSTURE.MD)
+HTTP posture and security header checks (request options, output surfaces, dashboards).
+
+### 5. [IP_ENRICHMENT.MD](IP_ENRICHMENT.MD)
+IP enrichment (ASN/org, geo, reverse DNS) and reporting surfaces.
+
+### 6. [CT_TIMELINE.MD](CT_TIMELINE.MD)
+Certificate transparency timeline (issuance velocity, issuer diversity, validity posture).
+
+### 7. [SUBDOMAINS.MD](SUBDOMAINS.MD)
+CT-backed subdomain discovery (bounded + optional DNS verification).
+
+### 8. [DNS_PROPAGATION.MD](DNS_PROPAGATION.MD)
+Multi-resolver DNS propagation visibility with map visualization and rollups.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
-**[TODO.MD](TODO.MD)**
+**[../TODO.md](../TODO.md)**
 
 This includes:
 - Detailed implementation phases
