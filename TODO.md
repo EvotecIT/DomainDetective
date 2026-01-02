@@ -1,9 +1,22 @@
 # DomainDetective — Open TODO (Consolidated)
 
-This is the single backlog/roadmap file for DomainDetective. Items below were last validated against the codebase on 2025-12-30.
+This is the single backlog/roadmap file for DomainDetective. Items below were last validated against the codebase on 2026-01-02.
 
 ## High Priority
 - Golden report pass (Word): single-domain and multi-domain; verify one-liner intros and References blocks across sections.
+
+## Security & Robustness (Hardening)
+- Path traversal protection for time-series stores (validate IDN + enforce "under root" paths). [done]
+- PowerShell cmdlets: validate `DomainName` parameters via `[ValidateDomainName]`. [done]
+- PowerShell `Test-DnsPropagation`: prevent relative `-ServersFile` escaping module directory. [done]
+- DNS propagation: guard null `Location`/`Country` metadata during distributed server selection. [done]
+- CLI: warn on `--imap-password` usage and prompt when interactive to avoid shell history leaks. [done]
+- CLI report generation: stop swallowing conversion exceptions; surface warnings for failed conversions. [done]
+- Subdomains resolution verification: add configurable rate limiting + CLI knobs. [done]
+- DNS amplification: cap resource limits, harden DNS response parsing, and remove null-forgiving misuse. [done]
+- TLS probe: remove empty catch blocks and refactor duplicated probe logic. [done]
+- CT timeline parsing: split `ParseCtJson` into focused helpers. [done]
+- Follow-up: consider upstreaming DNS parsing/rate limiting helpers to `DnsClientX`. [pending]
 
 ## Reports — Word
 - Optional: CLI surface for summary column cap (default 4 content columns). PS is wired via `Set-DDExportOptions -SummaryColumnCap`.
