@@ -485,12 +485,18 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
     private static void UpdateIssuerCounts(Dictionary<string, int> issuerCounts, string? issuerName)
     {
-        if (string.IsNullOrWhiteSpace(issuerName))
+        if (issuerName == null)
         {
             return;
         }
 
-        issuerCounts[issuerName] = issuerCounts.TryGetValue(issuerName, out var c) ? c + 1 : 1;
+        var key = issuerName.Trim();
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        issuerCounts[key] = issuerCounts.TryGetValue(key, out var c) ? c + 1 : 1;
     }
 
     private void IncrementValidityCounters(CtCertificateValidityStatus status)
@@ -544,9 +550,13 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         }
 
         b.UniqueCertificates++;
-        if (!string.IsNullOrWhiteSpace(issuerName))
+        if (issuerName != null)
         {
-            b.Issuers.Add(issuerName);
+            var issuerKey = issuerName.Trim();
+            if (issuerKey.Length > 0)
+            {
+                b.Issuers.Add(issuerKey);
+            }
         }
 
         return true;

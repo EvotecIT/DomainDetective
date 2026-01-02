@@ -19,12 +19,18 @@ internal static class IpAddressClassifier
     public static bool TryClassify(string? value, out IpAddressVisibility visibility)
     {
         visibility = IpAddressVisibility.Unknown;
-        if (string.IsNullOrWhiteSpace(value))
+        if (value == null)
         {
             return false;
         }
 
-        if (!IPAddress.TryParse(value.Trim(), out var ip))
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        if (!IPAddress.TryParse(trimmed, out var ip))
         {
             return false;
         }
@@ -106,4 +112,3 @@ internal static class IpAddressClassifier
                visibility == IpAddressVisibility.UniqueLocalV6;
     }
 }
-

@@ -606,19 +606,27 @@ namespace DomainDetective {
                 token.ThrowIfCancellationRequested();
 
                 var version = await QueryChaosTxtAsync(s.Ip, "version.bind", logger, token);
-                if (!string.IsNullOrWhiteSpace(version))
+                if (version != null)
                 {
-                    ChaosVersionByServer[s.Key] = version;
-                    using (collector.PushTarget(s.Key))
-                        logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", version);
+                    version = version.Trim();
+                    if (version.Length > 0)
+                    {
+                        ChaosVersionByServer[s.Key] = version;
+                        using (collector.PushTarget(s.Key))
+                            logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", version);
+                    }
                 }
 
                 var hostname = await QueryChaosTxtAsync(s.Ip, "hostname.bind", logger, token);
-                if (!string.IsNullOrWhiteSpace(hostname))
+                if (hostname != null)
                 {
-                    ChaosHostnameByServer[s.Key] = hostname;
-                    using (collector.PushTarget(s.Key))
-                        logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", hostname);
+                    hostname = hostname.Trim();
+                    if (hostname.Length > 0)
+                    {
+                        ChaosHostnameByServer[s.Key] = hostname;
+                        using (collector.PushTarget(s.Key))
+                            logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", hostname);
+                    }
                 }
             }
         }

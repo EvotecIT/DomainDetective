@@ -159,12 +159,18 @@ public static class DnsProviderDetector
 
     private static string NormalizeHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (value == null)
         {
             return string.Empty;
         }
 
-        return value.Trim().TrimEnd('.').ToLowerInvariant();
+        var trimmed = value.Trim().TrimEnd('.');
+        if (trimmed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return trimmed.ToLowerInvariant();
     }
 
     // Simple wildcard matcher: supports '*' anywhere (multi-part contains).
@@ -205,4 +211,3 @@ public static class DnsProviderDetector
         return true;
     }
 }
-

@@ -1005,22 +1005,34 @@ public sealed class DnsInventoryAnalysis : IHasAssessments
 
     private static string NormalizeHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        if (value == null)
         {
             return string.Empty;
         }
 
-        return value.Trim().TrimEnd('.').ToLowerInvariant();
+        var trimmed = value.Trim().TrimEnd('.');
+        if (trimmed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return trimmed.ToLowerInvariant();
     }
 
     private static string? TryParseSoaPrimaryNameServer(string? soaData)
     {
-        if (string.IsNullOrWhiteSpace(soaData))
+        if (soaData == null)
         {
             return null;
         }
 
-        var parts = soaData.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        var trimmed = soaData.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return null;
@@ -1031,12 +1043,18 @@ public sealed class DnsInventoryAnalysis : IHasAssessments
 
     private static string TryParseMxHost(string? mxData)
     {
-        if (string.IsNullOrWhiteSpace(mxData))
+        if (mxData == null)
         {
             return string.Empty;
         }
 
-        var parts = mxData.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        var trimmed = mxData.Trim();
+        if (trimmed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0)
         {
             return string.Empty;

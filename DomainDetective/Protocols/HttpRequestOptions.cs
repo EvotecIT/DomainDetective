@@ -41,6 +41,8 @@ public sealed class HttpRequestOptions
     /// <summary>Additional request headers to send.</summary>
     public Dictionary<string, string> Headers { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    private static readonly HttpMethod PatchMethod = new HttpMethod("PATCH");
+
     internal HttpMethod ToHttpMethod()
     {
         return Method switch
@@ -52,9 +54,8 @@ public sealed class HttpRequestOptions
             HttpRequestMethod.Delete => HttpMethod.Delete,
             HttpRequestMethod.Options => HttpMethod.Options,
             HttpRequestMethod.Trace => HttpMethod.Trace,
-            HttpRequestMethod.Patch => HttpMethod.Patch,
+            HttpRequestMethod.Patch => PatchMethod,
             _ => HttpMethod.Get
         };
     }
 }
-
