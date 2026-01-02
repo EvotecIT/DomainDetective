@@ -158,7 +158,7 @@ namespace DomainDetective {
                 [HealthCheckType.POP3TLS] = () => VerifyPOP3TLS(domainName, cancellationToken),
                 [HealthCheckType.SMTPBANNER] = () => VerifySMTPBanner(domainName, 25, cancellationToken),
                 [HealthCheckType.SMTPAUTH] = () => VerifySmtpAuth(domainName, 25, cancellationToken),
-                [HealthCheckType.HTTP] = () => VerifyPlainHttp(domainName, cancellationToken),
+                [HealthCheckType.HTTP] = () => VerifyWebsiteHttps(domainName, cancellationToken),
                 [HealthCheckType.HPKP] = () => VerifyHpkpAsync(domainName, cancellationToken),
                 [HealthCheckType.CONTACT] = () => VerifyContactInfo(domainName, cancellationToken),
                 [HealthCheckType.MESSAGEHEADER] = () => VerifyMessageHeaderAsync(cancellationToken),
@@ -168,6 +168,7 @@ namespace DomainDetective {
                 [HealthCheckType.PORTSCAN] = () => ScanPorts(domainName, null, portScanProfiles, cancellationToken),
                 [HealthCheckType.SNMP] = () => CheckSnmpHost(domainName, 161, cancellationToken),
                 [HealthCheckType.IPNEIGHBOR] = () => CheckIPNeighbors(domainName, cancellationToken),
+                [HealthCheckType.IPENRICHMENT] = () => VerifyIpEnrichmentAsync(domainName, cancellationToken),
                 [HealthCheckType.RPKI] = () => VerifyRPKI(domainName, cancellationToken),
                 [HealthCheckType.RDAP] = () => QueryRDAP(domainName, cancellationToken),
                 [HealthCheckType.DNSTUNNELING] = () => CheckDnsTunnelingAsync(domainName, cancellationToken),
@@ -175,14 +176,18 @@ namespace DomainDetective {
                 [HealthCheckType.WILDCARDDNS] = () => VerifyWildcardDns(domainName),
                 [HealthCheckType.EDNSSUPPORT] = () => VerifyEdnsSupport(domainName, cancellationToken),
                 [HealthCheckType.DNSHEALTH] = () => VerifyDnsHealth(domainName, cancellationToken),
+                [HealthCheckType.DNSAMPLIFICATION] = () => VerifyDnsAmplification(domainName, cancellationToken),
+                [HealthCheckType.DNSOVERTLS] = () => VerifyDnsOverTls(domainName, cancellationToken),
                 [HealthCheckType.FLATTENINGSERVICE] = () => VerifyFlatteningServiceAsync(domainName, cancellationToken),
                 [HealthCheckType.THREATINTEL] = () => VerifyThreatIntel(domainName, cancellationToken),
                 [HealthCheckType.THREATFEED] = () => VerifyThreatFeed(domainName, cancellationToken),
-                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken),
-                [HealthCheckType.SUBDOMAINS] = () => VerifySubdomainsAsync(domainName, cancellationToken),
-                [HealthCheckType.DNSINVENTORY] = () => VerifyDnsInventoryAsync(domainName, cancellationToken),
-                [HealthCheckType.DNSTRACE] = () => VerifyDnsTraceAsync(domainName, cancellationToken)
-            };
+	                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken),
+	                [HealthCheckType.SUBDOMAINS] = () => VerifySubdomainsAsync(domainName, cancellationToken),
+	                [HealthCheckType.DNSINVENTORY] = () => VerifyDnsInventoryAsync(domainName, cancellationToken),
+	                [HealthCheckType.DNSTRACE] = () => VerifyDnsTraceAsync(domainName, cancellationToken),
+	                [HealthCheckType.CTTIMELINE] = () => VerifyCtTimelineAsync(domainName, cancellationToken),
+                    [HealthCheckType.DNSPROPAGATION] = () => VerifyDnsPropagationAsync(domainName, cancellationToken)
+		            };
 
             if (healthCheckTypes.Contains(HealthCheckType.DANE)) {
                 var daneTask = new Lazy<Task>(() => EnsureDaneAsync(domainName, daneServiceType, danePorts, cancellationToken));
@@ -526,6 +531,8 @@ namespace DomainDetective {
             filtered.ThreatFeedAnalysis = active.Contains(HealthCheckType.THREATFEED) ? CloneAnalysis(ThreatFeedAnalysis) : null!;
             filtered.WildcardDnsAnalysis = active.Contains(HealthCheckType.WILDCARDDNS) ? CloneAnalysis(WildcardDnsAnalysis) : null!;
             filtered.EdnsSupportAnalysis = active.Contains(HealthCheckType.EDNSSUPPORT) ? CloneAnalysis(EdnsSupportAnalysis) : null!;
+            filtered.DnsAmplificationAnalysis = active.Contains(HealthCheckType.DNSAMPLIFICATION) ? CloneAnalysis(DnsAmplificationAnalysis) : null!;
+            filtered.DnsOverTlsAnalysis = active.Contains(HealthCheckType.DNSOVERTLS) ? CloneAnalysis(DnsOverTlsAnalysis) : null!;
             filtered.FlatteningServiceAnalysis = active.Contains(HealthCheckType.FLATTENINGSERVICE) ? CloneAnalysis(FlatteningServiceAnalysis) : null!;
             filtered.DirectoryExposureAnalysis = active.Contains(HealthCheckType.DIRECTORYEXPOSURE) ? CloneAnalysis(DirectoryExposureAnalysis) : null!;
             filtered.NtpAnalysis = active.Contains(HealthCheckType.NTP) ? CloneAnalysis(NtpAnalysis) : null!;
