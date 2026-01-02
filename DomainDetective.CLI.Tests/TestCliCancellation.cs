@@ -21,11 +21,11 @@ public class TestCliCancellation
                 outputJson: false,
                 summaryOnly: false,
                 subdomainPolicy: false,
-                unicodeOutput: false,
-                danePorts: null,
-                showProgress: true,
-                skipRevocation: false,
-                portScanProfiles: null,
-                cts.Token));
-    }
-}
+	                unicodeOutput: false,
+	                danePorts: null,
+	                showProgress: true,
+	                skipRevocation: false,
+	                portScanProfiles: null,
+	                cancellationToken: cts.Token));
+	    }
+	}
