@@ -10,38 +10,47 @@ public static partial class Converters
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
         var positives = RecommendationEngine.FromPositives(analysis.Assessments);
         var grade = ComputeHttpGrade(analysis);
-        return new HttpInfo
-        {
-            Check = HealthCheckType.HTTP,
-            Area = AreaForKind(HealthCheckType.HTTP),
-            Subject = analysis.Subject,
-            Url = analysis.Subject,
-            IsReachable = analysis.IsReachable,
-            StatusCode = analysis.StatusCode,
-            BodyLength = analysis.BodyLength,
-            BodySha256 = analysis.BodySha256,
-            ResponseTime = analysis.ResponseTime,
+	        return new HttpInfo
+	        {
+	            Check = HealthCheckType.HTTP,
+	            Area = AreaForKind(HealthCheckType.HTTP),
+	            Subject = analysis.Subject,
+	            Url = analysis.Subject,
+	            RequestMethodUsed = analysis.RequestMethodUsed,
+	            ProxyUsed = analysis.ProxyUsed,
+	            TlsValidationDisabled = analysis.TlsValidationDisabled,
+	            RequestHeaderNames = analysis.RequestHeaderNames,
+	            IsReachable = analysis.IsReachable,
+	            StatusCode = analysis.StatusCode,
+	            BodyLength = analysis.BodyLength,
+	            BodySha256 = analysis.BodySha256,
+	            ResponseTime = analysis.ResponseTime,
             Nel = analysis.NelRaw,
             ReportTo = analysis.ReportToRaw,
             SpeculationRules = analysis.SpeculationRulesRaw,
             HstsPresent = analysis.HstsPresent,
             HstsPreloaded = analysis.HstsPreloaded,
             HstsPreloadEligible = analysis.HstsPreloadEligible,
-            Http2Supported = analysis.Http2Supported,
-            Http3Supported = analysis.Http3Supported,
-            MixedContentDetected = analysis.MixedContentDetected,
-            MissingSecurityHeaders = analysis.MissingSecurityHeaders,
-            Grade = grade,
-            Assessments = analysis.Assessments,
-            Status = status,
-            WarningCount = warnCount,
-            ErrorCount = errCount,
-            Summary = $"{(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; forms {(analysis.InsecureFormsCount > 0 ? $"insecure {analysis.InsecureFormsCount}" : "ok")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; grade {grade.ToLetter()}; {(analysis.StatusCode?.ToString() ?? "")}",
-            Recommendations = recs,
-            Positives = positives,
-            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
-            Raw = analysis
-        };
+	            Http2Supported = analysis.Http2Supported,
+	            Http3Supported = analysis.Http3Supported,
+	            MixedContentDetected = analysis.MixedContentDetected,
+	            CspFrameAncestorsPresent = analysis.CspFrameAncestorsPresent,
+	            InformationDisclosureHeaders = analysis.InformationDisclosureHeaders,
+	            CachingHeaders = analysis.CachingHeaders,
+	            DeprecatedHeadersPresent = analysis.DeprecatedHeadersPresent,
+	            MissingDeprecatedHeaders = analysis.MissingDeprecatedHeaders,
+	            MissingSecurityHeaders = analysis.MissingSecurityHeaders,
+	            Grade = grade,
+	            Assessments = analysis.Assessments,
+	            Status = status,
+	            WarningCount = warnCount,
+	            ErrorCount = errCount,
+	            Summary = $"{analysis.RequestMethodUsed}; {(analysis.Http2Supported ? "H2" : "no H2")}/{(analysis.Http3Supported ? "H3" : "no H3")}; HSTS {(analysis.HstsPresent ? "yes" : "no")}; forms {(analysis.InsecureFormsCount > 0 ? $"insecure {analysis.InsecureFormsCount}" : "ok")}; missing {analysis.MissingSecurityHeaders?.Count ?? 0}; grade {grade.ToLetter()}; {(analysis.StatusCode?.ToString() ?? "")}",
+	            Recommendations = recs,
+	            Positives = positives,
+	            References = BuildReferences(System.Array.Empty<StandardReference>(), recs),
+	            Raw = analysis
+	        };
     }
 
     private static GradeLevel ComputeHttpGrade(HttpAnalysis analysis)
@@ -76,6 +85,10 @@ public class HttpInfo
     public AnalysisArea Area { get; set; }
     public string? Subject { get; set; }
     public string? Url { get; set; }
+    public HttpRequestMethod RequestMethodUsed { get; set; }
+    public string? ProxyUsed { get; set; }
+    public bool TlsValidationDisabled { get; set; }
+    public IReadOnlyList<string> RequestHeaderNames { get; set; } = null!;
     public bool IsReachable { get; set; }
     public int? StatusCode { get; set; }
     public int? BodyLength { get; set; }
@@ -90,6 +103,11 @@ public class HttpInfo
     public bool Http2Supported { get; set; }
     public bool Http3Supported { get; set; }
     public bool MixedContentDetected { get; set; }
+    public bool CspFrameAncestorsPresent { get; set; }
+    public IReadOnlyDictionary<string, string> InformationDisclosureHeaders { get; set; } = null!;
+    public IReadOnlyDictionary<string, string> CachingHeaders { get; set; } = null!;
+    public IReadOnlyCollection<string> DeprecatedHeadersPresent { get; set; } = null!;
+    public IReadOnlyCollection<string> MissingDeprecatedHeaders { get; set; } = null!;
     public IReadOnlyCollection<string> MissingSecurityHeaders { get; set; } = null!;
     public GradeLevel Grade { get; set; }
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;

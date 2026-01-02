@@ -26,6 +26,9 @@ public static partial class Converters
             case HealthCheckType.SUBDOMAINS:
             case HealthCheckType.DNSINVENTORY:
             case HealthCheckType.DNSTRACE:
+            case HealthCheckType.DNSPROPAGATION:
+            case HealthCheckType.DNSAMPLIFICATION:
+            case HealthCheckType.DNSOVERTLS:
                 return AnalysisArea.DNS;
 
             // Mail group
@@ -58,6 +61,7 @@ public static partial class Converters
             case HealthCheckType.SECURITYTXT:
             case HealthCheckType.DIRECTORYEXPOSURE:
             case HealthCheckType.WEBSITE:
+            case HealthCheckType.CTTIMELINE:
                 return AnalysisArea.Web;
 
             // Security/infra group
@@ -68,6 +72,7 @@ public static partial class Converters
             case HealthCheckType.THREATINTEL:
             case HealthCheckType.THREATFEED:
             case HealthCheckType.IPNEIGHBOR:
+            case HealthCheckType.IPENRICHMENT:
             case HealthCheckType.PORTSCAN:
             case HealthCheckType.PORTAVAILABILITY:
             case HealthCheckType.DNSTUNNELING:

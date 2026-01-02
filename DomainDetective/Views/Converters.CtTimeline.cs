@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace DomainDetective.Views;
 
 public static partial class Converters
 {
-    public static SubdomainsInfo Convert(SubdomainsAnalysis analysis)
+    public static CtTimelineInfo Convert(CertificateTransparencyTimelineAnalysis analysis)
     {
         Summarize(analysis.Assessments, out var warnCount, out var errCount, out var status);
         var recs = RecommendationEngine.FromProblems(analysis.Assessments);
@@ -16,33 +17,31 @@ public static partial class Converters
             new StandardReference { Title = "Certificate Transparency", Reference = "RFC 6962", Url = "https://datatracker.ietf.org/doc/html/rfc6962" }
         };
 
-        string range = "-";
-        if (analysis.FirstSeenUtc.HasValue || analysis.LastSeenUtc.HasValue)
-        {
-            var a = analysis.FirstSeenUtc?.ToString("yyyy-MM-dd") ?? "-";
-            var b = analysis.LastSeenUtc?.ToString("yyyy-MM-dd") ?? "-";
-            range = a + " .. " + b;
-        }
+        string FormatDate(DateTimeOffset? dt) => dt.HasValue ? dt.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "-";
 
-        var subCount = analysis.Subdomains?.Count ?? 0;
-        var summary = $"{subCount} subdomain(s); issuers {analysis.DistinctIssuerCount}; CT rows {analysis.CertificateObservationCount}; CT {(analysis.ResultsCapped ? "capped" : "ok")}; seen {range}; dns-checks {(analysis.VerifyStillResolves ? (analysis.ResolutionReduced ? "capped" : "ok") : "off")}";
+        var summary = $"{analysis.UniqueCertificateCount} cert(s) (active {analysis.ActiveCertificateCount}, expired {analysis.ExpiredCertificateCount}); issuers {analysis.DistinctIssuerCount}; first {FormatDate(analysis.FirstSeenUtc)}; last {FormatDate(analysis.LastSeenUtc)}; 7d {analysis.IssuedLast7Days}; 30d {analysis.IssuedLast30Days}{(analysis.ResultsCapped ? "; capped" : string.Empty)}";
 
-        return new SubdomainsInfo
+        return new CtTimelineInfo
         {
-            Check = HealthCheckType.SUBDOMAINS,
-            Area = AreaForKind(HealthCheckType.SUBDOMAINS),
+            Check = HealthCheckType.CTTIMELINE,
+            Area = AreaForKind(HealthCheckType.CTTIMELINE),
             Subject = analysis.Subject,
             QuerySucceeded = analysis.QuerySucceeded,
             FailureReason = analysis.FailureReason,
             CertificateObservationCount = analysis.CertificateObservationCount,
+            UniqueCertificateCount = analysis.UniqueCertificateCount,
             FirstSeenUtc = analysis.FirstSeenUtc,
             LastSeenUtc = analysis.LastSeenUtc,
-            DistinctIssuerCount = analysis.DistinctIssuerCount,
             IssuerCounts = analysis.IssuerCounts,
-            SubdomainCount = subCount,
-            ResolutionReduced = analysis.ResolutionReduced,
+            ActiveCertificateCount = analysis.ActiveCertificateCount,
+            ExpiredCertificateCount = analysis.ExpiredCertificateCount,
+            NotYetValidCertificateCount = analysis.NotYetValidCertificateCount,
+            WildcardCertificateCount = analysis.WildcardCertificateCount,
+            IssuedLast7Days = analysis.IssuedLast7Days,
+            IssuedLast30Days = analysis.IssuedLast30Days,
             ResultsCapped = analysis.ResultsCapped,
-            Subdomains = analysis.Subdomains ?? Array.Empty<SubdomainDiscoveryEntry>(),
+            Timeline = analysis.Timeline,
+            RecentCertificates = analysis.RecentCertificates,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -56,7 +55,7 @@ public static partial class Converters
     }
 }
 
-public sealed class SubdomainsInfo
+public sealed class CtTimelineInfo
 {
     public HealthCheckType Check { get; set; }
     public AnalysisArea Area { get; set; }
@@ -64,14 +63,19 @@ public sealed class SubdomainsInfo
     public bool QuerySucceeded { get; set; }
     public string? FailureReason { get; set; }
     public int CertificateObservationCount { get; set; }
-    public bool ResultsCapped { get; set; }
+    public int UniqueCertificateCount { get; set; }
     public DateTimeOffset? FirstSeenUtc { get; set; }
     public DateTimeOffset? LastSeenUtc { get; set; }
-    public int DistinctIssuerCount { get; set; }
     public IReadOnlyDictionary<string, int> IssuerCounts { get; set; } = null!;
-    public int SubdomainCount { get; set; }
-    public bool ResolutionReduced { get; set; }
-    public IReadOnlyList<SubdomainDiscoveryEntry> Subdomains { get; set; } = null!;
+    public int ActiveCertificateCount { get; set; }
+    public int ExpiredCertificateCount { get; set; }
+    public int NotYetValidCertificateCount { get; set; }
+    public int WildcardCertificateCount { get; set; }
+    public int IssuedLast7Days { get; set; }
+    public int IssuedLast30Days { get; set; }
+    public bool ResultsCapped { get; set; }
+    public IReadOnlyList<CtTimelineBucket> Timeline { get; set; } = null!;
+    public IReadOnlyList<CtCertificateSample> RecentCertificates { get; set; } = null!;
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     public string Status { get; set; } = null!;
     public int WarningCount { get; set; }
@@ -80,5 +84,6 @@ public sealed class SubdomainsInfo
     public IReadOnlyList<RecommendationAdvice> Recommendations { get; set; } = null!;
     public IReadOnlyList<RecommendationAdvice> Positives { get; set; } = null!;
     public IReadOnlyList<string> References { get; set; } = null!;
-    public SubdomainsAnalysis Raw { get; set; } = null!;
+    public CertificateTransparencyTimelineAnalysis Raw { get; set; } = null!;
 }
+
