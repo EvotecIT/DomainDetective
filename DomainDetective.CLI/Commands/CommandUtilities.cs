@@ -143,7 +143,7 @@ internal static class CommandUtilities {
         return 0;
     }
 
-	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, CancellationToken cancellationToken = default) {
+	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
 	        foreach (var domain in domains) {
 	            var logger = new InternalLogger { IsProgress = showProgress };
 	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
@@ -153,6 +153,18 @@ internal static class CommandUtilities {
                     hc.DnsEndpoints.AddRange(dnsEndpoints);
                     hc.MultiResolverStrategy = multiResolverStrategy;
                     hc.MultiResolverMaxParallelism = multiResolverMaxParallelism;
+                }
+                if (subdomainsMaxResolutionChecks.HasValue)
+                {
+                    hc.SubdomainsAnalysis.MaxResolutionChecks = Math.Max(0, subdomainsMaxResolutionChecks.Value);
+                }
+                if (subdomainsResolutionConcurrency.HasValue)
+                {
+                    hc.SubdomainsAnalysis.ResolutionConcurrency = Math.Max(1, subdomainsResolutionConcurrency.Value);
+                }
+                if (subdomainsResolutionMinIntervalMs.HasValue)
+                {
+                    hc.SubdomainsAnalysis.ResolutionMinInterval = TimeSpan.FromMilliseconds(Math.Max(0, subdomainsResolutionMinIntervalMs.Value));
                 }
 	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
 	

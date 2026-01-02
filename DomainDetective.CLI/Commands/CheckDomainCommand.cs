@@ -178,6 +178,9 @@ internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
             dnsEndpoints: dnsEndpoints,
             multiResolverStrategy: settings.MultiResolverStrategy,
             multiResolverMaxParallelism: settings.MultiResolverMaxParallelism,
+            subdomainsMaxResolutionChecks: settings.SubdomainsMaxResolutionChecks,
+            subdomainsResolutionConcurrency: settings.SubdomainsResolutionConcurrency,
+            subdomainsResolutionMinIntervalMs: settings.SubdomainsResolutionMinIntervalMs,
             cancellationToken: Program.CancellationToken);
 
         return 0;

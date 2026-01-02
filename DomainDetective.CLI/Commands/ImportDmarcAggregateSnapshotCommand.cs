@@ -58,8 +58,8 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
     [CommandOption("--imap-user")]
     public string? ImapUser { get; set; }
 
-    /// <summary>IMAP password (discouraged; prefer --imap-password-env).</summary>
-    [Description("IMAP password (discouraged; prefer --imap-password-env).")]
+    /// <summary>IMAP password (deprecated; prefer --imap-password-env or prompt).</summary>
+    [Description("IMAP password (deprecated; prefer --imap-password-env or prompt).")]
     [CommandOption("--imap-password")]
     public string? ImapPassword { get; set; }
 
@@ -128,13 +128,17 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
         var store = new DmarcAggregateTimeSeriesStore(settings.StorePath);
         bool deduplicate = !settings.NoDeduplicate;
 
-        DmarcAggregateIngestResult result;
-        if (hasImap) {
-            var password = ResolvePassword(settings.ImapPassword, settings.ImapPasswordEnv);
-            if (password == null) {
-                AnsiConsole.MarkupLine("[red]IMAP password is required (use --imap-password-env or --imap-password).[/]");
-                return 1;
-            }
+	        DmarcAggregateIngestResult result;
+	        if (hasImap) {
+	            if (!string.IsNullOrWhiteSpace(settings.ImapPassword)) {
+	                AnsiConsole.MarkupLine("[yellow]Warning:[/] `--imap-password` is deprecated and may leak via shell history; prefer `--imap-password-env` or the interactive prompt.");
+	            }
+
+	            var password = ResolvePassword(settings.ImapPassword, settings.ImapPasswordEnv);
+	            if (password == null) {
+	                AnsiConsole.MarkupLine("[red]IMAP password is required (use --imap-password-env, or run interactively to be prompted).[/]");
+	                return 1;
+	            }
 
             var options = new ImapAttachmentIngestOptions {
                 Host = settings.ImapHost!.Trim(),
@@ -201,14 +205,21 @@ internal sealed class ImportDmarcAggregateSnapshotCommand : AsyncCommand<ImportD
         return 0;
     }
 
-    private static string? ResolvePassword(string? direct, string? envName) {
-        if (!string.IsNullOrWhiteSpace(direct)) {
-            return direct;
-        }
-        if (string.IsNullOrWhiteSpace(envName)) {
-            return null;
-        }
-        var value = Environment.GetEnvironmentVariable(envName);
-        return string.IsNullOrWhiteSpace(value) ? null : value;
-    }
+	    private static string? ResolvePassword(string? direct, string? envName) {
+	        if (!string.IsNullOrWhiteSpace(direct)) {
+	            return direct;
+	        }
+	        if (!string.IsNullOrWhiteSpace(envName)) {
+	            var value = Environment.GetEnvironmentVariable(envName);
+	            if (!string.IsNullOrWhiteSpace(value)) {
+	                return value;
+	            }
+	        }
+
+	        if (AnsiConsole.Profile.Capabilities.Interactive) {
+	            return AnsiConsole.Prompt(new TextPrompt<string>("IMAP password:").Secret());
+	        }
+
+	        return null;
+	    }
 }

@@ -157,4 +157,16 @@ internal sealed class CheckDomainSettings : CommandSettings {
     /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
     [CommandOption("--dns-endpoints-parallelism <N>")]
     public int? MultiResolverMaxParallelism { get; set; }
+
+    /// <summary>Maximum number of subdomains to verify for DNS resolution (null = default).</summary>
+    [CommandOption("--subdomains-max-resolution-checks <N>")]
+    public int? SubdomainsMaxResolutionChecks { get; set; }
+
+    /// <summary>Maximum number of concurrent DNS checks for subdomain resolution verification (null = default).</summary>
+    [CommandOption("--subdomains-resolution-concurrency <N>")]
+    public int? SubdomainsResolutionConcurrency { get; set; }
+
+    /// <summary>Minimum interval between DNS queries during subdomain resolution verification, in milliseconds (null = default).</summary>
+    [CommandOption("--subdomains-resolution-min-interval-ms <MS>")]
+    public int? SubdomainsResolutionMinIntervalMs { get; set; }
 }
