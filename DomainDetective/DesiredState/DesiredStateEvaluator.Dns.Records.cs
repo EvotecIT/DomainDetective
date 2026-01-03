@@ -377,21 +377,41 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
-        if (desired.RequireDmarcTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtDmarc)) {
-            sink.Assessments.Add(new Assessment {
-                Severity = AssessmentSeverity.Warning,
-                Category = "DesiredState",
-                Target = domain,
-                Code = DesiredStateCodes.TtlDmarcTxtUniformityRequired,
-                Message = "Desired state requires DMARC TXT TTL to be uniform across authoritative name servers, but it was not uniform."
-            });
-        }
+	        if (desired.RequireDmarcTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtDmarc)) {
+	            sink.Assessments.Add(new Assessment {
+	                Severity = AssessmentSeverity.Warning,
+	                Category = "DesiredState",
+	                Target = domain,
+	                Code = DesiredStateCodes.TtlDmarcTxtUniformityRequired,
+	                Message = "Desired state requires DMARC TXT TTL to be uniform across authoritative name servers, but it was not uniform."
+	            });
+	        }
 
-        if (desired.RequireDkimTxtUniformAcrossNs == true && ttl.ServerTtlTxtPerName != null && ttl.ServerTtlTxtPerName.Count > 0) {
-            foreach (var kvp in ttl.ServerTtlTxtPerName) {
-                if (!IsUniform(kvp.Value)) {
-                    sink.Assessments.Add(new Assessment {
-                        Severity = AssessmentSeverity.Warning,
+	        if (desired.RequireMtastsTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtMtasts)) {
+	            sink.Assessments.Add(new Assessment {
+	                Severity = AssessmentSeverity.Warning,
+	                Category = "DesiredState",
+	                Target = domain,
+	                Code = DesiredStateCodes.TtlMtastsTxtUniformityRequired,
+	                Message = "Desired state requires MTA-STS TXT TTL to be uniform across authoritative name servers, but it was not uniform."
+	            });
+	        }
+
+	        if (desired.RequireTlsRptTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtTlsRpt)) {
+	            sink.Assessments.Add(new Assessment {
+	                Severity = AssessmentSeverity.Warning,
+	                Category = "DesiredState",
+	                Target = domain,
+	                Code = DesiredStateCodes.TtlTlsRptTxtUniformityRequired,
+	                Message = "Desired state requires TLS-RPT TXT TTL to be uniform across authoritative name servers, but it was not uniform."
+	            });
+	        }
+
+	        if (desired.RequireDkimTxtUniformAcrossNs == true && ttl.ServerTtlTxtPerName != null && ttl.ServerTtlTxtPerName.Count > 0) {
+	            foreach (var kvp in ttl.ServerTtlTxtPerName) {
+	                if (!IsUniform(kvp.Value)) {
+	                    sink.Assessments.Add(new Assessment {
+	                        Severity = AssessmentSeverity.Warning,
                         Category = "DesiredState",
                         Target = domain,
                         Code = DesiredStateCodes.TtlDkimTxtUniformityRequired,
@@ -445,4 +465,3 @@ public static partial class DesiredStateEvaluator {
         return distinct.Length <= 1;
     }
 }
-

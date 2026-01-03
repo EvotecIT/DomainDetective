@@ -136,6 +136,14 @@ public sealed class CmdletNewDesiredStateTtl : PSCmdlet {
     [Parameter(Mandatory = false)]
     public bool? RequireDmarcTxtUniformAcrossNs { get; set; }
 
+    /// <para>When true, requires MTA-STS TXT record TTL to be uniform across name servers.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireMtastsTxtUniformAcrossNs { get; set; }
+
+    /// <para>When true, requires TLS-RPT TXT record TTL to be uniform across name servers.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireTlsRptTxtUniformAcrossNs { get; set; }
+
     /// <para>When true, requires DKIM selector TXT record TTL to be uniform across name servers.</para>
     [Parameter(Mandatory = false)]
     public bool? RequireDkimTxtUniformAcrossNs { get; set; }
@@ -171,6 +179,8 @@ public sealed class CmdletNewDesiredStateTtl : PSCmdlet {
                 RequireCnameUniformAcrossNs = RequireCnameUniformAcrossNs,
                 RequireSpfTxtUniformAcrossNs = RequireSpfTxtUniformAcrossNs,
                 RequireDmarcTxtUniformAcrossNs = RequireDmarcTxtUniformAcrossNs,
+                RequireMtastsTxtUniformAcrossNs = RequireMtastsTxtUniformAcrossNs,
+                RequireTlsRptTxtUniformAcrossNs = RequireTlsRptTxtUniformAcrossNs,
                 RequireDkimTxtUniformAcrossNs = RequireDkimTxtUniformAcrossNs
             }
         };

@@ -277,6 +277,8 @@ internal static class DesiredStateCodes {
     public const string TtlCnameUniformityRequired = "DesiredState.TTL.CNAME.Uniformity.Required";
     public const string TtlSpfTxtUniformityRequired = "DesiredState.TTL.TXT.SPF.Uniformity.Required";
     public const string TtlDmarcTxtUniformityRequired = "DesiredState.TTL.TXT.DMARC.Uniformity.Required";
+    public const string TtlMtastsTxtUniformityRequired = "DesiredState.TTL.TXT.MTASTS.Uniformity.Required";
+    public const string TtlTlsRptTxtUniformityRequired = "DesiredState.TTL.TXT.TLSRPT.Uniformity.Required";
     public const string TtlDkimTxtUniformityRequired = "DesiredState.TTL.TXT.DKIM.Uniformity.Required";
 
     public const string AutodiscoverSrvMissingRecord = "DesiredState.AUTODISCOVER.SRV.Record.Missing";

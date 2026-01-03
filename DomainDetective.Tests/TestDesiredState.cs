@@ -717,6 +717,46 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public void Evaluate_TtlMtastsTxtUniformAcrossNsRequired_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.DnsTtlAnalysis.ServerTtlTxtMtasts["192.0.2.1"] = 300;
+        health.DnsTtlAnalysis.ServerTtlTxtMtasts["192.0.2.2"] = 600;
+
+        var profile = new DesiredStateProfile {
+            Ttl = new DesiredStateTtlPolicy {
+                RequireMtastsTxtUniformAcrossNs = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.TtlMtastsTxtUniformityRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_TtlTlsRptTxtUniformAcrossNsRequired_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.DnsTtlAnalysis.ServerTtlTxtTlsRpt["192.0.2.1"] = 300;
+        health.DnsTtlAnalysis.ServerTtlTxtTlsRpt["192.0.2.2"] = 600;
+
+        var profile = new DesiredStateProfile {
+            Ttl = new DesiredStateTtlPolicy {
+                RequireTlsRptTxtUniformAcrossNs = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.TtlTlsRptTxtUniformityRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Evaluate_BimiMissingRecord_AddsWarning() {
         var health = new DomainHealthCheck();
 

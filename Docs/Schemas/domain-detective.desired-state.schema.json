@@ -2015,6 +2015,18 @@
             "null"
           ]
         },
+        "requireMtastsTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireTlsRptTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "requireDkimTxtUniformAcrossNs": {
           "type": [
             "boolean",

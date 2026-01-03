@@ -84,6 +84,12 @@ public sealed class DesiredStateTtlPolicy {
     [JsonPropertyName("requireDmarcTxtUniformAcrossNs")]
     public bool? RequireDmarcTxtUniformAcrossNs { get; set; }
 
+    [JsonPropertyName("requireMtastsTxtUniformAcrossNs")]
+    public bool? RequireMtastsTxtUniformAcrossNs { get; set; }
+
+    [JsonPropertyName("requireTlsRptTxtUniformAcrossNs")]
+    public bool? RequireTlsRptTxtUniformAcrossNs { get; set; }
+
     [JsonPropertyName("requireDkimTxtUniformAcrossNs")]
     public bool? RequireDkimTxtUniformAcrossNs { get; set; }
 
@@ -116,6 +122,8 @@ public sealed class DesiredStateTtlPolicy {
             RequireCnameUniformAcrossNs = RequireCnameUniformAcrossNs,
             RequireSpfTxtUniformAcrossNs = RequireSpfTxtUniformAcrossNs,
             RequireDmarcTxtUniformAcrossNs = RequireDmarcTxtUniformAcrossNs,
+            RequireMtastsTxtUniformAcrossNs = RequireMtastsTxtUniformAcrossNs,
+            RequireTlsRptTxtUniformAcrossNs = RequireTlsRptTxtUniformAcrossNs,
             RequireDkimTxtUniformAcrossNs = RequireDkimTxtUniformAcrossNs
         };
     }
@@ -149,6 +157,8 @@ public sealed class DesiredStateTtlPolicy {
         if (overlay.RequireCnameUniformAcrossNs.HasValue) RequireCnameUniformAcrossNs = overlay.RequireCnameUniformAcrossNs;
         if (overlay.RequireSpfTxtUniformAcrossNs.HasValue) RequireSpfTxtUniformAcrossNs = overlay.RequireSpfTxtUniformAcrossNs;
         if (overlay.RequireDmarcTxtUniformAcrossNs.HasValue) RequireDmarcTxtUniformAcrossNs = overlay.RequireDmarcTxtUniformAcrossNs;
+        if (overlay.RequireMtastsTxtUniformAcrossNs.HasValue) RequireMtastsTxtUniformAcrossNs = overlay.RequireMtastsTxtUniformAcrossNs;
+        if (overlay.RequireTlsRptTxtUniformAcrossNs.HasValue) RequireTlsRptTxtUniformAcrossNs = overlay.RequireTlsRptTxtUniformAcrossNs;
         if (overlay.RequireDkimTxtUniformAcrossNs.HasValue) RequireDkimTxtUniformAcrossNs = overlay.RequireDkimTxtUniformAcrossNs;
     }
 
@@ -160,6 +170,8 @@ public sealed class DesiredStateTtlPolicy {
         RequireCnameUniformAcrossNs ??= false;
         RequireSpfTxtUniformAcrossNs ??= false;
         RequireDmarcTxtUniformAcrossNs ??= false;
+        RequireMtastsTxtUniformAcrossNs ??= false;
+        RequireTlsRptTxtUniformAcrossNs ??= false;
         RequireDkimTxtUniformAcrossNs ??= false;
     }
 }
