@@ -84,6 +84,15 @@ public sealed class DesiredStateConfiguration {
         if (profile.Mtasts != null && profile.Mtasts.Enabled != false) set.Add(HealthCheckType.MTASTS);
         if (profile.TlsRpt != null && profile.TlsRpt.Enabled != false) set.Add(HealthCheckType.TLSRPT);
         if (profile.Bimi != null && profile.Bimi.Enabled != false) set.Add(HealthCheckType.BIMI);
+        if (profile.Mx != null && profile.Mx.Enabled != false) set.Add(HealthCheckType.MX);
+        if (profile.Ns != null && profile.Ns.Enabled != false) set.Add(HealthCheckType.NS);
+        if (profile.Caa != null && profile.Caa.Enabled != false) set.Add(HealthCheckType.CAA);
+        if (profile.DnsSec != null && profile.DnsSec.Enabled != false) set.Add(HealthCheckType.DNSSEC);
+        if (profile.Soa != null && profile.Soa.Enabled != false) set.Add(HealthCheckType.SOA);
+        if (profile.Dane != null && profile.Dane.Enabled != false) set.Add(HealthCheckType.DANE);
+        if (profile.Delegation != null && profile.Delegation.Enabled != false) set.Add(HealthCheckType.DELEGATION);
+        if (profile.ZoneTransfer != null && profile.ZoneTransfer.Enabled != false) set.Add(HealthCheckType.ZONETRANSFER);
+        if (profile.WildcardDns != null && profile.WildcardDns.Enabled != false) set.Add(HealthCheckType.WILDCARDDNS);
 
         return set.ToArray();
     }
@@ -150,6 +159,33 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("bimi")]
     public DesiredStateBimiPolicy? Bimi { get; set; }
 
+    [JsonPropertyName("mx")]
+    public DesiredStateMxPolicy? Mx { get; set; }
+
+    [JsonPropertyName("ns")]
+    public DesiredStateNsPolicy? Ns { get; set; }
+
+    [JsonPropertyName("caa")]
+    public DesiredStateCaaPolicy? Caa { get; set; }
+
+    [JsonPropertyName("dnssec")]
+    public DesiredStateDnssecPolicy? DnsSec { get; set; }
+
+    [JsonPropertyName("soa")]
+    public DesiredStateSoaPolicy? Soa { get; set; }
+
+    [JsonPropertyName("dane")]
+    public DesiredStateDanePolicy? Dane { get; set; }
+
+    [JsonPropertyName("delegation")]
+    public DesiredStateDelegationPolicy? Delegation { get; set; }
+
+    [JsonPropertyName("zoneTransfer")]
+    public DesiredStateZoneTransferPolicy? ZoneTransfer { get; set; }
+
+    [JsonPropertyName("wildcardDns")]
+    public DesiredStateWildcardDnsPolicy? WildcardDns { get; set; }
+
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
             Checks = Checks?.ToArray(),
@@ -159,7 +195,16 @@ public sealed class DesiredStateProfile {
             Dkim = Dkim?.Clone(),
             Mtasts = Mtasts?.Clone(),
             TlsRpt = TlsRpt?.Clone(),
-            Bimi = Bimi?.Clone()
+            Bimi = Bimi?.Clone(),
+            Mx = Mx?.Clone(),
+            Ns = Ns?.Clone(),
+            Caa = Caa?.Clone(),
+            DnsSec = DnsSec?.Clone(),
+            Soa = Soa?.Clone(),
+            Dane = Dane?.Clone(),
+            Delegation = Delegation?.Clone(),
+            ZoneTransfer = ZoneTransfer?.Clone(),
+            WildcardDns = WildcardDns?.Clone()
         };
     }
 
@@ -204,6 +249,51 @@ public sealed class DesiredStateProfile {
             Bimi ??= new DesiredStateBimiPolicy();
             Bimi.Apply(overlay.Bimi);
         }
+
+        if (overlay.Mx != null) {
+            Mx ??= new DesiredStateMxPolicy();
+            Mx.Apply(overlay.Mx);
+        }
+
+        if (overlay.Ns != null) {
+            Ns ??= new DesiredStateNsPolicy();
+            Ns.Apply(overlay.Ns);
+        }
+
+        if (overlay.Caa != null) {
+            Caa ??= new DesiredStateCaaPolicy();
+            Caa.Apply(overlay.Caa);
+        }
+
+        if (overlay.DnsSec != null) {
+            DnsSec ??= new DesiredStateDnssecPolicy();
+            DnsSec.Apply(overlay.DnsSec);
+        }
+
+        if (overlay.Soa != null) {
+            Soa ??= new DesiredStateSoaPolicy();
+            Soa.Apply(overlay.Soa);
+        }
+
+        if (overlay.Dane != null) {
+            Dane ??= new DesiredStateDanePolicy();
+            Dane.Apply(overlay.Dane);
+        }
+
+        if (overlay.Delegation != null) {
+            Delegation ??= new DesiredStateDelegationPolicy();
+            Delegation.Apply(overlay.Delegation);
+        }
+
+        if (overlay.ZoneTransfer != null) {
+            ZoneTransfer ??= new DesiredStateZoneTransferPolicy();
+            ZoneTransfer.Apply(overlay.ZoneTransfer);
+        }
+
+        if (overlay.WildcardDns != null) {
+            WildcardDns ??= new DesiredStateWildcardDnsPolicy();
+            WildcardDns.Apply(overlay.WildcardDns);
+        }
     }
 
     public void Normalize() {
@@ -213,6 +303,15 @@ public sealed class DesiredStateProfile {
         Mtasts?.NormalizeDefaults();
         TlsRpt?.NormalizeDefaults();
         Bimi?.NormalizeDefaults();
+        Mx?.NormalizeDefaults();
+        Ns?.NormalizeDefaults();
+        Caa?.NormalizeDefaults();
+        DnsSec?.NormalizeDefaults();
+        Soa?.NormalizeDefaults();
+        Dane?.NormalizeDefaults();
+        Delegation?.NormalizeDefaults();
+        ZoneTransfer?.NormalizeDefaults();
+        WildcardDns?.NormalizeDefaults();
     }
 }
 
@@ -254,6 +353,22 @@ public sealed class DesiredStateDmarcPolicy {
     [JsonPropertyName("allowedPolicies")]
     public string[]? AllowedPolicies { get; set; }
 
+    /// <summary>Allowed DMARC subdomain policy values (sp= tag), as lowercase strings (none/quarantine/reject).</summary>
+    [JsonPropertyName("allowedSubdomainPolicies")]
+    public string[]? AllowedSubdomainPolicies { get; set; }
+
+    /// <summary>When true, requires an explicit sp= tag to be present.</summary>
+    [JsonPropertyName("requireSubdomainPolicyTag")]
+    public bool? RequireSubdomainPolicyTag { get; set; }
+
+    /// <summary>Allowed aspf values (r/s) as lowercase strings.</summary>
+    [JsonPropertyName("allowedAspfAlignments")]
+    public string[]? AllowedAspfAlignments { get; set; }
+
+    /// <summary>Allowed adkim values (r/s) as lowercase strings.</summary>
+    [JsonPropertyName("allowedAdkimAlignments")]
+    public string[]? AllowedAdkimAlignments { get; set; }
+
     [JsonPropertyName("requireRua")]
     public bool? RequireRua { get; set; }
 
@@ -270,6 +385,10 @@ public sealed class DesiredStateDmarcPolicy {
             Enabled = Enabled,
             RequireRecord = RequireRecord,
             AllowedPolicies = AllowedPolicies?.ToArray(),
+            AllowedSubdomainPolicies = AllowedSubdomainPolicies?.ToArray(),
+            RequireSubdomainPolicyTag = RequireSubdomainPolicyTag,
+            AllowedAspfAlignments = AllowedAspfAlignments?.ToArray(),
+            AllowedAdkimAlignments = AllowedAdkimAlignments?.ToArray(),
             RequireRua = RequireRua,
             AllowedReportDomainSuffixes = AllowedReportDomainSuffixes?.ToArray(),
             RequireExternalReportAuthorization = RequireExternalReportAuthorization
@@ -281,6 +400,10 @@ public sealed class DesiredStateDmarcPolicy {
         if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
         if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
         if (overlay.AllowedPolicies != null) AllowedPolicies = overlay.AllowedPolicies.ToArray();
+        if (overlay.AllowedSubdomainPolicies != null) AllowedSubdomainPolicies = overlay.AllowedSubdomainPolicies.ToArray();
+        if (overlay.RequireSubdomainPolicyTag.HasValue) RequireSubdomainPolicyTag = overlay.RequireSubdomainPolicyTag;
+        if (overlay.AllowedAspfAlignments != null) AllowedAspfAlignments = overlay.AllowedAspfAlignments.ToArray();
+        if (overlay.AllowedAdkimAlignments != null) AllowedAdkimAlignments = overlay.AllowedAdkimAlignments.ToArray();
         if (overlay.RequireRua.HasValue) RequireRua = overlay.RequireRua;
         if (overlay.AllowedReportDomainSuffixes != null) AllowedReportDomainSuffixes = overlay.AllowedReportDomainSuffixes.ToArray();
         if (overlay.RequireExternalReportAuthorization.HasValue) RequireExternalReportAuthorization = overlay.RequireExternalReportAuthorization;
@@ -291,6 +414,7 @@ public sealed class DesiredStateDmarcPolicy {
         RequireRecord ??= true;
         RequireRua ??= true;
         RequireExternalReportAuthorization ??= true;
+        RequireSubdomainPolicyTag ??= false;
     }
 }
 
@@ -311,13 +435,48 @@ public sealed class DesiredStateSpfPolicy {
     [JsonPropertyName("requireDenyAll")]
     public bool? RequireDenyAll { get; set; }
 
+    /// <summary>Include domains that must be present in the SPF record (top-level or resolved chain).</summary>
+    [JsonPropertyName("requiredIncludeDomains")]
+    public string[]? RequiredIncludeDomains { get; set; }
+
+    /// <summary>When true, checks required include domains against the resolved include chain.</summary>
+    [JsonPropertyName("matchResolvedIncludes")]
+    public bool? MatchResolvedIncludes { get; set; }
+
+    /// <summary>When true, disallows the use of the SPF ptr mechanism.</summary>
+    [JsonPropertyName("disallowPtr")]
+    public bool? DisallowPtr { get; set; }
+
+    /// <summary>When true, disallows unknown mechanisms/modifiers.</summary>
+    [JsonPropertyName("disallowUnknownMechanisms")]
+    public bool? DisallowUnknownMechanisms { get; set; }
+
+    /// <summary>When true, disallows the redirect= modifier.</summary>
+    [JsonPropertyName("disallowRedirect")]
+    public bool? DisallowRedirect { get; set; }
+
+    /// <summary>When true, requires the redirect= modifier to be present.</summary>
+    [JsonPropertyName("requireRedirect")]
+    public bool? RequireRedirect { get; set; }
+
+    /// <summary>Allowed domain suffixes for redirect= target.</summary>
+    [JsonPropertyName("allowedRedirectDomainSuffixes")]
+    public string[]? AllowedRedirectDomainSuffixes { get; set; }
+
     public DesiredStateSpfPolicy Clone() {
         return new DesiredStateSpfPolicy {
             Enabled = Enabled,
             RequireRecord = RequireRecord,
             AllowedAllMechanisms = AllowedAllMechanisms?.ToArray(),
             MaxDnsLookups = MaxDnsLookups,
-            RequireDenyAll = RequireDenyAll
+            RequireDenyAll = RequireDenyAll,
+            RequiredIncludeDomains = RequiredIncludeDomains?.ToArray(),
+            MatchResolvedIncludes = MatchResolvedIncludes,
+            DisallowPtr = DisallowPtr,
+            DisallowUnknownMechanisms = DisallowUnknownMechanisms,
+            DisallowRedirect = DisallowRedirect,
+            RequireRedirect = RequireRedirect,
+            AllowedRedirectDomainSuffixes = AllowedRedirectDomainSuffixes?.ToArray()
         };
     }
 
@@ -328,12 +487,24 @@ public sealed class DesiredStateSpfPolicy {
         if (overlay.AllowedAllMechanisms != null) AllowedAllMechanisms = overlay.AllowedAllMechanisms.ToArray();
         if (overlay.MaxDnsLookups.HasValue) MaxDnsLookups = overlay.MaxDnsLookups;
         if (overlay.RequireDenyAll.HasValue) RequireDenyAll = overlay.RequireDenyAll;
+        if (overlay.RequiredIncludeDomains != null) RequiredIncludeDomains = overlay.RequiredIncludeDomains.ToArray();
+        if (overlay.MatchResolvedIncludes.HasValue) MatchResolvedIncludes = overlay.MatchResolvedIncludes;
+        if (overlay.DisallowPtr.HasValue) DisallowPtr = overlay.DisallowPtr;
+        if (overlay.DisallowUnknownMechanisms.HasValue) DisallowUnknownMechanisms = overlay.DisallowUnknownMechanisms;
+        if (overlay.DisallowRedirect.HasValue) DisallowRedirect = overlay.DisallowRedirect;
+        if (overlay.RequireRedirect.HasValue) RequireRedirect = overlay.RequireRedirect;
+        if (overlay.AllowedRedirectDomainSuffixes != null) AllowedRedirectDomainSuffixes = overlay.AllowedRedirectDomainSuffixes.ToArray();
     }
 
     internal void NormalizeDefaults() {
         Enabled ??= true;
         RequireRecord ??= true;
         RequireDenyAll ??= false;
+        MatchResolvedIncludes ??= true;
+        DisallowPtr ??= false;
+        DisallowUnknownMechanisms ??= false;
+        DisallowRedirect ??= false;
+        RequireRedirect ??= false;
     }
 }
 
@@ -526,6 +697,235 @@ public sealed class DesiredStateBimiPolicy {
         RequireValidLocation ??= false;
         RequireAuthority ??= false;
         SkipIndicatorDownload ??= true;
+    }
+}
+
+public sealed class DesiredStateMxPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    [JsonPropertyName("requireNullMx")]
+    public bool? RequireNullMx { get; set; }
+
+    [JsonPropertyName("disallowNullMx")]
+    public bool? DisallowNullMx { get; set; }
+
+    [JsonPropertyName("requireBackupServers")]
+    public bool? RequireBackupServers { get; set; }
+
+    [JsonPropertyName("requireIpv6Supported")]
+    public bool? RequireIpv6Supported { get; set; }
+
+    /// <summary>Allowed host suffixes for MX targets (e.g., protection.outlook.com).</summary>
+    [JsonPropertyName("allowedHostSuffixes")]
+    public string[]? AllowedHostSuffixes { get; set; }
+
+    [JsonPropertyName("disallowCnameTargets")]
+    public bool? DisallowCnameTargets { get; set; }
+
+    [JsonPropertyName("disallowIpTargets")]
+    public bool? DisallowIpTargets { get; set; }
+
+    [JsonPropertyName("disallowNonExistentTargets")]
+    public bool? DisallowNonExistentTargets { get; set; }
+
+    [JsonPropertyName("disallowNoAddressTargets")]
+    public bool? DisallowNoAddressTargets { get; set; }
+
+    [JsonPropertyName("disallowLocalhostTargets")]
+    public bool? DisallowLocalhostTargets { get; set; }
+
+    [JsonPropertyName("requireTtlUniform")]
+    public bool? RequireTtlUniform { get; set; }
+
+    [JsonPropertyName("requireRrsetConsistentAcrossNs")]
+    public bool? RequireRrsetConsistentAcrossNs { get; set; }
+
+    [JsonPropertyName("requireTargetAddressConsistentAcrossNs")]
+    public bool? RequireTargetAddressConsistentAcrossNs { get; set; }
+
+    public DesiredStateMxPolicy Clone() {
+        return new DesiredStateMxPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireNullMx = RequireNullMx,
+            DisallowNullMx = DisallowNullMx,
+            RequireBackupServers = RequireBackupServers,
+            RequireIpv6Supported = RequireIpv6Supported,
+            AllowedHostSuffixes = AllowedHostSuffixes?.ToArray(),
+            DisallowCnameTargets = DisallowCnameTargets,
+            DisallowIpTargets = DisallowIpTargets,
+            DisallowNonExistentTargets = DisallowNonExistentTargets,
+            DisallowNoAddressTargets = DisallowNoAddressTargets,
+            DisallowLocalhostTargets = DisallowLocalhostTargets,
+            RequireTtlUniform = RequireTtlUniform,
+            RequireRrsetConsistentAcrossNs = RequireRrsetConsistentAcrossNs,
+            RequireTargetAddressConsistentAcrossNs = RequireTargetAddressConsistentAcrossNs
+        };
+    }
+
+    public void Apply(DesiredStateMxPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireNullMx.HasValue) RequireNullMx = overlay.RequireNullMx;
+        if (overlay.DisallowNullMx.HasValue) DisallowNullMx = overlay.DisallowNullMx;
+        if (overlay.RequireBackupServers.HasValue) RequireBackupServers = overlay.RequireBackupServers;
+        if (overlay.RequireIpv6Supported.HasValue) RequireIpv6Supported = overlay.RequireIpv6Supported;
+        if (overlay.AllowedHostSuffixes != null) AllowedHostSuffixes = overlay.AllowedHostSuffixes.ToArray();
+        if (overlay.DisallowCnameTargets.HasValue) DisallowCnameTargets = overlay.DisallowCnameTargets;
+        if (overlay.DisallowIpTargets.HasValue) DisallowIpTargets = overlay.DisallowIpTargets;
+        if (overlay.DisallowNonExistentTargets.HasValue) DisallowNonExistentTargets = overlay.DisallowNonExistentTargets;
+        if (overlay.DisallowNoAddressTargets.HasValue) DisallowNoAddressTargets = overlay.DisallowNoAddressTargets;
+        if (overlay.DisallowLocalhostTargets.HasValue) DisallowLocalhostTargets = overlay.DisallowLocalhostTargets;
+        if (overlay.RequireTtlUniform.HasValue) RequireTtlUniform = overlay.RequireTtlUniform;
+        if (overlay.RequireRrsetConsistentAcrossNs.HasValue) RequireRrsetConsistentAcrossNs = overlay.RequireRrsetConsistentAcrossNs;
+        if (overlay.RequireTargetAddressConsistentAcrossNs.HasValue) RequireTargetAddressConsistentAcrossNs = overlay.RequireTargetAddressConsistentAcrossNs;
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+        RequireRecord ??= true;
+        RequireNullMx ??= false;
+        DisallowNullMx ??= false;
+        RequireBackupServers ??= false;
+        RequireIpv6Supported ??= false;
+        DisallowCnameTargets ??= true;
+        DisallowIpTargets ??= true;
+        DisallowNonExistentTargets ??= true;
+        DisallowNoAddressTargets ??= true;
+        DisallowLocalhostTargets ??= true;
+        RequireTtlUniform ??= false;
+        RequireRrsetConsistentAcrossNs ??= false;
+        RequireTargetAddressConsistentAcrossNs ??= false;
+    }
+}
+
+public sealed class DesiredStateNsPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    [JsonPropertyName("requireAtLeastTwo")]
+    public bool? RequireAtLeastTwo { get; set; }
+
+    [JsonPropertyName("disallowDuplicates")]
+    public bool? DisallowDuplicates { get; set; }
+
+    [JsonPropertyName("requireAllHaveAOrAaaa")]
+    public bool? RequireAllHaveAOrAaaa { get; set; }
+
+    [JsonPropertyName("disallowCnameTargets")]
+    public bool? DisallowCnameTargets { get; set; }
+
+    [JsonPropertyName("requireDiversity")]
+    public bool? RequireDiversity { get; set; }
+
+    /// <summary>Minimum distinct ASN count for authoritative name servers.</summary>
+    [JsonPropertyName("minAsnDiversity")]
+    public int? MinAsnDiversity { get; set; }
+
+    /// <summary>Allowed host suffixes for authoritative NS targets (e.g., ns.provider.example).</summary>
+    [JsonPropertyName("allowedHostSuffixes")]
+    public string[]? AllowedHostSuffixes { get; set; }
+
+    public DesiredStateNsPolicy Clone() {
+        return new DesiredStateNsPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireAtLeastTwo = RequireAtLeastTwo,
+            DisallowDuplicates = DisallowDuplicates,
+            RequireAllHaveAOrAaaa = RequireAllHaveAOrAaaa,
+            DisallowCnameTargets = DisallowCnameTargets,
+            RequireDiversity = RequireDiversity,
+            MinAsnDiversity = MinAsnDiversity,
+            AllowedHostSuffixes = AllowedHostSuffixes?.ToArray()
+        };
+    }
+
+    public void Apply(DesiredStateNsPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireAtLeastTwo.HasValue) RequireAtLeastTwo = overlay.RequireAtLeastTwo;
+        if (overlay.DisallowDuplicates.HasValue) DisallowDuplicates = overlay.DisallowDuplicates;
+        if (overlay.RequireAllHaveAOrAaaa.HasValue) RequireAllHaveAOrAaaa = overlay.RequireAllHaveAOrAaaa;
+        if (overlay.DisallowCnameTargets.HasValue) DisallowCnameTargets = overlay.DisallowCnameTargets;
+        if (overlay.RequireDiversity.HasValue) RequireDiversity = overlay.RequireDiversity;
+        if (overlay.MinAsnDiversity.HasValue) MinAsnDiversity = overlay.MinAsnDiversity;
+        if (overlay.AllowedHostSuffixes != null) AllowedHostSuffixes = overlay.AllowedHostSuffixes.ToArray();
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+        RequireRecord ??= true;
+        RequireAtLeastTwo ??= true;
+        DisallowDuplicates ??= true;
+        RequireAllHaveAOrAaaa ??= true;
+        DisallowCnameTargets ??= true;
+        RequireDiversity ??= false;
+    }
+}
+
+public sealed class DesiredStateCaaPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    [JsonPropertyName("requireValid")]
+    public bool? RequireValid { get; set; }
+
+    /// <summary>Allowed issuers for <c>issue</c> tags.</summary>
+    [JsonPropertyName("allowedCertificateIssuers")]
+    public string[]? AllowedCertificateIssuers { get; set; }
+
+    /// <summary>Allowed issuers for <c>issuewild</c> tags.</summary>
+    [JsonPropertyName("allowedWildcardIssuers")]
+    public string[]? AllowedWildcardIssuers { get; set; }
+
+    /// <summary>When true, requires at least one iodef reporting endpoint.</summary>
+    [JsonPropertyName("requireIodef")]
+    public bool? RequireIodef { get; set; }
+
+    /// <summary>Allowed domain suffixes for iodef mailto/http reporting endpoints.</summary>
+    [JsonPropertyName("allowedIodefDomainSuffixes")]
+    public string[]? AllowedIodefDomainSuffixes { get; set; }
+
+    public DesiredStateCaaPolicy Clone() {
+        return new DesiredStateCaaPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireValid = RequireValid,
+            AllowedCertificateIssuers = AllowedCertificateIssuers?.ToArray(),
+            AllowedWildcardIssuers = AllowedWildcardIssuers?.ToArray(),
+            RequireIodef = RequireIodef,
+            AllowedIodefDomainSuffixes = AllowedIodefDomainSuffixes?.ToArray()
+        };
+    }
+
+    public void Apply(DesiredStateCaaPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireValid.HasValue) RequireValid = overlay.RequireValid;
+        if (overlay.AllowedCertificateIssuers != null) AllowedCertificateIssuers = overlay.AllowedCertificateIssuers.ToArray();
+        if (overlay.AllowedWildcardIssuers != null) AllowedWildcardIssuers = overlay.AllowedWildcardIssuers.ToArray();
+        if (overlay.RequireIodef.HasValue) RequireIodef = overlay.RequireIodef;
+        if (overlay.AllowedIodefDomainSuffixes != null) AllowedIodefDomainSuffixes = overlay.AllowedIodefDomainSuffixes.ToArray();
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+        RequireRecord ??= false;
+        RequireValid ??= true;
+        RequireIodef ??= false;
     }
 }
 
