@@ -83,6 +83,18 @@
         },
         "spf": {
           "$ref": "#/$defs/spfPolicy"
+        },
+        "dkim": {
+          "$ref": "#/$defs/dkimPolicy"
+        },
+        "mtasts": {
+          "$ref": "#/$defs/mtastsPolicy"
+        },
+        "tlsrpt": {
+          "$ref": "#/$defs/tlsrptPolicy"
+        },
+        "bimi": {
+          "$ref": "#/$defs/bimiPolicy"
         }
       }
     },
@@ -187,6 +199,164 @@
         }
       }
     },
+    "dkimPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneSelector": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requiredSelectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minKeyBits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowedCnameTargetSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "mtastsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireEnforce": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minMaxAge": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requireMxAligned": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "tlsrptPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidPolicy": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedReportDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "bimiPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireIndicator": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidLocation": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedLocationHostSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireAuthority": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedAuthorityHostSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skipIndicatorDownload": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
     "assessmentSeverity": {
       "type": "string",
       "enum": [
@@ -279,4 +449,3 @@
     }
   }
 }
-

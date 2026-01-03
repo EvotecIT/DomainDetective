@@ -22,7 +22,7 @@ Add a `$schema` field for editor IntelliSense:
   "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
   "version": 1,
   "defaults": {
-    "checks": [ "DMARC", "SPF" ],
+    "checks": [ "DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "BIMI" ],
     "assessmentPolicy": {
       "suppressCodes": [
         "DMARC.Alignment.Mismatch"
@@ -37,6 +37,26 @@ Add a `$schema` field for editor IntelliSense:
     "spf": {
       "allowedAllMechanisms": [ "-all", "~all" ],
       "maxDnsLookups": 10
+    },
+    "dkim": {
+      "requiredSelectors": [ "selector1", "selector2" ],
+      "minKeyBits": 2048,
+      "allowedCnameTargetSuffixes": [ "sendgrid.net" ]
+    },
+    "mtasts": {
+      "requireRecord": true,
+      "requireEnforce": true,
+      "minMaxAge": 86400
+    },
+    "tlsrpt": {
+      "requireRecord": true,
+      "requireValidPolicy": true,
+      "allowedReportDomainSuffixes": [ "tlsrpt.vendor.example" ]
+    },
+    "bimi": {
+      "requireValidLocation": true,
+      "allowedLocationHostSuffixes": [ "cdn.vendor.example" ],
+      "skipIndicatorDownload": true
     }
   },
   "overrides": [
@@ -68,5 +88,9 @@ The initial desired state evaluator covers:
 
 - DMARC: required record, policy allow-list, `rua` required, report-domain suffix allow-list, and external report authorization checks.
 - SPF: required record, `all` mechanism allow-list, DNS lookup threshold, and "deny-all" requirement.
+- DKIM: required selector allow-list, minimum key size, and CNAME target suffix allow-list (vendor-hosted DKIM).
+- MTA-STS: required record, enforce-mode requirement, max_age minimum, and policy MX alignment requirement.
+- TLSRPT: required record, valid-policy requirement, `rua` requirement, and report-domain suffix allow-list.
+- BIMI: optional record requirement, indicator-decline detection, location validity, and location/authority host suffix allow-lists (vendor-hosted BIMI/VMC).
 
 The configuration model is intended to be extended to additional checks over time while preserving schema compatibility (versioned config + typed keys).
