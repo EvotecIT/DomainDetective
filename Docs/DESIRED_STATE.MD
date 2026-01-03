@@ -22,11 +22,36 @@ Add a `$schema` field for editor IntelliSense:
   "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
   "version": 1,
   "defaults": {
-    "checks": [ "DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "BIMI", "MX", "NS", "CAA", "DNSSEC", "SOA", "DANE", "DELEGATION", "ZONETRANSFER", "WILDCARDDNS" ],
+    "checks": [
+      "DMARC",
+      "SPF",
+      "DKIM",
+      "MTASTS",
+      "TLSRPT",
+      "BIMI",
+      "MX",
+      "REVERSEDNS",
+      "FCRDNS",
+      "DNSBL",
+      "NS",
+      "DNSHEALTH",
+      "APEXADDRESS",
+      "RPKI",
+      "EDNSSUPPORT",
+      "DNSOVERTLS",
+      "FLATTENINGSERVICE",
+      "DANGLINGCNAME",
+      "CAA",
+      "DNSSEC",
+      "SOA",
+      "DANE",
+      "DELEGATION",
+      "ZONETRANSFER",
+      "WILDCARDDNS",
+      "TTL"
+    ],
     "assessmentPolicy": {
-      "suppressCodes": [
-        "DMARC.Alignment.Mismatch"
-      ]
+      "suppressCodes": [ "DMARC.Alignment.Mismatch" ]
     },
     "dmarc": {
       "allowedPolicies": [ "reject", "quarantine" ],
@@ -68,9 +93,56 @@ Add a `$schema` field for editor IntelliSense:
       "disallowNullMx": true,
       "allowedHostSuffixes": [ "protection.outlook.com" ]
     },
+    "reverseDns": {
+      "requirePtrPresent": true,
+      "allowedPtrSuffixes": [ "protection.outlook.com" ],
+      "requireForwardConfirmed": true
+    },
+    "fcrDns": {
+      "requireAllForwardConfirmed": true
+    },
+    "dnsbl": {
+      "disallowListings": true,
+      "includeQueryKinds": [ "IpAddressV4", "IpAddressV6" ],
+      "includeIpSources": [ "MxA", "MxAAAA" ]
+    },
     "ns": {
       "requireAtLeastTwo": true,
       "requireDiversity": false
+    },
+    "dnsHealth": {
+      "requireServersResponsive": true,
+      "requireSoaSerialConsistent": true,
+      "requireApexAddressesConsistent": true
+    },
+    "apexAddress": {
+      "disallowPrivateAddresses": true,
+      "disallowLoopbackAddresses": true,
+      "disallowLinkLocalAddresses": true,
+      "disallowMulticastAddresses": true,
+      "disallowDocumentationAddresses": true,
+      "disallowUniqueLocalV6Addresses": true
+    },
+    "rpki": {
+      "disallowInvalid": true,
+      "treatQueryFailuresAsDrift": false
+    },
+    "ednsSupport": {
+      "requireAllServersSupported": true,
+      "maxUdpPayloadSize": 1232,
+      "requireCookieSupport": false
+    },
+    "dnsOverTls": {
+      "requireAnySupported": false,
+      "requireCertificateValid": true,
+      "requireHostnameMatch": true
+    },
+    "flatteningService": {
+      "allowedTargetSuffixes": [ "cloudflare.net" ]
+    },
+    "danglingCname": {
+      "disallowDangling": true,
+      "disallowUnclaimedService": true
     },
     "caa": {
       "requireRecord": true,
@@ -103,6 +175,12 @@ Add a `$schema` field for editor IntelliSense:
     },
     "wildcardDns": {
       "expectedCatchAll": false
+    },
+    "ttl": {
+      "minASeconds": 300,
+      "maxASeconds": 86400,
+      "minDmarcTxtSeconds": 3600,
+      "requireAUniformAcrossNs": true
     }
   },
   "overrides": [
@@ -113,7 +191,8 @@ Add a `$schema` field for editor IntelliSense:
       },
       "profile": {
         "spf": { "requireDenyAll": true },
-        "dmarc": { "requireRua": false }
+        "dmarc": { "requireRua": false },
+        "apexAddress": { "disallowAnyAddress": true }
       }
     }
   ]
@@ -144,8 +223,19 @@ The initial desired state evaluator covers:
 - DNSSEC: valid-chain requirement and optional RRSIG-expiration thresholds.
 - SOA: required record plus optional serial-format and timing range thresholds.
 - DANE: required record (optionally by service), validity requirement, and optional "recommended config" requirements.
+- REVERSEDNS: optional PTR presence/expected-host enforcement, PTR suffix allow-list, and optional forward-confirmation requirements.
+- FCRDNS: optional forward-confirmation requirements for PTR hostnames.
+- DNSBL: optional "no listings" enforcement with ignore lists and query-kind/IP-source filters.
+- DANGLINGCNAME: optional enforcement against dangling CNAMEs and unclaimed-service takeovers.
+- DNSHEALTH: optional enforcement of authoritative SOA serial and apex A/AAAA consistency plus server responsiveness.
+- APEXADDRESS: optional apex A/AAAA requirements, address hygiene constraints (private/loopback/etc.), subnet diversity, and PTR/FCrDNS enforcement.
+- RPKI: optional "no invalid origins" enforcement with ignore lists and optional handling for query failures.
+- EDNSSUPPORT: optional enforcement of EDNS support (version 0), UDP payload thresholds, and DNS Cookies support.
+- DNSOVERTLS: optional enforcement of DoT support on authoritative servers with certificate validity/hostname constraints.
+- FLATTENINGSERVICE: optional enforcement of apex CNAME presence/absence, flattening-service detection, and vendor target suffix allow-list.
 - DELEGATION: require parent/child NS match and glue completeness/consistency.
 - ZONETRANSFER: disallow unauthenticated AXFR on authoritative name servers.
 - WILDCARDDNS: enforce whether wildcard (catch-all) DNS is expected or disallowed.
+- TTL: customizable TTL thresholds and uniformity requirements across authoritative name servers.
 
 The configuration model is intended to be extended to additional checks over time while preserving schema compatibility (versioned config + typed keys).

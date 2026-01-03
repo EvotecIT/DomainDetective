@@ -189,6 +189,45 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public void Evaluate_TtlAOutOfRange_AddsWarning() {
+        var health = new DomainHealthCheck();
+        typeof(DnsTtlAnalysis).GetProperty("ATtls", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DnsTtlAnalysis, new[] { 60 });
+
+        var profile = new DesiredStateProfile {
+            Ttl = new DesiredStateTtlPolicy {
+                MinASeconds = 300
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.TtlAOutOfRange, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_TtlAUniformAcrossNsRequired_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.DnsTtlAnalysis.ServerTtlA["192.0.2.1"] = 300;
+        health.DnsTtlAnalysis.ServerTtlA["192.0.2.2"] = 600;
+
+        var profile = new DesiredStateProfile {
+            Ttl = new DesiredStateTtlPolicy {
+                RequireAUniformAcrossNs = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.TtlAUniformityRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Evaluate_BimiMissingRecord_AddsWarning() {
         var health = new DomainHealthCheck();
 
@@ -247,6 +286,129 @@ public sealed class TestDesiredState {
         Assert.Contains(result.Assessments, a =>
             a.Severity == AssessmentSeverity.Error &&
             string.Equals(a.Code, DesiredStateCodes.MxNullMxNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_ReverseDnsPtrSuffixNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+        var rdns = new ReverseDnsAnalysis.ReverseDnsResult {
+            IpAddress = "192.0.2.1",
+            ExpectedHost = "mx1.protection.outlook.com",
+            PtrRecord = "mail.bad.example",
+            FcrDnsValid = true
+        };
+        rdns.PtrRecords.Add("mail.bad.example");
+        health.ReverseDnsAnalysis.Results.Add(rdns);
+
+        var profile = new DesiredStateProfile {
+            ReverseDns = new DesiredStateReverseDnsPolicy {
+                AllowedPtrSuffixes = new[] { "protection.outlook.com" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.ReverseDnsPtrSuffixNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_FcrDnsForwardMismatch_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.FcrDnsAnalysis.Results.Add(new FCrDnsAnalysis.FCrDnsResult {
+            IpAddress = "192.0.2.1",
+            PtrRecords = new List<string> { "mail.bad.example" },
+            ForwardConfirmed = false
+        });
+
+        var profile = new DesiredStateProfile {
+            FcrDns = new DesiredStateFcrDnsPolicy {
+                RequireAllForwardConfirmed = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.FcrDnsForwardMismatch, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_DnsblListed_AddsError() {
+        var health = new DomainHealthCheck();
+        health.DNSBLAnalysis.AllResults.Add(new DNSBLRecord {
+            IpAddress = "192.0.2.1",
+            IpSource = DnsblIpSource.MxA,
+            SourceHost = "mx1.example.com",
+            QueryKind = DnsblQueryKind.IpAddressV4,
+            BlackList = "dnsbl.bad.example",
+            IsBlackListed = true,
+            Answer = "127.0.0.2",
+            ReplyMeaning = "listed",
+            FQDN = "1.2.0.192.dnsbl.bad.example",
+            Query = "192.0.2.1"
+        });
+
+        var profile = new DesiredStateProfile {
+            Dnsbl = new DesiredStateDnsblPolicy {
+                DisallowListings = true,
+                IncludeQueryKinds = new[] { DnsblQueryKind.IpAddressV4 },
+                IncludeIpSources = new[] { DnsblIpSource.MxA }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DnsblListed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_DanglingCnameUnclaimedService_AddsError() {
+        var health = new DomainHealthCheck();
+        typeof(DanglingCnameAnalysis).GetProperty("CnameRecordExists", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DanglingCnameAnalysis, true);
+        typeof(DanglingCnameAnalysis).GetProperty("TargetResolves", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DanglingCnameAnalysis, false);
+        typeof(DanglingCnameAnalysis).GetProperty("KnownService", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DanglingCnameAnalysis, true);
+        typeof(DanglingCnameAnalysis).GetProperty("Target", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DanglingCnameAnalysis, "example.azurewebsites.net");
+
+        var profile = new DesiredStateProfile {
+            DanglingCname = new DesiredStateDanglingCnamePolicy {
+                DisallowUnclaimedService = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DanglingCnameUnclaimedService, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_DnsHealthSoaSerialInconsistent_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.DnsHealthAnalysis.SoaSerialByServer["192.0.2.1"] = 1;
+        typeof(DnsHealthAnalysis).GetProperty("SoaSerialConsistent", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DnsHealthAnalysis, false);
+
+        var profile = new DesiredStateProfile {
+            DnsHealth = new DesiredStateDnsHealthPolicy {
+                RequireSoaSerialConsistent = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.DnsHealthSoaSerialInconsistent, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -524,5 +686,128 @@ public sealed class TestDesiredState {
         Assert.True(result.Conforms);
         Assert.DoesNotContain(result.Assessments, a => string.Equals(a.Code, "DMARC.Alignment.Mismatch", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Assessments, a => string.Equals(a.Code, "DMARC.Tag.Deprecated", StringComparison.OrdinalIgnoreCase) && a.Severity == AssessmentSeverity.Info);
+    }
+
+    [Fact]
+    public async Task Evaluate_ApexAddressPrivateNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.ApexAddressAnalysis.AnalyzeApexAnswers(
+            new[] { new DnsAnswer { DataRaw = "10.0.0.1", Type = DnsRecordType.A } },
+            Array.Empty<DnsAnswer>());
+
+        var profile = new DesiredStateProfile {
+            ApexAddress = new DesiredStateApexAddressPolicy {
+                DisallowPrivateAddresses = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.ApexAddressPrivateNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_RpkiInvalid_AddsError() {
+        var health = new DomainHealthCheck();
+        health.RpkiAnalysis.QueryDnsOverride = (_, type) => {
+            if (type == DnsRecordType.A) {
+                return Task.FromResult(new[] {
+                    new DnsAnswer { DataRaw = "192.0.2.1", Type = DnsRecordType.A }
+                });
+            }
+            return Task.FromResult(Array.Empty<DnsAnswer>());
+        };
+        health.RpkiAnalysis.QueryRpkiOverride = _ => Task.FromResult(("192.0.2.0/24", 64500, false));
+
+        await health.VerifyRPKI("example.com");
+
+        var profile = new DesiredStateProfile {
+            Rpki = new DesiredStateRpkiPolicy {
+                DisallowInvalid = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.RpkiInvalid, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_EdnsNotSupported_AddsError() {
+        var health = new DomainHealthCheck();
+        health.EdnsSupportAnalysis.ServerSupport["ns1.provider.example (192.0.2.1)"] = new EdnsSupportInfo {
+            Supported = false,
+            UdpPayloadSize = 0,
+            DoBit = false,
+            TruncatedUdp = false,
+            Version = 0,
+            CookieSupported = false,
+            CookieLength = 0
+        };
+
+        var profile = new DesiredStateProfile {
+            EdnsSupport = new DesiredStateEdnsSupportPolicy {
+                RequireAllServersSupported = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.EdnsNotSupported, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_DnsOverTlsAnySupportedRequired_AddsError() {
+        var health = new DomainHealthCheck();
+        health.DnsOverTlsAnalysis.ServerResults["ns1.provider.example (192.0.2.1)"] = new DnsOverTlsEndpointResult {
+            NameServerHost = "ns1.provider.example",
+            ServerIp = "192.0.2.1",
+            Port = 853,
+            Supported = false,
+            Error = "refused"
+        };
+
+        var profile = new DesiredStateProfile {
+            DnsOverTls = new DesiredStateDnsOverTlsPolicy {
+                RequireAnySupported = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DnsOverTlsAnySupportedRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_FlatteningServiceTargetSuffixMismatch_AddsError() {
+        var health = new DomainHealthCheck();
+        typeof(FlatteningServiceAnalysis).GetProperty("CnameRecordExists", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.FlatteningServiceAnalysis, true);
+        typeof(FlatteningServiceAnalysis).GetProperty("Target", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.FlatteningServiceAnalysis, "edge.bad.example");
+
+        var profile = new DesiredStateProfile {
+            FlatteningService = new DesiredStateFlatteningServicePolicy {
+                AllowedTargetSuffixes = new[] { "cloudflare.net" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.FlatteningServiceTargetNotAllowed, StringComparison.OrdinalIgnoreCase));
     }
 }

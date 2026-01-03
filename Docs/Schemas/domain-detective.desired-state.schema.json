@@ -99,8 +99,17 @@
         "mx": {
           "$ref": "#/$defs/mxPolicy"
         },
+        "reverseDns": {
+          "$ref": "#/$defs/reverseDnsPolicy"
+        },
+        "fcrDns": {
+          "$ref": "#/$defs/fcrDnsPolicy"
+        },
         "ns": {
           "$ref": "#/$defs/nsPolicy"
+        },
+        "danglingCname": {
+          "$ref": "#/$defs/danglingCnamePolicy"
         },
         "caa": {
           "$ref": "#/$defs/caaPolicy"
@@ -114,6 +123,27 @@
         "dane": {
           "$ref": "#/$defs/danePolicy"
         },
+        "dnsbl": {
+          "$ref": "#/$defs/dnsblPolicy"
+        },
+        "dnsHealth": {
+          "$ref": "#/$defs/dnsHealthPolicy"
+        },
+        "apexAddress": {
+          "$ref": "#/$defs/apexAddressPolicy"
+        },
+        "rpki": {
+          "$ref": "#/$defs/rpkiPolicy"
+        },
+        "ednsSupport": {
+          "$ref": "#/$defs/ednsSupportPolicy"
+        },
+        "dnsOverTls": {
+          "$ref": "#/$defs/dnsOverTlsPolicy"
+        },
+        "flatteningService": {
+          "$ref": "#/$defs/flatteningServicePolicy"
+        },
         "delegation": {
           "$ref": "#/$defs/delegationPolicy"
         },
@@ -122,6 +152,9 @@
         },
         "wildcardDns": {
           "$ref": "#/$defs/wildcardDnsPolicy"
+        },
+        "ttl": {
+          "$ref": "#/$defs/ttlPolicy"
         }
       }
     },
@@ -559,6 +592,72 @@
         }
       }
     },
+    "reverseDnsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePtrPresent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePtrMatchesExpectedHost": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedPtrSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireForwardConfirmed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "fcrDnsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllForwardConfirmed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
     "nsPolicy": {
       "type": "object",
       "additionalProperties": false,
@@ -614,6 +713,30 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "danglingCnamePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDangling": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnclaimedService": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         }
       }
     },
@@ -791,6 +914,345 @@
         }
       }
     },
+    "dnsblPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowListings": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ignoredBlacklists": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "includeQueryKinds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dnsblQueryKind"
+          }
+        },
+        "includeIpSources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/dnsblIpSource"
+          }
+        }
+      }
+    },
+    "dnsHealthPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireServersResponsive": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSoaSerialConsistent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireApexAddressesConsistent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "apexAddressPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAnyAddress": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowAnyAddress": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowPrivateAddresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowLoopbackAddresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowLinkLocalAddresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowMulticastAddresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDocumentationAddresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUniqueLocalV6Addresses": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minDistinctSubnetCountV4": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "minDistinctSubnetCountV6": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "requireAllPtrPresent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllFcrDnsValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "rpkiPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowInvalid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "treatQueryFailuresAsDrift": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ignoredIpAddresses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignoredPrefixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ignoredAsns": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "ednsSupportPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllServersSupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxUdpPayloadSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "requireVersionZero": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireCookieSupport": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "dnsOverTlsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAnySupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllSupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireCertificateValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireHostnameMatch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "flatteningServicePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireCnameRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowCnameRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireFlatteningService": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowFlatteningService": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedTargetSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "delegationPolicy": {
       "type": "object",
       "additionalProperties": false,
@@ -857,6 +1319,140 @@
         }
       }
     },
+    "ttlPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minASeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxASeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minAaaaSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxAaaaSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minMxSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxMxSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minNsSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxNsSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minSoaSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxSoaSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minSpfTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxSpfTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minDmarcTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxDmarcTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minDkimSelectorTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxDkimSelectorTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minMtastsTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxMtastsTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minTlsRptTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxTlsRptTxtSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requireAUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAaaaUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireNsUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireCnameUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSpfTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireDmarcTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireDkimTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
     "serviceType": {
       "type": "string",
       "enum": [
@@ -880,6 +1476,26 @@
         "SendingOnly",
         "Parked",
         "Unknown"
+      ]
+    },
+    "dnsblQueryKind": {
+      "type": "string",
+      "enum": [
+        "Domain",
+        "IpAddress",
+        "IpAddressV4",
+        "IpAddressV6"
+      ]
+    },
+    "dnsblIpSource": {
+      "type": "string",
+      "enum": [
+        "UserProvided",
+        "ApexA",
+        "ApexAAAA",
+        "MxA",
+        "MxAAAA",
+        "Domain"
       ]
     },
     "healthCheckType": {
