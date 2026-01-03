@@ -45,6 +45,8 @@ public static class CompositionBuilder
 	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
 	        public DomainDetective.Views.HttpInfo? Http { get; set; }
 	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+	        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+	        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
 	        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
 	    }
 
@@ -124,10 +126,90 @@ public static class CompositionBuilder
                 }
                 case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
 	                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
-	                case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject): Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
-	                case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject): Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
-	                case DomainDetective.Views.DnsTraceInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].DnsTrace = tr; break;
-	                case DomainDetective.Views.CtTimelineInfo ct when !string.IsNullOrWhiteSpace(ct.Subject): Ensure(ct.Subject); map[ct.Subject].CtTimeline = ct; break;
+	                case DomainDetective.Views.SubdomainsInfo sub:
+	                {
+	                    var subject = sub.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].Subdomains = sub;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsInventoryInfo inv:
+	                {
+	                    var subject = inv.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsInventory = inv;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsAmplificationSummary amp:
+	                {
+	                    var subject = amp.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsAmplification = amp;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsOverTlsSummary dot:
+	                {
+	                    var subject = dot.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsOverTls = dot;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsTraceInfo tr:
+	                {
+	                    var subject = tr.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsTrace = tr;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.CtTimelineInfo ct:
+	                {
+	                    var subject = ct.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].CtTimeline = ct;
+	                        }
+	                    }
+	                    break;
+	                }
 	                case DomainDetective.Views.HttpInfo http when !string.IsNullOrWhiteSpace(http.Url) || !string.IsNullOrWhiteSpace(http.Subject):
 	                {
 	                    var raw = !string.IsNullOrWhiteSpace(http.Subject) ? http.Subject : http.Url;
@@ -162,8 +244,16 @@ public static class CompositionBuilder
 
     private static string? NormalizeHttpSubject(string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (raw == null)
+        {
+            return null;
+        }
+
         var s = raw.Trim();
+        if (s.Length == 0)
+        {
+            return null;
+        }
         try
         {
             if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
