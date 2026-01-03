@@ -5,7 +5,7 @@ using DomainDetective.Definitions;
 
 namespace DomainDetective.DesiredState;
 
-public static class DesiredStateEvaluator {
+public static partial class DesiredStateEvaluator {
     public static DesiredStateAnalysis Evaluate(string domain, DomainHealthCheck health, DesiredStateProfile profile, MailDomainClassificationCategory? classification = null) {
         if (string.IsNullOrWhiteSpace(domain)) {
             throw new ArgumentNullException(nameof(domain));
@@ -43,14 +43,25 @@ public static class DesiredStateEvaluator {
         EvaluateTlsRpt(domain, health.TLSRPTAnalysis, profile.TlsRpt, result);
         EvaluateBimi(domain, health.BimiAnalysis, profile.Bimi, result);
         EvaluateMx(domain, health.MXAnalysis, profile.Mx, result);
+        EvaluateReverseDns(domain, health.ReverseDnsAnalysis, profile.ReverseDns, result);
+        EvaluateFcrDns(domain, health.FcrDnsAnalysis, profile.FcrDns, result);
         EvaluateNs(domain, health.NSAnalysis, profile.Ns, result);
+        EvaluateDanglingCname(domain, health.DanglingCnameAnalysis, profile.DanglingCname, result);
         EvaluateCaa(domain, health.CAAAnalysis, profile.Caa, result);
         EvaluateDnssec(domain, health.DnsSecAnalysis, profile.DnsSec, result);
         EvaluateSoa(domain, health.SOAAnalysis, profile.Soa, result);
         EvaluateDane(domain, health.DaneAnalysis, profile.Dane, result);
+        EvaluateDnsbl(domain, health.DNSBLAnalysis, profile.Dnsbl, result);
+        EvaluateDnsHealth(domain, health.DnsHealthAnalysis, profile.DnsHealth, result);
+        EvaluateApexAddress(domain, health.ApexAddressAnalysis, profile.ApexAddress, result);
+        EvaluateRpki(domain, health.RpkiAnalysis, profile.Rpki, result);
+        EvaluateEdnsSupport(domain, health.EdnsSupportAnalysis, profile.EdnsSupport, result);
+        EvaluateDnsOverTls(domain, health.DnsOverTlsAnalysis, profile.DnsOverTls, result);
+        EvaluateFlatteningService(domain, health.FlatteningServiceAnalysis, profile.FlatteningService, result);
         EvaluateDelegation(domain, health.NSAnalysis, profile.Delegation, result);
         EvaluateZoneTransfer(domain, health.ZoneTransferAnalysis, profile.ZoneTransfer, result);
         EvaluateWildcardDns(domain, health.WildcardDnsAnalysis, profile.WildcardDns, result);
+        EvaluateTtl(domain, health.DnsTtlAnalysis, profile.Ttl, result);
 
         // Apply policy so users can suppress/override DesiredState.* codes as well.
         try {
@@ -1039,6 +1050,130 @@ public static class DesiredStateEvaluator {
         }
     }
 
+    private static void EvaluateReverseDns(string domain, ReverseDnsAnalysis reverseDns, DesiredStateReverseDnsPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        var hasConstraints =
+            desired.RequirePtrPresent == true ||
+            desired.RequirePtrMatchesExpectedHost == true ||
+            desired.RequireForwardConfirmed == true ||
+            (desired.AllowedPtrSuffixes != null && desired.AllowedPtrSuffixes.Length > 0);
+
+        var requireAtLeastOne = desired.RequireAtLeastOneResult == true || hasConstraints;
+        var results = reverseDns?.Results;
+        if (results == null || results.Count == 0) {
+            if (requireAtLeastOne) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.ReverseDnsNoResults,
+                    Message = "Desired state requires reverse DNS results to be analyzed, but none were produced."
+                });
+            }
+            return;
+        }
+
+        var suffixes = desired.AllowedPtrSuffixes != null && desired.AllowedPtrSuffixes.Length > 0
+            ? desired.AllowedPtrSuffixes
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim().Trim('.'))
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+            : Array.Empty<string>();
+
+        foreach (var res in results) {
+            if (res == null) continue;
+
+            var ip = res.IpAddress?.Trim() ?? string.Empty;
+            var expected = (res.ExpectedHost ?? string.Empty).Trim().Trim('.').ToLowerInvariant();
+            var ptrs = res.PtrRecords ?? new List<string>();
+
+            if (desired.RequirePtrPresent == true && ptrs.Count == 0) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.ReverseDnsPtrMissing,
+                    Message = $"Desired state requires PTR records for IP '{ip}', but none were found."
+                });
+            }
+
+            if (desired.RequirePtrMatchesExpectedHost == true) {
+                var match = expected.Length > 0 && ptrs.Any(p => string.Equals((p ?? string.Empty).Trim().Trim('.'), expected, StringComparison.OrdinalIgnoreCase));
+                if (!match) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Warning,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.ReverseDnsPtrExpectedMismatch,
+                        Message = $"Desired state requires PTR to match expected host '{expected}' for IP '{ip}', but it did not."
+                    });
+                }
+            }
+
+            if (suffixes.Length > 0 && ptrs.Count > 0) {
+                var ok = ptrs.Any(p => suffixes.Any(s => (p ?? string.Empty).Trim().Trim('.').EndsWith(s, StringComparison.OrdinalIgnoreCase)));
+                if (!ok) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Warning,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.ReverseDnsPtrSuffixNotAllowed,
+                        Message = $"Desired state requires PTR hostnames for IP '{ip}' to end with [{string.Join(", ", suffixes)}], but none matched."
+                    });
+                }
+            }
+
+            if (desired.RequireForwardConfirmed == true && !res.FcrDnsValid) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.ReverseDnsForwardNotConfirmed,
+                    Message = $"Desired state requires forward-confirmed reverse DNS (FCrDNS) for IP '{ip}', but it was not confirmed."
+                });
+            }
+        }
+    }
+
+    private static void EvaluateFcrDns(string domain, FCrDnsAnalysis fcrDns, DesiredStateFcrDnsPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        var hasConstraints = desired.RequireAllForwardConfirmed == true;
+        var requireAtLeastOne = desired.RequireAtLeastOneResult == true || hasConstraints;
+        var results = fcrDns?.Results;
+        if (results == null || results.Count == 0) {
+            if (requireAtLeastOne) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.FcrDnsNoResults,
+                    Message = "Desired state requires FCrDNS results to be analyzed, but none were produced."
+                });
+            }
+            return;
+        }
+
+        if (desired.RequireAllForwardConfirmed == true) {
+            foreach (var res in results) {
+                if (res == null) continue;
+                if (res.ForwardConfirmed) continue;
+
+                var ip = res.IpAddress?.Trim() ?? string.Empty;
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.FcrDnsForwardMismatch,
+                    Message = $"Desired state requires forward-confirmed reverse DNS (FCrDNS) for IP '{ip}', but it was not confirmed."
+                });
+            }
+        }
+    }
+
     private static void EvaluateNs(string domain, NSAnalysis ns, DesiredStateNsPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) return;
 
@@ -1146,6 +1281,31 @@ public static class DesiredStateEvaluator {
                     }
                 }
             }
+        }
+    }
+
+    private static void EvaluateDanglingCname(string domain, DanglingCnameAnalysis cname, DesiredStateDanglingCnamePolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        if (desired.DisallowUnclaimedService == true && cname.UnclaimedService) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DanglingCnameUnclaimedService,
+                Message = $"Desired state does not allow unclaimed-service dangling CNAMEs, but '{(cname.Target ?? string.Empty)}' does not resolve."
+            });
+            return;
+        }
+
+        if (desired.DisallowDangling == true && cname.IsDangling) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DanglingCnameDangling,
+                Message = $"Desired state does not allow dangling CNAMEs, but '{(cname.Target ?? string.Empty)}' does not resolve."
+            });
         }
     }
 
@@ -1484,6 +1644,143 @@ public static class DesiredStateEvaluator {
         }
     }
 
+    private static void EvaluateDnsbl(string domain, DNSBLAnalysis dnsbl, DesiredStateDnsblPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) {
+            return;
+        }
+
+        if (dnsbl == null) {
+            return;
+        }
+
+        var records = dnsbl.AllResults ?? new List<DNSBLRecord>();
+        if (desired.RequireAtLeastOneResult == true && records.Count == 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsblNoResults,
+                Message = "Desired state requires DNSBL results to be analyzed, but none were produced."
+            });
+            return;
+        }
+
+        if (desired.DisallowListings != true) {
+            return;
+        }
+
+        if (records.Count == 0) {
+            return;
+        }
+
+        var ignored = desired.IgnoredBlacklists != null && desired.IgnoredBlacklists.Length > 0
+            ? new HashSet<string>(
+                desired.IgnoredBlacklists
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Select(s => s.Trim().Trim('.')),
+                StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        HashSet<DnsblQueryKind>? includeKinds = null;
+        if (desired.IncludeQueryKinds != null && desired.IncludeQueryKinds.Length > 0) {
+            includeKinds = new HashSet<DnsblQueryKind>(desired.IncludeQueryKinds.Distinct());
+        }
+
+        HashSet<DnsblIpSource>? includeSources = null;
+        if (desired.IncludeIpSources != null && desired.IncludeIpSources.Length > 0) {
+            includeSources = new HashSet<DnsblIpSource>(desired.IncludeIpSources.Distinct());
+        }
+
+        foreach (var r in records) {
+            if (r == null) continue;
+            if (!r.IsBlackListed) continue;
+
+            var blacklist = (r.BlackList ?? string.Empty).Trim().Trim('.');
+            if (blacklist.Length == 0) continue;
+
+            if (ignored.Count > 0 && ignored.Contains(blacklist)) {
+                continue;
+            }
+
+            if (includeKinds != null && includeKinds.Count > 0 && !includeKinds.Contains(r.QueryKind)) {
+                continue;
+            }
+
+            if (includeSources != null && includeSources.Count > 0 && r.IpSource.HasValue && !includeSources.Contains(r.IpSource.Value)) {
+                continue;
+            }
+
+            var subject = r.IpAddress ?? r.SourceHost ?? r.Query ?? domain;
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsblListed,
+                Message = $"Desired state does not allow DNSBL listings, but '{subject}' is listed on '{blacklist}'."
+            });
+        }
+    }
+
+    private static void EvaluateDnsHealth(string domain, DnsHealthAnalysis dnsHealth, DesiredStateDnsHealthPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) {
+            return;
+        }
+
+        if (dnsHealth == null) {
+            return;
+        }
+
+        var hasConstraints =
+            desired.RequireServersResponsive == true ||
+            desired.RequireSoaSerialConsistent == true ||
+            desired.RequireApexAddressesConsistent == true;
+
+        var requireAtLeastOne = desired.RequireAtLeastOneResult == true || hasConstraints;
+        var hasResults = (dnsHealth.SoaSerialByServer != null && dnsHealth.SoaSerialByServer.Count > 0) ||
+            (dnsHealth.ApexAddressesByServer != null && dnsHealth.ApexAddressesByServer.Count > 0);
+
+        if (requireAtLeastOne && !hasResults) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsHealthNoResults,
+                Message = "Desired state requires DNS health results to be analyzed, but none were produced."
+            });
+            return;
+        }
+
+        if (desired.RequireServersResponsive == true && !dnsHealth.ServersResponsive) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsHealthServersUnresponsive,
+                Message = "Desired state requires all authoritative servers to respond to DNS health queries, but some did not."
+            });
+        }
+
+        if (desired.RequireSoaSerialConsistent == true && !dnsHealth.SoaSerialConsistent) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsHealthSoaSerialInconsistent,
+                Message = "Desired state requires SOA serial to be consistent across authoritative servers, but it differed."
+            });
+        }
+
+        if (desired.RequireApexAddressesConsistent == true && !dnsHealth.ApexAddressesConsistent) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DnsHealthApexInconsistent,
+                Message = "Desired state requires apex A/AAAA answers to be consistent across authoritative servers, but they differed."
+            });
+        }
+    }
+
     private static void EvaluateDelegation(string domain, NSAnalysis ns, DesiredStateDelegationPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) {
             return;
@@ -1577,6 +1874,148 @@ public static class DesiredStateEvaluator {
                 Message = "Desired state disallows wildcard DNS (catch-all), but it was detected."
             });
         }
+    }
+
+    private static void EvaluateTtl(string domain, DnsTtlAnalysis ttl, DesiredStateTtlPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) {
+            return;
+        }
+
+        AddTtlRangeAssessments(domain, sink, "A", ttl.ATtls, desired.MinASeconds, desired.MaxASeconds, DesiredStateCodes.TtlAOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "AAAA", ttl.AaaaTtls, desired.MinAaaaSeconds, desired.MaxAaaaSeconds, DesiredStateCodes.TtlAaaaOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "MX", ttl.MxTtls, desired.MinMxSeconds, desired.MaxMxSeconds, DesiredStateCodes.TtlMxOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "NS", ttl.NsTtls, desired.MinNsSeconds, desired.MaxNsSeconds, DesiredStateCodes.TtlNsOutOfRange);
+        AddTtlRangeAssessment(domain, sink, "SOA", ttl.SoaTtl, desired.MinSoaSeconds, desired.MaxSoaSeconds, DesiredStateCodes.TtlSoaOutOfRange);
+
+        AddTtlRangeAssessments(domain, sink, "TXT(SPF)", ttl.SpfTxtTtls, desired.MinSpfTxtSeconds, desired.MaxSpfTxtSeconds, DesiredStateCodes.TtlSpfTxtOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "TXT(DMARC)", ttl.DmarcTxtTtls, desired.MinDmarcTxtSeconds, desired.MaxDmarcTxtSeconds, DesiredStateCodes.TtlDmarcTxtOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "TXT(MTA-STS)", ttl.MtastsTxtTtls, desired.MinMtastsTxtSeconds, desired.MaxMtastsTxtSeconds, DesiredStateCodes.TtlMtastsTxtOutOfRange);
+        AddTtlRangeAssessments(domain, sink, "TXT(TLS-RPT)", ttl.TlsRptTxtTtls, desired.MinTlsRptTxtSeconds, desired.MaxTlsRptTxtSeconds, DesiredStateCodes.TtlTlsRptTxtOutOfRange);
+
+        if (desired.MinDkimSelectorTxtSeconds.HasValue || desired.MaxDkimSelectorTxtSeconds.HasValue) {
+            if (ttl.DkimTxtTtls != null && ttl.DkimTxtTtls.Count > 0) {
+                foreach (var kvp in ttl.DkimTxtTtls) {
+                    AddTtlRangeAssessments(domain, sink, $"TXT(DKIM:{kvp.Key})", kvp.Value, desired.MinDkimSelectorTxtSeconds, desired.MaxDkimSelectorTxtSeconds, DesiredStateCodes.TtlDkimTxtOutOfRange);
+                }
+            }
+        }
+
+        if (desired.RequireAUniformAcrossNs == true && !IsUniform(ttl.ServerTtlA)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlAUniformityRequired,
+                Message = "Desired state requires A TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireAaaaUniformAcrossNs == true && !IsUniform(ttl.ServerTtlAaaa)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlAaaaUniformityRequired,
+                Message = "Desired state requires AAAA TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireNsUniformAcrossNs == true && !IsUniform(ttl.ServerTtlNs)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlNsUniformityRequired,
+                Message = "Desired state requires NS TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireCnameUniformAcrossNs == true && !IsUniform(ttl.ServerTtlCname)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlCnameUniformityRequired,
+                Message = "Desired state requires CNAME TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireSpfTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtSpf)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlSpfTxtUniformityRequired,
+                Message = "Desired state requires SPF TXT TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireDmarcTxtUniformAcrossNs == true && !IsUniform(ttl.ServerTtlTxtDmarc)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TtlDmarcTxtUniformityRequired,
+                Message = "Desired state requires DMARC TXT TTL to be uniform across authoritative name servers, but it was not uniform."
+            });
+        }
+
+        if (desired.RequireDkimTxtUniformAcrossNs == true && ttl.ServerTtlTxtPerName != null && ttl.ServerTtlTxtPerName.Count > 0) {
+            foreach (var kvp in ttl.ServerTtlTxtPerName) {
+                if (!IsUniform(kvp.Value)) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Warning,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.TtlDkimTxtUniformityRequired,
+                        Message = $"Desired state requires DKIM TXT TTL to be uniform across authoritative name servers for {kvp.Key}, but it was not uniform."
+                    });
+                }
+            }
+        }
+    }
+
+    private static void AddTtlRangeAssessment(string domain, DesiredStateAnalysis sink, string recordType, int ttlSeconds, int? minSeconds, int? maxSeconds, string code) {
+        if (ttlSeconds <= 0) {
+            return;
+        }
+        AddTtlRangeAssessments(domain, sink, recordType, new[] { ttlSeconds }, minSeconds, maxSeconds, code);
+    }
+
+    private static void AddTtlRangeAssessments(string domain, DesiredStateAnalysis sink, string recordType, IEnumerable<int> ttlSeconds, int? minSeconds, int? maxSeconds, string code) {
+        if (!minSeconds.HasValue && !maxSeconds.HasValue) {
+            return;
+        }
+
+        var values = (ttlSeconds ?? Array.Empty<int>()).Where(t => t > 0).ToArray();
+        if (values.Length == 0) {
+            return;
+        }
+
+        var below = minSeconds.HasValue ? values.Where(t => t < minSeconds.Value).ToArray() : Array.Empty<int>();
+        var above = maxSeconds.HasValue ? values.Where(t => t > maxSeconds.Value).ToArray() : Array.Empty<int>();
+        if (below.Length == 0 && above.Length == 0) {
+            return;
+        }
+
+        var range = $"{(minSeconds.HasValue ? minSeconds.Value.ToString() : "-inf")}..{(maxSeconds.HasValue ? maxSeconds.Value.ToString() : "+inf")}";
+        var actual = $"{values.Min()}..{values.Max()}";
+        sink.Assessments.Add(new Assessment {
+            Severity = AssessmentSeverity.Warning,
+            Category = "DesiredState",
+            Target = domain,
+            Code = code,
+            Message = $"Desired state requires TTL for {recordType} within {range} seconds, but observed {actual} seconds."
+        });
+    }
+
+    private static bool IsUniform(Dictionary<string, int?>? map) {
+        if (map == null || map.Count == 0) {
+            return true;
+        }
+
+        var distinct = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
+        return distinct.Length <= 1;
     }
 
     private static IEnumerable<string> EnumerateCaaReportDomains(CAAAnalysis caa) {

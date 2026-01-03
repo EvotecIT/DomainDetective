@@ -85,14 +85,25 @@ public sealed class DesiredStateConfiguration {
         if (profile.TlsRpt != null && profile.TlsRpt.Enabled != false) set.Add(HealthCheckType.TLSRPT);
         if (profile.Bimi != null && profile.Bimi.Enabled != false) set.Add(HealthCheckType.BIMI);
         if (profile.Mx != null && profile.Mx.Enabled != false) set.Add(HealthCheckType.MX);
+        if (profile.ReverseDns != null && profile.ReverseDns.Enabled != false) set.Add(HealthCheckType.REVERSEDNS);
+        if (profile.FcrDns != null && profile.FcrDns.Enabled != false) set.Add(HealthCheckType.FCRDNS);
         if (profile.Ns != null && profile.Ns.Enabled != false) set.Add(HealthCheckType.NS);
+        if (profile.DanglingCname != null && profile.DanglingCname.Enabled != false) set.Add(HealthCheckType.DANGLINGCNAME);
         if (profile.Caa != null && profile.Caa.Enabled != false) set.Add(HealthCheckType.CAA);
         if (profile.DnsSec != null && profile.DnsSec.Enabled != false) set.Add(HealthCheckType.DNSSEC);
         if (profile.Soa != null && profile.Soa.Enabled != false) set.Add(HealthCheckType.SOA);
         if (profile.Dane != null && profile.Dane.Enabled != false) set.Add(HealthCheckType.DANE);
+        if (profile.Dnsbl != null && profile.Dnsbl.Enabled != false) set.Add(HealthCheckType.DNSBL);
+        if (profile.DnsHealth != null && profile.DnsHealth.Enabled != false) set.Add(HealthCheckType.DNSHEALTH);
+        if (profile.ApexAddress != null && profile.ApexAddress.Enabled != false) set.Add(HealthCheckType.APEXADDRESS);
+        if (profile.Rpki != null && profile.Rpki.Enabled != false) set.Add(HealthCheckType.RPKI);
+        if (profile.EdnsSupport != null && profile.EdnsSupport.Enabled != false) set.Add(HealthCheckType.EDNSSUPPORT);
+        if (profile.DnsOverTls != null && profile.DnsOverTls.Enabled != false) set.Add(HealthCheckType.DNSOVERTLS);
+        if (profile.FlatteningService != null && profile.FlatteningService.Enabled != false) set.Add(HealthCheckType.FLATTENINGSERVICE);
         if (profile.Delegation != null && profile.Delegation.Enabled != false) set.Add(HealthCheckType.DELEGATION);
         if (profile.ZoneTransfer != null && profile.ZoneTransfer.Enabled != false) set.Add(HealthCheckType.ZONETRANSFER);
         if (profile.WildcardDns != null && profile.WildcardDns.Enabled != false) set.Add(HealthCheckType.WILDCARDDNS);
+        if (profile.Ttl != null && profile.Ttl.Enabled != false) set.Add(HealthCheckType.TTL);
 
         return set.ToArray();
     }
@@ -162,8 +173,17 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("mx")]
     public DesiredStateMxPolicy? Mx { get; set; }
 
+    [JsonPropertyName("reverseDns")]
+    public DesiredStateReverseDnsPolicy? ReverseDns { get; set; }
+
+    [JsonPropertyName("fcrDns")]
+    public DesiredStateFcrDnsPolicy? FcrDns { get; set; }
+
     [JsonPropertyName("ns")]
     public DesiredStateNsPolicy? Ns { get; set; }
+
+    [JsonPropertyName("danglingCname")]
+    public DesiredStateDanglingCnamePolicy? DanglingCname { get; set; }
 
     [JsonPropertyName("caa")]
     public DesiredStateCaaPolicy? Caa { get; set; }
@@ -177,6 +197,27 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("dane")]
     public DesiredStateDanePolicy? Dane { get; set; }
 
+    [JsonPropertyName("dnsbl")]
+    public DesiredStateDnsblPolicy? Dnsbl { get; set; }
+
+    [JsonPropertyName("dnsHealth")]
+    public DesiredStateDnsHealthPolicy? DnsHealth { get; set; }
+
+    [JsonPropertyName("apexAddress")]
+    public DesiredStateApexAddressPolicy? ApexAddress { get; set; }
+
+    [JsonPropertyName("rpki")]
+    public DesiredStateRpkiPolicy? Rpki { get; set; }
+
+    [JsonPropertyName("ednsSupport")]
+    public DesiredStateEdnsSupportPolicy? EdnsSupport { get; set; }
+
+    [JsonPropertyName("dnsOverTls")]
+    public DesiredStateDnsOverTlsPolicy? DnsOverTls { get; set; }
+
+    [JsonPropertyName("flatteningService")]
+    public DesiredStateFlatteningServicePolicy? FlatteningService { get; set; }
+
     [JsonPropertyName("delegation")]
     public DesiredStateDelegationPolicy? Delegation { get; set; }
 
@@ -185,6 +226,9 @@ public sealed class DesiredStateProfile {
 
     [JsonPropertyName("wildcardDns")]
     public DesiredStateWildcardDnsPolicy? WildcardDns { get; set; }
+
+    [JsonPropertyName("ttl")]
+    public DesiredStateTtlPolicy? Ttl { get; set; }
 
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
@@ -197,14 +241,25 @@ public sealed class DesiredStateProfile {
             TlsRpt = TlsRpt?.Clone(),
             Bimi = Bimi?.Clone(),
             Mx = Mx?.Clone(),
+            ReverseDns = ReverseDns?.Clone(),
+            FcrDns = FcrDns?.Clone(),
             Ns = Ns?.Clone(),
+            DanglingCname = DanglingCname?.Clone(),
             Caa = Caa?.Clone(),
             DnsSec = DnsSec?.Clone(),
             Soa = Soa?.Clone(),
             Dane = Dane?.Clone(),
+            Dnsbl = Dnsbl?.Clone(),
+            DnsHealth = DnsHealth?.Clone(),
+            ApexAddress = ApexAddress?.Clone(),
+            Rpki = Rpki?.Clone(),
+            EdnsSupport = EdnsSupport?.Clone(),
+            DnsOverTls = DnsOverTls?.Clone(),
+            FlatteningService = FlatteningService?.Clone(),
             Delegation = Delegation?.Clone(),
             ZoneTransfer = ZoneTransfer?.Clone(),
-            WildcardDns = WildcardDns?.Clone()
+            WildcardDns = WildcardDns?.Clone(),
+            Ttl = Ttl?.Clone()
         };
     }
 
@@ -255,9 +310,24 @@ public sealed class DesiredStateProfile {
             Mx.Apply(overlay.Mx);
         }
 
+        if (overlay.ReverseDns != null) {
+            ReverseDns ??= new DesiredStateReverseDnsPolicy();
+            ReverseDns.Apply(overlay.ReverseDns);
+        }
+
+        if (overlay.FcrDns != null) {
+            FcrDns ??= new DesiredStateFcrDnsPolicy();
+            FcrDns.Apply(overlay.FcrDns);
+        }
+
         if (overlay.Ns != null) {
             Ns ??= new DesiredStateNsPolicy();
             Ns.Apply(overlay.Ns);
+        }
+
+        if (overlay.DanglingCname != null) {
+            DanglingCname ??= new DesiredStateDanglingCnamePolicy();
+            DanglingCname.Apply(overlay.DanglingCname);
         }
 
         if (overlay.Caa != null) {
@@ -280,6 +350,41 @@ public sealed class DesiredStateProfile {
             Dane.Apply(overlay.Dane);
         }
 
+        if (overlay.Dnsbl != null) {
+            Dnsbl ??= new DesiredStateDnsblPolicy();
+            Dnsbl.Apply(overlay.Dnsbl);
+        }
+
+        if (overlay.DnsHealth != null) {
+            DnsHealth ??= new DesiredStateDnsHealthPolicy();
+            DnsHealth.Apply(overlay.DnsHealth);
+        }
+
+        if (overlay.ApexAddress != null) {
+            ApexAddress ??= new DesiredStateApexAddressPolicy();
+            ApexAddress.Apply(overlay.ApexAddress);
+        }
+
+        if (overlay.Rpki != null) {
+            Rpki ??= new DesiredStateRpkiPolicy();
+            Rpki.Apply(overlay.Rpki);
+        }
+
+        if (overlay.EdnsSupport != null) {
+            EdnsSupport ??= new DesiredStateEdnsSupportPolicy();
+            EdnsSupport.Apply(overlay.EdnsSupport);
+        }
+
+        if (overlay.DnsOverTls != null) {
+            DnsOverTls ??= new DesiredStateDnsOverTlsPolicy();
+            DnsOverTls.Apply(overlay.DnsOverTls);
+        }
+
+        if (overlay.FlatteningService != null) {
+            FlatteningService ??= new DesiredStateFlatteningServicePolicy();
+            FlatteningService.Apply(overlay.FlatteningService);
+        }
+
         if (overlay.Delegation != null) {
             Delegation ??= new DesiredStateDelegationPolicy();
             Delegation.Apply(overlay.Delegation);
@@ -294,6 +399,11 @@ public sealed class DesiredStateProfile {
             WildcardDns ??= new DesiredStateWildcardDnsPolicy();
             WildcardDns.Apply(overlay.WildcardDns);
         }
+
+        if (overlay.Ttl != null) {
+            Ttl ??= new DesiredStateTtlPolicy();
+            Ttl.Apply(overlay.Ttl);
+        }
     }
 
     public void Normalize() {
@@ -304,14 +414,25 @@ public sealed class DesiredStateProfile {
         TlsRpt?.NormalizeDefaults();
         Bimi?.NormalizeDefaults();
         Mx?.NormalizeDefaults();
+        ReverseDns?.NormalizeDefaults();
+        FcrDns?.NormalizeDefaults();
         Ns?.NormalizeDefaults();
+        DanglingCname?.NormalizeDefaults();
         Caa?.NormalizeDefaults();
         DnsSec?.NormalizeDefaults();
         Soa?.NormalizeDefaults();
         Dane?.NormalizeDefaults();
+        Dnsbl?.NormalizeDefaults();
+        DnsHealth?.NormalizeDefaults();
+        ApexAddress?.NormalizeDefaults();
+        Rpki?.NormalizeDefaults();
+        EdnsSupport?.NormalizeDefaults();
+        DnsOverTls?.NormalizeDefaults();
+        FlatteningService?.NormalizeDefaults();
         Delegation?.NormalizeDefaults();
         ZoneTransfer?.NormalizeDefaults();
         WildcardDns?.NormalizeDefaults();
+        Ttl?.NormalizeDefaults();
     }
 }
 

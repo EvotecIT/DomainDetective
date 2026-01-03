@@ -63,6 +63,15 @@ internal static class DesiredStateCodes {
     public const string MxRrsetInconsistent = "DesiredState.MX.RRSet.Inconsistent";
     public const string MxTargetAddressInconsistent = "DesiredState.MX.TargetAddress.Inconsistent";
 
+    public const string ReverseDnsNoResults = "DesiredState.REVERSEDNS.Results.None";
+    public const string ReverseDnsPtrMissing = "DesiredState.REVERSEDNS.PTR.Missing";
+    public const string ReverseDnsPtrExpectedMismatch = "DesiredState.REVERSEDNS.PTR.ExpectedHost.Mismatch";
+    public const string ReverseDnsPtrSuffixNotAllowed = "DesiredState.REVERSEDNS.PTR.Suffix.NotAllowed";
+    public const string ReverseDnsForwardNotConfirmed = "DesiredState.REVERSEDNS.FCrDNS.Required";
+
+    public const string FcrDnsNoResults = "DesiredState.FCRDNS.Results.None";
+    public const string FcrDnsForwardMismatch = "DesiredState.FCRDNS.ForwardConfirmed.Mismatch";
+
     public const string NsMissingRecord = "DesiredState.NS.Record.Missing";
     public const string NsTooFewRecords = "DesiredState.NS.Records.TooFew";
     public const string NsDuplicatesNotAllowed = "DesiredState.NS.Records.Duplicate.NotAllowed";
@@ -71,6 +80,9 @@ internal static class DesiredStateCodes {
     public const string NsDiversityRequired = "DesiredState.NS.Diversity.Required";
     public const string NsAsnDiversityTooLow = "DesiredState.NS.ASN.Diversity.TooLow";
     public const string NsHostNotAllowed = "DesiredState.NS.Host.NotAllowed";
+
+    public const string DanglingCnameDangling = "DesiredState.DANGLINGCNAME.Target.Dangling";
+    public const string DanglingCnameUnclaimedService = "DesiredState.DANGLINGCNAME.Target.UnclaimedService";
 
     public const string CaaMissingRecord = "DesiredState.CAA.Record.Missing";
     public const string CaaPolicyInvalid = "DesiredState.CAA.Policy.Invalid";
@@ -96,6 +108,49 @@ internal static class DesiredStateCodes {
     public const string DaneSmtpRecommendedMissing = "DesiredState.DANE.SMTP.Recommended.Missing";
     public const string DaneHttpsRecommendedMissing = "DesiredState.DANE.HTTPS.Recommended.Missing";
 
+    public const string DnsblNoResults = "DesiredState.DNSBL.Results.None";
+    public const string DnsblListed = "DesiredState.DNSBL.Listed";
+
+    public const string DnsHealthNoResults = "DesiredState.DNSHEALTH.Results.None";
+    public const string DnsHealthServersUnresponsive = "DesiredState.DNSHEALTH.Servers.NotResponsive";
+    public const string DnsHealthSoaSerialInconsistent = "DesiredState.DNSHEALTH.SOA.Serial.Inconsistent";
+    public const string DnsHealthApexInconsistent = "DesiredState.DNSHEALTH.Apex.Inconsistent";
+
+    public const string ApexAddressRequiredMissing = "DesiredState.APEXADDRESS.Addresses.Required.Missing";
+    public const string ApexAddressNotAllowed = "DesiredState.APEXADDRESS.Addresses.NotAllowed";
+    public const string ApexAddressPrivateNotAllowed = "DesiredState.APEXADDRESS.Addresses.Private.NotAllowed";
+    public const string ApexAddressLoopbackNotAllowed = "DesiredState.APEXADDRESS.Addresses.Loopback.NotAllowed";
+    public const string ApexAddressLinkLocalNotAllowed = "DesiredState.APEXADDRESS.Addresses.LinkLocal.NotAllowed";
+    public const string ApexAddressMulticastNotAllowed = "DesiredState.APEXADDRESS.Addresses.Multicast.NotAllowed";
+    public const string ApexAddressDocumentationNotAllowed = "DesiredState.APEXADDRESS.Addresses.Documentation.NotAllowed";
+    public const string ApexAddressUniqueLocalNotAllowed = "DesiredState.APEXADDRESS.Addresses.UniqueLocalV6.NotAllowed";
+    public const string ApexAddressSubnetDiversityTooLowV4 = "DesiredState.APEXADDRESS.SubnetDiversity.V4.TooLow";
+    public const string ApexAddressSubnetDiversityTooLowV6 = "DesiredState.APEXADDRESS.SubnetDiversity.V6.TooLow";
+    public const string ApexAddressPtrRequiredMissing = "DesiredState.APEXADDRESS.PTR.Required.Missing";
+    public const string ApexAddressFcrDnsRequired = "DesiredState.APEXADDRESS.FCrDNS.Required";
+
+    public const string RpkiNoResults = "DesiredState.RPKI.Results.None";
+    public const string RpkiQueryFailed = "DesiredState.RPKI.Query.Failed";
+    public const string RpkiInvalid = "DesiredState.RPKI.Validity.Invalid";
+
+    public const string EdnsNoResults = "DesiredState.EDNSSUPPORT.Results.None";
+    public const string EdnsNotSupported = "DesiredState.EDNSSUPPORT.NotSupported";
+    public const string EdnsUdpPayloadTooLarge = "DesiredState.EDNSSUPPORT.UdpPayload.TooLarge";
+    public const string EdnsVersionNotAllowed = "DesiredState.EDNSSUPPORT.Version.NotAllowed";
+    public const string EdnsCookieNotSupported = "DesiredState.EDNSSUPPORT.Cookie.NotSupported";
+
+    public const string DnsOverTlsNoResults = "DesiredState.DNSOVERTLS.Results.None";
+    public const string DnsOverTlsAnySupportedRequired = "DesiredState.DNSOVERTLS.Supported.Any.Required";
+    public const string DnsOverTlsAllSupportedRequired = "DesiredState.DNSOVERTLS.Supported.All.Required";
+    public const string DnsOverTlsCertificateInvalid = "DesiredState.DNSOVERTLS.Certificate.Invalid";
+    public const string DnsOverTlsCertificateMismatch = "DesiredState.DNSOVERTLS.Certificate.Hostname.Mismatch";
+
+    public const string FlatteningServiceCnameRequiredMissing = "DesiredState.FLATTENINGSERVICE.CNAME.Required.Missing";
+    public const string FlatteningServiceCnameNotAllowed = "DesiredState.FLATTENINGSERVICE.CNAME.NotAllowed";
+    public const string FlatteningServiceRequiredMissing = "DesiredState.FLATTENINGSERVICE.Required.Missing";
+    public const string FlatteningServiceNotAllowed = "DesiredState.FLATTENINGSERVICE.NotAllowed";
+    public const string FlatteningServiceTargetNotAllowed = "DesiredState.FLATTENINGSERVICE.Target.NotAllowed";
+
     public const string DelegationMismatch = "DesiredState.DELEGATION.Parent.Mismatch";
     public const string DelegationGlueIncomplete = "DesiredState.DELEGATION.Glue.Incomplete";
     public const string DelegationGlueInconsistent = "DesiredState.DELEGATION.Glue.Inconsistent";
@@ -104,4 +159,23 @@ internal static class DesiredStateCodes {
 
     public const string WildcardCatchAllRequired = "DesiredState.WILDCARDDNS.CatchAll.Required";
     public const string WildcardCatchAllNotAllowed = "DesiredState.WILDCARDDNS.CatchAll.NotAllowed";
+
+    public const string TtlAOutOfRange = "DesiredState.TTL.A.OutOfRange";
+    public const string TtlAaaaOutOfRange = "DesiredState.TTL.AAAA.OutOfRange";
+    public const string TtlMxOutOfRange = "DesiredState.TTL.MX.OutOfRange";
+    public const string TtlNsOutOfRange = "DesiredState.TTL.NS.OutOfRange";
+    public const string TtlSoaOutOfRange = "DesiredState.TTL.SOA.OutOfRange";
+    public const string TtlSpfTxtOutOfRange = "DesiredState.TTL.TXT.SPF.OutOfRange";
+    public const string TtlDmarcTxtOutOfRange = "DesiredState.TTL.TXT.DMARC.OutOfRange";
+    public const string TtlDkimTxtOutOfRange = "DesiredState.TTL.TXT.DKIM.OutOfRange";
+    public const string TtlMtastsTxtOutOfRange = "DesiredState.TTL.TXT.MTASTS.OutOfRange";
+    public const string TtlTlsRptTxtOutOfRange = "DesiredState.TTL.TXT.TLSRPT.OutOfRange";
+
+    public const string TtlAUniformityRequired = "DesiredState.TTL.A.Uniformity.Required";
+    public const string TtlAaaaUniformityRequired = "DesiredState.TTL.AAAA.Uniformity.Required";
+    public const string TtlNsUniformityRequired = "DesiredState.TTL.NS.Uniformity.Required";
+    public const string TtlCnameUniformityRequired = "DesiredState.TTL.CNAME.Uniformity.Required";
+    public const string TtlSpfTxtUniformityRequired = "DesiredState.TTL.TXT.SPF.Uniformity.Required";
+    public const string TtlDmarcTxtUniformityRequired = "DesiredState.TTL.TXT.DMARC.Uniformity.Required";
+    public const string TtlDkimTxtUniformityRequired = "DesiredState.TTL.TXT.DKIM.Uniformity.Required";
 }
