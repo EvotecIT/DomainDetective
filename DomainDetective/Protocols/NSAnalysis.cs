@@ -608,24 +608,24 @@ namespace DomainDetective {
                 var version = await QueryChaosTxtAsync(s.Ip, "version.bind", logger, token);
                 if (version != null)
                 {
-                    version = version.Trim();
-                    if (version.Length > 0)
+                    var trimmed = version.Trim();
+                    if (trimmed.Length > 0)
                     {
-                        ChaosVersionByServer[s.Key] = version;
+                        ChaosVersionByServer[s.Key] = trimmed;
                         using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", version);
+                            logger.WriteWarningCode(NSCodes.ChaosVersionExposed, "CHAOS version.bind exposed: {0}", trimmed);
                     }
                 }
 
                 var hostname = await QueryChaosTxtAsync(s.Ip, "hostname.bind", logger, token);
                 if (hostname != null)
                 {
-                    hostname = hostname.Trim();
-                    if (hostname.Length > 0)
+                    var trimmed = hostname.Trim();
+                    if (trimmed.Length > 0)
                     {
-                        ChaosHostnameByServer[s.Key] = hostname;
+                        ChaosHostnameByServer[s.Key] = trimmed;
                         using (collector.PushTarget(s.Key))
-                            logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", hostname);
+                            logger.WriteWarningCode(NSCodes.ChaosHostnameExposed, "CHAOS hostname.bind exposed: {0}", trimmed);
                     }
                 }
             }

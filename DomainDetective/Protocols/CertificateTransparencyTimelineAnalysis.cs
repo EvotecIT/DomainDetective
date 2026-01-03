@@ -485,12 +485,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
     private static void UpdateIssuerCounts(Dictionary<string, int> issuerCounts, string? issuerName)
     {
-        if (issuerName == null)
-        {
-            return;
-        }
-
-        var key = issuerName.Trim();
+        var key = (issuerName ?? string.Empty).Trim();
         if (key.Length == 0)
         {
             return;
@@ -550,13 +545,10 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         }
 
         b.UniqueCertificates++;
-        if (issuerName != null)
+        var issuerKey = (issuerName ?? string.Empty).Trim();
+        if (issuerKey.Length > 0)
         {
-            var issuerKey = issuerName.Trim();
-            if (issuerKey.Length > 0)
-            {
-                b.Issuers.Add(issuerKey);
-            }
+            b.Issuers.Add(issuerKey);
         }
 
         return true;

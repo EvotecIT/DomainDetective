@@ -510,12 +510,7 @@ public sealed class DnsTraceAnalysis : IHasAssessments
 
     private static string NormalizeHost(string? value)
     {
-        if (value == null)
-        {
-            return string.Empty;
-        }
-
-        var trimmed = value.Trim().TrimEnd('.');
+        var trimmed = (value ?? string.Empty).Trim().TrimEnd('.');
         if (trimmed.Length == 0)
         {
             return string.Empty;

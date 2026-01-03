@@ -141,7 +141,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             DnsAmplificationServerResult result;
             try
             {
-                result = await ProbeServerAsync(domainName, host, ip, cancellationToken).ConfigureAwait(false);
+                result = await ProbeServerAsync(domainName, host, ip, logger, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -173,7 +173,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
         return await DnsConfiguration.QueryDNS(name, type, cancellationToken: ct).ConfigureAwait(false);
     }
 
-    private async Task<DnsAmplificationServerResult> ProbeServerAsync(string domainName, string nsHost, IPAddress ip, CancellationToken ct)
+    private async Task<DnsAmplificationServerResult> ProbeServerAsync(string domainName, string nsHost, IPAddress ip, InternalLogger logger, CancellationToken ct)
     {
         // 1) Open recursion probe (RD=1) against an unrelated name.
         var recursionQuery = BuildQuery("example.com", DnsRecordType.A, recursionDesired: true, includeEdns: false, clientUdpPayloadSize: 0, dnsSecOk: false);
@@ -201,6 +201,10 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
             {
                 ednsSupported = parsedEdns.supported;
                 ednsUdpPayload = parsedEdns.udpPayloadSize;
+            }
+            else
+            {
+                logger.WriteDebug("Failed to parse EDNS data from response for {0} ({1})", nsHost, ip);
             }
         }
 

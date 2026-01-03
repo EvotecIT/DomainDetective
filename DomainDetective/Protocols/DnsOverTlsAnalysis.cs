@@ -76,14 +76,19 @@ public sealed class DnsOverTlsAnalysis : IHasAssessments
         foreach (var host in nsHosts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var ans in await QueryDns(host, DnsRecordType.A, cancellationToken).ConfigureAwait(false))
+
+            var aTask = QueryDns(host, DnsRecordType.A, cancellationToken);
+            var aaaaTask = QueryDns(host, DnsRecordType.AAAA, cancellationToken);
+            await Task.WhenAll(aTask, aaaaTask).ConfigureAwait(false);
+
+            foreach (var ans in aTask.Result)
             {
                 if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
                 {
                     endpoints.Add((host, ip));
                 }
             }
-            foreach (var ans in await QueryDns(host, DnsRecordType.AAAA, cancellationToken).ConfigureAwait(false))
+            foreach (var ans in aaaaTask.Result)
             {
                 if (IPAddress.TryParse(ans.Data ?? ans.DataRaw, out var ip))
                 {
