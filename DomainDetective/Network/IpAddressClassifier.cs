@@ -19,18 +19,13 @@ internal static class IpAddressClassifier
     public static bool TryClassify(string? value, out IpAddressVisibility visibility)
     {
         visibility = IpAddressVisibility.Unknown;
-        if (value == null)
-        {
-            return false;
-        }
-
-        var trimmed = value.Trim();
+        var trimmed = (value ?? string.Empty).Trim();
         if (trimmed.Length == 0)
         {
             return false;
         }
 
-        if (!IPAddress.TryParse(trimmed, out var ip))
+        if (!IPAddress.TryParse(trimmed, out var ip) || ip == null)
         {
             return false;
         }
