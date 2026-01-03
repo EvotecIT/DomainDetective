@@ -22,7 +22,7 @@ Add a `$schema` field for editor IntelliSense:
   "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
   "version": 1,
   "defaults": {
-    "checks": [ "DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "BIMI" ],
+    "checks": [ "DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "BIMI", "MX", "NS", "CAA", "DNSSEC", "SOA", "DANE", "DELEGATION", "ZONETRANSFER", "WILDCARDDNS" ],
     "assessmentPolicy": {
       "suppressCodes": [
         "DMARC.Alignment.Mismatch"
@@ -30,13 +30,18 @@ Add a `$schema` field for editor IntelliSense:
     },
     "dmarc": {
       "allowedPolicies": [ "reject", "quarantine" ],
+      "allowedSubdomainPolicies": [ "reject", "quarantine" ],
+      "allowedAspfAlignments": [ "r", "s" ],
+      "allowedAdkimAlignments": [ "r", "s" ],
       "requireRua": true,
       "allowedReportDomainSuffixes": [ "dmarc.powermarc.com" ],
       "requireExternalReportAuthorization": true
     },
     "spf": {
       "allowedAllMechanisms": [ "-all", "~all" ],
-      "maxDnsLookups": 10
+      "maxDnsLookups": 10,
+      "requiredIncludeDomains": [ "spf.protection.outlook.com" ],
+      "disallowPtr": true
     },
     "dkim": {
       "requiredSelectors": [ "selector1", "selector2" ],
@@ -57,6 +62,47 @@ Add a `$schema` field for editor IntelliSense:
       "requireValidLocation": true,
       "allowedLocationHostSuffixes": [ "cdn.vendor.example" ],
       "skipIndicatorDownload": true
+    },
+    "mx": {
+      "requireRecord": true,
+      "disallowNullMx": true,
+      "allowedHostSuffixes": [ "protection.outlook.com" ]
+    },
+    "ns": {
+      "requireAtLeastTwo": true,
+      "requireDiversity": false
+    },
+    "caa": {
+      "requireRecord": true,
+      "requireValid": true,
+      "allowedCertificateIssuers": [ "letsencrypt.org" ]
+    },
+    "dnssec": {
+      "requireChainValid": true,
+      "minRrsigDaysRemaining": 7
+    },
+    "soa": {
+      "requireRecord": true,
+      "requireSerialFormat": false,
+      "minRefresh": 1800,
+      "maxRefresh": 86400
+    },
+    "dane": {
+      "requireRecord": false,
+      "requireValidRecords": true,
+      "requiredServices": [ "SMTP" ],
+      "requireRecommendedForSmtp": true
+    },
+    "delegation": {
+      "requireMatchesParent": true,
+      "requireGlueComplete": true,
+      "requireGlueConsistent": true
+    },
+    "zoneTransfer": {
+      "disallowUnauthenticatedAxfr": true
+    },
+    "wildcardDns": {
+      "expectedCatchAll": false
     }
   },
   "overrides": [
@@ -92,5 +138,14 @@ The initial desired state evaluator covers:
 - MTA-STS: required record, enforce-mode requirement, max_age minimum, and policy MX alignment requirement.
 - TLSRPT: required record, valid-policy requirement, `rua` requirement, and report-domain suffix allow-list.
 - BIMI: optional record requirement, indicator-decline detection, location validity, and location/authority host suffix allow-lists (vendor-hosted BIMI/VMC).
+- MX: required record, null-MX (RFC 7505) required/disallowed, host suffix allow-list, backup-server and integrity checks.
+- NS: required record, minimum record count, duplicates/CNAME/address checks, and optional diversity constraints.
+- CAA: required record, valid-policy requirement, issuer allow-lists, and optional iodef endpoint constraints.
+- DNSSEC: valid-chain requirement and optional RRSIG-expiration thresholds.
+- SOA: required record plus optional serial-format and timing range thresholds.
+- DANE: required record (optionally by service), validity requirement, and optional "recommended config" requirements.
+- DELEGATION: require parent/child NS match and glue completeness/consistency.
+- ZONETRANSFER: disallow unauthenticated AXFR on authoritative name servers.
+- WILDCARDDNS: enforce whether wildcard (catch-all) DNS is expected or disallowed.
 
 The configuration model is intended to be extended to additional checks over time while preserving schema compatibility (versioned config + typed keys).
