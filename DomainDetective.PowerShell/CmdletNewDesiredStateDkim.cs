@@ -21,6 +21,22 @@ public sealed class CmdletNewDesiredStateDkim : PSCmdlet {
     [Parameter(Mandatory = false)]
     public bool? RequireAtLeastOneSelector { get; set; }
 
+    /// <para>When true, requires DKIM records to start with v=DKIM1.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireStartsCorrectly { get; set; }
+
+    /// <para>When true, requires DKIM records to contain a non-empty p= public key.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequirePublicKey { get; set; }
+
+    /// <para>When true, requires DKIM public keys to be parseable/valid.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireValidPublicKey { get; set; }
+
+    /// <para>When true, requires DKIM key type to be recognized (rsa/ed25519).</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireValidKeyType { get; set; }
+
     /// <para>Selectors that must exist and publish DKIM records (organization-specific).</para>
     [Parameter(Mandatory = false)]
     public string[]? RequiredSelectors { get; set; }
@@ -29,6 +45,31 @@ public sealed class CmdletNewDesiredStateDkim : PSCmdlet {
     [Parameter(Mandatory = false)]
     [ValidateRange(0, 16384)]
     public int? MinKeyBits { get; set; }
+
+    /// <para>When true, disallows weak RSA keys (under 2048 bits).</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowWeakKeys { get; set; }
+
+    /// <para>Maximum allowed key age in days when a creation date can be inferred.</para>
+    [Parameter(Mandatory = false)]
+    [ValidateRange(0, int.MaxValue)]
+    public int? MaxKeyAgeDays { get; set; }
+
+    /// <para>When true, disallows deprecated DKIM tags/values.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowDeprecatedTags { get; set; }
+
+    /// <para>When true, disallows invalid DKIM flags.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowInvalidFlags { get; set; }
+
+    /// <para>When true, disallows unknown canonicalization modes.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowUnknownCanonicalizationModes { get; set; }
+
+    /// <para>When true, disallows invalid canonicalization strings (when c= is present).</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowInvalidCanonicalization { get; set; }
 
     /// <para>Allowed domain suffixes for selector CNAME targets (vendor-hosted DKIM).</para>
     [Parameter(Mandatory = false)]
@@ -40,8 +81,18 @@ public sealed class CmdletNewDesiredStateDkim : PSCmdlet {
             Dkim = new DesiredStateDkimPolicy {
                 Enabled = Enabled,
                 RequireAtLeastOneSelector = RequireAtLeastOneSelector,
+                RequireStartsCorrectly = RequireStartsCorrectly,
+                RequirePublicKey = RequirePublicKey,
+                RequireValidPublicKey = RequireValidPublicKey,
+                RequireValidKeyType = RequireValidKeyType,
                 RequiredSelectors = RequiredSelectors,
                 MinKeyBits = MinKeyBits,
+                DisallowWeakKeys = DisallowWeakKeys,
+                MaxKeyAgeDays = MaxKeyAgeDays,
+                DisallowDeprecatedTags = DisallowDeprecatedTags,
+                DisallowInvalidFlags = DisallowInvalidFlags,
+                DisallowUnknownCanonicalizationModes = DisallowUnknownCanonicalizationModes,
+                DisallowInvalidCanonicalization = DisallowInvalidCanonicalization,
                 AllowedCnameTargetSuffixes = AllowedCnameTargetSuffixes
             }
         };

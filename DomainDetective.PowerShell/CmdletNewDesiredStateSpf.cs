@@ -21,10 +21,26 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
     [Parameter(Mandatory = false)]
     public bool? RequireRecord { get; set; }
 
+    /// <para>When true, requires the SPF record to be syntactically valid.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireValidRecord { get; set; }
+
+    /// <para>When true, requires exactly one SPF record to be published.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireSingleRecord { get; set; }
+
+    /// <para>When true, requires SPF to effectively authorize outbound senders after resolving include/redirect chains.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireEffectiveSpfSends { get; set; }
+
     /// <para>Allowed all mechanisms (e.g., -all, ~all).</para>
     [Parameter(Mandatory = false)]
     [ValidateSet("-all", "~all", "?all", "+all")]
     public string[]? AllowedAllMechanisms { get; set; }
+
+    /// <para>When true, requires the SPF record to include an all mechanism (e.g., -all, ~all).</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireAllMechanism { get; set; }
 
     /// <para>Maximum allowed SPF DNS lookups.</para>
     [Parameter(Mandatory = false)]
@@ -59,6 +75,18 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
     [Parameter(Mandatory = false)]
     public bool? RequireRedirect { get; set; }
 
+    /// <para>When true, disallows exp= (explanation) modifier.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowExp { get; set; }
+
+    /// <para>When true, disallows SPF PermError results.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowPermError { get; set; }
+
+    /// <para>When true, disallows SPF records resolved through a CNAME alias.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowCname { get; set; }
+
     /// <para>Allowed domain suffixes for redirect= target.</para>
     [Parameter(Mandatory = false)]
     public string[]? AllowedRedirectDomainSuffixes { get; set; }
@@ -69,7 +97,11 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
             Spf = new DesiredStateSpfPolicy {
                 Enabled = Enabled,
                 RequireRecord = RequireRecord,
+                RequireValidRecord = RequireValidRecord,
+                RequireSingleRecord = RequireSingleRecord,
+                RequireEffectiveSpfSends = RequireEffectiveSpfSends,
                 AllowedAllMechanisms = AllowedAllMechanisms,
+                RequireAllMechanism = RequireAllMechanism,
                 MaxDnsLookups = MaxDnsLookups,
                 RequireDenyAll = RequireDenyAll,
                 RequiredIncludeDomains = RequiredIncludeDomains,
@@ -78,6 +110,9 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
                 DisallowUnknownMechanisms = DisallowUnknownMechanisms,
                 DisallowRedirect = DisallowRedirect,
                 RequireRedirect = RequireRedirect,
+                DisallowExp = DisallowExp,
+                DisallowPermError = DisallowPermError,
+                DisallowCname = DisallowCname,
                 AllowedRedirectDomainSuffixes = AllowedRedirectDomainSuffixes
             }
         };

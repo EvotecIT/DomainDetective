@@ -21,6 +21,22 @@ public sealed class CmdletNewDesiredStateMtasts : PSCmdlet {
     [Parameter(Mandatory = false)]
     public bool? RequireRecord { get; set; }
 
+    /// <para>When true, requires the _mta-sts TXT record to be syntactically valid (v=STSv1; id=...).</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequireDnsRecordValid { get; set; }
+
+    /// <para>When true, requires the HTTPS policy file to be fetched successfully.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequirePolicyPresent { get; set; }
+
+    /// <para>When true, requires the HTTPS policy file to be valid and consistent with the DNS bootstrap record.</para>
+    [Parameter(Mandatory = false)]
+    public bool? RequirePolicyValid { get; set; }
+
+    /// <para>When true, disallows duplicate fields in either the DNS record or the policy file.</para>
+    [Parameter(Mandatory = false)]
+    public bool? DisallowDuplicateFields { get; set; }
+
     /// <para>When true, require MTA-STS policy mode to be enforce.</para>
     [Parameter(Mandatory = false)]
     public bool? RequireEnforce { get; set; }
@@ -40,6 +56,10 @@ public sealed class CmdletNewDesiredStateMtasts : PSCmdlet {
             Mtasts = new DesiredStateMtastsPolicy {
                 Enabled = Enabled,
                 RequireRecord = RequireRecord,
+                RequireDnsRecordValid = RequireDnsRecordValid,
+                RequirePolicyPresent = RequirePolicyPresent,
+                RequirePolicyValid = RequirePolicyValid,
+                DisallowDuplicateFields = DisallowDuplicateFields,
                 RequireEnforce = RequireEnforce,
                 MinMaxAge = MinMaxAge,
                 RequireMxAligned = RequireMxAligned
