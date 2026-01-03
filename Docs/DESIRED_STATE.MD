@@ -9,8 +9,118 @@ This document introduces a first-pass Desired State Configuration (DSC-like) lay
 
 ## PowerShell usage
 
+### Test a domain against a JSON baseline
+
 ```powershell
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json
+```
+
+### Build a baseline in PowerShell (DSL) and test without JSON
+
+`New-DDDesiredState` supports a PowerShell DSL (script block) that returns desired-state fragments (profiles/overrides).
+
+```powershell
+$cfg = New-DDDesiredState {
+    New-DDDesiredStateChecks -Checks DMARC,SPF,DKIM,MTASTS,TLSRPT
+
+    New-DDDesiredStateDmarc -Enabled $true `
+        -AllowedPolicies reject,quarantine `
+        -RequireRua $true `
+        -AllowedReportDomainSuffixes dmarc.powermarc.com `
+        -RequireExternalReportAuthorization $true
+
+    New-DDDesiredStateSpf -Enabled $true `
+        -AllowedAllMechanisms '-all', '~all' `
+        -MaxDnsLookups 10 `
+        -RequiredIncludeDomains spf.protection.outlook.com `
+        -DisallowPtr $true
+
+    New-DDDesiredStateDkim -Enabled $true `
+        -RequiredSelectors selector1, selector2 `
+        -MinKeyBits 2048
+
+    New-DDDesiredStateMtasts -Enabled $true `
+        -RequireRecord $true `
+        -RequireEnforce $true `
+        -MinMaxAge 86400
+
+    New-DDDesiredStateTlsRpt -Enabled $true `
+        -RequireRecord $true `
+        -RequireValidPolicy $true `
+        -AllowedReportDomainSuffixes tlsrpt.vendor.example
+
+    New-DDDesiredStateOverride -DomainPatterns '*.example.com' -Classifications Parked {
+        New-DDDesiredStateDmarc -RequireRua $false
+        New-DDDesiredStateSpf -RequireDenyAll $true
+    }
+
+    # Optional: suppress or change severity for specific assessment codes
+    New-DDDesiredStateAssessmentPolicy -SuppressCodes DMARC.Alignment.Mismatch `
+        -SeverityOverrides @{
+            'DesiredState.DMARC.RUA.Domain.NotAllowed' = 'Warning'
+        }
+}
+
+Test-DDDesiredState -DomainName example.com -Configuration $cfg
+```
+
+### Build a baseline using typed .NET classes (no DSL)
+
+All desired state types are regular .NET classes, so you can create and edit them directly in PowerShell.
+
+```powershell
+$cfg = New-DDDesiredState
+
+$cfg.Defaults.Checks = [DomainDetective.Definitions.HealthCheckType[]]@(
+    [DomainDetective.Definitions.HealthCheckType]::DMARC,
+    [DomainDetective.Definitions.HealthCheckType]::SPF,
+    [DomainDetective.Definitions.HealthCheckType]::DKIM
+)
+
+$cfg.Defaults.Dmarc = [DomainDetective.DesiredState.DesiredStateDmarcPolicy]::new()
+$cfg.Defaults.Dmarc.AllowedPolicies = @('reject', 'quarantine')
+$cfg.Defaults.Dmarc.RequireRua = $true
+$cfg.Defaults.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
+$cfg.Defaults.Dmarc.RequireExternalReportAuthorization = $true
+
+$cfg.Defaults.Spf = [DomainDetective.DesiredState.DesiredStateSpfPolicy]::new()
+$cfg.Defaults.Spf.AllowedAllMechanisms = @('-all', '~all')
+$cfg.Defaults.Spf.MaxDnsLookups = 10
+$cfg.Defaults.Spf.RequiredIncludeDomains = @('spf.protection.outlook.com')
+$cfg.Defaults.Spf.DisallowPtr = $true
+
+Test-DDDesiredState -DomainName example.com -Configuration $cfg
+```
+
+### Load JSON, override values in memory, then test
+
+```powershell
+$cfg = New-DDDesiredState -LoadPath .\desired-state.json
+
+if ($cfg.Defaults.Dmarc -eq $null) {
+    $cfg.Defaults.Dmarc = [DomainDetective.DesiredState.DesiredStateDmarcPolicy]::new()
+}
+$cfg.Defaults.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
+
+Test-DDDesiredState -DomainName example.com -Configuration $cfg
+```
+
+### Export configuration to JSON
+
+There is no dedicated export cmdlet yet; you can serialize the in-memory configuration using the same serializer settings as DomainDetective:
+
+```powershell
+$json = [System.Text.Json.JsonSerializer]::Serialize($cfg, [DomainDetective.Helpers.JsonOptions]::Default)
+Set-Content -Path .\desired-state.json -Value $json -Encoding UTF8
+```
+
+### Notes on mail classification overrides
+
+- If your configuration contains `overrides.match.classifications`, `Test-DDDesiredState` runs mail classification automatically to choose the correct desired state.
+- To skip classification even when overrides include classifications, use `-NoClassification`:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -NoClassification
 ```
 
 ## Configuration file
