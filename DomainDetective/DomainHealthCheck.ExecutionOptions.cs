@@ -37,6 +37,22 @@ public sealed class HealthCheckExecutionOptions {
     /// </summary>
     public bool EnableSharedMxCache { get; set; } = true;
 
+    /// <summary>
+    /// When enabled, DKIM verification records results for selectors even when no DKIM TXT record exists.
+    /// </summary>
+    /// <remarks>
+    /// This is useful when you have an organization-defined list of required selectors and want to detect drift.
+    /// </remarks>
+    public bool IncludeMissingDkimSelectors { get; set; }
+
+    /// <summary>
+    /// When enabled, BIMI verification skips downloading the indicator SVG.
+    /// </summary>
+    /// <remarks>
+    /// This is useful for drift detection scenarios where you want to validate DNS posture without relying on external HTTP availability.
+    /// </remarks>
+    public bool SkipBimiIndicatorDownload { get; set; }
+
     internal int GetEffectiveMaxParallelism() {
         if (MaxParallelism.HasValue && MaxParallelism.Value > 0) {
             return MaxParallelism.Value;

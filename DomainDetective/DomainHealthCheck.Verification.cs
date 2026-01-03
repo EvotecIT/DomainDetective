@@ -131,7 +131,7 @@ namespace DomainDetective {
             var actions = new Dictionary<HealthCheckType, Func<Task>> {
                 [HealthCheckType.DMARC] = () => VerifyDMARC(domainName, cancellationToken),
                 [HealthCheckType.SPF] = () => VerifySPF(domainName, cancellationToken),
-                [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), cancellationToken),
+                [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), exec.IncludeMissingDkimSelectors, cancellationToken),
                 [HealthCheckType.MX] = () => VerifyMX(domainName, cancellationToken),
                 [HealthCheckType.REVERSEDNS] = () => VerifyReverseDnsAsync(domainName, cancellationToken),
                 [HealthCheckType.FCRDNS] = () => VerifyFcrDnsAsync(domainName, cancellationToken),
@@ -144,7 +144,7 @@ namespace DomainDetective {
                 [HealthCheckType.DNSBL] = () => VerifyDNSBL(domainName, cancellationToken),
                 [HealthCheckType.MTASTS] = () => VerifyMTASTS(domainName, cancellationToken),
                 [HealthCheckType.TLSRPT] = () => VerifyTLSRPT(domainName, cancellationToken),
-                [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, cancellationToken: cancellationToken),
+                [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, skipIndicatorDownload: exec.SkipBimiIndicatorDownload, cancellationToken: cancellationToken),
                 [HealthCheckType.AUTODISCOVER] = () => VerifyAutodiscover(domainName, cancellationToken),
                 [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxtAsync(domainName, cancellationToken),
