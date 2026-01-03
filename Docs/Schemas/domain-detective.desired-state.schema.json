@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://evotec.xyz/schemas/domain-detective.desired-state.schema.json",
+  "title": "DomainDetective Desired State Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional schema reference for editor IntelliSense."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "defaults": {
+      "$ref": "#/$defs/profile"
+    },
+    "overrides": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/override"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "defaults"
+  ],
+  "$defs": {
+    "override": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "$ref": "#/$defs/match"
+        },
+        "profile": {
+          "$ref": "#/$defs/profile"
+        }
+      },
+      "required": [
+        "match",
+        "profile"
+      ]
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domainPatterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Wildcard patterns used to select a profile (e.g., '*.example.com')."
+        },
+        "classifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/mailClassification"
+          },
+          "description": "Mail domain classifications that must match for this override to apply."
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/healthCheckType"
+          },
+          "description": "Health check modules to run as part of this profile."
+        },
+        "assessmentPolicy": {
+          "$ref": "#/$defs/assessmentPolicy"
+        },
+        "dmarc": {
+          "$ref": "#/$defs/dmarcPolicy"
+        },
+        "spf": {
+          "$ref": "#/$defs/spfPolicy"
+        }
+      }
+    },
+    "assessmentPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "suppressCodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Assessment codes to remove from output (e.g., 'DMARC.Alignment.Mismatch')."
+        },
+        "severityOverrides": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/assessmentSeverity"
+          },
+          "description": "Per-code severity overrides."
+        }
+      }
+    },
+    "dmarcPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedPolicies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "none",
+              "quarantine",
+              "reject"
+            ]
+          }
+        },
+        "requireRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedReportDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireExternalReportAuthorization": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "spfPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedAllMechanisms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "maxDnsLookups": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "requireDenyAll": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "assessmentSeverity": {
+      "type": "string",
+      "enum": [
+        "Info",
+        "Warning",
+        "Error"
+      ]
+    },
+    "mailClassification": {
+      "type": "string",
+      "enum": [
+        "SendingAndReceiving",
+        "ReceivingOnly",
+        "SendingOnly",
+        "Parked",
+        "Unknown"
+      ]
+    },
+    "healthCheckType": {
+      "type": "string",
+      "enum": [
+        "DMARC",
+        "SPF",
+        "DKIM",
+        "MX",
+        "REVERSEDNS",
+        "FCRDNS",
+        "CAA",
+        "NS",
+        "DELEGATION",
+        "ZONETRANSFER",
+        "DANE",
+        "SMIMEA",
+        "DNSBL",
+        "DNSSEC",
+        "MTASTS",
+        "TLSRPT",
+        "BIMI",
+        "AUTODISCOVER",
+        "CERT",
+        "SECURITYTXT",
+        "ROBOTS",
+        "SOA",
+        "OPENRELAY",
+        "OPENRESOLVER",
+        "STARTTLS",
+        "SMTPTLS",
+        "IMAPTLS",
+        "POP3TLS",
+        "SMTPBANNER",
+        "SMTPAUTH",
+        "HTTP",
+        "HPKP",
+        "CONTACT",
+        "MESSAGEHEADER",
+        "ARC",
+        "DANGLINGCNAME",
+        "TTL",
+        "PORTAVAILABILITY",
+        "PORTSCAN",
+        "SNMP",
+        "IPNEIGHBOR",
+        "IPENRICHMENT",
+        "RPKI",
+        "DNSTUNNELING",
+        "TYPOSQUATTING",
+        "THREATINTEL",
+        "THREATFEED",
+        "WILDCARDDNS",
+        "EDNSSUPPORT",
+        "DNSHEALTH",
+        "MAILLATENCY",
+        "FLATTENINGSERVICE",
+        "RDAP",
+        "DIRECTORYEXPOSURE",
+        "NTP",
+        "WEBSITE",
+        "WHOIS",
+        "APEXADDRESS",
+        "SPFFLATTENED",
+        "MAILCLASSIFICATION",
+        "SUBDOMAINS",
+        "DNSINVENTORY",
+        "DNSTRACE",
+        "CTTIMELINE",
+        "DNSPROPAGATION",
+        "DNSAMPLIFICATION",
+        "DNSOVERTLS"
+      ]
+    }
+  }
+}
+

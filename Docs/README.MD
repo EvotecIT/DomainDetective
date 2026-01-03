@@ -26,6 +26,9 @@ CT-backed subdomain discovery (bounded + optional DNS verification).
 ### 8. [DNS_PROPAGATION.MD](DNS_PROPAGATION.MD)
 Multi-resolver DNS propagation visibility with map visualization and rollups.
 
+### 9. [DESIRED_STATE.MD](DESIRED_STATE.MD)
+Custom baselines (desired state configuration) for drift/non-conformance detection.
+
 ## Main TODO
 The comprehensive TODO for the reporting system is located at:
 **[../TODO.md](../TODO.md)**
