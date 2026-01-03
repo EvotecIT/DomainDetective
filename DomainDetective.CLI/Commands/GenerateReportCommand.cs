@@ -111,35 +111,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     var logger = new InternalLogger(false);
                     var healthCheck = new DomainHealthCheck(settings.DnsEndpoint, logger);
 
-                    static DnsEndpoint[]? ParseDnsEndpoints(string[] raw, out List<string> invalid)
-                    {
-                        invalid = new List<string>();
-                        if (raw == null || raw.Length == 0)
-                        {
-                            return null;
-                        }
-
-                        var endpoints = new List<DnsEndpoint>();
-                        foreach (var part in raw)
-                        {
-                            if (string.IsNullOrWhiteSpace(part)) continue;
-                            foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                            {
-                                if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
-                                {
-                                    endpoints.Add(ep);
-                                }
-                                else
-                                {
-                                    invalid.Add(token);
-                                }
-                            }
-                        }
-
-                        return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
-                    }
-
-                    var dnsEndpoints = ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
+                    var dnsEndpoints = CommandUtilities.ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
                     if (invalidDnsEndpoints.Count > 0)
                     {
                         var joined = string.Join(", ", invalidDnsEndpoints.Distinct(StringComparer.OrdinalIgnoreCase));
@@ -157,29 +129,31 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
 
                     // Report-oriented default check set (broader than DomainHealthCheck.Verify defaults).
-                    var reportChecks = new List<HealthCheckType> {
-                        HealthCheckType.MX,
-                        HealthCheckType.SPF,
-                        HealthCheckType.DKIM,
-                        HealthCheckType.DMARC,
-                        HealthCheckType.CAA,
-                        HealthCheckType.DNSBL,
-                        HealthCheckType.RPKI,
-                        HealthCheckType.NS,
-                        HealthCheckType.SOA,
-                        HealthCheckType.TTL,
-                        HealthCheckType.ZONETRANSFER,
-                        HealthCheckType.WILDCARDDNS,
-                        HealthCheckType.MTASTS,
-                        HealthCheckType.TLSRPT,
-                        HealthCheckType.DANE,
-                        HealthCheckType.DNSSEC,
-                        HealthCheckType.HTTP,
-                        HealthCheckType.CTTIMELINE,
-                        HealthCheckType.SUBDOMAINS,
-                        HealthCheckType.DNSINVENTORY,
-                        HealthCheckType.IPENRICHMENT,
-                    };
+	                    var reportChecks = new List<HealthCheckType> {
+	                        HealthCheckType.MX,
+	                        HealthCheckType.SPF,
+	                        HealthCheckType.DKIM,
+	                        HealthCheckType.DMARC,
+	                        HealthCheckType.CAA,
+	                        HealthCheckType.DNSBL,
+	                        HealthCheckType.RPKI,
+	                        HealthCheckType.NS,
+	                        HealthCheckType.SOA,
+	                        HealthCheckType.TTL,
+	                        HealthCheckType.ZONETRANSFER,
+	                        HealthCheckType.WILDCARDDNS,
+	                        HealthCheckType.MTASTS,
+	                        HealthCheckType.TLSRPT,
+	                        HealthCheckType.DANE,
+	                        HealthCheckType.DNSSEC,
+	                        HealthCheckType.HTTP,
+	                        HealthCheckType.CTTIMELINE,
+	                        HealthCheckType.SUBDOMAINS,
+	                        HealthCheckType.DNSINVENTORY,
+	                        HealthCheckType.DNSAMPLIFICATION,
+	                        HealthCheckType.DNSOVERTLS,
+	                        HealthCheckType.IPENRICHMENT,
+	                    };
                     if (settings.IncludeDnsTrace) {
                         reportChecks.Add(HealthCheckType.DNSTRACE);
                     }
@@ -367,6 +341,8 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         TryAdd("CTTIMELINE", () => DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
         TryAdd("SUBDOMAINS", () => DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
         TryAdd("DNSINVENTORY", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
+        TryAdd("DNSAMPLIFICATION", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis));
+        TryAdd("DNSOVERTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis));
         if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
         {
             TryAdd("HTTP", () => DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));

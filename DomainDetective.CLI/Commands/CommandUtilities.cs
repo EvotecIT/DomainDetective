@@ -19,6 +19,38 @@ internal static class CommandUtilities {
     internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
     internal static readonly string[] PortProfileNames = Enum.GetNames<PortScanProfile>();
 
+    internal static DnsEndpoint[]? ParseDnsEndpoints(string[]? raw, out List<string> invalid)
+    {
+        invalid = new List<string>();
+        if (raw == null || raw.Length == 0)
+        {
+            return null;
+        }
+
+        var endpoints = new List<DnsEndpoint>();
+        foreach (var part in raw)
+        {
+            if (string.IsNullOrWhiteSpace(part))
+            {
+                continue;
+            }
+
+            foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
+                {
+                    endpoints.Add(ep);
+                }
+                else
+                {
+                    invalid.Add(token);
+                }
+            }
+        }
+
+        return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
+    }
+
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     internal static void AnalyzeMessageHeader(FileInfo? file, string? header, bool json) {

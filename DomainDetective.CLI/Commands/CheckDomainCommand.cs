@@ -16,36 +16,8 @@ namespace DomainDetective.CLI;
 internal sealed class CheckDomainCommand : AsyncCommand<CheckDomainSettings> {
     /// <inheritdoc/>
     public override async Task<int> ExecuteAsync(CommandContext context, CheckDomainSettings settings) {
-        static DnsEndpoint[]? ParseDnsEndpoints(string[] raw, out List<string> invalid)
-        {
-            invalid = new List<string>();
-            if (raw == null || raw.Length == 0)
-            {
-                return null;
-            }
-
-            var endpoints = new List<DnsEndpoint>();
-            foreach (var part in raw)
-            {
-                if (string.IsNullOrWhiteSpace(part)) continue;
-                foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-                {
-                    if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
-                    {
-                        endpoints.Add(ep);
-                    }
-                    else
-                    {
-                        invalid.Add(token);
-                    }
-                }
-            }
-
-            return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
-        }
-
         var dnsEndpoint = settings.DnsEndpoint;
-        var dnsEndpoints = ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
+        var dnsEndpoints = CommandUtilities.ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
         if (invalidDnsEndpoints.Count > 0)
         {
             var joined = string.Join(", ", invalidDnsEndpoints.Distinct(StringComparer.OrdinalIgnoreCase));
