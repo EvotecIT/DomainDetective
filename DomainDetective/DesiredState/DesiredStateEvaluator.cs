@@ -133,7 +133,7 @@ public static class DesiredStateEvaluator {
         if (suppress.Count > 0) {
             for (var i = list.Count - 1; i >= 0; i--) {
                 var code = list[i].Code;
-                if (!string.IsNullOrWhiteSpace(code) && suppress.Contains(code)) {
+                if (!string.IsNullOrWhiteSpace(code) && suppress.Contains(code!)) {
                     list.RemoveAt(i);
                 }
             }
