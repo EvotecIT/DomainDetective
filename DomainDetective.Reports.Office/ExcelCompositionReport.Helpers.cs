@@ -40,7 +40,9 @@ public static partial class ExcelCompositionReport
             DnsTrace = s.DnsTrace,
             CtTimeline = s.CtTimeline,
             Http = s.Http,
-            IpEnrichment = s.IpEnrichment
+            IpEnrichment = s.IpEnrichment,
+            DnsAmplification = s.DnsAmplification,
+            DnsOverTls = s.DnsOverTls
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
         if (s.DnsPropagation != null && s.DnsPropagation.Count > 0) b.DnsPropagation.AddRange(s.DnsPropagation);
@@ -78,6 +80,8 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.HttpInfo? Http { get; set; }
         public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
         public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
     }
 

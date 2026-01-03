@@ -100,6 +100,8 @@ public static partial class ExcelCompositionReport {
                 ApplyBlock(infra, BuildDnsInventoryBlock(b));
                 ApplyBlock(infra, BuildDnsTraceBlock(b));
                 ApplyBlock(infra, BuildDnsPropagationBlock(b));
+                ApplyBlock(infra, BuildDnsAmplificationBlock(b));
+                ApplyBlock(infra, BuildDnsOverTlsBlock(b));
                 ApplyBlock(infra, BuildCtTimelineBlock(b));
                 ApplyBlock(infra, BuildHttpBlock(b));
                 ApplyBlock(infra, BuildIpEnrichmentBlock(b));
@@ -231,6 +233,8 @@ public static partial class ExcelCompositionReport {
                 AddRecs("DNSBL", b.Dnsbl?.Recommendations);
                 AddRecs("NS", b.Ns?.Recommendations);
                 AddRecs("SOA", b.Soa?.Recommendations);
+                AddRecs("DNS Amplification", b.DnsAmplification?.Recommendations);
+                AddRecs("DNS over TLS", b.DnsOverTls?.Recommendations);
                 AddRecs("CAA", b.Caa?.Recommendations);
                 AddRecs("RPKI", b.Rpki?.Recommendations);
                 AddRecs("ZoneTransfer", b.ZoneTransfer?.Recommendations);
