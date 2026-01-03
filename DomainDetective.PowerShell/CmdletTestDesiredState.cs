@@ -21,6 +21,7 @@ namespace DomainDetective.PowerShell;
 public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
     /// <para>Domain(s) to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
+    [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByConfiguration", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
     [ValidateDomainName]
     public string[] DomainName = Array.Empty<string>();
@@ -30,8 +31,14 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
     [ValidateNotNullOrEmpty]
     public string DesiredStatePath = string.Empty;
 
+    /// <para>In-memory desired state configuration object.</para>
+    [Parameter(Mandatory = true, Position = 1, ParameterSetName = "ByConfiguration")]
+    [ValidateNotNull]
+    public DesiredStateConfiguration? Configuration { get; set; }
+
     /// <para>DNS server used for queries.</para>
     [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ByName")]
+    [Parameter(Mandatory = false, Position = 2, ParameterSetName = "ByConfiguration")]
     public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
 
     /// <para>Do not run mail classification even if the baseline contains classification-specific overrides.</para>
@@ -41,11 +48,15 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
     /// <summary>Executes desired state evaluation for each domain.</summary>
     protected override async Task ProcessRecordAsync() {
         DesiredStateConfiguration config;
-        try {
-            config = DesiredStateConfiguration.Load(DesiredStatePath);
-        } catch (Exception ex) {
-            WriteError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, DesiredStatePath));
-            return;
+        if (Configuration != null) {
+            config = Configuration;
+        } else {
+            try {
+                config = DesiredStateConfiguration.Load(DesiredStatePath);
+            } catch (Exception ex) {
+                WriteError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, DesiredStatePath));
+                return;
+            }
         }
 
         var wantsClassification = !NoClassification.IsPresent && config.RequiresMailClassification();
