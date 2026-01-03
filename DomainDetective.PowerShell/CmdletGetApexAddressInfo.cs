@@ -13,6 +13,7 @@ public sealed class CmdletGetApexAddressInfo : ParallelAsyncPSCmdlet {
     /// <para>Domain(s) to analyze.</para>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string[] DomainName = System.Array.Empty<string>();
 
     /// <para>DNS server used for queries.</para>

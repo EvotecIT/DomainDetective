@@ -22,23 +22,12 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to analyze.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>
         [Parameter(Mandatory = false, Position = 1, ParameterSetName = "ServerName")]
         public DnsEndpoint DnsEndpoint = DnsEndpoint.System;
-
-        /// <summary>Optional list of DNS endpoints to use (multi-resolver).</summary>
-        [Parameter(Mandatory = false)]
-        public DnsEndpoint[]? DnsEndpoints { get; set; }
-
-        /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
-        [Parameter(Mandatory = false)]
-        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
-
-        /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
-        [Parameter(Mandatory = false)]
-        public int? MultiResolverMaxParallelism { get; set; }
 
         /// <summary>Specific tests to run.</summary>
         [Parameter(Mandatory = false)]
@@ -78,11 +67,6 @@ namespace DomainDetective.PowerShell {
                     this.WriteInformation);
                 internalLoggerPowerShell.ResetActivityIdCounter();
                 var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
-                if (DnsEndpoints != null && DnsEndpoints.Length > 0) {
-                    healthCheck.DnsEndpoints.AddRange(DnsEndpoints);
-                    healthCheck.MultiResolverStrategy = MultiResolverStrategy;
-                    healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism;
-                }
                 ApplyExecutionOptions(healthCheck);
                 if (BrandKeyword != null) {
                     healthCheck.TyposquattingBrandKeywords.AddRange(BrandKeyword);
@@ -178,8 +162,39 @@ namespace DomainDetective.PowerShell {
                                 case DomainDetective.HealthCheckType.DNSINVENTORY:
                                     items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
                                     break;
+                                case DomainDetective.HealthCheckType.IPENRICHMENT:
+                                    if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
+                                    {
+                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
+                                    }
+                                    break;
+                                case DomainDetective.HealthCheckType.HTTP:
+                                    if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
+                                    {
+                                        items.Add(DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
+                                    }
+                                    break;
                                 case DomainDetective.HealthCheckType.DNSTRACE:
                                     items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
+                                    break;
+                                case DomainDetective.HealthCheckType.CTTIMELINE:
+                                    items.Add(DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
+                                    break;
+                                case DomainDetective.HealthCheckType.DNSPROPAGATION:
+                                    try
+                                    {
+                                        var set = healthCheck.DnsPropagationSet;
+                                        if (set != null && set.Items.Count > 0)
+                                        {
+                                            foreach (var a in set.Items)
+                                            {
+                                                items.Add(DomainDetective.Views.Converters.Convert(a));
+                                            }
+                                        }
+                                    }
+                                    catch
+                                    {
+                                    }
                                     break;
                                 default:
                                     break; // unsupported here falls back to default path

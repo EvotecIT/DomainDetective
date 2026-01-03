@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Management.Automation;
 using System.Threading;
 using System.Threading.Tasks;
+using DnsClientX;
 using DomainDetective;
 
 namespace DomainDetective.PowerShell {
@@ -30,6 +31,18 @@ namespace DomainDetective.PowerShell {
         [ValidateRange(ParallelExecutionDefaults.MinParallelism, ParallelExecutionDefaults.MaxParallelism)]
         public int? DnsParallelism { get; set; }
 
+        /// <summary>Optional list of resolver endpoints to use (multi-resolver).</summary>
+        [Parameter(Mandatory = false)]
+        public DnsEndpoint[]? DnsEndpoints { get; set; }
+
+        /// <summary>Strategy used when multiple DNS endpoints are provided.</summary>
+        [Parameter(Mandatory = false)]
+        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
+
+        /// <summary>Maximum number of resolvers to query in parallel (null = all).</summary>
+        [Parameter(Mandatory = false)]
+        public int? MultiResolverMaxParallelism { get; set; }
+
         /// <summary>Applies shared execution options to a health check instance.</summary>
         protected void ApplyExecutionOptions(DomainHealthCheck healthCheck) {
             healthCheck.ExecutionOptions.EnableParallelism = !DisableParallel.IsPresent;
@@ -43,6 +56,16 @@ namespace DomainDetective.PowerShell {
                 }
                 if (!healthCheck.MultiResolverMaxParallelism.HasValue) {
                     healthCheck.MultiResolverMaxParallelism = DnsParallelism.Value;
+                }
+            }
+            if (DnsEndpoints != null && DnsEndpoints.Length > 0)
+            {
+                healthCheck.DnsEndpoints.Clear();
+                healthCheck.DnsEndpoints.AddRange(DnsEndpoints);
+                healthCheck.MultiResolverStrategy = MultiResolverStrategy;
+                if (MultiResolverMaxParallelism.HasValue)
+                {
+                    healthCheck.MultiResolverMaxParallelism = MultiResolverMaxParallelism.Value;
                 }
             }
             healthCheck.ConfigureExecution();

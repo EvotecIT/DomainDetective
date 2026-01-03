@@ -39,6 +39,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to check (aggregates MX hosts).</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = DomainSet, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>Hostname expected in the banner.</summary>

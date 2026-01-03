@@ -210,6 +210,11 @@ public static class CheckDescriptions {
                 "List IP neighbors via reverse or passive DNS.",
                 null,
                 "Investigate shared hosting risks."),
+            // Enrich discovered IPs with reverse DNS, ASN/org and geo hints
+            [HealthCheckType.IPENRICHMENT] = new(
+                "Enrich discovered IPs (rDNS, ASN/org, geo).",
+                "https://datatracker.ietf.org/doc/html/rfc7482",
+                "Review hosting footprint and unexpected networks."),
             [HealthCheckType.RPKI] = new(
                 "Validate RPKI origins for domain IPs.",
                 "https://rpki.readthedocs.io/",
@@ -272,6 +277,23 @@ public static class CheckDescriptions {
                 "Trace authoritative DNS resolution (root to answer).",
                 "https://www.rfc-editor.org/rfc/rfc1035",
                 "Use the trace log to identify broken delegations, missing glue, and authoritative misconfiguration.")
+            ,
+            [HealthCheckType.DNSPROPAGATION] = new(
+                "Compare DNS answers across multiple public resolvers (propagation / global visibility).",
+                "https://www.rfc-editor.org/rfc/rfc1035",
+                "Use propagation results to detect inconsistent caching, stale resolvers, or split-horizon behavior."),
+            [HealthCheckType.DNSAMPLIFICATION] = new(
+                "Assess DNS amplification posture (recursion + EDNS + response size probes).",
+                "https://www.rfc-editor.org/rfc/rfc8900",
+                "Disable open recursion, limit EDNS UDP payload sizes, and enable rate limiting or provider protections."),
+            [HealthCheckType.DNSOVERTLS] = new(
+                "Check DNS over TLS (DoT) support on authoritative name servers.",
+                "https://www.rfc-editor.org/rfc/rfc7858",
+                "If required, offer encrypted DNS transport (DoT/DoH) via your DNS provider or resolver."),
+            [HealthCheckType.CTTIMELINE] = new(
+                "Build a certificate transparency (CT) timeline for certificate issuance and validity.",
+                "https://datatracker.ietf.org/doc/html/rfc6962",
+                "Review issuance patterns, issuer diversity, and active vs expired certificates.")
         };
 
     /// <summary>Gets the description for the specified check type.</summary>

@@ -19,6 +19,7 @@ public sealed class CmdletImportRegistrationSnapshot : PSCmdlet
     /// <summary>Domain to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string DomainName { get; set; } = string.Empty;
 
     /// <summary>Root directory for snapshot storage.</summary>

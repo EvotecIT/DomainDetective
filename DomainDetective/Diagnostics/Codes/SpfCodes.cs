@@ -19,6 +19,8 @@ internal static class SpfCodes {
     public const string AllMissing = "SPF.All.Missing";
     public const string PtrUsed = "SPF.Ptr.Used";
     public const string ExistsUsed = "SPF.Exists.Used";
+    public const string WildcardMissing = "SPF.Wildcard.Missing";
+    public const string WildcardPresent = "SPF.Wildcard.Present";
 
     // Positive/posture signals
     public const string Present = "SPF.Record.Present";

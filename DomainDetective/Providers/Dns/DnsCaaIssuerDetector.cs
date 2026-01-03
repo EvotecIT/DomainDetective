@@ -152,8 +152,8 @@ public static class DnsCaaIssuerDetector
     {
         issuer = DnsCaaIssuers.None;
 
-        var d = issuerDomain?.Trim().TrimEnd('.').ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(d) || d == ";")
+        var d = issuerDomain.Trim().TrimEnd('.').ToLowerInvariant();
+        if (d.Length == 0 || d == ";")
         {
             return false;
         }
@@ -214,4 +214,3 @@ public enum DnsCaaIssuers
     Entrust = 2048,
     SslDotCom = 4096
 }
-

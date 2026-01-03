@@ -510,12 +510,13 @@ public sealed class DnsTraceAnalysis : IHasAssessments
 
     private static string NormalizeHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        var trimmed = (value ?? string.Empty).Trim().TrimEnd('.');
+        if (trimmed.Length == 0)
         {
             return string.Empty;
         }
 
-        return value.Trim().TrimEnd('.').ToLowerInvariant();
+        return trimmed.ToLowerInvariant();
     }
 
     private IReadOnlyList<string> GetInitialRootServers()

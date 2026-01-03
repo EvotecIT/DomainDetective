@@ -19,6 +19,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain(s) to evaluate.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ByDomain", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>IPv4/IPv6 address of the host to test.</para>

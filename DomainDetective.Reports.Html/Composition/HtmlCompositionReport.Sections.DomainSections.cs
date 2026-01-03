@@ -25,12 +25,18 @@ public static partial class HtmlCompositionReport
             list.Add("Mail Transport Posture");
         if (b.Spf != null) list.Add("SPF");
         if (b.Dkim.Count > 0) list.Add("DKIM");
-        if (b.Dmarc != null) list.Add("DMARC");
-        if (b.DmarcAggregate != null) list.Add("DMARC Aggregate");
-        if (b.Registration != null) list.Add("Registration");
+	        if (b.Dmarc != null) list.Add("DMARC");
+	        if (b.DmarcAggregate != null) list.Add("DMARC Aggregate");
+	        if (b.Registration != null) list.Add("Registration");
+	        if (b.Http != null) list.Add("HTTP");
+	        if (b.CtTimeline != null) list.Add("CT Timeline");
         if (b.Subdomains != null) list.Add("Subdomains");
         if (b.DnsInventory != null) list.Add("DNS Inventory");
         if (b.DnsTrace != null) list.Add("DNS Trace");
+        if (b.DnsPropagation != null && b.DnsPropagation.Count > 0) list.Add("DNS Propagation");
+        if (b.DnsAmplification != null) list.Add("DNS Amplification");
+        if (b.DnsOverTls != null) list.Add("DNS over TLS");
+        if (b.IpEnrichment != null) list.Add("IP Enrichment");
         if (b.Arc != null) list.Add("ARC");
         if (b.Bimi != null) list.Add("BIMI");
         if (b.Dnsbl != null) list.Add("DNSBL");
@@ -103,9 +109,15 @@ public static partial class HtmlCompositionReport
                 case "TLS-RPT Reports":
                     RenderTlsRptReportsSection(acc, b);
                     break;
-                case "Registration":
-                    RenderRegistrationSection(acc, b);
-                    break;
+	                case "Registration":
+	                    RenderRegistrationSection(acc, b);
+	                    break;
+	                case "HTTP":
+	                    RenderHttpSection(acc, b);
+	                    break;
+	                case "CT Timeline":
+	                    RenderCtTimelineSection(acc, b);
+	                    break;
                 case "Subdomains":
                     RenderSubdomainsSection(acc, b);
                     break;
@@ -114,6 +126,18 @@ public static partial class HtmlCompositionReport
                     break;
                 case "DNS Trace":
                     RenderDnsTraceSection(acc, b);
+                    break;
+                case "DNS Propagation":
+                    RenderDnsPropagationSection(acc, b);
+                    break;
+                case "DNS Amplification":
+                    RenderDnsAmplificationSection(acc, b);
+                    break;
+                case "DNS over TLS":
+                    RenderDnsOverTlsSection(acc, b);
+                    break;
+                case "IP Enrichment":
+                    RenderIpEnrichmentSection(acc, b);
                     break;
                 case "NS":
                     RenderNsSection(acc, b);

@@ -280,5 +280,26 @@ internal sealed class SpfRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Record ends with '-all' and passes DMARC alignment tests."
         };
+
+        map[SpfCodes.WildcardMissing] = new RecommendationAdvice {
+            Code = SpfCodes.WildcardMissing,
+            Title = "Consider wildcard SPF for subdomain spoofing protection",
+            Why = "SPF does not inherit to arbitrary subdomains. Attackers can spoof subdomains that lack SPF, especially where receivers do not enforce DMARC.",
+            How = "If the domain does not send mail from subdomains, publish a wildcard SPF record (e.g., `*.example.com TXT \"v=spf1 -all\"`). Prefer DMARC enforcement where possible.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "wildcard", "subdomain" },
+            Impact = "Reduces spoofing using unprotected subdomains.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Query `*.example.com` for TXT and confirm it returns the intended SPF policy."
+        };
+
+        map[SpfCodes.WildcardPresent] = new RecommendationAdvice {
+            Code = SpfCodes.WildcardPresent,
+            Title = "Wildcard SPF record present",
+            Why = "A wildcard SPF can help prevent spoofing from arbitrary subdomains when subdomains do not send mail.",
+            How = "Maintain the wildcard policy and ensure legitimate mail uses dedicated subdomains with explicit SPF.",
+            Domain = RecommendationDomain.Spf,
+            Tags = new [] { "spf", "wildcard", "subdomain" }
+        };
     }
 }

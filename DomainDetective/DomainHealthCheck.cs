@@ -334,6 +334,14 @@ namespace DomainDetective {
         /// <value>Information about EDNS capabilities.</value>
         public EdnsSupportAnalysis EdnsSupportAnalysis { get; private set; } = new EdnsSupportAnalysis();
 
+        /// <summary>Gets the DNS amplification posture analysis.</summary>
+        /// <value>Open recursion + EDNS + bounded large-answer probes.</value>
+        public DnsAmplificationAnalysis DnsAmplificationAnalysis { get; private set; } = new DnsAmplificationAnalysis();
+
+        /// <summary>Gets the DNS over TLS (DoT) support analysis.</summary>
+        /// <value>Port 853/TLS probe results for authoritative name servers.</value>
+        public DnsOverTlsAnalysis DnsOverTlsAnalysis { get; private set; } = new DnsOverTlsAnalysis();
+
         /// <summary>Gets the flattening service analysis.</summary>
         /// <value>Information about CNAME flattening services.</value>
         public FlatteningServiceAnalysis FlatteningServiceAnalysis { get; private set; } = new FlatteningServiceAnalysis();
@@ -367,6 +375,18 @@ namespace DomainDetective {
         /// <summary>Gets the DNS trace analysis.</summary>
         /// <value>Iterative authoritative trace log for explainability and debugging.</value>
         public DnsTraceAnalysis DnsTraceAnalysis { get; private set; } = new DnsTraceAnalysis();
+
+        /// <summary>Gets the certificate transparency timeline analysis.</summary>
+        /// <value>Issuance/validity timeline and issuer diversity for CT entries.</value>
+        public CertificateTransparencyTimelineAnalysis CtTimelineAnalysis { get; private set; } = new CertificateTransparencyTimelineAnalysis();
+
+        /// <summary>Gets the IP enrichment analysis.</summary>
+        /// <value>Reverse DNS + ASN/org + geo hints for discovered IPs.</value>
+        public IpEnrichmentAnalysis IpEnrichmentAnalysis { get; private set; } = new IpEnrichmentAnalysis();
+
+        /// <summary>Gets the DNS propagation set analysis.</summary>
+        /// <value>Multi-resolver DNS visibility summaries (per record type).</value>
+        public DnsPropagationSetAnalysis DnsPropagationSet { get; private set; } = new DnsPropagationSetAnalysis();
 
         // Settings properties moved to DomainHealthCheck.Settings.cs
 
@@ -433,6 +453,7 @@ namespace DomainDetective {
             SubdomainsAnalysis.DnsConfiguration = DnsConfiguration;
             DnsInventoryAnalysis.DnsConfiguration = DnsConfiguration;
             DnsTraceAnalysis.DnsConfiguration = DnsConfiguration;
+            IpEnrichmentAnalysis.DnsConfiguration = DnsConfiguration;
 
             DnsTtlAnalysis = new DnsTtlAnalysis {
                 DnsConfiguration = DnsConfiguration
@@ -452,6 +473,8 @@ namespace DomainDetective {
             TyposquattingAnalysis.PublicSuffixList = _publicSuffixList;
             WildcardDnsAnalysis.DnsConfiguration = DnsConfiguration;
             EdnsSupportAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsAmplificationAnalysis.DnsConfiguration = DnsConfiguration;
+            DnsOverTlsAnalysis.DnsConfiguration = DnsConfiguration;
             FlatteningServiceAnalysis.DnsConfiguration = DnsConfiguration;
             TakeoverCnameAnalysis.DnsConfiguration = DnsConfiguration;
             AutodiscoverAnalysis.DnsConfiguration = DnsConfiguration;

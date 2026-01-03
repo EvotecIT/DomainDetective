@@ -37,9 +37,15 @@ public static partial class ExcelCompositionReport
             Classification = s.Classification,
             Subdomains = s.Subdomains,
             DnsInventory = s.DnsInventory,
-            DnsTrace = s.DnsTrace
+            DnsTrace = s.DnsTrace,
+            CtTimeline = s.CtTimeline,
+            Http = s.Http,
+            IpEnrichment = s.IpEnrichment,
+            DnsAmplification = s.DnsAmplification,
+            DnsOverTls = s.DnsOverTls
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);
+        if (s.DnsPropagation != null && s.DnsPropagation.Count > 0) b.DnsPropagation.AddRange(s.DnsPropagation);
         return b;
     }
 
@@ -71,6 +77,12 @@ public static partial class ExcelCompositionReport
         public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
         public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
         public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
+        public DomainDetective.Views.HttpInfo? Http { get; set; }
+        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
     }
 
     private static string MakeUniqueSheetName(string domain, HashSet<string> used)

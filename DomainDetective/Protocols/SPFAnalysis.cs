@@ -48,6 +48,8 @@ namespace DomainDetective {
         public bool HasRedirect { get; private set; }
         public bool HasExp { get; private set; }
         public bool InvalidIpSyntax { get; private set; }
+        /// <summary>True when the SPF policy appears to deny all sending (e.g., <c>v=spf1 -all</c> with no allow mechanisms).</summary>
+        public bool DenyAll { get; private set; }
         public List<string> ARecords { get; private set; } = new List<string>();
         public List<string> Ipv4Records { get; private set; } = new List<string>();
         public List<string> Ipv6Records { get; private set; } = new List<string>();
@@ -305,6 +307,15 @@ namespace DomainDetective {
             } catch { /* best-effort */ }
 
             UpdateAdvisory(logger);
+
+            // Detect deny-all posture: no allow mechanisms and terminal -all.
+            try {
+                bool allow = Ipv4Records.Count > 0 || Ipv6Records.Count > 0 || ARecords.Count > 0 || MxRecords.Count > 0 ||
+                            PtrRecords.Count > 0 || ExistsRecords.Count > 0 || IncludeRecords.Count > 0 || HasRedirect;
+                DenyAll = SpfRecordExists && !allow && AllMechanism?.Equals("-all", StringComparison.OrdinalIgnoreCase) == true;
+            } catch {
+                DenyAll = false;
+            }
 
             // policy strength advisory for 'all'
             if (string.IsNullOrWhiteSpace(AllMechanism)) {

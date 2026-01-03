@@ -127,5 +127,27 @@ internal sealed class NSRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "A test query for unrelated domains returns REFUSED or no recursion."
         };
+        map[NSCodes.ChaosVersionExposed] = new RecommendationAdvice {
+            Code = NSCodes.ChaosVersionExposed,
+            Title = "Nameserver software version exposed (CHAOS)",
+            Why = "Exposing version.bind can help attackers fingerprint DNS server software and target known vulnerabilities.",
+            How = "Disable or restrict CHAOS TXT responses (version.bind) in your DNS server configuration.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "information-disclosure", "chaos" },
+            Impact = "Increases the likelihood of targeted exploitation.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Query version.bind (TXT, class CH) returns REFUSED or no answer."
+        };
+        map[NSCodes.ChaosHostnameExposed] = new RecommendationAdvice {
+            Code = NSCodes.ChaosHostnameExposed,
+            Title = "Nameserver hostname exposed (CHAOS)",
+            Why = "Exposing hostname.bind can reveal internal naming conventions and infrastructure details.",
+            How = "Disable or restrict CHAOS TXT responses (hostname.bind) in your DNS server configuration.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "information-disclosure", "chaos" },
+            Impact = "Assists reconnaissance and infrastructure mapping.",
+            Effort = RecommendationEffort.Low,
+            Verify = "Query hostname.bind (TXT, class CH) returns REFUSED or no answer."
+        };
     }
 }

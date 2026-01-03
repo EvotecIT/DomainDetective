@@ -80,12 +80,13 @@ public static class MailProviderKindDetector
     private static bool TryMapProviderId(string? id, out MailProviderKind kind)
     {
         kind = MailProviderKind.Unknown;
-        if (string.IsNullOrWhiteSpace(id))
+        var key = (id ?? string.Empty).Trim();
+        if (key.Length == 0)
         {
             return false;
         }
 
-        switch (id.Trim().ToLowerInvariant())
+        switch (key.ToLowerInvariant())
         {
             case "m365":
                 kind = MailProviderKind.Microsoft365;
@@ -136,12 +137,13 @@ public static class MailProviderKindDetector
 
     private static string NormalizeHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        var trimmed = (value ?? string.Empty).Trim().TrimEnd('.');
+        if (trimmed.Length == 0)
         {
             return string.Empty;
         }
 
-        return value.Trim().TrimEnd('.').ToLowerInvariant();
+        return trimmed.ToLowerInvariant();
     }
 
     // Simple wildcard matcher: supports '*' anywhere (multi-part contains).
@@ -182,4 +184,3 @@ public static class MailProviderKindDetector
         return true;
     }
 }
-

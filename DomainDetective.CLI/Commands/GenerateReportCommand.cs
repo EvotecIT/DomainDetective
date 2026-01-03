@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -13,6 +14,7 @@ using DomainDetective.TimeSeries.DmarcAggregate;
 using DomainDetective.TimeSeries.Registration;
 using DomainDetective.TimeSeries.TlsRpt;
 using HtmlForgeX;
+using DnsClientX;
 
 namespace DomainDetective.CLI.Commands;
 
@@ -67,6 +69,29 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         [CommandOption("--dns-trace")]
         [DefaultValue(false)]
         public bool IncludeDnsTrace { get; set; }
+
+        [Description("Include DNS propagation section (multi-resolver global visibility; can be slow)")]
+        [CommandOption("--dns-propagation|--dns-prop")]
+        [DefaultValue(false)]
+        public bool IncludeDnsPropagation { get; set; }
+
+        [Description("Primary DNS endpoint used for resolver queries")]
+        [CommandOption("--dns-endpoint <ENDPOINT>")]
+        [DefaultValue(DnsEndpoint.System)]
+        public DnsEndpoint DnsEndpoint { get; set; } = DnsEndpoint.System;
+
+        [Description("Optional list of DNS endpoints to use (multi-resolver). Use multiple flags or comma-separated values.")]
+        [CommandOption("--dns-endpoints <ENDPOINTS>")]
+        public string[] DnsEndpoints { get; set; } = Array.Empty<string>();
+
+        [Description("Strategy used when multiple DNS endpoints are provided")]
+        [CommandOption("--dns-strategy <STRATEGY>")]
+        [DefaultValue(MultiResolverStrategy.FirstSuccess)]
+        public MultiResolverStrategy MultiResolverStrategy { get; set; } = MultiResolverStrategy.FirstSuccess;
+
+        [Description("Maximum number of resolvers to query in parallel (null = all)")]
+        [CommandOption("--dns-endpoints-parallelism <N>")]
+        public int? MultiResolverMaxParallelism { get; set; }
     }
     
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings) {
@@ -83,36 +108,57 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 .StartAsync(async ctx => {
                     // Step 1: Analyze domain
                     var analyzeTask = ctx.AddTask($"[green]Analyzing {settings.Domain}[/]");
-                    var healthCheck = new DomainHealthCheck();
                     var logger = new InternalLogger(false);
-                    // Use same logger in health check for consistent events
-                    healthCheck = new DomainHealthCheck(healthCheck.DnsEndpoint, logger);
+                    var healthCheck = new DomainHealthCheck(settings.DnsEndpoint, logger);
+
+                    var dnsEndpoints = CommandUtilities.ParseDnsEndpoints(settings.DnsEndpoints, out var invalidDnsEndpoints);
+                    if (invalidDnsEndpoints.Count > 0)
+                    {
+                        var joined = string.Join(", ", invalidDnsEndpoints.Distinct(StringComparer.OrdinalIgnoreCase));
+                        AnsiConsole.MarkupLine($"[yellow]Ignoring invalid --dns-endpoints value(s):[/] {joined}");
+                    }
+
+                    if (dnsEndpoints != null && dnsEndpoints.Length > 0)
+                    {
+                        healthCheck.DnsEndpoints.Clear();
+                        healthCheck.DnsEndpoints.AddRange(dnsEndpoints);
+                        healthCheck.MultiResolverStrategy = settings.MultiResolverStrategy;
+                        healthCheck.MultiResolverMaxParallelism = settings.MultiResolverMaxParallelism;
+                    }
                     var artifactsBase = DomainDetective.Reports.FilePathHelper.ResolveBaseDirectory(settings.OutputPath, null);
                     using var coord = RunCoordinator.Begin(settings.Domain, logger, artifactsBase);
 
                     // Report-oriented default check set (broader than DomainHealthCheck.Verify defaults).
-                    var reportChecks = new List<HealthCheckType> {
-                        HealthCheckType.MX,
-                        HealthCheckType.SPF,
-                        HealthCheckType.DKIM,
-                        HealthCheckType.DMARC,
-                        HealthCheckType.CAA,
-                        HealthCheckType.DNSBL,
-                        HealthCheckType.RPKI,
-                        HealthCheckType.NS,
-                        HealthCheckType.SOA,
-                        HealthCheckType.TTL,
-                        HealthCheckType.ZONETRANSFER,
-                        HealthCheckType.WILDCARDDNS,
-                        HealthCheckType.MTASTS,
-                        HealthCheckType.TLSRPT,
-                        HealthCheckType.DANE,
-                        HealthCheckType.DNSSEC,
-                        HealthCheckType.SUBDOMAINS,
-                        HealthCheckType.DNSINVENTORY,
-                    };
+	                    var reportChecks = new List<HealthCheckType> {
+	                        HealthCheckType.MX,
+	                        HealthCheckType.SPF,
+	                        HealthCheckType.DKIM,
+	                        HealthCheckType.DMARC,
+	                        HealthCheckType.CAA,
+	                        HealthCheckType.DNSBL,
+	                        HealthCheckType.RPKI,
+	                        HealthCheckType.NS,
+	                        HealthCheckType.SOA,
+	                        HealthCheckType.TTL,
+	                        HealthCheckType.ZONETRANSFER,
+	                        HealthCheckType.WILDCARDDNS,
+	                        HealthCheckType.MTASTS,
+	                        HealthCheckType.TLSRPT,
+	                        HealthCheckType.DANE,
+	                        HealthCheckType.DNSSEC,
+	                        HealthCheckType.HTTP,
+	                        HealthCheckType.CTTIMELINE,
+	                        HealthCheckType.SUBDOMAINS,
+	                        HealthCheckType.DNSINVENTORY,
+	                        HealthCheckType.DNSAMPLIFICATION,
+	                        HealthCheckType.DNSOVERTLS,
+	                        HealthCheckType.IPENRICHMENT,
+	                    };
                     if (settings.IncludeDnsTrace) {
                         reportChecks.Add(HealthCheckType.DNSTRACE);
+                    }
+                    if (settings.IncludeDnsPropagation) {
+                        reportChecks.Add(HealthCheckType.DNSPROPAGATION);
                     }
                     await healthCheck.Verify(settings.Domain, reportChecks.ToArray());
                     analyzeTask.Value = 100;
@@ -137,15 +183,16 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                     // Always emit JSON artifacts for the run.
                     var runDir = coord.End(healthCheck);
 
-                    // HTML/Word: use composition generators for parity with PowerShell export.
-                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
-                    {
-                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace);
-
-                        if (formatEnum == ReportFormat.Word)
-                        {
-                            WordCompositionReport.Generate(
-                                outputPath,
+	                    // HTML/Word: use composition generators for parity with PowerShell export.
+	                    if (formatEnum == ReportFormat.Html || formatEnum == ReportFormat.Word)
+	                    {
+	                        var conversionErrors = new List<string>();
+	                        var items = BuildCompositionItems(healthCheck, settings.Domain, settings.StorePath, settings.IncludeDnsTrace, conversionErrors);
+	
+	                        if (formatEnum == ReportFormat.Word)
+	                        {
+	                            WordCompositionReport.Generate(
+	                                outputPath,
                                 items,
                                 ReportScope.Normal,
                                 showInfoFindings: true,
@@ -175,10 +222,23 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                                 titleOverride: $"Security Report — {settings.Domain}",
                                 authorOverride: "DomainDetective CLI",
                                 descriptionOverride: "Domain security posture overview",
-                                profile: profile,
-                                themeMode: themeMode);
-                        }
-                    }
+	                                profile: profile,
+	                                themeMode: themeMode);
+	                        }
+
+	                        if (conversionErrors.Count > 0)
+	                        {
+	                            AnsiConsole.MarkupLine("[yellow]Some report sections could not be converted and were skipped:[/]");
+	                            foreach (var error in conversionErrors.Distinct(StringComparer.OrdinalIgnoreCase).Take(25))
+	                            {
+	                                AnsiConsole.MarkupLine($"[yellow]- {Markup.Escape(error)}[/]");
+	                            }
+	                            if (conversionErrors.Count > 25)
+	                            {
+	                                AnsiConsole.MarkupLine($"[yellow]... and {conversionErrors.Count - 25} more.[/]");
+	                            }
+	                        }
+	                    }
                     else
                     {
                         // Fallback: use the IReportGenerator adapter (may be minimal depending on the format).
@@ -225,32 +285,90 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         }
     }
 
-    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath, bool includeDnsTrace)
+    private static List<object> BuildCompositionItems(DomainHealthCheck healthCheck, string domain, string? storePath, bool includeDnsTrace, List<string> conversionErrors)
     {
         var items = new List<object>();
+        if (conversionErrors == null)
+        {
+            throw new ArgumentNullException(nameof(conversionErrors));
+        }
 
         // Core DNS/mail policy checks from this run
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis)); } catch { }
-        try { items.AddRange(DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis)); } catch { }
-        try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis)); } catch { }
+        void TryAdd(string name, Func<object> factory)
+        {
+            try
+            {
+                items.Add(factory());
+            }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        void TryAddRange<T>(string name, Func<IEnumerable<T>> factory)
+        {
+            try
+            {
+                var values = factory();
+                if (values != null)
+                {
+                    items.AddRange(values.Cast<object>());
+                }
+            }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"{name}: {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
+        TryAdd("SPF", () => DomainDetective.Views.Converters.Convert(healthCheck.SpfAnalysis));
+        TryAddRange("DKIM", () => DomainDetective.Views.Converters.Convert(healthCheck.DKIMAnalysis));
+        TryAdd("DMARC", () => DomainDetective.Views.Converters.Convert(healthCheck.DmarcAnalysis));
+        TryAdd("CAA", () => DomainDetective.Views.Converters.Convert(healthCheck.CAAAnalysis));
+        TryAdd("DNSBL", () => DomainDetective.Views.Converters.Convert(healthCheck.DNSBLAnalysis));
+        TryAdd("RPKI", () => DomainDetective.Views.Converters.Convert(healthCheck.RpkiAnalysis));
+        TryAdd("NS", () => DomainDetective.Views.Converters.Convert(healthCheck.NSAnalysis));
+        TryAdd("SOA", () => DomainDetective.Views.Converters.Convert(healthCheck.SOAAnalysis));
+        TryAdd("TTL", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTtlAnalysis));
+        TryAdd("ZONETRANSFER", () => DomainDetective.Views.Converters.Convert(healthCheck.ZoneTransferAnalysis));
+        TryAdd("WILDCARDDNS", () => DomainDetective.Views.Converters.Convert(healthCheck.WildcardDnsAnalysis));
+        TryAdd("MTASTS", () => DomainDetective.Views.Converters.Convert(healthCheck.MTASTSAnalysis));
+        TryAdd("TLSRPT", () => DomainDetective.Views.Converters.Convert(healthCheck.TLSRPTAnalysis));
+        TryAdd("DANE", () => DomainDetective.Views.Converters.Convert(healthCheck.DaneAnalysis));
+        TryAdd("DNSSEC", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsSecAnalysis));
+        TryAdd("CTTIMELINE", () => DomainDetective.Views.Converters.Convert(healthCheck.CtTimelineAnalysis));
+        TryAdd("SUBDOMAINS", () => DomainDetective.Views.Converters.Convert(healthCheck.SubdomainsAnalysis));
+        TryAdd("DNSINVENTORY", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsInventoryAnalysis));
+        TryAdd("DNSAMPLIFICATION", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsAmplificationAnalysis));
+        TryAdd("DNSOVERTLS", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsOverTlsAnalysis));
+        if (!string.IsNullOrWhiteSpace(healthCheck.HttpAnalysis.Subject))
+        {
+            TryAdd("HTTP", () => DomainDetective.Views.Converters.Convert(healthCheck.HttpAnalysis));
+        }
+        if (!string.IsNullOrWhiteSpace(healthCheck.IpEnrichmentAnalysis.Subject))
+        {
+            TryAdd("IPENRICHMENT", () => DomainDetective.Views.Converters.Convert(healthCheck.IpEnrichmentAnalysis));
+        }
+        try
+        {
+            var set = healthCheck.DnsPropagationSet;
+            if (set != null && set.Items.Count > 0)
+            {
+                foreach (var a in set.Items)
+                {
+                    TryAdd("DNSPROPAGATION", () => DomainDetective.Views.Converters.Convert(a));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            conversionErrors.Add($"DNSPROPAGATION: {ex.GetType().Name}: {ex.Message}");
+        }
         if (includeDnsTrace)
         {
-            try { items.Add(DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis)); } catch { }
+            TryAdd("DNSTRACE", () => DomainDetective.Views.Converters.Convert(healthCheck.DnsTraceAnalysis));
         }
 
         // Optional time-series sections from a store (only when data exists)
@@ -262,7 +380,10 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 var snaps = dmarcStore.LoadSnapshots(domain);
                 if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"DMARC-AGGREGATE-STORE: {ex.GetType().Name}: {ex.Message}");
+            }
 
             try
             {
@@ -270,7 +391,10 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 var snaps = tlsStore.LoadSnapshots(domain);
                 if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"TLSRPT-STORE: {ex.GetType().Name}: {ex.Message}");
+            }
 
             try
             {
@@ -278,13 +402,16 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
                 var snaps = regStore.LoadSnapshots(domain);
                 if (snaps.Count > 0) items.Add(DomainDetective.Views.Converters.Convert(snaps, domain));
             }
-            catch { }
+            catch (Exception ex)
+            {
+                conversionErrors.Add($"REGISTRATION-STORE: {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         // Composition generators require at least one supported view object.
         if (items.Count == 0)
         {
-            items.Add(DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
+            TryAdd("MX", () => DomainDetective.Views.Converters.Convert(healthCheck.MXAnalysis));
         }
 
         return items;

@@ -1,6 +1,7 @@
 using DnsClientX;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -281,35 +282,170 @@ namespace DomainDetective {
         /// <summary>
         /// Queries the DNS for a list of names and a record type, optionally applying a filter, and returns the full DNS response.
         /// </summary>
-        public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (names == null || names.Length == 0) {
-                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
-            }
-            if (DnsEndpoints.Count > 0) {
-                var list = new List<DnsResponse>(names.Length);
-                foreach (var n in names) {
-                    var resp = await ResolveResponseWithEndpoints(n, recordType, filter, includeAliasesInFilter: false, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
-                    if (resp != null) list.Add(resp);
-                }
-                return list;
-            }
+	        public async Task<IEnumerable<DnsResponse>> QueryFullDNS(string[] names, DnsRecordType recordType, string filter = "", CancellationToken cancellationToken = default) {
+	            cancellationToken.ThrowIfCancellationRequested();
+	            if (names == null || names.Length == 0) {
+	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
+	            }
+	            if (DnsEndpoints.Count > 0) {
+	                var list = new List<DnsResponse>(names.Length);
+	                foreach (var n in names) {
+	                    var resp = await ResolveResponseWithEndpoints(n, recordType, filter, includeAliasesInFilter: false, DnsEndpoints.ToArray(), MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
+	                    if (resp != null) list.Add(resp);
+	                }
+	                return list;
+	            }
 
-            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
-            client.EndpointConfiguration.UserAgent = UserAgent;
-            if (ResolverMaxConcurrency.HasValue) {
-                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
-            }
-            DnsResponse[] data = filter != string.Empty
-                ? await client.ResolveFilter(names, recordType, filter)
-                : await client.Resolve(names, recordType);
+	            using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
+	            client.EndpointConfiguration.UserAgent = UserAgent;
+	            if (ResolverMaxConcurrency.HasValue) {
+	                client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+	            }
+	            DnsResponse[] data = filter != string.Empty
+	                ? await client.ResolveFilter(names, recordType, filter)
+	                : await client.Resolve(names, recordType);
 
-            return data;
-        }
+	            return data;
+	        }
 
-        // No concurrency hint is applied in this build.
-        private async Task<DnsResponse?> ResolveResponseWithEndpoints(string name, DnsRecordType recordType, string filter, bool includeAliasesInFilter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
-        {
+	        /// <summary>
+	        /// Queries the DNS for a list of names and a record type and returns a list of responses in the same order as <paramref name="names"/>.
+	        /// </summary>
+	        public async Task<IReadOnlyList<DnsResponse?>> QueryFullDNSOrdered(string[] names, DnsRecordType recordType, string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default)
+	        {
+	            cancellationToken.ThrowIfCancellationRequested();
+	            if (names == null || names.Length == 0)
+	            {
+	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
+	            }
+
+	            if (QueryDnsOverride != null)
+	            {
+	                var list = new List<DnsResponse?>(names.Length);
+	                foreach (var n in names)
+	                {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    var answers = await QueryDnsOverride(n, recordType).ConfigureAwait(false);
+	                    list.Add(new DnsResponse
+	                    {
+	                        Status = DnsResponseCode.NoError,
+	                        Answers = answers ?? Array.Empty<DnsAnswer>()
+	                    });
+	                }
+	                return list;
+	            }
+
+	            if (DnsEndpoints.Count > 0)
+	            {
+	                var endpoints = DnsEndpoints.ToArray();
+	                var list = new List<DnsResponse?>(names.Length);
+	                foreach (var n in names)
+	                {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    var resp = await ResolveResponseWithEndpoints(n, recordType, filter, includeAliasesInFilter, endpoints, MultiResolverStrategy, MultiResolverMaxParallelism, cancellationToken).ConfigureAwait(false);
+	                    list.Add(resp);
+	                }
+	                return list;
+	            }
+
+	            var filterOptions = includeAliasesInFilter ? new ResolveFilterOptions(true) : new ResolveFilterOptions();
+	            try
+	            {
+	                using var client = new ClientX(endpoint: DnsEndpoint, DnsSelectionStrategy);
+	                client.EndpointConfiguration.UserAgent = UserAgent;
+	                if (ResolverMaxConcurrency.HasValue)
+	                {
+	                    client.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+	                }
+
+	                DnsResponse[] data = (filter != string.Empty || includeAliasesInFilter)
+	                    ? await client.ResolveFilter(names, recordType, filter, filterOptions).ConfigureAwait(false)
+	                    : await client.Resolve(names, recordType).ConfigureAwait(false);
+
+	                var ordered = data.Cast<DnsResponse?>().ToList();
+	                while (ordered.Count < names.Length)
+	                {
+	                    ordered.Add(null);
+	                }
+	                return ordered;
+	            }
+	            catch (Exception ex) when (ex is TaskCanceledException || ex is TimeoutException || ex is System.Net.Http.HttpRequestException)
+	            {
+	                if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
+
+	                var fallbacks = GetFallbackEndpoints(DnsEndpoint);
+	                foreach (var fb in fallbacks)
+	                {
+	                    cancellationToken.ThrowIfCancellationRequested();
+	                    try
+	                    {
+	                        using var clientFb = new ClientX(endpoint: fb, DnsSelectionStrategy);
+	                        clientFb.EndpointConfiguration.UserAgent = UserAgent;
+	                        if (ResolverMaxConcurrency.HasValue)
+	                        {
+	                            clientFb.EndpointConfiguration.MaxConcurrency = ResolverMaxConcurrency.Value;
+	                        }
+
+	                        DnsResponse[] dataFb = (filter != string.Empty || includeAliasesInFilter)
+	                            ? await clientFb.ResolveFilter(names, recordType, filter, filterOptions).ConfigureAwait(false)
+	                            : await clientFb.Resolve(names, recordType).ConfigureAwait(false);
+
+	                        var orderedFb = dataFb.Cast<DnsResponse?>().ToList();
+	                        while (orderedFb.Count < names.Length)
+	                        {
+	                            orderedFb.Add(null);
+	                        }
+	                        return orderedFb;
+	                    }
+	                    catch (Exception retryEx) when (retryEx is TaskCanceledException || retryEx is TimeoutException || retryEx is System.Net.Http.HttpRequestException)
+	                    {
+	                        if (cancellationToken.IsCancellationRequested) throw new OperationCanceledException(cancellationToken);
+	                        // try next fallback
+	                    }
+	                }
+
+	                var empty = new List<DnsResponse?>(names.Length);
+	                for (var i = 0; i < names.Length; i++)
+	                {
+	                    empty.Add(null);
+	                }
+	                return empty;
+	            }
+	        }
+
+	        /// <summary>
+	        /// Queries the DNS for a list of names and returns a per-name result set in the same order as <paramref name="names"/>.
+	        /// </summary>
+	        public async Task<IReadOnlyList<DnsQueryBatchResult>> QueryDNSBatch(string[] names, DnsRecordType recordType, string filter = "", bool includeAliasesInFilter = false, CancellationToken cancellationToken = default)
+	        {
+	            cancellationToken.ThrowIfCancellationRequested();
+	            if (names == null || names.Length == 0)
+	            {
+	                throw new ArgumentNullException(nameof(names), $"No domain names provided for querying {recordType} records.");
+	            }
+
+	            var responses = await QueryFullDNSOrdered(names, recordType, filter, includeAliasesInFilter, cancellationToken).ConfigureAwait(false);
+	            var results = new List<DnsQueryBatchResult>(names.Length);
+	            for (var i = 0; i < names.Length; i++)
+	            {
+	                var resp = i < responses.Count ? responses[i] : null;
+	                var answers = resp?.Answers ?? Array.Empty<DnsAnswer>();
+	                var code = resp?.Status ?? DnsResponseCode.ServerFailure;
+	                results.Add(new DnsQueryBatchResult
+	                {
+	                    Name = names[i],
+	                    RecordType = recordType,
+	                    ResponseCode = code,
+	                    Answers = answers,
+	                    QuerySucceeded = code == DnsResponseCode.NoError && answers.Length > 0
+	                });
+	            }
+	            return results;
+	        }
+ 
+	        // No concurrency hint is applied in this build.
+	        private async Task<DnsResponse?> ResolveResponseWithEndpoints(string name, DnsRecordType recordType, string filter, bool includeAliasesInFilter, DnsEndpoint[] endpoints, MultiResolverStrategy strategy, int? maxParallelism, CancellationToken ct)
+	        {
             if (endpoints == null || endpoints.Length == 0) return null;
             if (strategy == MultiResolverStrategy.SequentialAll) {
                 foreach (var ep in endpoints) {

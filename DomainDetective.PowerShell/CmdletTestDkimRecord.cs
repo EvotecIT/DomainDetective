@@ -17,6 +17,7 @@ namespace DomainDetective.PowerShell {
         /// <para>Domain(s) to query.</para>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <para>Selectors to validate. When omitted, common selectors are auto-detected.</para>

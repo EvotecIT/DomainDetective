@@ -107,13 +107,31 @@ namespace DomainDetective {
         public bool OriginAgentClusterPresent { get; private set; }
         /// <summary>Gets a value indicating whether Origin-Agent-Cluster is enabled.</summary>
         public bool OriginAgentClusterEnabled { get; private set; }
-        /// <summary>Gets the URLs visited when following redirects.</summary>
-        public List<string> VisitedUrls { get; } = new();
-        /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
-        public int MaxRedirects { get; set; } = 10;
+	        /// <summary>Gets the URLs visited when following redirects.</summary>
+	        public List<string> VisitedUrls { get; } = new();
+	        /// <summary>Gets or sets the maximum number of redirects to follow.</summary>
+	        public int MaxRedirects { get; set; } = 10;
+	        /// <summary>HTTP method used for the request.</summary>
+	        public HttpRequestMethod RequestMethodUsed { get; private set; } = HttpRequestMethod.Get;
+	        /// <summary>True when TLS validation was disabled for the request.</summary>
+	        public bool TlsValidationDisabled { get; private set; }
+	        /// <summary>Proxy URL used for the request when configured.</summary>
+	        public string? ProxyUsed { get; private set; }
+	        /// <summary>Request header names that were sent (best-effort; excludes defaults).</summary>
+	        public List<string> RequestHeaderNames { get; } = new();
+	        /// <summary>Information disclosure headers observed (best-effort).</summary>
+	        public Dictionary<string, string> InformationDisclosureHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        /// <summary>Caching headers observed (best-effort).</summary>
+	        public Dictionary<string, string> CachingHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        /// <summary>Deprecated security headers observed.</summary>
+	        public HashSet<string> DeprecatedHeadersPresent { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        /// <summary>Deprecated security headers that were missing.</summary>
+	        public HashSet<string> MissingDeprecatedHeaders { get; } = new(StringComparer.OrdinalIgnoreCase);
+	        /// <summary>True when CSP contains a frame-ancestors directive.</summary>
+	        public bool CspFrameAncestorsPresent { get; private set; }
 
-        /// <summary>Gets or sets the HTTP request timeout.</summary>
-        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
+	        /// <summary>Gets or sets the HTTP request timeout.</summary>
+	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
 #if NET6_0_OR_GREATER
         /// <summary>Gets or sets the HTTP version used for requests.</summary>
@@ -123,10 +141,10 @@ namespace DomainDetective {
         public Version RequestVersion { get; set; } = HttpVersion.Version11;
 #endif
 
-        private static readonly List<string> _securityHeaderNames = new() {
-            "Content-Security-Policy",
-            "X-Content-Type-Options",
-            "X-Frame-Options",
+	        private static readonly List<string> _securityHeaderNames = new() {
+	            "Content-Security-Policy",
+	            "X-Content-Type-Options",
+	            "X-Frame-Options",
             "Referrer-Policy",
             "Permissions-Policy",
             "Strict-Transport-Security",
@@ -137,10 +155,32 @@ namespace DomainDetective {
             "Cross-Origin-Opener-Policy",
             "Cross-Origin-Embedder-Policy",
             "Cross-Origin-Resource-Policy",
-            "Origin-Agent-Cluster"
-        };
+	            "Origin-Agent-Cluster"
+	        };
 
-        private static HashSet<string> _hstsPreload = new(StringComparer.OrdinalIgnoreCase);
+	        private static readonly HashSet<string> _deprecatedSecurityHeaders = new(StringComparer.OrdinalIgnoreCase) {
+	            "X-XSS-Protection",
+	            "Expect-CT",
+	            "Public-Key-Pins",
+	            "X-Permitted-Cross-Domain-Policies"
+	        };
+
+	        private static readonly string[] _informationHeaderNames = new[] {
+	            "X-Powered-By",
+	            "Server",
+	            "X-AspNet-Version",
+	            "X-AspNetMvc-Version"
+	        };
+
+	        private static readonly string[] _cachingHeaderNames = new[] {
+	            "Cache-Control",
+	            "Pragma",
+	            "Expires",
+	            "Last-Modified",
+	            "ETag"
+	        };
+
+	        private static HashSet<string> _hstsPreload = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Loads a JSON array of preloaded HSTS hosts.</summary>
         /// <param name="filePath">File path containing the preload list.</param>
@@ -175,32 +215,59 @@ namespace DomainDetective {
         public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 
         /// <summary>
-        /// Performs an HTTP GET request to the specified URL.
-        /// </summary>
-        /// <param name="url">The URL to query.</param>
-        /// <param name="checkHsts">Whether to check for the presence of HSTS.</param>
-        /// <param name="logger">Logger used for error reporting.</param>
-        /// <param name="collectHeaders">Whether to collect common security headers.</param>
-        /// <param name="captureBody">Whether to capture the response body.</param>
-        /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default) {
-            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
-#if NET6_0_OR_GREATER
-            var manualRedirect = RequestVersion >= HttpVersion.Version30;
-            using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
-#else
-            using var handler = new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects };
-#endif
-            using var client = new HttpClient(handler) { Timeout = Timeout };
+	        /// Performs an HTTP request to the specified URL.
+	        /// </summary>
+	        /// <param name="url">The URL to query.</param>
+	        /// <param name="checkHsts">Whether to check for the presence of HSTS.</param>
+	        /// <param name="logger">Logger used for error reporting.</param>
+	        /// <param name="collectHeaders">Whether to collect common security headers.</param>
+	        /// <param name="captureBody">Whether to capture the response body.</param>
+	        /// <param name="cancellationToken">Token to cancel the operation.</param>
+	        /// <param name="requestOptions">Optional request customization options.</param>
+	        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default, HttpRequestOptions? requestOptions = null) {
+	            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
+	            requestOptions ??= new HttpRequestOptions();
+	#if NET6_0_OR_GREATER
+	            var manualRedirect = RequestVersion >= HttpVersion.Version30;
+	            using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
+	#else
+	            using var handler = new HttpClientHandler { AllowAutoRedirect = false, MaxAutomaticRedirections = MaxRedirects };
+	#endif
+	            ProxyUsed = null;
+	            TlsValidationDisabled = requestOptions.DisableTlsValidation;
+	            if (!string.IsNullOrWhiteSpace(requestOptions.ProxyUrl)) {
+	                try {
+	                    handler.UseProxy = true;
+	                    handler.Proxy = new WebProxy(requestOptions.ProxyUrl);
+	                    ProxyUsed = requestOptions.ProxyUrl;
+	                } catch {
+	                    handler.UseProxy = false;
+	                    handler.Proxy = null;
+	                    ProxyUsed = null;
+	                }
+	            }
+	            if (requestOptions.DisableTlsValidation) {
+	#if NET5_0_OR_GREATER
+	                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+	#else
+	                handler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
+	#endif
+	            }
+	            using var client = new HttpClient(handler) { Timeout = Timeout };
             var sw = Stopwatch.StartNew();
             FailureReason = null;
             ProtocolVersion = null;
-            Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
-            ServerHeader = null;
-            VisitedUrls.Clear();
-            MixedContentDetected = false;
-            InsecureFormsCount = 0;
-            InsecureFormActions.Clear();
+	            Body = null; BodyLength = null; BodySha256 = null; NelRaw = null; ReportToRaw = null; SpeculationRulesRaw = null;
+	            ServerHeader = null;
+	            VisitedUrls.Clear();
+	            RequestHeaderNames.Clear();
+	            InformationDisclosureHeaders.Clear();
+	            CachingHeaders.Clear();
+	            DeprecatedHeadersPresent.Clear();
+	            MissingDeprecatedHeaders.Clear();
+	            MixedContentDetected = false;
+	            InsecureFormsCount = 0;
+	            InsecureFormActions.Clear();
             XssProtectionPresent = false;
             ExpectCtPresent = false;
             ExpectCtMaxAge = null;
@@ -223,29 +290,39 @@ namespace DomainDetective {
             XFrameOptions = null;
             CrossOriginOpenerPolicy = null;
             CrossOriginEmbedderPolicy = null;
-            CrossOriginResourcePolicy = null;
-            XPermittedCrossDomainPolicies = null;
-            OriginAgentClusterPresent = false;
-            OriginAgentClusterEnabled = false;
-            SecurityHeaders.Clear();
-            MissingSecurityHeaders.Clear();
-            try {
-#if NET6_0_OR_GREATER
-                var currentUri = new Uri(url);
-                HttpResponseMessage? response = null;
-                var redirects = 0;
-                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                while (true) {
-                    if (!visited.Add(currentUri.AbsoluteUri)) {
-                        throw new InvalidOperationException("Redirect loop detected.");
-                    }
-                    VisitedUrls.Add(currentUri.AbsoluteUri);
-                    var request = new HttpRequestMessage(HttpMethod.Get, currentUri) {
-                        Version = RequestVersion,
-                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-                    };
-                    response?.Dispose();
-                    response = await client.SendAsync(request, cancellationToken);
+	            CrossOriginResourcePolicy = null;
+	            XPermittedCrossDomainPolicies = null;
+	            OriginAgentClusterPresent = false;
+	            OriginAgentClusterEnabled = false;
+	            CspFrameAncestorsPresent = false;
+	            SecurityHeaders.Clear();
+	            MissingSecurityHeaders.Clear();
+	            try {
+	                string effectiveScheme;
+	#if NET6_0_OR_GREATER
+	                var currentUri = new Uri(url);
+	                HttpResponseMessage? response = null;
+	                var redirects = 0;
+	                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+	                var httpMethod = requestOptions.ToHttpMethod();
+	                if (captureBody && httpMethod == HttpMethod.Head) {
+	                    httpMethod = HttpMethod.Get;
+	                }
+	                RequestMethodUsed = httpMethod == HttpMethod.Head
+	                    ? HttpRequestMethod.Head
+	                    : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
+	                while (true) {
+	                    if (!visited.Add(currentUri.AbsoluteUri)) {
+	                        throw new InvalidOperationException("Redirect loop detected.");
+	                    }
+	                    VisitedUrls.Add(currentUri.AbsoluteUri);
+	                    using var request = new HttpRequestMessage(httpMethod, currentUri) {
+	                        Version = RequestVersion,
+	                        VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+	                    };
+	                    ApplyRequestHeaders(request, requestOptions);
+	                    response?.Dispose();
+	                    response = await client.SendAsync(request, cancellationToken);
                     if (manualRedirect && (int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
                         redirects++;
                         if (redirects > MaxRedirects) {
@@ -257,41 +334,53 @@ namespace DomainDetective {
                     currentUri = response.RequestMessage?.RequestUri ?? currentUri;
                     break;
                 }
-                if (!visited.Contains(currentUri.AbsoluteUri)) {
-                    VisitedUrls.Add(currentUri.AbsoluteUri);
-                }
-                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
-#else
-                var currentUri = new Uri(url);
-                HttpResponseMessage? response = null;
-                var redirects = 0;
-                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                while (true) {
-                    if (!visited.Add(currentUri.AbsoluteUri)) {
-                        throw new InvalidOperationException("Redirect loop detected.");
-                    }
-                    VisitedUrls.Add(currentUri.AbsoluteUri);
-                    response?.Dispose();
-                    response = await client.GetAsync(currentUri, cancellationToken);
-                    if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
-                        redirects++;
-                        if (redirects > MaxRedirects) {
-                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
-                        }
+	                if (!visited.Contains(currentUri.AbsoluteUri)) {
+	                    VisitedUrls.Add(currentUri.AbsoluteUri);
+	                }
+	                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
+	                effectiveScheme = currentUri.Scheme;
+	#else
+	                var currentUri = new Uri(url);
+	                HttpResponseMessage? response = null;
+	                var redirects = 0;
+	                var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+	                var httpMethod = requestOptions.ToHttpMethod();
+	                if (captureBody && httpMethod == HttpMethod.Head) {
+	                    httpMethod = HttpMethod.Get;
+	                }
+	                RequestMethodUsed = httpMethod == HttpMethod.Head
+	                    ? HttpRequestMethod.Head
+	                    : (httpMethod == HttpMethod.Get ? HttpRequestMethod.Get : requestOptions.Method);
+	                while (true) {
+	                    if (!visited.Add(currentUri.AbsoluteUri)) {
+	                        throw new InvalidOperationException("Redirect loop detected.");
+	                    }
+	                    VisitedUrls.Add(currentUri.AbsoluteUri);
+	                    response?.Dispose();
+	                    using (var request = new HttpRequestMessage(httpMethod, currentUri)) {
+	                        ApplyRequestHeaders(request, requestOptions);
+	                        response = await client.SendAsync(request, cancellationToken);
+	                    }
+	                    if ((int)response.StatusCode >= 300 && (int)response.StatusCode < 400 && response.Headers.Location != null) {
+	                        redirects++;
+	                        if (redirects > MaxRedirects) {
+	                            throw new InvalidOperationException($"Maximum number of redirects ({MaxRedirects}) exceeded.");
+	                        }
                         currentUri = response.Headers.Location.IsAbsoluteUri ? response.Headers.Location : new Uri(currentUri, response.Headers.Location);
                         continue;
                     }
                     currentUri = response.RequestMessage?.RequestUri ?? currentUri;
                     break;
                 }
-                if (!visited.Contains(currentUri.AbsoluteUri)) {
-                    VisitedUrls.Add(currentUri.AbsoluteUri);
-                }
-                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
-#endif
-                if (response == null) {
-                    throw new InvalidOperationException("HTTP request did not produce a response.");
-                }
+	                if (!visited.Contains(currentUri.AbsoluteUri)) {
+	                    VisitedUrls.Add(currentUri.AbsoluteUri);
+	                }
+	                HstsPreloaded = _hstsPreload.Contains(currentUri.Host);
+	                effectiveScheme = currentUri.Scheme;
+	#endif
+	                if (response == null) {
+	                    throw new InvalidOperationException("HTTP request did not produce a response.");
+	                }
                 if (VisitedUrls.Count > 1) {
                     var first = VisitedUrls.First();
                     var last = VisitedUrls.Last();
@@ -349,24 +438,40 @@ namespace DomainDetective {
                         logger?.WriteWarningCode(HttpCodes.H3AltSvcMismatch, "HTTP/3 negotiated but Alt-Svc advertises {0}", QuicVersion);
                     }
                 }
-#endif
-                if (checkHsts) {
-                    HstsPresent = hstsHeader != null;
-                }
-                if (collectHeaders) {
-                    foreach (var headerName in _securityHeaderNames) {
-                        if (response.Headers.TryGetValues(headerName, out var values) ||
-                            response.Content.Headers.TryGetValues(headerName, out values)) {
-                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
-                        } else {
-                            MissingSecurityHeaders.Add(headerName);
+	#endif
+	                if (checkHsts) {
+	                    // HSTS is meaningful only for HTTPS effective URLs.
+	                    HstsPresent = effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && hstsHeader != null;
+	                }
+	                if (collectHeaders) {
+	                    foreach (var headerName in _securityHeaderNames) {
+	                        if (response.Headers.TryGetValues(headerName, out var values) ||
+	                            response.Content.Headers.TryGetValues(headerName, out values)) {
+	                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
+	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+	                                DeprecatedHeadersPresent.Add(headerName);
+	                            }
+	                        } else {
+	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+	                                MissingDeprecatedHeaders.Add(headerName);
+	                            } else {
+	                                MissingSecurityHeaders.Add(headerName);
+	                            }
+	                        }
+	                    }
+	                    if (!HstsPresent && effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
+	                        HstsPresent = true;
+	                        hstsHeader = hsts.Value;
+	                    }
+                    XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
+                    if (SecurityHeaders.TryGetValue("X-XSS-Protection", out var xss))
+                    {
+                        var xv = (xss.Value ?? string.Empty).Trim();
+                        if (xv.Equals("0", StringComparison.OrdinalIgnoreCase))
+                        {
+                            logger?.WriteWarningCode(HttpCodes.XssProtectionDisabled, "X-XSS-Protection is set to 0 (disabled)");
                         }
                     }
-                    if (!HstsPresent && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
-                        HstsPresent = true;
-                        hstsHeader = hsts.Value;
-                    }
-                    XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     ExpectCtPresent = SecurityHeaders.ContainsKey("Expect-CT");
 #pragma warning disable CS0618
                     PublicKeyPinsPresent = SecurityHeaders.ContainsKey("Public-Key-Pins");
@@ -374,13 +479,17 @@ namespace DomainDetective {
                         logger?.WriteWarningCode(HttpCodes.HpkpDeprecated, "Public-Key-Pins header is deprecated and should not be used.");
                     }
 #pragma warning restore CS0618
-                    if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
-                        ParseContentSecurityPolicy(csp.Value);
-                    }
-                    if (response.Headers.TryGetValues("Content-Security-Policy-Report-Only", out var cspRoVals) || response.Content.Headers.TryGetValues("Content-Security-Policy-Report-Only", out cspRoVals)) {
-                        SecurityHeaders["Content-Security-Policy-Report-Only"] = new SecurityHeader("Content-Security-Policy-Report-Only", string.Join(",", cspRoVals));
-                        logger?.WriteWarningCode(HttpCodes.CspReportOnly, "CSP is report-only; consider enforcing after fixing violations");
-                    }
+	                    if (SecurityHeaders.TryGetValue("Content-Security-Policy", out var csp)) {
+	                        ParseContentSecurityPolicy(csp.Value);
+	                    }
+	                    // CSP frame-ancestors makes X-Frame-Options optional.
+	                    if (CspFrameAncestorsPresent) {
+	                        MissingSecurityHeaders.Remove("X-Frame-Options");
+	                    }
+	                    if (response.Headers.TryGetValues("Content-Security-Policy-Report-Only", out var cspRoVals) || response.Content.Headers.TryGetValues("Content-Security-Policy-Report-Only", out cspRoVals)) {
+	                        SecurityHeaders["Content-Security-Policy-Report-Only"] = new SecurityHeader("Content-Security-Policy-Report-Only", string.Join(",", cspRoVals));
+	                        logger?.WriteWarningCode(HttpCodes.CspReportOnly, "CSP is report-only; consider enforcing after fixing violations");
+	                    }
                     if (SecurityHeaders.TryGetValue("X-Content-Type-Options", out var xcto)) {
                         var xv = (xcto.Value ?? string.Empty).Trim();
                         if (!string.IsNullOrEmpty(xv) && !xv.Equals("nosniff", StringComparison.OrdinalIgnoreCase)) {
@@ -396,6 +505,11 @@ namespace DomainDetective {
                     }
                     if (SecurityHeaders.TryGetValue("Referrer-Policy", out var rp)) {
                         ReferrerPolicy = rp.Value;
+                        var rv = (ReferrerPolicy ?? string.Empty).Trim();
+                        if (rv.IndexOf("unsafe-url", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            logger?.WriteWarningCode(HttpCodes.ReferrerPolicyUnsafeUrl, "Referrer-Policy contains unsafe-url");
+                        }
                     }
                     if (SecurityHeaders.TryGetValue("X-Frame-Options", out var xfo)) {
                         XFrameOptions = xfo.Value;
@@ -432,20 +546,27 @@ namespace DomainDetective {
                     if (SecurityHeaders.TryGetValue("Origin-Agent-Cluster", out var oac)) {
                         ParseOriginAgentCluster(oac.Value);
                     }
-                    if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
-                        ParseExpectCt(ect.Value);
-                    }
-                }
+	                    if (SecurityHeaders.TryGetValue("Expect-CT", out var ect)) {
+	                        ParseExpectCt(ect.Value);
+	                    }
+
+	                    CaptureNamedHeaders(response, _informationHeaderNames, InformationDisclosureHeaders);
+	                    CaptureNamedHeaders(response, _cachingHeaderNames, CachingHeaders);
+	                }
                 if (hstsHeader != null) {
                     ParseHsts(hstsHeader);
+                    if (HstsMaxAge.HasValue && HstsMaxAge.Value <= 0)
+                    {
+                        logger?.WriteWarningCode(HttpCodes.HstsMaxAgeZero, "HSTS max-age is 0 (policy disabled)");
+                    }
                 }
                 if (expectCtHeader != null && !collectHeaders) {
                     ParseExpectCt(expectCtHeader);
                 }
-                // Emit fine-grained assessments
-                if (checkHsts && !HstsPresent) {
-                    logger?.WriteWarningCode(HttpCodes.HstsMissing, "Strict-Transport-Security header missing");
-                }
+	                // Emit fine-grained assessments
+	                if (checkHsts && effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && !HstsPresent) {
+	                    logger?.WriteWarningCode(HttpCodes.HstsMissing, "Strict-Transport-Security header missing");
+	                }
                 if (HstsTooShort) {
                     logger?.WriteWarningCode(HttpCodes.HstsTooShort, "HSTS max-age is shorter than 18 weeks");
                 }
@@ -567,7 +688,8 @@ namespace DomainDetective {
                             // Simple, fast regex for <form ... action="http://...">
                             var rx = new System.Text.RegularExpressions.Regex(
                                 "<form[^>]*action\\s*=\\s*\"(?<url>[^\"]+)\"|<form[^>]*action\\s*=\\s*'(?<url>[^']+)'",
-                                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+                                System.Text.RegularExpressions.RegexOptions.IgnoreCase,
+                                TimeSpan.FromMilliseconds(200));
                             var matches = rx.Matches(html);
                             foreach (System.Text.RegularExpressions.Match m in matches) {
                                 var u = m.Groups["url"]?.Value?.Trim();
@@ -604,17 +726,55 @@ namespace DomainDetective {
                 IsReachable = false;
                 FailureReason = $"Timeout: {ex.Message}";
                 logger?.WriteErrorCode(HttpCodes.Timeout, "HTTP request timed out for {0}: {1}", url, ex.Message);
-            } catch (Exception ex) when (ex is not InvalidOperationException) {
-                sw.Stop();
-                IsReachable = false;
-                FailureReason = $"HTTP check failed: {ex.Message}";
-                logger?.WriteErrorCode(HttpCodes.CheckFailed, "HTTP check failed for {0}: {1}", url, ex.Message);
-            }
-        }
+	            } catch (Exception ex) when (ex is not InvalidOperationException) {
+	                sw.Stop();
+	                IsReachable = false;
+	                FailureReason = $"HTTP check failed: {ex.Message}";
+	                logger?.WriteErrorCode(HttpCodes.CheckFailed, "HTTP check failed for {0}: {1}", url, ex.Message);
+	            }
+	        }
 
-        private void ParseHsts(string headerValue) {
-            HstsMaxAge = null;
-            HstsIncludesSubDomains = false;
+	        private void ApplyRequestHeaders(HttpRequestMessage request, HttpRequestOptions requestOptions) {
+	            if (request == null) throw new ArgumentNullException(nameof(request));
+	            if (requestOptions == null) throw new ArgumentNullException(nameof(requestOptions));
+
+	            try {
+	                if (!string.IsNullOrWhiteSpace(requestOptions.Cookie)) {
+	                    request.Headers.TryAddWithoutValidation("Cookie", requestOptions.Cookie);
+	                    if (!RequestHeaderNames.Contains("Cookie")) RequestHeaderNames.Add("Cookie");
+	                }
+
+	                if (requestOptions.Headers != null && requestOptions.Headers.Count > 0) {
+	                    foreach (var kv in requestOptions.Headers) {
+	                        if (string.IsNullOrWhiteSpace(kv.Key)) continue;
+	                        request.Headers.TryAddWithoutValidation(kv.Key, kv.Value ?? string.Empty);
+	                        if (!RequestHeaderNames.Contains(kv.Key)) RequestHeaderNames.Add(kv.Key);
+	                    }
+	                }
+	            } catch {
+	                // Best-effort; invalid header names/values should not fail analysis.
+	            }
+	        }
+
+	        private static void CaptureNamedHeaders(HttpResponseMessage response, IEnumerable<string> names, Dictionary<string, string> target) {
+	            if (response == null) return;
+	            if (names == null) return;
+	            if (target == null) return;
+
+	            foreach (var name in names) {
+	                try {
+	                    if (string.IsNullOrWhiteSpace(name)) continue;
+	                    if (response.Headers.TryGetValues(name, out var values) || response.Content.Headers.TryGetValues(name, out values)) {
+	                        target[name] = string.Join(",", values);
+	                    }
+	                } catch {
+	                }
+	            }
+	        }
+
+	        private void ParseHsts(string headerValue) {
+	            HstsMaxAge = null;
+	            HstsIncludesSubDomains = false;
             HstsPreloadDirectivePresent = false;
             UnknownHstsDirectives = new List<string>();
             if (string.IsNullOrEmpty(headerValue)) {
@@ -643,22 +803,26 @@ namespace DomainDetective {
             HstsPreloadEligible = HstsPreloadDirectivePresent && HstsIncludesSubDomains && HstsMaxAge.HasValue && HstsMaxAge.Value >= 31536000;
         }
 
-        private void ParseContentSecurityPolicy(string headerValue) {
-            CspUnsafeDirectives = false;
-            if (string.IsNullOrEmpty(headerValue)) {
-                return;
-            }
+	        private void ParseContentSecurityPolicy(string headerValue) {
+	            CspUnsafeDirectives = false;
+	            CspFrameAncestorsPresent = false;
+	            if (string.IsNullOrEmpty(headerValue)) {
+	                return;
+	            }
 
-            var parts = headerValue.Split(';');
-            foreach (var part in parts) {
-                var trimmed = part.Trim();
-                if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
-                    CspUnsafeDirectives = true;
-                    break;
-                }
-            }
-        }
+	            var parts = headerValue.Split(';');
+	            foreach (var part in parts) {
+	                var trimmed = part.Trim();
+	                if (trimmed.StartsWith("frame-ancestors", StringComparison.OrdinalIgnoreCase)) {
+	                    CspFrameAncestorsPresent = true;
+	                }
+	                if (trimmed.IndexOf("'unsafe-inline'", StringComparison.OrdinalIgnoreCase) >= 0 ||
+	                    trimmed.IndexOf("'unsafe-eval'", StringComparison.OrdinalIgnoreCase) >= 0) {
+	                    CspUnsafeDirectives = true;
+	                    break;
+	                }
+	            }
+	        }
 
         private void ParseExpectCt(string headerValue) {
             ExpectCtMaxAge = null;

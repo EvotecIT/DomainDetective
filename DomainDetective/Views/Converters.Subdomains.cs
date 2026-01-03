@@ -25,7 +25,7 @@ public static partial class Converters
         }
 
         var subCount = analysis.Subdomains?.Count ?? 0;
-        var summary = $"{subCount} subdomain(s); issuers {analysis.DistinctIssuerCount}; CT rows {analysis.CertificateObservationCount}; seen {range}; dns-checks {(analysis.VerifyStillResolves ? (analysis.ResolutionReduced ? "capped" : "ok") : "off")}";
+        var summary = $"{subCount} subdomain(s); issuers {analysis.DistinctIssuerCount}; CT rows {analysis.CertificateObservationCount}; CT {(analysis.ResultsCapped ? "capped" : "ok")}; seen {range}; dns-checks {(analysis.VerifyStillResolves ? (analysis.ResolutionReduced ? "capped" : "ok") : "off")}";
 
         return new SubdomainsInfo
         {
@@ -41,6 +41,7 @@ public static partial class Converters
             IssuerCounts = analysis.IssuerCounts,
             SubdomainCount = subCount,
             ResolutionReduced = analysis.ResolutionReduced,
+            ResultsCapped = analysis.ResultsCapped,
             Subdomains = analysis.Subdomains ?? Array.Empty<SubdomainDiscoveryEntry>(),
             Assessments = analysis.Assessments,
             Status = status,
@@ -63,6 +64,7 @@ public sealed class SubdomainsInfo
     public bool QuerySucceeded { get; set; }
     public string? FailureReason { get; set; }
     public int CertificateObservationCount { get; set; }
+    public bool ResultsCapped { get; set; }
     public DateTimeOffset? FirstSeenUtc { get; set; }
     public DateTimeOffset? LastSeenUtc { get; set; }
     public int DistinctIssuerCount { get; set; }
@@ -80,4 +82,3 @@ public sealed class SubdomainsInfo
     public IReadOnlyList<string> References { get; set; } = null!;
     public SubdomainsAnalysis Raw { get; set; } = null!;
 }
-

@@ -62,6 +62,10 @@ public static class DnsTxtSignalDetector
             {
                 Add(DnsTxtSignals.MicrosoftDomainVerification, "TXT: Microsoft domain verification token present (MS=)");
             }
+            if (v.StartsWith("msvalidate.1=", StringComparison.OrdinalIgnoreCase))
+            {
+                Add(DnsTxtSignals.BingWebmasterVerification, "TXT: Microsoft/Bing site verification token present (msvalidate.1=)");
+            }
             if (v.IndexOf("facebook-domain-verification=", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 Add(DnsTxtSignals.FacebookDomainVerification, "TXT: Facebook domain verification token present");
@@ -111,6 +115,6 @@ public enum DnsTxtSignals
     FacebookDomainVerification = 8,
     AppleDomainVerification = 16,
     AtlassianDomainVerification = 32,
-    StripeVerification = 64
+    StripeVerification = 64,
+    BingWebmasterVerification = 128
 }
-

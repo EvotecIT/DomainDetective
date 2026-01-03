@@ -21,6 +21,7 @@ public static class SubdomainsWordSectionWriter
             ("Query OK", sub.QuerySucceeded ? "Yes" : "No"),
             ("Subdomains", sub.SubdomainCount.ToString()),
             ("CT Rows", sub.CertificateObservationCount.ToString()),
+            ("CT Processing", sub.ResultsCapped ? "Capped" : "OK"),
             ("Issuer Diversity", sub.DistinctIssuerCount.ToString()),
             ("Seen (UTC)", BuildRange(sub.FirstSeenUtc, sub.LastSeenUtc)),
             ("DNS Verification", sub.Raw?.VerifyStillResolves == true ? (sub.ResolutionReduced ? "Capped" : "Yes") : "No")
@@ -169,4 +170,3 @@ public static class SubdomainsWordSectionWriter
         return a + " .. " + b;
     }
 }
-

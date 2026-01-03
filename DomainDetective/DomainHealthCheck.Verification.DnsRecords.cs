@@ -68,11 +68,15 @@ namespace DomainDetective {
             }
             var nsRecords = await DnsConfiguration.QueryDNS(domainName, DnsRecordType.NS, cancellationToken: cancellationToken);
             OpenResolverAnalysis.Subject = domainName;
-            foreach (var record in nsRecords) {
-                var host = record.Data.Trim('.');
-                cancellationToken.ThrowIfCancellationRequested();
-                await OpenResolverAnalysis.AnalyzeServer(host, 53, _logger, cancellationToken);
+            var hosts = nsRecords
+                .Select(r => (r.Data ?? string.Empty).Trim('.'))
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (hosts.Length == 0) {
+                return;
             }
+            await OpenResolverAnalysis.AnalyzeServers(hosts, new[] { 53 }, _logger, cancellationToken);
         }
     }
 }

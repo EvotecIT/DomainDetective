@@ -125,6 +125,7 @@ public static partial class HtmlCompositionReport
             if (profile == HtmlProfile.Dashboard)
             {
                 RenderExecutiveSummary(page, ordered, execRows, overviewLine);
+                try { RenderDashboardDiscovery(page, ordered); } catch { }
                 try { RenderDashboardSpf(page, ordered); } catch { }
                 try { RenderDashboardDmarc(page, ordered); } catch { }
                 try { RenderDashboardDkim(page, ordered); } catch { }

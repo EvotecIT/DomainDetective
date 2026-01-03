@@ -18,6 +18,7 @@ public sealed class CmdletGetRegistrationDrift : PSCmdlet
     /// <summary>Domain to load snapshots for.</summary>
     [Parameter(Mandatory = true, Position = 0, ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string DomainName { get; set; } = string.Empty;
 
     /// <summary>Root directory for snapshot storage.</summary>

@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
+using DomainDetective.Helpers;
 using System.Management.Automation;
 using System.Reflection;
 using System.Threading;
@@ -31,6 +32,7 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "Builtin")]
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServersFile")]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = Array.Empty<string>();
 
         /// <summary>DNS record type to test.</summary>
@@ -62,6 +64,14 @@ namespace DomainDetective.PowerShell {
         [Parameter(Mandatory = false)]
         public SwitchParameter CompareResults;
 
+        /// <summary>Return a typed view object suitable for composition reports.</summary>
+        [Parameter(Mandatory = false)]
+        public SwitchParameter AsView;
+
+        /// <summary>Maximum number of resolver results retained in the view (default: 500).</summary>
+        [Parameter(Mandatory = false)]
+        public int MaxResultsToKeep = 500;
+
         /// <summary>Directory used to store DNS snapshots.</summary>
         [Parameter(Mandatory = false)]
         public string SnapshotPath = string.Empty;
@@ -72,20 +82,20 @@ namespace DomainDetective.PowerShell {
 
         /// <summary>Executes the cmdlet operation.</summary>
         /// <returns>A <see cref="System.Threading.Tasks.Task"/> representing the asynchronous operation.</returns>
-        protected override async Task ProcessRecordAsync() {
-            DnsPropagationAnalysis BuildAnalysis() {
-                var analysis = new DnsPropagationAnalysis();
-                if (ParameterSetName == "ServersFile") {
-                    var path = Path.IsPathRooted(ServersFile)
-                        ? ServersFile
-                        : Path.Combine(
-                            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
-                            ServersFile);
-                    analysis.LoadServers(path, clearExisting: true);
-                } else {
-                    analysis.LoadBuiltinServers();
-                }
-                if (!string.IsNullOrEmpty(SnapshotPath)) {
+	            protected override async Task ProcessRecordAsync() {
+	            DnsPropagationAnalysis BuildAnalysis() {
+	                var analysis = new DnsPropagationAnalysis();
+	                if (ParameterSetName == "ServersFile") {
+	                    var path = Path.IsPathRooted(ServersFile)
+	                        ? Path.GetFullPath(ServersFile)
+	                        : PathHelper.CombineUnderRoot(
+	                            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? string.Empty,
+	                            ServersFile);
+	                    analysis.LoadServers(path, clearExisting: true);
+	                } else {
+	                    analysis.LoadBuiltinServers();
+	                }
+	                if (!string.IsNullOrEmpty(SnapshotPath)) {
                     analysis.SnapshotDirectory = SnapshotPath;
                 }
                 return analysis;
@@ -134,6 +144,11 @@ namespace DomainDetective.PowerShell {
                 if (CompareResults) {
                     var details = DnsPropagationAnalysis.GetComparisonDetails(results);
                     WriteObject(details, true);
+                } else if (AsView.IsPresent) {
+                    var report = new DnsPropagationReportAnalysis();
+                    report.Load(domain, RecordType, results, maxResultsToKeep: MaxResultsToKeep);
+                    var view = DomainDetective.Views.Converters.Convert(report);
+                    WriteObject(view);
                 } else {
                     WriteObject(results, true);
                 }

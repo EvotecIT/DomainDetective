@@ -38,11 +38,17 @@ public static class CompositionBuilder
         public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
-        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
-        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
-        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
-        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
-    }
+	        public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
+	        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+	        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
+	        public DomainDetective.Views.HttpInfo? Http { get; set; }
+	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+	        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+	        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+	        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
+	    }
 
     public static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items)
     {
@@ -119,14 +125,156 @@ public static class CompositionBuilder
                     break;
                 }
                 case DomainDetective.Views.ZoneTransferInfo zt when !string.IsNullOrWhiteSpace(zt.Subject): Ensure(zt.Subject); map[zt.Subject].ZoneTransfer = zt; break;
-                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
-                case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject): Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
-                case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject): Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
-                case DomainDetective.Views.DnsTraceInfo tr when !string.IsNullOrWhiteSpace(tr.Subject): Ensure(tr.Subject); map[tr.Subject].DnsTrace = tr; break;
-                default: break;
+	                case DomainDetective.Views.WildcardDnsInfo wc when !string.IsNullOrWhiteSpace(wc.Subject): Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
+	                case DomainDetective.Views.SubdomainsInfo sub:
+	                {
+	                    var subject = sub.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].Subdomains = sub;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsInventoryInfo inv:
+	                {
+	                    var subject = inv.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsInventory = inv;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsAmplificationSummary amp:
+	                {
+	                    var subject = amp.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsAmplification = amp;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsOverTlsSummary dot:
+	                {
+	                    var subject = dot.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsOverTls = dot;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsTraceInfo tr:
+	                {
+	                    var subject = tr.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].DnsTrace = tr;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.CtTimelineInfo ct:
+	                {
+	                    var subject = ct.Subject;
+	                    if (subject != null)
+	                    {
+	                        subject = subject.Trim();
+	                        if (subject.Length > 0)
+	                        {
+	                            Ensure(subject);
+	                            map[subject].CtTimeline = ct;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.HttpInfo http when !string.IsNullOrWhiteSpace(http.Url) || !string.IsNullOrWhiteSpace(http.Subject):
+	                {
+	                    var raw = !string.IsNullOrWhiteSpace(http.Subject) ? http.Subject : http.Url;
+	                    var subject = NormalizeHttpSubject(raw);
+	                    if (!string.IsNullOrWhiteSpace(subject))
+	                    {
+	                        Ensure(subject!);
+	                        if (map[subject!].Http == null || PreferHttp(http, map[subject!].Http!))
+	                        {
+	                            map[subject!].Http = http;
+	                        }
+	                    }
+	                    break;
+	                }
+	                case DomainDetective.Views.IpEnrichmentInfo ip when !string.IsNullOrWhiteSpace(ip.Subject):
+	                {
+	                    Ensure(ip.Subject!);
+	                    map[ip.Subject!].IpEnrichment = ip;
+	                    break;
+	                }
+	                case DomainDetective.Views.DnsPropagationInfo dp when !string.IsNullOrWhiteSpace(dp.Subject):
+	                {
+	                    Ensure(dp.Subject!);
+	                    map[dp.Subject!].DnsPropagation.Add(dp);
+	                    break;
+	                }
+	                default: break;
+	            }
+	        }
+        return map;
+    }
+
+    private static string? NormalizeHttpSubject(string? raw)
+    {
+        if (raw == null)
+        {
+            return null;
+        }
+
+        var s = raw.Trim();
+        if (s.Length == 0)
+        {
+            return null;
+        }
+        try
+        {
+            if (Uri.TryCreate(s, UriKind.Absolute, out var uri))
+            {
+                return uri.Host;
             }
         }
-        return map;
+        catch { }
+        return s;
+    }
+
+    private static bool PreferHttp(DomainDetective.Views.HttpInfo candidate, DomainDetective.Views.HttpInfo existing)
+    {
+        bool IsHttps(DomainDetective.Views.HttpInfo h) =>
+            (!string.IsNullOrWhiteSpace(h.Url) ? h.Url : h.Subject)?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true;
+
+        if (existing == null) return true;
+        if (candidate == null) return false;
+        if (IsHttps(candidate) && !IsHttps(existing)) return true;
+        if (candidate.IsReachable && !existing.IsReachable) return true;
+        return false;
     }
 
     public static List<KeyValuePair<string, DomainBucket>> OrderDomains(IReadOnlyList<object> items, Dictionary<string, DomainBucket> map, DomainOrder order)

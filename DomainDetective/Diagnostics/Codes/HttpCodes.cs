@@ -9,11 +9,13 @@ internal static class HttpCodes {
     public const string Timeout = "HTTP.Request.Timeout";
     public const string CheckFailed = "HTTP.Check.Failed";
     public const string HstsMissing = "HTTP.HSTS.Missing";
+    public const string HstsMaxAgeZero = "HTTP.HSTS.MaxAgeZero";
     public const string HstsTooShort = "HTTP.HSTS.TooShort";
     public const string HstsUnknownDirective = "HTTP.HSTS.UnknownDirective";
     public const string MixedContent = "HTTP.MixedContent.Detected";
     public const string CspUnsafe = "HTTP.CSP.UnsafeDirectives";
     public const string XssProtectionDeprecated = "HTTP.XSSProtection.Deprecated";
+    public const string XssProtectionDisabled = "HTTP.XSSProtection.Disabled";
     public const string ExpectCtDeprecated = "HTTP.ExpectCT.Deprecated";
     public const string CspReportOnly = "HTTP.CSP.ReportOnly";
     public const string PermissionsPolicyWeak = "HTTP.Header.Weak.PermissionsPolicy";
@@ -22,6 +24,7 @@ internal static class HttpCodes {
     public const string CORPWeak = "HTTP.Header.Weak.CORP";
     public const string MissingHeaderCsp = "HTTP.Header.Missing.CSP";
     public const string MissingHeaderReferrerPolicy = "HTTP.Header.Missing.ReferrerPolicy";
+    public const string ReferrerPolicyUnsafeUrl = "HTTP.ReferrerPolicy.UnsafeUrl";
     public const string MissingHeaderXFrameOptions = "HTTP.Header.Missing.XFrameOptions";
     public const string MissingHeaderPermissionsPolicy = "HTTP.Header.Missing.PermissionsPolicy";
     public const string MissingHeaderXContentTypeOptions = "HTTP.Header.Missing.XContentTypeOptions";

@@ -136,6 +136,8 @@ public static class WordCompositionReport {
         bool hasMailTls = grouped.Values.Any(b => b.SmtpTls != null || b.ImapTls != null || b.PopTls != null);
         bool hasDnssec = grouped.Values.Any(b => b.Dnssec != null);
         bool hasDane = grouped.Values.Any(b => b.Dane != null);
+        bool hasDnsAmplification = grouped.Values.Any(b => b.DnsAmplification != null);
+        bool hasDnsOverTls = grouped.Values.Any(b => b.DnsOverTls != null);
 
         var presentLabels = new List<string>();
         if (hasMx) presentLabels.Add("MX");
@@ -157,6 +159,8 @@ public static class WordCompositionReport {
         if (hasZone) presentLabels.Add("ZoneXFR");
         if (hasWildcard) presentLabels.Add("Wildcard");
         if (hasCaa) presentLabels.Add("CAA");
+        if (hasDnsAmplification) presentLabels.Add("DNS Amplification");
+        if (hasDnsOverTls) presentLabels.Add("DNS over TLS");
 
         // Executive Summary intro text — single source of truth for wording
         string overviewLine = OverviewWording.ComposeFromItems(items);
@@ -448,6 +452,20 @@ public static class WordCompositionReport {
                 headings.AddItem("Registration", 1);
                 RegistrationWordSectionWriter.Write(doc, headings, 2, bucket.Registration!, domain, scope, showInfoFindings, includeNarrativePerDomain);
             }, bucket.Registration != null);
+            add("HTTP", () =>
+            {
+                headings.AddItem("HTTP", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildHttp(bucket.Http!);
+                if (dto != null) HttpWordSectionWriter.Write(doc, headings, 2, dto, bucket.Http, domain, scope, showInfoFindings);
+                else HttpWordSectionWriter.Write(doc, headings, 2, bucket.Http!, domain, scope, showInfoFindings);
+            }, bucket.Http != null);
+            add("CT Timeline", () =>
+            {
+                headings.AddItem("CT Timeline", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildCtTimeline(bucket.CtTimeline!);
+                if (dto != null) CtTimelineWordSectionWriter.Write(doc, headings, 2, dto, bucket.CtTimeline, domain, scope, showInfoFindings);
+                else CtTimelineWordSectionWriter.Write(doc, headings, 2, bucket.CtTimeline!, domain, scope, showInfoFindings);
+            }, bucket.CtTimeline != null);
             add("Subdomains", () => {
                 headings.AddItem("Subdomains", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildSubdomains(bucket.Subdomains!);
@@ -468,6 +486,32 @@ public static class WordCompositionReport {
                 if (dto != null) DnsTraceWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsTrace, domain, scope, showInfoFindings);
                 else DnsTraceWordSectionWriter.Write(doc, headings, 2, bucket.DnsTrace!, domain, scope, showInfoFindings);
             }, bucket.DnsTrace != null);
+            add("DNS Propagation", () =>
+            {
+                headings.AddItem("DNS Propagation", 1);
+                DnsPropagationWordSectionWriter.Write(doc, headings, 2, bucket.DnsPropagation, domain, scope, showInfoFindings);
+            }, bucket.DnsPropagation.Count > 0);
+            add("DNS Amplification", () =>
+            {
+                headings.AddItem("DNS Amplification", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsAmplification(bucket.DnsAmplification!);
+                if (dto != null) DnsAmplificationWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsAmplification, domain, scope, showInfoFindings);
+                else DnsAmplificationWordSectionWriter.Write(doc, headings, 2, bucket.DnsAmplification!, domain, scope, showInfoFindings);
+            }, bucket.DnsAmplification != null);
+            add("DNS over TLS", () =>
+            {
+                headings.AddItem("DNS over TLS", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDnsOverTls(bucket.DnsOverTls!);
+                if (dto != null) DnsOverTlsWordSectionWriter.Write(doc, headings, 2, dto, bucket.DnsOverTls, domain, scope, showInfoFindings);
+                else DnsOverTlsWordSectionWriter.Write(doc, headings, 2, bucket.DnsOverTls!, domain, scope, showInfoFindings);
+            }, bucket.DnsOverTls != null);
+            add("IP Enrichment", () =>
+            {
+                headings.AddItem("IP Enrichment", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildIpEnrichment(bucket.IpEnrichment!);
+                if (dto != null) IpEnrichmentWordSectionWriter.Write(doc, headings, 2, dto, bucket.IpEnrichment, domain, scope, showInfoFindings);
+                else IpEnrichmentWordSectionWriter.Write(doc, headings, 2, bucket.IpEnrichment!, domain, scope, showInfoFindings);
+            }, bucket.IpEnrichment != null);
             add("ARC", () => { headings.AddItem("ARC", 1); ArcWordSectionWriter.Write(doc, headings, 2, bucket.Arc!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderArc) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Arc != null);  
             add("BIMI", () => { headings.AddItem("BIMI", 1); BimiWordSectionWriter.Write(doc, headings, 2, bucket.Bimi!, domain, scope, showInfoFindings, includeNarrativePerDomain); try { var opts = providerHelp ?? new ProviderHelpRenderOptions(); if (opts.ShowUnderBimi) { var help = bucket.Mx?.ProviderHelp ?? bucket.Spf?.ProviderHelp; if (help != null && help.Count > 0) ProviderHelpWordSectionWriter.Write(doc, headings, 2, help, opts); } } catch { } }, bucket.Bimi != null);
             add("DNSBL", () => { headings.AddItem("DNSBL", 1); var dto = DomainDetective.Reports.SectionProjectors.BuildDnsbl(bucket.Dnsbl!); if (dto != null) DnsblWordSectionWriter.Write(doc, headings, 2, dto, bucket.Dnsbl, domain, scope, showInfoFindings); else DnsblWordSectionWriter.Write(doc, headings, 2, bucket.Dnsbl!, domain, scope, showInfoFindings); }, bucket.Dnsbl != null);
@@ -513,6 +557,8 @@ public static class WordCompositionReport {
                 PullAssessments(b.Dmarc?.Assessments);
                 PullAssessments(b.DmarcAggregate?.Assessments);
                 PullAssessments(b.Registration?.Assessments);
+                PullAssessments(b.Http?.Assessments);
+                PullAssessments(b.CtTimeline?.Assessments);
                 PullAssessments(b.Mx?.Assessments);
                 PullAssessments(b.Mtasts?.Assessments);
                 PullAssessments(b.TlsRpt?.Assessments);
@@ -530,6 +576,10 @@ public static class WordCompositionReport {
                 PullAssessments(b.Subdomains?.Assessments);
                 PullAssessments(b.DnsInventory?.Assessments);
                 PullAssessments(b.DnsTrace?.Assessments);
+                foreach (var dp in b.DnsPropagation) PullAssessments(dp.Assessments);
+                PullAssessments(b.DnsAmplification?.Assessments);
+                PullAssessments(b.DnsOverTls?.Assessments);
+                PullAssessments(b.IpEnrichment?.Assessments);
             }
             string NormalizeRec(string? text) {
                 if (string.IsNullOrWhiteSpace(text)) return string.Empty;
@@ -801,14 +851,20 @@ public static class WordCompositionReport {
         public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
         public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; } 
         public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }   
+        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
         public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
         public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
-        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
-        // Mail TLS (per protocol) for rollup column
-        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
-        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
-        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
-    }
+	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+	        public DomainDetective.Views.HttpInfo? Http { get; set; }
+	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+            public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+            public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+            public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
+	        // Mail TLS (per protocol) for rollup column
+	        public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
+	        public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
+	        public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
+	    }
 
     private static string ComposeDkimStatus(List<DomainDetective.Views.DkimRecordInfo> dkim, bool showCount) {
         return DisplayFormatting.ComposeDkimSummary(dkim, showCount);
@@ -926,21 +982,159 @@ public static class WordCompositionReport {
                         map[subject].Ttl = ttl;
                         break;
                     }
-                    case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
-                        Ensure(mt.Subject);
-                        switch (mt.Check) {
-                            case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
-                            case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
-                            case HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
-                            default: break;
+	                    case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):
+	                        Ensure(mt.Subject);
+	                        switch (mt.Check) {
+	                            case HealthCheckType.SMTPTLS: map[mt.Subject].SmtpTls = mt; break;
+	                            case HealthCheckType.IMAPTLS: map[mt.Subject].ImapTls = mt; break;
+	                            case HealthCheckType.POP3TLS: map[mt.Subject].PopTls = mt; break;
+	                            default: break;
+	                        }
+	                        break;
+	                    case DomainDetective.Views.CtTimelineInfo ct:
+	                    {
+	                        var subject = ct.Subject;
+	                        if (subject != null)
+	                        {
+	                            subject = subject.Trim();
+	                            if (subject.Length > 0)
+	                            {
+	                                Ensure(subject);
+	                                map[subject].CtTimeline = ct;
+	                            }
+	                        }
+	                        break;
+	                    }
+	                    case DomainDetective.Views.SubdomainsInfo sub:
+	                    {
+	                        var subject = sub.Subject;
+	                        if (subject != null)
+	                        {
+	                            subject = subject.Trim();
+	                            if (subject.Length > 0)
+	                            {
+	                                Ensure(subject);
+	                                map[subject].Subdomains = sub;
+	                            }
+	                        }
+	                        break;
+	                    }
+	                    case DomainDetective.Views.DnsInventoryInfo inv:
+	                    {
+	                        var subject = inv.Subject;
+	                        if (subject != null)
+	                        {
+	                            subject = subject.Trim();
+	                            if (subject.Length > 0)
+	                            {
+	                                Ensure(subject);
+	                                map[subject].DnsInventory = inv;
+	                            }
+	                        }
+	                        break;
+	                    }
+                    case DomainDetective.Views.DnsTraceInfo trc:
+                    {
+                        var subject = trc.Subject;
+                        if (subject != null)
+                        {
+                            subject = subject.Trim();
+                            if (subject.Length > 0)
+                            {
+                                Ensure(subject);
+                                map[subject].DnsTrace = trc;
+                            }
                         }
                         break;
-                    case DomainDetective.Views.SubdomainsInfo sub when !string.IsNullOrWhiteSpace(sub.Subject):
-                        Ensure(sub.Subject); map[sub.Subject].Subdomains = sub; break;
-                    case DomainDetective.Views.DnsInventoryInfo inv when !string.IsNullOrWhiteSpace(inv.Subject):
-                        Ensure(inv.Subject); map[inv.Subject].DnsInventory = inv; break;
-                    case DomainDetective.Views.DnsTraceInfo trc when !string.IsNullOrWhiteSpace(trc.Subject):
-                        Ensure(trc.Subject); map[trc.Subject].DnsTrace = trc; break;
+                    }
+                    case DomainDetective.Views.HttpInfo http when !string.IsNullOrWhiteSpace(http.Subject) || !string.IsNullOrWhiteSpace(http.Url):
+                    {
+                        var rawUrl = !string.IsNullOrWhiteSpace(http.Subject) ? http.Subject : http.Url;
+                        var subject = rawUrl ?? string.Empty;
+                        try
+                        {
+                            if (Uri.TryCreate(subject, UriKind.Absolute, out var uri))
+                            {
+                                subject = uri.Host;
+                            }
+                        }
+                        catch
+                        {
+                        }
+
+                        bool IsHttps(DomainDetective.Views.HttpInfo h)
+                            => (!string.IsNullOrWhiteSpace(h.Url) ? h.Url : h.Subject)?.StartsWith("https://", StringComparison.OrdinalIgnoreCase) == true;
+
+                        bool prefer = map.ContainsKey(subject) && map[subject].Http != null
+                            ? ((IsHttps(http) && !IsHttps(map[subject].Http!)) || (http.IsReachable && !map[subject].Http!.IsReachable))
+                            : true;
+
+                        if (!string.IsNullOrWhiteSpace(subject))
+                        {
+                            Ensure(subject);
+                            if (prefer)
+                            {
+                                map[subject].Http = http;
+                            }
+                        }
+                        break;
+                    }
+                    case DomainDetective.Views.IpEnrichmentInfo ip:
+                    {
+                        var subject = ip.Subject;
+                        if (subject != null)
+                        {
+                            subject = subject.Trim();
+                            if (subject.Length > 0)
+                            {
+                                Ensure(subject);
+                                map[subject].IpEnrichment = ip;
+                            }
+                        }
+                        break;
+                    }
+                    case DomainDetective.Views.DnsPropagationInfo dp:
+                    {
+                        var subject = dp.Subject;
+                        if (subject != null)
+                        {
+                            subject = subject.Trim();
+                            if (subject.Length > 0)
+                            {
+                                Ensure(subject);
+                                map[subject].DnsPropagation.Add(dp);
+                            }
+                        }
+                        break;
+                    }
+                    case DomainDetective.Views.DnsAmplificationSummary amp:
+                    {
+                        var subject = amp.Subject;
+                        if (subject != null)
+                        {
+                            subject = subject.Trim();
+                            if (subject.Length > 0)
+                            {
+                                Ensure(subject);
+                                map[subject].DnsAmplification = amp;
+                            }
+                        }
+                        break;
+                    }
+                    case DomainDetective.Views.DnsOverTlsSummary dot:
+                    {
+                        var subject = dot.Subject;
+                        if (subject != null)
+                        {
+                            subject = subject.Trim();
+                            if (subject.Length > 0)
+                            {
+                                Ensure(subject);
+                                map[subject].DnsOverTls = dot;
+                            }
+                        }
+                        break;
+                    }
                     default:
                         break;
                 }

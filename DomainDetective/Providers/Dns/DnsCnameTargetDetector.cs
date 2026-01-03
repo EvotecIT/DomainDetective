@@ -109,12 +109,13 @@ public static class DnsCnameTargetDetector
 
     private static string NormalizeHost(string? value)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        var trimmed = (value ?? string.Empty).Trim().TrimEnd('.');
+        if (trimmed.Length == 0)
         {
             return string.Empty;
         }
 
-        return value.Trim().TrimEnd('.').ToLowerInvariant();
+        return trimmed.ToLowerInvariant();
     }
 
     private static readonly HashSet<string> TakeoverDomains = LoadTakeoverDomains();

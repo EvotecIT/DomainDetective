@@ -58,6 +58,11 @@ public static class SubdomainsNarrative
             }
         }
 
+        if (analysis.ResultsCapped)
+        {
+            hi.Add("CT processing was capped for performance.");
+        }
+
         if (analysis.VerifyStillResolves)
         {
             hi.Add(analysis.ResolutionReduced ? "DNS verification was capped." : "DNS verification was performed.");
@@ -72,6 +77,10 @@ public static class SubdomainsNarrative
             det.Add($"Failure reason: {analysis.FailureReason!.Trim()}");
         }
         det.Add($"CT rows observed: {analysis.CertificateObservationCount}.");
+        if (analysis.ResultsCapped)
+        {
+            det.Add($"CT processing capped at {Math.Max(0, analysis.MaxCtRowsToProcess)} row(s) / {Math.Max(0, analysis.MaxSubdomains)} subdomain(s).");
+        }
 
         if (analysis.Subdomains.Count > 0)
         {
@@ -117,4 +126,3 @@ public static class SubdomainsNarrative
         "https://www.rfc-editor.org/rfc/rfc6962"
     };
 }
-

@@ -16,6 +16,7 @@ namespace DomainDetective.PowerShell {
         /// <summary>Domain(s) to query.</summary>
         [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
         [ValidateNotNullOrEmpty]
+        [ValidateDomainName]
         public string[] DomainName = System.Array.Empty<string>();
 
         /// <summary>DNS server used for queries.</summary>

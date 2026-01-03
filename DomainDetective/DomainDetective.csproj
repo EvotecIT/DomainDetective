@@ -14,7 +14,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="DnsClientX" Version="1.0.5" />
+        <PackageReference Include="DnsClientX" Version="1.0.7" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="MailKit" Version="4.13.0" />
         <PackageReference Include="PgpCore" Version="6.5.3" />
     </ItemGroup>
@@ -22,6 +25,7 @@
     <ItemGroup Condition="'$(TargetFramework)' == 'net472'">
         <Reference Include="System.IO.Compression" />
         <Reference Include="System.IO.Compression.FileSystem" />
+        <Reference Include="System.ComponentModel.DataAnnotations" />
     </ItemGroup>
 
     <ItemGroup>

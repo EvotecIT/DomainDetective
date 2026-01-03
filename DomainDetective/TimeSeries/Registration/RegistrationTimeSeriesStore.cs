@@ -27,7 +27,9 @@ public sealed class RegistrationTimeSeriesStore
         {
             throw new ArgumentException("Domain is required.", nameof(domain));
         }
-        return Path.Combine(RootPath, "registration", domain.Trim());
+
+        var safeDomain = PathHelper.NormalizeDomainPathSegment(domain);
+        return PathHelper.CombineUnderRoot(RootPath, "registration", safeDomain);
     }
 
     public string SaveSnapshot(RegistrationSnapshot snapshot)

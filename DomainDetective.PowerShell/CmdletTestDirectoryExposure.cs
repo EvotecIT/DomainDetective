@@ -24,6 +24,7 @@ public sealed class CmdletTestDirectoryExposure : ExportableAsyncPSCmdlet {
     /// <summary>Domain(s) to query.</summary>
     [Parameter(Mandatory = true, Position = 0, ParameterSetName = "ServerName", ValueFromPipeline = true, ValueFromPipelineByPropertyName = true)]
     [ValidateNotNullOrEmpty]
+    [ValidateDomainName]
     public string[] DomainName = System.Array.Empty<string>();
 
     /// <summary>Use HTTPS instead of HTTP.</summary>

@@ -13,5 +13,7 @@ internal static class NSCodes {
     public const string GlueIncomplete = "NS.Glue.Incomplete";
     public const string GlueInconsistent = "NS.Glue.Inconsistent";
     public const string RecursionOnAuthoritative = "NS.Recursion.Enabled";
+    public const string ChaosVersionExposed = "NS.CHAOS.Version.Exposed";
+    public const string ChaosHostnameExposed = "NS.CHAOS.Hostname.Exposed";
 }
 

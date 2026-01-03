@@ -1,4 +1,5 @@
 using DomainDetective;
+using DnsClientX;
 using PortScanProfile = DomainDetective.PortScanProfileDefinition.PortScanProfile;
 using Spectre.Console;
 using System.Diagnostics.CodeAnalysis;
@@ -17,6 +18,38 @@ namespace DomainDetective.CLI;
 internal static class CommandUtilities {
     internal static readonly string[] CheckNames = Enum.GetNames<HealthCheckType>();
     internal static readonly string[] PortProfileNames = Enum.GetNames<PortScanProfile>();
+
+    internal static DnsEndpoint[]? ParseDnsEndpoints(string[]? raw, out List<string> invalid)
+    {
+        invalid = new List<string>();
+        if (raw == null || raw.Length == 0)
+        {
+            return null;
+        }
+
+        var endpoints = new List<DnsEndpoint>();
+        foreach (var part in raw)
+        {
+            if (string.IsNullOrWhiteSpace(part))
+            {
+                continue;
+            }
+
+            foreach (var token in part.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (Enum.TryParse<DnsEndpoint>(token, true, out var ep))
+                {
+                    endpoints.Add(ep);
+                }
+                else
+                {
+                    invalid.Add(token);
+                }
+            }
+        }
+
+        return endpoints.Count == 0 ? null : endpoints.Distinct().ToArray();
+    }
 
     [RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
     [RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
@@ -138,17 +171,36 @@ internal static class CommandUtilities {
         var autodiscoverEndpoints = AnsiConsole.Confirm("Show Autodiscover HTTP endpoints?");
 
         var checkTakeover = AnsiConsole.Confirm("Check for takeover CNAMEs?");
-        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken);
+        await RunChecks(domains, checks, checkHttp, false, checkTakeover, autodiscoverEndpoints, outputJson, summaryOnly, subPolicy, false, null, true, false, null, cancellationToken: cancellationToken);
         return 0;
     }
 
-internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, CancellationToken cancellationToken) {
-        foreach (var domain in domains) {
-            var logger = new InternalLogger { IsProgress = showProgress };
-            var hc = new DomainHealthCheck(internalLogger: logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
-            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
-
-            if (showProgress) {
+	internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks, bool checkHttp, bool checkWeb, bool checkTakeover, bool autodiscoverEndpoints, bool outputJson, bool summaryOnly, bool subdomainPolicy, bool unicodeOutput, int[]? danePorts, bool showProgress, bool skipRevocation, PortScanProfile[]? portScanProfiles, DnsEndpoint dnsEndpoint = DnsEndpoint.System, DnsEndpoint[]? dnsEndpoints = null, MultiResolverStrategy multiResolverStrategy = MultiResolverStrategy.FirstSuccess, int? multiResolverMaxParallelism = null, int? subdomainsMaxResolutionChecks = null, int? subdomainsResolutionConcurrency = null, int? subdomainsResolutionMinIntervalMs = null, CancellationToken cancellationToken = default) {
+	        foreach (var domain in domains) {
+	            var logger = new InternalLogger { IsProgress = showProgress };
+	            var hc = new DomainHealthCheck(dnsEndpoint, logger) { Verbose = false, UseSubdomainPolicy = subdomainPolicy, UnicodeOutput = unicodeOutput, Progress = showProgress };
+                if (dnsEndpoints != null && dnsEndpoints.Length > 0)
+                {
+                    hc.DnsEndpoints.Clear();
+                    hc.DnsEndpoints.AddRange(dnsEndpoints);
+                    hc.MultiResolverStrategy = multiResolverStrategy;
+                    hc.MultiResolverMaxParallelism = multiResolverMaxParallelism;
+                }
+                if (subdomainsMaxResolutionChecks.HasValue)
+                {
+                    hc.SubdomainsAnalysis.MaxResolutionChecks = Math.Max(0, subdomainsMaxResolutionChecks.Value);
+                }
+                if (subdomainsResolutionConcurrency.HasValue)
+                {
+                    hc.SubdomainsAnalysis.ResolutionConcurrency = Math.Max(1, subdomainsResolutionConcurrency.Value);
+                }
+                if (subdomainsResolutionMinIntervalMs.HasValue)
+                {
+                    hc.SubdomainsAnalysis.ResolutionMinInterval = TimeSpan.FromMilliseconds(Math.Max(0, subdomainsResolutionMinIntervalMs.Value));
+                }
+	            hc.CertificateAnalysis.SkipRevocation = skipRevocation;
+	
+	            if (showProgress) {
                 ProgressContext? ctxRef = null;
                 try {
                     await AnsiConsole.Progress().StartAsync(async ctx => {
@@ -243,6 +295,8 @@ internal static async Task RunChecks(string[] domains, HealthCheckType[]? checks
                     HealthCheckType.WILDCARDDNS => hc.WildcardDnsAnalysis,
                     HealthCheckType.EDNSSUPPORT => hc.EdnsSupportAnalysis,
                     HealthCheckType.DNSHEALTH => hc.DnsHealthAnalysis,
+                    HealthCheckType.DNSAMPLIFICATION => hc.DnsAmplificationAnalysis,
+                    HealthCheckType.DNSOVERTLS => hc.DnsOverTlsAnalysis,
                     _ => null
                 };
                 if (data != null) {

@@ -51,6 +51,10 @@ public static class ReferencesCollector
             Pull(b.Subdomains?.References);
             Pull(b.DnsInventory?.References);
             Pull(b.DnsTrace?.References);
+            Pull(b.CtTimeline?.References);
+            Pull(b.Http?.References);
+            Pull(b.IpEnrichment?.References);
+            if (b.DnsPropagation != null) foreach (var d in b.DnsPropagation) Pull(d.References);
         }
 
         return set.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();

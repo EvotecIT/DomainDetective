@@ -37,6 +37,17 @@ internal sealed class OpenResolverRecommendations : IRecommendationProvider {
             Effort = RecommendationEffort.Low,
             Verify = "Repeat the test and confirm server response codes."
         };
+        map[OpenResolverCodes.AnomalousResponse] = new RecommendationAdvice {
+            Code = OpenResolverCodes.AnomalousResponse,
+            Title = "Anomalous response to recursion probe",
+            Why = "Unexpected flags/rcodes can indicate caching proxies, rate limiting, or DNS manipulation. No confirmed open recursion was detected.",
+            How = "Review authoritative DNS server configuration and any upstream proxies/firewalls; ensure recursion is disabled and responses are consistent.",
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "recursion", "anomaly" },
+            Impact = "Potential troubleshooting and visibility gap; may hide misconfiguration.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Repeat the recursion probe across networks; expect REFUSED/no recursion and stable flags."
+        };
     }
 }
 

@@ -21,6 +21,8 @@ Use this to build an inventory of potential attack surface (historical, stale, o
 The primary implementation lives in `DomainDetective.SubdomainsAnalysis`.
 
 - `VerifyStillResolves` (default: `true`): enables DNS verification.
+- `MaxCtRowsToProcess` (default: `10_000`): caps processed CT rows (large domains).
+- `MaxSubdomains` (default: `10_000`): caps distinct discovered subdomains retained.
 - `MaxResolutionChecks` (default: `500`): caps the number of hostnames verified for DNS resolution.
 - `ResolutionConcurrency` (default: `20`): limits concurrent DNS checks.
 - `CrtShUrlTemplate`: CT query URL template (override for self-hosted or alternative endpoints).
@@ -39,4 +41,4 @@ DNS verification uses `DomainDetective.DnsConfiguration` and supports overriding
 - CT-derived hostnames are an observation set, not a complete inventory (and may include historical names).
 - DNS verification is intentionally bounded for performance; entries beyond the cap remain `Unknown`.
 - IDN normalization is applied; invalid hostnames are skipped.
-
+- Very large CT result sets may be capped (`ResultsCapped = true`) to protect performance; raise caps cautiously if needed.

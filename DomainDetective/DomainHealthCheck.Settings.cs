@@ -143,5 +143,20 @@ namespace DomainDetective {
         /// When true, DNSSEC queries use local validation (validateDnsSec: true) in DnsClientX.
         /// </summary>
         public bool DnsSecValidateLocally { get; set; }
+
+        /// <summary>Record types tested for DNS propagation (multi-resolver) checks.</summary>
+        public DnsRecordType[] DnsPropagationRecordTypes { get; set; } = new[] { DnsRecordType.A, DnsRecordType.AAAA };
+
+        /// <summary>Maximum number of public resolvers queried for DNS propagation (bounded for responsiveness).</summary>
+        public int DnsPropagationMaxServers { get; set; } = 60;
+
+        /// <summary>Maximum parallel DNS propagation queries.</summary>
+        public int DnsPropagationMaxParallelism { get; set; } = 20;
+
+        /// <summary>When true, includes GeoIP lookups for mappable country rollups.</summary>
+        public bool DnsPropagationIncludeGeo { get; set; } = true;
+
+        /// <summary>Maximum number of resolver results retained per record type for reporting.</summary>
+        public int DnsPropagationMaxResultsToKeep { get; set; } = 500;
     }
 }

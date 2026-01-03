@@ -34,6 +34,19 @@ internal sealed class EdnsRecommendations : IRecommendationProvider {
             Tags = new [] { "dns", "edns", "tcp" }
         };
 
+        map[EdnsCodes.CookiesNotSupported] = new RecommendationAdvice {
+            Code = EdnsCodes.CookiesNotSupported,
+            Title = "DNS Cookies not supported",
+            Why = "DNS Cookies (RFC 7873) help mitigate spoofing and some reflection/caching abuse by binding queries to a client.",
+            How = "Enable DNS Cookies in your authoritative DNS software if supported; upgrade to a version that supports RFC 7873.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7873" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "edns", "cookies" },
+            Impact = "Reduced resilience against certain spoofing and abuse scenarios.",
+            Effort = RecommendationEffort.Medium,
+            Verify = "Re-test EDNS; responses include the COOKIE option."
+        };
+
         map[EdnsCodes.Supported] = new RecommendationAdvice {
             Code = EdnsCodes.Supported,
             Title = "Authoritative server supports EDNS",
@@ -59,6 +72,15 @@ internal sealed class EdnsRecommendations : IRecommendationProvider {
             Links = new [] { "https://www.rfc-editor.org/rfc/rfc6891" },
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "edns" }
+        };
+
+        map[EdnsCodes.CookiesSupported] = new RecommendationAdvice {
+            Code = EdnsCodes.CookiesSupported,
+            Title = "DNS Cookies supported",
+            Why = "DNS Cookies improve DNS transaction security and help mitigate spoofing.",
+            Links = new [] { "https://www.rfc-editor.org/rfc/rfc7873" },
+            Domain = RecommendationDomain.Infrastructure,
+            Tags = new [] { "dns", "edns", "cookies" }
         };
     }
 }

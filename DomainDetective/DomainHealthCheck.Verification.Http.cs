@@ -35,6 +35,24 @@ namespace DomainDetective {
         }
 
         /// <summary>
+        /// Performs an HTTPS security check collecting key headers and scanning for mixed content, with request customization options.
+        /// </summary>
+        public async Task VerifyWebsiteHttps(string domainName, HttpRequestOptions requestOptions, bool captureBody = true, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            if (requestOptions == null) {
+                throw new ArgumentNullException(nameof(requestOptions));
+            }
+
+            var host = ValidateHostName(domainName);
+            var hasPort = host.Contains(":");
+            var url = hasPort ? $"https://{host}" : $"https://{host}";
+            HttpAnalysis.Subject = url;
+            await HttpAnalysis.AnalyzeUrl(url, checkHsts: true, logger: _logger, collectHeaders: true, captureBody: captureBody, cancellationToken: cancellationToken, requestOptions: requestOptions);
+        }
+
+        /// <summary>
         /// Performs a basic HTTP check without enforcing HTTPS.
         /// </summary>
         public async Task VerifyPlainHttp(string domainName, CancellationToken cancellationToken = default) {
@@ -51,6 +69,28 @@ namespace DomainDetective {
             UpdateIsPublicSuffix(host);
             HttpAnalysis.Subject = $"http://{hostWithPort}";
             await HttpAnalysis.AnalyzeUrl(HttpAnalysis.Subject, false, _logger, cancellationToken: cancellationToken);
+        }
+
+        /// <summary>
+        /// Performs a basic HTTP check without enforcing HTTPS, with request customization options.
+        /// </summary>
+        public async Task VerifyPlainHttp(string domainName, HttpRequestOptions requestOptions, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            if (requestOptions == null) {
+                throw new ArgumentNullException(nameof(requestOptions));
+            }
+            domainName = ValidateHostName(domainName);
+            if (!Uri.TryCreate($"http://{domainName}", UriKind.Absolute, out var uri)) {
+                throw new ArgumentException($"Invalid host name '{domainName}'.", nameof(domainName));
+            }
+
+            var host = ValidateHostName(uri.Host);
+            var hostWithPort = uri.IsDefaultPort ? host : $"{host}:{uri.Port}";
+            UpdateIsPublicSuffix(host);
+            HttpAnalysis.Subject = $"http://{hostWithPort}";
+            await HttpAnalysis.AnalyzeUrl(HttpAnalysis.Subject, false, _logger, collectHeaders: false, captureBody: false, cancellationToken: cancellationToken, requestOptions: requestOptions);
         }
     }
 }
