@@ -83,6 +83,231 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public async Task Evaluate_DmarcInvalidRecordWhenRequired_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; rua=mailto:agg@dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                RequireRecord = true,
+                RequireValidRecord = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcInvalidRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcMultipleRecordsNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        typeof(DmarcAnalysis).GetProperty("MultipleRecords", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DmarcAnalysis, true);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                RequireSingleRecord = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcMultipleRecordsNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcRufNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com; ruf=mailto:forensic@dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowRuf = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcRufNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcHttpRufNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com; ruf=https://forensics.example/report";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowHttpRuf = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcHttpRufNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcWeakPolicyNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=none; rua=mailto:agg@dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowWeakPolicy = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcWeakPolicyNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcMailtoRuaMissing_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=https://reports.example/report";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                RequireMailtoRua = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcMailtoRuaMissing, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcHttpRuaNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=https://reports.example/report";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowHttpRua = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcHttpRuaNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcDeprecatedTagsNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com; pct=100";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowDeprecatedTags = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcDeprecatedTagsNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcUnknownTagsNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com; foo=bar";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowUnknownTags = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcUnknownTagsNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_DmarcRecordOver255NotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        typeof(DmarcAnalysis).GetProperty("ExceedsCharacterLimit", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.DmarcAnalysis, true);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                DisallowRecordOver255 = true,
+                RequireExternalReportAuthorization = false
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.DmarcRecordTooLong, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Evaluate_DmarcAspfNotAllowed_AddsError() {
         var health = new DomainHealthCheck();
 
@@ -128,6 +353,62 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public void Evaluate_DkimWeakKeyNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+        health.DKIMAnalysis.AnalysisResults["selector1"] = new DkimRecordAnalysis {
+            DkimRecordExists = true,
+            StartsCorrectly = true,
+            PublicKeyExists = true,
+            ValidPublicKey = true,
+            ValidKeyType = true,
+            KeyLength = 1024,
+            WeakKey = true
+        };
+
+        var profile = new DesiredStateProfile {
+            Dkim = new DesiredStateDkimPolicy {
+                DisallowWeakKeys = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DkimWeakKeyNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_DkimDeprecatedTagsNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+        var analysis = new DkimRecordAnalysis {
+            DkimRecordExists = true,
+            StartsCorrectly = true,
+            PublicKeyExists = true,
+            ValidPublicKey = true,
+            ValidKeyType = true,
+            KeyLength = 2048,
+            ValidRsaKeyLength = true
+        };
+        analysis.DeprecatedTags.Add("q");
+        health.DKIMAnalysis.AnalysisResults["selector1"] = analysis;
+
+        var profile = new DesiredStateProfile {
+            Dkim = new DesiredStateDkimPolicy {
+                DisallowDeprecatedTags = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.DkimDeprecatedTagsNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Evaluate_TlsRptMissingRecord_AddsWarning() {
         var health = new DomainHealthCheck();
 
@@ -143,6 +424,27 @@ public sealed class TestDesiredState {
         Assert.Contains(result.Assessments, a =>
             a.Severity == AssessmentSeverity.Warning &&
             string.Equals(a.Code, DesiredStateCodes.TlsRptMissingRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_TlsRptHttpsRuaNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=TLSRPTv1; rua=https://reports.vendor.example/tlsrpt";
+        await health.CheckTLSRPT(record);
+
+        var profile = new DesiredStateProfile {
+            TlsRpt = new DesiredStateTlsRptPolicy {
+                DisallowHttpRua = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.TlsRptHttpRuaNotAllowed, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -168,6 +470,28 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public void Evaluate_MtastsDnsRecordInvalid_AddsError() {
+        var health = new DomainHealthCheck();
+
+        typeof(MTASTSAnalysis).GetProperty("DnsRecordPresent", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.MTASTSAnalysis, true);
+        typeof(MTASTSAnalysis).GetProperty("DnsRecordValid", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.MTASTSAnalysis, false);
+
+        var profile = new DesiredStateProfile {
+            Mtasts = new DesiredStateMtastsPolicy {
+                RequireRecord = true,
+                RequireDnsRecordValid = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.MtastsDnsRecordInvalid, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Evaluate_SpfRequiredIncludeMissing_AddsError() {
         var health = new DomainHealthCheck();
 
@@ -186,6 +510,171 @@ public sealed class TestDesiredState {
         Assert.Contains(result.Assessments, a =>
             a.Severity == AssessmentSeverity.Error &&
             string.Equals(a.Code, DesiredStateCodes.SpfRequiredIncludeMissing, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfAllMechanismMissing_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 include:spf.protection.outlook.com");
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                RequireAllMechanism = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfAllMechanismMissing, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfExpNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 exp=explain.example.com -all");
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                DisallowExp = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.SpfExpNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfPermErrorNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 -all");
+        typeof(SpfAnalysis).GetProperty("PermError", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.SpfAnalysis, true);
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                DisallowPermError = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfPermErrorNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfCnameNotAllowed_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 -all");
+        typeof(SpfAnalysis).GetProperty("IsCnameResolved", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.SpfAnalysis, true);
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                DisallowCname = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.SpfCnameNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfInvalidRecordWhenStartsIncorrectly_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("spf1 -all");
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                RequireValidRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfInvalidRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfInvalidRecordWhenNullLookup_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 include: -all");
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                RequireValidRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfInvalidRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfMultipleRecordsNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 -all");
+
+        typeof(SpfAnalysis).GetProperty("MultipleSpfRecords", BindingFlags.Instance | BindingFlags.Public)!.SetValue(health.SpfAnalysis, true);
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                RequireSingleRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfMultipleRecordsNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_SpfEffectiveSpfSendsRequired_AddsError() {
+        var health = new DomainHealthCheck();
+
+        await health.CheckSPF("v=spf1 -all");
+        await health.SpfAnalysis.ComputeEffectiveSpfSendsAsync();
+
+        var profile = new DesiredStateProfile {
+            Spf = new DesiredStateSpfPolicy {
+                RequireEffectiveSpfSends = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SpfEffectiveSendingRequired, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -510,6 +999,115 @@ public sealed class TestDesiredState {
         Assert.Contains(result.Assessments, a =>
             a.Severity == AssessmentSeverity.Warning &&
             string.Equals(a.Code, DesiredStateCodes.DnssecRrsigExpiringSoon, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_StartTlsAllServersSupportedRequired_AddsError() {
+        var health = new DomainHealthCheck();
+        health.StartTlsAnalysis.ServerResults["mx1.example.com:25"] = true;
+        health.StartTlsAnalysis.ServerResults["mx2.example.com:25"] = false;
+
+        var profile = new DesiredStateProfile {
+            StartTls = new DesiredStateStartTlsPolicy {
+                RequireAllServersSupported = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.StartTlsAllSupportedRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_SmtpTlsGradeTooLow_AddsError() {
+        var health = new DomainHealthCheck();
+        health.SmtpTlsAnalysis.ServerResults["mx1.example.com:25"] = new MailTlsAnalysis.TlsResult {
+            GradeLevel = GradeLevel.C
+        };
+
+        var profile = new DesiredStateProfile {
+            SmtpTls = new DesiredStateMailTlsPolicy {
+                RequireCertificateValid = false,
+                RequireChainValid = false,
+                RequireHostnameMatch = false,
+                DisallowExpiredCertificates = false,
+                DisallowLegacyProtocols = false,
+                MinimumGradeLevel = GradeLevel.B
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SmtpTlsGradeTooLow, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_SmtpAuthStartTlsRequired_AddsError() {
+        var health = new DomainHealthCheck();
+        health.SmtpAuthAnalysis.ServerMechanisms["mx1.example.com:25"] = new[] { "LOGIN" };
+        health.SmtpAuthAnalysis.ServerCapabilities["mx1.example.com:25"] = new[] { "8BITMIME" };
+
+        var profile = new DesiredStateProfile {
+            SmtpAuth = new DesiredStateSmtpAuthPolicy {
+                RequireStartTlsCapabilityWhenAuth = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SmtpAuthStartTlsRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_OpenResolverNotAllowed_AddsError() {
+        var health = new DomainHealthCheck();
+        health.OpenResolverAnalysis.ServerResults["ns1.example.com:53"] = true;
+
+        var profile = new DesiredStateProfile {
+            OpenResolver = new DesiredStateOpenResolverPolicy {
+                DisallowOpenResolver = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.OpenResolverNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_MailLatencyConnectTooSlow_AddsWarning() {
+        var health = new DomainHealthCheck();
+        health.MailLatencyAnalysis.ServerResults["mx1.example.com:25"] = new MailLatencyAnalysis.LatencyResult {
+            ConnectSuccess = true,
+            BannerSuccess = true,
+            ConnectTime = TimeSpan.FromMilliseconds(2500),
+            BannerTime = TimeSpan.FromMilliseconds(100)
+        };
+
+        var profile = new DesiredStateProfile {
+            MailLatency = new DesiredStateMailLatencyPolicy {
+                MaxConnectTimeMs = 2000
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.MailLatencyConnectTooSlow, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

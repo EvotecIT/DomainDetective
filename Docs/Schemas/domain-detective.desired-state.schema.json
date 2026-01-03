@@ -99,6 +99,33 @@
         "mx": {
           "$ref": "#/$defs/mxPolicy"
         },
+        "startTls": {
+          "$ref": "#/$defs/startTlsPolicy"
+        },
+        "smtpTls": {
+          "$ref": "#/$defs/mailTlsPolicy"
+        },
+        "imapTls": {
+          "$ref": "#/$defs/mailTlsPolicy"
+        },
+        "pop3Tls": {
+          "$ref": "#/$defs/mailTlsPolicy"
+        },
+        "smtpBanner": {
+          "$ref": "#/$defs/smtpBannerPolicy"
+        },
+        "smtpAuth": {
+          "$ref": "#/$defs/smtpAuthPolicy"
+        },
+        "openRelay": {
+          "$ref": "#/$defs/openRelayPolicy"
+        },
+        "openResolver": {
+          "$ref": "#/$defs/openResolverPolicy"
+        },
+        "mailLatency": {
+          "$ref": "#/$defs/mailLatencyPolicy"
+        },
         "reverseDns": {
           "$ref": "#/$defs/reverseDnsPolicy"
         },
@@ -203,6 +230,18 @@
             "null"
           ]
         },
+        "requireValidRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSingleRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "allowedPolicies": {
           "type": "array",
           "items": {
@@ -257,6 +296,54 @@
             "null"
           ]
         },
+        "requireMailtoRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowHttpRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowRuf": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowHttpRuf": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowWeakPolicy": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowRecordOver255": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnknownTags": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDeprecatedTags": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "allowedReportDomainSuffixes": {
           "type": "array",
           "items": {
@@ -287,11 +374,35 @@
             "null"
           ]
         },
+        "requireValidRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSingleRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireEffectiveSpfSends": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "allowedAllMechanisms": {
           "type": "array",
           "items": {
             "type": "string"
           }
+        },
+        "requireAllMechanism": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "maxDnsLookups": {
           "type": "integer",
@@ -339,6 +450,24 @@
             "null"
           ]
         },
+        "disallowExp": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowPermError": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowCname": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "allowedRedirectDomainSuffixes": {
           "type": "array",
           "items": {
@@ -363,6 +492,30 @@
             "null"
           ]
         },
+        "requireStartsCorrectly": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePublicKey": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidPublicKey": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidKeyType": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "requiredSelectors": {
           "type": "array",
           "items": {
@@ -372,6 +525,40 @@
         "minKeyBits": {
           "type": "integer",
           "minimum": 0
+        },
+        "disallowWeakKeys": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxKeyAgeDays": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disallowDeprecatedTags": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowInvalidFlags": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnknownCanonicalizationModes": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowInvalidCanonicalization": {
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "allowedCnameTargetSuffixes": {
           "type": "array",
@@ -392,6 +579,30 @@
           ]
         },
         "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireDnsRecordValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePolicyPresent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePolicyValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDuplicateFields": {
           "type": [
             "boolean",
             "null"
@@ -431,13 +642,49 @@
             "null"
           ]
         },
+        "requireSingleRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "requireRua": {
           "type": [
             "boolean",
             "null"
           ]
         },
+        "requireMailtoRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "requireValidPolicy": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowRecordOver255": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnknownTags": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowInvalidRua": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowHttpRua": {
           "type": [
             "boolean",
             "null"
@@ -598,6 +845,320 @@
             "boolean",
             "null"
           ]
+        }
+      }
+    },
+    "startTlsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAnyServerSupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllServersSupported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDowngradeDetected": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "mailTlsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireCertificateValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireChainValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireHostnameMatch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowExpiredCertificates": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minCertificateDaysToExpire": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "disallowLegacyProtocols": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minimumGradeLevel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/gradeLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "smtpBannerPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidFormat": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireStartsWith220": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireDomainPresent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowTruncated": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxResponseTimeMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "requireTlsAdvertised": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowVersionLeak": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedServerDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "smtpAuthPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowAuthAdvertisement": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedMechanisms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disallowedMechanisms": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiredMechanismsAnyOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireStartTlsCapabilityWhenAuth": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "openRelayPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowOpenRelay": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "treatConnectionFailuresAsDrift": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "openResolverPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowOpenResolver": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "mailLatencyPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastOneResult": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllConnectSuccess": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllBannerSuccess": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "maxConnectTimeMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxBannerTimeMs": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         }
       }
     },
@@ -1619,6 +2180,17 @@
         "Info",
         "Warning",
         "Error"
+      ]
+    },
+    "gradeLevel": {
+      "type": "string",
+      "enum": [
+        "Unknown",
+        "F",
+        "D",
+        "C",
+        "B",
+        "A"
       ]
     },
     "mailClassification": {
