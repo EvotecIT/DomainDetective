@@ -80,6 +80,10 @@ public sealed class DesiredStateConfiguration {
 
         if (profile.Dmarc != null && profile.Dmarc.Enabled != false) set.Add(HealthCheckType.DMARC);
         if (profile.Spf != null && profile.Spf.Enabled != false) set.Add(HealthCheckType.SPF);
+        if (profile.Dkim != null && profile.Dkim.Enabled != false) set.Add(HealthCheckType.DKIM);
+        if (profile.Mtasts != null && profile.Mtasts.Enabled != false) set.Add(HealthCheckType.MTASTS);
+        if (profile.TlsRpt != null && profile.TlsRpt.Enabled != false) set.Add(HealthCheckType.TLSRPT);
+        if (profile.Bimi != null && profile.Bimi.Enabled != false) set.Add(HealthCheckType.BIMI);
 
         return set.ToArray();
     }
@@ -134,12 +138,28 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("spf")]
     public DesiredStateSpfPolicy? Spf { get; set; }
 
+    [JsonPropertyName("dkim")]
+    public DesiredStateDkimPolicy? Dkim { get; set; }
+
+    [JsonPropertyName("mtasts")]
+    public DesiredStateMtastsPolicy? Mtasts { get; set; }
+
+    [JsonPropertyName("tlsrpt")]
+    public DesiredStateTlsRptPolicy? TlsRpt { get; set; }
+
+    [JsonPropertyName("bimi")]
+    public DesiredStateBimiPolicy? Bimi { get; set; }
+
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
             Checks = Checks?.ToArray(),
             AssessmentPolicy = AssessmentPolicy?.Clone(),
             Dmarc = Dmarc?.Clone(),
-            Spf = Spf?.Clone()
+            Spf = Spf?.Clone(),
+            Dkim = Dkim?.Clone(),
+            Mtasts = Mtasts?.Clone(),
+            TlsRpt = TlsRpt?.Clone(),
+            Bimi = Bimi?.Clone()
         };
     }
 
@@ -164,11 +184,35 @@ public sealed class DesiredStateProfile {
             Spf ??= new DesiredStateSpfPolicy();
             Spf.Apply(overlay.Spf);
         }
+
+        if (overlay.Dkim != null) {
+            Dkim ??= new DesiredStateDkimPolicy();
+            Dkim.Apply(overlay.Dkim);
+        }
+
+        if (overlay.Mtasts != null) {
+            Mtasts ??= new DesiredStateMtastsPolicy();
+            Mtasts.Apply(overlay.Mtasts);
+        }
+
+        if (overlay.TlsRpt != null) {
+            TlsRpt ??= new DesiredStateTlsRptPolicy();
+            TlsRpt.Apply(overlay.TlsRpt);
+        }
+
+        if (overlay.Bimi != null) {
+            Bimi ??= new DesiredStateBimiPolicy();
+            Bimi.Apply(overlay.Bimi);
+        }
     }
 
     public void Normalize() {
         Dmarc?.NormalizeDefaults();
         Spf?.NormalizeDefaults();
+        Dkim?.NormalizeDefaults();
+        Mtasts?.NormalizeDefaults();
+        TlsRpt?.NormalizeDefaults();
+        Bimi?.NormalizeDefaults();
     }
 }
 
@@ -290,6 +334,198 @@ public sealed class DesiredStateSpfPolicy {
         Enabled ??= true;
         RequireRecord ??= true;
         RequireDenyAll ??= false;
+    }
+}
+
+public sealed class DesiredStateDkimPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    /// <summary>When true, requires at least one DKIM selector to be analyzed.</summary>
+    [JsonPropertyName("requireAtLeastOneSelector")]
+    public bool? RequireAtLeastOneSelector { get; set; }
+
+    /// <summary>Selectors that must exist and publish DKIM records (organization-specific).</summary>
+    [JsonPropertyName("requiredSelectors")]
+    public string[]? RequiredSelectors { get; set; }
+
+    /// <summary>Minimum accepted key length in bits for selectors (best-effort, RSA-focused).</summary>
+    [JsonPropertyName("minKeyBits")]
+    public int? MinKeyBits { get; set; }
+
+    /// <summary>Allowed domain suffixes for selector CNAME targets (vendor-hosted DKIM).</summary>
+    [JsonPropertyName("allowedCnameTargetSuffixes")]
+    public string[]? AllowedCnameTargetSuffixes { get; set; }
+
+    public DesiredStateDkimPolicy Clone() {
+        return new DesiredStateDkimPolicy {
+            Enabled = Enabled,
+            RequireAtLeastOneSelector = RequireAtLeastOneSelector,
+            RequiredSelectors = RequiredSelectors?.ToArray(),
+            MinKeyBits = MinKeyBits,
+            AllowedCnameTargetSuffixes = AllowedCnameTargetSuffixes?.ToArray()
+        };
+    }
+
+    public void Apply(DesiredStateDkimPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireAtLeastOneSelector.HasValue) RequireAtLeastOneSelector = overlay.RequireAtLeastOneSelector;
+        if (overlay.RequiredSelectors != null) RequiredSelectors = overlay.RequiredSelectors.ToArray();
+        if (overlay.MinKeyBits.HasValue) MinKeyBits = overlay.MinKeyBits;
+        if (overlay.AllowedCnameTargetSuffixes != null) AllowedCnameTargetSuffixes = overlay.AllowedCnameTargetSuffixes.ToArray();
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+    }
+}
+
+public sealed class DesiredStateMtastsPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    [JsonPropertyName("requireEnforce")]
+    public bool? RequireEnforce { get; set; }
+
+    /// <summary>Minimum accepted max_age value (seconds).</summary>
+    [JsonPropertyName("minMaxAge")]
+    public int? MinMaxAge { get; set; }
+
+    [JsonPropertyName("requireMxAligned")]
+    public bool? RequireMxAligned { get; set; }
+
+    public DesiredStateMtastsPolicy Clone() {
+        return new DesiredStateMtastsPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireEnforce = RequireEnforce,
+            MinMaxAge = MinMaxAge,
+            RequireMxAligned = RequireMxAligned
+        };
+    }
+
+    public void Apply(DesiredStateMtastsPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireEnforce.HasValue) RequireEnforce = overlay.RequireEnforce;
+        if (overlay.MinMaxAge.HasValue) MinMaxAge = overlay.MinMaxAge;
+        if (overlay.RequireMxAligned.HasValue) RequireMxAligned = overlay.RequireMxAligned;
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+    }
+}
+
+public sealed class DesiredStateTlsRptPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    [JsonPropertyName("requireRua")]
+    public bool? RequireRua { get; set; }
+
+    [JsonPropertyName("requireValidPolicy")]
+    public bool? RequireValidPolicy { get; set; }
+
+    /// <summary>Allowed domain suffixes for TLSRPT rua endpoints (mailto domains / HTTPS hosts).</summary>
+    [JsonPropertyName("allowedReportDomainSuffixes")]
+    public string[]? AllowedReportDomainSuffixes { get; set; }
+
+    public DesiredStateTlsRptPolicy Clone() {
+        return new DesiredStateTlsRptPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireRua = RequireRua,
+            RequireValidPolicy = RequireValidPolicy,
+            AllowedReportDomainSuffixes = AllowedReportDomainSuffixes?.ToArray()
+        };
+    }
+
+    public void Apply(DesiredStateTlsRptPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireRua.HasValue) RequireRua = overlay.RequireRua;
+        if (overlay.RequireValidPolicy.HasValue) RequireValidPolicy = overlay.RequireValidPolicy;
+        if (overlay.AllowedReportDomainSuffixes != null) AllowedReportDomainSuffixes = overlay.AllowedReportDomainSuffixes.ToArray();
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+    }
+}
+
+public sealed class DesiredStateBimiPolicy {
+    [JsonPropertyName("enabled")]
+    public bool? Enabled { get; set; }
+
+    [JsonPropertyName("requireRecord")]
+    public bool? RequireRecord { get; set; }
+
+    /// <summary>When true, requires the domain not to decline publishing a BIMI indicator (l= and/or a= must be present).</summary>
+    [JsonPropertyName("requireIndicator")]
+    public bool? RequireIndicator { get; set; }
+
+    /// <summary>When true, requires a valid https://...svg(.svgz) location.</summary>
+    [JsonPropertyName("requireValidLocation")]
+    public bool? RequireValidLocation { get; set; }
+
+    /// <summary>Allowed host suffixes for the indicator URL (vendor-hosted BIMI).</summary>
+    [JsonPropertyName("allowedLocationHostSuffixes")]
+    public string[]? AllowedLocationHostSuffixes { get; set; }
+
+    /// <summary>When true, requires an authority (VMC) URL.</summary>
+    [JsonPropertyName("requireAuthority")]
+    public bool? RequireAuthority { get; set; }
+
+    /// <summary>Allowed host suffixes for the authority URL (vendor-hosted VMC).</summary>
+    [JsonPropertyName("allowedAuthorityHostSuffixes")]
+    public string[]? AllowedAuthorityHostSuffixes { get; set; }
+
+    /// <summary>When true, do not download the indicator SVG as part of the BIMI check.</summary>
+    [JsonPropertyName("skipIndicatorDownload")]
+    public bool? SkipIndicatorDownload { get; set; }
+
+    public DesiredStateBimiPolicy Clone() {
+        return new DesiredStateBimiPolicy {
+            Enabled = Enabled,
+            RequireRecord = RequireRecord,
+            RequireIndicator = RequireIndicator,
+            RequireValidLocation = RequireValidLocation,
+            AllowedLocationHostSuffixes = AllowedLocationHostSuffixes?.ToArray(),
+            RequireAuthority = RequireAuthority,
+            AllowedAuthorityHostSuffixes = AllowedAuthorityHostSuffixes?.ToArray(),
+            SkipIndicatorDownload = SkipIndicatorDownload
+        };
+    }
+
+    public void Apply(DesiredStateBimiPolicy overlay) {
+        if (overlay == null) return;
+        if (overlay.Enabled.HasValue) Enabled = overlay.Enabled;
+        if (overlay.RequireRecord.HasValue) RequireRecord = overlay.RequireRecord;
+        if (overlay.RequireIndicator.HasValue) RequireIndicator = overlay.RequireIndicator;
+        if (overlay.RequireValidLocation.HasValue) RequireValidLocation = overlay.RequireValidLocation;
+        if (overlay.AllowedLocationHostSuffixes != null) AllowedLocationHostSuffixes = overlay.AllowedLocationHostSuffixes.ToArray();
+        if (overlay.RequireAuthority.HasValue) RequireAuthority = overlay.RequireAuthority;
+        if (overlay.AllowedAuthorityHostSuffixes != null) AllowedAuthorityHostSuffixes = overlay.AllowedAuthorityHostSuffixes.ToArray();
+        if (overlay.SkipIndicatorDownload.HasValue) SkipIndicatorDownload = overlay.SkipIndicatorDownload;
+    }
+
+    internal void NormalizeDefaults() {
+        Enabled ??= true;
+        RequireRecord ??= false;
+        RequireIndicator ??= false;
+        RequireValidLocation ??= false;
+        RequireAuthority ??= false;
+        SkipIndicatorDownload ??= true;
     }
 }
 

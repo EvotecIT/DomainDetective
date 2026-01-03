@@ -38,6 +38,10 @@ public static class DesiredStateEvaluator {
 
         EvaluateDmarc(domain, health.DmarcAnalysis, profile.Dmarc, result);
         EvaluateSpf(domain, health.SpfAnalysis, profile.Spf, result);
+        EvaluateDkim(domain, health.DKIMAnalysis, profile.Dkim, result);
+        EvaluateMtasts(domain, health.MTASTSAnalysis, profile.Mtasts, result);
+        EvaluateTlsRpt(domain, health.TLSRPTAnalysis, profile.TlsRpt, result);
+        EvaluateBimi(domain, health.BimiAnalysis, profile.Bimi, result);
 
         // Apply policy so users can suppress/override DesiredState.* codes as well.
         try {
@@ -325,5 +329,369 @@ public static class DesiredStateEvaluator {
                 Message = "Desired state requires SPF to deny all sending (e.g., v=spf1 -all)."
             });
         }
+    }
+
+    private static void EvaluateDkim(string domain, DkimAnalysis dkim, DesiredStateDkimPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        var requiredSelectors = desired.RequiredSelectors?
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        DkimRecordAnalysis? FindSelector(string selector) {
+            foreach (var kvp in dkim.AnalysisResults!) {
+                if (string.Equals(kvp.Key, selector, StringComparison.OrdinalIgnoreCase)) {
+                    return kvp.Value;
+                }
+            }
+            return null;
+        }
+
+        if (desired.RequireAtLeastOneSelector == true && dkim.AnalysisResults.Count == 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimNoSelectors,
+                Message = "Desired state requires DKIM selectors to be present, but none were analyzed."
+            });
+        }
+
+        if (requiredSelectors != null && requiredSelectors.Length > 0) {
+            foreach (var selector in requiredSelectors) {
+                var analysis = FindSelector(selector);
+                if (analysis == null || !analysis.DkimRecordExists) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Error,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.DkimSelectorMissing,
+                        Message = $"Desired state requires DKIM selector '{selector}', but no DKIM record was found."
+                    });
+                    continue;
+                }
+
+                EvaluateDkimSelector(domain, selector, analysis, desired, sink);
+            }
+            return;
+        }
+
+        foreach (var kvp in dkim.AnalysisResults!) {
+            var selector = kvp.Key;
+            var analysis = kvp.Value;
+            if (analysis == null || !analysis.DkimRecordExists) continue;
+            EvaluateDkimSelector(domain, selector, analysis, desired, sink);
+        }
+    }
+
+    private static void EvaluateDkimSelector(string domain, string selector, DkimRecordAnalysis analysis, DesiredStateDkimPolicy desired, DesiredStateAnalysis sink) {
+        if (desired.MinKeyBits.HasValue) {
+            var minBits = desired.MinKeyBits.Value;
+            if (analysis.KeyLength > 0 && analysis.KeyLength < minBits) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.DkimKeyBitsTooLow,
+                    Message = $"Desired state requires DKIM key length >= {minBits} bits for selector '{selector}', but found {analysis.KeyLength}."
+                });
+            }
+        }
+
+        if (desired.AllowedCnameTargetSuffixes != null && desired.AllowedCnameTargetSuffixes.Length > 0) {
+            var suffixes = desired.AllowedCnameTargetSuffixes
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim().Trim('.'))
+                .Where(s => s.Length > 0)
+                .ToArray();
+
+            if (suffixes.Length > 0) {
+                var target = (analysis.CnameTarget ?? string.Empty).Trim().Trim('.');
+                var ok = target.Length > 0 && suffixes.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                if (!ok) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Error,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.DkimCnameTargetNotAllowed,
+                        Message = $"Desired state requires DKIM selector '{selector}' CNAME target to end with [{string.Join(", ", suffixes)}], but found '{target}'."
+                    });
+                }
+            }
+        }
+    }
+
+    private static void EvaluateMtasts(string domain, MTASTSAnalysis mtasts, DesiredStateMtastsPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        if (desired.RequireRecord == true && !mtasts.DnsRecordPresent) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.MtastsMissingRecord,
+                Message = "Desired state requires an MTA-STS record, but none was found."
+            });
+            return;
+        }
+
+        if (!mtasts.DnsRecordPresent) {
+            return;
+        }
+
+        if (desired.RequireEnforce == true && !mtasts.EnforcesMtaSts) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.MtastsEnforceRequired,
+                Message = "Desired state requires MTA-STS to be in enforce mode."
+            });
+        }
+
+        if (desired.MinMaxAge.HasValue) {
+            var min = desired.MinMaxAge.Value;
+            if (mtasts.MaxAge < min) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.MtastsMaxAgeTooLow,
+                    Message = $"Desired state requires MTA-STS max_age >= {min}, but found {mtasts.MaxAge}."
+                });
+            }
+        }
+
+        if (desired.RequireMxAligned == true && mtasts.PolicyPresent && !mtasts.MxAligned) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.MtastsMxNotAligned,
+                Message = "Desired state requires MTA-STS policy MX patterns to cover all MX hosts."
+            });
+        }
+    }
+
+    private static void EvaluateTlsRpt(string domain, TLSRPTAnalysis tlsrpt, DesiredStateTlsRptPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        if (desired.RequireRecord == true && !tlsrpt.TlsRptRecordExists) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TlsRptMissingRecord,
+                Message = "Desired state requires a TLSRPT record, but none was found."
+            });
+            return;
+        }
+
+        if (!tlsrpt.TlsRptRecordExists) {
+            return;
+        }
+
+        if (desired.RequireRua == true && !tlsrpt.RuaDefined) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TlsRptRuaMissing,
+                Message = "Desired state requires TLSRPT reporting (rua), but none was configured."
+            });
+        }
+
+        if (desired.RequireValidPolicy == true && !tlsrpt.PolicyValid) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.TlsRptPolicyInvalid,
+                Message = "Desired state requires a valid TLSRPT policy (v=TLSRPTv1 + rua)."
+            });
+        }
+
+        if (desired.AllowedReportDomainSuffixes != null && desired.AllowedReportDomainSuffixes.Length > 0) {
+            var suffixes = desired.AllowedReportDomainSuffixes
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim().Trim('.'))
+                .Where(s => s.Length > 0)
+                .ToArray();
+
+            if (suffixes.Length > 0) {
+                foreach (var reportDomain in EnumerateTlsRptReportDomains(tlsrpt)) {
+                    var ok = suffixes.Any(s => reportDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    if (!ok) {
+                        sink.Assessments.Add(new Assessment {
+                            Severity = AssessmentSeverity.Error,
+                            Category = "DesiredState",
+                            Target = domain,
+                            Code = DesiredStateCodes.TlsRptRuaDomainNotAllowed,
+                            Message = $"Desired state requires TLSRPT reporting domains to end with [{string.Join(", ", suffixes)}], but found '{reportDomain}'."
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateTlsRptReportDomains(TLSRPTAnalysis tlsrpt) {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddMailto(IEnumerable<string>? addresses) {
+            if (addresses == null) return;
+            foreach (var m in addresses) {
+                if (string.IsNullOrWhiteSpace(m)) continue;
+                var at = m.IndexOf('@');
+                if (at > -1 && at < m.Length - 1) {
+                    var dom = m.Substring(at + 1).Trim().Trim('.');
+                    if (dom.Length > 0) set.Add(dom);
+                }
+            }
+        }
+
+        void AddHttp(IEnumerable<string>? uris) {
+            if (uris == null) return;
+            foreach (var u in uris) {
+                if (string.IsNullOrWhiteSpace(u)) continue;
+                if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)) {
+                    var host = uri.Host.Trim().Trim('.');
+                    if (host.Length > 0) set.Add(host);
+                }
+            }
+        }
+
+        AddMailto(tlsrpt.MailtoRua);
+        AddHttp(tlsrpt.HttpRua);
+
+        return set;
+    }
+
+    private static void EvaluateBimi(string domain, BimiAnalysis bimi, DesiredStateBimiPolicy? desired, DesiredStateAnalysis sink) {
+        if (desired == null || desired.Enabled == false) return;
+
+        if (desired.RequireRecord == true && !bimi.BimiRecordExists) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.BimiMissingRecord,
+                Message = "Desired state requires a BIMI record, but none was found."
+            });
+            return;
+        }
+
+        if (!bimi.BimiRecordExists) {
+            return;
+        }
+
+        if (desired.RequireIndicator == true && bimi.DeclinedToPublish) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.BimiIndicatorDeclined,
+                Message = "Desired state requires a BIMI indicator, but the domain declined to publish one (l= and a= are empty)."
+            });
+        }
+
+        var location = bimi.Location?.Trim();
+        if (desired.RequireValidLocation == true) {
+            if (string.IsNullOrWhiteSpace(location) || bimi.InvalidLocation) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Error,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.BimiLocationInvalid,
+                    Message = "Desired state requires a valid BIMI location (https://...svg/.svgz), but it was missing or invalid."
+                });
+            }
+        }
+
+        if (desired.AllowedLocationHostSuffixes != null && desired.AllowedLocationHostSuffixes.Length > 0) {
+            var suffixes = desired.AllowedLocationHostSuffixes
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim().Trim('.'))
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (suffixes.Length > 0) {
+                var host = TryGetHost(location);
+                if (string.IsNullOrWhiteSpace(host)) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Error,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.BimiLocationHostNotAllowed,
+                        Message = $"Desired state requires BIMI location host to end with [{string.Join(", ", suffixes)}], but no valid host was found."
+                    });
+                } else {
+                    var ok = suffixes.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    if (!ok) {
+                        sink.Assessments.Add(new Assessment {
+                            Severity = AssessmentSeverity.Error,
+                            Category = "DesiredState",
+                            Target = domain,
+                            Code = DesiredStateCodes.BimiLocationHostNotAllowed,
+                            Message = $"Desired state requires BIMI location host to end with [{string.Join(", ", suffixes)}], but found '{host}'."
+                        });
+                    }
+                }
+            }
+        }
+
+        var authority = bimi.Authority?.Trim();
+        if (desired.RequireAuthority == true && string.IsNullOrWhiteSpace(authority)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.BimiAuthorityMissing,
+                Message = "Desired state requires a BIMI authority (VMC) URL, but none was configured."
+            });
+        }
+
+        if (desired.AllowedAuthorityHostSuffixes != null && desired.AllowedAuthorityHostSuffixes.Length > 0) {
+            var suffixes = desired.AllowedAuthorityHostSuffixes
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Select(s => s.Trim().Trim('.'))
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (suffixes.Length > 0 && !string.IsNullOrWhiteSpace(authority)) {
+                var host = TryGetHost(authority);
+                if (string.IsNullOrWhiteSpace(host)) {
+                    sink.Assessments.Add(new Assessment {
+                        Severity = AssessmentSeverity.Error,
+                        Category = "DesiredState",
+                        Target = domain,
+                        Code = DesiredStateCodes.BimiAuthorityHostNotAllowed,
+                        Message = $"Desired state requires BIMI authority host to end with [{string.Join(", ", suffixes)}], but no valid host was found."
+                    });
+                } else {
+                    var ok = suffixes.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    if (!ok) {
+                        sink.Assessments.Add(new Assessment {
+                            Severity = AssessmentSeverity.Error,
+                            Category = "DesiredState",
+                            Target = domain,
+                            Code = DesiredStateCodes.BimiAuthorityHostNotAllowed,
+                            Message = $"Desired state requires BIMI authority host to end with [{string.Join(", ", suffixes)}], but found '{host}'."
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? TryGetHost(string? uriString) {
+        if (string.IsNullOrWhiteSpace(uriString)) return null;
+        if (!Uri.TryCreate(uriString, UriKind.Absolute, out var uri)) return null;
+        if (string.IsNullOrWhiteSpace(uri.Host)) return null;
+        return uri.Host.Trim().Trim('.');
     }
 }
