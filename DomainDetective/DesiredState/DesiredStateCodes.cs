@@ -178,4 +178,25 @@ internal static class DesiredStateCodes {
     public const string TtlSpfTxtUniformityRequired = "DesiredState.TTL.TXT.SPF.Uniformity.Required";
     public const string TtlDmarcTxtUniformityRequired = "DesiredState.TTL.TXT.DMARC.Uniformity.Required";
     public const string TtlDkimTxtUniformityRequired = "DesiredState.TTL.TXT.DKIM.Uniformity.Required";
+
+    public const string AutodiscoverSrvMissingRecord = "DesiredState.AUTODISCOVER.SRV.Record.Missing";
+    public const string AutodiscoverSrvTargetNotAllowed = "DesiredState.AUTODISCOVER.SRV.Target.NotAllowed";
+    public const string AutodiscoverCnameMissingRecord = "DesiredState.AUTODISCOVER.CNAME.Record.Missing";
+    public const string AutodiscoverCnameTargetNotAllowed = "DesiredState.AUTODISCOVER.CNAME.Target.NotAllowed";
+    public const string AutoconfigCnameMissingRecord = "DesiredState.AUTODISCOVER.Autoconfig.CNAME.Record.Missing";
+    public const string AutoconfigCnameTargetNotAllowed = "DesiredState.AUTODISCOVER.Autoconfig.CNAME.Target.NotAllowed";
+    public const string AutodiscoverNoValidEndpoint = "DesiredState.AUTODISCOVER.Endpoint.Valid.Required";
+    public const string AutodiscoverValidEndpointHostNotAllowed = "DesiredState.AUTODISCOVER.Endpoint.Host.NotAllowed";
+
+    public const string SecurityTxtMissingRecord = "DesiredState.SECURITYTXT.Record.Missing";
+    public const string SecurityTxtInvalidRecord = "DesiredState.SECURITYTXT.Record.Invalid";
+    public const string SecurityTxtFallbackNotAllowed = "DesiredState.SECURITYTXT.Fallback.NotAllowed";
+    public const string SecurityTxtPgpSignedRequired = "DesiredState.SECURITYTXT.PGP.Required";
+    public const string SecurityTxtContactEmailMissing = "DesiredState.SECURITYTXT.Contact.Email.Missing";
+    public const string SecurityTxtContactEmailDomainNotAllowed = "DesiredState.SECURITYTXT.Contact.Email.Domain.NotAllowed";
+
+    public const string RobotsMissingRecord = "DesiredState.ROBOTS.Record.Missing";
+    public const string RobotsFallbackNotAllowed = "DesiredState.ROBOTS.Fallback.NotAllowed";
+    public const string RobotsAiBotRulesRequired = "DesiredState.ROBOTS.AiBots.Required";
+    public const string RobotsSitemapRequired = "DesiredState.ROBOTS.Sitemap.Required";
 }

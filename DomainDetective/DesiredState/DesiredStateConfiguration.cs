@@ -12,7 +12,7 @@ namespace DomainDetective.DesiredState;
 /// <summary>
 /// Represents an organization-specific desired state baseline for DomainDetective checks.
 /// </summary>
-public sealed class DesiredStateConfiguration {
+public sealed partial class DesiredStateConfiguration {
     [JsonPropertyName("$schema")]
     public string? Schema { get; set; }
 
@@ -104,6 +104,9 @@ public sealed class DesiredStateConfiguration {
         if (profile.ZoneTransfer != null && profile.ZoneTransfer.Enabled != false) set.Add(HealthCheckType.ZONETRANSFER);
         if (profile.WildcardDns != null && profile.WildcardDns.Enabled != false) set.Add(HealthCheckType.WILDCARDDNS);
         if (profile.Ttl != null && profile.Ttl.Enabled != false) set.Add(HealthCheckType.TTL);
+        if (profile.Autodiscover != null && profile.Autodiscover.Enabled != false) set.Add(HealthCheckType.AUTODISCOVER);
+        if (profile.SecurityTxt != null && profile.SecurityTxt.Enabled != false) set.Add(HealthCheckType.SECURITYTXT);
+        if (profile.Robots != null && profile.Robots.Enabled != false) set.Add(HealthCheckType.ROBOTS);
 
         return set.ToArray();
     }
@@ -173,6 +176,9 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("mx")]
     public DesiredStateMxPolicy? Mx { get; set; }
 
+    [JsonPropertyName("autodiscover")]
+    public DesiredStateAutodiscoverPolicy? Autodiscover { get; set; }
+
     [JsonPropertyName("reverseDns")]
     public DesiredStateReverseDnsPolicy? ReverseDns { get; set; }
 
@@ -230,6 +236,12 @@ public sealed class DesiredStateProfile {
     [JsonPropertyName("ttl")]
     public DesiredStateTtlPolicy? Ttl { get; set; }
 
+    [JsonPropertyName("securityTxt")]
+    public DesiredStateSecurityTxtPolicy? SecurityTxt { get; set; }
+
+    [JsonPropertyName("robots")]
+    public DesiredStateRobotsPolicy? Robots { get; set; }
+
     public DesiredStateProfile Clone() {
         return new DesiredStateProfile {
             Checks = Checks?.ToArray(),
@@ -241,6 +253,7 @@ public sealed class DesiredStateProfile {
             TlsRpt = TlsRpt?.Clone(),
             Bimi = Bimi?.Clone(),
             Mx = Mx?.Clone(),
+            Autodiscover = Autodiscover?.Clone(),
             ReverseDns = ReverseDns?.Clone(),
             FcrDns = FcrDns?.Clone(),
             Ns = Ns?.Clone(),
@@ -259,7 +272,9 @@ public sealed class DesiredStateProfile {
             Delegation = Delegation?.Clone(),
             ZoneTransfer = ZoneTransfer?.Clone(),
             WildcardDns = WildcardDns?.Clone(),
-            Ttl = Ttl?.Clone()
+            Ttl = Ttl?.Clone(),
+            SecurityTxt = SecurityTxt?.Clone(),
+            Robots = Robots?.Clone()
         };
     }
 
@@ -308,6 +323,11 @@ public sealed class DesiredStateProfile {
         if (overlay.Mx != null) {
             Mx ??= new DesiredStateMxPolicy();
             Mx.Apply(overlay.Mx);
+        }
+
+        if (overlay.Autodiscover != null) {
+            Autodiscover ??= new DesiredStateAutodiscoverPolicy();
+            Autodiscover.Apply(overlay.Autodiscover);
         }
 
         if (overlay.ReverseDns != null) {
@@ -404,6 +424,16 @@ public sealed class DesiredStateProfile {
             Ttl ??= new DesiredStateTtlPolicy();
             Ttl.Apply(overlay.Ttl);
         }
+
+        if (overlay.SecurityTxt != null) {
+            SecurityTxt ??= new DesiredStateSecurityTxtPolicy();
+            SecurityTxt.Apply(overlay.SecurityTxt);
+        }
+
+        if (overlay.Robots != null) {
+            Robots ??= new DesiredStateRobotsPolicy();
+            Robots.Apply(overlay.Robots);
+        }
     }
 
     public void Normalize() {
@@ -414,6 +444,7 @@ public sealed class DesiredStateProfile {
         TlsRpt?.NormalizeDefaults();
         Bimi?.NormalizeDefaults();
         Mx?.NormalizeDefaults();
+        Autodiscover?.NormalizeDefaults();
         ReverseDns?.NormalizeDefaults();
         FcrDns?.NormalizeDefaults();
         Ns?.NormalizeDefaults();
@@ -433,6 +464,8 @@ public sealed class DesiredStateProfile {
         ZoneTransfer?.NormalizeDefaults();
         WildcardDns?.NormalizeDefaults();
         Ttl?.NormalizeDefaults();
+        SecurityTxt?.NormalizeDefaults();
+        Robots?.NormalizeDefaults();
     }
 }
 
