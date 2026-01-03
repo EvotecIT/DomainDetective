@@ -69,6 +69,8 @@ public static partial class SectionProjectors
 
         foreach (var s in servers.OrderByDescending(x => x.WorstProbeResponseBytes).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
+            var worstProbeName = s.WorstProbeName;
+
             sec.Servers.Add(new DnsAmplificationSection.ServerRow
             {
                 Key = s.Key ?? string.Empty,
@@ -79,7 +81,7 @@ public static partial class SectionProjectors
                 EdnsUdpPayloadSize = s.EdnsUdpPayloadSize,
                 EdnsTruncatedUdp = s.EdnsTruncatedUdp,
                 WorstProbeType = s.WorstProbeType?.ToString() ?? "-",
-                WorstProbeName = string.IsNullOrWhiteSpace(s.WorstProbeName) ? "-" : s.WorstProbeName,
+                WorstProbeName = string.IsNullOrWhiteSpace(worstProbeName) ? "-" : (worstProbeName ?? "-"),
                 WorstProbeResponseBytes = s.WorstProbeResponseBytes,
                 WorstProbeTruncated = s.WorstProbeTruncated,
                 WorstProbeAmplificationFactor = s.WorstProbeAmplificationFactor
@@ -115,4 +117,3 @@ public static partial class SectionProjectors
         return sec;
     }
 }
-

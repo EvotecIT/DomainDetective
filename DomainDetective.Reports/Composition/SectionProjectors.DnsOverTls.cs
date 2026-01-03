@@ -72,6 +72,10 @@ public static partial class SectionProjectors
 
         foreach (var e in endpoints.OrderByDescending(x => x.Supported).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
+            var protocol = e.Protocol;
+            var cipherSuite = e.CipherSuite;
+            var error = e.Error;
+
             sec.Endpoints.Add(new DnsOverTlsSection.EndpointRow
             {
                 Key = e.Key ?? string.Empty,
@@ -79,11 +83,11 @@ public static partial class SectionProjectors
                 ServerIp = string.IsNullOrWhiteSpace(e.ServerIp) ? "-" : e.ServerIp,
                 Port = e.Port,
                 Supported = e.Supported,
-                Protocol = string.IsNullOrWhiteSpace(e.Protocol) ? "-" : e.Protocol,
-                CipherSuite = string.IsNullOrWhiteSpace(e.CipherSuite) ? "-" : e.CipherSuite,
+                Protocol = string.IsNullOrWhiteSpace(protocol) ? "-" : (protocol ?? "-"),
+                CipherSuite = string.IsNullOrWhiteSpace(cipherSuite) ? "-" : (cipherSuite ?? "-"),
                 HostnameMatch = Flag(e.HostnameMatch),
                 CertificateValid = Flag(e.CertificateValid),
-                Error = string.IsNullOrWhiteSpace(e.Error) ? "-" : e.Error
+                Error = string.IsNullOrWhiteSpace(error) ? "-" : (error ?? "-")
             });
         }
 
@@ -116,4 +120,3 @@ public static partial class SectionProjectors
         return sec;
     }
 }
-

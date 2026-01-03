@@ -289,10 +289,13 @@ public static partial class DesiredStateEvaluator {
             if (uris == null) return;
             foreach (var u in uris) {
                 if (string.IsNullOrWhiteSpace(u)) continue;
-                if (Uri.TryCreate(u, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host)) {
-                    var host = uri.Host.Trim().Trim('.');
-                    if (host.Length > 0) set.Add(host);
-                }
+                if (!Uri.TryCreate(u, UriKind.Absolute, out var uri) || uri == null) continue;
+
+                var host = uri.Host;
+                if (string.IsNullOrWhiteSpace(host)) continue;
+
+                host = host.Trim().Trim('.');
+                if (host.Length > 0) set.Add(host);
             }
         }
 
@@ -517,7 +520,7 @@ public static partial class DesiredStateEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            var redirect = spf.RedirectValue?.Trim().Trim('.') ?? string.Empty;
+            var redirect = (spf.RedirectValue ?? string.Empty).Trim().Trim('.');
             if (suffixes.Length > 0 && redirect.Length > 0) {
                 var ok = suffixes.Any(s => redirect.EndsWith(s, StringComparison.OrdinalIgnoreCase));
                 if (!ok) {

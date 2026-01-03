@@ -175,7 +175,9 @@ public static class DnsInventoryWordSectionWriter
                 qt.Rows[i + 1].Cells[1].AddParagraph(r.Status.ToString());
                 qt.Rows[i + 1].Cells[2].AddParagraph(r.ResponseStatus.ToString());
                 qt.Rows[i + 1].Cells[3].AddParagraph(r.Records.Count.ToString());
-                qt.Rows[i + 1].Cells[4].AddParagraph(string.IsNullOrWhiteSpace(r.FailureReason) ? "-" : r.FailureReason);
+                var failureReason = r.FailureReason;
+                string failureReasonText = string.IsNullOrWhiteSpace(failureReason) ? "-" : failureReason ?? "-";
+                qt.Rows[i + 1].Cells[4].AddParagraph(failureReasonText);
             }
         }
 

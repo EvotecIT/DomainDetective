@@ -33,7 +33,8 @@ public static class DnsPropagationWordSectionWriter
 
         string TrimValue(string? value, int max)
         {
-            if (string.IsNullOrEmpty(value)) return string.Empty;
+            if (value == null) return string.Empty;
+            if (value.Length == 0) return string.Empty;
             if (value.Length <= max) return value;
             return value.Substring(0, max) + " …";
         }
@@ -184,4 +185,3 @@ public static class DnsPropagationWordSectionWriter
         }
     }
 }
-

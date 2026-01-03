@@ -377,12 +377,14 @@ public static partial class DesiredStateEvaluator {
             }
 
             var host = TryGetHost(value);
-            host = host?.Trim().Trim('.');
-            if (host != null && host.Length > 0) {
-                set.Add(host);
+            if (host != null) {
+                host = host.Trim().Trim('.');
+                if (host.Length > 0) {
+                    set.Add(host);
+                }
             }
-	        }
+        }
 
-	        return set;
-	    }
+        return set;
+    }
 }
