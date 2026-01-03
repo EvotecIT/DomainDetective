@@ -46,7 +46,9 @@ public sealed class CmdletNewDesiredStateAssessmentPolicy : PSCmdlet {
         foreach (DictionaryEntry entry in input) {
             if (entry.Key == null) continue;
             var key = entry.Key as string;
-            if (string.IsNullOrWhiteSpace(key)) continue;
+            if (key == null) continue;
+            key = key.Trim();
+            if (key.Length == 0) continue;
 
             if (entry.Value == null) continue;
 

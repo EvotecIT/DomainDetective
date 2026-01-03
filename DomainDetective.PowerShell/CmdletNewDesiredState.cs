@@ -40,11 +40,15 @@ public sealed class CmdletNewDesiredState : PSCmdlet {
     /// <summary>Creates a configuration object, optionally loading JSON and applying DSL fragments.</summary>
     protected override void ProcessRecord() {
         DesiredStateConfiguration config;
-        if (!string.IsNullOrWhiteSpace(LoadPath)) {
+        var loadPath = LoadPath;
+        if (loadPath != null) {
+            loadPath = loadPath.Trim();
+        }
+        if (!string.IsNullOrEmpty(loadPath)) {
             try {
-                config = DesiredStateConfiguration.Load(LoadPath);
+                config = DesiredStateConfiguration.Load(loadPath);
             } catch (Exception ex) {
-                ThrowTerminatingError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, LoadPath));
+                ThrowTerminatingError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, loadPath));
                 return;
             }
         } else {
