@@ -78,9 +78,20 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
             // If no checks are configured (and no policy modules are enabled), fall back to the standard defaults.
             DomainDetective.HealthCheckType[]? toRun = checks.Length > 0 ? checks : null;
 
+            string[]? dkimSelectors = null;
+            if (profile.Dkim != null && profile.Dkim.Enabled != false && profile.Dkim.RequiredSelectors != null && profile.Dkim.RequiredSelectors.Length > 0) {
+                dkimSelectors = profile.Dkim.RequiredSelectors;
+                healthCheck.ExecutionOptions.IncludeMissingDkimSelectors = true;
+            }
+
+            if (profile.Bimi != null && profile.Bimi.Enabled != false && profile.Bimi.SkipIndicatorDownload == true) {
+                healthCheck.ExecutionOptions.SkipBimiIndicatorDownload = true;
+            }
+
             await healthCheck.Verify(
                 domain,
                 healthCheckTypes: toRun,
+                dkimSelectors: dkimSelectors,
                 cancellationToken: CancelToken);
 
             var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification);

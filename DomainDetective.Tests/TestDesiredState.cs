@@ -81,6 +81,110 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public void Evaluate_DkimRequiredSelectorMissing_AddsError() {
+        var health = new DomainHealthCheck();
+        health.DKIMAnalysis.AnalysisResults["selector1"] = new DkimRecordAnalysis {
+            DkimRecordExists = true,
+            KeyLength = 2048,
+            CnameTarget = "s1.sendgrid.net"
+        };
+
+        var profile = new DesiredStateProfile {
+            Dkim = new DesiredStateDkimPolicy {
+                RequiredSelectors = new[] { "selector1", "selector2" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingOnly);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.DkimSelectorMissing, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_TlsRptMissingRecord_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        var profile = new DesiredStateProfile {
+            TlsRpt = new DesiredStateTlsRptPolicy {
+                RequireRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.TlsRptMissingRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_TlsRptRuaDomainSuffixMismatch_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=TLSRPTv1; rua=mailto:agg@reports.vendor.example";
+        await health.CheckTLSRPT(record);
+
+        var profile = new DesiredStateProfile {
+            TlsRpt = new DesiredStateTlsRptPolicy {
+                RequireRecord = true,
+                AllowedReportDomainSuffixes = new[] { "tlsrpt.vendor.example" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.TlsRptRuaDomainNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_BimiMissingRecord_AddsWarning() {
+        var health = new DomainHealthCheck();
+
+        var profile = new DesiredStateProfile {
+            Bimi = new DesiredStateBimiPolicy {
+                RequireRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.BimiMissingRecord, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Evaluate_BimiLocationHostSuffixMismatch_AddsError() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=BIMI1; l=https://logo.bad.example/logo.svg; a=";
+        await health.CheckBIMI(record, skipIndicatorDownload: true);
+
+        var profile = new DesiredStateProfile {
+            Bimi = new DesiredStateBimiPolicy {
+                RequireValidLocation = true,
+                AllowedLocationHostSuffixes = new[] { "cdn.vendor.example" },
+                SkipIndicatorDownload = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.BimiLocationHostNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void AssessmentPolicy_SuppressesAndOverridesSeverity() {
         var health = new DomainHealthCheck();
         health.DmarcAnalysis.Assessments.Add(new Assessment {
