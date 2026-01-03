@@ -33,19 +33,20 @@ public static partial class DesiredStateEvaluator {
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray() ?? Array.Empty<string>();
 
-	        var versionLeakTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-	        if (desired.DisallowVersionLeak == true && analysis.Assessments != null && analysis.Assessments.Count > 0) {
-	            foreach (var a in analysis.Assessments) {
-	                if (a == null) continue;
-	                if (!string.Equals(a.Code, SmtpBannerCodes.VersionLeaked, StringComparison.OrdinalIgnoreCase)) continue;
-	                if (a.Target == null) continue;
-	
-	                var target = a.Target.Trim();
-	                if (target.Length == 0) continue;
-	
-	                versionLeakTargets.Add(target);
-	            }
-	        }
+        var versionLeakTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (desired.DisallowVersionLeak == true && analysis.Assessments != null && analysis.Assessments.Count > 0) {
+            foreach (var a in analysis.Assessments) {
+                if (a == null) continue;
+                if (!string.Equals(a.Code, SmtpBannerCodes.VersionLeaked, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var target = a.Target;
+                if (target == null) continue;
+                target = target.Trim();
+                if (target.Length == 0) continue;
+
+                versionLeakTargets.Add(target);
+            }
+        }
 
         foreach (var kvp in results) {
             var key = kvp.Key;
