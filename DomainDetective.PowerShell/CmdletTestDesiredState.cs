@@ -84,6 +84,11 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                 healthCheck.ExecutionOptions.IncludeMissingDkimSelectors = true;
             }
 
+            ServiceType[]? daneServiceTypes = null;
+            if (profile.Dane != null && profile.Dane.Enabled != false && profile.Dane.RequiredServices != null && profile.Dane.RequiredServices.Length > 0) {
+                daneServiceTypes = profile.Dane.RequiredServices;
+            }
+
             if (profile.Bimi != null && profile.Bimi.Enabled != false && profile.Bimi.SkipIndicatorDownload == true) {
                 healthCheck.ExecutionOptions.SkipBimiIndicatorDownload = true;
             }
@@ -92,6 +97,7 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                 domain,
                 healthCheckTypes: toRun,
                 dkimSelectors: dkimSelectors,
+                daneServiceType: daneServiceTypes,
                 cancellationToken: CancelToken);
 
             var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification);
