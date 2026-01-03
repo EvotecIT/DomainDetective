@@ -95,6 +95,33 @@
         },
         "bimi": {
           "$ref": "#/$defs/bimiPolicy"
+        },
+        "mx": {
+          "$ref": "#/$defs/mxPolicy"
+        },
+        "ns": {
+          "$ref": "#/$defs/nsPolicy"
+        },
+        "caa": {
+          "$ref": "#/$defs/caaPolicy"
+        },
+        "dnssec": {
+          "$ref": "#/$defs/dnssecPolicy"
+        },
+        "soa": {
+          "$ref": "#/$defs/soaPolicy"
+        },
+        "dane": {
+          "$ref": "#/$defs/danePolicy"
+        },
+        "delegation": {
+          "$ref": "#/$defs/delegationPolicy"
+        },
+        "zoneTransfer": {
+          "$ref": "#/$defs/zoneTransferPolicy"
+        },
+        "wildcardDns": {
+          "$ref": "#/$defs/wildcardDnsPolicy"
         }
       }
     },
@@ -142,6 +169,43 @@
               "none",
               "quarantine",
               "reject"
+            ]
+          }
+        },
+        "allowedSubdomainPolicies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "none",
+              "quarantine",
+              "reject"
+            ]
+          }
+        },
+        "requireSubdomainPolicyTag": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedAspfAlignments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "r",
+              "s"
+            ]
+          }
+        },
+        "allowedAdkimAlignments": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "r",
+              "s"
             ]
           }
         },
@@ -196,6 +260,48 @@
             "boolean",
             "null"
           ]
+        },
+        "requiredIncludeDomains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "matchResolvedIncludes": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowPtr": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnknownMechanisms": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowRedirect": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRedirect": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedRedirectDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -356,6 +462,407 @@
           ]
         }
       }
+    },
+    "mxPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireNullMx": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowNullMx": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireBackupServers": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireIpv6Supported": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedHostSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disallowCnameTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowIpTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowNonExistentTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowNoAddressTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowLocalhostTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireTtlUniform": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRrsetConsistentAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireTargetAddressConsistentAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "nsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAtLeastTwo": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDuplicates": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAllHaveAOrAaaa": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowCnameTargets": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireDiversity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minAsnDiversity": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowedHostSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "caaPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedCertificateIssuers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedWildcardIssuers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireIodef": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedIodefDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dnssecPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireChainValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minRrsigDaysRemaining": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "soaPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSerialFormat": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "minRefresh": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxRefresh": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minRetry": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxRetry": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minExpire": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxExpire": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minMinimum": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxMinimum": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "danePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValidRecords": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowDuplicates": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requiredServices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/serviceType"
+          }
+        },
+        "requireRecommendedForSmtp": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecommendedForHttps": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "delegationPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireMatchesParent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireGlueComplete": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireGlueConsistent": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "zoneTransferPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowUnauthenticatedAxfr": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "wildcardDnsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "expectedCatchAll": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "serviceType": {
+      "type": "string",
+      "enum": [
+        "SMTP",
+        "HTTPS"
+      ]
     },
     "assessmentSeverity": {
       "type": "string",
