@@ -80,12 +80,7 @@ public static class MailProviderKindDetector
     private static bool TryMapProviderId(string? id, out MailProviderKind kind)
     {
         kind = MailProviderKind.Unknown;
-        if (id == null)
-        {
-            return false;
-        }
-
-        var key = id.Trim();
+        var key = (id ?? string.Empty).Trim();
         if (key.Length == 0)
         {
             return false;
@@ -142,12 +137,7 @@ public static class MailProviderKindDetector
 
     private static string NormalizeHost(string? value)
     {
-        if (value == null)
-        {
-            return string.Empty;
-        }
-
-        var trimmed = value.Trim().TrimEnd('.');
+        var trimmed = (value ?? string.Empty).Trim().TrimEnd('.');
         if (trimmed.Length == 0)
         {
             return string.Empty;
