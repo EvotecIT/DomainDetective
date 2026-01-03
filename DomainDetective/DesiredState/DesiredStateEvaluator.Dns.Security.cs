@@ -355,7 +355,7 @@ public static partial class DesiredStateEvaluator {
         }
     }
 
-    private static IEnumerable<string> EnumerateCaaReportDomains(CAAAnalysis caa) {
+    private static IEnumerable<string> EnumerateCaaReportDomains(CAAAnalysis? caa) {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (caa == null || caa.ReportViolationEmail == null || caa.ReportViolationEmail.Count == 0) return set;
 
@@ -378,11 +378,10 @@ public static partial class DesiredStateEvaluator {
 
             var host = TryGetHost(value);
             if (!string.IsNullOrWhiteSpace(host)) {
-                set.Add(host);
+                set.Add(host.Trim().Trim('.'));
             }
         }
 
         return set;
     }
 }
-

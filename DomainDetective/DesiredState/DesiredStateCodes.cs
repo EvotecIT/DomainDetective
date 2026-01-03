@@ -6,17 +6,31 @@ internal static class DesiredStateCodes {
     public const string ConfigurationInvalid = "DesiredState.Configuration.Invalid";
 
     public const string DmarcMissingRecord = "DesiredState.DMARC.Record.Missing";
+    public const string DmarcInvalidRecord = "DesiredState.DMARC.Record.Invalid";
+    public const string DmarcMultipleRecordsNotAllowed = "DesiredState.DMARC.Record.Multiple.NotAllowed";
+    public const string DmarcRecordTooLong = "DesiredState.DMARC.Record.Length.TooLong";
     public const string DmarcPolicyNotAllowed = "DesiredState.DMARC.Policy.NotAllowed";
     public const string DmarcSubPolicyNotAllowed = "DesiredState.DMARC.SubPolicy.NotAllowed";
     public const string DmarcSubPolicyMissing = "DesiredState.DMARC.SubPolicy.Missing";
     public const string DmarcAspfNotAllowed = "DesiredState.DMARC.ASPF.NotAllowed";
     public const string DmarcAdkimNotAllowed = "DesiredState.DMARC.ADKIM.NotAllowed";
     public const string DmarcRuaMissing = "DesiredState.DMARC.RUA.Missing";
+    public const string DmarcMailtoRuaMissing = "DesiredState.DMARC.RUA.Mailto.Missing";
+    public const string DmarcHttpRuaNotAllowed = "DesiredState.DMARC.RUA.HTTPS.NotAllowed";
     public const string DmarcRuaDomainNotAllowed = "DesiredState.DMARC.RUA.Domain.NotAllowed";
     public const string DmarcExternalReportUnauthorized = "DesiredState.DMARC.ExternalReport.Unauthorized";
+    public const string DmarcRufNotAllowed = "DesiredState.DMARC.RUF.NotAllowed";
+    public const string DmarcHttpRufNotAllowed = "DesiredState.DMARC.RUF.HTTPS.NotAllowed";
+    public const string DmarcWeakPolicyNotAllowed = "DesiredState.DMARC.Policy.Weak.NotAllowed";
+    public const string DmarcUnknownTagsNotAllowed = "DesiredState.DMARC.Tags.Unknown.NotAllowed";
+    public const string DmarcDeprecatedTagsNotAllowed = "DesiredState.DMARC.Tags.Deprecated.NotAllowed";
 
     public const string SpfMissingRecord = "DesiredState.SPF.Record.Missing";
+    public const string SpfInvalidRecord = "DesiredState.SPF.Record.Invalid";
+    public const string SpfMultipleRecordsNotAllowed = "DesiredState.SPF.Record.Multiple.NotAllowed";
+    public const string SpfEffectiveSendingRequired = "DesiredState.SPF.EffectiveSending.Required";
     public const string SpfAllMechanismNotAllowed = "DesiredState.SPF.All.NotAllowed";
+    public const string SpfAllMechanismMissing = "DesiredState.SPF.All.Missing";
     public const string SpfDnsLookupsExceeded = "DesiredState.SPF.DnsLookups.Exceeded";
     public const string SpfDenyAllRequired = "DesiredState.SPF.DenyAll.Required";
     public const string SpfRequiredIncludeMissing = "DesiredState.SPF.Include.Required.Missing";
@@ -25,20 +39,43 @@ internal static class DesiredStateCodes {
     public const string SpfRedirectNotAllowed = "DesiredState.SPF.Redirect.NotAllowed";
     public const string SpfRedirectRequired = "DesiredState.SPF.Redirect.Required";
     public const string SpfRedirectDomainNotAllowed = "DesiredState.SPF.Redirect.Domain.NotAllowed";
+    public const string SpfExpNotAllowed = "DesiredState.SPF.EXP.NotAllowed";
+    public const string SpfPermErrorNotAllowed = "DesiredState.SPF.PermError.NotAllowed";
+    public const string SpfCnameNotAllowed = "DesiredState.SPF.CNAME.NotAllowed";
 
     public const string DkimNoSelectors = "DesiredState.DKIM.Selector.None";
     public const string DkimSelectorMissing = "DesiredState.DKIM.Selector.Missing";
+    public const string DkimStartsInvalid = "DesiredState.DKIM.Record.Starts.Invalid";
+    public const string DkimPublicKeyMissing = "DesiredState.DKIM.PublicKey.Missing";
+    public const string DkimPublicKeyInvalid = "DesiredState.DKIM.PublicKey.Invalid";
+    public const string DkimKeyTypeInvalid = "DesiredState.DKIM.KeyType.Invalid";
     public const string DkimKeyBitsTooLow = "DesiredState.DKIM.KeyBits.TooLow";
+    public const string DkimWeakKeyNotAllowed = "DesiredState.DKIM.KeyBits.Weak.NotAllowed";
+    public const string DkimKeyTooOld = "DesiredState.DKIM.KeyAge.TooHigh";
+    public const string DkimDeprecatedTagsNotAllowed = "DesiredState.DKIM.Tags.Deprecated.NotAllowed";
+    public const string DkimFlagsInvalid = "DesiredState.DKIM.Flags.Invalid";
+    public const string DkimCanonicalizationInvalid = "DesiredState.DKIM.Canonicalization.Invalid";
+    public const string DkimCanonicalizationUnknownNotAllowed = "DesiredState.DKIM.Canonicalization.Unknown.NotAllowed";
     public const string DkimCnameTargetNotAllowed = "DesiredState.DKIM.CNAME.Target.NotAllowed";
 
     public const string MtastsMissingRecord = "DesiredState.MTASTS.Record.Missing";
+    public const string MtastsDnsRecordInvalid = "DesiredState.MTASTS.Record.Invalid";
+    public const string MtastsPolicyMissing = "DesiredState.MTASTS.Policy.Missing";
+    public const string MtastsPolicyInvalid = "DesiredState.MTASTS.Policy.Invalid";
+    public const string MtastsDuplicateFieldsNotAllowed = "DesiredState.MTASTS.Fields.Duplicate.NotAllowed";
     public const string MtastsEnforceRequired = "DesiredState.MTASTS.Mode.Enforce.Required";
     public const string MtastsMaxAgeTooLow = "DesiredState.MTASTS.MaxAge.TooLow";
     public const string MtastsMxNotAligned = "DesiredState.MTASTS.MX.NotAligned";
 
     public const string TlsRptMissingRecord = "DesiredState.TLSRPT.Record.Missing";
+    public const string TlsRptMultipleRecordsNotAllowed = "DesiredState.TLSRPT.Record.Multiple.NotAllowed";
+    public const string TlsRptRecordTooLong = "DesiredState.TLSRPT.Record.Length.TooLong";
     public const string TlsRptRuaMissing = "DesiredState.TLSRPT.RUA.Missing";
+    public const string TlsRptMailtoRuaMissing = "DesiredState.TLSRPT.RUA.Mailto.Missing";
     public const string TlsRptPolicyInvalid = "DesiredState.TLSRPT.Policy.Invalid";
+    public const string TlsRptInvalidRuaNotAllowed = "DesiredState.TLSRPT.RUA.Invalid.NotAllowed";
+    public const string TlsRptUnknownTagsNotAllowed = "DesiredState.TLSRPT.Tags.Unknown.NotAllowed";
+    public const string TlsRptHttpRuaNotAllowed = "DesiredState.TLSRPT.RUA.HTTPS.NotAllowed";
     public const string TlsRptRuaDomainNotAllowed = "DesiredState.TLSRPT.RUA.Domain.NotAllowed";
 
     public const string BimiMissingRecord = "DesiredState.BIMI.Record.Missing";
@@ -47,6 +84,69 @@ internal static class DesiredStateCodes {
     public const string BimiLocationHostNotAllowed = "DesiredState.BIMI.Location.Host.NotAllowed";
     public const string BimiAuthorityMissing = "DesiredState.BIMI.Authority.Missing";
     public const string BimiAuthorityHostNotAllowed = "DesiredState.BIMI.Authority.Host.NotAllowed";
+
+    public const string StartTlsNoResults = "DesiredState.STARTTLS.Results.None";
+    public const string StartTlsAnySupportedRequired = "DesiredState.STARTTLS.Supported.Any.Required";
+    public const string StartTlsAllSupportedRequired = "DesiredState.STARTTLS.Supported.All.Required";
+    public const string StartTlsDowngradeNotAllowed = "DesiredState.STARTTLS.Downgrade.NotAllowed";
+
+    public const string SmtpTlsNoResults = "DesiredState.SMTPTLS.Results.None";
+    public const string SmtpTlsCertificateInvalid = "DesiredState.SMTPTLS.Certificate.Invalid";
+    public const string SmtpTlsChainInvalid = "DesiredState.SMTPTLS.Certificate.Chain.Invalid";
+    public const string SmtpTlsHostnameMismatch = "DesiredState.SMTPTLS.Certificate.Hostname.Mismatch";
+    public const string SmtpTlsCertificateExpired = "DesiredState.SMTPTLS.Certificate.Expired";
+    public const string SmtpTlsCertificateExpiringSoon = "DesiredState.SMTPTLS.Certificate.DaysRemaining.TooLow";
+    public const string SmtpTlsLegacyNotAllowed = "DesiredState.SMTPTLS.Legacy.NotAllowed";
+    public const string SmtpTlsGradeTooLow = "DesiredState.SMTPTLS.Grade.TooLow";
+
+    public const string ImapTlsNoResults = "DesiredState.IMAPTLS.Results.None";
+    public const string ImapTlsCertificateInvalid = "DesiredState.IMAPTLS.Certificate.Invalid";
+    public const string ImapTlsChainInvalid = "DesiredState.IMAPTLS.Certificate.Chain.Invalid";
+    public const string ImapTlsHostnameMismatch = "DesiredState.IMAPTLS.Certificate.Hostname.Mismatch";
+    public const string ImapTlsCertificateExpired = "DesiredState.IMAPTLS.Certificate.Expired";
+    public const string ImapTlsCertificateExpiringSoon = "DesiredState.IMAPTLS.Certificate.DaysRemaining.TooLow";
+    public const string ImapTlsLegacyNotAllowed = "DesiredState.IMAPTLS.Legacy.NotAllowed";
+    public const string ImapTlsGradeTooLow = "DesiredState.IMAPTLS.Grade.TooLow";
+
+    public const string Pop3TlsNoResults = "DesiredState.POP3TLS.Results.None";
+    public const string Pop3TlsCertificateInvalid = "DesiredState.POP3TLS.Certificate.Invalid";
+    public const string Pop3TlsChainInvalid = "DesiredState.POP3TLS.Certificate.Chain.Invalid";
+    public const string Pop3TlsHostnameMismatch = "DesiredState.POP3TLS.Certificate.Hostname.Mismatch";
+    public const string Pop3TlsCertificateExpired = "DesiredState.POP3TLS.Certificate.Expired";
+    public const string Pop3TlsCertificateExpiringSoon = "DesiredState.POP3TLS.Certificate.DaysRemaining.TooLow";
+    public const string Pop3TlsLegacyNotAllowed = "DesiredState.POP3TLS.Legacy.NotAllowed";
+    public const string Pop3TlsGradeTooLow = "DesiredState.POP3TLS.Grade.TooLow";
+
+    public const string SmtpBannerNoResults = "DesiredState.SMTPBANNER.Results.None";
+    public const string SmtpBannerFormatInvalid = "DesiredState.SMTPBANNER.Format.Invalid";
+    public const string SmtpBannerGreetingNot220 = "DesiredState.SMTPBANNER.Greeting.Not220";
+    public const string SmtpBannerDomainMissing = "DesiredState.SMTPBANNER.Domain.Missing";
+    public const string SmtpBannerTruncatedNotAllowed = "DesiredState.SMTPBANNER.Truncated.NotAllowed";
+    public const string SmtpBannerResponseTimeTooHigh = "DesiredState.SMTPBANNER.ResponseTime.TooHigh";
+    public const string SmtpBannerTlsNotAdvertised = "DesiredState.SMTPBANNER.TLS.NotAdvertised";
+    public const string SmtpBannerServerDomainNotAllowed = "DesiredState.SMTPBANNER.ServerDomain.NotAllowed";
+    public const string SmtpBannerVersionLeakNotAllowed = "DesiredState.SMTPBANNER.VersionLeaked.NotAllowed";
+
+    public const string SmtpAuthNoResults = "DesiredState.SMTPAUTH.Results.None";
+    public const string SmtpAuthAdvertisementNotAllowed = "DesiredState.SMTPAUTH.Advertisement.NotAllowed";
+    public const string SmtpAuthMechanismNotAllowed = "DesiredState.SMTPAUTH.Mechanism.NotAllowed";
+    public const string SmtpAuthMechanismUnexpected = "DesiredState.SMTPAUTH.Mechanism.Unexpected";
+    public const string SmtpAuthRequiredMechanismMissing = "DesiredState.SMTPAUTH.Mechanism.Required.Missing";
+    public const string SmtpAuthCapabilitiesMissing = "DesiredState.SMTPAUTH.Capabilities.Missing";
+    public const string SmtpAuthStartTlsRequired = "DesiredState.SMTPAUTH.STARTTLS.Required";
+
+    public const string OpenRelayNoResults = "DesiredState.OPENRELAY.Results.None";
+    public const string OpenRelayNotAllowed = "DesiredState.OPENRELAY.AllowsRelay.NotAllowed";
+    public const string OpenRelayConnectionFailed = "DesiredState.OPENRELAY.ConnectionFailed.Drift";
+
+    public const string MailLatencyNoResults = "DesiredState.MAILLATENCY.Results.None";
+    public const string MailLatencyConnectFailed = "DesiredState.MAILLATENCY.Connect.Required.Failed";
+    public const string MailLatencyBannerFailed = "DesiredState.MAILLATENCY.Banner.Required.Failed";
+    public const string MailLatencyConnectTooSlow = "DesiredState.MAILLATENCY.Connect.Time.TooHigh";
+    public const string MailLatencyBannerTooSlow = "DesiredState.MAILLATENCY.Banner.Time.TooHigh";
+
+    public const string OpenResolverNoResults = "DesiredState.OPENRESOLVER.Results.None";
+    public const string OpenResolverNotAllowed = "DesiredState.OPENRESOLVER.Open.NotAllowed";
 
     public const string MxMissingRecord = "DesiredState.MX.Record.Missing";
     public const string MxNullMxRequired = "DesiredState.MX.NullMX.Required";

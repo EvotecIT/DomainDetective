@@ -24,6 +24,98 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
+        if (desired.RequireSingleRecord == true && dmarc.MultipleRecords) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcMultipleRecordsNotAllowed,
+                Message = "Desired state requires exactly one DMARC record, but multiple records were detected."
+            });
+        }
+
+        if (desired.RequireValidRecord == true) {
+            var problems = new List<string>();
+            if (!dmarc.StartsCorrectly) problems.Add("missing v=DMARC1");
+            if (!dmarc.HasMandatoryTags) problems.Add("missing mandatory tags");
+            if (!dmarc.IsPolicyValid) problems.Add("invalid policy tag");
+            if (!dmarc.IsPctValid) problems.Add("invalid pct value");
+            if (dmarc.InvalidReportUri) problems.Add("invalid report URI(s)");
+
+            if (problems.Count > 0) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Error,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.DmarcInvalidRecord,
+                    Message = $"Desired state requires a valid DMARC record, but the record failed validation: {string.Join("; ", problems)}."
+                });
+            }
+        }
+
+        if (desired.DisallowRecordOver255 == true && dmarc.ExceedsCharacterLimit) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcRecordTooLong,
+                Message = "Desired state disallows DMARC records longer than 255 characters, but the record exceeded 255 characters."
+            });
+        }
+
+        if (desired.DisallowUnknownTags == true && dmarc.UnknownTags != null && dmarc.UnknownTags.Count > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcUnknownTagsNotAllowed,
+                Message = $"Desired state disallows unknown DMARC tags, but found: {string.Join(", ", dmarc.UnknownTags)}."
+            });
+        }
+
+        if (desired.DisallowDeprecatedTags == true && dmarc.DeprecatedTags != null && dmarc.DeprecatedTags.Count > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcDeprecatedTagsNotAllowed,
+                Message = $"Desired state disallows deprecated DMARC tags, but found: {string.Join(", ", dmarc.DeprecatedTags)}."
+            });
+        }
+
+        if (desired.DisallowRuf == true) {
+            var rufCount = (dmarc.MailtoRuf?.Count ?? 0) + (dmarc.HttpRuf?.Count ?? 0);
+            if (rufCount > 0) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Error,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.DmarcRufNotAllowed,
+                    Message = "Desired state disallows DMARC forensic reporting (ruf=), but one or more ruf URIs were configured."
+                });
+            }
+        }
+
+        if (desired.DisallowHttpRuf == true && (dmarc.HttpRuf?.Count ?? 0) > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcHttpRufNotAllowed,
+                Message = "Desired state disallows HTTPS endpoints in DMARC forensic reporting (ruf=), but one or more HTTPS ruf URIs were configured."
+            });
+        }
+
+        if (desired.DisallowWeakPolicy == true && dmarc.WeakPolicy) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcWeakPolicyNotAllowed,
+                Message = "Desired state disallows weak DMARC policy (p=none or sp=none)."
+            });
+        }
+
         if (desired.AllowedPolicies != null && desired.AllowedPolicies.Length > 0) {
             var actual = (dmarc.PolicyShort ?? string.Empty).Trim().ToLowerInvariant();
             var allowed = desired.AllowedPolicies
@@ -119,6 +211,26 @@ public static partial class DesiredStateEvaluator {
             });
         }
 
+        if (desired.RequireMailtoRua == true && (dmarc.MailtoRua?.Count ?? 0) == 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcMailtoRuaMissing,
+                Message = "Desired state requires at least one mailto: DMARC aggregate reporting address (rua=mailto:...), but none was configured."
+            });
+        }
+
+        if (desired.DisallowHttpRua == true && (dmarc.HttpRua?.Count ?? 0) > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DmarcHttpRuaNotAllowed,
+                Message = "Desired state disallows HTTPS endpoints in DMARC aggregate reporting (rua=), but one or more HTTPS rua URIs were configured."
+            });
+        }
+
         if (desired.AllowedReportDomainSuffixes != null && desired.AllowedReportDomainSuffixes.Length > 0) {
             var suffixes = desired.AllowedReportDomainSuffixes
                 .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -128,6 +240,7 @@ public static partial class DesiredStateEvaluator {
 
             if (suffixes.Length > 0) {
                 foreach (var reportDomain in EnumerateReportDomains(dmarc)) {
+                    if (string.IsNullOrWhiteSpace(reportDomain)) continue;
                     var ok = suffixes.Any(s => reportDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
@@ -209,6 +322,58 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
+        if (desired.DisallowCname == true && spf.IsCnameResolved) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfCnameNotAllowed,
+                Message = "Desired state disallows SPF records resolved through a CNAME alias, but SPF was resolved via CNAME."
+            });
+        }
+
+        if (desired.RequireValidRecord == true) {
+            var problems = new List<string>();
+            if (!spf.StartsCorrectly) problems.Add("missing v=spf1");
+            if (spf.InvalidIpSyntax) problems.Add("invalid IP syntax");
+            if (spf.HasNullLookups) problems.Add("null/empty lookup token");
+            if (spf.MultipleAllMechanisms) problems.Add("multiple all mechanisms");
+            if (spf.ContainsCharactersAfterAll) problems.Add("characters after all mechanism");
+            if (spf.ExceedsCharacterLimit) problems.Add("TXT chunk > 255 characters");
+            if (spf.ExceedsTotalCharacterLimit) problems.Add("total SPF length > 512 characters");
+            if (spf.PermError) problems.Add("PermError");
+
+            if (problems.Count > 0) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Error,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.SpfInvalidRecord,
+                    Message = $"Desired state requires a valid SPF record, but the record failed validation: {string.Join("; ", problems)}."
+                });
+            }
+        }
+
+        if (desired.RequireSingleRecord == true && spf.MultipleSpfRecords) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfMultipleRecordsNotAllowed,
+                Message = "Desired state requires exactly one SPF record, but multiple records were detected."
+            });
+        }
+
+        if (desired.RequireEffectiveSpfSends == true && !spf.EffectiveSpfSends) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfEffectiveSendingRequired,
+                Message = "Desired state requires SPF to effectively authorize outbound senders, but no effective authorization was detected."
+            });
+        }
+
         if (desired.AllowedAllMechanisms != null && desired.AllowedAllMechanisms.Length > 0) {
             var allowed = desired.AllowedAllMechanisms
                 .Where(a => !string.IsNullOrWhiteSpace(a))
@@ -226,6 +391,16 @@ public static partial class DesiredStateEvaluator {
             }
         }
 
+        if (desired.RequireAllMechanism == true && string.IsNullOrWhiteSpace(spf.AllMechanism)) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfAllMechanismMissing,
+                Message = "Desired state requires an SPF all mechanism (e.g., -all, ~all), but none was found."
+            });
+        }
+
         if (desired.MaxDnsLookups.HasValue) {
             var max = desired.MaxDnsLookups.Value;
             if (spf.DnsLookupsCount > max) {
@@ -237,6 +412,26 @@ public static partial class DesiredStateEvaluator {
                     Message = $"Desired state requires SPF DNS lookups <= {max}, but found {spf.DnsLookupsCount}."
                 });
             }
+        }
+
+        if (desired.DisallowExp == true && spf.HasExp) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfExpNotAllowed,
+                Message = "Desired state disallows SPF exp= (explanation) modifier, but it was present."
+            });
+        }
+
+        if (desired.DisallowPermError == true && spf.PermError) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.SpfPermErrorNotAllowed,
+                Message = "Desired state disallows SPF PermError results, but SPF evaluation produced PermError."
+            });
         }
 
         if (desired.RequireDenyAll == true && !spf.DenyAll) {
@@ -394,6 +589,46 @@ public static partial class DesiredStateEvaluator {
     }
 
     private static void EvaluateDkimSelector(string domain, string selector, DkimRecordAnalysis analysis, DesiredStateDkimPolicy desired, DesiredStateAnalysis sink) {
+        if (desired.RequireStartsCorrectly == true && !analysis.StartsCorrectly) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimStartsInvalid,
+                Message = $"Desired state requires DKIM records to start with v=DKIM1 for selector '{selector}', but it did not."
+            });
+        }
+
+        if (desired.RequirePublicKey == true && !analysis.PublicKeyExists) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimPublicKeyMissing,
+                Message = $"Desired state requires DKIM selector '{selector}' to publish a public key (p=), but it was missing."
+            });
+        }
+
+        if (desired.RequireValidPublicKey == true && !analysis.ValidPublicKey) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimPublicKeyInvalid,
+                Message = $"Desired state requires DKIM selector '{selector}' to publish a valid public key (p=), but the key could not be validated."
+            });
+        }
+
+        if (desired.RequireValidKeyType == true && !analysis.ValidKeyType) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimKeyTypeInvalid,
+                Message = $"Desired state requires DKIM selector '{selector}' to use a recognized key type (k=rsa/ed25519), but it did not."
+            });
+        }
+
         if (desired.MinKeyBits.HasValue) {
             var minBits = desired.MinKeyBits.Value;
             if (analysis.KeyLength > 0 && analysis.KeyLength < minBits) {
@@ -405,6 +640,68 @@ public static partial class DesiredStateEvaluator {
                     Message = $"Desired state requires DKIM key length >= {minBits} bits for selector '{selector}', but found {analysis.KeyLength}."
                 });
             }
+        }
+
+        if (desired.DisallowWeakKeys == true && analysis.WeakKey) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimWeakKeyNotAllowed,
+                Message = $"Desired state disallows weak DKIM keys (< 2048 bits) for selector '{selector}', but a weak key was detected."
+            });
+        }
+
+        if (desired.MaxKeyAgeDays.HasValue && desired.MaxKeyAgeDays.Value > 0 && analysis.CreationDate.HasValue) {
+            if (analysis.KeyAgeDays > desired.MaxKeyAgeDays.Value) {
+                sink.Assessments.Add(new Assessment {
+                    Severity = AssessmentSeverity.Warning,
+                    Category = "DesiredState",
+                    Target = domain,
+                    Code = DesiredStateCodes.DkimKeyTooOld,
+                    Message = $"Desired state requires DKIM key age <= {desired.MaxKeyAgeDays.Value} days for selector '{selector}', but found {analysis.KeyAgeDays} days."
+                });
+            }
+        }
+
+        if (desired.DisallowDeprecatedTags == true && analysis.DeprecatedTags != null && analysis.DeprecatedTags.Count > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Warning,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimDeprecatedTagsNotAllowed,
+                Message = $"Desired state disallows deprecated DKIM tags/values for selector '{selector}', but found: {string.Join(", ", analysis.DeprecatedTags)}."
+            });
+        }
+
+        if (desired.DisallowInvalidFlags == true && !analysis.ValidFlags) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimFlagsInvalid,
+                Message = $"Desired state disallows invalid DKIM flags for selector '{selector}', but invalid flags were present."
+            });
+        }
+
+        if (desired.DisallowUnknownCanonicalizationModes == true && analysis.UnknownCanonicalizationModes != null && analysis.UnknownCanonicalizationModes.Count > 0) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimCanonicalizationUnknownNotAllowed,
+                Message = $"Desired state disallows unknown DKIM canonicalization modes for selector '{selector}', but found: {string.Join(", ", analysis.UnknownCanonicalizationModes)}."
+            });
+        }
+
+        if (desired.DisallowInvalidCanonicalization == true && !string.IsNullOrWhiteSpace(analysis.Canonicalization) && !analysis.ValidCanonicalization) {
+            sink.Assessments.Add(new Assessment {
+                Severity = AssessmentSeverity.Error,
+                Category = "DesiredState",
+                Target = domain,
+                Code = DesiredStateCodes.DkimCanonicalizationInvalid,
+                Message = $"Desired state disallows invalid DKIM canonicalization for selector '{selector}', but found '{analysis.Canonicalization}'."
+            });
         }
 
         if (desired.AllowedCnameTargetSuffixes != null && desired.AllowedCnameTargetSuffixes.Length > 0) {
@@ -430,4 +727,3 @@ public static partial class DesiredStateEvaluator {
         }
     }
 }
-

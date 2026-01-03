@@ -43,6 +43,15 @@ public static partial class DesiredStateEvaluator {
         EvaluateTlsRpt(domain, health.TLSRPTAnalysis, profile.TlsRpt, result);
         EvaluateBimi(domain, health.BimiAnalysis, profile.Bimi, result);
         EvaluateMx(domain, health.MXAnalysis, profile.Mx, result);
+        EvaluateStartTls(domain, health.StartTlsAnalysis, profile.StartTls, result);
+        EvaluateSmtpTls(domain, health.SmtpTlsAnalysis, profile.SmtpTls, result);
+        EvaluateImapTls(domain, health.ImapTlsAnalysis, profile.ImapTls, result);
+        EvaluatePop3Tls(domain, health.Pop3TlsAnalysis, profile.Pop3Tls, result);
+        EvaluateSmtpBanner(domain, health.SmtpBannerAnalysis, profile.SmtpBanner, result);
+        EvaluateSmtpAuth(domain, health.SmtpAuthAnalysis, profile.SmtpAuth, result);
+        EvaluateOpenRelay(domain, health.OpenRelayAnalysis, profile.OpenRelay, result);
+        EvaluateMailLatency(domain, health.MailLatencyAnalysis, profile.MailLatency, result);
+        EvaluateOpenResolver(domain, health.OpenResolverAnalysis, profile.OpenResolver, result);
         EvaluateReverseDns(domain, health.ReverseDnsAnalysis, profile.ReverseDns, result);
         EvaluateFcrDns(domain, health.FcrDnsAnalysis, profile.FcrDns, result);
         EvaluateNs(domain, health.NSAnalysis, profile.Ns, result);

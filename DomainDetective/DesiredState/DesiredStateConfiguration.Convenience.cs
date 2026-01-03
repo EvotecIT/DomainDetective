@@ -58,6 +58,60 @@ public sealed partial class DesiredStateConfiguration {
     }
 
     [JsonIgnore]
+    public DesiredStateStartTlsPolicy? StartTls {
+        get => Defaults.StartTls;
+        set => Defaults.StartTls = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateMailTlsPolicy? SmtpTls {
+        get => Defaults.SmtpTls;
+        set => Defaults.SmtpTls = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateMailTlsPolicy? ImapTls {
+        get => Defaults.ImapTls;
+        set => Defaults.ImapTls = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateMailTlsPolicy? Pop3Tls {
+        get => Defaults.Pop3Tls;
+        set => Defaults.Pop3Tls = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateSmtpBannerPolicy? SmtpBanner {
+        get => Defaults.SmtpBanner;
+        set => Defaults.SmtpBanner = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateSmtpAuthPolicy? SmtpAuth {
+        get => Defaults.SmtpAuth;
+        set => Defaults.SmtpAuth = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateOpenRelayPolicy? OpenRelay {
+        get => Defaults.OpenRelay;
+        set => Defaults.OpenRelay = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateOpenResolverPolicy? OpenResolver {
+        get => Defaults.OpenResolver;
+        set => Defaults.OpenResolver = value;
+    }
+
+    [JsonIgnore]
+    public DesiredStateMailLatencyPolicy? MailLatency {
+        get => Defaults.MailLatency;
+        set => Defaults.MailLatency = value;
+    }
+
+    [JsonIgnore]
     public DesiredStateReverseDnsPolicy? ReverseDns {
         get => Defaults.ReverseDns;
         set => Defaults.ReverseDns = value;
