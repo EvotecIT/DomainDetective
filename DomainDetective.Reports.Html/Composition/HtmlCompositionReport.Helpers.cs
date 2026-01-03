@@ -153,6 +153,8 @@ public static partial class HtmlCompositionReport {
         Add(ref warn, ref err, b.Subdomains?.WarningCount ?? 0, b.Subdomains?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.DnsInventory?.WarningCount ?? 0, b.DnsInventory?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.DnsTrace?.WarningCount ?? 0, b.DnsTrace?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsAmplification?.WarningCount ?? 0, b.DnsAmplification?.ErrorCount ?? 0);
+        Add(ref warn, ref err, b.DnsOverTls?.WarningCount ?? 0, b.DnsOverTls?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Classification?.WarningCount ?? 0, b.Classification?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Arc?.WarningCount ?? 0, b.Arc?.ErrorCount ?? 0);
         Add(ref warn, ref err, b.Bimi?.WarningCount ?? 0, b.Bimi?.ErrorCount ?? 0);
@@ -227,6 +229,8 @@ public static partial class HtmlCompositionReport {
         foreach (var a in FromList(b.Dane?.Assessments)) yield return a;
         foreach (var a in FromList(b.Caa?.Assessments)) yield return a;
         foreach (var a in FromList(b.Rpki?.Assessments)) yield return a;
+        foreach (var a in FromList(b.DnsAmplification?.Assessments)) yield return a;
+        foreach (var a in FromList(b.DnsOverTls?.Assessments)) yield return a;
         foreach (var a in FromList(b.Classification?.Assessments)) yield return a;
         foreach (var a in FromList(b.Arc?.Assessments)) yield return a;
         foreach (var a in FromList(b.Bimi?.Assessments)) yield return a;
@@ -437,15 +441,17 @@ public static partial class HtmlCompositionReport {
         public DomainDetective.Views.RpkiInfo? Rpki { get; set; }
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
-        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
-        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
-        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
-        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
-        public DomainDetective.Views.HttpInfo? Http { get; set; }
-        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
-        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
-        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
-    }
+	        public DomainDetective.Views.SubdomainsInfo? Subdomains { get; set; }
+	        public DomainDetective.Views.DnsInventoryInfo? DnsInventory { get; set; }
+	        public DomainDetective.Views.DnsTraceInfo? DnsTrace { get; set; }
+	        public DomainDetective.Views.CtTimelineInfo? CtTimeline { get; set; }
+	        public DomainDetective.Views.HttpInfo? Http { get; set; }
+	        public DomainDetective.Views.IpEnrichmentInfo? IpEnrichment { get; set; }
+	        public DomainDetective.Views.DnsAmplificationSummary? DnsAmplification { get; set; }
+	        public DomainDetective.Views.DnsOverTlsSummary? DnsOverTls { get; set; }
+	        public DomainDetective.Views.TtlInfo? Ttl { get; set; }
+	        public List<DomainDetective.Views.DnsPropagationInfo> DnsPropagation { get; } = new();
+	    }
 
     private static Dictionary<string, DomainBucket> GroupBySubject(IReadOnlyList<object> items) {
         var comp = CompositionBuilder.GroupBySubject(items);
@@ -528,11 +534,13 @@ public static partial class HtmlCompositionReport {
             ZoneTransfer = s.ZoneTransfer,
             Wildcard = s.Wildcard,
             Subdomains = s.Subdomains,
-            DnsInventory = s.DnsInventory,
-            DnsTrace = s.DnsTrace,
-            CtTimeline = s.CtTimeline,
-            Http = s.Http,
-            IpEnrichment = s.IpEnrichment,
+	            DnsInventory = s.DnsInventory,
+	            DnsTrace = s.DnsTrace,
+	            DnsAmplification = s.DnsAmplification,
+	            DnsOverTls = s.DnsOverTls,
+	            CtTimeline = s.CtTimeline,
+	            Http = s.Http,
+	            IpEnrichment = s.IpEnrichment,
             Ttl = s.Ttl
         };
         if (s.Dkim != null && s.Dkim.Count > 0) b.Dkim.AddRange(s.Dkim);

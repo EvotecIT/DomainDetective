@@ -30,10 +30,12 @@ public static partial class HtmlCompositionReport
 	        if (b.Registration != null) list.Add("Registration");
 	        if (b.Http != null) list.Add("HTTP");
 	        if (b.CtTimeline != null) list.Add("CT Timeline");
-	        if (b.Subdomains != null) list.Add("Subdomains");
+        if (b.Subdomains != null) list.Add("Subdomains");
         if (b.DnsInventory != null) list.Add("DNS Inventory");
         if (b.DnsTrace != null) list.Add("DNS Trace");
         if (b.DnsPropagation != null && b.DnsPropagation.Count > 0) list.Add("DNS Propagation");
+        if (b.DnsAmplification != null) list.Add("DNS Amplification");
+        if (b.DnsOverTls != null) list.Add("DNS over TLS");
         if (b.IpEnrichment != null) list.Add("IP Enrichment");
         if (b.Arc != null) list.Add("ARC");
         if (b.Bimi != null) list.Add("BIMI");
@@ -127,6 +129,12 @@ public static partial class HtmlCompositionReport
                     break;
                 case "DNS Propagation":
                     RenderDnsPropagationSection(acc, b);
+                    break;
+                case "DNS Amplification":
+                    RenderDnsAmplificationSection(acc, b);
+                    break;
+                case "DNS over TLS":
+                    RenderDnsOverTlsSection(acc, b);
                     break;
                 case "IP Enrichment":
                     RenderIpEnrichmentSection(acc, b);
