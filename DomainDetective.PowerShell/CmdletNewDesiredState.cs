@@ -38,18 +38,18 @@ public sealed class CmdletNewDesiredState : PSCmdlet {
     public ScriptBlock? ScriptBlock { get; set; }
 
     /// <summary>Creates a configuration object, optionally loading JSON and applying DSL fragments.</summary>
-    protected override void ProcessRecord() {
-        DesiredStateConfiguration config;
-        var loadPath = LoadPath;
-        if (loadPath != null) {
-            loadPath = loadPath.Trim();
-        }
-        if (!string.IsNullOrEmpty(loadPath)) {
-            try {
-                config = DesiredStateConfiguration.Load(loadPath);
-            } catch (Exception ex) {
-                ThrowTerminatingError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, loadPath));
-                return;
+	    protected override void ProcessRecord() {
+	        DesiredStateConfiguration config;
+	        var loadPath = LoadPath;
+	        if (loadPath != null) {
+	            loadPath = loadPath.Trim();
+	        }
+	        if (loadPath != null && loadPath.Length > 0) {
+	            try {
+	                config = DesiredStateConfiguration.Load(loadPath);
+	            } catch (Exception ex) {
+	                ThrowTerminatingError(new ErrorRecord(ex, "DesiredStateLoadFailed", ErrorCategory.InvalidData, loadPath));
+	                return;
             }
         } else {
             config = new DesiredStateConfiguration();
