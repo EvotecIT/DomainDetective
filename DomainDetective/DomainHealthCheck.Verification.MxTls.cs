@@ -142,7 +142,23 @@ namespace DomainDetective {
             var hosts = await GetMxHostsAsync(domainName, cancellationToken);
             _logger.WriteVerbose("MX targets for SMTP AUTH on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
             SmtpAuthAnalysis.Subject = domainName;
+            SmtpAuthAnalysis.InspectCapabilities = true;
             await SmtpAuthAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
+        }
+
+        /// <summary>
+        /// Measures mail server connection and banner latency across all MX hosts.
+        /// </summary>
+        public async Task VerifyMailLatency(string domainName, int port = 25, CancellationToken cancellationToken = default) {
+            if (string.IsNullOrWhiteSpace(domainName)) {
+                throw new ArgumentNullException(nameof(domainName));
+            }
+            domainName = NormalizeDomain(domainName);
+            UpdateIsPublicSuffix(domainName);
+            ValidatePort(port);
+            var hosts = await GetMxHostsAsync(domainName, cancellationToken);
+            _logger.WriteVerbose("MX targets for mail latency on {0}:{1}: {2}", domainName, port, string.Join(", ", hosts));
+            await MailLatencyAnalysis.AnalyzeServers(hosts, port, _logger, cancellationToken);
         }
     }
 }

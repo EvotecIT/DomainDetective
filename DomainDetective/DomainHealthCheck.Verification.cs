@@ -158,6 +158,7 @@ namespace DomainDetective {
                 [HealthCheckType.POP3TLS] = () => VerifyPOP3TLS(domainName, cancellationToken),
                 [HealthCheckType.SMTPBANNER] = () => VerifySMTPBanner(domainName, 25, cancellationToken),
                 [HealthCheckType.SMTPAUTH] = () => VerifySmtpAuth(domainName, 25, cancellationToken),
+                [HealthCheckType.MAILLATENCY] = () => VerifyMailLatency(domainName, 25, cancellationToken),
                 [HealthCheckType.HTTP] = () => VerifyWebsiteHttps(domainName, cancellationToken),
                 [HealthCheckType.HPKP] = () => VerifyHpkpAsync(domainName, cancellationToken),
                 [HealthCheckType.CONTACT] = () => VerifyContactInfo(domainName, cancellationToken),
@@ -514,6 +515,7 @@ namespace DomainDetective {
             filtered.Pop3TlsAnalysis = active.Contains(HealthCheckType.POP3TLS) ? CloneAnalysis(Pop3TlsAnalysis) : null!;
             filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null!;
             filtered.SmtpAuthAnalysis = active.Contains(HealthCheckType.SMTPAUTH) ? CloneAnalysis(SmtpAuthAnalysis) : null!;
+            filtered.MailLatencyAnalysis = active.Contains(HealthCheckType.MAILLATENCY) ? CloneAnalysis(MailLatencyAnalysis) : null!;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null!;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null!;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null!;
