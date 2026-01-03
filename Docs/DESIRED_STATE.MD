@@ -29,6 +29,9 @@ Add a `$schema` field for editor IntelliSense:
       "MTASTS",
       "TLSRPT",
       "BIMI",
+      "AUTODISCOVER",
+      "SECURITYTXT",
+      "ROBOTS",
       "MX",
       "REVERSEDNS",
       "FCRDNS",
@@ -92,6 +95,11 @@ Add a `$schema` field for editor IntelliSense:
       "requireRecord": true,
       "disallowNullMx": true,
       "allowedHostSuffixes": [ "protection.outlook.com" ]
+    },
+    "autodiscover": {
+      "requireAutodiscoverCname": true,
+      "allowedAutodiscoverCnameTargetSuffixes": [ "outlook.com", "office365.com" ],
+      "requireAnyValidEndpoint": false
     },
     "reverseDns": {
       "requirePtrPresent": true,
@@ -181,6 +189,18 @@ Add a `$schema` field for editor IntelliSense:
       "maxASeconds": 86400,
       "minDmarcTxtSeconds": 3600,
       "requireAUniformAcrossNs": true
+    },
+    "securityTxt": {
+      "requireRecord": false,
+      "requireValid": false,
+      "disallowFallback": false,
+      "requireContactEmail": false
+    },
+    "robots": {
+      "requireRecord": false,
+      "disallowFallback": false,
+      "requireAiBotRules": false,
+      "requireSitemap": false
     }
   },
   "overrides": [
@@ -237,5 +257,8 @@ The initial desired state evaluator covers:
 - ZONETRANSFER: disallow unauthenticated AXFR on authoritative name servers.
 - WILDCARDDNS: enforce whether wildcard (catch-all) DNS is expected or disallowed.
 - TTL: customizable TTL thresholds and uniformity requirements across authoritative name servers.
+- AUTODISCOVER: optional requirements for SRV/CNAME records, target suffix allow-lists, and endpoint validation/host allow-lists.
+- SECURITYTXT: optional requirements for presence/validity, contact email constraints, and HTTPS fallback handling.
+- ROBOTS: optional requirements for presence, HTTPS fallback handling, AI bot directive presence, and sitemap declaration.
 
 The configuration model is intended to be extended to additional checks over time while preserving schema compatibility (versioned config + typed keys).

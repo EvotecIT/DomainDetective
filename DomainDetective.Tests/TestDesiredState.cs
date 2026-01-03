@@ -810,4 +810,70 @@ public sealed class TestDesiredState {
             a.Severity == AssessmentSeverity.Error &&
             string.Equals(a.Code, DesiredStateCodes.FlatteningServiceTargetNotAllowed, StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Evaluate_AutodiscoverCnameTargetSuffixMismatch_AddsError() {
+        var health = new DomainHealthCheck();
+        SetBackingField(health.AutodiscoverAnalysis, "AutodiscoverCnameExists", true);
+        SetBackingField(health.AutodiscoverAnalysis, "AutodiscoverTarget", "autodiscover.bad.example");
+
+        var profile = new DesiredStateProfile {
+            Autodiscover = new DesiredStateAutodiscoverPolicy {
+                AllowedAutodiscoverCnameTargetSuffixes = new[] { "outlook.com" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.AutodiscoverCnameTargetNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_SecurityTxtContactEmailDomainSuffixMismatch_AddsError() {
+        var health = new DomainHealthCheck();
+        health.SecurityTXTAnalysis.RecordPresent = true;
+        health.SecurityTXTAnalysis.ContactEmail.Add("security@bad.example");
+
+        var profile = new DesiredStateProfile {
+            SecurityTxt = new DesiredStateSecurityTxtPolicy {
+                AllowedContactEmailDomainSuffixes = new[] { "example.com" }
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Error &&
+            string.Equals(a.Code, DesiredStateCodes.SecurityTxtContactEmailDomainNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Evaluate_RobotsSitemapRequired_AddsWarning() {
+        var health = new DomainHealthCheck();
+        SetBackingField(health.RobotsTxtAnalysis, "RecordPresent", true);
+        SetBackingField(health.RobotsTxtAnalysis, "Robots", new RobotsFile());
+
+        var profile = new DesiredStateProfile {
+            Robots = new DesiredStateRobotsPolicy {
+                RequireSitemap = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.False(result.Conforms);
+        Assert.Contains(result.Assessments, a =>
+            a.Severity == AssessmentSeverity.Warning &&
+            string.Equals(a.Code, DesiredStateCodes.RobotsSitemapRequired, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void SetBackingField(object instance, string propertyName, object? value) {
+        var field = instance.GetType().GetField($"<{propertyName}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field!.SetValue(instance, value);
+    }
 }

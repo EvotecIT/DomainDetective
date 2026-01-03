@@ -155,6 +155,15 @@
         },
         "ttl": {
           "$ref": "#/$defs/ttlPolicy"
+        },
+        "autodiscover": {
+          "$ref": "#/$defs/autodiscoverPolicy"
+        },
+        "securityTxt": {
+          "$ref": "#/$defs/securityTxtPolicy"
+        },
+        "robots": {
+          "$ref": "#/$defs/robotsPolicy"
         }
       }
     },
@@ -1446,6 +1455,150 @@
           ]
         },
         "requireDkimTxtUniformAcrossNs": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "autodiscoverPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSrvRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAutodiscoverCname": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAutoconfigCname": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedSrvTargetSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedAutodiscoverCnameTargetSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "allowedAutoconfigCnameTargetSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requireAnyValidEndpoint": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedValidEndpointHostSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "securityTxtPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireValid": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowFallback": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requirePgpSigned": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireContactEmail": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "allowedContactEmailDomainSuffixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "robotsPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireRecord": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "disallowFallback": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireAiBotRules": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "requireSitemap": {
           "type": [
             "boolean",
             "null"
