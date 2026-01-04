@@ -15,15 +15,15 @@ internal sealed class RunsListCommand : AsyncCommand<RunsListCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [Description("Artifacts root directory (defaults to ./artifacts)")]
-        [CommandOption("--artifacts-dir")]
+        [CommandOption("--artifacts-dir <PATH>")]
         public string? ArtifactsDir { get; set; }
 
         [Description("Subject filter (domain/URL)")]
-        [CommandOption("--subject")]
+        [CommandOption("--subject <SUBJECT>")]
         public string? Subject { get; set; }
 
         [Description("Maximum runs to list")]
-        [CommandOption("-n|--count")]
+        [CommandOption("-n|--count <N>")]
         [DefaultValue(10)]
         public int Count { get; set; } = 10;
 
@@ -151,4 +151,3 @@ internal sealed class RunsListCommand : AsyncCommand<RunsListCommand.Settings>
         }
     }
 }
-

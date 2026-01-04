@@ -22,7 +22,7 @@ internal sealed class ImportRegistrationSnapshotSettings : CommandSettings {
 
     /// <summary>Root directory for snapshot storage.</summary>
     [Description("Root directory for snapshot storage.")]
-    [CommandOption("--store|--store-path")]
+    [CommandOption("--store|--store-path <PATH>")]
     public string StorePath { get; set; } = string.Empty;
 
     /// <summary>Skip RDAP query (use WHOIS only).</summary>
@@ -37,7 +37,7 @@ internal sealed class ImportRegistrationSnapshotSettings : CommandSettings {
 
     /// <summary>WHOIS timeout in seconds (default 30).</summary>
     [Description("WHOIS timeout in seconds (default 30).")]
-    [CommandOption("--whois-timeout-seconds")]
+    [CommandOption("--whois-timeout-seconds <SECONDS>")]
     [DefaultValue(30)]
     public int WhoisTimeoutSeconds { get; set; } = 30;
 

@@ -8,11 +8,11 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class AnalyzeArcSettings : CommandSettings {
     /// <summary>Optional file containing the message header.</summary>
-    [CommandOption("--file")]
+    [CommandOption("--file <PATH>")]
     public FileInfo? File { get; set; }
 
     /// <summary>Message header text.</summary>
-    [CommandOption("--header")]
+    [CommandOption("--header <VALUE>")]
     public string? Header { get; set; }
 
     /// <summary>Output JSON results.</summary>

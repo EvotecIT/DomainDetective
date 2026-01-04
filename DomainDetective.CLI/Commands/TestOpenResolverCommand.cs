@@ -13,7 +13,7 @@ internal sealed class TestOpenResolverSettings : CommandSettings {
     public string Server { get; set; } = string.Empty;
 
     /// <summary>DNS port number.</summary>
-    [CommandOption("--port")]
+    [CommandOption("--port <PORT>")]
     public int Port { get; set; } = 53;
 }
 

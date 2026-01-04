@@ -8,16 +8,16 @@ namespace DomainDetective.CLI;
 
 internal sealed class SpfTestHostSettings : CommandSettings
 {
-    [CommandArgument(0, "domain")]
+    [CommandArgument(0, "<domain>")]
     [Description("Domain to evaluate")] public string Domain { get; set; } = string.Empty;
 
-    [CommandOption("--ip")]
+    [CommandOption("--ip <IP>")]
     [Description("IPv4/IPv6 address to test")] public string Ip { get; set; } = string.Empty;
 
-    [CommandOption("--sender")]
+    [CommandOption("--sender <SENDER>")]
     [Description("Sender address for macro expansion")] public string? Sender { get; set; }
 
-    [CommandOption("--helo")]
+    [CommandOption("--helo <HELO>")]
     [Description("HELO/EHLO domain for macro expansion")] public string? Helo { get; set; }
 
     [CommandOption("--json")]
@@ -76,4 +76,3 @@ internal sealed class SpfTestHostCommand : AsyncCommand<SpfTestHostSettings>
         return 0;
     }
 }
-

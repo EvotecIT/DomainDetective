@@ -92,15 +92,32 @@ $cfg.Defaults.Spf.DisallowPtr = $true
 Test-DDDesiredState -DomainName example.com -Configuration $cfg
 ```
 
+### Typed class convenience properties
+
+`DesiredStateConfiguration` exposes convenience properties so you can write `$cfg.Dmarc` instead of `$cfg.Defaults.Dmarc` (same for other policy blocks).
+
+```powershell
+$cfg = New-DDDesiredState
+
+# Convenience properties: these auto-create the policy block under Defaults when accessed.
+$cfg.Dmarc.Enabled = $true
+$cfg.Dmarc.AllowedPolicies = @('reject')
+$cfg.Dmarc.RequireRua = $true
+$cfg.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
+
+$cfg.Spf.Enabled = $true
+$cfg.Spf.AllowedAllMechanisms = @('-all')
+$cfg.Spf.MaxDnsLookups = 10
+
+Test-DDDesiredState -DomainName example.com -Configuration $cfg
+```
+
 ### Load JSON, override values in memory, then test
 
 ```powershell
 $cfg = New-DDDesiredState -LoadPath .\desired-state.json
 
-if ($cfg.Defaults.Dmarc -eq $null) {
-    $cfg.Defaults.Dmarc = [DomainDetective.DesiredState.DesiredStateDmarcPolicy]::new()
-}
-$cfg.Defaults.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
+$cfg.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
 
 Test-DDDesiredState -DomainName example.com -Configuration $cfg
 ```

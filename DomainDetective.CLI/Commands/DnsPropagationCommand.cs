@@ -16,15 +16,15 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class DnsPropagationSettings : CommandSettings {
     /// <summary>Domain to query.</summary>
-    [CommandOption("--domain")]
+    [CommandOption("--domain <DOMAIN>")]
     public string Domain { get; set; } = string.Empty;
 
     /// <summary>Record type to check.</summary>
-    [CommandOption("--record-type")]
+    [CommandOption("--record-type <TYPE>")]
     public DnsRecordType RecordType { get; set; }
 
     /// <summary>Optional file containing DNS server definitions.</summary>
-    [CommandOption("--servers-file")]
+    [CommandOption("--servers-file <PATH>")]
     public FileInfo? ServersFile { get; set; }
 
     /// <summary>Output JSON results.</summary>
@@ -36,7 +36,7 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     public bool Compare { get; set; }
 
     /// <summary>Directory for storing snapshots.</summary>
-    [CommandOption("--snapshot-path")]
+    [CommandOption("--snapshot-path <PATH>")]
     public DirectoryInfo? SnapshotPath { get; set; }
 
     /// <summary>Show differences to previous snapshot.</summary>
@@ -44,7 +44,7 @@ internal sealed class DnsPropagationSettings : CommandSettings {
     public bool Diff { get; set; }
 
     /// <summary>Maximum number of concurrent queries.</summary>
-    [CommandOption("--max-parallelism")]
+    [CommandOption("--max-parallelism <N>")]
     public int MaxParallelism { get; set; }
 
     /// <summary>Disable progress display.</summary>
