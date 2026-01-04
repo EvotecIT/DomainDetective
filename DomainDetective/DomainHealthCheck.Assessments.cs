@@ -2,8 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+#if NET8_0_OR_GREATER
+using System.Diagnostics.CodeAnalysis;
+#endif
 
 namespace DomainDetective {
+#if NET8_0_OR_GREATER
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+#endif
     public partial class DomainHealthCheck {
         /// <summary>
         /// Aggregated assessments collected from all analyses that expose them.
@@ -15,6 +21,16 @@ namespace DomainDetective {
                 try { value = pi.GetValue(this); } catch { continue; }
                 if (value is IHasAssessments has && has.Assessments != null) {
                     foreach (var a in has.Assessments) yield return a;
+                }
+            }
+        }
+
+        public IEnumerable<IHasAssessments> GetAssessmentProviders() {
+            foreach (var pi in _assessmentProps.Value) {
+                object? value;
+                try { value = pi.GetValue(this); } catch { continue; }
+                if (value is IHasAssessments has) {
+                    yield return has;
                 }
             }
         }
