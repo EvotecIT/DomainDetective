@@ -17,9 +17,16 @@
         <!-- <ProjectReference Include="..\..\OfficeIMO\OfficeIMO.Excel\OfficeIMO.Excel.csproj" /> -->
     </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
-        <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DomainDetective\DomainDetective.csproj" />
+    <ProjectReference Include="..\DomainDetective.Reports\DomainDetective.Reports.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="IsExternalInit.cs" />
+  </ItemGroup>
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net472' ">
+    <Compile Include="IsExternalInit.cs" />
+  </ItemGroup>
 
 </Project>

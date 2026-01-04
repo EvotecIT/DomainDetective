@@ -1,5 +1,5 @@
-#if NET8_0
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using DomainDetective;
@@ -73,7 +73,9 @@ public class ExcelReportGenerator : IReportGenerator {
                 var classifier = new MailDomainClassifier(healthCheck, new InternalLogger(false));
                 var res = classifier.ClassifyAsync(domain).GetAwaiter().GetResult();
                 mci = Views.Converters.Convert(res);
-            } catch { }
+            } catch (Exception ex) {
+                Trace.TraceWarning("ExcelReportGenerator: failed to build MailClassification view: {0}", ex.Message);
+            }
 
             s.SectionWithAnchor("Overview")
                 .DefinitionList(new (string, object?)[] {
@@ -136,4 +138,3 @@ public class ExcelReportGenerator : IReportGenerator {
         return cleaned;
     }
 }
-#endif

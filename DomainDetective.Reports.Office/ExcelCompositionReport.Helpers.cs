@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NET8_0
 using OfficeIMO.Excel;
-#endif
 
 namespace DomainDetective.Reports.Office;
 

@@ -1,16 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NET8_0
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
-#endif
 
 namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-#if NET8_0
     private static void BuildMatrixSheet(ExcelDocument doc, List<KeyValuePair<string, DomainBucket>> domains)
     {
         try
@@ -51,6 +48,5 @@ public static partial class ExcelCompositionReport
         }
         catch { }
     }
-#endif
 }
 

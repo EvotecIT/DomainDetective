@@ -1,20 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DomainDetective.Reports;
 using System.IO;
-#if NET8_0
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
 using DocumentFormat.OpenXml.Spreadsheet;
 using SixLabors.ImageSharp;
-#endif
 
 namespace DomainDetective.Reports.Office;
 
 /// <summary>
 /// Excel composition across mixed view items (Index, Overview, per-domain sheets).
-/// Implemented for net8.0 using OfficeIMO.Excel.
+/// Implemented using OfficeIMO.Excel.
 /// </summary>
 public static partial class ExcelCompositionReport {
     public static void Generate(
@@ -23,9 +22,6 @@ public static partial class ExcelCompositionReport {
         ReportScope scope,
         OrderingOptions? ordering = null,
         ExcelProfile profile = ExcelProfile.Workbook) {
-#if !NET8_0
-        throw new NotSupportedException("Excel composition requires .NET 8.0");
-#else
         if (items == null || items.Count == 0) throw new ArgumentException("No items to compose.", nameof(items));
         var compGroups = CompositionBuilder.GroupBySubject(items);
         var order = (ordering != null) ? ordering.DomainOrder : DomainOrder.Alphabetical;
@@ -43,7 +39,7 @@ public static partial class ExcelCompositionReport {
         BuildOverviewSheet(doc, items, order, domains);
         if (profile == ExcelProfile.Dashboard)
         {
-            try { BuildDiscoveryDashboardSheet(doc, domains); } catch { }
+            try { BuildDiscoveryDashboardSheet(doc, domains); } catch (Exception ex) { Trace.TraceWarning("ExcelCompositionReport: failed to build dashboard sheet: {0}", ex.Message); }
         }
 
         // Per-domain sheets (skip in Dashboard profile)
@@ -319,10 +315,8 @@ public static partial class ExcelCompositionReport {
         // }
         // catch { }
 //#endif
-#endif
     }
 
-#if NET8_0
     private static Action<SheetComposer.ColumnComposer> BuildEmailAuthenticationOverviewBlock(DomainBucket bucket)
     {
         return column => column.Section("Email Authentication");
@@ -1643,6 +1637,4 @@ public static partial class ExcelCompositionReport {
             }
         };
     }
-#endif
-
 }

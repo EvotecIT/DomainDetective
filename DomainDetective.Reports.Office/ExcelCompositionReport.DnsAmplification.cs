@@ -1,16 +1,13 @@
-#if NET8_0
 using System;
 using System.Globalization;
 using System.Linq;
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
-#endif
 
 namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-#if NET8_0
     private static Action<SheetComposer.ColumnComposer>? BuildDnsAmplificationBlock(DomainBucket bucket)
     {
         if (bucket == null || bucket.DnsAmplification == null)
@@ -71,5 +68,4 @@ public static partial class ExcelCompositionReport
             }
         };
     }
-#endif
 }
