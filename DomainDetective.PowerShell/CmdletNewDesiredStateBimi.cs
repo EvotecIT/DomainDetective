@@ -47,15 +47,18 @@ public sealed class CmdletNewDesiredStateBimi : PSCmdlet {
 
     /// <summary>Creates a BIMI policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedLocationHostSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedLocationHostSuffixes), AllowedLocationHostSuffixes);
+        var allowedAuthorityHostSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedAuthorityHostSuffixes), AllowedAuthorityHostSuffixes);
+
         var profile = new DesiredStateProfile {
             Bimi = new DesiredStateBimiPolicy {
                 Enabled = Enabled,
                 RequireRecord = RequireRecord,
                 RequireIndicator = RequireIndicator,
                 RequireValidLocation = RequireValidLocation,
-                AllowedLocationHostSuffixes = AllowedLocationHostSuffixes,
+                AllowedLocationHostSuffixes = allowedLocationHostSuffixes,
                 RequireAuthority = RequireAuthority,
-                AllowedAuthorityHostSuffixes = AllowedAuthorityHostSuffixes,
+                AllowedAuthorityHostSuffixes = allowedAuthorityHostSuffixes,
                 SkipIndicatorDownload = SkipIndicatorDownload
             }
         };

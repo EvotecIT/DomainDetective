@@ -75,6 +75,8 @@ public sealed class CmdletNewDesiredStateMx : PSCmdlet {
 
     /// <summary>Creates an MX policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedHostSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedHostSuffixes), AllowedHostSuffixes);
+
         var profile = new DesiredStateProfile {
             Mx = new DesiredStateMxPolicy {
                 Enabled = Enabled,
@@ -83,7 +85,7 @@ public sealed class CmdletNewDesiredStateMx : PSCmdlet {
                 DisallowNullMx = DisallowNullMx,
                 RequireBackupServers = RequireBackupServers,
                 RequireIpv6Supported = RequireIpv6Supported,
-                AllowedHostSuffixes = AllowedHostSuffixes,
+                AllowedHostSuffixes = allowedHostSuffixes,
                 DisallowCnameTargets = DisallowCnameTargets,
                 DisallowIpTargets = DisallowIpTargets,
                 DisallowNonExistentTargets = DisallowNonExistentTargets,

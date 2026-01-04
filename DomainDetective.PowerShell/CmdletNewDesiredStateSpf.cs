@@ -93,6 +93,8 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
 
     /// <summary>Creates an SPF policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedRedirectDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedRedirectDomainSuffixes), AllowedRedirectDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             Spf = new DesiredStateSpfPolicy {
                 Enabled = Enabled,
@@ -113,7 +115,7 @@ public sealed class CmdletNewDesiredStateSpf : PSCmdlet {
                 DisallowExp = DisallowExp,
                 DisallowPermError = DisallowPermError,
                 DisallowCname = DisallowCname,
-                AllowedRedirectDomainSuffixes = AllowedRedirectDomainSuffixes
+                AllowedRedirectDomainSuffixes = allowedRedirectDomainSuffixes
             }
         };
 

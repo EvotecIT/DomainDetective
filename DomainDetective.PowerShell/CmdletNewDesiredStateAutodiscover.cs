@@ -51,21 +51,25 @@ public sealed class CmdletNewDesiredStateAutodiscover : PSCmdlet {
 
     /// <summary>Creates an Autodiscover policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedSrvTargetSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedSrvTargetSuffixes), AllowedSrvTargetSuffixes);
+        var allowedAutodiscoverCnameTargetSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedAutodiscoverCnameTargetSuffixes), AllowedAutodiscoverCnameTargetSuffixes);
+        var allowedAutoconfigCnameTargetSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedAutoconfigCnameTargetSuffixes), AllowedAutoconfigCnameTargetSuffixes);
+        var allowedValidEndpointHostSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedValidEndpointHostSuffixes), AllowedValidEndpointHostSuffixes);
+
         var profile = new DesiredStateProfile {
             Autodiscover = new DesiredStateAutodiscoverPolicy {
                 Enabled = Enabled,
                 RequireSrvRecord = RequireSrvRecord,
                 RequireAutodiscoverCname = RequireAutodiscoverCname,
                 RequireAutoconfigCname = RequireAutoconfigCname,
-                AllowedSrvTargetSuffixes = AllowedSrvTargetSuffixes,
-                AllowedAutodiscoverCnameTargetSuffixes = AllowedAutodiscoverCnameTargetSuffixes,
-                AllowedAutoconfigCnameTargetSuffixes = AllowedAutoconfigCnameTargetSuffixes,
-                RequireAnyValidEndpoint = RequireAnyValidEndpoint,
-                AllowedValidEndpointHostSuffixes = AllowedValidEndpointHostSuffixes
+                AllowedSrvTargetSuffixes = allowedSrvTargetSuffixes,
+                AllowedAutodiscoverCnameTargetSuffixes = allowedAutodiscoverCnameTargetSuffixes,
+                AllowedAutoconfigCnameTargetSuffixes = allowedAutoconfigCnameTargetSuffixes,
+                RequireAnyValidEndpoint = RequireAnyValidEndpoint,        
+                AllowedValidEndpointHostSuffixes = allowedValidEndpointHostSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

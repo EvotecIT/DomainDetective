@@ -34,18 +34,19 @@ public sealed class CmdletNewDesiredStateFlatteningService : PSCmdlet {
 
     /// <summary>Creates a flattening service policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedTargetSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedTargetSuffixes), AllowedTargetSuffixes);
+
         var profile = new DesiredStateProfile {
             FlatteningService = new DesiredStateFlatteningServicePolicy {
                 Enabled = Enabled,
                 RequireCnameRecord = RequireCnameRecord,
                 DisallowCnameRecord = DisallowCnameRecord,
-                RequireFlatteningService = RequireFlatteningService,
-                DisallowFlatteningService = DisallowFlatteningService,
-                AllowedTargetSuffixes = AllowedTargetSuffixes
+                RequireFlatteningService = RequireFlatteningService,      
+                DisallowFlatteningService = DisallowFlatteningService,    
+                AllowedTargetSuffixes = allowedTargetSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

@@ -59,6 +59,8 @@ public sealed class CmdletNewDesiredStateTlsRpt : PSCmdlet {
 
     /// <summary>Creates a TLS-RPT policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedReportDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedReportDomainSuffixes), AllowedReportDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             TlsRpt = new DesiredStateTlsRptPolicy {
                 Enabled = Enabled,
@@ -71,7 +73,7 @@ public sealed class CmdletNewDesiredStateTlsRpt : PSCmdlet {
                 DisallowUnknownTags = DisallowUnknownTags,
                 DisallowInvalidRua = DisallowInvalidRua,
                 DisallowHttpRua = DisallowHttpRua,
-                AllowedReportDomainSuffixes = AllowedReportDomainSuffixes
+                AllowedReportDomainSuffixes = allowedReportDomainSuffixes
             }
         };
 

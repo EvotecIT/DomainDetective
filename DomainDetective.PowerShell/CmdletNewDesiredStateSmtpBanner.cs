@@ -56,10 +56,12 @@ public sealed class CmdletNewDesiredStateSmtpBanner : PSCmdlet {
 
     /// <summary>Creates an SMTP banner policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedServerDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedServerDomainSuffixes), AllowedServerDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             SmtpBanner = new DesiredStateSmtpBannerPolicy {
                 Enabled = Enabled,
-                RequireAtLeastOneResult = RequireAtLeastOneResult,
+                RequireAtLeastOneResult = RequireAtLeastOneResult,        
                 RequireValidFormat = RequireValidFormat,
                 RequireStartsWith220 = RequireStartsWith220,
                 RequireDomainPresent = RequireDomainPresent,
@@ -67,11 +69,10 @@ public sealed class CmdletNewDesiredStateSmtpBanner : PSCmdlet {
                 MaxResponseTimeMs = MaxResponseTimeMs,
                 RequireTlsAdvertised = RequireTlsAdvertised,
                 DisallowVersionLeak = DisallowVersionLeak,
-                AllowedServerDomainSuffixes = AllowedServerDomainSuffixes
+                AllowedServerDomainSuffixes = allowedServerDomainSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

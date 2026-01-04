@@ -99,6 +99,8 @@ public sealed class CmdletNewDesiredStateDmarc : PSCmdlet {
 
     /// <summary>Creates a DMARC policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedReportDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedReportDomainSuffixes), AllowedReportDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             Dmarc = new DesiredStateDmarcPolicy {
                 Enabled = Enabled,
@@ -119,7 +121,7 @@ public sealed class CmdletNewDesiredStateDmarc : PSCmdlet {
                 DisallowRecordOver255 = DisallowRecordOver255,
                 DisallowUnknownTags = DisallowUnknownTags,
                 DisallowDeprecatedTags = DisallowDeprecatedTags,
-                AllowedReportDomainSuffixes = AllowedReportDomainSuffixes,
+                AllowedReportDomainSuffixes = allowedReportDomainSuffixes,
                 RequireExternalReportAuthorization = RequireExternalReportAuthorization
             }
         };

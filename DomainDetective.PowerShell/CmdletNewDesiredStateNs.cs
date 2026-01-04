@@ -52,6 +52,8 @@ public sealed class CmdletNewDesiredStateNs : PSCmdlet {
 
     /// <summary>Creates an NS policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedHostSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedHostSuffixes), AllowedHostSuffixes);
+
         var profile = new DesiredStateProfile {
             Ns = new DesiredStateNsPolicy {
                 Enabled = Enabled,
@@ -62,11 +64,10 @@ public sealed class CmdletNewDesiredStateNs : PSCmdlet {
                 DisallowCnameTargets = DisallowCnameTargets,
                 RequireDiversity = RequireDiversity,
                 MinAsnDiversity = MinAsnDiversity,
-                AllowedHostSuffixes = AllowedHostSuffixes
+                AllowedHostSuffixes = allowedHostSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

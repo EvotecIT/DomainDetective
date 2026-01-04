@@ -39,13 +39,15 @@ public sealed class CmdletNewDesiredStateReverseDns : PSCmdlet {
 
     /// <summary>Creates a reverse DNS policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedPtrSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedPtrSuffixes), AllowedPtrSuffixes);
+
         var profile = new DesiredStateProfile {
             ReverseDns = new DesiredStateReverseDnsPolicy {
                 Enabled = Enabled,
-                RequireAtLeastOneResult = RequireAtLeastOneResult,
+                RequireAtLeastOneResult = RequireAtLeastOneResult,        
                 RequirePtrPresent = RequirePtrPresent,
                 RequirePtrMatchesExpectedHost = RequirePtrMatchesExpectedHost,
-                AllowedPtrSuffixes = AllowedPtrSuffixes,
+                AllowedPtrSuffixes = allowedPtrSuffixes,
                 RequireForwardConfirmed = RequireForwardConfirmed
             }
         };
@@ -53,4 +55,3 @@ public sealed class CmdletNewDesiredStateReverseDns : PSCmdlet {
         WriteObject(profile);
     }
 }
-

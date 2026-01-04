@@ -43,19 +43,20 @@ public sealed class CmdletNewDesiredStateCaa : PSCmdlet {
 
     /// <summary>Creates a CAA policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedIodefDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedIodefDomainSuffixes), AllowedIodefDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             Caa = new DesiredStateCaaPolicy {
                 Enabled = Enabled,
                 RequireRecord = RequireRecord,
                 RequireValid = RequireValid,
-                AllowedCertificateIssuers = AllowedCertificateIssuers,
+                AllowedCertificateIssuers = AllowedCertificateIssuers,    
                 AllowedWildcardIssuers = AllowedWildcardIssuers,
                 RequireIodef = RequireIodef,
-                AllowedIodefDomainSuffixes = AllowedIodefDomainSuffixes
+                AllowedIodefDomainSuffixes = allowedIodefDomainSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

@@ -43,6 +43,8 @@ public sealed class CmdletNewDesiredStateSecurityTxt : PSCmdlet {
 
     /// <summary>Creates a security.txt policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedContactEmailDomainSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedContactEmailDomainSuffixes), AllowedContactEmailDomainSuffixes);
+
         var profile = new DesiredStateProfile {
             SecurityTxt = new DesiredStateSecurityTxtPolicy {
                 Enabled = Enabled,
@@ -51,11 +53,10 @@ public sealed class CmdletNewDesiredStateSecurityTxt : PSCmdlet {
                 DisallowFallback = DisallowFallback,
                 RequirePgpSigned = RequirePgpSigned,
                 RequireContactEmail = RequireContactEmail,
-                AllowedContactEmailDomainSuffixes = AllowedContactEmailDomainSuffixes
+                AllowedContactEmailDomainSuffixes = allowedContactEmailDomainSuffixes
             }
         };
 
         WriteObject(profile);
     }
 }
-

@@ -77,10 +77,12 @@ public sealed class CmdletNewDesiredStateDkim : PSCmdlet {
 
     /// <summary>Creates a DKIM policy fragment as a DesiredStateProfile.</summary>
     protected override void ProcessRecord() {
+        var allowedCnameTargetSuffixes = DesiredStateCmdletValidation.NormalizeDomainSuffixes(this, nameof(AllowedCnameTargetSuffixes), AllowedCnameTargetSuffixes);
+
         var profile = new DesiredStateProfile {
             Dkim = new DesiredStateDkimPolicy {
                 Enabled = Enabled,
-                RequireAtLeastOneSelector = RequireAtLeastOneSelector,
+                RequireAtLeastOneSelector = RequireAtLeastOneSelector,    
                 RequireStartsCorrectly = RequireStartsCorrectly,
                 RequirePublicKey = RequirePublicKey,
                 RequireValidPublicKey = RequireValidPublicKey,
@@ -93,7 +95,7 @@ public sealed class CmdletNewDesiredStateDkim : PSCmdlet {
                 DisallowInvalidFlags = DisallowInvalidFlags,
                 DisallowUnknownCanonicalizationModes = DisallowUnknownCanonicalizationModes,
                 DisallowInvalidCanonicalization = DisallowInvalidCanonicalization,
-                AllowedCnameTargetSuffixes = AllowedCnameTargetSuffixes
+                AllowedCnameTargetSuffixes = allowedCnameTargetSuffixes
             }
         };
 
