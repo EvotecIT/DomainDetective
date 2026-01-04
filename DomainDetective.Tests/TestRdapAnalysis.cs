@@ -63,7 +63,7 @@ namespace DomainDetective.Tests {
             logger.OnErrorMessage += (_, e) => error = e;
 
             var analysis = new RdapAnalysis {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 QueryOverride = _ => throw new HttpRequestException(
                     "NotFound",
                     null,
@@ -90,7 +90,7 @@ namespace DomainDetective.Tests {
             logger.OnErrorMessage += (_, e) => error = e;
 
             var analysis = new RdapAnalysis {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 QueryOverride = _ => throw new HttpRequestException(
                     "ServerError",
                     null,

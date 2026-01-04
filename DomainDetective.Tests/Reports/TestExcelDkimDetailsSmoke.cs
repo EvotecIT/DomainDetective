@@ -34,15 +34,10 @@ namespace DomainDetective.Tests.Reports
 
             var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
 
-#if NET8_0
             ExcelCompositionReport.Generate(tmp, items, DomainDetective.Reports.ReportScope.Detailed);
             Assert.True(File.Exists(tmp));
             var len = new FileInfo(tmp).Length;
             Assert.True(len > 0);
-#else
-            // On non-NET8 targets, just assert we can reach this point without compile errors
-            Assert.True(true);
-#endif
         }
     }
 }
