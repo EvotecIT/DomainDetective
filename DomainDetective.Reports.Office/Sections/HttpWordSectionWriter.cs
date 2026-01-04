@@ -76,7 +76,9 @@ public static class HttpWordSectionWriter
 
         string TrimValue(string? value, int max)
         {
-            if (string.IsNullOrEmpty(value)) return string.Empty;
+            // Explicit guards (net472 nullable flow analysis doesn't treat IsNullOrEmpty as a guard).
+            if (value == null) return string.Empty;
+            if (value.Length == 0) return string.Empty;
             if (value.Length <= max) return value;
             return value.Substring(0, max) + " …";
         }
