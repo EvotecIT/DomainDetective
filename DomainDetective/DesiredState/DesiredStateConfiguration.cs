@@ -26,14 +26,27 @@ public sealed partial class DesiredStateConfiguration {
     public List<DesiredStateOverride> Overrides { get; set; } = new List<DesiredStateOverride>();
 
     public static DesiredStateConfiguration Load(string path) {
-        if (string.IsNullOrWhiteSpace(path)) {
+        if (path == null) {
             throw new ArgumentNullException(nameof(path));
+        }
+        if (path.Trim().Length == 0) {
+            throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
         }
         var fullPath = Path.GetFullPath(path);
         var json = File.ReadAllText(fullPath);
         var config = JsonSerializer.Deserialize<DesiredStateConfiguration>(json, JsonOptions.Default);
         if (config == null) {
             throw new InvalidOperationException($"Failed to deserialize desired state configuration from '{fullPath}'.");
+        }
+        if (config.Version < 1) {
+            throw new InvalidOperationException($"Desired state configuration version must be >= 1 (found {config.Version}) in '{fullPath}'.");
+        }
+
+        if (config.Defaults == null) {
+            config.Defaults = new DesiredStateProfile();
+        }
+        if (config.Overrides == null) {
+            config.Overrides = new List<DesiredStateOverride>();
         }
         return config;
     }
@@ -49,8 +62,11 @@ public sealed partial class DesiredStateConfiguration {
     }
 
     public DesiredStateProfile ResolveProfile(string domain, MailDomainClassificationCategory? classification = null) {
-        if (string.IsNullOrWhiteSpace(domain)) {
+        if (domain == null) {
             throw new ArgumentNullException(nameof(domain));
+        }
+        if (domain.Trim().Length == 0) {
+            throw new ArgumentException("Domain cannot be empty or whitespace.", nameof(domain));
         }
 
         var effective = Defaults?.Clone() ?? new DesiredStateProfile();

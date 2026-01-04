@@ -439,30 +439,30 @@ namespace DomainDetective {
                     }
                 }
 	#endif
-	                if (checkHsts) {
-	                    // HSTS is meaningful only for HTTPS effective URLs.
-	                    HstsPresent = effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && hstsHeader != null;
-	                }
-	                if (collectHeaders) {
-	                    foreach (var headerName in _securityHeaderNames) {
-	                        if (response.Headers.TryGetValues(headerName, out var values) ||
-	                            response.Content.Headers.TryGetValues(headerName, out values)) {
-	                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
-	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
-	                                DeprecatedHeadersPresent.Add(headerName);
-	                            }
-	                        } else {
-	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
-	                                MissingDeprecatedHeaders.Add(headerName);
-	                            } else {
-	                                MissingSecurityHeaders.Add(headerName);
-	                            }
-	                        }
-	                    }
-	                    if (!HstsPresent && effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
-	                        HstsPresent = true;
-	                        hstsHeader = hsts.Value;
-	                    }
+                if (checkHsts) {
+                    // Header presence is tracked regardless of scheme; callers can still use effectiveScheme
+                    // to interpret whether the policy would be enforced by user agents.
+                    HstsPresent = hstsHeader != null;
+                }
+                if (collectHeaders) {
+                    foreach (var headerName in _securityHeaderNames) {
+                        if (response.Headers.TryGetValues(headerName, out var values) ||
+                            response.Content.Headers.TryGetValues(headerName, out values)) {
+                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
+                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+                                DeprecatedHeadersPresent.Add(headerName);
+                            }
+                        } else {
+                            MissingSecurityHeaders.Add(headerName);
+                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+                                MissingDeprecatedHeaders.Add(headerName);
+                            }
+                        }
+                    }
+                    if (!HstsPresent && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
+                        HstsPresent = true;
+                        hstsHeader = hsts.Value;
+                    }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     if (SecurityHeaders.TryGetValue("X-XSS-Protection", out var xss))
                     {

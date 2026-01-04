@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text.Json.Serialization;
 using DomainDetective.Definitions;
 
@@ -454,15 +455,32 @@ public sealed class DesiredStateProfile {
 }
 
 internal static class WildcardMatcher {
+    private static readonly RegexOptions _options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+    private static readonly TimeSpan _timeout = TimeSpan.FromMilliseconds(250);
+
     public static bool IsMatch(string input, string pattern) {
-        if (input == null || pattern == null) return false;
-        if (pattern == "*") return true;
-        var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern)
-            .Replace("\\*", ".*")
-            .Replace("\\?", ".") + "$";
-        return System.Text.RegularExpressions.Regex.IsMatch(
-            input,
-            regex,
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (input == null || pattern == null) {
+            return false;
+        }
+        if (pattern == "*") {
+            return true;
+        }
+
+        string regex;
+        try {
+            regex = "^" + Regex.Escape(pattern)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+        } catch (ArgumentException) {
+            return false;
+        }
+
+        try {
+            return Regex.IsMatch(input, regex, _options, _timeout);
+        } catch (RegexMatchTimeoutException) {
+            return false;
+        } catch (ArgumentException) {
+            return false;
+        }
     }
 }

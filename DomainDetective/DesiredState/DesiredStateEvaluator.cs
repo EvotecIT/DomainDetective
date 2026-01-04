@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using DomainDetective.Definitions;
 
@@ -7,8 +8,11 @@ namespace DomainDetective.DesiredState;
 
 public static partial class DesiredStateEvaluator {
     public static DesiredStateAnalysis Evaluate(string domain, DomainHealthCheck health, DesiredStateProfile profile, MailDomainClassificationCategory? classification = null) {
-        if (string.IsNullOrWhiteSpace(domain)) {
+        if (domain == null) {
             throw new ArgumentNullException(nameof(domain));
+        }
+        if (domain.Trim().Length == 0) {
+            throw new ArgumentException("Domain cannot be empty or whitespace.", nameof(domain));
         }
         if (health == null) {
             throw new ArgumentNullException(nameof(health));
@@ -26,14 +30,16 @@ public static partial class DesiredStateEvaluator {
 
         try {
             ApplyAssessmentPolicy(health, profile.AssessmentPolicy);
-        } catch {
+        } catch (Exception ex) {
             // Policy application should not prevent desired state evaluation.
+            TraceException("ApplyAssessmentPolicy(health, policy)", ex);
         }
 
         try {
             AppendHealthAssessments(health, result);
-        } catch {
+        } catch (Exception ex) {
             // Collection should not prevent desired state evaluation.
+            TraceException("AppendHealthAssessments(health, result)", ex);
         }
 
         EvaluateDmarc(domain, health.DmarcAnalysis, profile.Dmarc, result);
@@ -78,7 +84,8 @@ public static partial class DesiredStateEvaluator {
         // Apply policy so users can suppress/override DesiredState.* codes as well.
         try {
             ApplyAssessmentPolicy(result, profile.AssessmentPolicy);
-        } catch {
+        } catch (Exception ex) {
+            TraceException("ApplyAssessmentPolicy(result, policy)", ex);
         }
 
         var hasProblems = result.Assessments.Any(a => a.Severity != AssessmentSeverity.Info);
@@ -93,7 +100,8 @@ public static partial class DesiredStateEvaluator {
             });
             try {
                 ApplyAssessmentPolicy(result, profile.AssessmentPolicy);
-            } catch {
+            } catch (Exception ex) {
+                TraceException("ApplyAssessmentPolicy(result, policy) after Conforms", ex);
             }
         }
         return result;
@@ -112,7 +120,12 @@ public static partial class DesiredStateEvaluator {
 
         foreach (var pi in props) {
             object? value;
-            try { value = pi.GetValue(health); } catch { continue; }
+            try {
+                value = pi.GetValue(health);
+            } catch (Exception ex) {
+                TraceException($"DomainHealthCheck property '{pi.Name}' GetValue failed", ex);
+                continue;
+            }
             if (value is IHasAssessments has && has.Assessments != null) {
                 ApplyAssessmentPolicy(has, suppress, overrides);
             }
@@ -130,7 +143,12 @@ public static partial class DesiredStateEvaluator {
 
         foreach (var pi in props) {
             object? value;
-            try { value = pi.GetValue(health); } catch { continue; }
+            try {
+                value = pi.GetValue(health);
+            } catch (Exception ex) {
+                TraceException($"DomainHealthCheck property '{pi.Name}' GetValue failed", ex);
+                continue;
+            }
             if (value is IHasAssessments has && has.Assessments != null && has.Assessments.Count > 0) {
                 foreach (var a in has.Assessments) {
                     if (a == null) continue;
@@ -138,6 +156,13 @@ public static partial class DesiredStateEvaluator {
                 }
             }
         }
+    }
+
+    private static void TraceException(string context, Exception ex) {
+        if (ex == null) {
+            return;
+        }
+        Trace.TraceWarning("DesiredStateEvaluator: {0}: {1}", context, ex);
     }
 
     private static Assessment CloneAssessment(Assessment a) {

@@ -461,7 +461,12 @@ public static partial class DesiredStateEvaluator {
             return true;
         }
 
-        var distinct = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
-        return distinct.Length <= 1;
+        var observed = map.Values.Where(v => v.HasValue).Select(v => v!.Value).Distinct().ToArray();
+        if (observed.Length == 0) {
+            // No usable TTL information was collected (e.g., all authoritative queries failed).
+            // Treat this as non-uniform so required-uniform checks do not pass on missing data.
+            return false;
+        }
+        return observed.Length <= 1;
     }
 }

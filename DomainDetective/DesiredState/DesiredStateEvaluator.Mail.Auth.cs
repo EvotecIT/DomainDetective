@@ -539,6 +539,8 @@ public static partial class DesiredStateEvaluator {
     private static void EvaluateDkim(string domain, DkimAnalysis dkim, DesiredStateDkimPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) return;
 
+        var analysisResults = dkim.AnalysisResults;
+
         var requiredSelectors = desired.RequiredSelectors?
             .Where(s => !string.IsNullOrWhiteSpace(s))
             .Select(s => s.Trim())
@@ -546,7 +548,7 @@ public static partial class DesiredStateEvaluator {
             .ToArray();
 
         DkimRecordAnalysis? FindSelector(string selector) {
-            foreach (var kvp in dkim.AnalysisResults!) {
+            foreach (var kvp in analysisResults) {
                 if (string.Equals(kvp.Key, selector, StringComparison.OrdinalIgnoreCase)) {
                     return kvp.Value;
                 }
@@ -554,7 +556,7 @@ public static partial class DesiredStateEvaluator {
             return null;
         }
 
-        if (desired.RequireAtLeastOneSelector == true && dkim.AnalysisResults.Count == 0) {
+        if (desired.RequireAtLeastOneSelector == true && analysisResults.Count == 0) {
             sink.Assessments.Add(new Assessment {
                 Severity = AssessmentSeverity.Warning,
                 Category = "DesiredState",
@@ -583,7 +585,7 @@ public static partial class DesiredStateEvaluator {
             return;
         }
 
-        foreach (var kvp in dkim.AnalysisResults!) {
+        foreach (var kvp in analysisResults) {
             var selector = kvp.Key;
             var analysis = kvp.Value;
             if (analysis == null || !analysis.DkimRecordExists) continue;
