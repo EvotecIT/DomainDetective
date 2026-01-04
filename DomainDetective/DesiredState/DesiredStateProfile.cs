@@ -456,7 +456,7 @@ public sealed class DesiredStateProfile {
 
 internal static class WildcardMatcher {
     private static readonly RegexOptions _options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
-    private static readonly TimeSpan _timeout = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(1);
 
     private const int CacheLimit = 256;
     private static readonly object _cacheLock = new object();

@@ -112,21 +112,8 @@ public static partial class DesiredStateEvaluator {
 
         var suppress = new HashSet<string>(policy.SuppressCodes ?? Array.Empty<string>(), StringComparer.OrdinalIgnoreCase);
         var overrides = policy.SeverityOverrides ?? new Dictionary<string, AssessmentSeverity>(StringComparer.OrdinalIgnoreCase);
-
-        var props = typeof(DomainHealthCheck)
-            .GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
-            .Where(p => typeof(IHasAssessments).IsAssignableFrom(p.PropertyType))
-            .ToArray();
-
-        foreach (var pi in props) {
-            object? value;
-            try {
-                value = pi.GetValue(health);
-            } catch (Exception ex) {
-                TraceException($"DomainHealthCheck property '{pi.Name}' GetValue failed", ex);
-                continue;
-            }
-            if (value is IHasAssessments has && has.Assessments != null) {
+        foreach (var has in health.GetAssessmentProviders()) {
+            if (has.Assessments != null) {
                 ApplyAssessmentPolicy(has, suppress, overrides);
             }
         }
@@ -135,26 +122,9 @@ public static partial class DesiredStateEvaluator {
     private static void AppendHealthAssessments(DomainHealthCheck health, DesiredStateAnalysis sink) {
         if (health == null) return;
         if (sink == null) return;
-
-        var props = typeof(DomainHealthCheck)
-            .GetProperties(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public)
-            .Where(p => typeof(IHasAssessments).IsAssignableFrom(p.PropertyType))
-            .ToArray();
-
-        foreach (var pi in props) {
-            object? value;
-            try {
-                value = pi.GetValue(health);
-            } catch (Exception ex) {
-                TraceException($"DomainHealthCheck property '{pi.Name}' GetValue failed", ex);
-                continue;
-            }
-            if (value is IHasAssessments has && has.Assessments != null && has.Assessments.Count > 0) {
-                foreach (var a in has.Assessments) {
-                    if (a == null) continue;
-                    sink.Assessments.Add(CloneAssessment(a));
-                }
-            }
+        foreach (var a in health.GetAllAssessments()) {
+            if (a == null) continue;
+            sink.Assessments.Add(CloneAssessment(a));
         }
     }
 

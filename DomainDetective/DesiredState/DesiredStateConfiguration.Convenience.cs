@@ -11,235 +11,235 @@ public sealed partial class DesiredStateConfiguration {
 
     [JsonIgnore]
     public DesiredStateAssessmentPolicy? AssessmentPolicy {
-        get => Defaults.AssessmentPolicy ??= new DesiredStateAssessmentPolicy();
+        get => Defaults.AssessmentPolicy;
         set => Defaults.AssessmentPolicy = value;
     }
 
     [JsonIgnore]
     public DesiredStateDmarcPolicy? Dmarc {
-        get => Defaults.Dmarc ??= new DesiredStateDmarcPolicy();
+        get => Defaults.Dmarc;
         set => Defaults.Dmarc = value;
     }
 
     [JsonIgnore]
     public DesiredStateSpfPolicy? Spf {
-        get => Defaults.Spf ??= new DesiredStateSpfPolicy();
+        get => Defaults.Spf;
         set => Defaults.Spf = value;
     }
 
     [JsonIgnore]
     public DesiredStateDkimPolicy? Dkim {
-        get => Defaults.Dkim ??= new DesiredStateDkimPolicy();
+        get => Defaults.Dkim;
         set => Defaults.Dkim = value;
     }
 
     [JsonIgnore]
     public DesiredStateMtastsPolicy? Mtasts {
-        get => Defaults.Mtasts ??= new DesiredStateMtastsPolicy();
+        get => Defaults.Mtasts;        
         set => Defaults.Mtasts = value;
     }
 
     [JsonIgnore]
     public DesiredStateTlsRptPolicy? TlsRpt {
-        get => Defaults.TlsRpt ??= new DesiredStateTlsRptPolicy();
+        get => Defaults.TlsRpt;        
         set => Defaults.TlsRpt = value;
     }
 
     [JsonIgnore]
     public DesiredStateBimiPolicy? Bimi {
-        get => Defaults.Bimi ??= new DesiredStateBimiPolicy();
+        get => Defaults.Bimi;
         set => Defaults.Bimi = value;
     }
 
     [JsonIgnore]
     public DesiredStateMxPolicy? Mx {
-        get => Defaults.Mx ??= new DesiredStateMxPolicy();
+        get => Defaults.Mx;
         set => Defaults.Mx = value;
     }
 
     [JsonIgnore]
     public DesiredStateStartTlsPolicy? StartTls {
-        get => Defaults.StartTls ??= new DesiredStateStartTlsPolicy();
+        get => Defaults.StartTls;    
         set => Defaults.StartTls = value;
     }
 
     [JsonIgnore]
     public DesiredStateMailTlsPolicy? SmtpTls {
-        get => Defaults.SmtpTls ??= new DesiredStateMailTlsPolicy();
+        get => Defaults.SmtpTls;      
         set => Defaults.SmtpTls = value;
     }
 
     [JsonIgnore]
     public DesiredStateMailTlsPolicy? ImapTls {
-        get => Defaults.ImapTls ??= new DesiredStateMailTlsPolicy();
+        get => Defaults.ImapTls;      
         set => Defaults.ImapTls = value;
     }
 
     [JsonIgnore]
     public DesiredStateMailTlsPolicy? Pop3Tls {
-        get => Defaults.Pop3Tls ??= new DesiredStateMailTlsPolicy();
+        get => Defaults.Pop3Tls;      
         set => Defaults.Pop3Tls = value;
     }
 
     [JsonIgnore]
     public DesiredStateSmtpBannerPolicy? SmtpBanner {
-        get => Defaults.SmtpBanner ??= new DesiredStateSmtpBannerPolicy();
+        get => Defaults.SmtpBanner;
         set => Defaults.SmtpBanner = value;
     }
 
     [JsonIgnore]
     public DesiredStateSmtpAuthPolicy? SmtpAuth {
-        get => Defaults.SmtpAuth ??= new DesiredStateSmtpAuthPolicy();
+        get => Defaults.SmtpAuth;    
         set => Defaults.SmtpAuth = value;
     }
 
     [JsonIgnore]
     public DesiredStateOpenRelayPolicy? OpenRelay {
-        get => Defaults.OpenRelay ??= new DesiredStateOpenRelayPolicy();
+        get => Defaults.OpenRelay;  
         set => Defaults.OpenRelay = value;
     }
 
     [JsonIgnore]
     public DesiredStateOpenResolverPolicy? OpenResolver {
-        get => Defaults.OpenResolver ??= new DesiredStateOpenResolverPolicy();
+        get => Defaults.OpenResolver;
         set => Defaults.OpenResolver = value;
     }
 
     [JsonIgnore]
     public DesiredStateMailLatencyPolicy? MailLatency {
-        get => Defaults.MailLatency ??= new DesiredStateMailLatencyPolicy();
+        get => Defaults.MailLatency;
         set => Defaults.MailLatency = value;
     }
 
     [JsonIgnore]
     public DesiredStateReverseDnsPolicy? ReverseDns {
-        get => Defaults.ReverseDns ??= new DesiredStateReverseDnsPolicy();
+        get => Defaults.ReverseDns;
         set => Defaults.ReverseDns = value;
     }
 
     [JsonIgnore]
     public DesiredStateFcrDnsPolicy? FcrDns {
-        get => Defaults.FcrDns ??= new DesiredStateFcrDnsPolicy();
+        get => Defaults.FcrDns;        
         set => Defaults.FcrDns = value;
     }
 
     [JsonIgnore]
     public DesiredStateNsPolicy? Ns {
-        get => Defaults.Ns ??= new DesiredStateNsPolicy();
+        get => Defaults.Ns;
         set => Defaults.Ns = value;
     }
 
     [JsonIgnore]
     public DesiredStateDanglingCnamePolicy? DanglingCname {
-        get => Defaults.DanglingCname ??= new DesiredStateDanglingCnamePolicy();
+        get => Defaults.DanglingCname;
         set => Defaults.DanglingCname = value;
     }
 
     [JsonIgnore]
     public DesiredStateCaaPolicy? Caa {
-        get => Defaults.Caa ??= new DesiredStateCaaPolicy();
+        get => Defaults.Caa;
         set => Defaults.Caa = value;
     }
 
     [JsonIgnore]
     public DesiredStateDnssecPolicy? DnsSec {
-        get => Defaults.DnsSec ??= new DesiredStateDnssecPolicy();
+        get => Defaults.DnsSec;        
         set => Defaults.DnsSec = value;
     }
 
     [JsonIgnore]
     public DesiredStateSoaPolicy? Soa {
-        get => Defaults.Soa ??= new DesiredStateSoaPolicy();
+        get => Defaults.Soa;
         set => Defaults.Soa = value;
     }
 
     [JsonIgnore]
     public DesiredStateDanePolicy? Dane {
-        get => Defaults.Dane ??= new DesiredStateDanePolicy();
+        get => Defaults.Dane;
         set => Defaults.Dane = value;
     }
 
     [JsonIgnore]
     public DesiredStateDnsblPolicy? Dnsbl {
-        get => Defaults.Dnsbl ??= new DesiredStateDnsblPolicy();
+        get => Defaults.Dnsbl;
         set => Defaults.Dnsbl = value;
     }
 
     [JsonIgnore]
     public DesiredStateDnsHealthPolicy? DnsHealth {
-        get => Defaults.DnsHealth ??= new DesiredStateDnsHealthPolicy();
+        get => Defaults.DnsHealth;  
         set => Defaults.DnsHealth = value;
     }
 
     [JsonIgnore]
     public DesiredStateApexAddressPolicy? ApexAddress {
-        get => Defaults.ApexAddress ??= new DesiredStateApexAddressPolicy();
+        get => Defaults.ApexAddress;
         set => Defaults.ApexAddress = value;
     }
 
     [JsonIgnore]
     public DesiredStateRpkiPolicy? Rpki {
-        get => Defaults.Rpki ??= new DesiredStateRpkiPolicy();
+        get => Defaults.Rpki;
         set => Defaults.Rpki = value;
     }
 
     [JsonIgnore]
     public DesiredStateEdnsSupportPolicy? EdnsSupport {
-        get => Defaults.EdnsSupport ??= new DesiredStateEdnsSupportPolicy();
+        get => Defaults.EdnsSupport;
         set => Defaults.EdnsSupport = value;
     }
 
     [JsonIgnore]
     public DesiredStateDnsOverTlsPolicy? DnsOverTls {
-        get => Defaults.DnsOverTls ??= new DesiredStateDnsOverTlsPolicy();
+        get => Defaults.DnsOverTls;
         set => Defaults.DnsOverTls = value;
     }
 
     [JsonIgnore]
-    public DesiredStateFlatteningServicePolicy? FlatteningService {
-        get => Defaults.FlatteningService ??= new DesiredStateFlatteningServicePolicy();
+    public DesiredStateFlatteningServicePolicy? FlatteningService {       
+        get => Defaults.FlatteningService;
         set => Defaults.FlatteningService = value;
     }
 
     [JsonIgnore]
     public DesiredStateDelegationPolicy? Delegation {
-        get => Defaults.Delegation ??= new DesiredStateDelegationPolicy();
+        get => Defaults.Delegation;  
         set => Defaults.Delegation = value;
     }
 
     [JsonIgnore]
     public DesiredStateZoneTransferPolicy? ZoneTransfer {
-        get => Defaults.ZoneTransfer ??= new DesiredStateZoneTransferPolicy();
+        get => Defaults.ZoneTransfer;
         set => Defaults.ZoneTransfer = value;
     }
 
     [JsonIgnore]
     public DesiredStateWildcardDnsPolicy? WildcardDns {
-        get => Defaults.WildcardDns ??= new DesiredStateWildcardDnsPolicy();
+        get => Defaults.WildcardDns;
         set => Defaults.WildcardDns = value;
     }
 
     [JsonIgnore]
     public DesiredStateTtlPolicy? Ttl {
-        get => Defaults.Ttl ??= new DesiredStateTtlPolicy();
+        get => Defaults.Ttl;
         set => Defaults.Ttl = value;
     }
 
     [JsonIgnore]
     public DesiredStateAutodiscoverPolicy? Autodiscover {
-        get => Defaults.Autodiscover ??= new DesiredStateAutodiscoverPolicy();
+        get => Defaults.Autodiscover;
         set => Defaults.Autodiscover = value;
     }
 
     [JsonIgnore]
     public DesiredStateSecurityTxtPolicy? SecurityTxt {
-        get => Defaults.SecurityTxt ??= new DesiredStateSecurityTxtPolicy();
+        get => Defaults.SecurityTxt;
         set => Defaults.SecurityTxt = value;
     }
 
     [JsonIgnore]
     public DesiredStateRobotsPolicy? Robots {
-        get => Defaults.Robots ??= new DesiredStateRobotsPolicy();
+        get => Defaults.Robots;
         set => Defaults.Robots = value;
     }
 }

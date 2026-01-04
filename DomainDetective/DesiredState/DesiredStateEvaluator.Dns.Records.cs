@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -70,7 +71,7 @@ public static partial class DesiredStateEvaluator {
             }
 
             if (suffixes.Length > 0 && ptrs.Count > 0) {
-                var ok = ptrs.Any(p => suffixes.Any(s => (p ?? string.Empty).Trim().Trim('.').EndsWith(s, StringComparison.OrdinalIgnoreCase)));
+                var ok = ptrs.Any(p => suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf((p ?? string.Empty).Trim().Trim('.'), s)));
                 if (!ok) {
                     sink.Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Warning,
@@ -225,7 +226,7 @@ public static partial class DesiredStateEvaluator {
                     if (normalized.Length == 0) {
                         continue;
                     }
-                    var ok = suffixes.Any(s => normalized.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(normalized, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,

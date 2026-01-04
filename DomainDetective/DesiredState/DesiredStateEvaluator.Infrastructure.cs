@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -393,14 +394,14 @@ public static partial class DesiredStateEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            if (suffixes.Length > 0) {
-                var target = (analysis.Target ?? string.Empty).Trim().Trim('.');
-                if (target.Length > 0) {
-                    var ok = suffixes.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-                    if (!ok) {
-                        sink.Assessments.Add(new Assessment {
-                            Severity = AssessmentSeverity.Error,
-                            Category = "DesiredState",
+                if (suffixes.Length > 0) {
+                    var target = (analysis.Target ?? string.Empty).Trim().Trim('.');
+                    if (target.Length > 0) {
+                        var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(target, s));
+                        if (!ok) {
+                            sink.Assessments.Add(new Assessment {
+                                Severity = AssessmentSeverity.Error,
+                                Category = "DesiredState",
                             Target = domain,
                             Code = DesiredStateCodes.FlatteningServiceTargetNotAllowed,
                             Message = $"Desired state requires apex CNAME target to end with [{string.Join(", ", suffixes)}], but found '{target}'."
@@ -411,4 +412,3 @@ public static partial class DesiredStateEvaluator {
         }
     }
 }
-

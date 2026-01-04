@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -241,7 +242,7 @@ public static partial class DesiredStateEvaluator {
             if (suffixes.Length > 0) {
                 foreach (var reportDomain in EnumerateReportDomains(dmarc)) {
                     if (string.IsNullOrWhiteSpace(reportDomain)) continue;
-                    var ok = suffixes.Any(s => reportDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(reportDomain, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,
@@ -522,7 +523,7 @@ public static partial class DesiredStateEvaluator {
 
             var redirect = (spf.RedirectValue ?? string.Empty).Trim().Trim('.');
             if (suffixes.Length > 0 && redirect.Length > 0) {
-                var ok = suffixes.Any(s => redirect.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(redirect, s));
                 if (!ok) {
                     sink.Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Error,
@@ -718,7 +719,7 @@ public static partial class DesiredStateEvaluator {
 
             if (suffixes.Length > 0) {
                 var target = (analysis.CnameTarget ?? string.Empty).Trim().Trim('.');
-                var ok = target.Length > 0 && suffixes.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                var ok = target.Length > 0 && suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(target, s));
                 if (!ok) {
                     sink.Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Error,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -103,7 +104,7 @@ public static partial class DesiredStateEvaluator {
 
             if (suffixes.Length > 0) {
                 foreach (var reportDomain in EnumerateCaaReportDomains(caa)) {
-                    var ok = suffixes.Any(s => reportDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(reportDomain, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,

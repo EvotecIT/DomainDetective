@@ -37,8 +37,8 @@ public sealed partial class DesiredStateConfiguration {
         }
 
         // Safety: prevent accidental loading of huge files (can cause excessive allocations on deserialization).
-        // 10MB is far above typical configs while still being small enough to avoid accidental DoS.
-        const long maxBytes = 10L * 1024L * 1024L;
+        // Desired state configurations are typically tiny; keep a conservative upper bound to avoid accidental DoS.
+        const long maxBytes = 1L * 1024L * 1024L;
         var fileInfo = new FileInfo(fullPath);
         if (fileInfo.Length > maxBytes) {
             throw new InvalidOperationException($"Desired state configuration file is too large ({fileInfo.Length} bytes > {maxBytes} bytes): '{fullPath}'.");

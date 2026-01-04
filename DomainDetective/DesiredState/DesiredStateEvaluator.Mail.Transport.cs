@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -230,7 +231,7 @@ public static partial class DesiredStateEvaluator {
             if (suffixes.Length > 0) {
                 foreach (var reportDomain in EnumerateTlsRptReportDomains(tlsrpt)) {
                     if (string.IsNullOrWhiteSpace(reportDomain)) continue;
-                    var ok = suffixes.Any(s => reportDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(reportDomain, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,
@@ -351,12 +352,12 @@ public static partial class DesiredStateEvaluator {
 	                        Code = DesiredStateCodes.BimiLocationHostNotAllowed,
 	                        Message = $"Desired state requires BIMI location host to end with [{string.Join(", ", suffixes)}], but no valid host was found."
 	                    });
-	                } else {
-	                    var ok = suffixes.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-	                    if (!ok) {
-	                        sink.Assessments.Add(new Assessment {
-	                            Severity = AssessmentSeverity.Error,
-	                            Category = "DesiredState",
+                } else {
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(host, s));
+                    if (!ok) {
+                        sink.Assessments.Add(new Assessment {
+                            Severity = AssessmentSeverity.Error,
+                            Category = "DesiredState",
 	                            Target = domain,
 	                            Code = DesiredStateCodes.BimiLocationHostNotAllowed,
 	                            Message = $"Desired state requires BIMI location host to end with [{string.Join(", ", suffixes)}], but found '{host}'."
@@ -395,12 +396,12 @@ public static partial class DesiredStateEvaluator {
 	                        Code = DesiredStateCodes.BimiAuthorityHostNotAllowed,
 	                        Message = $"Desired state requires BIMI authority host to end with [{string.Join(", ", suffixes)}], but no valid host was found."
 	                    });
-	                } else {
-	                    var ok = suffixes.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase));
-	                    if (!ok) {
-	                        sink.Assessments.Add(new Assessment {
-	                            Severity = AssessmentSeverity.Error,
-	                            Category = "DesiredState",
+                   } else {
+                       var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(host, s));
+                       if (!ok) {
+                           sink.Assessments.Add(new Assessment {
+                               Severity = AssessmentSeverity.Error,
+                               Category = "DesiredState",
 	                            Target = domain,
 	                            Code = DesiredStateCodes.BimiAuthorityHostNotAllowed,
 	                            Message = $"Desired state requires BIMI authority host to end with [{string.Join(", ", suffixes)}], but found '{host}'."
@@ -459,7 +460,7 @@ public static partial class DesiredStateEvaluator {
 
             if (suffixes.Length > 0) {
                 foreach (var host in EnumerateMxHosts(mx)) {
-                    var ok = suffixes.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(host, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,

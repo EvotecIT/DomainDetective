@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -125,7 +126,7 @@ public static partial class DesiredStateEvaluator {
                         Code = DesiredStateCodes.SmtpBannerDomainMissing,
                         Message = $"Desired state requires SMTP banners to include a domain name ending with [{string.Join(", ", allowedSuffixes)}], but '{key}' had no domain."
                     });
-                } else if (!allowedSuffixes.Any(s => serverDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase))) {
+                } else if (!allowedSuffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(serverDomain, s))) {
                     sink.Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Error,
                         Category = "DesiredState",

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using DomainDetective.Definitions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.DesiredState;
 
@@ -47,7 +48,7 @@ public static partial class DesiredStateEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase)))) {
+            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => DomainHelper.IsDomainOrSubdomainOf(target, s)))) {
                 sink.Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Error,
                     Category = "DesiredState",
@@ -67,7 +68,7 @@ public static partial class DesiredStateEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase)))) {
+            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => DomainHelper.IsDomainOrSubdomainOf(target, s)))) {
                 sink.Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Error,
                     Category = "DesiredState",
@@ -87,7 +88,7 @@ public static partial class DesiredStateEvaluator {
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => target.EndsWith(s, StringComparison.OrdinalIgnoreCase)))) {
+            if (allowed.Length > 0 && (target.Length == 0 || !allowed.Any(s => DomainHelper.IsDomainOrSubdomainOf(target, s)))) {
                 sink.Assessments.Add(new Assessment {
                     Severity = AssessmentSeverity.Error,
                     Category = "DesiredState",
@@ -124,7 +125,7 @@ public static partial class DesiredStateEvaluator {
                     if (e == null || (!e.XmlValid && !e.JsonValid)) continue;
                     var host = (e.FinalHost ?? TryGetHost(e.FinalUrl) ?? TryGetHost(e.Url) ?? string.Empty).Trim().Trim('.');
                     if (host.Length == 0) continue;
-                    if (!allowed.Any(s => host.EndsWith(s, StringComparison.OrdinalIgnoreCase))) {
+                    if (!allowed.Any(s => DomainHelper.IsDomainOrSubdomainOf(host, s))) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,
                             Category = "DesiredState",
@@ -214,7 +215,7 @@ public static partial class DesiredStateEvaluator {
                     if (at < 0 || at >= email.Length - 1) continue;
                     var emailDomain = email.Substring(at + 1).Trim().Trim('.');
                     if (emailDomain.Length == 0) continue;
-                    if (!allowed.Any(s => emailDomain.EndsWith(s, StringComparison.OrdinalIgnoreCase))) {
+                    if (!allowed.Any(s => DomainHelper.IsDomainOrSubdomainOf(emailDomain, s))) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,
                             Category = "DesiredState",
@@ -280,4 +281,3 @@ public static partial class DesiredStateEvaluator {
         }
     }
 }
-
