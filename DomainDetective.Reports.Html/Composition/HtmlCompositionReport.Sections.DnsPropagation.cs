@@ -294,21 +294,22 @@ public static partial class HtmlCompositionReport
         return levels;
     }
 
-        private static bool TryGetIso2Code(string? countryName, out string iso2)
+    private static bool TryGetIso2Code(string? countryName, out string iso2)
+    {
+        iso2 = string.Empty;
+        // On net472 reference assemblies, nullable flow analysis can be stricter around BCL helpers.
+        // Coalesce to avoid any possible null dereference warnings.
+        var raw = (countryName ?? string.Empty).Trim();
+        if (raw.Length == 0)
         {
-            iso2 = string.Empty;
-            // On net472 reference assemblies, nullable flow analysis can be stricter around BCL helpers.
-            // Coalesce to avoid any possible null dereference warnings.
-            var raw = (countryName ?? string.Empty).Trim();
-            if (raw.Length == 0)
-            {
-                return false;
-            }
-            if (raw.Length == 2 && raw.All(ch => char.IsLetter(ch)))
-            {
-                iso2 = raw.ToUpperInvariant();
-                return true;
-            }
+            return false;
+        }
+
+        if (raw.Length == 2 && raw.All(ch => char.IsLetter(ch)))
+        {
+            iso2 = raw.ToUpperInvariant();
+            return true;
+        }
 
         // Known official/legacy names used by resolver datasets.
         if (TryGetIso2FromOverrides(raw, out iso2))

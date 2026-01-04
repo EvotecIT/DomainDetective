@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace DomainDetective.Reports;
@@ -120,10 +121,10 @@ internal static class CompositionReportDispatcher
         }, out error);
     }
 
-    private static bool TryGenerateHtml(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
-    {
-        error = null;
-        var reportType = GetType(HtmlReportType, HtmlAssembly, out error);
+	    private static bool TryGenerateHtml(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
+	    {
+	        error = null;
+	        var reportType = GetType(HtmlReportType, HtmlAssembly, out error);
         if (reportType == null)
         {
             return false;
@@ -200,27 +201,91 @@ internal static class CompositionReportDispatcher
                 profileType
             },
             null);
-        if (method == null)
-        {
-            error = "HTML composition generator signature not found.";
-            return false;
-        }
+	        if (method == null)
+	        {
+	            // Backward/forward compatibility: older binaries might differ by interface types
+	            // (e.g., IEnumerable<object> vs IReadOnlyList<object>) or by nullable metadata.
+	            method = FindCompatibleHtmlGenerateMethod(reportType, profileType, themeType);
+	            if (method == null)
+	            {
+	                error = "HTML composition generator signature not found.";
+	                return false;
+	            }
+	        }
 
-        return Invoke(method, new object?[] {
-            outputPath,
-            items,
-            request.Scope,
-            request.OpenInBrowser,
-            request.NarrativePlacement,
-            request.Title,
-            request.Creator,
-            request.Subject,
-            request.Ordering.DomainOrder,
-            request.Ordering.SectionOrderMode,
-            request.Ordering.SectionOrder,
-            profileValue
-        }, out error);
-    }
+	        var parameters = method.GetParameters();
+	        var invokeArgs = parameters.Length == 13
+	            ? new object?[] {
+	                outputPath,
+	                items,
+	                request.Scope,
+	                request.OpenInBrowser,
+	                request.NarrativePlacement,
+	                request.Title,
+	                request.Creator,
+	                request.Subject,
+	                request.Ordering.DomainOrder,
+	                request.Ordering.SectionOrderMode,
+	                request.Ordering.SectionOrder,
+	                profileValue,
+	                Enum.Parse(parameters[12].ParameterType, "Light", ignoreCase: true)
+	            }
+	            : new object?[] {
+	                outputPath,
+	                items,
+	                request.Scope,
+	                request.OpenInBrowser,
+	                request.NarrativePlacement,
+	                request.Title,
+	                request.Creator,
+	                request.Subject,
+	                request.Ordering.DomainOrder,
+	                request.Ordering.SectionOrderMode,
+	                request.Ordering.SectionOrder,
+	                profileValue
+	            };
+
+	        return Invoke(method, invokeArgs, out error);
+	    }
+
+	    private static MethodInfo? FindCompatibleHtmlGenerateMethod(Type reportType, Type profileType, Type? themeType)
+	    {
+	        var candidates = reportType
+	            .GetMethods(BindingFlags.Public | BindingFlags.Static)
+	            .Where(m => string.Equals(m.Name, "Generate", StringComparison.Ordinal))
+	            .ToArray();
+
+	        bool IsCompatible(ParameterInfo[] ps)
+	        {
+	            if (ps.Length != 12 && ps.Length != 13) return false;
+	            if (ps[0].ParameterType != typeof(string)) return false;
+	            if (!ps[1].ParameterType.IsAssignableFrom(typeof(IReadOnlyList<object>))) return false;
+	            if (ps[2].ParameterType != typeof(ReportScope)) return false;
+	            if (ps[3].ParameterType != typeof(bool)) return false;
+	            if (ps[4].ParameterType != typeof(NarrativePlacement)) return false;
+	            if (ps[8].ParameterType != typeof(DomainOrder)) return false;
+	            if (ps[9].ParameterType != typeof(SectionOrderMode)) return false;
+	            if (!ps[10].ParameterType.IsAssignableFrom(typeof(string[]))) return false;
+	            if (ps[11].ParameterType != profileType) return false;
+	            if (ps.Length == 13)
+	            {
+	                if (themeType == null) return false;
+	                if (ps[12].ParameterType != themeType) return false;
+	            }
+	            return true;
+	        }
+
+	        MethodInfo? best = null;
+	        foreach (var m in candidates)
+	        {
+	            var ps = m.GetParameters();
+	            if (!IsCompatible(ps)) continue;
+	            if (best == null) { best = m; continue; }
+	            if (best.GetParameters().Length == 12 && ps.Length == 13) best = m;
+	        }
+
+	        return best;
+	    }
 
     private static bool TryGenerateExcel(CompositionExportRequest request, IReadOnlyList<object> items, string outputPath, out string? error)
     {

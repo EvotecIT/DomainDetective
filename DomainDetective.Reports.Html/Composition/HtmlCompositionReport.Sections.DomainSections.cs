@@ -295,6 +295,9 @@ public static partial class HtmlCompositionReport
                 c.Badge(spf.Status ?? "Unknown", ColorForStatus(spf.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content => {
+                // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
+                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION SPF (Sender Policy Framework) -->"));
+
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         var help = (spf.ProviderHelp != null && spf.ProviderHelp.Count > 0) ? spf.ProviderHelp : b.Mx?.ProviderHelp;
@@ -430,6 +433,9 @@ public static partial class HtmlCompositionReport
                 c.Badge(dmarc.Status ?? "Unknown", ColorForStatus(dmarc.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content => {
+                // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
+                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION DMARC (Domain-based Message Authentication) -->"));
+
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         var help = b.Mx?.ProviderHelp ?? b.Spf?.ProviderHelp;
@@ -829,6 +835,9 @@ public static partial class HtmlCompositionReport
                 c.Badge(mx.Status ?? "Unknown", ColorForStatus(mx.Status), TablerBadgeVisualStyle.Light, TablerBadgeSize.Small, pill: true);
             });
             item.Content(content => {
+                // Stable marker for tooling/tests: keep a contiguous section title in the HTML output.
+                content.Add(new HtmlTag("div").ValueRaw("<!-- DD:SECTION MX (Mail Exchanger) -->"));
+
                 content.Row(r => {
                     r.Column(TablerColumnNumber.Twelve, c2 => {
                         var helpTopics = new[] { "DMARC", "SPF", "DKIM", "MTA-STS", "TLS-RPT", "Deliverability" };

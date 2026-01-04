@@ -88,6 +88,9 @@ public static partial class HtmlCompositionReport
 
                                     domainCard.Body(bdy =>
                                     {
+                                        // Stable markers for tooling/tests: ensure domain titles are discoverable in raw HTML across HtmlForgeX versions.
+                                        bdy.Add(new HtmlTag("div").ValueRaw($"<!-- DD:DOMAIN Mail &amp; DNS - {domain} -->"));
+
                                         bdy.DataGrid(g =>
                                         {
                                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());

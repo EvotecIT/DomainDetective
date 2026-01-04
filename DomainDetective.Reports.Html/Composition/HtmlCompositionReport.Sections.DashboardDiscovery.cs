@@ -15,51 +15,51 @@ public static partial class HtmlCompositionReport
 {
     private sealed class DiscoveryOverviewRow
     {
-        public string Domain { get; init; } = string.Empty;
-        public int Subdomains { get; init; }
-        public int CtUniqueCerts { get; init; }
-        public int CtIssued7d { get; init; }
-        public int CtIssued30d { get; init; }
-        public string DnsProvider { get; init; } = "-";
-        public string MailProvider { get; init; } = "-";
-        public int UniqueIps { get; init; }
-        public int Asns { get; init; }
-        public int Countries { get; init; }
-        public string HttpGrade { get; init; } = "-";
-        public int HttpMissingHeaders { get; init; }
-        public string Hsts { get; init; } = "-";
+        public string Domain { get; set; } = string.Empty;
+        public int Subdomains { get; set; }
+        public int CtUniqueCerts { get; set; }
+        public int CtIssued7d { get; set; }
+        public int CtIssued30d { get; set; }
+        public string DnsProvider { get; set; } = "-";
+        public string MailProvider { get; set; } = "-";
+        public int UniqueIps { get; set; }
+        public int Asns { get; set; }
+        public int Countries { get; set; }
+        public string HttpGrade { get; set; } = "-";
+        public int HttpMissingHeaders { get; set; }
+        public string Hsts { get; set; } = "-";
     }
 
     private sealed class NameCountRow
     {
-        public string Name { get; init; } = string.Empty;
-        public int Count { get; init; }
+        public string Name { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     private sealed class AsnCountRow
     {
-        public int Asn { get; init; }
-        public int Count { get; init; }
+        public int Asn { get; set; }
+        public int Count { get; set; }
     }
 
     private sealed class PropagationRecordTypeRow
     {
-        public string RecordType { get; init; } = string.Empty;
-        public int Tests { get; init; }
-        public int Inconsistent { get; init; }
-        public int Servers { get; init; }
-        public int Errors { get; init; }
+        public string RecordType { get; set; } = string.Empty;
+        public int Tests { get; set; }
+        public int Inconsistent { get; set; }
+        public int Servers { get; set; }
+        public int Errors { get; set; }
     }
 
     private sealed class PropagationCountryRow
     {
-        public string Country { get; init; } = string.Empty;
-        public int Servers { get; init; }
-        public int Success { get; init; }
-        public int Errors { get; init; }
-        public int Majority { get; init; }
-        public int NonMajority { get; init; }
-        public int Issues { get; init; }
+        public string Country { get; set; } = string.Empty;
+        public int Servers { get; set; }
+        public int Success { get; set; }
+        public int Errors { get; set; }
+        public int Majority { get; set; }
+        public int NonMajority { get; set; }
+        public int Issues { get; set; }
     }
 
     private static void RenderDashboardDiscovery(HtmlForgeX.TablerPage page, List<KeyValuePair<string, DomainBucket>> ordered)

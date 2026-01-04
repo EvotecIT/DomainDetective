@@ -76,8 +76,9 @@ public static partial class SectionProjectors
             sec.Servers.Add(new DnsAmplificationSection.ServerRow
             {
                 Key = s.Key ?? string.Empty,
-                NameServerHost = string.IsNullOrWhiteSpace(nameServerHost) ? "-" : nameServerHost,
-                ServerIp = string.IsNullOrWhiteSpace(serverIp) ? "-" : serverIp,
+                // Explicit null coalescing: net472 nullable flow analysis doesn't treat IsNullOrWhiteSpace as a non-null guard.
+                NameServerHost = string.IsNullOrWhiteSpace(nameServerHost) ? "-" : (nameServerHost ?? "-"),
+                ServerIp = string.IsNullOrWhiteSpace(serverIp) ? "-" : (serverIp ?? "-"),
                 OpenRecursion = s.OpenRecursion,
                 EdnsSupported = s.EdnsSupported,
                 EdnsUdpPayloadSize = s.EdnsUdpPayloadSize,

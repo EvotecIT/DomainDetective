@@ -9,6 +9,27 @@ This document introduces a first-pass Desired State Configuration (DSC-like) lay
 
 ## PowerShell usage
 
+### Quick patterns
+
+```powershell
+# 1) Start from scratch (in-memory object)
+$Configuration = New-DDDesiredState
+$Configuration.Dmarc.Enabled = $true
+$Configuration.Dmarc.AllowedPolicies = @('reject')
+
+# 2) Load JSON (optional) and override values in memory
+$Configuration = New-DDDesiredState -LoadPath .\\desired-state.json
+$Configuration.Spf.MaxDnsLookups = 10
+
+# 3) DSL style (script block returns policies/overrides/config fragments)
+$Configuration = New-DDDesiredState {
+    New-DDDesiredStateSpf -Enabled $true -MaxDnsLookups 10
+    New-DDDesiredStateDmarc -Enabled $true -AllowedPolicies reject
+}
+
+Test-DDDesiredState -DomainName example.com -Configuration $Configuration
+```
+
 ### Test a domain against a JSON baseline
 
 ```powershell
