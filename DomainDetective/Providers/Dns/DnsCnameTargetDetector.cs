@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.Providers.Dns;
 
@@ -146,22 +147,7 @@ public static class DnsCnameTargetDetector
 
     private static bool IsDomainOrSubdomainOf(string host, string domain)
     {
-        if (host.Equals(domain, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (host.Length <= domain.Length)
-        {
-            return false;
-        }
-
-        if (!host.EndsWith(domain, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return host[host.Length - domain.Length - 1] == '.';
+        return DomainHelper.IsDomainOrSubdomainOf(host, domain);
     }
 }
 
