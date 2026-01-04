@@ -40,9 +40,13 @@ public static partial class DesiredStateEvaluator {
                 if (!string.Equals(a.Code, SmtpBannerCodes.VersionLeaked, StringComparison.OrdinalIgnoreCase)) continue;
 
                 var target = a.Target;
-                if (string.IsNullOrWhiteSpace(target)) continue;
+                // On net472 reference assemblies, string.IsNullOrWhiteSpace may not be nullable-annotated,
+                // so we guard explicitly to avoid CS8602.
+                if (target == null) continue;
+                var trimmed = target.Trim();
+                if (trimmed.Length == 0) continue;
 
-                versionLeakTargets.Add(target.Trim());
+                versionLeakTargets.Add(trimmed);
             }
         }
 

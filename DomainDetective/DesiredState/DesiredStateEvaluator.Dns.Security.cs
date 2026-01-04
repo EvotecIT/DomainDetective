@@ -377,11 +377,15 @@ public static partial class DesiredStateEvaluator {
             }
 
             var host = TryGetHost(value);
-            if (!string.IsNullOrWhiteSpace(host)) {
-                var normalized = host.Trim().Trim('.');
-                if (normalized.Length > 0) {
-                    set.Add(normalized);
-                }
+            // On net472 reference assemblies, string.IsNullOrWhiteSpace may not be nullable-annotated,
+            // so we guard explicitly to avoid CS8602.
+            if (host == null) {
+                continue;
+            }
+
+            var normalized = host.Trim().Trim('.');
+            if (normalized.Length > 0) {
+                set.Add(normalized);
             }
         }
 
