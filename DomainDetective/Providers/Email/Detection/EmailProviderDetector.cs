@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Helpers;
 
 namespace DomainDetective.Providers.Email;
 
@@ -34,7 +35,7 @@ public static class EmailProviderDetector
             // DKIM CNAME suffix matches (outbound senders/gateways often expose this).
             if (p.DkimCnameSuffixes.Any() && dkim.Any())
             {
-                bool anyCname = dkim.Any(c => p.DkimCnameSuffixes.Any(sfx => c.EndsWith(sfx, StringComparison.OrdinalIgnoreCase)));
+                bool anyCname = dkim.Any(c => p.DkimCnameSuffixes.Any(sfx => DomainHelper.IsDomainOrSubdomainOf(c, sfx)));
                 if (anyCname) { score += 0.25; }
             }
 
