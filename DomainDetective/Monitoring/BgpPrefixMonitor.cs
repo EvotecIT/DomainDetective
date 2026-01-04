@@ -122,7 +122,7 @@ public class BgpPrefixMonitor
             {
                 continue;
             }
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 #else
             using var stream = await response.Content.ReadAsStreamAsync().WaitWithCancellation(ct).ConfigureAwait(false);
