@@ -168,7 +168,7 @@ public class PortScanAnalysis : IHasAssessments
             cts.CancelAfter(Timeout);
             try
             {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 await client.ConnectAsync(address, port, cts.Token).ConfigureAwait(false);
 #else
                 await client.ConnectAsync(address, port).WaitWithCancellation(cts.Token).ConfigureAwait(false);
@@ -361,7 +361,7 @@ public class PortScanAnalysis : IHasAssessments
             cts.CancelAfter(TimeSpan.FromSeconds(1));
             try
             {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 await socket.ConnectAsync(addr, port, cts.Token).ConfigureAwait(false);
 #else
                 await socket.ConnectAsync(addr, port).WaitWithCancellation(cts.Token).ConfigureAwait(false);
