@@ -21,11 +21,7 @@ public class TlsAnalysis : IHasAssessments, IDisposable
 
     private static bool IsStrongProtocol(SslProtocols protocol)
     {
-#if NET8_0_OR_GREATER
-        return protocol == SslProtocols.Tls12 || protocol == SslProtocols.Tls13;
-#else
-        return protocol == SslProtocols.Tls12;
-#endif
+        return protocol == SslProtocols.Tls12 || (int)protocol == 12288;
     }
 
     public async Task AnalyzeServer(string host, int port, InternalLogger logger, CancellationToken cancellationToken = default)

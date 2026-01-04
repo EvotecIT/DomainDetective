@@ -275,7 +275,7 @@ public sealed class DnsAmplificationAnalysis : IHasAssessments
 
         await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(cts.Token).ConfigureAwait(false);
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         var res = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
         return res.Buffer;
 #else

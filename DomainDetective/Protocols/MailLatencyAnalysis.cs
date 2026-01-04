@@ -60,11 +60,7 @@ public class MailLatencyAnalysis : IHasAssessments {
         var sw = Stopwatch.StartNew();
         TimeSpan connectElapsed = TimeSpan.Zero;
         try {
-#if NET6_0_OR_GREATER
-            await client.ConnectAsync(host, port, cts.Token);
-#else
             await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
-#endif
             connectElapsed = sw.Elapsed;
             var bannerStart = sw.Elapsed;
             if (connectElapsed < TimeSpan.FromSeconds(1)) {
@@ -73,11 +69,7 @@ public class MailLatencyAnalysis : IHasAssessments {
             using NetworkStream network = client.GetStream();
             using var reader = new StreamReader(network);
             using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-#if NET8_0_OR_GREATER
-            var banner = await reader.ReadLineAsync(cts.Token);
-#else
             var banner = await reader.ReadLineAsync().WaitWithCancellation(cts.Token);
-#endif
             var bannerElapsed = sw.Elapsed;
             var bannerTime = bannerElapsed - bannerStart;
             if (banner != null && bannerTime < TimeSpan.FromSeconds(1)) {

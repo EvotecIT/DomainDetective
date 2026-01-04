@@ -40,12 +40,9 @@ public sealed class RdapClient
                 : BaseUrl;
             string file = Path.Combine(basePath, path + ".json");
             string json;
-#if NET8_0_OR_GREATER
-            json = await File.ReadAllTextAsync(file, ct).ConfigureAwait(false);
-#else
+            ct.ThrowIfCancellationRequested();
             json = File.ReadAllText(file);
-            await Task.Yield();
-#endif
+            ct.ThrowIfCancellationRequested();
             return JsonSerializer.Deserialize<T>(json, RdapJson.Options);
         }
 

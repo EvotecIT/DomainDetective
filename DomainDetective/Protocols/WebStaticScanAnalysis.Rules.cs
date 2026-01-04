@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Text.Json;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -121,7 +122,7 @@ public partial class WebStaticScanAnalysis
                     foreach (var rule in _techRules.Domains)
                     {
                         if (rule == null || string.IsNullOrEmpty(rule.Suffix) || string.IsNullOrEmpty(rule.Tech)) continue;
-                        if (dom.EndsWith(rule.Suffix, StringComparison.OrdinalIgnoreCase))
+                        if (DomainHelper.IsDomainOrSubdomainOf(dom, rule.Suffix))
                         {
                             TechDetections.Add(rule.Tech);
                         }

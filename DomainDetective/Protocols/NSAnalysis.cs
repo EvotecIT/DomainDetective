@@ -252,7 +252,7 @@ namespace DomainDetective {
                 using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
                 using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
                 using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
 #else
@@ -482,7 +482,7 @@ namespace DomainDetective {
                 new IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 2500;
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 2500);
             await udp.SendAsync(query, new IPEndPoint(server, 53));
@@ -641,13 +641,8 @@ namespace DomainDetective {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
                 var id = Helpers.DnsQueryIdGenerator.NextUShort();
                 var query = BuildQuery("example.com", id);
-#if NET8_0_OR_GREATER
-                await udp.SendAsync(query, server, 53, cts.Token);
-                var result = await udp.ReceiveAsync(cts.Token);
-#else
                 await udp.SendAsync(query, query.Length, server, 53).WaitWithCancellation(cts.Token);
                 var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
-#endif
                 var data = result.Buffer;
                 return data.Length > 3 && (data[3] & 0x80) != 0;
             } catch (OperationCanceledException) {

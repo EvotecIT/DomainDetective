@@ -78,7 +78,7 @@ public class PortAvailabilityAnalysis : IHasAssessments
         var sw = Stopwatch.StartNew();
         try
         {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         await client.ConnectAsync(host, port, cts.Token);
 #else
         await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);

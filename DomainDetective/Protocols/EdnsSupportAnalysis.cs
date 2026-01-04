@@ -320,37 +320,18 @@ public class EdnsSupportAnalysis : IHasAssessments
         } catch { /* best-effort */ }
         var query = BuildQuery("example.com", id, cookie);
         using var udpCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-#if NET8_0_OR_GREATER
-        await udp.SendAsync(query, host, port, udpCts.Token);
-        var resp = await udp.ReceiveAsync(udpCts.Token);
-#else
         await udp.SendAsync(query, query.Length, host, port).WaitWithCancellation(udpCts.Token);
         var resp = await udp.ReceiveAsync().WaitWithCancellation(udpCts.Token);
-#endif
         var data = resp.Buffer;
-        bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;
+        bool truncated = data.Length > 2 && (data[2] & 0x02) != 0;        
         if (truncated)
         {
             using var tcp = new TcpClient();
             using var tcpCts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
-#if NET6_0_OR_GREATER
-            await tcp.ConnectAsync(host, port, tcpCts.Token);
-#else
             await tcp.ConnectAsync(host, port).WaitWithCancellation(tcpCts.Token);
-#endif
             using var stream = tcp.GetStream();
             var len = (ushort)query.Length;
             var prefix = new byte[] { (byte)(len >> 8), (byte)(len & 0xFF) };
-#if NET8_0_OR_GREATER
-            await stream.WriteAsync(prefix, tcpCts.Token);
-            await stream.WriteAsync(query, tcpCts.Token);
-            await stream.FlushAsync(tcpCts.Token);
-            var buf = new byte[2];
-            if (await stream.ReadAsync(buf, tcpCts.Token) != 2)
-            {
-                return new EdnsSupportInfo { Supported = false };
-            }
-#else
             await stream.WriteAsync(prefix, 0, 2, tcpCts.Token);
             await stream.WriteAsync(query, 0, query.Length, tcpCts.Token);
             await stream.FlushAsync(tcpCts.Token);
@@ -359,17 +340,12 @@ public class EdnsSupportAnalysis : IHasAssessments
             {
                 return new EdnsSupportInfo { Supported = false };
             }
-#endif
             int respLen = buf[0] << 8 | buf[1];
             var respData = new byte[respLen];
             int received = 0;
             while (received < respLen)
             {
-#if NET8_0_OR_GREATER
-                var r = await stream.ReadAsync(respData.AsMemory(received, respLen - received), tcpCts.Token);
-#else
                 var r = await stream.ReadAsync(respData, received, respLen - received, tcpCts.Token);
-#endif
                 if (r == 0)
                 {
                     break;

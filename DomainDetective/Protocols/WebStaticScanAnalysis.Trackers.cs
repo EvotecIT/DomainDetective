@@ -1,4 +1,5 @@
 using System;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -18,31 +19,31 @@ public partial class WebStaticScanAnalysis
     {
         try
         {
-            var dom = GetRegistrableDomain?.Invoke(hostOrDomain) ?? hostOrDomain;
-            foreach (var t in _trackerDomains)
-            {
-                if (dom.EndsWith(t, StringComparison.OrdinalIgnoreCase)) return true;
+                var dom = GetRegistrableDomain?.Invoke(hostOrDomain) ?? hostOrDomain;
+                foreach (var t in _trackerDomains)
+                {
+                    if (DomainHelper.IsDomainOrSubdomainOf(dom, t)) return true;
+                }
             }
-        }
-        catch { }
+            catch { }
         return false;
     }
 
-    private static string? MapTrackerName(string registrableDomain)
+    private static string? MapTrackerName(string registrableDomain)       
     {
-        if (registrableDomain.EndsWith("googletagmanager.com", StringComparison.OrdinalIgnoreCase)) return "Google Tag Manager";
-        if (registrableDomain.EndsWith("google-analytics.com", StringComparison.OrdinalIgnoreCase)) return "Google Analytics";
-        if (registrableDomain.EndsWith("doubleclick.net", StringComparison.OrdinalIgnoreCase)) return "Google Ads/DoubleClick";
-        if (registrableDomain.EndsWith("googlesyndication.com", StringComparison.OrdinalIgnoreCase)) return "Google Ads";
-        if (registrableDomain.EndsWith("facebook.com", StringComparison.OrdinalIgnoreCase) || registrableDomain.EndsWith("facebook.net", StringComparison.OrdinalIgnoreCase)) return "Facebook Widgets";
-        if (registrableDomain.EndsWith("clarity.ms", StringComparison.OrdinalIgnoreCase)) return "Microsoft Clarity";
-        if (registrableDomain.EndsWith("hotjar.com", StringComparison.OrdinalIgnoreCase)) return "Hotjar";
-        if (registrableDomain.EndsWith("segment.io", StringComparison.OrdinalIgnoreCase)) return "Segment";
-        if (registrableDomain.EndsWith("mixpanel.com", StringComparison.OrdinalIgnoreCase)) return "Mixpanel";
-        if (registrableDomain.EndsWith("matomo.org", StringComparison.OrdinalIgnoreCase)) return "Matomo";
-        if (registrableDomain.EndsWith("optimizely.com", StringComparison.OrdinalIgnoreCase)) return "Optimizely";
-        if (registrableDomain.EndsWith("snowplowanalytics.com", StringComparison.OrdinalIgnoreCase)) return "Snowplow";
-        if (registrableDomain.EndsWith("newrelic.com", StringComparison.OrdinalIgnoreCase)) return "New Relic Browser";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "googletagmanager.com")) return "Google Tag Manager";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "google-analytics.com")) return "Google Analytics";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "doubleclick.net")) return "Google Ads/DoubleClick";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "googlesyndication.com")) return "Google Ads";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "facebook.com") || DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "facebook.net")) return "Facebook Widgets";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "clarity.ms")) return "Microsoft Clarity";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "hotjar.com")) return "Hotjar";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "segment.io")) return "Segment";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "mixpanel.com")) return "Mixpanel";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "matomo.org")) return "Matomo";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "optimizely.com")) return "Optimizely";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "snowplowanalytics.com")) return "Snowplow";
+        if (DomainHelper.IsDomainOrSubdomainOf(registrableDomain, "newrelic.com")) return "New Relic Browser";
         return null;
     }
 

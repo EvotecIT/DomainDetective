@@ -156,7 +156,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                         supports = true;
                         attempted = true;
                         tlsOk = true;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                         proto = ssl.SslProtocol.ToString();
 #endif
                         // Capture cipher/algorithms and certificate metadata
@@ -166,7 +166,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                         resultHashStrength = ssl.HashStrength;
                         resultKeyExAlg = ssl.KeyExchangeAlgorithm.ToString();
                         resultKeyExStrength = ssl.KeyExchangeStrength;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                         var nap = ssl.NegotiatedApplicationProtocol;
                         if (!nap.Protocol.IsEmpty) {
                             try { resultAlpn = System.Text.Encoding.ASCII.GetString(nap.Protocol.Span); } catch { }

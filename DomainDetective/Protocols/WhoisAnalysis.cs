@@ -521,12 +521,8 @@ public class WhoisAnalysis : IHasAssessments {
             response = await IanaQueryOverride(tld).ConfigureAwait(false);
         } else {
             try {
-#if NETSTANDARD2_0 || NET472
                 using var httpResponse = await SharedHttpClient.Instance.GetAsync($"https://www.iana.org/whois?q={tld}").ConfigureAwait(false);
                 response = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
-#else
-                response = await SharedHttpClient.Instance.GetStringAsync($"https://www.iana.org/whois?q={tld}").ConfigureAwait(false);
-#endif
             } catch (HttpRequestException) {
                 return null;
             }
@@ -689,7 +685,7 @@ public class WhoisAnalysis : IHasAssessments {
                 try
                 {
                     using var tcpClient = new TcpClient();
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     await tcpClient.ConnectAsync(host, port, ct).ConfigureAwait(false);
 #else
                     await tcpClient.ConnectAsync(host, port).WaitWithCancellation(ct).ConfigureAwait(false);
@@ -1537,19 +1533,15 @@ public class WhoisAnalysis : IHasAssessments {
         } else {
             var client = SharedHttpClient.Instance;
             try {
-#if NETSTANDARD2_0 || NET472
                 using var response = await client.GetAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode) {
                     // Gracefully ignore 404/NotFound and other non-success responses
                     return;
                 }
                 json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-#else
-                json = await client.GetStringAsync($"https://rdap.iana.org/domain/{domain}", cancellationToken).ConfigureAwait(false);
-#endif
             } catch (HttpRequestException ex) {
-                // Ignore IANA RDAP failures; WHOIS data may still be valid
-#if NET6_0_OR_GREATER
+                // Ignore IANA RDAP failures; WHOIS data may still be valid     
+#if NET8_0_OR_GREATER
                 if (ex.StatusCode.HasValue) {
                     return;
                 }

@@ -184,7 +184,7 @@ namespace DomainDetective {
 
             using var udp = new UdpClient(new IPEndPoint(server.AddressFamily == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = 4000;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             await udp.SendAsync(query, new IPEndPoint(server, 53));
             var res = await udp.ReceiveAsync(token);
             return res.Buffer;

@@ -155,13 +155,8 @@ public class OpenResolverAnalysis : IHasAssessments {
             var id = Helpers.DnsQueryIdGenerator.NextUShort();
             var query = BuildQuery("example.com", id);
             var sw = System.Diagnostics.Stopwatch.StartNew();
-#if NET8_0_OR_GREATER
-            await udp.SendAsync(query, server, port, cts.Token);
-            var result = await udp.ReceiveAsync(cts.Token);
-#else
             await udp.SendAsync(query, query.Length, server, port).WaitWithCancellation(cts.Token);
             var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
-#endif
             sw.Stop();
             var data = result.Buffer;
             ushort flags = data.Length > 3 ? (ushort)((data[2] << 8) | data[3]) : (ushort)0;

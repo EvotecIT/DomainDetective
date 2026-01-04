@@ -799,7 +799,7 @@ namespace DomainDetective {
                 }
 
                 Directory.CreateDirectory(cacheDir);
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 using var response = await _client.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 var xml = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

@@ -60,19 +60,11 @@ public class SmtpAuthAnalysis : IHasAssessments {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
-#if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, timeoutCts.Token);
-#else
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-#endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-#if NET8_0_OR_GREATER
-                await reader.ReadLineAsync(timeoutCts.Token);
-#else
                 await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync($"EHLO example.com");
 
@@ -110,13 +102,8 @@ public class SmtpAuthAnalysis : IHasAssessments {
                     }
                 }
 
-#if NET8_0_OR_GREATER
-                await writer.WriteLineAsync("QUIT".AsMemory(), timeoutCts.Token);
-                await writer.FlushAsync(timeoutCts.Token);
-#else
-                await writer.WriteLineAsync("QUIT");
-                await writer.FlushAsync();
-#endif
+                await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
                 try {
                     await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 } catch (IOException) {

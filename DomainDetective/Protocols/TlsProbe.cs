@@ -5,9 +5,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
-#if NET5_0_OR_GREATER
 using System.Security.Cryptography;
-#endif
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
@@ -111,13 +109,9 @@ public static class TlsProbe
 
         try
         {
-#if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(sniHost, null, SslProtocols.Tls13 | SslProtocols.Tls12, false).WaitWithCancellation(ct).ConfigureAwait(false);
-#else
             await ssl.AuthenticateAsClientAsync(sniHost).WaitWithCancellation(ct).ConfigureAwait(false);
-#endif
-#if NET6_0_OR_GREATER
-            result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
+#if NET8_0_OR_GREATER
+            result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();    
 #endif
             result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
         }
@@ -131,20 +125,12 @@ public static class TlsProbe
 
     private static async Task ConnectAsync(TcpClient client, string host, int port, CancellationToken cancellationToken)
     {
-#if NET6_0_OR_GREATER
-        await client.ConnectAsync(host, port, cancellationToken).ConfigureAwait(false);
-#else
         await client.ConnectAsync(host, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-#endif
     }
 
     private static async Task ConnectAsync(TcpClient client, IPAddress address, int port, CancellationToken cancellationToken)
     {
-#if NET6_0_OR_GREATER
-        await client.ConnectAsync(address, port, cancellationToken).ConfigureAwait(false);
-#else
         await client.ConnectAsync(address, port).WaitWithCancellation(cancellationToken).ConfigureAwait(false);
-#endif
     }
 
     private static void PopulateFromValidation(Result result, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors)
@@ -190,7 +176,7 @@ public static class TlsProbe
 
         try
         {
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             var san = result.Certificate.Extensions[SubjectAlternativeNameOid];
             if (san != null)
             {
