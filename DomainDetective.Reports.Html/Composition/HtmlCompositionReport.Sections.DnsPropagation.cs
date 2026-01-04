@@ -294,23 +294,19 @@ public static partial class HtmlCompositionReport
         return levels;
     }
 
-	    private static bool TryGetIso2Code(string? countryName, out string iso2)
-	    {
-	        iso2 = string.Empty;
-	        if (countryName == null)
-	        {
-	            return false;
-	        }
-	        var raw = countryName.Trim();
-	        if (raw.Length == 0)
-	        {
-	            return false;
-	        }
-	        if (raw.Length == 2 && raw.All(ch => char.IsLetter(ch)))
-	        {
-	            iso2 = raw.ToUpperInvariant();
-	            return true;
-	        }
+        private static bool TryGetIso2Code(string? countryName, out string iso2)
+        {
+            iso2 = string.Empty;
+            if (string.IsNullOrWhiteSpace(countryName))
+            {
+                return false;
+            }
+            var raw = countryName.Trim();
+            if (raw.Length == 2 && raw.All(ch => char.IsLetter(ch)))
+            {
+                iso2 = raw.ToUpperInvariant();
+                return true;
+            }
 
         // Known official/legacy names used by resolver datasets.
         if (TryGetIso2FromOverrides(raw, out iso2))
@@ -319,7 +315,7 @@ public static partial class HtmlCompositionReport
         }
 
         // Comma-qualified ISO names: often resolve to the prefix country name, but a few need explicit mapping.
-        if (raw.Contains(",", StringComparison.Ordinal))
+        if (raw.IndexOf(',') >= 0)
         {
             if (TryGetIso2FromCommaQualified(raw, out iso2))
             {

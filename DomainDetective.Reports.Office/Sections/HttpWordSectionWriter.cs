@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using OfficeIMO.Word;
 
@@ -48,8 +49,8 @@ public static class HttpWordSectionWriter
         var t = doc.AddTable(summaryRows.Count, 2, WordTableStyle.TableGrid);
         for (int i = 0; i < summaryRows.Count; i++)
         {
-            t.Rows[i].Cells[0].AddParagraph(summaryRows[i].Item1);
-            t.Rows[i].Cells[1].AddParagraph(summaryRows[i].Item2);
+            t.Rows[i].Cells[0].AddParagraph(summaryRows[i].Item1 ?? string.Empty);
+            t.Rows[i].Cells[1].AddParagraph(summaryRows[i].Item2 ?? string.Empty);
         }
 
         try
@@ -70,12 +71,12 @@ public static class HttpWordSectionWriter
         }
         catch
         {
+            Trace.WriteLine("HttpWordSectionWriter: failed to render redirect chain.");
         }
 
         string TrimValue(string? value, int max)
         {
-            if (value == null) return string.Empty;
-            if (value.Length == 0) return string.Empty;
+            if (string.IsNullOrEmpty(value)) return string.Empty;
             if (value.Length <= max) return value;
             return value.Substring(0, max) + " …";
         }
