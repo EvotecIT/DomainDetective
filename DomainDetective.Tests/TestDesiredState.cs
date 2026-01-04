@@ -229,6 +229,26 @@ public sealed class TestDesiredState {
     }
 
     [Fact]
+    public async Task Evaluate_DmarcRuaDomainSuffixMatch_IsCaseInsensitive() {
+        var health = new DomainHealthCheck();
+
+        var record = "v=DMARC1; p=reject; rua=mailto:agg@reports.dmarc.powermarc.com";
+        await health.CheckDMARC(record);
+
+        var profile = new DesiredStateProfile {
+            Dmarc = new DesiredStateDmarcPolicy {
+                AllowedReportDomainSuffixes = new[] { "DMARC.POWERMARC.COM" },
+                RequireRecord = true
+            }
+        };
+
+        var result = DesiredStateEvaluator.Evaluate("example.com", health, profile, MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.DoesNotContain(result.Assessments, a =>
+            string.Equals(a.Code, DesiredStateCodes.DmarcRuaDomainNotAllowed, StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Evaluate_DmarcInvalidRecordWhenRequired_AddsError() {
         var health = new DomainHealthCheck();
 

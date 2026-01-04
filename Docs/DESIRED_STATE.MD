@@ -404,6 +404,21 @@ Add a `$schema` field for editor IntelliSense:
 - `dmarc.allowedReportDomainSuffixes` enables vendor-specific baselining (for example: require `rua=` to use your hosted DMARC provider domain suffix).
 - `overrides.match.classifications` uses DomainDetective mail classification (Sending/Receiving/Parked) to pick different desired states per domain role.
 
+### Trust boundary (file paths)
+
+`DesiredStateConfiguration.Load(path)` reads JSON from the local filesystem and treats it as configuration input.
+
+- Do not load baselines from untrusted locations.
+- Avoid using user-controlled paths in automation without validation (treat `path` as a trust boundary).
+- DomainDetective enforces basic safety limits (file existence + size cap) but it does not sandbox configs.
+
+### Migration & performance notes
+
+- Schema is versioned via `version` (minimum supported is `1`). Future changes should remain backward compatible where possible.
+- Override resolution is order-based (later matching overrides win) and runs in O(number of overrides).
+- Domain pattern matching uses a bounded regex implementation with caching; avoid extremely large or highly-wildcarded patterns.
+- Mail classification is only required when your config uses `overrides.match.classifications` (DomainDetective will skip classification otherwise).
+
 ## Current scope
 
 The initial desired state evaluator covers:
