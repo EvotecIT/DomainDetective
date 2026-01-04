@@ -72,6 +72,8 @@ public static partial class SectionProjectors
 
         foreach (var e in endpoints.OrderByDescending(x => x.Supported).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
+            var nameServerHost = e.NameServerHost;
+            var serverIp = e.ServerIp;
             var protocol = e.Protocol;
             var cipherSuite = e.CipherSuite;
             var error = e.Error;
@@ -79,8 +81,8 @@ public static partial class SectionProjectors
             sec.Endpoints.Add(new DnsOverTlsSection.EndpointRow
             {
                 Key = e.Key ?? string.Empty,
-                NameServerHost = string.IsNullOrWhiteSpace(e.NameServerHost) ? "-" : e.NameServerHost,
-                ServerIp = string.IsNullOrWhiteSpace(e.ServerIp) ? "-" : e.ServerIp,
+                NameServerHost = string.IsNullOrWhiteSpace(nameServerHost) ? "-" : nameServerHost,
+                ServerIp = string.IsNullOrWhiteSpace(serverIp) ? "-" : serverIp,
                 Port = e.Port,
                 Supported = e.Supported,
                 Protocol = string.IsNullOrWhiteSpace(protocol) ? "-" : (protocol ?? "-"),
