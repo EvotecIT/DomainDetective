@@ -62,61 +62,69 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
         var wantsClassification = !NoClassification.IsPresent && config.RequiresMailClassification();
 
         async Task ProcessDomainAsync(string domain) {
-            var logger = new InternalLogger(false);
-            var internalLoggerPowerShell = new InternalLoggerPowerShell(
-                logger,
-                this.WriteVerbose,
-                this.WriteWarning,
-                this.WriteDebug,
-                this.WriteError,
-                this.WriteProgress,
-                this.WriteInformation);
-            internalLoggerPowerShell.ResetActivityIdCounter();
+            try {
+                var logger = new InternalLogger(false);
+                var internalLoggerPowerShell = new InternalLoggerPowerShell(
+                    logger,
+                    this.WriteVerbose,
+                    this.WriteWarning,
+                    this.WriteDebug,
+                    this.WriteError,
+                    this.WriteProgress,
+                    this.WriteInformation);
+                internalLoggerPowerShell.ResetActivityIdCounter();
 
-            var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
-            ApplyExecutionOptions(healthCheck);
+                var healthCheck = new DomainHealthCheck(DnsEndpoint, logger);
+                ApplyExecutionOptions(healthCheck);
 
-            DomainDetective.Definitions.MailDomainClassificationCategory? classification = null;
-            if (wantsClassification) {
-                var classifier = new MailDomainClassifier(healthCheck, logger);
-                var mc = await classifier.ClassifyAsync(domain, CancelToken);
-                classification = mc.Classification;
-            }
+                DomainDetective.Definitions.MailDomainClassificationCategory? classification = null;
+                if (wantsClassification) {
+                    var classifier = new MailDomainClassifier(healthCheck, logger);
+                    var mc = await classifier.ClassifyAsync(domain, CancelToken);
+                    classification = mc.Classification;
+                }
 
-            var profile = config.ResolveProfile(domain, classification);
-            var checks = DesiredStateConfiguration.GetRequiredChecks(profile);
+                var profile = config.ResolveProfile(domain, classification);
+                var checks = DesiredStateConfiguration.GetRequiredChecks(profile);
 
-            // If no checks are configured (and no policy modules are enabled), fall back to the standard defaults.
-            DomainDetective.HealthCheckType[]? toRun = checks.Length > 0 ? checks : null;
+                // If no checks are configured (and no policy modules are enabled), fall back to the standard defaults.
+                DomainDetective.HealthCheckType[]? toRun = checks.Length > 0 ? checks : null;
 
-            string[]? dkimSelectors = null;
-            if (profile.Dkim != null && profile.Dkim.Enabled != false && profile.Dkim.RequiredSelectors != null && profile.Dkim.RequiredSelectors.Length > 0) {
-                dkimSelectors = profile.Dkim.RequiredSelectors;
-                healthCheck.ExecutionOptions.IncludeMissingDkimSelectors = true;
-            }
+                string[]? dkimSelectors = null;
+                if (profile.Dkim != null && profile.Dkim.Enabled != false && profile.Dkim.RequiredSelectors != null && profile.Dkim.RequiredSelectors.Length > 0) {
+                    dkimSelectors = profile.Dkim.RequiredSelectors;
+                    healthCheck.ExecutionOptions.IncludeMissingDkimSelectors = true;
+                }
 
-            ServiceType[]? daneServiceTypes = null;
-            if (profile.Dane != null && profile.Dane.Enabled != false && profile.Dane.RequiredServices != null && profile.Dane.RequiredServices.Length > 0) {
-                daneServiceTypes = profile.Dane.RequiredServices;
-            }
+                ServiceType[]? daneServiceTypes = null;
+                if (profile.Dane != null && profile.Dane.Enabled != false && profile.Dane.RequiredServices != null && profile.Dane.RequiredServices.Length > 0) {
+                    daneServiceTypes = profile.Dane.RequiredServices;
+                }
 
-            if (profile.Bimi != null && profile.Bimi.Enabled != false && profile.Bimi.SkipIndicatorDownload == true) {
-                healthCheck.ExecutionOptions.SkipBimiIndicatorDownload = true;
-            }
+                if (profile.Bimi != null && profile.Bimi.Enabled != false && profile.Bimi.SkipIndicatorDownload == true) {
+                    healthCheck.ExecutionOptions.SkipBimiIndicatorDownload = true;
+                }
 
-            await healthCheck.Verify(
-                domain,
-                healthCheckTypes: toRun,
-                dkimSelectors: dkimSelectors,
-                daneServiceType: daneServiceTypes,
-                cancellationToken: CancelToken);
+                await healthCheck.Verify(
+                    domain,
+                    healthCheckTypes: toRun,
+                    dkimSelectors: dkimSelectors,
+                    daneServiceType: daneServiceTypes,
+                    cancellationToken: CancelToken);
 
-            var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification);
-            var view = DomainDetective.Views.Converters.Convert(desired);
-            WriteObject(view);
+                var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification);
+                var view = DomainDetective.Views.Converters.Convert(desired);
+                WriteObject(view);
 
-            if (IsExportRequested()) {
-                await ExportNotImplementedAsync("Test-DDDesiredState");
+                if (IsExportRequested()) {
+                    await ExportNotImplementedAsync("Test-DDDesiredState");
+                }
+            } catch (OperationCanceledException) {
+                throw;
+            } catch (PipelineStoppedException) {
+                throw;
+            } catch (Exception ex) {
+                WriteError(new ErrorRecord(ex, "DesiredStateDomainFailed", ErrorCategory.NotSpecified, domain));
             }
         }
 

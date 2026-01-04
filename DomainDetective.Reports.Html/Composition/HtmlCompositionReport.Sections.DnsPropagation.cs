@@ -297,12 +297,9 @@ public static partial class HtmlCompositionReport
         private static bool TryGetIso2Code(string? countryName, out string iso2)
         {
             iso2 = string.Empty;
-            // Explicit guards: on net472 the BCL string helpers may not be nullable-annotated for flow analysis.
-            if (countryName == null)
-            {
-                return false;
-            }
-            var raw = countryName.Trim();
+            // On net472 reference assemblies, nullable flow analysis can be stricter around BCL helpers.
+            // Coalesce to avoid any possible null dereference warnings.
+            var raw = (countryName ?? string.Empty).Trim();
             if (raw.Length == 0)
             {
                 return false;

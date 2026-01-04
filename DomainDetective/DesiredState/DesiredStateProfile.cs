@@ -487,6 +487,22 @@ internal static class WildcardMatcher {
     private static Regex? GetOrCreateRegex(string pattern) {
         if (pattern == null) return null;
 
+        // Basic complexity bounds to reduce pathological patterns and allocations.
+        // Domain wildcard patterns are typically short (<= 253 chars).
+        if (pattern.Length > 512) {
+            return null;
+        }
+        var wildcards = 0;
+        for (var i = 0; i < pattern.Length; i++) {
+            var ch = pattern[i];
+            if (ch == '*' || ch == '?') {
+                wildcards++;
+                if (wildcards > 128) {
+                    return null;
+                }
+            }
+        }
+
         lock (_cacheLock) {
             if (_regexCache.TryGetValue(pattern, out var cached)) {
                 Touch(pattern);

@@ -27,18 +27,34 @@ public sealed partial class DesiredStateConfiguration {
     public List<DesiredStateOverride> Overrides { get; set; } = new List<DesiredStateOverride>();
 
     public static DesiredStateConfiguration Load(string path) {
-        if (path == null) {
-            throw new ArgumentNullException(nameof(path));
-        }
-        if (path.Trim().Length == 0) {
+        if (string.IsNullOrWhiteSpace(path)) {
             throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
         }
+
         var fullPath = Path.GetFullPath(path);
-        var json = File.ReadAllText(fullPath, Encoding.UTF8);
-        var config = JsonSerializer.Deserialize<DesiredStateConfiguration>(json, JsonOptions.Default);
-        if (config == null) {
-            throw new InvalidOperationException($"Failed to deserialize desired state configuration from '{fullPath}'.");
+        if (!File.Exists(fullPath)) {
+            throw new FileNotFoundException($"Desired state configuration file not found: '{fullPath}'.", fullPath);
         }
+
+        // Safety: prevent accidental loading of huge files (can cause excessive allocations on deserialization).
+        // 10MB is far above typical configs while still being small enough to avoid accidental DoS.
+        const long maxBytes = 10L * 1024L * 1024L;
+        var fileInfo = new FileInfo(fullPath);
+        if (fileInfo.Length > maxBytes) {
+            throw new InvalidOperationException($"Desired state configuration file is too large ({fileInfo.Length} bytes > {maxBytes} bytes): '{fullPath}'.");
+        }
+
+        string json;
+        try {
+            json = File.ReadAllText(fullPath, Encoding.UTF8);
+        } catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException) {
+            throw new IOException($"Failed to read desired state configuration file: '{fullPath}'.", ex);
+        }
+
+        DesiredStateConfiguration config;
+        config = JsonSerializer.Deserialize<DesiredStateConfiguration>(json, JsonOptions.Default)
+                 ?? throw new InvalidOperationException($"Failed to deserialize desired state configuration from '{fullPath}'.");
+
         if (config.Version < 1) {
             throw new InvalidOperationException($"Desired state configuration version must be >= 1 (found {config.Version}) in '{fullPath}'.");
         }
@@ -63,10 +79,7 @@ public sealed partial class DesiredStateConfiguration {
     }
 
     public DesiredStateProfile ResolveProfile(string domain, MailDomainClassificationCategory? classification = null) {
-        if (domain == null) {
-            throw new ArgumentNullException(nameof(domain));
-        }
-        if (domain.Trim().Length == 0) {
+        if (string.IsNullOrWhiteSpace(domain)) {
             throw new ArgumentException("Domain cannot be empty or whitespace.", nameof(domain));
         }
 
