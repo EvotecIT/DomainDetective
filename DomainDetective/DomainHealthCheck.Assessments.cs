@@ -2,14 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-#if NET8_0_OR_GREATER
-using System.Diagnostics.CodeAnalysis;
-#endif
 
 namespace DomainDetective {
-#if NET8_0_OR_GREATER
-    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
-#endif
     public partial class DomainHealthCheck {
         /// <summary>
         /// Aggregated assessments collected from all analyses that expose them.

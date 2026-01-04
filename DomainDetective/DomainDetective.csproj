@@ -59,8 +59,15 @@
             OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
     <ItemGroup>
-        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v1.xsd" />
-        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v2.xsd" />
+        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v1.xsd" />  
+        <EmbeddedResource Include="Definitions\DmarcAggregateReport_v2.xsd" />  
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="DomainHealthCheck.Trim.cs" />
+    </ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == 'net8.0' ">
+        <Compile Include="DomainHealthCheck.Trim.cs" />
     </ItemGroup>
 
 </Project>
