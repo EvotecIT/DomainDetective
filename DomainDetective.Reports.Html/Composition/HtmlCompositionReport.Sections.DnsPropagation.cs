@@ -297,11 +297,16 @@ public static partial class HtmlCompositionReport
         private static bool TryGetIso2Code(string? countryName, out string iso2)
         {
             iso2 = string.Empty;
-            if (string.IsNullOrWhiteSpace(countryName))
+            // Explicit guards: on net472 the BCL string helpers may not be nullable-annotated for flow analysis.
+            if (countryName == null)
             {
                 return false;
             }
             var raw = countryName.Trim();
+            if (raw.Length == 0)
+            {
+                return false;
+            }
             if (raw.Length == 2 && raw.All(ch => char.IsLetter(ch)))
             {
                 iso2 = raw.ToUpperInvariant();
