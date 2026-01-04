@@ -40,11 +40,9 @@ public static partial class DesiredStateEvaluator {
                 if (!string.Equals(a.Code, SmtpBannerCodes.VersionLeaked, StringComparison.OrdinalIgnoreCase)) continue;
 
                 var target = a.Target;
-                if (target == null) continue;
-                target = target.Trim();
-                if (target.Length == 0) continue;
+                if (string.IsNullOrWhiteSpace(target)) continue;
 
-                versionLeakTargets.Add(target);
+                versionLeakTargets.Add(target.Trim());
             }
         }
 

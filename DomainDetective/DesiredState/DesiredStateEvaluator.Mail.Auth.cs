@@ -539,7 +539,7 @@ public static partial class DesiredStateEvaluator {
     private static void EvaluateDkim(string domain, DkimAnalysis dkim, DesiredStateDkimPolicy? desired, DesiredStateAnalysis sink) {
         if (desired == null || desired.Enabled == false) return;
 
-        var analysisResults = dkim.AnalysisResults;
+        var analysisResults = dkim.AnalysisResults ?? new Dictionary<string, DkimRecordAnalysis>(StringComparer.OrdinalIgnoreCase);
 
         var requiredSelectors = desired.RequiredSelectors?
             .Where(s => !string.IsNullOrWhiteSpace(s))

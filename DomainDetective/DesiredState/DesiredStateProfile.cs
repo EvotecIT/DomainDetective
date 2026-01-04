@@ -458,6 +458,12 @@ internal static class WildcardMatcher {
     private static readonly RegexOptions _options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
     private static readonly TimeSpan _timeout = TimeSpan.FromMilliseconds(250);
 
+    private const int CacheLimit = 256;
+    private static readonly object _cacheLock = new object();
+    private static readonly Dictionary<string, Regex> _regexCache = new Dictionary<string, Regex>(StringComparer.Ordinal);
+    private static readonly Dictionary<string, LinkedListNode<string>> _lruNodes = new Dictionary<string, LinkedListNode<string>>(StringComparer.Ordinal);
+    private static readonly LinkedList<string> _lru = new LinkedList<string>();
+
     public static bool IsMatch(string input, string pattern) {
         if (input == null || pattern == null) {
             return false;
@@ -466,21 +472,81 @@ internal static class WildcardMatcher {
             return true;
         }
 
-        string regex;
-        try {
-            regex = "^" + Regex.Escape(pattern)
-                .Replace("\\*", ".*")
-                .Replace("\\?", ".") + "$";
-        } catch (ArgumentException) {
+        var regex = GetOrCreateRegex(pattern);
+        if (regex == null) {
             return false;
         }
 
         try {
-            return Regex.IsMatch(input, regex, _options, _timeout);
+            return regex.IsMatch(input);
         } catch (RegexMatchTimeoutException) {
             return false;
-        } catch (ArgumentException) {
-            return false;
         }
+    }
+
+    private static Regex? GetOrCreateRegex(string pattern) {
+        if (pattern == null) return null;
+
+        lock (_cacheLock) {
+            if (_regexCache.TryGetValue(pattern, out var cached)) {
+                Touch(pattern);
+                return cached;
+            }
+        }
+
+        string regexText;
+        try {
+            regexText = "^" + Regex.Escape(pattern)
+                .Replace("\\*", ".*")
+                .Replace("\\?", ".") + "$";
+        } catch (ArgumentException) {
+            return null;
+        }
+
+        Regex created;
+        try {
+            created = new Regex(regexText, _options, _timeout);
+        } catch (ArgumentException) {
+            return null;
+        }
+
+        lock (_cacheLock) {
+            if (_regexCache.TryGetValue(pattern, out var existing)) {
+                Touch(pattern);
+                return existing;
+            }
+
+            _regexCache[pattern] = created;
+            Touch(pattern);
+
+            if (_regexCache.Count > CacheLimit) {
+                EvictLeastRecentlyUsed();
+            }
+        }
+        return created;
+    }
+
+    private static void Touch(string pattern) {
+        if (pattern == null) return;
+
+        if (_lruNodes.TryGetValue(pattern, out var node)) {
+            if (node.List != null) {
+                _lru.Remove(node);
+            }
+        } else {
+            node = new LinkedListNode<string>(pattern);
+            _lruNodes[pattern] = node;
+        }
+        _lru.AddFirst(node);
+    }
+
+    private static void EvictLeastRecentlyUsed() {
+        var last = _lru.Last;
+        if (last == null) return;
+
+        var key = last.Value;
+        _lru.RemoveLast();
+        _lruNodes.Remove(key);
+        _regexCache.Remove(key);
     }
 }
