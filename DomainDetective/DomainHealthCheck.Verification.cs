@@ -9,8 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
-using System.Linq.Expressions;
-using System.Globalization;
 using DomainDetective.Network;
 using DomainDetective.Helpers;
 
@@ -31,21 +29,7 @@ namespace DomainDetective {
         }
 
         private static string CreateServiceQuery(int port, string domain) {
-#if NET6_0_OR_GREATER
-            var portString = port.ToString(CultureInfo.InvariantCulture);
-            return string.Create(portString.Length + domain.Length + 7, (portString, domain), static (span, state) => {
-                var (digits, host) = state;
-                var pos = 0;
-                span[pos++] = '_';
-                digits.AsSpan().CopyTo(span[pos..]);
-                pos += digits.Length;
-                "._tcp.".AsSpan().CopyTo(span[pos..]);
-                pos += 6;
-                host.AsSpan().CopyTo(span[pos..]);
-            });
-#else
             return $"_{port}._tcp.{domain}";
-#endif
         }
 
         private static void ValidateServiceQueryProtocol(string query) {
@@ -544,21 +528,21 @@ namespace DomainDetective {
 
         private static readonly MethodInfo _cloneMethod = typeof(object).GetMethod(
                 "MemberwiseClone",
-                BindingFlags.Instance | BindingFlags.NonPublic) ??
-            throw new InvalidOperationException("Unable to locate MemberwiseClone method.");
+                BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Unable to locate MemberwiseClone method.");
 
-        private static class Cloner<T> where T : class {
-            internal static readonly Func<T, T> Delegate = CreateDelegate();
-
-            private static Func<T, T> CreateDelegate() {
-                ParameterExpression param = Expression.Parameter(typeof(T), "source");
-                UnaryExpression body = Expression.Convert(Expression.Call(param, _cloneMethod), typeof(T));
-                return Expression.Lambda<Func<T, T>>(body, param).Compile();
-            }
-        }
+        private static readonly Func<object, object> _cloneObject = CreateCloneDelegate();
 
         private static T CloneAnalysis<T>(T analysis) where T : class {
-            return analysis == null ? null! : Cloner<T>.Delegate(analysis);
+            return analysis == null ? null! : (T)_cloneObject(analysis);
+        }
+
+        private static Func<object, object> CreateCloneDelegate() {
+            try {
+                return (Func<object, object>)_cloneMethod.CreateDelegate(typeof(Func<object, object>));
+            } catch {
+                return source => _cloneMethod.Invoke(source, null) ?? throw new InvalidOperationException("MemberwiseClone returned null.");
+            }
         }
     }
 }

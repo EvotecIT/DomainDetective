@@ -1,4 +1,4 @@
-#if !NET6_0_OR_GREATER
+#if NET472
 using System;
 using System.Threading;
 using System.Threading.Tasks;

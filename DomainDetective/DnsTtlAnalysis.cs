@@ -158,7 +158,7 @@ namespace DomainDetective {
         private static async Task<byte[]?> QueryUdp(System.Net.IPAddress server, byte[] query, System.Threading.CancellationToken token, int timeoutMs) {
             using var udp = new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? System.Net.IPAddress.IPv6Any : System.Net.IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 4000;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             using var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 4000);
             await udp.SendAsync(query, new System.Net.IPEndPoint(server, 53));

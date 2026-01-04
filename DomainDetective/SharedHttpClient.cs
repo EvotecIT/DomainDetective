@@ -44,13 +44,9 @@ public sealed class SharedHttpClient : IHttpClientFactory
         {
             try
             {
-#if NETSTANDARD2_0 || NET472
                 using var response = await Instance.GetAsync(url, ct).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-#else
-                return await Instance.GetStringAsync(url, ct).ConfigureAwait(false);
-#endif
             }
             catch (Exception ex) when (ex is HttpRequestException || ex is IOException)
             {

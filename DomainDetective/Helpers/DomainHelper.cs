@@ -34,8 +34,8 @@ public static class DomainHelper {
             return false;
         }
 
-        var normalizedHost = (host ?? string.Empty).Trim().TrimEnd('.');
-        var normalizedDomain = (domain ?? string.Empty).Trim().Trim('.');
+        var normalizedHost = NormalizeForComparison(host);
+        var normalizedDomain = NormalizeForComparison(domain);
 
         if (normalizedHost.Length == 0 || normalizedDomain.Length == 0) {
             return false;
@@ -54,5 +54,17 @@ public static class DomainHelper {
         }
 
         return normalizedHost[normalizedHost.Length - normalizedDomain.Length - 1] == '.';
+    }
+
+    private static string NormalizeForComparison(string? value) {
+        var trimmed = (value ?? string.Empty).Trim().Trim('.');
+        if (trimmed.Length == 0) {
+            return string.Empty;
+        }
+        try {
+            return _idn.GetAscii(trimmed);
+        } catch {
+            return trimmed;
+        }
     }
 }
