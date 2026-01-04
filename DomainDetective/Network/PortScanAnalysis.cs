@@ -201,17 +201,6 @@ public class PortScanAnalysis : IHasAssessments
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
                     cts.CancelAfter(Timeout);
                     await udp.SendAsync(Array.Empty<byte>(), 0).ConfigureAwait(false);
-#if NET8_0_OR_GREATER
-                    try
-                    {
-                        var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
-                        udpOpen = result.Buffer.Length > 0;
-                    }
-                    catch
-                    {
-                        // ignore UDP receive failures
-                    }
-#else
                     var receiveTask = udp.ReceiveAsync();
                     try
                     {
@@ -222,7 +211,6 @@ public class PortScanAnalysis : IHasAssessments
                     {
                         // ignore UDP receive failures
                     }
-#endif
                 }
                 catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)
                 {
