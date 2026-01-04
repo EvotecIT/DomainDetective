@@ -78,28 +78,16 @@ public class STARTTLSAnalysis : IHasAssessments {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
-#if NET6_0_OR_GREATER
-                if (endPoint.AddressFamily == AddressFamily.Unspecified) {
-                    await client.ConnectAsync(host, port, timeoutCts.Token);
-                } else {
-                    await client.Client.ConnectAsync(endPoint, timeoutCts.Token);
-                }
-#else
                 if (endPoint.AddressFamily == AddressFamily.Unspecified) {
                     await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
                 } else {
                     await client.Client.ConnectAsync(endPoint).WaitWithCancellation(timeoutCts.Token);
                 }
-#endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
 
-#if NET8_0_OR_GREATER
-                var banner = await reader.ReadLineAsync(timeoutCts.Token);
-#else
                 var banner = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 bool bannerDowngrade = false;
                 if (banner == null || !banner.StartsWith("220")) {
@@ -162,12 +150,7 @@ public class STARTTLSAnalysis : IHasAssessments {
                     if (resp != null && resp.StartsWith("220")) {
                     try {
                         using var ssl = new System.Net.Security.SslStream(network, false, static (_, _, _, _) => true);
-#if NET8_0_OR_GREATER
-                        await ssl.AuthenticateAsClientAsync(host, null, System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12, false)
-                            .WaitWithCancellation(timeoutCts.Token);
-#else
                         await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-#endif
                         using var secureWriter = new StreamWriter(ssl) { AutoFlush = true, NewLine = "\r\n" };
                         await secureWriter.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
                         supports = true;
