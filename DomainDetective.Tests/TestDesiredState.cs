@@ -12,6 +12,152 @@ namespace DomainDetective.Tests;
 
 public sealed class TestDesiredState {
     [Fact]
+    public void Load_ThrowsWhenVersionLessThanOne() {
+        var json = @"{ ""version"": 0, ""defaults"": {} }";
+
+        var file = Path.GetTempFileName();
+        try {
+            File.WriteAllText(file, json);
+            Assert.Throws<InvalidOperationException>(() => DesiredStateConfiguration.Load(file));
+        } finally {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void Load_ThrowsOnMalformedJson() {
+        var json = @"{ ""version"": 1, ""defaults"": ";
+
+        var file = Path.GetTempFileName();
+        try {
+            File.WriteAllText(file, json);
+            Assert.ThrowsAny<System.Text.Json.JsonException>(() => DesiredStateConfiguration.Load(file));
+        } finally {
+            File.Delete(file);
+        }
+    }
+
+    [Fact]
+    public void ResolveProfile_AppliesMultipleOverridesInOrder_LastWins() {
+        var cfg = new DesiredStateConfiguration {
+            Defaults = new DesiredStateProfile {
+                Spf = new DesiredStateSpfPolicy {
+                    MaxDnsLookups = 10
+                }
+            },
+            Overrides = new List<DesiredStateOverride> {
+                new DesiredStateOverride {
+                    Match = new DesiredStateMatch {
+                        DomainPatterns = new[] { "*.example.com" }
+                    },
+                    Profile = new DesiredStateProfile {
+                        Spf = new DesiredStateSpfPolicy {
+                            MaxDnsLookups = 5
+                        }
+                    }
+                },
+                new DesiredStateOverride {
+                    Match = new DesiredStateMatch {
+                        DomainPatterns = new[] { "a.example.com" }
+                    },
+                    Profile = new DesiredStateProfile {
+                        Spf = new DesiredStateSpfPolicy {
+                            MaxDnsLookups = 3
+                        }
+                    }
+                }
+            }
+        };
+
+        var profile = cfg.ResolveProfile("a.example.com", classification: null);
+
+        Assert.NotNull(profile.Spf);
+        Assert.Equal(3, profile.Spf!.MaxDnsLookups);
+    }
+
+    [Fact]
+    public void ResolveProfile_DoesNotApplyClassificationOverrideWhenClassificationMissing() {
+        var cfg = new DesiredStateConfiguration {
+            Defaults = new DesiredStateProfile {
+                Spf = new DesiredStateSpfPolicy {
+                    RequireDenyAll = false
+                }
+            },
+            Overrides = new List<DesiredStateOverride> {
+                new DesiredStateOverride {
+                    Match = new DesiredStateMatch {
+                        DomainPatterns = new[] { "*.example.com" },
+                        Classifications = new[] { MailDomainClassificationCategory.Parked }
+                    },
+                    Profile = new DesiredStateProfile {
+                        Spf = new DesiredStateSpfPolicy {
+                            RequireDenyAll = true
+                        }
+                    }
+                }
+            }
+        };
+
+        var profile = cfg.ResolveProfile("a.example.com", classification: null);
+
+        Assert.NotNull(profile.Spf);
+        Assert.False(profile.Spf!.RequireDenyAll);
+    }
+
+    [Fact]
+    public void ResolveProfile_AppliesClassificationOverrideWhenClassificationMatches() {
+        var cfg = new DesiredStateConfiguration {
+            Defaults = new DesiredStateProfile {
+                Spf = new DesiredStateSpfPolicy {
+                    RequireDenyAll = false
+                }
+            },
+            Overrides = new List<DesiredStateOverride> {
+                new DesiredStateOverride {
+                    Match = new DesiredStateMatch {
+                        DomainPatterns = new[] { "*.example.com" },
+                        Classifications = new[] { MailDomainClassificationCategory.Parked }
+                    },
+                    Profile = new DesiredStateProfile {
+                        Spf = new DesiredStateSpfPolicy {
+                            RequireDenyAll = true
+                        }
+                    }
+                }
+            }
+        };
+
+        var profile = cfg.ResolveProfile("a.example.com", MailDomainClassificationCategory.Parked);
+
+        Assert.NotNull(profile.Spf);
+        Assert.True(profile.Spf!.RequireDenyAll);
+    }
+
+    [Fact]
+    public void ResolveProfile_MatchesWildcardPatternsCaseInsensitive() {
+        var cfg = new DesiredStateConfiguration {
+            Defaults = new DesiredStateProfile(),
+            Overrides = new List<DesiredStateOverride> {
+                new DesiredStateOverride {
+                    Match = new DesiredStateMatch {
+                        DomainPatterns = new[] { "*.ExAmPle.CoM" }
+                    },
+                    Profile = new DesiredStateProfile {
+                        Dmarc = new DesiredStateDmarcPolicy {
+                            RequireRua = true
+                        }
+                    }
+                }
+            }
+        };
+
+        var profile = cfg.ResolveProfile("a.example.com", MailDomainClassificationCategory.SendingAndReceiving);
+
+        Assert.NotNull(profile.Dmarc);
+        Assert.True(profile.Dmarc!.RequireRua == true);
+    }
+
+    [Fact]
     public void ResolveProfile_AppliesClassificationOverrideWithoutClobberingDefaults() {
         var json = @"
 {

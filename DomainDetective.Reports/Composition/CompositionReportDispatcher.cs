@@ -9,6 +9,8 @@ internal static class CompositionReportDispatcher
     private const string HtmlAssembly = "DomainDetective.Reports.Html";
     private const string HtmlReportType = "DomainDetective.Reports.Html.HtmlCompositionReport";
     private const string HtmlProfileType = "DomainDetective.Reports.Html.HtmlProfile";
+    private const string HtmlForgeXAssembly = "HtmlForgeX";
+    private const string HtmlThemeModeType = "HtmlForgeX.ThemeMode";
     private const string OfficeAssembly = "DomainDetective.Reports.Office";
     private const string WordReportType = "DomainDetective.Reports.Office.WordCompositionReport";
     private const string ExcelReportType = "DomainDetective.Reports.Office.ExcelCompositionReport";
@@ -133,6 +135,51 @@ internal static class CompositionReportDispatcher
             return false;
         }
         var profileValue = ParseEnum(profileType, request.HtmlProfile, "Document");
+
+        // vNext: includes ThemeMode; keep fallback for older signatures.
+        var themeType = GetType(HtmlThemeModeType, HtmlForgeXAssembly, out _);
+        if (themeType != null)
+        {
+            var methodWithTheme = reportType.GetMethod(
+                "Generate",
+                BindingFlags.Public | BindingFlags.Static,
+                null,
+                new[] {
+                    typeof(string),
+                    typeof(IReadOnlyList<object>),
+                    typeof(ReportScope),
+                    typeof(bool),
+                    typeof(NarrativePlacement),
+                    typeof(string),
+                    typeof(string),
+                    typeof(string),
+                    typeof(DomainOrder),
+                    typeof(SectionOrderMode),
+                    typeof(string[]),
+                    profileType,
+                    themeType
+                },
+                null);
+            if (methodWithTheme != null)
+            {
+                var themeValue = Enum.Parse(themeType, "Light", ignoreCase: true);
+                return Invoke(methodWithTheme, new object?[] {
+                    outputPath,
+                    items,
+                    request.Scope,
+                    request.OpenInBrowser,
+                    request.NarrativePlacement,
+                    request.Title,
+                    request.Creator,
+                    request.Subject,
+                    request.Ordering.DomainOrder,
+                    request.Ordering.SectionOrderMode,
+                    request.Ordering.SectionOrder,
+                    profileValue,
+                    themeValue
+                }, out error);
+            }
+        }
 
         var method = reportType.GetMethod(
             "Generate",

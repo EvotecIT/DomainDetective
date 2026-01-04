@@ -137,8 +137,9 @@ Describe 'Report ordering and composition (Pester)' {
         Test-Path -Path $reportPath | Should -BeTrue
 
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        $idxDomainB = $html.IndexOf('Mail & DNS - b.example')
-        $idxDomainA = $html.IndexOf('Mail & DNS - a.example')
+        # In HTML output, '&' is encoded as '&amp;'
+        $idxDomainB = $html.IndexOf('Mail &amp; DNS - b.example')
+        $idxDomainA = $html.IndexOf('Mail &amp; DNS - a.example')
         $idxDomainB | Should -BeGreaterThan -1
         $idxDomainA | Should -BeGreaterThan -1
         $idxDomainB | Should -BeLessThan $idxDomainA
@@ -180,7 +181,8 @@ Describe 'Report ordering and composition (Pester)' {
 
         Test-Path -Path $reportPath | Should -BeTrue
         $html = Get-Content -Path $reportPath -Raw -Encoding UTF8
-        $html | Should -Match 'Mail & DNS - example.com'
+        # In HTML output, '&' is encoded as '&amp;'
+        $html | Should -Match 'Mail &amp; DNS - example.com'
         $html | Should -Match 'MX \(Mail Exchanger\)'
         $html | Should -Match 'SPF \(Sender Policy Framework\)'
     }

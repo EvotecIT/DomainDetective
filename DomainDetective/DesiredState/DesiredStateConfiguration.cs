@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DomainDetective.Definitions;
@@ -33,7 +34,7 @@ public sealed partial class DesiredStateConfiguration {
             throw new ArgumentException("Path cannot be empty or whitespace.", nameof(path));
         }
         var fullPath = Path.GetFullPath(path);
-        var json = File.ReadAllText(fullPath);
+        var json = File.ReadAllText(fullPath, Encoding.UTF8);
         var config = JsonSerializer.Deserialize<DesiredStateConfiguration>(json, JsonOptions.Default);
         if (config == null) {
             throw new InvalidOperationException($"Failed to deserialize desired state configuration from '{fullPath}'.");

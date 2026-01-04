@@ -105,6 +105,35 @@ $cfg.Defaults.Dmarc.AllowedReportDomainSuffixes = @('dmarc.powermarc.com')
 Test-DDDesiredState -DomainName example.com -Configuration $cfg
 ```
 
+### Load JSON and apply a DSL overlay (recommended for sharing baselines)
+
+This pattern lets you start from a shared JSON baseline and then apply local organization/team tweaks in PowerShell without editing the JSON.
+
+```powershell
+$cfg = New-DDDesiredState -LoadPath .\desired-state.json {
+    # Override / extend defaults
+    New-DDDesiredStateDmarc -AllowedReportDomainSuffixes dmarc.powermarc.com
+
+    # Add a domain/classification-specific override
+    New-DDDesiredStateOverride -DomainPatterns '*.example.com' -Classifications Parked {
+        New-DDDesiredStateSpf -RequireDenyAll $true
+        New-DDDesiredStateDmarc -RequireRua $false
+    }
+}
+
+Test-DDDesiredState -DomainName example.com -Configuration $cfg
+```
+
+### How DSL output is applied
+
+`New-DDDesiredState { ... }` can return:
+
+- `DesiredStateProfile` objects (applied to `defaults`)
+- `DesiredStateOverride` objects (added to `overrides`)
+- `DesiredStateConfiguration` objects (merged: `defaults` applied, `overrides` appended)
+
+Overrides are evaluated in order; if multiple overrides match a domain, later overrides win for overlapping settings.
+
 ### Export configuration to JSON
 
 There is no dedicated export cmdlet yet; you can serialize the in-memory configuration using the same serializer settings as DomainDetective:
