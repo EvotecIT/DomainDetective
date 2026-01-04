@@ -108,7 +108,12 @@ jobs:
         if: matrix.framework == 'net472'
         run: dotnet build DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-restore
 
-      - name: Run tests (DomainDetective.Tests)
+      - name: Run tests (DomainDetective.Tests) (net472)
+        if: matrix.framework == 'net472'
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --filter "FullyQualifiedName!~DomainDetective.Tests.TestDnssecRecordValidation"
+
+      - name: Run tests (DomainDetective.Tests) (net8.0)
+        if: matrix.framework != 'net472'
         run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Run tests (DomainDetective.CLI.Tests)
