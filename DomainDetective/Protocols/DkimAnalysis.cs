@@ -595,7 +595,7 @@ namespace DomainDetective {
             var d = name!.Trim('.');
             foreach (var (suffix, provider) in _providerSuffixes)
             {
-                if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return provider;
+                if (DomainHelper.IsDomainOrSubdomainOf(d, suffix)) return provider;
             }
             return null;
         }
