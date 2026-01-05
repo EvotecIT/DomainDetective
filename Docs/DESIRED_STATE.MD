@@ -36,6 +36,18 @@ Test-DDDesiredState -DomainName example.com -Configuration $Configuration
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json
 ```
 
+To make evaluation failures fail fast (useful in development), add:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -FailFast
+```
+
+To log evaluation exceptions as errors instead of warnings, add:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -LogEvaluationErrorsAsErrors
+```
+
 ### Build a baseline in PowerShell (DSL) and test without JSON
 
 `New-DDDesiredState` supports a PowerShell DSL (script block) that returns desired-state fragments (profiles/overrides).

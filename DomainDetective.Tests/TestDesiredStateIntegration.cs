@@ -81,7 +81,7 @@ Test-DDDesiredState -DomainName '{domain}' -Configuration $cfg
             Overrides = new System.Collections.Generic.List<DesiredStateOverride> {
                 new DesiredStateOverride {
                     Match = new DesiredStateMatch {
-                        DomainPatterns = new[] { $"*.{domain}" },
+                        DomainPatterns = new[] { domain },
                         Classifications = new[] { classificationResult.Classification }
                     },
                     Profile = new DesiredStateProfile {

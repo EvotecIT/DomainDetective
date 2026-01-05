@@ -45,6 +45,14 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter NoClassification { get; set; }
 
+    /// <para>When set, throws on evaluation exceptions instead of logging and continuing.</para>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter FailFast { get; set; }
+
+    /// <para>When set, logs evaluation exceptions as errors instead of warnings.</para>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter LogEvaluationErrorsAsErrors { get; set; }
+
     /// <summary>Executes desired state evaluation for each domain.</summary>
     protected override async Task ProcessRecordAsync() {
         DesiredStateConfiguration config;
@@ -112,7 +120,10 @@ public sealed class CmdletTestDesiredState : ExportableAsyncPSCmdlet {
                     daneServiceType: daneServiceTypes,
                     cancellationToken: CancelToken);
 
-                var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification);
+                var desired = DesiredStateEvaluator.Evaluate(domain, healthCheck, profile, classification, new DesiredStateEvaluationOptions {
+                    ThrowOnError = FailFast.IsPresent,
+                    LogExceptionsAsErrors = LogEvaluationErrorsAsErrors.IsPresent
+                });
                 var view = DomainDetective.Views.Converters.Convert(desired);
                 WriteObject(view);
 
