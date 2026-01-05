@@ -70,11 +70,7 @@ namespace DomainDetective {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
-#if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, timeoutCts.Token);
-#else
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-#endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
@@ -89,14 +85,9 @@ namespace DomainDetective {
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 await writer.WriteLineAsync("RCPT TO:<test@example.org>");
                 var rcptResp = await ReadResponseAsync(reader, timeoutCts.Token);
-#if NET8_0_OR_GREATER
-                await writer.WriteLineAsync("QUIT".AsMemory(), timeoutCts.Token);
-                await writer.FlushAsync(timeoutCts.Token);
-#else
-                await writer.WriteLineAsync("QUIT");
-                await writer.FlushAsync();
-#endif
-                await ReadResponseAsync(reader, timeoutCts.Token);
+                await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+                await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+                await ReadResponseAsync(reader, timeoutCts.Token);        
 
                 logger.WriteVerbose($"MAIL FROM response: {mailResp}");
                 logger.WriteVerbose($"RCPT TO response: {rcptResp}");
@@ -129,11 +120,7 @@ namespace DomainDetective {
         /// Reads a line from the SMTP server until the final response is received.
         /// </summary>
         private static async Task<string?> ReadResponseAsync(StreamReader reader, CancellationToken token) {
-#if NET8_0_OR_GREATER
-            string? line = await reader.ReadLineAsync(token);
-#else
             string? line = await reader.ReadLineAsync().WaitWithCancellation(token);
-#endif
             if (line == null) {
                 return null;
             }
@@ -142,11 +129,7 @@ namespace DomainDetective {
             string? lastLine = line;
 
             while (line.Length >= 4 && line[3] == '-') {
-#if NET8_0_OR_GREATER
-                line = await reader.ReadLineAsync(token);
-#else
                 line = await reader.ReadLineAsync().WaitWithCancellation(token);
-#endif
                 if (line == null) {
                     break;
                 }

@@ -69,17 +69,22 @@ public static partial class SectionProjectors
 
         foreach (var s in servers.OrderByDescending(x => x.WorstProbeResponseBytes).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
+            var nameServerHost = s.NameServerHost;
+            var serverIp = s.ServerIp;
+            var worstProbeName = s.WorstProbeName;
+
             sec.Servers.Add(new DnsAmplificationSection.ServerRow
             {
                 Key = s.Key ?? string.Empty,
-                NameServerHost = string.IsNullOrWhiteSpace(s.NameServerHost) ? "-" : s.NameServerHost,
-                ServerIp = string.IsNullOrWhiteSpace(s.ServerIp) ? "-" : s.ServerIp,
+                // Explicit null coalescing: net472 nullable flow analysis doesn't treat IsNullOrWhiteSpace as a non-null guard.
+                NameServerHost = string.IsNullOrWhiteSpace(nameServerHost) ? "-" : (nameServerHost ?? "-"),
+                ServerIp = string.IsNullOrWhiteSpace(serverIp) ? "-" : (serverIp ?? "-"),
                 OpenRecursion = s.OpenRecursion,
                 EdnsSupported = s.EdnsSupported,
                 EdnsUdpPayloadSize = s.EdnsUdpPayloadSize,
                 EdnsTruncatedUdp = s.EdnsTruncatedUdp,
                 WorstProbeType = s.WorstProbeType?.ToString() ?? "-",
-                WorstProbeName = string.IsNullOrWhiteSpace(s.WorstProbeName) ? "-" : s.WorstProbeName,
+                WorstProbeName = string.IsNullOrWhiteSpace(worstProbeName) ? "-" : (worstProbeName ?? "-"),
                 WorstProbeResponseBytes = s.WorstProbeResponseBytes,
                 WorstProbeTruncated = s.WorstProbeTruncated,
                 WorstProbeAmplificationFactor = s.WorstProbeAmplificationFactor
@@ -115,4 +120,3 @@ public static partial class SectionProjectors
         return sec;
     }
 }
-

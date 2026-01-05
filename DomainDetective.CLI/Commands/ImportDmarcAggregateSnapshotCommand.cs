@@ -23,7 +23,7 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
 
     /// <summary>Root directory for snapshot storage.</summary>
     [Description("Root directory for snapshot storage.")]
-    [CommandOption("--store|--store-path")]
+    [CommandOption("--store|--store-path <PATH>")]
     public string StorePath { get; set; } = string.Empty;
 
     /// <summary>Disable in-run deduplication (by report-id/date-range/org/domain).</summary>
@@ -39,12 +39,12 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
     // IMAP mode
     /// <summary>IMAP host used for mailbox ingestion.</summary>
     [Description("IMAP host used for mailbox ingestion.")]
-    [CommandOption("--imap-host")]
+    [CommandOption("--imap-host <HOST>")]
     public string? ImapHost { get; set; }
 
     /// <summary>IMAP port (default 993).</summary>
     [Description("IMAP port (default 993).")]
-    [CommandOption("--imap-port")]
+    [CommandOption("--imap-port <PORT>")]
     [DefaultValue(993)]
     public int ImapPort { get; set; } = 993;
 
@@ -55,44 +55,44 @@ internal sealed class ImportDmarcAggregateSnapshotSettings : CommandSettings {
 
     /// <summary>IMAP username.</summary>
     [Description("IMAP username.")]
-    [CommandOption("--imap-user")]
+    [CommandOption("--imap-user <USER>")]
     public string? ImapUser { get; set; }
 
     /// <summary>IMAP password (deprecated; prefer --imap-password-env or prompt).</summary>
     [Description("IMAP password (deprecated; prefer --imap-password-env or prompt).")]
-    [CommandOption("--imap-password")]
+    [CommandOption("--imap-password <PASSWORD>")]
     public string? ImapPassword { get; set; }
 
     /// <summary>Environment variable name containing IMAP password.</summary>
     [Description("Environment variable name containing IMAP password.")]
-    [CommandOption("--imap-password-env")]
+    [CommandOption("--imap-password-env <ENVVAR>")]
     public string? ImapPasswordEnv { get; set; }
 
     /// <summary>Mailbox folder name (default INBOX).</summary>
     [Description("Mailbox folder name (default INBOX).")]
-    [CommandOption("--mailbox")]
+    [CommandOption("--mailbox <NAME>")]
     [DefaultValue("INBOX")]
     public string Mailbox { get; set; } = "INBOX";
 
     /// <summary>Only scan messages with a subject containing this string (IMAP mode).</summary>
     [Description("Only scan messages with a subject containing this string (IMAP mode).")]
-    [CommandOption("--imap-subject-contains")]
+    [CommandOption("--imap-subject-contains <TEXT>")]
     public string? ImapSubjectContains { get; set; }
 
     /// <summary>Only fetch messages delivered since this UTC date/time.</summary>
     [Description("Only fetch messages delivered since this UTC date/time.")]
-    [CommandOption("--since-utc")]
+    [CommandOption("--since-utc <UTC>")]
     public DateTime? SinceUtc { get; set; }
 
     /// <summary>Maximum number of messages to scan (default 500).</summary>
     [Description("Maximum number of messages to scan (default 500).")]
-    [CommandOption("--max-messages")]
+    [CommandOption("--max-messages <N>")]
     [DefaultValue(500)]
     public int MaxMessages { get; set; } = 500;
 
     /// <summary>Maximum attachment size to decode in MB (0 for unlimited).</summary>
     [Description("Maximum attachment size to decode in MB (0 for unlimited).")]
-    [CommandOption("--max-attachment-mb")]
+    [CommandOption("--max-attachment-mb <MB>")]
     [DefaultValue(50)]
     public int MaxAttachmentMb { get; set; } = 50;
 

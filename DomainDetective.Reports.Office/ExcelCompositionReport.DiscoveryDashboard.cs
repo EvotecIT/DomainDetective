@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NET8_0
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
-#endif
 using DomainDetective.Providers.Dns;
 using DomainDetective.Providers.Email;
 
@@ -12,7 +10,6 @@ namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-#if NET8_0
     private sealed class DiscoveryOverviewRow
     {
         public string Domain { get; init; } = string.Empty;
@@ -385,5 +382,4 @@ public static partial class ExcelCompositionReport
 
         sheet.Finish(autoFitColumns: true);
     }
-#endif
 }

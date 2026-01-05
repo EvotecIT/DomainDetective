@@ -33,7 +33,9 @@ public static class DnsPropagationWordSectionWriter
 
         string TrimValue(string? value, int max)
         {
-            if (string.IsNullOrEmpty(value)) return string.Empty;
+            // Explicit guards (net472 nullable flow analysis doesn't treat IsNullOrEmpty as a guard).
+            if (value == null) return string.Empty;
+            if (value.Length == 0) return string.Empty;
             if (value.Length <= max) return value;
             return value.Substring(0, max) + " …";
         }
@@ -51,13 +53,13 @@ public static class DnsPropagationWordSectionWriter
             }
 
             headings.AddItem("Summary", baseLevel + 1);
-            var summaryRows = sec.Summary.Count > 0 ? sec.Summary : new List<(string, string)> { ("Status", sec.Status) };
-            var st = doc.AddTable(summaryRows.Count, 2, WordTableStyle.TableGrid);
-            for (int i = 0; i < summaryRows.Count; i++)
-            {
-                st.Rows[i].Cells[0].AddParagraph(summaryRows[i].Item1);
-                st.Rows[i].Cells[1].AddParagraph(summaryRows[i].Item2);
-            }
+	            var summaryRows = sec.Summary.Count > 0 ? sec.Summary : new List<(string, string)> { ("Status", sec.Status) };
+	            var st = doc.AddTable(summaryRows.Count, 2, WordTableStyle.TableGrid);
+	            for (int i = 0; i < summaryRows.Count; i++)
+	            {
+	                st.Rows[i].Cells[0].AddParagraph(summaryRows[i].Item1 ?? string.Empty);
+	                st.Rows[i].Cells[1].AddParagraph(summaryRows[i].Item2 ?? string.Empty);
+	            }
 
             if (sec.AnswerSets.Count > 0)
             {
@@ -184,4 +186,3 @@ public static class DnsPropagationWordSectionWriter
         }
     }
 }
-

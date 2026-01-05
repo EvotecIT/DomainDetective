@@ -28,21 +28,21 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         public string Domain { get; set; } = string.Empty;
         
         [Description("Report output (html, json, word, excel, pdf, markdown, markdownhtml)")]
-        [CommandOption("-f|--format|--report")]
+        [CommandOption("-f|--format|--report <FORMAT>")]
         [DefaultValue("html")]
         public string Format { get; set; } = "html";
         
         [Description("Output file path")]
-        [CommandOption("-o|--output")]
+        [CommandOption("-o|--output <PATH>")]
         public string? OutputPath { get; set; }
         
         [Description("Report template (default, executive, technical, compliance)")]
-        [CommandOption("-t|--template")]
+        [CommandOption("-t|--template <TEMPLATE>")]
         [DefaultValue("default")]
         public string Template { get; set; } = "default";
         
         [Description("Report theme (light, dark, professional)")]
-        [CommandOption("--theme")]
+        [CommandOption("--theme <THEME>")]
         [DefaultValue("light")]
         public string Theme { get; set; } = "light";
         
@@ -62,7 +62,7 @@ internal sealed class GenerateReportCommand : AsyncCommand<GenerateReportCommand
         public bool IncludeRecommendations { get; set; } = true;
 
         [Description("Optional time-series store root path (adds DMARC Aggregate / TLS-RPT Reports / Registration drift sections when available)")]
-        [CommandOption("--store|--store-path")]
+        [CommandOption("--store|--store-path <PATH>")]
         public string? StorePath { get; set; }
 
         [Description("Include authoritative DNS trace section (can be slow)")]

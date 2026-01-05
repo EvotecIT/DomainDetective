@@ -653,8 +653,10 @@ namespace DomainDetective {
             var d = domain!.Trim('.');
             foreach (var (suffix, provider) in _providerSuffixes)
             {
-                if (d.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                if (DomainHelper.IsDomainOrSubdomainOf(d, suffix))
+                {
                     return provider;
+                }
             }
             return null;
         }

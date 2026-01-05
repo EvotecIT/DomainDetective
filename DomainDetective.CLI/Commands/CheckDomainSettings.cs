@@ -13,7 +13,7 @@ internal sealed class CheckDomainSettings : CommandSettings {
     public string[] Domains { get; set; } = Array.Empty<string>();
 
     /// <summary>Comma separated list of checks.</summary>
-    [CommandOption("--checks")]
+    [CommandOption("--checks <CHECKS>")]
     public string[] Checks { get; set; } = Array.Empty<string>();
 
     /// <summary>Perform plain HTTP check.</summary>
@@ -49,19 +49,19 @@ internal sealed class CheckDomainSettings : CommandSettings {
     public bool SubdomainPolicy { get; set; }
 
     /// <summary>Comma separated list of ports for DANE checks.</summary>
-    [CommandOption("--dane-ports")]
+    [CommandOption("--dane-ports <PORTS>")]
     public string? DanePorts { get; set; }
 
     /// <summary>Comma separated list of port scan profiles.</summary>
-    [CommandOption("--port-profiles")]
+    [CommandOption("--port-profiles <PROFILES>")]
     public string? PortProfiles { get; set; }
 
     /// <summary>Path to S/MIME certificate.</summary>
-    [CommandOption("--smime")]
+    [CommandOption("--smime <PATH>")]
     public FileInfo? Smime { get; set; }
 
     /// <summary>Path to certificate to analyze.</summary>
-    [CommandOption("--cert")]
+    [CommandOption("--cert <PATH>")]
     public FileInfo? Cert { get; set; }
 
     /// <summary>Suppress progress output.</summary>
@@ -74,39 +74,39 @@ internal sealed class CheckDomainSettings : CommandSettings {
 
     // Static web scan options
     /// <summary>Run a static (no-browser) web scan for a specific URL.</summary>
-    [CommandOption("--webscan-static")]
+    [CommandOption("--webscan-static <URL>")]
     public string? WebScanStatic { get; set; }
     /// <summary>Alias for --webscan-static.</summary>
-    [CommandOption("--webscan")]
+    [CommandOption("--webscan <URL>")]
     public string? WebScan { get; set; }
 
     /// <summary>Time budget for web scan in seconds (default 30).</summary>
-    [CommandOption("--webscan-max-seconds")]
+    [CommandOption("--webscan-max-seconds <SECONDS>")]
     public int WebScanMaxSeconds { get; set; } = 30;
 
     /// <summary>Maximum number of resources to fetch (default 300).</summary>
-    [CommandOption("--webscan-max-resources")]
+    [CommandOption("--webscan-max-resources <N>")]
     public int WebScanMaxResources { get; set; } = 300;
 
     /// <summary>Optional path to tech-detection rules JSON file.</summary>
-    [CommandOption("--techrules")]
+    [CommandOption("--techrules <PATH>")]
     public string? TechRules { get; set; }
 
     // Concurrency tuning for static web scan
     /// <summary>Max parallel discovery (HEAD/GET) requests; 0 defers to default.</summary>
-    [CommandOption("--webscan-discovery-threads")]
+    [CommandOption("--webscan-discovery-threads <N>")]
     public int WebScanDiscoveryThreads { get; set; } = 0;
 
     /// <summary>Max parallel CSS fetch/parse threads; 0 defers to default.</summary>
-    [CommandOption("--webscan-css-threads")]
+    [CommandOption("--webscan-css-threads <N>")]
     public int WebScanCssThreads { get; set; } = 0;
 
     /// <summary>Max parallel TLS probes; 0 defers to default.</summary>
-    [CommandOption("--webscan-tls-threads")]
+    [CommandOption("--webscan-tls-threads <N>")]
     public int WebScanTlsThreads { get; set; } = 0;
 
     /// <summary>Max parallel DNS/RDAP enrichments; 0 defers to default.</summary>
-    [CommandOption("--webscan-dns-threads")]
+    [CommandOption("--webscan-dns-threads <N>")]
     public int WebScanDnsThreads { get; set; } = 0;
 
     /// <summary>Respect robots.txt Disallow/Allow rules during discovery.</summary>
@@ -123,11 +123,11 @@ internal sealed class CheckDomainSettings : CommandSettings {
     public bool WebScanFollowLinks { get; set; }
 
     /// <summary>Maximum link depth to follow.</summary>
-    [CommandOption("--webscan-link-max-depth")]
+    [CommandOption("--webscan-link-max-depth <N>")]
     public int WebScanLinkMaxDepth { get; set; } = 0;
 
     /// <summary>Maximum number of link pages to check.</summary>
-    [CommandOption("--webscan-link-max-pages")]
+    [CommandOption("--webscan-link-max-pages <N>")]
     public int WebScanLinkMaxPages { get; set; } = 100;
 
     /// <summary>Restrict link checking to first-party only.</summary>
@@ -135,7 +135,7 @@ internal sealed class CheckDomainSettings : CommandSettings {
     public bool WebScanLinkFirstPartyOnly { get; set; }
 
     /// <summary>Parallel threads for link checks; 0 defers to discovery threads.</summary>
-    [CommandOption("--webscan-link-threads")]
+    [CommandOption("--webscan-link-threads <N>")]
     public int WebScanLinkThreads { get; set; } = 0;
 
     /// <summary>Link-only mode: skip static resource discovery and only check links.</summary>

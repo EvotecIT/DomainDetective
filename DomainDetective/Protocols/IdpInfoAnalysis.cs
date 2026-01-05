@@ -40,7 +40,7 @@ public class IdpInfoAnalysis : IHasAssessments
                 using var resp = await SharedHttpClient.Instance.GetAsync(url, ct).ConfigureAwait(false);
                 if (!resp.IsSuccessStatusCode) continue;
                 System.IO.Stream stream;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 stream = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 #else
                 stream = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -79,7 +79,7 @@ public class IdpInfoAnalysis : IHasAssessments
             if (resp.IsSuccessStatusCode)
             {
                 System.IO.Stream stream2;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 stream2 = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 #else
                 stream2 = await resp.Content.ReadAsStreamAsync().ConfigureAwait(false);

@@ -21,35 +21,35 @@ internal sealed class SearchDomainSettings : CommandSettings
     public string[] Keywords { get; set; } = Array.Empty<string>();
 
     /// <summary>Optional prefix list.</summary>
-    [CommandOption("--prefixes")]
+    [CommandOption("--prefixes <PREFIXES>")]
     public string[] Prefixes { get; set; } = Array.Empty<string>();
 
     /// <summary>Optional suffix list.</summary>
-    [CommandOption("--suffixes")]
+    [CommandOption("--suffixes <SUFFIXES>")]
     public string[] Suffixes { get; set; } = Array.Empty<string>();
 
     /// <summary>TLDs to use.</summary>
-    [CommandOption("--tlds")]
+    [CommandOption("--tlds <TLDS>")]
     public string[] Tlds { get; set; } = new[] { "com" };
 
     /// <summary>TLD preset name.</summary>
-    [CommandOption("--preset")]
+    [CommandOption("--preset <PRESET>")]
     public string? Preset { get; set; }
 
     /// <summary>Output format: text, json, json-stream, json-array.</summary>
-    [CommandOption("--output")]
+    [CommandOption("--output <FMT>")]
     public string Output { get; set; } = "text";
 
     /// <summary>Minimum length for the domain label.</summary>
-    [CommandOption("--min-length")]
+    [CommandOption("--min-length <N>")]
     public int MinLength { get; set; }
 
     /// <summary>Maximum length for the domain label.</summary>
-    [CommandOption("--max-length")]
+    [CommandOption("--max-length <N>")]
     public int MaxLength { get; set; } = int.MaxValue;
 
     /// <summary>Number of concurrent RDAP requests.</summary>
-    [CommandOption("--concurrency")]
+    [CommandOption("--concurrency <N>")]
     public int Concurrency { get; set; } = 10;
 }
 

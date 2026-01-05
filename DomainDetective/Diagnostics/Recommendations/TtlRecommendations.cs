@@ -108,26 +108,58 @@ internal sealed class TtlRecommendations : IRecommendationProvider {
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "ttl", "spf" }
         };
-        map[TtlCodes.NonUniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
-            Code = TtlCodes.NonUniformAcrossNS_TXT_DMARC,
-            Title = "DMARC TXT TTL differs across name servers",
-            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
-            How = "Publish consistent TTLs for _dmarc TXT across all authoritative name servers.",
-            Domain = RecommendationDomain.Infrastructure,
-            Tags = new [] { "dns", "ttl", "dmarc" }
-        };
-        map[TtlCodes.UniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
-            Code = TtlCodes.UniformAcrossNS_TXT_DMARC,
-            Title = "DMARC TXT TTL uniform across name servers",
-            Why = "Consistent TTLs simplify caching and diagnostics.",
-            How = "Keep TTLs aligned; target ≥3600s for policy records.",
-            Domain = RecommendationDomain.Infrastructure,
-            Tags = new [] { "dns", "ttl", "dmarc" }
-        };
-        map[TtlCodes.NonUniformAcrossNS_TXT_DKIM] = new RecommendationAdvice {
-            Code = TtlCodes.NonUniformAcrossNS_TXT_DKIM,
-            Title = "DKIM TXT TTL differs across name servers",
-            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+	        map[TtlCodes.NonUniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
+	            Code = TtlCodes.NonUniformAcrossNS_TXT_DMARC,
+	            Title = "DMARC TXT TTL differs across name servers",
+	            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+	            How = "Publish consistent TTLs for _dmarc TXT across all authoritative name servers.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "dmarc" }
+	        };
+	        map[TtlCodes.UniformAcrossNS_TXT_DMARC] = new RecommendationAdvice {
+	            Code = TtlCodes.UniformAcrossNS_TXT_DMARC,
+	            Title = "DMARC TXT TTL uniform across name servers",
+	            Why = "Consistent TTLs simplify caching and diagnostics.",
+	            How = "Keep TTLs aligned; target ≥3600s for policy records.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "dmarc" }
+	        };
+	        map[TtlCodes.NonUniformAcrossNS_TXT_MTASTS] = new RecommendationAdvice {
+	            Code = TtlCodes.NonUniformAcrossNS_TXT_MTASTS,
+	            Title = "MTA-STS TXT TTL differs across name servers",
+	            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+	            How = "Publish consistent TTLs for _mta-sts TXT across all authoritative name servers.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "mta-sts" }
+	        };
+	        map[TtlCodes.UniformAcrossNS_TXT_MTASTS] = new RecommendationAdvice {
+	            Code = TtlCodes.UniformAcrossNS_TXT_MTASTS,
+	            Title = "MTA-STS TXT TTL uniform across name servers",
+	            Why = "Consistent TTLs simplify caching and diagnostics.",
+	            How = "Keep TTLs aligned; target ≥3600s for policy records.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "mta-sts" }
+	        };
+	        map[TtlCodes.NonUniformAcrossNS_TXT_TLSRPT] = new RecommendationAdvice {
+	            Code = TtlCodes.NonUniformAcrossNS_TXT_TLSRPT,
+	            Title = "TLS-RPT TXT TTL differs across name servers",
+	            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
+	            How = "Publish consistent TTLs for _smtp._tls TXT across all authoritative name servers.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "tls-rpt" }
+	        };
+	        map[TtlCodes.UniformAcrossNS_TXT_TLSRPT] = new RecommendationAdvice {
+	            Code = TtlCodes.UniformAcrossNS_TXT_TLSRPT,
+	            Title = "TLS-RPT TXT TTL uniform across name servers",
+	            Why = "Consistent TTLs simplify caching and diagnostics.",
+	            How = "Keep TTLs aligned; target ≥3600s for policy records.",
+	            Domain = RecommendationDomain.Infrastructure,
+	            Tags = new [] { "dns", "ttl", "tls-rpt" }
+	        };
+	        map[TtlCodes.NonUniformAcrossNS_TXT_DKIM] = new RecommendationAdvice {
+	            Code = TtlCodes.NonUniformAcrossNS_TXT_DKIM,
+	            Title = "DKIM TXT TTL differs across name servers",
+	            Why = "Inconsistent TTLs across authoritative servers lead to unpredictable caching.",
             How = "Publish consistent TTLs for selector TXT records across all authoritative name servers.",
             Domain = RecommendationDomain.Infrastructure,
             Tags = new [] { "dns", "ttl", "dkim" }

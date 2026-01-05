@@ -40,7 +40,9 @@ namespace DomainDetective.Tests {
         }
 
         private static byte[] EnsureP1363(byte[] signature, int size) {
-            if (signature.Length == size * 2 && signature[0] != 0x30) {
+            // DNSSEC ECDSA signatures are in IEEE P1363 fixed-field format (r||s, each padded to curve size).
+            // Some platforms may also return DER-encoded signatures; detect by length and convert when needed.
+            if (signature.Length == size * 2) {
                 return signature;
             }
 

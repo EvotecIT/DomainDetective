@@ -88,18 +88,13 @@ public class SnmpAnalysis : IHasAssessments
             }
 
             using var udp = new UdpClient(address.AddressFamily);
-            udp.Client.SendTimeout = (int)timeout.TotalMilliseconds;
-            udp.Client.ReceiveTimeout = (int)timeout.TotalMilliseconds;
+            udp.Client.SendTimeout = (int)timeout.TotalMilliseconds;      
+            udp.Client.ReceiveTimeout = (int)timeout.TotalMilliseconds;   
             udp.Connect(address, port);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(timeout);
-#if NET8_0_OR_GREATER
-            await udp.SendAsync(Probe, cts.Token).ConfigureAwait(false);
-            var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
-#else
             await udp.SendAsync(Probe, Probe.Length).WaitWithCancellation(cts.Token).ConfigureAwait(false);
             var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token).ConfigureAwait(false);
-#endif
             return result.Buffer.Length > 0;
         }
         catch (Exception ex) when (ex is SocketException || ex is OperationCanceledException)

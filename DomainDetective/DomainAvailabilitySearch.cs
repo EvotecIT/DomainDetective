@@ -221,7 +221,7 @@ public class DomainAvailabilitySearch
         }
         catch (HttpRequestException ex)
         {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             if (ex.StatusCode == HttpStatusCode.NotFound)
             {
                 return true;

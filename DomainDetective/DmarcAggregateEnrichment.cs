@@ -58,7 +58,7 @@ public static class DmarcAggregateEnrichment
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         using var response = await SharedHttpClient.Instance.SendAsync(request, ct).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode) return null;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         using var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
 #else
         using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);

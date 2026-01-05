@@ -57,6 +57,9 @@ namespace DomainDetective {
         /// <summary>Override for ASN lookup in tests.</summary>
         public Func<string, Task<int?>>? LookupAsnOverride { private get; set; }
 
+        /// <summary>Timeout (ms) for best-effort ASN lookups when no override is set.</summary>
+        public int AsnLookupTimeoutMs { get; set; } = 5000;
+
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
@@ -197,13 +200,20 @@ namespace DomainDetective {
 
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var asnLookupTimeoutMs = AsnLookupTimeoutMs > 0 ? AsnLookupTimeoutMs : 5000;
             foreach (var ip in allIps)
             {
                 try {
-                    int? asn = LookupAsnOverride != null
-                        ? await LookupAsnOverride(ip)
-                        : await LookupAsnAsync(ip, CancellationToken.None);
-                    if (asn.HasValue) AsnByIp[ip] = asn.Value;
+                    int? asn;
+                    if (LookupAsnOverride != null) {
+                        asn = await LookupAsnOverride(ip);
+                    } else {
+                        using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
+                        asn = await LookupAsnAsync(ip, cts.Token);
+                    }
+                    if (asn.HasValue) {
+                        AsnByIp[ip] = asn.Value;
+                    }
                 } catch { /* ignore lookup failures */ }
             }
             AsnDistinctCount = AsnByIp.Values.Distinct().Count();
@@ -252,7 +262,7 @@ namespace DomainDetective {
                 using var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Get, $"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}");
                 using var response = await SharedHttpClient.Instance.SendAsync(req, ct).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 var stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
                 using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct).ConfigureAwait(false);
 #else
@@ -482,15 +492,26 @@ namespace DomainDetective {
                 new IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 2500;
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 2500);
             await udp.SendAsync(query, new IPEndPoint(server, 53));
             var res = await udp.ReceiveAsync(cts.Token);
             return res.Buffer;
 #else
+            token.ThrowIfCancellationRequested();
+            var effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : 2500;
+
             await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(token);
-            var res = await udp.ReceiveAsync().WaitWithCancellation(token);
+
+            var receiveTask = udp.ReceiveAsync();
+            var completed = await Task.WhenAny(receiveTask, Task.Delay(effectiveTimeoutMs, token)).ConfigureAwait(false);
+            if (completed != receiveTask) {
+                token.ThrowIfCancellationRequested();
+                return null;
+            }
+
+            var res = await receiveTask.ConfigureAwait(false);
             return res.Buffer;
 #endif
         }
@@ -641,13 +662,8 @@ namespace DomainDetective {
                 using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
                 var id = Helpers.DnsQueryIdGenerator.NextUShort();
                 var query = BuildQuery("example.com", id);
-#if NET8_0_OR_GREATER
-                await udp.SendAsync(query, server, 53, cts.Token);
-                var result = await udp.ReceiveAsync(cts.Token);
-#else
                 await udp.SendAsync(query, query.Length, server, 53).WaitWithCancellation(cts.Token);
                 var result = await udp.ReceiveAsync().WaitWithCancellation(cts.Token);
-#endif
                 var data = result.Buffer;
                 return data.Length > 3 && (data[3] & 0x80) != 0;
             } catch (OperationCanceledException) {

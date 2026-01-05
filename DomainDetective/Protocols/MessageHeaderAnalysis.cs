@@ -257,7 +257,7 @@ namespace DomainDetective {
             if (input.Length == 0 || input.Length % 4 != 0) {
                 return false;
             }
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             Span<byte> buffer = stackalloc byte[input.Length];
             return Convert.TryFromBase64String(input, buffer, out _);
 #else

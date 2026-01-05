@@ -134,13 +134,8 @@ public class ZoneTransferAnalysis : IHasAssessments
             using var client = new TcpClient();
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(Timeout);
-#if NET8_0_OR_GREATER
             int port = 53;
             var host = server;
-#else
-            int port = 53;
-            var host = server;
-#endif
             var idx = host.IndexOf(':');
             if (idx > 0)
             {
@@ -151,11 +146,7 @@ public class ZoneTransferAnalysis : IHasAssessments
                     port = parsed;
                 }
             }
-#if NET8_0_OR_GREATER
-            await client.ConnectAsync(host, port, cts.Token);
-#else
             await client.ConnectAsync(host, port).WaitWithCancellation(cts.Token);
-#endif
             using var stream = client.GetStream();
             ushort id;
             lock (Rng)
@@ -165,22 +156,13 @@ public class ZoneTransferAnalysis : IHasAssessments
             var query = BuildAxfrQuery(zone, id);
             var len = (ushort)query.Length;
             var prefix = new byte[] { (byte)(len >> 8), (byte)(len & 0xFF) };
-#if NET8_0_OR_GREATER
-            await stream.WriteAsync(prefix, cts.Token);
-            await stream.WriteAsync(query, cts.Token);
-#else
-            await stream.WriteAsync(prefix, 0, 2, cts.Token);
+            await stream.WriteAsync(prefix, 0, prefix.Length, cts.Token);
             await stream.WriteAsync(query, 0, query.Length, cts.Token);
-#endif
             var prefixBuffer = new byte[2];
             var startSoaSeen = false;
             while (true)
             {
-#if NET8_0_OR_GREATER
-                int read = await stream.ReadAsync(prefixBuffer, cts.Token);
-#else
                 int read = await stream.ReadAsync(prefixBuffer, 0, 2, cts.Token);
-#endif
                 if (read == 0)
                 {
                     logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR connection closed by {0}", server);
@@ -205,11 +187,7 @@ public class ZoneTransferAnalysis : IHasAssessments
                 int received = 0;
                 while (received < respLen)
                 {
-#if NET8_0_OR_GREATER
-                    var r = await stream.ReadAsync(message.AsMemory(received, respLen - received), cts.Token);
-#else
                     var r = await stream.ReadAsync(message, received, respLen - received, cts.Token);
-#endif
                     if (r == 0)
                     {
                         logger?.WriteWarningCode(ZoneTransferCodes.CheckFailed, "AXFR response stream ended from {0}", server);

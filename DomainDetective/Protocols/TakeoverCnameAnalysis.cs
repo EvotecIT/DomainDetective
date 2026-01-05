@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -96,7 +97,7 @@ public class TakeoverCnameAnalysis : IHasAssessments
         CnameRecordExists = true;
         logger?.WriteVerbose("CNAME target {0}", Target);
 
-        IsTakeoverRisk = _providerDomains.Any(d => Target.EndsWith(d, StringComparison.OrdinalIgnoreCase));
+        IsTakeoverRisk = Target != null && _providerDomains.Any(d => DomainHelper.IsDomainOrSubdomainOf(Target, d));
         if (IsTakeoverRisk)
         {
             logger?.WriteWarningCode(TakeoverCnameCodes.RiskyProvider, "CNAME target {0} is hosted on a takeover prone provider", Target);

@@ -116,34 +116,21 @@ namespace DomainDetective {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(Timeout);
             try {
-#if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, timeoutCts.Token);
-#else
                 await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
-#endif
                 using NetworkStream network = client.GetStream();
                 using var reader = new StreamReader(network);
                 using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
                 var sw = System.Diagnostics.Stopwatch.StartNew();
-#if NET8_0_OR_GREATER
-                var banner = await reader.ReadLineAsync(timeoutCts.Token);
-#else
                 var banner = await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
                 sw.Stop();
                 if (banner != null && banner.Length > MaxBannerTextLength) {
                     logger?.WriteWarningCode(SmtpBannerCodes.Truncated, "Banner from {0}:{1} exceeded {2} bytes and was truncated.", host, port, MaxBannerLength);
-                    banner = banner.Substring(0, MaxBannerTextLength);
+                    banner = banner.Substring(0, MaxBannerTextLength);    
                 }
                 timeoutCts.Token.ThrowIfCancellationRequested();
                 try {
-#if NET8_0_OR_GREATER
                     await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
-                    await writer.FlushAsync(timeoutCts.Token);
-#else
-                    await writer.WriteLineAsync("QUIT");
-                    await writer.FlushAsync();
-#endif
+                    await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
                     await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
                 } catch (IOException) {
                     // disconnect

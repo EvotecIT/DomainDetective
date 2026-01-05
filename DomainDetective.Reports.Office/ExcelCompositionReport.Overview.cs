@@ -1,18 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-#if NET8_0
 using OfficeIMO.Excel;
 using OfficeIMO.Excel.Fluent;
 using DocumentFormat.OpenXml.Spreadsheet;
 using SixLabors.ImageSharp;
-#endif
 
 namespace DomainDetective.Reports.Office;
 
 public static partial class ExcelCompositionReport
 {
-#if NET8_0
     private static void BuildOverviewSheet(ExcelDocument doc, IReadOnlyList<object> items, DomainDetective.Reports.DomainOrder order, List<KeyValuePair<string, DomainBucket>> domains)
     {
         var overview = new SheetComposer(doc, "Overview");
@@ -100,6 +97,5 @@ public static partial class ExcelCompositionReport
 
         overview.Finish(autoFitColumns: true);
     }
-#endif
 }
 

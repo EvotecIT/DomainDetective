@@ -16,27 +16,27 @@ internal sealed class SearchEngineInfoSettings : CommandSettings
     public string Query { get; set; } = string.Empty;
 
     /// <summary>Search engine to use: google or bing.</summary>
-    [CommandOption("--engine")]
+    [CommandOption("--engine <ENGINE>")]
     public string Engine { get; set; } = "google";
 
     /// <summary>Google API key.</summary>
-    [CommandOption("--google-key")]
+    [CommandOption("--google-key <KEY>")]
     public string? GoogleApiKey { get; set; }
 
     /// <summary>Google search engine identifier.</summary>
-    [CommandOption("--google-cx")]
+    [CommandOption("--google-cx <CX>")]
     public string? GoogleCx { get; set; }
 
     /// <summary>Google API endpoint.</summary>
-    [CommandOption("--google-endpoint")]
+    [CommandOption("--google-endpoint <URL>")]
     public string GoogleEndpoint { get; set; } = "https://www.googleapis.com/customsearch/v1";
 
     /// <summary>Bing API key.</summary>
-    [CommandOption("--bing-key")]
+    [CommandOption("--bing-key <KEY>")]
     public string? BingApiKey { get; set; }
 
     /// <summary>Bing API endpoint.</summary>
-    [CommandOption("--bing-endpoint")]
+    [CommandOption("--bing-endpoint <URL>")]
     public string BingEndpoint { get; set; } = "https://api.bing.microsoft.com/v7.0/search";
 }
 

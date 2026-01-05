@@ -77,18 +77,20 @@ namespace DomainDetective {
         /// </summary>
         public int UniformityMaxParallelism { get; set; } = 8;
 
-        // Per-authoritative-server TTL uniformity results
-        public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
-        public Dictionary<string, int?> ServerTtlAaaa { get; private set; } = new();
-        public Dictionary<string, int?> ServerTtlNs { get; private set; } = new();
-        public Dictionary<string, int?> ServerTtlCname { get; private set; } = new();
-        public Dictionary<string, int?> ServerTtlTxtSpf { get; private set; } = new();
-        public Dictionary<string, int?> ServerTtlTxtDmarc { get; private set; } = new();
-        /// <summary>Per-name TXT TTLs across authoritative servers. Key is the record name (e.g., s1._domainkey.example.com).</summary>
-        public Dictionary<string, Dictionary<string, int?>> ServerTtlTxtPerName { get; private set; } = new();
-        public bool AUniformAcrossServers { get; private set; }
-        public bool AaaaUniformAcrossServers { get; private set; }
-        public bool NsUniformAcrossServers { get; private set; }
+	        // Per-authoritative-server TTL uniformity results
+	        public Dictionary<string, int?> ServerTtlA { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlAaaa { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlNs { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlCname { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlTxtSpf { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlTxtDmarc { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlTxtMtasts { get; private set; } = new();
+	        public Dictionary<string, int?> ServerTtlTxtTlsRpt { get; private set; } = new();
+	        /// <summary>Per-name TXT TTLs across authoritative servers. Key is the record name (e.g., s1._domainkey.example.com).</summary>
+	        public Dictionary<string, Dictionary<string, int?>> ServerTtlTxtPerName { get; private set; } = new();
+	        public bool AUniformAcrossServers { get; private set; }
+	        public bool AaaaUniformAcrossServers { get; private set; }
+	        public bool NsUniformAcrossServers { get; private set; }
         public bool CnameUniformAcrossServers { get; private set; }
 
         /// <summary>
@@ -156,7 +158,7 @@ namespace DomainDetective {
         private static async Task<byte[]?> QueryUdp(System.Net.IPAddress server, byte[] query, System.Threading.CancellationToken token, int timeoutMs) {
             using var udp = new System.Net.Sockets.UdpClient(new System.Net.IPEndPoint(server.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? System.Net.IPAddress.IPv6Any : System.Net.IPAddress.Any, 0));
             udp.Client.ReceiveTimeout = timeoutMs > 0 ? timeoutMs : 4000;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             using var cts = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(timeoutMs > 0 ? timeoutMs : 4000);
             await udp.SendAsync(query, new System.Net.IPEndPoint(server, 53));
@@ -286,17 +288,17 @@ namespace DomainDetective {
             if (TlsRptTxtTtls.Any()) Evaluate("TLS-RPT TXT", TlsRptTxtTtls, MinTtlTlsRptSeconds, 86400, false, logger);
         }
 
-        /// <summary>
-        /// Compares TTLs across authoritative name servers for core RRsets (A, AAAA, NS, CNAME).
-        /// </summary>
-        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
-            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
-            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtPerName = new();
-            AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
+	        /// <summary>
+	        /// Compares TTLs across authoritative name servers for core RRsets (A, AAAA, NS, CNAME).
+	        /// </summary>
+	        public async Task AnalyzeUniformityAcrossServers(string domainName, InternalLogger logger, System.Threading.CancellationToken ct = default) {
+	            ServerTtlA = new(); ServerTtlAaaa = new(); ServerTtlNs = new(); ServerTtlCname = new();
+	            ServerTtlTxtSpf = new(); ServerTtlTxtDmarc = new(); ServerTtlTxtMtasts = new(); ServerTtlTxtTlsRpt = new(); ServerTtlTxtPerName = new();
+	            AUniformAcrossServers = AaaaUniformAcrossServers = NsUniformAcrossServers = CnameUniformAcrossServers = true;
 
-            var timeoutMs = UniformityQueryTimeoutMs > 0 ? UniformityQueryTimeoutMs : 4000;
-            var maxParallelism = UniformityMaxParallelism > 0 ? UniformityMaxParallelism : 1;
-            using var semaphore = new System.Threading.SemaphoreSlim(maxParallelism, maxParallelism);
+	            var timeoutMs = UniformityQueryTimeoutMs > 0 ? UniformityQueryTimeoutMs : 4000;
+	            var maxParallelism = UniformityMaxParallelism > 0 ? UniformityMaxParallelism : 1;
+	            using var semaphore = new System.Threading.SemaphoreSlim(maxParallelism, maxParallelism);
 
             // Discover authoritative NS hosts and IPs via resolver
             var nsAnswers = await QueryDns(domainName, DnsRecordType.NS);
@@ -342,45 +344,49 @@ namespace DomainDetective {
 
                 var aTask = SafeQuery(ip, domainName, 1, "A");
                 var aaaaTask = SafeQuery(ip, domainName, 28, "AAAA");
-                var nsTask = SafeQuery(ip, domainName, 2, "NS");
-                var cnameTask = SafeQuery(ip, domainName, 5, "CNAME");
-                var txtSpfTask = SafeQuery(ip, domainName, 16, "TXT(SPF)");
-                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "TXT(DMARC)");
+	                var nsTask = SafeQuery(ip, domainName, 2, "NS");
+	                var cnameTask = SafeQuery(ip, domainName, 5, "CNAME");
+	                var txtSpfTask = SafeQuery(ip, domainName, 16, "TXT(SPF)");
+	                var txtDmarcTask = SafeQuery(ip, $"_dmarc.{domainName}", 16, "TXT(DMARC)");
+	                var txtMtastsTask = SafeQuery(ip, $"_mta-sts.{domainName}", 16, "TXT(MTA-STS)");
+	                var txtTlsRptTask = SafeQuery(ip, $"_smtp._tls.{domainName}", 16, "TXT(TLS-RPT)");
 
-                await Task.WhenAll(aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask);
+	                await Task.WhenAll(aTask, aaaaTask, nsTask, cnameTask, txtSpfTask, txtDmarcTask, txtMtastsTask, txtTlsRptTask);
 
-                var dkim = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
-                if (dkimSelectors.Length > 0) {
-                    var dkimTasks = dkimSelectors
-                        .Select(async sel => {
+	                var dkim = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+	                if (dkimSelectors.Length > 0) {
+	                    var dkimTasks = dkimSelectors
+	                        .Select(async sel => {
                             var name = $"{sel}._domainkey.{domainName}";
                             var ttl = await SafeQuery(ip, name, 16, "TXT(DKIM)");
                             return (Name: name, Ttl: ttl);
                         })
-                        .ToArray();
+	                        .ToArray();
 
-                    var dkimResults = await Task.WhenAll(dkimTasks);
-                    foreach (var dkimResult in dkimResults) {
-                        dkim[dkimResult.Name] = dkimResult.Ttl;
-                    }
-                }
+	                    var dkimResults = await Task.WhenAll(dkimTasks);
+	                    foreach (var dkimResult in dkimResults) {
+	                        dkim[dkimResult.Name] = dkimResult.Ttl;
+	                    }
+	                }
 
-                return (Key: key, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: nsTask.Result, Cname: cnameTask.Result, TxtSpf: txtSpfTask.Result, TxtDmarc: txtDmarcTask.Result, Dkim: dkim);
-            }).ToArray();
+	                return (Key: key, A: aTask.Result, Aaaa: aaaaTask.Result, Ns: nsTask.Result, Cname: cnameTask.Result, TxtSpf: txtSpfTask.Result, TxtDmarc: txtDmarcTask.Result, TxtMtasts: txtMtastsTask.Result, TxtTlsRpt: txtTlsRptTask.Result, Dkim: dkim);
+	            }).ToArray();
 
-            var results = await Task.WhenAll(ipTasks);
+	            var results = await Task.WhenAll(ipTasks);
 
-            foreach (var r in results) {
-                ServerTtlA[r.Key] = r.A;
-                ServerTtlAaaa[r.Key] = r.Aaaa;
-                ServerTtlNs[r.Key] = r.Ns;
-                ServerTtlCname[r.Key] = r.Cname;
-                ServerTtlTxtSpf[r.Key] = r.TxtSpf;
-                ServerTtlTxtDmarc[r.Key] = r.TxtDmarc;
+	            foreach (var r in results) {
+	                ServerTtlA[r.Key] = r.A;
+	                ServerTtlAaaa[r.Key] = r.Aaaa;
+	                ServerTtlNs[r.Key] = r.Ns;
+	                ServerTtlCname[r.Key] = r.Cname;
+	                ServerTtlTxtSpf[r.Key] = r.TxtSpf;
+	                ServerTtlTxtDmarc[r.Key] = r.TxtDmarc;
+	                ServerTtlTxtMtasts[r.Key] = r.TxtMtasts;
+	                ServerTtlTxtTlsRpt[r.Key] = r.TxtTlsRpt;
 
-                foreach (var kv in r.Dkim) {
-                    if (!ServerTtlTxtPerName.TryGetValue(kv.Key, out var map)) {
-                        map = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+	                foreach (var kv in r.Dkim) {
+	                    if (!ServerTtlTxtPerName.TryGetValue(kv.Key, out var map)) {
+	                        map = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
                         ServerTtlTxtPerName[kv.Key] = map;
                     }
                     map[r.Key] = kv.Value;
@@ -422,16 +428,26 @@ namespace DomainDetective {
             if (!txtSpfUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_SPF, "SPF TXT TTL differs across authoritative name servers");
             else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_SPF, "SPF TXT TTL consistent across authoritative name servers.");
 
-            // TXT _dmarc
-            var txtDmarcUniform = IsUniform(ServerTtlTxtDmarc);
-            if (!txtDmarcUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DMARC, "DMARC TXT TTL differs across authoritative name servers");
-            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DMARC, "DMARC TXT TTL consistent across authoritative name servers.");
+	            // TXT _dmarc
+	            var txtDmarcUniform = IsUniform(ServerTtlTxtDmarc);
+	            if (!txtDmarcUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DMARC, "DMARC TXT TTL differs across authoritative name servers");
+	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DMARC, "DMARC TXT TTL consistent across authoritative name servers.");
 
-            // DKIM selectors per name
-            if (ServerTtlTxtPerName.Count > 0)
-            {
-                foreach (var kv in ServerTtlTxtPerName)
-                {
+	            // TXT _mta-sts
+	            var txtMtastsUniform = IsUniform(ServerTtlTxtMtasts);
+	            if (!txtMtastsUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL differs across authoritative name servers");
+	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_MTASTS, "MTA-STS TXT TTL consistent across authoritative name servers.");
+
+	            // TXT _smtp._tls (TLS-RPT)
+	            var txtTlsRptUniform = IsUniform(ServerTtlTxtTlsRpt);
+	            if (!txtTlsRptUniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL differs across authoritative name servers");
+	            else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_TLSRPT, "TLS-RPT TXT TTL consistent across authoritative name servers.");
+
+	            // DKIM selectors per name
+	            if (ServerTtlTxtPerName.Count > 0)
+	            {
+	                foreach (var kv in ServerTtlTxtPerName)
+	                {
                     var uniform = IsUniform(kv.Value);
                     if (!uniform) logger?.WriteWarningCode(TtlCodes.NonUniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL differs across authoritative servers for {kv.Key}");
                     else logger?.WriteInformationCode(TtlCodes.UniformAcrossNS_TXT_DKIM, $"DKIM TXT TTL consistent across authoritative servers for {kv.Key}");

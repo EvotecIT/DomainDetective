@@ -10,15 +10,15 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class TestNtpServerSettings : CommandSettings {
     /// <summary>Custom NTP server to query.</summary>
-    [CommandArgument(0, "server")]
+    [CommandArgument(0, "[server]")]
     public string? Server { get; set; }
 
     /// <summary>Built-in server selection.</summary>
-    [CommandOption("--builtin")]
+    [CommandOption("--builtin <BUILTIN>")]
     public NtpServer? Builtin { get; set; }
 
     /// <summary>NTP port number.</summary>
-    [CommandOption("--port")]
+    [CommandOption("--port <PORT>")]
     public int Port { get; set; } = 123;
 }
 

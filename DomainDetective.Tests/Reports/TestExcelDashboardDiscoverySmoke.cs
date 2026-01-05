@@ -90,7 +90,6 @@ public class TestExcelDashboardDiscoverySmoke
 
         var tmp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".xlsx");
 
-#if NET8_0
         ExcelCompositionReport.Generate(tmp, items, ReportScope.Minimal, profile: ExcelProfile.Dashboard);
         Assert.True(File.Exists(tmp));
         Assert.True(new FileInfo(tmp).Length > 0);
@@ -111,8 +110,5 @@ public class TestExcelDashboardDiscoverySmoke
             }
         }
         Assert.True(found, "Excel dashboard should contain DNS Propagation rollups.");
-#else
-        Assert.True(true);
-#endif
     }
 }

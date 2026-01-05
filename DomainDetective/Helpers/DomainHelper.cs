@@ -28,4 +28,43 @@ public static class DomainHelper {
 
     public static bool IsValidTld(string tld) =>
         _tldRegex.IsMatch(tld ?? string.Empty);
+
+    public static bool IsDomainOrSubdomainOf(string? host, string? domain) {
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
+
+        var normalizedHost = NormalizeForComparison(host);
+        var normalizedDomain = NormalizeForComparison(domain);
+
+        return IsDomainOrSubdomainOfNormalized(normalizedHost, normalizedDomain);
+    }
+
+    internal static bool IsDomainOrSubdomainOfNormalized(string normalizedHost, string normalizedDomain) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) || string.IsNullOrWhiteSpace(normalizedDomain)) {
+            return false;
+        }
+        if (string.Equals(normalizedHost, normalizedDomain, StringComparison.OrdinalIgnoreCase)) {
+            return true;
+        }
+        if (normalizedHost.Length <= normalizedDomain.Length) {
+            return false;
+        }
+        if (!normalizedHost.EndsWith(normalizedDomain, StringComparison.OrdinalIgnoreCase)) {
+            return false;
+        }
+        return normalizedHost[normalizedHost.Length - normalizedDomain.Length - 1] == '.';
+    }
+
+    internal static string NormalizeForComparison(string? value) {
+        var trimmed = (value ?? string.Empty).Trim().Trim('.');
+        if (trimmed.Length == 0) {
+            return string.Empty;
+        }
+        try {
+            return _idn.GetAscii(trimmed);
+        } catch {
+            return trimmed;
+        }
+    }
 }

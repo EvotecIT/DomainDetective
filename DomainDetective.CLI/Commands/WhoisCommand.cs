@@ -14,7 +14,7 @@ internal sealed class WhoisSettings : CommandSettings {
     public string Domain { get; set; } = string.Empty;
 
     /// <summary>Optional directory for snapshot storage.</summary>
-    [CommandOption("--snapshot-path")]
+    [CommandOption("--snapshot-path <PATH>")]
     public DirectoryInfo? SnapshotPath { get; set; }
 
     /// <summary>Show differences to previous snapshot.</summary>

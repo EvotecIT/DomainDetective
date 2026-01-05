@@ -72,18 +72,25 @@ public static partial class SectionProjectors
 
         foreach (var e in endpoints.OrderByDescending(x => x.Supported).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
         {
+            var nameServerHost = e.NameServerHost;
+            var serverIp = e.ServerIp;
+            var protocol = e.Protocol;
+            var cipherSuite = e.CipherSuite;
+            var error = e.Error;
+
             sec.Endpoints.Add(new DnsOverTlsSection.EndpointRow
             {
                 Key = e.Key ?? string.Empty,
-                NameServerHost = string.IsNullOrWhiteSpace(e.NameServerHost) ? "-" : e.NameServerHost,
-                ServerIp = string.IsNullOrWhiteSpace(e.ServerIp) ? "-" : e.ServerIp,
+                // Explicit null coalescing: net472 nullable flow analysis doesn't treat IsNullOrWhiteSpace as a non-null guard.
+                NameServerHost = string.IsNullOrWhiteSpace(nameServerHost) ? "-" : (nameServerHost ?? "-"),
+                ServerIp = string.IsNullOrWhiteSpace(serverIp) ? "-" : (serverIp ?? "-"),
                 Port = e.Port,
                 Supported = e.Supported,
-                Protocol = string.IsNullOrWhiteSpace(e.Protocol) ? "-" : e.Protocol,
-                CipherSuite = string.IsNullOrWhiteSpace(e.CipherSuite) ? "-" : e.CipherSuite,
+                Protocol = string.IsNullOrWhiteSpace(protocol) ? "-" : (protocol ?? "-"),
+                CipherSuite = string.IsNullOrWhiteSpace(cipherSuite) ? "-" : (cipherSuite ?? "-"),
                 HostnameMatch = Flag(e.HostnameMatch),
                 CertificateValid = Flag(e.CertificateValid),
-                Error = string.IsNullOrWhiteSpace(e.Error) ? "-" : e.Error
+                Error = string.IsNullOrWhiteSpace(error) ? "-" : (error ?? "-")
             });
         }
 
@@ -116,4 +123,3 @@ public static partial class SectionProjectors
         return sec;
     }
 }
-

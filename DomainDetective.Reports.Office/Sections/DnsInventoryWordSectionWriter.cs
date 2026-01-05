@@ -49,8 +49,8 @@ public static class DnsInventoryWordSectionWriter
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i = 0; i < rows.Count; i++)
         {
-            t.Rows[i].Cells[0].AddParagraph(rows[i].Item1);
-            t.Rows[i].Cells[1].AddParagraph(rows[i].Item2);
+            t.Rows[i].Cells[0].AddParagraph(rows[i].Item1 ?? string.Empty);
+            t.Rows[i].Cells[1].AddParagraph(rows[i].Item2 ?? string.Empty);
         }
 
         if (original != null && (original.Provider != DnsProvider.Unknown || (original.ProviderEvidence != null && original.ProviderEvidence.Count > 0)))
@@ -175,7 +175,9 @@ public static class DnsInventoryWordSectionWriter
                 qt.Rows[i + 1].Cells[1].AddParagraph(r.Status.ToString());
                 qt.Rows[i + 1].Cells[2].AddParagraph(r.ResponseStatus.ToString());
                 qt.Rows[i + 1].Cells[3].AddParagraph(r.Records.Count.ToString());
-                qt.Rows[i + 1].Cells[4].AddParagraph(string.IsNullOrWhiteSpace(r.FailureReason) ? "-" : r.FailureReason);
+                var failureReason = r.FailureReason;
+                string failureReasonText = string.IsNullOrWhiteSpace(failureReason) ? "-" : failureReason ?? "-";
+                qt.Rows[i + 1].Cells[4].AddParagraph(failureReasonText);
             }
         }
 
@@ -196,9 +198,9 @@ public static class DnsInventoryWordSectionWriter
                 rt.Rows[i + 1].Cells[0].AddParagraph(r.QueryType.ToString());
                 rt.Rows[i + 1].Cells[1].AddParagraph(r.Section.ToString());
                 rt.Rows[i + 1].Cells[2].AddParagraph(r.RecordType.ToString());
-                rt.Rows[i + 1].Cells[3].AddParagraph(r.Name);
+                rt.Rows[i + 1].Cells[3].AddParagraph(r.Name ?? string.Empty);
                 rt.Rows[i + 1].Cells[4].AddParagraph(r.Ttl.ToString());
-                rt.Rows[i + 1].Cells[5].AddParagraph(r.Data);
+                rt.Rows[i + 1].Cells[5].AddParagraph(r.Data ?? string.Empty);
             }
 
             if (sec.Rows.Count > take)

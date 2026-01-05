@@ -8,11 +8,11 @@ namespace DomainDetective.CLI;
 /// </summary>
 internal sealed class AnalyzeDnsTunnelingSettings : CommandSettings {
     /// <summary>Domain to analyze.</summary>
-    [CommandOption("--domain")]
+    [CommandOption("--domain <DOMAIN>")]
     public string Domain { get; set; } = string.Empty;
 
     /// <summary>Log file containing DNS traffic.</summary>
-    [CommandOption("--file")]
+    [CommandOption("--file <PATH>")]
     public FileInfo File { get; set; } = null!;
 
     /// <summary>Output JSON results.</summary>

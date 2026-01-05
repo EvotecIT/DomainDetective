@@ -102,7 +102,7 @@ public class MailTlsAnalysis : IHasAssessments {
         timeoutCts.CancelAfter(Timeout);
         try {
             using var client = new TcpClient();
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             await client.ConnectAsync(host, port, timeoutCts.Token);
 #else
             await client.ConnectAsync(host, port).WaitWithCancellation(timeoutCts.Token);
@@ -165,15 +165,10 @@ public class MailTlsAnalysis : IHasAssessments {
                     return true;
                 });
                 try {
-#if NET8_0_OR_GREATER
-                    await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
-                        .WaitWithCancellation(timeoutCts.Token);
-#else
                     await ssl.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-#endif
                     result.CipherAlgorithm = ssl.CipherAlgorithm;
                     result.CipherStrength = ssl.CipherStrength;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     result.CipherSuite = ssl.NegotiatedCipherSuite.ToString();
 #endif
                     result.KeyExchangeAlgorithm = ssl.KeyExchangeAlgorithm.ToString();
@@ -218,16 +213,11 @@ public class MailTlsAnalysis : IHasAssessments {
                     logger.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
                 } finally {
                     try { result.Protocol = ssl.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-#if NET8_0_OR_GREATER
-                    result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
-                    result.Tls13Used = result.SupportsTls13;
-#else
                     result.SupportsTls13 = (int)result.Protocol == 12288;
                     result.Tls13Used = result.SupportsTls13;
-#endif
                     // Probe protocol support (best-effort)
                     await ProbeProtocolSupport(host, port, result, cancellationToken);
-                    if (result.SupportsTls10 || result.SupportsTls11) {
+                    if (result.SupportsTls10 || result.SupportsTls11) {   
                         logger.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                             result.SupportsTls10 ? "1.0" : string.Empty,
                             result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
@@ -246,11 +236,7 @@ public class MailTlsAnalysis : IHasAssessments {
 
             using var reader = new StreamReader(network);
             using var writer = new StreamWriter(network) { AutoFlush = true, NewLine = "\r\n" };
-#if NET8_0_OR_GREATER
-            await reader.ReadLineAsync(timeoutCts.Token);
-#else
             await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
-#endif
             timeoutCts.Token.ThrowIfCancellationRequested();
             var capabilities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             switch (protocol) {
@@ -400,15 +386,10 @@ public class MailTlsAnalysis : IHasAssessments {
             });
 
             try {
-#if NET8_0_OR_GREATER
-                await sslStream.AuthenticateAsClientAsync(host, null, SslProtocols.Tls13 | SslProtocols.Tls12, false)
-                    .WaitWithCancellation(timeoutCts.Token);
-#else
                 await sslStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-#endif
                 result.CipherAlgorithm = sslStream.CipherAlgorithm;
                 result.CipherStrength = sslStream.CipherStrength;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 result.CipherSuite = sslStream.NegotiatedCipherSuite.ToString();
 #endif
                 result.KeyExchangeAlgorithm = sslStream.KeyExchangeAlgorithm.ToString();
@@ -450,16 +431,11 @@ public class MailTlsAnalysis : IHasAssessments {
                 logger?.WriteVerbose($"TLS I/O error on {host}:{port} - {ioex.Message}");
             } finally {
                 try { result.Protocol = sslStream.SslProtocol; } catch (ObjectDisposedException) { result.Protocol = SslProtocols.None; }
-#if NET8_0_OR_GREATER
-                result.SupportsTls13 = result.Protocol == SslProtocols.Tls13;
-                result.Tls13Used = result.SupportsTls13;
-#else
                 result.SupportsTls13 = (int)result.Protocol == 12288;
                 result.Tls13Used = result.SupportsTls13;
-#endif
                 // Probe protocol support (best-effort)
                 await ProbeProtocolSupport(host, port, result, cancellationToken);
-                if (result.SupportsTls10 || result.SupportsTls11) {
+                if (result.SupportsTls10 || result.SupportsTls11) {       
                     logger?.WriteWarningCode(TlsCodes.LegacyOffered, "Server offers legacy TLS ({0}{1}) on {2}:{3}",
                         result.SupportsTls10 ? "1.0" : string.Empty,
                         result.SupportsTls11 ? (result.SupportsTls10 ? "/1.1" : "1.1") : string.Empty,
@@ -482,24 +458,13 @@ public class MailTlsAnalysis : IHasAssessments {
         async Task<bool> TryHandshake(SslProtocols proto) {
             try {
                 using var client = new TcpClient();
-#if NET6_0_OR_GREATER
-                await client.ConnectAsync(host, port, token);
-#else
                 await client.ConnectAsync(host, port).WaitWithCancellation(token);
-#endif
                 using var ssl = new SslStream(client.GetStream(), false, static (_, _, _, _) => true);
-#if NET5_0_OR_GREATER
-                var options = new SslClientAuthenticationOptions { TargetHost = host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = X509RevocationMode.NoCheck };
-                await ssl.AuthenticateAsClientAsync(options, token);
-#else
                 await ssl.AuthenticateAsClientAsync(host, null, proto, false).WaitWithCancellation(token);
-#endif
                 return ssl.SslProtocol == proto;
             } catch { return false; }
         }
-#if NET5_0_OR_GREATER
-        result.SupportsTls13 = result.SupportsTls13 || await TryHandshake(SslProtocols.Tls13);
-#endif
+        result.SupportsTls13 = result.SupportsTls13 || await TryHandshake((SslProtocols)12288);
         result.SupportsTls12 = await TryHandshake(SslProtocols.Tls12);
         // We intentionally probe legacy protocols to report legacy support. Suppress deprecation warnings locally.
 #pragma warning disable SYSLIB0039 // TLS 1.0/1.1 obsolete warnings
@@ -524,7 +489,7 @@ public class MailTlsAnalysis : IHasAssessments {
             var readOut = proc.StandardOutput.ReadToEndAsync();
             var readErr = proc.StandardError.ReadToEndAsync();
             var delayTask = Task.Delay(TimeSpan.FromSeconds(5), cts.Token);
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             var waitTask = proc.WaitForExitAsync(cts.Token);
 #else
             var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);

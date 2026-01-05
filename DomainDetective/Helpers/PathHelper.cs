@@ -21,7 +21,7 @@ public static class PathHelper
         var combinedFull = Path.GetFullPath(combined);
 
         var comparison =
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 #else
             StringComparison.OrdinalIgnoreCase;

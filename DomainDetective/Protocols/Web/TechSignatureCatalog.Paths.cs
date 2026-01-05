@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -113,7 +114,7 @@ internal static partial class TechSignatureCatalog
             if (getRegistrableDomain != null) dom = getRegistrableDomain(dom);
             foreach (var (suffix, tech) in DomainSuffixes)
             {
-                if (dom.EndsWith(suffix, System.StringComparison.OrdinalIgnoreCase))
+                if (DomainHelper.IsDomainOrSubdomainOf(dom, suffix))
                 {
                     outTech.Add(tech);
                     details?.Add(new TechDetectionDetail { Name = tech, SourceKind = TechEvidenceKind.DomainSuffix, Category = GetCategory(tech), Evidence = suffix, Confidence = 90 });

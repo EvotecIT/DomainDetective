@@ -133,7 +133,7 @@ namespace DomainDetective {
 	        /// <summary>Gets or sets the HTTP request timeout.</summary>
 	        public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(100);
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>Gets or sets the HTTP version used for requests.</summary>
         public Version RequestVersion { get; set; } = HttpVersion.Version30;
 #else
@@ -227,7 +227,7 @@ namespace DomainDetective {
 	        public async Task AnalyzeUrl(string url, bool checkHsts, InternalLogger logger, bool collectHeaders = false, bool captureBody = false, CancellationToken cancellationToken = default, HttpRequestOptions? requestOptions = null) {
 	            using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "HTTP", target: url);
 	            requestOptions ??= new HttpRequestOptions();
-	#if NET6_0_OR_GREATER
+    #if NET8_0_OR_GREATER
 	            var manualRedirect = RequestVersion >= HttpVersion.Version30;
 	            using var handler = new HttpClientHandler { AllowAutoRedirect = !manualRedirect, MaxAutomaticRedirections = MaxRedirects };
 	#else
@@ -247,7 +247,7 @@ namespace DomainDetective {
 	                }
 	            }
 	            if (requestOptions.DisableTlsValidation) {
-	#if NET5_0_OR_GREATER
+    #if NET8_0_OR_GREATER
 	                handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
 	#else
 	                handler.ServerCertificateCustomValidationCallback = (req, cert, chain, errors) => true;
@@ -299,7 +299,7 @@ namespace DomainDetective {
 	            MissingSecurityHeaders.Clear();
 	            try {
 	                string effectiveScheme;
-	#if NET6_0_OR_GREATER
+    #if NET8_0_OR_GREATER
 	                var currentUri = new Uri(url);
 	                HttpResponseMessage? response = null;
 	                var redirects = 0;
@@ -394,7 +394,7 @@ namespace DomainDetective {
                 IsReachable = response.IsSuccessStatusCode;
                 if (IsReachable) {
                     ProtocolVersion = response.Version;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     Http3Supported = response.Version >= HttpVersion.Version30;
                     Http2Supported = response.Version >= HttpVersion.Version20;
                     if (RequestVersion >= HttpVersion.Version30 && response.Version < HttpVersion.Version30) {
@@ -431,7 +431,7 @@ namespace DomainDetective {
                     SpeculationRulesRaw = string.Join(",", specValues);
                 }
                 ServerHeader = serverHeader;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 if (IsReachable && ProtocolVersion != null && ProtocolVersion >= HttpVersion.Version30) {
                     QuicVersion = ParseQuicVersion(altSvcHeader);
                     if (!string.IsNullOrEmpty(QuicVersion) && !QuicVersion.Equals("h3", StringComparison.OrdinalIgnoreCase)) {
@@ -439,30 +439,30 @@ namespace DomainDetective {
                     }
                 }
 	#endif
-	                if (checkHsts) {
-	                    // HSTS is meaningful only for HTTPS effective URLs.
-	                    HstsPresent = effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && hstsHeader != null;
-	                }
-	                if (collectHeaders) {
-	                    foreach (var headerName in _securityHeaderNames) {
-	                        if (response.Headers.TryGetValues(headerName, out var values) ||
-	                            response.Content.Headers.TryGetValues(headerName, out values)) {
-	                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
-	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
-	                                DeprecatedHeadersPresent.Add(headerName);
-	                            }
-	                        } else {
-	                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
-	                                MissingDeprecatedHeaders.Add(headerName);
-	                            } else {
-	                                MissingSecurityHeaders.Add(headerName);
-	                            }
-	                        }
-	                    }
-	                    if (!HstsPresent && effectiveScheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
-	                        HstsPresent = true;
-	                        hstsHeader = hsts.Value;
-	                    }
+                if (checkHsts) {
+                    // Header presence is tracked regardless of scheme; callers can still use effectiveScheme
+                    // to interpret whether the policy would be enforced by user agents.
+                    HstsPresent = hstsHeader != null;
+                }
+                if (collectHeaders) {
+                    foreach (var headerName in _securityHeaderNames) {
+                        if (response.Headers.TryGetValues(headerName, out var values) ||
+                            response.Content.Headers.TryGetValues(headerName, out values)) {
+                            SecurityHeaders[headerName] = new SecurityHeader(headerName, string.Join(",", values));
+                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+                                DeprecatedHeadersPresent.Add(headerName);
+                            }
+                        } else {
+                            MissingSecurityHeaders.Add(headerName);
+                            if (_deprecatedSecurityHeaders.Contains(headerName)) {
+                                MissingDeprecatedHeaders.Add(headerName);
+                            }
+                        }
+                    }
+                    if (!HstsPresent && SecurityHeaders.TryGetValue("Strict-Transport-Security", out var hsts)) {
+                        HstsPresent = true;
+                        hstsHeader = hsts.Value;
+                    }
                     XssProtectionPresent = SecurityHeaders.ContainsKey("X-XSS-Protection");
                     if (SecurityHeaders.TryGetValue("X-XSS-Protection", out var xss))
                     {
@@ -654,7 +654,7 @@ namespace DomainDetective {
                         var bytes = await response.Content.ReadAsByteArrayAsync();
                         BodyLength = bytes?.Length;
                         if (bytes != null) {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                             var hash = SHA256.HashData(bytes);
 #else
                             byte[] hash;
@@ -884,7 +884,7 @@ namespace DomainDetective {
             OriginAgentClusterEnabled = headerValue.Trim().Equals("?1", StringComparison.Ordinal);
         }
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         private static string? ParseQuicVersion(string? headerValue) {
             if (string.IsNullOrEmpty(headerValue)) {
                 return null;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -28,9 +29,11 @@ public class DnsTunnelingAnalysis : IHasAssessments
     /// </summary>
     /// <param name="domainName">Domain to inspect.</param>
     /// <param name="logLines">Lines from DNS query logs.</param>
-    public void Analyze(string domainName, IEnumerable<string?>? logLines)
+    public void Analyze(string domainName, IEnumerable<string?>? logLines)      
     {
-        Subject = domainName;
+        var normalizedDomainName = (domainName ?? string.Empty).Trim().TrimEnd('.');
+
+        Subject = normalizedDomainName;
         Alerts = new List<DnsTunnelingAlert>();
         Assessments.Clear();
         var queue = new Queue<DateTimeOffset>();
@@ -57,18 +60,19 @@ public class DnsTunnelingAnalysis : IHasAssessments
                 query = parts[0];
             }
 
-            if (!query.EndsWith(domainName, StringComparison.OrdinalIgnoreCase))
+            query = query.Trim().TrimEnd('.');
+            if (!DomainHelper.IsDomainOrSubdomainOf(query, normalizedDomainName))
             {
                 continue;
             }
 
-            if (query.Length <= domainName.Length)
+            if (query.Length <= normalizedDomainName.Length)
             {
                 continue; // Skip invalid queries
             }
 
-            var label = query.Substring(0, query.Length - domainName.Length).TrimEnd('.');
-            var first = label.Split('.').FirstOrDefault() ?? string.Empty;
+            var label = query.Substring(0, query.Length - normalizedDomainName.Length).TrimEnd('.');
+            var first = label.Split('.').FirstOrDefault() ?? string.Empty;      
             if (first.Length > MaxLabelLength || LooksEncoded(first))
             {
                 Alerts.Add(new DnsTunnelingAlert { Domain = query, Reason = "Suspicious subdomain" });
@@ -94,7 +98,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
                     Assessments.Add(new Assessment {
                         Severity = AssessmentSeverity.Warning,
                         Category = "DnsTunneling",
-                        Target = domainName,
+                        Target = normalizedDomainName,
                         Code = DnsTunnelingCodes.HighFrequency,
                         Message = "High DNS query rate observed within interval"
                     });
@@ -109,7 +113,7 @@ public class DnsTunnelingAnalysis : IHasAssessments
             {
                 Severity = AssessmentSeverity.Info,
                 Category = "DnsTunneling",
-                Target = domainName,
+                Target = normalizedDomainName,
                 Code = DnsTunnelingCodes.NoIndicators,
                 Message = "No tunneling indicators found in DNS logs",
             });

@@ -19,6 +19,8 @@ public class TestNSNarrative
         var analysis = new NSAnalysis
         {
             DnsConfiguration = new DnsConfiguration(),
+            EnableChaosFingerprinting = false,
+            LookupAsnOverride = _ => Task.FromResult<int?>(null),
             QueryDnsOverride = (name, type) =>
             {
                 return (name, type) switch

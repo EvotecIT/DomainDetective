@@ -47,8 +47,8 @@ public static class DnsTraceWordSectionWriter
         var t = doc.AddTable(rows.Count, 2, WordTableStyle.TableGrid);
         for (int i = 0; i < rows.Count; i++)
         {
-            t.Rows[i].Cells[0].AddParagraph(rows[i].Item1);
-            t.Rows[i].Cells[1].AddParagraph(rows[i].Item2);
+            t.Rows[i].Cells[0].AddParagraph(rows[i].Item1 ?? string.Empty);
+            t.Rows[i].Cells[1].AddParagraph(rows[i].Item2 ?? string.Empty);
         }
 
         if (original != null && original.Queries != null && original.Queries.Count > 0)
@@ -68,9 +68,13 @@ public static class DnsTraceWordSectionWriter
                 qt.Rows[i + 1].Cells[0].AddParagraph(r.RecordType.ToString());
                 qt.Rows[i + 1].Cells[1].AddParagraph(r.Status.ToString());
                 qt.Rows[i + 1].Cells[2].AddParagraph(r.FinalResponseStatus.ToString());
-                qt.Rows[i + 1].Cells[3].AddParagraph(string.IsNullOrWhiteSpace(r.FinalName) ? "-" : r.FinalName);
+                var finalName = r.FinalName;
+                string finalNameText = string.IsNullOrWhiteSpace(finalName) ? "-" : finalName ?? "-";
+                qt.Rows[i + 1].Cells[3].AddParagraph(finalNameText);
                 qt.Rows[i + 1].Cells[4].AddParagraph(r.Steps.Count.ToString());
-                qt.Rows[i + 1].Cells[5].AddParagraph(string.IsNullOrWhiteSpace(r.FailureReason) ? "-" : r.FailureReason);
+                var failureReason = r.FailureReason;
+                string failureReasonText = string.IsNullOrWhiteSpace(failureReason) ? "-" : failureReason ?? "-";
+                qt.Rows[i + 1].Cells[5].AddParagraph(failureReasonText);
             }
         }
 
@@ -136,4 +140,3 @@ public static class DnsTraceWordSectionWriter
         }
     }
 }
-

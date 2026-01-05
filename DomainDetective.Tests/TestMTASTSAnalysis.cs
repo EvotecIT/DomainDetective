@@ -405,15 +405,21 @@ namespace DomainDetective.Tests {
             PortHelper.ReleasePort(port);
             const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
             var serverTask = Task.Run(async () => {
-                var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
-                    var data = Encoding.UTF8.GetBytes(policy);
-                    ctx.Response.StatusCode = 200;
-                    await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
-                } else {
-                    ctx.Response.StatusCode = 404;
+                try {
+                    var ctx = await listener.GetContextAsync();
+                    if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
+                        var data = Encoding.UTF8.GetBytes(policy);
+                        ctx.Response.StatusCode = 200;
+                        await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
+                    } else {
+                        ctx.Response.StatusCode = 404;
+                    }
+                    ctx.Response.Close();
+                } catch (HttpListenerException) {
+                    // Listener was stopped before a request arrived.
+                } catch (ObjectDisposedException) {
+                    // Listener was disposed before a request arrived.
                 }
-                ctx.Response.Close();
             });
             try {
                 var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };
@@ -440,15 +446,21 @@ namespace DomainDetective.Tests {
             PortHelper.ReleasePort(port);
             const string policy = "version: STSv1\nmode: enforce\nmx: mail.example.com\nmax_age: 86400";
             var serverTask = Task.Run(async () => {
-                var ctx = await listener.GetContextAsync();
-                if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
-                    var data = Encoding.UTF8.GetBytes(policy);
-                    ctx.Response.StatusCode = 200;
-                    await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
-                } else {
-                    ctx.Response.StatusCode = 404;
+                try {
+                    var ctx = await listener.GetContextAsync();
+                    if (ctx.Request.Url?.AbsolutePath == "/.well-known/mta-sts.txt") {
+                        var data = Encoding.UTF8.GetBytes(policy);
+                        ctx.Response.StatusCode = 200;
+                        await ctx.Response.OutputStream.WriteAsync(data, 0, data.Length);
+                    } else {
+                        ctx.Response.StatusCode = 404;
+                    }
+                    ctx.Response.Close();
+                } catch (HttpListenerException) {
+                    // Listener was stopped before a request arrived.
+                } catch (ObjectDisposedException) {
+                    // Listener was disposed before a request arrived.
                 }
-                ctx.Response.Close();
             });
             try {
                 var answers = new[] { new DnsAnswer { DataRaw = "v=STSv1; id=abc", Type = DnsRecordType.TXT } };

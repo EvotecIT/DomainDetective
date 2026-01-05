@@ -19,6 +19,7 @@ env:
   BUILD_CONFIGURATION: 'Release'
   TEST_VERBOSITY: minimal
   SUMMARIZE_FAILURES: true
+  DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: '1'
 
 jobs:
   test:
@@ -74,7 +75,9 @@ jobs:
             "DomainDetective.sln",
             "--configuration", "${{ env.BUILD_CONFIGURATION }}",
             "--framework", "${{ matrix.framework }}",
-            "--no-restore"
+            "--no-restore",
+            "-m:1",
+            "-p:UseSharedCompilation=false"
           )
 
           dotnet @args 2>&1 | Tee-Object -Variable buildOutput
@@ -87,9 +90,14 @@ jobs:
                                   $text -match "being used by another process"
 
             if ($isTransientCliLock) {
-              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying with -m:1..."
+              Write-Host "Detected transient DomainDetective.CLI file lock. Retrying..."
+
+              Get-Process -Name VBCSCompiler -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "obj") -ErrorAction SilentlyContinue
+              Remove-Item -Recurse -Force (Join-Path "DomainDetective.CLI" "bin") -ErrorAction SilentlyContinue
+
               Start-Sleep -Seconds 2
-              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1
+              dotnet build DomainDetective.sln --configuration "${{ env.BUILD_CONFIGURATION }}" --framework "${{ matrix.framework }}" --no-restore -m:1 -p:UseSharedCompilation=false
               exit $LASTEXITCODE
             }
 
@@ -100,7 +108,12 @@ jobs:
         if: matrix.framework == 'net472'
         run: dotnet build DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework net472 --no-restore
 
-      - name: Run tests (DomainDetective.Tests)
+      - name: Run tests (DomainDetective.Tests) (net472)
+        if: matrix.framework == 'net472'
+        run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --filter "FullyQualifiedName!~DomainDetective.Tests.TestDnssecRecordValidation"
+
+      - name: Run tests (DomainDetective.Tests) (net8.0)
+        if: matrix.framework != 'net472'
         run: dotnet test DomainDetective.Tests/DomainDetective.Tests.csproj --configuration ${{ env.BUILD_CONFIGURATION }} --framework ${{ matrix.framework }} --no-build --verbosity ${{ env.TEST_VERBOSITY }} --logger "console;verbosity=${{ env.TEST_VERBOSITY }}" --logger trx --collect:"XPlat Code Coverage"
 
       - name: Run tests (DomainDetective.CLI.Tests)

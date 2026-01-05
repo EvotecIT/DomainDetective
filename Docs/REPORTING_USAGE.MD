@@ -64,7 +64,7 @@ $null = Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Html 
 # Export to different formats
 # JSON (implemented)
 Test-DDDomainOverallHealth -DomainName "example.com" -ExportFormat Json -ExportPath "data.json"
-# Word/Excel/Markdown via composition (Excel requires .NET 8.0)
+# Word/Excel/Markdown via composition (Excel requires .NET 8.0+ or net472 on Windows)
 Export-DDSecurityReport -ExportFormat Word -ExportPath "report.docx" {
     Test-DDEmailSpfRecord -DomainName "example.com"
     Test-DDEmailDmarcRecord -DomainName "example.com"

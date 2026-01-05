@@ -9,8 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 using System.Reflection;
-using System.Linq.Expressions;
-using System.Globalization;
 using DomainDetective.Network;
 using DomainDetective.Helpers;
 
@@ -31,21 +29,7 @@ namespace DomainDetective {
         }
 
         private static string CreateServiceQuery(int port, string domain) {
-#if NET6_0_OR_GREATER
-            var portString = port.ToString(CultureInfo.InvariantCulture);
-            return string.Create(portString.Length + domain.Length + 7, (portString, domain), static (span, state) => {
-                var (digits, host) = state;
-                var pos = 0;
-                span[pos++] = '_';
-                digits.AsSpan().CopyTo(span[pos..]);
-                pos += digits.Length;
-                "._tcp.".AsSpan().CopyTo(span[pos..]);
-                pos += 6;
-                host.AsSpan().CopyTo(span[pos..]);
-            });
-#else
             return $"_{port}._tcp.{domain}";
-#endif
         }
 
         private static void ValidateServiceQueryProtocol(string query) {
@@ -131,7 +115,7 @@ namespace DomainDetective {
             var actions = new Dictionary<HealthCheckType, Func<Task>> {
                 [HealthCheckType.DMARC] = () => VerifyDMARC(domainName, cancellationToken),
                 [HealthCheckType.SPF] = () => VerifySPF(domainName, cancellationToken),
-                [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), cancellationToken),
+                [HealthCheckType.DKIM] = () => VerifyDKIM(domainName, dkimSelectors ?? Definitions.DKIMSelectors.GuessSelectors().ToArray(), exec.IncludeMissingDkimSelectors, cancellationToken),
                 [HealthCheckType.MX] = () => VerifyMX(domainName, cancellationToken),
                 [HealthCheckType.REVERSEDNS] = () => VerifyReverseDnsAsync(domainName, cancellationToken),
                 [HealthCheckType.FCRDNS] = () => VerifyFcrDnsAsync(domainName, cancellationToken),
@@ -144,7 +128,7 @@ namespace DomainDetective {
                 [HealthCheckType.DNSBL] = () => VerifyDNSBL(domainName, cancellationToken),
                 [HealthCheckType.MTASTS] = () => VerifyMTASTS(domainName, cancellationToken),
                 [HealthCheckType.TLSRPT] = () => VerifyTLSRPT(domainName, cancellationToken),
-                [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, cancellationToken: cancellationToken),
+                [HealthCheckType.BIMI] = () => VerifyBIMI(domainName, skipIndicatorDownload: exec.SkipBimiIndicatorDownload, cancellationToken: cancellationToken),
                 [HealthCheckType.AUTODISCOVER] = () => VerifyAutodiscover(domainName, cancellationToken),
                 [HealthCheckType.CERT] = () => VerifyWebsiteCertificate(domainName, cancellationToken: cancellationToken),
                 [HealthCheckType.SECURITYTXT] = () => VerifySecurityTxtAsync(domainName, cancellationToken),
@@ -158,6 +142,7 @@ namespace DomainDetective {
                 [HealthCheckType.POP3TLS] = () => VerifyPOP3TLS(domainName, cancellationToken),
                 [HealthCheckType.SMTPBANNER] = () => VerifySMTPBanner(domainName, 25, cancellationToken),
                 [HealthCheckType.SMTPAUTH] = () => VerifySmtpAuth(domainName, 25, cancellationToken),
+                [HealthCheckType.MAILLATENCY] = () => VerifyMailLatency(domainName, 25, cancellationToken),
                 [HealthCheckType.HTTP] = () => VerifyWebsiteHttps(domainName, cancellationToken),
                 [HealthCheckType.HPKP] = () => VerifyHpkpAsync(domainName, cancellationToken),
                 [HealthCheckType.CONTACT] = () => VerifyContactInfo(domainName, cancellationToken),
@@ -514,6 +499,7 @@ namespace DomainDetective {
             filtered.Pop3TlsAnalysis = active.Contains(HealthCheckType.POP3TLS) ? CloneAnalysis(Pop3TlsAnalysis) : null!;
             filtered.SmtpBannerAnalysis = active.Contains(HealthCheckType.SMTPBANNER) ? CloneAnalysis(SmtpBannerAnalysis) : null!;
             filtered.SmtpAuthAnalysis = active.Contains(HealthCheckType.SMTPAUTH) ? CloneAnalysis(SmtpAuthAnalysis) : null!;
+            filtered.MailLatencyAnalysis = active.Contains(HealthCheckType.MAILLATENCY) ? CloneAnalysis(MailLatencyAnalysis) : null!;
             filtered.HttpAnalysis = active.Contains(HealthCheckType.HTTP) ? CloneAnalysis(HttpAnalysis) : null!;
             filtered.HPKPAnalysis = active.Contains(HealthCheckType.HPKP) ? CloneAnalysis(HPKPAnalysis) : null!;
             filtered.ContactInfoAnalysis = active.Contains(HealthCheckType.CONTACT) ? CloneAnalysis(ContactInfoAnalysis) : null!;
@@ -542,21 +528,21 @@ namespace DomainDetective {
 
         private static readonly MethodInfo _cloneMethod = typeof(object).GetMethod(
                 "MemberwiseClone",
-                BindingFlags.Instance | BindingFlags.NonPublic) ??
-            throw new InvalidOperationException("Unable to locate MemberwiseClone method.");
+                BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Unable to locate MemberwiseClone method.");
 
-        private static class Cloner<T> where T : class {
-            internal static readonly Func<T, T> Delegate = CreateDelegate();
-
-            private static Func<T, T> CreateDelegate() {
-                ParameterExpression param = Expression.Parameter(typeof(T), "source");
-                UnaryExpression body = Expression.Convert(Expression.Call(param, _cloneMethod), typeof(T));
-                return Expression.Lambda<Func<T, T>>(body, param).Compile();
-            }
-        }
+        private static readonly Func<object, object> _cloneObject = CreateCloneDelegate();
 
         private static T CloneAnalysis<T>(T analysis) where T : class {
-            return analysis == null ? null! : Cloner<T>.Delegate(analysis);
+            return analysis == null ? null! : (T)_cloneObject(analysis);
+        }
+
+        private static Func<object, object> CreateCloneDelegate() {
+            try {
+                return (Func<object, object>)_cloneMethod.CreateDelegate(typeof(Func<object, object>));
+            } catch {
+                return source => _cloneMethod.Invoke(source, null) ?? throw new InvalidOperationException("MemberwiseClone returned null.");
+            }
         }
     }
 }

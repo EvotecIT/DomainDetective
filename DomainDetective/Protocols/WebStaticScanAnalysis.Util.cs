@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -37,7 +38,7 @@ public partial class WebStaticScanAnalysis
         {
             var ver = resp.Version;
             req.ProtocolVersion = ver.ToString();
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             req.Http3 = ver >= System.Net.HttpVersion.Version30;
             req.Http2 = ver >= System.Net.HttpVersion.Version20;
 #else
@@ -255,7 +256,9 @@ public partial class WebStaticScanAnalysis
                 else if (lower == "google font api")
                 {
                     var hit = Requests.Select(r => { try { return new System.Uri(r.FinalUrl ?? r.Url).Host; } catch { return null; } })
-                        .FirstOrDefault(h => h != null && (h.EndsWith("fonts.googleapis.com", System.StringComparison.OrdinalIgnoreCase) || h.EndsWith("fonts.google.com", System.StringComparison.OrdinalIgnoreCase)));
+                        .FirstOrDefault(h => h != null
+                                             && (DomainHelper.IsDomainOrSubdomainOf(h, "fonts.googleapis.com")
+                                                 || DomainHelper.IsDomainOrSubdomainOf(h, "fonts.google.com")));
                     if (!string.IsNullOrWhiteSpace(hit)) { evidence = hit!; kind = TechEvidenceKind.DomainSuffix; conf = 75; }
                 }
 

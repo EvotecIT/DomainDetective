@@ -48,6 +48,9 @@ public static partial class HtmlCompositionReport
                              });
                         });
                     card.Body(body => {
+                        // Stable markers for tooling/tests: ensure domain titles are discoverable in raw HTML across HtmlForgeX versions.
+                        body.Add(new HtmlTag("div").ValueRaw($"<!-- DD:DOMAIN Mail &amp; DNS - {d} -->"));
+
                         body.DataGrid(g =>
                         {
                             g.Settings(s => s.Layout(TablerDataGridLayout.Compact).Spacing(TablerDataGridSpacing.Small).NarrowTitles().MobileResponsive());

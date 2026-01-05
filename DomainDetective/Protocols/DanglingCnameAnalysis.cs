@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -80,12 +81,12 @@ public class DanglingCnameAnalysis : IHasAssessments {
         CnameRecordExists = true;
         logger?.WriteVerbose("CNAME target {0}", Target);
 
-        KnownService = _serviceDomains.Any(s => Target.EndsWith(s, StringComparison.OrdinalIgnoreCase));
+        KnownService = Target != null && _serviceDomains.Any(s => DomainHelper.IsDomainOrSubdomainOf(Target, s));
         DnsAnswer[] a;
         DnsAnswer[] aaaa;
         try {
-            a = await QueryDns(Target, DnsRecordType.A);
-            aaaa = await QueryDns(Target, DnsRecordType.AAAA);
+            a = await QueryDns(Target!, DnsRecordType.A);
+            aaaa = await QueryDns(Target!, DnsRecordType.AAAA);
         } catch (Exception ex) {
             FailureReason = $"DNS lookup failed: {ex.Message}";
             logger?.WriteErrorCode(DanglingCnameCodes.DnsLookupFailed, "DNS lookup failed for {0}: {1}", Target, ex.Message);

@@ -179,9 +179,6 @@ namespace DomainDetective {
             IsSelfSigned = false;
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
-#if NET8_0_OR_GREATER
-                handler.SslProtocols = SslProtocols.Tls13 | SslProtocols.Tls12;
-#endif
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
                     if (certificate == null) {
                         return false;
@@ -195,18 +192,18 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                    Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
-                    IsSelfSigned = IsSelfSignedCertificate(Certificate);
-                    IsValid = policyErrors == SslPolicyErrors.None;
+                    IsSelfSigned = IsSelfSignedCertificate(Certificate);  
+                    IsValid = policyErrors == SslPolicyErrors.None;       
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                     return IsValid;
                 };
                 using (var client = new HttpClient(handler)) {
                     client.Timeout = Timeout;
                     try {
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                         var request = new HttpRequestMessage(HttpMethod.Get, url) {
                             Version = HttpVersion.Version30,
                             VersionPolicy = HttpVersionPolicy.RequestVersionOrLower
@@ -228,28 +225,18 @@ namespace DomainDetective {
                             Http3Supported = false;
                         }
 #endif
-                        if (Certificate == null && Http3Supported) {
+                        if (Certificate == null && Http3Supported) {      
                             try {
                                 var uri = new Uri(url);
                                 using var tcp = new TcpClient();
                                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                                 timeoutCts.CancelAfter(Timeout);
-#if NET6_0_OR_GREATER
-                                await tcp.ConnectAsync(uri.Host, port, timeoutCts.Token);
-#else
                                 await tcp.ConnectAsync(uri.Host, port).WaitWithCancellation(timeoutCts.Token);
-#endif
                                 using var ssl = new SslStream(tcp.GetStream(), false, (sender, certificate, chain, errors) => {
                                     HostnameMatch = (errors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
                                     return errors == SslPolicyErrors.None;
                                 });
-#if NET5_0_OR_GREATER
-                                var authOptions = new SslClientAuthenticationOptions { TargetHost = uri.Host };
-                                authOptions.CertificateRevocationCheckMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
-                                await ssl.AuthenticateAsClientAsync(authOptions, timeoutCts.Token);
-#else
                                 await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
-#endif
                                 if (ssl.RemoteCertificate is X509Certificate2 cert) {
                                     Certificate = new X509Certificate2(cert.Export(X509ContentType.Cert));
                                     var xchain = new X509Chain();
@@ -403,7 +390,7 @@ namespace DomainDetective {
                 return;
             }
             byte[] hashBytes;
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             hashBytes = Certificate.GetCertHash(HashAlgorithmName.SHA256);
 #else
             using (var sha = SHA256.Create()) {
@@ -592,7 +579,7 @@ namespace DomainDetective {
             KeyAlgorithm = certificate.PublicKey?.Oid?.FriendlyName ?? certificate.PublicKey?.Oid?.Value ?? string.Empty;
             try {
                 // PublicKey.Key is obsolete in modern runtimes; prefer algorithm-specific helpers.
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 var keySize = 0;
                 using (var rsa = certificate.GetRSAPublicKey()) {
                     if (rsa != null) {
@@ -635,11 +622,7 @@ namespace DomainDetective {
             TcpClient tcp = new();
             if (!string.IsNullOrEmpty(proxy)) {
                 var p = new Uri(proxy);
-#if NET6_0_OR_GREATER
-                await tcp.ConnectAsync(p.Host, p.Port, token);
-#else
                 await tcp.ConnectAsync(p.Host, p.Port).WaitWithCancellation(token);
-#endif
                 var stream = tcp.GetStream();
                 var connectCmd = $"CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\n\r\n";
                 var buffer = System.Text.Encoding.ASCII.GetBytes(connectCmd);
@@ -652,11 +635,7 @@ namespace DomainDetective {
                 }
                 while (!string.IsNullOrEmpty(await reader.ReadLineAsync())) { }
             } else {
-#if NET6_0_OR_GREATER
-                await tcp.ConnectAsync(host, port, token);
-#else
                 await tcp.ConnectAsync(host, port).WaitWithCancellation(token);
-#endif
             }
             return tcp;
         }
@@ -667,21 +646,12 @@ namespace DomainDetective {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(token);
             timeoutCts.CancelAfter(Timeout);
             using var ssl = new SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-#if NET8_0_OR_GREATER
-            await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.Tls13 | SslProtocols.Tls12, !SkipRevocation)
-                .WaitWithCancellation(timeoutCts.Token);
-#else
             await ssl.AuthenticateAsClientAsync(uri.Host, null, SslProtocols.None, !SkipRevocation).WaitWithCancellation(timeoutCts.Token);
-#endif
             TlsProtocol = ssl.SslProtocol;
-#if NET8_0_OR_GREATER
-            Tls13Used = ssl.SslProtocol == SslProtocols.Tls13;
-#else
             Tls13Used = (int)ssl.SslProtocol == 12288;
-#endif
             CipherAlgorithm = ssl.CipherAlgorithm;
             CipherStrength = ssl.CipherStrength;
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
             CipherSuite = ssl.NegotiatedCipherSuite.ToString();
 #endif
             if (ssl.KeyExchangeAlgorithm == ExchangeAlgorithmType.DiffieHellman) {
@@ -760,7 +730,7 @@ namespace DomainDetective {
                 var readOut = proc.StandardOutput.ReadToEndAsync();
                 var readErr = proc.StandardError.ReadToEndAsync();
                 var delayTask = Task.Delay(Timeout, cts.Token);
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 var waitTask = proc.WaitForExitAsync(cts.Token);
 #else
                 var waitTask = Task.Run(() => { while (!proc.HasExited) { if (cts.Token.IsCancellationRequested) break; Thread.Sleep(25); } }, cts.Token);
@@ -810,7 +780,7 @@ namespace DomainDetective {
                     timeoutCts.CancelAfter(Timeout);
                     using var tcp = await ConnectWithProxy(uri.Host, port, timeoutCts.Token);
                     using var ssl = new System.Net.Security.SslStream(tcp.GetStream(), false, static (_, _, _, _) => true);
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
                     var options = new System.Net.Security.SslClientAuthenticationOptions { TargetHost = uri.Host, EnabledSslProtocols = proto, CertificateRevocationCheckMode = SkipRevocation ? System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck : System.Security.Cryptography.X509Certificates.X509RevocationMode.Online };
                     await ssl.AuthenticateAsClientAsync(options, timeoutCts.Token);
 #else
@@ -819,7 +789,7 @@ namespace DomainDetective {
                     return ssl.SslProtocol == proto;
                 } catch { return false; }
             }
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             SupportsTls13 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls13);
 #endif
             SupportsTls12 = await TryHandshake(System.Security.Authentication.SslProtocols.Tls12);

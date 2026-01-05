@@ -255,7 +255,7 @@ public partial class BimiAnalysis : IHasAssessments {
 
                 using var trustedChain = new X509Chain();
                 trustedChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
                 if (TrustedRoots.Count > 0) {
                     trustedChain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
                     foreach (var root in TrustedRoots) {

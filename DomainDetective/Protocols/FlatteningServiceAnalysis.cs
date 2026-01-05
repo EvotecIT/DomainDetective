@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 
 namespace DomainDetective;
 
@@ -76,7 +77,7 @@ public class FlatteningServiceAnalysis : IHasAssessments
         CnameRecordExists = true;
         logger?.WriteVerbose("CNAME target {0}", Target);
 
-        IsFlatteningService = _flatteningDomains.Any(d => Target.EndsWith(d, StringComparison.OrdinalIgnoreCase));
+        IsFlatteningService = Target != null && _flatteningDomains.Any(d => DomainHelper.IsDomainOrSubdomainOf(Target, d));
         if (IsFlatteningService)
         {
             logger?.WriteWarningCode(FlatteningServiceCodes.UsesFlatteningService, "CNAME uses a known flattening service");

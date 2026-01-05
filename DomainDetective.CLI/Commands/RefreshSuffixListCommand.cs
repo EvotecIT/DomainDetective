@@ -13,7 +13,7 @@ internal sealed class RefreshSuffixListSettings : CommandSettings {
     public bool Force { get; set; }
 
     /// <summary>Optional cache directory.</summary>
-    [CommandOption("--cache-dir")]
+    [CommandOption("--cache-dir <PATH>")]
     public DirectoryInfo? CacheDirectory { get; set; }
 }
 

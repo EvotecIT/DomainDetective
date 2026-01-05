@@ -1,6 +1,6 @@
 // Polyfills for C# 11 'required' members on older target frameworks
 // Included for TFMs prior to .NET 7 so multi-target builds succeed.
-#if !NET7_0_OR_GREATER
+#if NET472
 using System;
 
 namespace System.Runtime.CompilerServices
