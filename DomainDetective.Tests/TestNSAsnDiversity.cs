@@ -15,6 +15,7 @@ public class TestNSAsnDiversity
         var analysis = new NSAnalysis
         {
             Subject = "example.com",
+            EnableChaosFingerprinting = false,
             // Return A records for NS hosts
             QueryDnsOverride = (name, type) =>
             {

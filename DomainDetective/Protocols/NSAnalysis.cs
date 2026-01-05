@@ -57,6 +57,9 @@ namespace DomainDetective {
         /// <summary>Override for ASN lookup in tests.</summary>
         public Func<string, Task<int?>>? LookupAsnOverride { private get; set; }
 
+        /// <summary>Timeout (ms) for best-effort ASN lookups when no override is set.</summary>
+        public int AsnLookupTimeoutMs { get; set; } = 5000;
+
         public List<Assessment> Assessments { get; } = new();
 
         /// <summary>
@@ -197,13 +200,20 @@ namespace DomainDetective {
 
             // ASN lookups (best-effort)
             AsnByIp = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var asnLookupTimeoutMs = AsnLookupTimeoutMs > 0 ? AsnLookupTimeoutMs : 5000;
             foreach (var ip in allIps)
             {
                 try {
-                    int? asn = LookupAsnOverride != null
-                        ? await LookupAsnOverride(ip)
-                        : await LookupAsnAsync(ip, CancellationToken.None);
-                    if (asn.HasValue) AsnByIp[ip] = asn.Value;
+                    int? asn;
+                    if (LookupAsnOverride != null) {
+                        asn = await LookupAsnOverride(ip);
+                    } else {
+                        using var cts = new CancellationTokenSource(asnLookupTimeoutMs);
+                        asn = await LookupAsnAsync(ip, cts.Token);
+                    }
+                    if (asn.HasValue) {
+                        AsnByIp[ip] = asn.Value;
+                    }
                 } catch { /* ignore lookup failures */ }
             }
             AsnDistinctCount = AsnByIp.Values.Distinct().Count();
@@ -489,8 +499,19 @@ namespace DomainDetective {
             var res = await udp.ReceiveAsync(cts.Token);
             return res.Buffer;
 #else
+            token.ThrowIfCancellationRequested();
+            var effectiveTimeoutMs = timeoutMs > 0 ? timeoutMs : 2500;
+
             await udp.SendAsync(query, query.Length, new IPEndPoint(server, 53)).WaitWithCancellation(token);
-            var res = await udp.ReceiveAsync().WaitWithCancellation(token);
+
+            var receiveTask = udp.ReceiveAsync();
+            var completed = await Task.WhenAny(receiveTask, Task.Delay(effectiveTimeoutMs, token)).ConfigureAwait(false);
+            if (completed != receiveTask) {
+                token.ThrowIfCancellationRequested();
+                return null;
+            }
+
+            var res = await receiveTask.ConfigureAwait(false);
             return res.Buffer;
 #endif
         }
