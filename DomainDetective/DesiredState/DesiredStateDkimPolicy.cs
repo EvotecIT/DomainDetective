@@ -113,5 +113,11 @@ public sealed class DesiredStateDkimPolicy {
         DisallowInvalidFlags ??= false;
         DisallowUnknownCanonicalizationModes ??= false;
         DisallowInvalidCanonicalization ??= false;
+        if (MinKeyBits.HasValue) {
+            var minKeyBits = MinKeyBits.Value;
+            if (minKeyBits <= 0 || minKeyBits > 16384) {
+                MinKeyBits = null;
+            }
+        }
     }
 }

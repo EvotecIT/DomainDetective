@@ -11,7 +11,9 @@
     },
     "version": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 1,
+      "maximum": 1,
+      "description": "Schema version (currently 1)."
     },
     "defaults": {
       "$ref": "#/$defs/profile"
@@ -53,7 +55,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Wildcard patterns used to select a profile (e.g., '*.example.com')."
+          "description": "Wildcard patterns used to select a profile (e.g., '*.example.com'). Patterns are limited to 512 characters and 128 wildcards; overly complex patterns are ignored."
         },
         "classifications": {
           "type": "array",

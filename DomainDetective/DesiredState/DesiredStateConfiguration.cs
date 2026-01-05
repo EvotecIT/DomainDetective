@@ -14,6 +14,8 @@ namespace DomainDetective.DesiredState;
 /// Represents an organization-specific desired state baseline for DomainDetective checks.
 /// </summary>
 public sealed partial class DesiredStateConfiguration {
+    public const int SupportedVersion = 1;
+
     [JsonPropertyName("$schema")]
     public string? Schema { get; set; }
 
@@ -57,6 +59,9 @@ public sealed partial class DesiredStateConfiguration {
 
         if (config.Version < 1) {
             throw new InvalidOperationException($"Desired state configuration version must be >= 1 (found {config.Version}) in '{fullPath}'.");
+        }
+        if (config.Version > SupportedVersion) {
+            throw new InvalidOperationException($"Desired state configuration version {config.Version} is newer than supported version {SupportedVersion} in '{fullPath}'.");
         }
 
         if (config.Defaults == null) {

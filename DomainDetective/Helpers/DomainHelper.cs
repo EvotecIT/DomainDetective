@@ -37,26 +37,26 @@ public static class DomainHelper {
         var normalizedHost = NormalizeForComparison(host);
         var normalizedDomain = NormalizeForComparison(domain);
 
-        if (normalizedHost.Length == 0 || normalizedDomain.Length == 0) {
+        return IsDomainOrSubdomainOfNormalized(normalizedHost, normalizedDomain);
+    }
+
+    internal static bool IsDomainOrSubdomainOfNormalized(string normalizedHost, string normalizedDomain) {
+        if (string.IsNullOrWhiteSpace(normalizedHost) || string.IsNullOrWhiteSpace(normalizedDomain)) {
             return false;
         }
-
         if (string.Equals(normalizedHost, normalizedDomain, StringComparison.OrdinalIgnoreCase)) {
             return true;
         }
-
         if (normalizedHost.Length <= normalizedDomain.Length) {
             return false;
         }
-
         if (!normalizedHost.EndsWith(normalizedDomain, StringComparison.OrdinalIgnoreCase)) {
             return false;
         }
-
         return normalizedHost[normalizedHost.Length - normalizedDomain.Length - 1] == '.';
     }
 
-    private static string NormalizeForComparison(string? value) {
+    internal static string NormalizeForComparison(string? value) {
         var trimmed = (value ?? string.Empty).Trim().Trim('.');
         if (trimmed.Length == 0) {
             return string.Empty;

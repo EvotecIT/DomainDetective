@@ -239,10 +239,17 @@ public static partial class DesiredStateEvaluator {
                 .Where(s => s.Length > 0)
                 .ToArray();
 
-            if (suffixes.Length > 0) {
+            var normalizedSuffixes = suffixes
+                .Select(DomainHelper.NormalizeForComparison)
+                .Where(s => s.Length > 0)
+                .ToArray();
+
+            if (normalizedSuffixes.Length > 0) {
                 foreach (var reportDomain in EnumerateReportDomains(dmarc)) {
                     if (string.IsNullOrWhiteSpace(reportDomain)) continue;
-                    var ok = suffixes.Any(s => DomainHelper.IsDomainOrSubdomainOf(reportDomain, s));
+                    var normalizedReportDomain = DomainHelper.NormalizeForComparison(reportDomain);
+                    if (normalizedReportDomain.Length == 0) continue;
+                    var ok = normalizedSuffixes.Any(s => DomainHelper.IsDomainOrSubdomainOfNormalized(normalizedReportDomain, s));
                     if (!ok) {
                         sink.Assessments.Add(new Assessment {
                             Severity = AssessmentSeverity.Error,

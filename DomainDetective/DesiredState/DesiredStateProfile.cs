@@ -455,7 +455,14 @@ public sealed class DesiredStateProfile {
 }
 
 internal static class WildcardMatcher {
-    private static readonly RegexOptions _options = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
+    private static readonly RegexOptions _options =
+        RegexOptions.IgnoreCase |
+        RegexOptions.CultureInvariant |
+        RegexOptions.Compiled
+#if NET7_0_OR_GREATER
+        | RegexOptions.NonBacktracking
+#endif
+        ;
     private static readonly TimeSpan _timeout = TimeSpan.FromSeconds(1);
 
     private const int CacheLimit = 256;
@@ -470,6 +477,9 @@ internal static class WildcardMatcher {
         }
         if (pattern == "*") {
             return true;
+        }
+        if (pattern.IndexOf('*') < 0 && pattern.IndexOf('?') < 0) {
+            return string.Equals(input, pattern, StringComparison.OrdinalIgnoreCase);
         }
 
         var regex = GetOrCreateRegex(pattern);
@@ -564,5 +574,23 @@ internal static class WildcardMatcher {
         _lru.RemoveLast();
         _lruNodes.Remove(key);
         _regexCache.Remove(key);
+    }
+
+    internal static int CacheCount {
+        get {
+            lock (_cacheLock) {
+                return _regexCache.Count;
+            }
+        }
+    }
+
+    internal static int CacheLimitValue => CacheLimit;
+
+    internal static void ClearCacheForTesting() {
+        lock (_cacheLock) {
+            _regexCache.Clear();
+            _lruNodes.Clear();
+            _lru.Clear();
+        }
     }
 }

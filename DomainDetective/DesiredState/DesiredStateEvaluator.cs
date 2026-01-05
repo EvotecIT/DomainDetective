@@ -7,7 +7,12 @@ using DomainDetective.Definitions;
 namespace DomainDetective.DesiredState;
 
 public static partial class DesiredStateEvaluator {
-    public static DesiredStateAnalysis Evaluate(string domain, DomainHealthCheck health, DesiredStateProfile profile, MailDomainClassificationCategory? classification = null) {
+    public static DesiredStateAnalysis Evaluate(
+        string domain,
+        DomainHealthCheck health,
+        DesiredStateProfile profile,
+        MailDomainClassificationCategory? classification = null,
+        DesiredStateEvaluationOptions? options = null) {
         if (domain == null) {
             throw new ArgumentNullException(nameof(domain));
         }
@@ -31,15 +36,21 @@ public static partial class DesiredStateEvaluator {
         try {
             ApplyAssessmentPolicy(health, profile.AssessmentPolicy);
         } catch (Exception ex) {
-            // Policy application should not prevent desired state evaluation.
-            TraceException("ApplyAssessmentPolicy(health, policy)", ex);
+            // Policy application should not prevent desired state evaluation.  
+            TraceException("ApplyAssessmentPolicy(health, policy)", ex, options);
+            if (options?.ThrowOnError == true) {
+                throw;
+            }
         }
 
         try {
             AppendHealthAssessments(health, result);
         } catch (Exception ex) {
             // Collection should not prevent desired state evaluation.
-            TraceException("AppendHealthAssessments(health, result)", ex);
+            TraceException("AppendHealthAssessments(health, result)", ex, options);
+            if (options?.ThrowOnError == true) {
+                throw;
+            }
         }
 
         EvaluateDmarc(domain, health.DmarcAnalysis, profile.Dmarc, result);
@@ -85,7 +96,10 @@ public static partial class DesiredStateEvaluator {
         try {
             ApplyAssessmentPolicy(result, profile.AssessmentPolicy);
         } catch (Exception ex) {
-            TraceException("ApplyAssessmentPolicy(result, policy)", ex);
+            TraceException("ApplyAssessmentPolicy(result, policy)", ex, options);
+            if (options?.ThrowOnError == true) {
+                throw;
+            }
         }
 
         var hasProblems = result.Assessments.Any(a => a.Severity != AssessmentSeverity.Info);
@@ -101,7 +115,10 @@ public static partial class DesiredStateEvaluator {
             try {
                 ApplyAssessmentPolicy(result, profile.AssessmentPolicy);
             } catch (Exception ex) {
-                TraceException("ApplyAssessmentPolicy(result, policy) after Conforms", ex);
+                TraceException("ApplyAssessmentPolicy(result, policy) after Conforms", ex, options);
+                if (options?.ThrowOnError == true) {
+                    throw;
+                }
             }
         }
         return result;
@@ -128,11 +145,15 @@ public static partial class DesiredStateEvaluator {
         }
     }
 
-    private static void TraceException(string context, Exception ex) {
+    private static void TraceException(string context, Exception ex, DesiredStateEvaluationOptions? options) {
         if (ex == null) {
             return;
         }
-        Trace.TraceWarning("DesiredStateEvaluator: {0}: {1}", context, ex);
+        if (options?.LogExceptionsAsErrors == true) {
+            Trace.TraceError("DesiredStateEvaluator: {0}: {1}", context, ex);
+        } else {
+            Trace.TraceWarning("DesiredStateEvaluator: {0}: {1}", context, ex);
+        }
     }
 
     private static Assessment CloneAssessment(Assessment a) {

@@ -190,6 +190,16 @@ Set-Content -Path .\desired-state.json -Value $json -Encoding UTF8
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -NoClassification
 ```
 
+### Notes on wildcard patterns
+
+- `domainPatterns` only supports `*` and `?` wildcards.
+- Patterns longer than 512 characters or containing more than 128 wildcards are ignored to avoid pathological regex behavior.
+
+### Default check behavior
+
+- If **no checks** are explicitly configured **and** no policy blocks are enabled, `Test-DDDesiredState` falls back to the default health checks.
+- If any policy block is enabled, only the checks required by those policies are executed (unless you explicitly set `checks`).
+
 ## Configuration file
 
 Add a `$schema` field for editor IntelliSense:
