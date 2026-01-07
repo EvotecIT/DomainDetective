@@ -33,6 +33,7 @@ public static class CompositionBuilder
         public DomainDetective.Views.DnssecStatusInfo? Dnssec { get; set; }
         public DomainDetective.Views.DaneRecordInfo? Dane { get; set; }
         public DomainDetective.Views.TtlInfo? Ttl { get; set; }
+        public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
         public DomainDetective.Views.MailTlsInfo? SmtpTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? ImapTls { get; set; }
         public DomainDetective.Views.MailTlsInfo? PopTls { get; set; }
@@ -100,6 +101,13 @@ public static class CompositionBuilder
                     var subject = ttl.Subject!;
                     Ensure(subject);
                     map[subject].Ttl = ttl;
+                    break;
+                }
+                case DomainDetective.Views.DesiredStateInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
+                {
+                    var subject = ds.Subject!;
+                    Ensure(subject);
+                    map[subject].DesiredState = ds;
                     break;
                 }
                 case DomainDetective.Views.MailTlsInfo mt when !string.IsNullOrWhiteSpace(mt.Subject):

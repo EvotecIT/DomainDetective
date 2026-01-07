@@ -151,6 +151,7 @@ public static class CompositionExportService
                 if (b.Dmarc != null) present.Add("DMARC");
                 if (b.Arc != null) present.Add("ARC");
                 if (b.Bimi != null) present.Add("BIMI");
+                if (b.DesiredState != null) present.Add("Desired State");
                 if (b.Dnsbl != null) present.Add("DNSBL");
                 if (b.Classification != null) present.Add("Classification");
                 if (b.Mtasts != null) present.Add("MTA-STS");
