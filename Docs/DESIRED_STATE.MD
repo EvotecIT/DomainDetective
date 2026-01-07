@@ -6,6 +6,7 @@ This document introduces a first-pass Desired State Configuration (DSC-like) lay
 
 - A JSON configuration file describing your baseline and per-domain/per-classification overrides.
 - A PowerShell entry point that runs checks and evaluates conformance.
+- Optional reporting modes to control how desired state drift is presented alongside best-practice findings.
 
 ## PowerShell usage
 
@@ -36,6 +37,33 @@ Test-DDDesiredState -DomainName example.com -Configuration $Configuration
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json
 ```
 
+### Reporting modes (DesiredStateMode)
+
+Desired State results can be displayed in three modes:
+
+- **BaselineOnly**: show only desired state drift (no best-practice findings).
+- **HybridSplit** (default): show desired state drift **and** best-practice gaps as separate subsections.
+- **BestPracticesForUnspecified**: show desired state drift for configured checks and best-practice gaps for checks **not** specified in the baseline.
+
+You can set the mode in JSON (`mode`) or override it in PowerShell with `-DesiredStateMode`.
+
+### Best-practice settings
+
+When `DesiredStateMode` is **BestPracticesForUnspecified**, DomainDetective can run a recommended best-practice check set (non-intrusive DNS + policy checks) and optionally include active mail probes.
+
+- `bestPractices.checks`: override the best-practice check set (array of `HealthCheckType` values). Omit to use the recommended set. Use an empty array to disable best-practice checks entirely.
+- `bestPractices.includeActiveMailProbes`: when `true`, adds SMTP/IMAP/POP active probes (STARTTLS, SMTP TLS, IMAP TLS, POP3 TLS, SMTP banner, SMTP AUTH, mail latency, open relay).
+  - To disable best-practice checks entirely, set `"checks": []` and leave `includeActiveMailProbes` as `false`.
+  - If both the desired-state checks and best-practice checks are empty, no checks are executed and the Desired State section will only reflect baseline metadata (mode/conforms).
+
+PowerShell DSL example:
+
+```powershell
+$cfg = New-DDDesiredState {
+    New-DDDesiredStateBestPractices -Checks DMARC,SPF,DKIM,MTASTS,TLSRPT -IncludeActiveMailProbes
+}
+```
+
 To make evaluation failures fail fast (useful in development), add:
 
 ```powershell
@@ -55,6 +83,9 @@ Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.js
 ```powershell
 $cfg = New-DDDesiredState {
     New-DDDesiredStateChecks -Checks DMARC,SPF,DKIM,MTASTS,TLSRPT
+
+    # Optional: best-practice check settings (used in BestPracticesForUnspecified mode)
+    New-DDDesiredStateBestPractices -IncludeActiveMailProbes
 
     New-DDDesiredStateDmarc -Enabled $true `
         -AllowedPolicies reject,quarantine `
@@ -180,6 +211,7 @@ Test-DDDesiredState -DomainName example.com -Configuration $cfg
 
 - `DesiredStateProfile` objects (applied to `defaults`)
 - `DesiredStateOverride` objects (added to `overrides`)
+- `DesiredStateBestPracticeSettings` objects (replace `bestPractices`)
 - `DesiredStateConfiguration` objects (merged: `defaults` applied, `overrides` appended)
 
 Overrides are evaluated in order; if multiple overrides match a domain, later overrides win for overlapping settings.
@@ -211,6 +243,7 @@ Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.js
 
 - If **no checks** are explicitly configured **and** no policy blocks are enabled, `Test-DDDesiredState` falls back to the default health checks.
 - If any policy block is enabled, only the checks required by those policies are executed (unless you explicitly set `checks`).
+- When `DesiredStateMode` is **BestPracticesForUnspecified**, DomainDetective runs the recommended best-practice check set plus any explicitly configured checks so it can surface best-practice gaps for unspecified areas.
 
 ## Configuration file
 
@@ -220,6 +253,10 @@ Add a `$schema` field for editor IntelliSense:
 {
   "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
   "version": 1,
+  "mode": "HybridSplit",
+  "bestPractices": {
+    "includeActiveMailProbes": false
+  },
   "defaults": {
     "checks": [
       "DMARC",
@@ -416,6 +453,101 @@ Add a `$schema` field for editor IntelliSense:
     }
   ]
 }
+```
+
+## End-to-end examples (all modes)
+
+### 1) BaselineOnly (drift only)
+
+`desired-state-baseline.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject", "quarantine" ], "requireRua": true },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ], "maxDnsLookups": 10 },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-baseline.json
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-baseline.json
+```
+
+### 2) HybridSplit (drift + best-practice gaps)
+
+`desired-state-hybrid.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "HybridSplit",
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject" ] },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ] },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-hybrid.json -DesiredStateMode HybridSplit
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-hybrid.json --mode HybridSplit --format html
+```
+
+### 3) BestPracticesForUnspecified (baseline + best-practice for unspecified)
+
+`desired-state-best.json`:
+
+```json
+{
+  "$schema": "./Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BestPracticesForUnspecified",
+  "bestPractices": {
+    "includeActiveMailProbes": false
+  },
+  "defaults": {
+    "checks": [ "DMARC", "SPF", "DKIM" ],
+    "dmarc": { "enabled": true, "allowedPolicies": [ "reject" ] },
+    "spf": { "enabled": true, "requireRecord": true, "allowedAllMechanisms": [ "-all" ] },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  }
+}
+```
+
+PowerShell:
+
+```powershell
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state-best.json -DesiredStateMode BestPracticesForUnspecified
+```
+
+CLI:
+
+```bash
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state-best.json --mode BestPracticesForUnspecified --format html --open
 ```
 
 ### Notes

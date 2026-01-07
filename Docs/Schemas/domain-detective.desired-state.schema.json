@@ -15,6 +15,18 @@
       "maximum": 1,
       "description": "Schema version (currently 1)."
     },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "BaselineOnly",
+        "HybridSplit",
+        "BestPracticesForUnspecified"
+      ],
+      "description": "Controls how desired state drift is reported relative to best-practice findings."
+    },
+    "bestPractices": {
+      "$ref": "#/$defs/bestPractices"
+    },
     "defaults": {
       "$ref": "#/$defs/profile"
     },
@@ -63,6 +75,23 @@
             "$ref": "#/$defs/mailClassification"
           },
           "description": "Mail domain classifications that must match for this override to apply."
+        }
+      }
+    },
+    "bestPractices": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/healthCheckType"
+          },
+          "description": "Best-practice check set used when DesiredStateMode is BestPracticesForUnspecified. Use an empty array to disable best-practice checks."
+        },
+        "includeActiveMailProbes": {
+          "type": "boolean",
+          "description": "When true, adds SMTP/IMAP/POP probes and related active checks to the best-practice set."
         }
       }
     },
