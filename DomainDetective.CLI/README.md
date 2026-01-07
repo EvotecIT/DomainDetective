@@ -59,6 +59,12 @@ DomainDetective.CLI.exe check example.com --json
 # Check specific tests
 DomainDetective.CLI.exe check example.com --checks SPF,DKIM,DMARC
 
+# Desired State (custom baseline)
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state.json
+
+# Desired State with best-practice gaps + export
+DomainDetective.CLI.exe DesiredState example.com --desired-state .\desired-state.json --mode BestPracticesForUnspecified --format html --open
+
 # Include additional checks
 DomainDetective.CLI.exe check example.com --check-http --check-takeover
 
