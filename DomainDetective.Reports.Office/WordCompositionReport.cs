@@ -419,6 +419,12 @@ public static class WordCompositionReport {
                     doc.AddParagraph("No mail transport posture data.").SetItalic(true);
                 }
             }, bucket.Mx != null || bucket.SmtpTls != null || bucket.ImapTls != null || bucket.PopTls != null || bucket.Mtasts != null || bucket.TlsRpt != null || bucket.TlsRptReports != null || bucket.Dane != null);
+            add("Desired State", () => {
+                headings.AddItem("Desired State", 1);
+                var dto = DomainDetective.Reports.SectionProjectors.BuildDesiredState(bucket.DesiredState!);
+                if (dto != null) DesiredStateWordSectionWriter.Write(doc, headings, 2, dto, bucket.DesiredState, domain, scope, showInfoFindings);
+                else DesiredStateWordSectionWriter.Write(doc, headings, 2, bucket.DesiredState!, domain, scope, showInfoFindings);
+            }, bucket.DesiredState != null);
             add("SPF", () => {
                 headings.AddItem("SPF", 1);
                 var dto = DomainDetective.Reports.SectionProjectors.BuildSpf(bucket.Spf!);
@@ -846,6 +852,7 @@ public static class WordCompositionReport {
         public DomainDetective.Views.ZoneTransferInfo? ZoneTransfer { get; set; }
         public DomainDetective.Views.WildcardDnsInfo? Wildcard { get; set; }
         public DomainDetective.Views.MailClassificationInfo? Classification { get; set; }
+        public DomainDetective.Views.DesiredStateInfo? DesiredState { get; set; }
         public DomainDetective.Views.MtastsInfo? Mtasts { get; set; }     
         public DomainDetective.Views.TlsRptInfo? TlsRpt { get; set; }     
         public DomainDetective.Views.TlsRptReportsTimeSeriesInfo? TlsRptReports { get; set; }
@@ -960,6 +967,8 @@ public static class WordCompositionReport {
                         Ensure(wc.Subject); map[wc.Subject].Wildcard = wc; break;
                     case DomainDetective.Views.MailClassificationInfo mc when !string.IsNullOrWhiteSpace(mc.Subject):
                         Ensure(mc.Subject); map[mc.Subject].Classification = mc; break;
+                    case DomainDetective.Views.DesiredStateInfo ds when !string.IsNullOrWhiteSpace(ds.Subject):
+                        Ensure(ds.Subject); map[ds.Subject].DesiredState = ds; break;
                     case DomainDetective.Views.MtastsInfo ms when !string.IsNullOrWhiteSpace(ms.Subject):
                         Ensure(ms.Subject); map[ms.Subject].Mtasts = ms; break;
                     case DomainDetective.Views.TlsRptInfo tr when !string.IsNullOrWhiteSpace(tr.Subject):
