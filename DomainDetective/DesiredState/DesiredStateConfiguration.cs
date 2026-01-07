@@ -22,6 +22,12 @@ public sealed partial class DesiredStateConfiguration {
     [JsonPropertyName("version")]
     public int Version { get; set; } = 1;
 
+    [JsonPropertyName("mode")]
+    public DesiredStateMode Mode { get; set; } = DesiredStateMode.HybridSplit;
+
+    [JsonPropertyName("bestPractices")]
+    public DesiredStateBestPracticeSettings BestPractices { get; set; } = new DesiredStateBestPracticeSettings();
+
     [JsonPropertyName("defaults")]
     public DesiredStateProfile Defaults { get; set; } = new DesiredStateProfile();
 
@@ -66,6 +72,9 @@ public sealed partial class DesiredStateConfiguration {
 
         if (config.Defaults == null) {
             config.Defaults = new DesiredStateProfile();
+        }
+        if (config.BestPractices == null) {
+            config.BestPractices = new DesiredStateBestPracticeSettings();
         }
         if (config.Overrides == null) {
             config.Overrides = new List<DesiredStateOverride>();
@@ -152,6 +161,25 @@ public sealed partial class DesiredStateConfiguration {
         if (profile.SecurityTxt != null && profile.SecurityTxt.Enabled != false) set.Add(HealthCheckType.SECURITYTXT);
         if (profile.Robots != null && profile.Robots.Enabled != false) set.Add(HealthCheckType.ROBOTS);
 
+        return set.ToArray();
+    }
+
+    public HealthCheckType[] GetChecksToRun(DesiredStateProfile profile, DesiredStateMode mode) {
+        return GetChecksToRun(profile, mode, BestPractices);
+    }
+
+    public static HealthCheckType[] GetChecksToRun(DesiredStateProfile profile, DesiredStateMode mode, DesiredStateBestPracticeSettings? bestPractices = null) {
+        if (profile == null) return Array.Empty<HealthCheckType>();
+        var required = GetRequiredChecks(profile);
+        if (mode != DesiredStateMode.BestPracticesForUnspecified) {
+            return required;
+        }
+
+        var set = new HashSet<HealthCheckType>(required);
+        var bestChecks = bestPractices?.ResolveChecks() ?? DesiredStateBestPractices.RecommendedChecks;
+        foreach (var check in bestChecks) {
+            set.Add(check);
+        }
         return set.ToArray();
     }
 }

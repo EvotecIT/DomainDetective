@@ -14,10 +14,12 @@ public sealed class DesiredStateAnalysis : IHasAssessments {
     /// <summary>Indicates whether the domain conforms to the desired state baseline.</summary>
     public bool Conforms { get; set; }
 
+    /// <summary>Mode used when presenting desired state vs best-practice results.</summary>
+    public DesiredStateMode Mode { get; set; } = DesiredStateMode.HybridSplit;
+
     /// <summary>Structured assessments describing conformance and drift.</summary>
     public List<Assessment> Assessments { get; } = new();
 
     /// <summary>Actionable recommendations derived from assessments.</summary>
     public IReadOnlyList<RecommendationAdvice> Recommendations => RecommendationEngine.From(Assessments);
 }
-
