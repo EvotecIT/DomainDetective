@@ -37,6 +37,197 @@ Test-DDDesiredState -DomainName example.com -Configuration $Configuration
 Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json
 ```
 
+### Run delta vs previous bundle
+
+Desired State can compare the current run against a **previous bundle** (JSON) and report:
+
+- Conformance score delta
+- New failing codes
+- Cleared failing codes
+
+PowerShell example:
+
+```powershell
+# First run (export bundle alongside report)
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -ExportPath .\Reports
+
+# Next run with delta
+Test-DDDesiredState -DomainName example.com -DesiredStatePath .\desired-state.json -PreviousBundlePath .\Reports\report-desired-state-bundle.json
+```
+
+CLI example:
+
+```bash
+# First run (export bundle alongside report)
+DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html
+
+# Next run with delta
+DomainDetective DesiredState example.com --config .\desired-state.json --format html --output .\Reports\report.html --previous-bundle .\Reports\report-desired-state-bundle.json
+```
+
+When a previous bundle is provided, run delta appears in HTML/Word/Excel/Markdown outputs and in the summary CSV.
+
+### Report output snapshot (baseline metadata + coverage)
+
+When a baseline is loaded, the Desired State section includes:
+
+- Baseline Metadata (mode, version, hash, source, overrides)
+- Effective Policy Snapshot (resolved checks and overrides)
+- Coverage Summary (configured vs executed checks)
+- Run Delta (when `--previous-bundle` or `-PreviousBundlePath` is provided)
+
+Example Baseline Metadata block (format varies by output type):
+
+| Field | Example |
+|---|---|
+| Baseline Mode | BaselineOnly |
+| Effective Mode | BestPracticesForUnspecified |
+| Config Version | 1 |
+| Source Label | Corp Baseline |
+| Source Path | C:\Baselines\desired-state.json |
+| Config Hash (SHA256) | 7e3b0f... |
+| Overrides Applied | 2 |
+| Lint Warnings | 0 |
+
+### Example scripts (PowerShell)
+
+Sample scripts that build a baseline and export reports are available under `Module/Examples`:
+
+- `Example.Report.DesiredState.Word.ps1`
+- `Example.Report.DesiredState.Html.ps1`
+- `Example.Report.DesiredState.Excel.ps1`
+- `Example.Report.DesiredState.Markdown.ps1`
+
+Each script creates `desired-state.sample.json` next to the script and saves reports into `Module/Examples/Reports`.
+
+### JSON schema
+
+The Desired State JSON schema is bundled in the repo at:
+
+```
+Docs/Schemas/domain-detective.desired-state.schema.json
+```
+
+You can point your editor/CI validation at that file or embed it in the JSON via `$schema`.
+
+### Sample baselines
+
+#### Email-only baseline (DMARC/SPF/DKIM + MTA-STS/TLS-RPT)
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT"],
+    "dmarc": {
+      "enabled": true,
+      "allowedPolicies": ["reject"],
+      "requireRua": true
+    },
+    "spf": {
+      "enabled": true,
+      "allowedAllMechanisms": ["-all", "~all"],
+      "maxDnsLookups": 10
+    },
+    "dkim": {
+      "enabled": true,
+      "requireAtLeastOneSelector": true,
+      "minKeyBits": 2048
+    },
+    "mtasts": {
+      "enabled": true,
+      "requireRecord": true,
+      "requireEnforce": true,
+      "minMaxAge": 86400
+    },
+    "tlsrpt": {
+      "enabled": true,
+      "requireRecord": true
+    }
+  }
+}
+```
+
+#### DNS-only baseline (DNSSEC/CAA/NS/SOA/RPKI)
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "BaselineOnly",
+  "defaults": {
+    "checks": ["NS", "SOA", "CAA", "DNSSEC", "RPKI", "DNSHEALTH"],
+    "ns": {
+      "enabled": true,
+      "requireAtLeastTwo": true,
+      "requireAllHaveAOrAaaa": true
+    },
+    "soa": {
+      "enabled": true,
+      "requireRecord": true,
+      "minRefresh": 3600,
+      "maxRefresh": 86400
+    },
+    "caa": {
+      "enabled": true,
+      "requireRecord": true,
+      "requireValid": true
+    },
+    "dnssec": {
+      "enabled": true,
+      "requireChainValid": true,
+      "minRrsigDaysRemaining": 7
+    },
+    "rpki": {
+      "enabled": true,
+      "disallowInvalid": true
+    },
+    "dnsHealth": {
+      "enabled": true,
+      "requireServersResponsive": true
+    }
+  }
+}
+```
+
+#### Hybrid baseline with overrides
+
+```json
+{
+  "$schema": "Docs/Schemas/domain-detective.desired-state.schema.json",
+  "version": 1,
+  "mode": "HybridSplit",
+  "bestPractices": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT", "DNSSEC"],
+    "includeActiveMailProbes": false
+  },
+  "defaults": {
+    "checks": ["DMARC", "SPF", "DKIM", "MTASTS", "TLSRPT"],
+    "dmarc": { "enabled": true, "allowedPolicies": ["reject"] },
+    "spf": { "enabled": true, "maxDnsLookups": 10 },
+    "dkim": { "enabled": true, "minKeyBits": 2048 }
+  },
+  "overrides": [
+    {
+      "match": { "domainPatterns": ["*.example.com"] },
+      "profile": {
+        "spf": { "requireDenyAll": true },
+        "dmarc": { "requireRua": false }
+      }
+    },
+    {
+      "match": { "classifications": ["Parked"] },
+      "profile": {
+        "dmarc": { "requireRecord": false },
+        "spf": { "requireRecord": false }
+      }
+    }
+  ]
+}
+```
+
 ### Reporting modes (DesiredStateMode)
 
 Desired State results can be displayed in three modes:
