@@ -96,6 +96,10 @@ namespace DomainDetective {
         /// <value>SMIMEA records and validation output.</value>
         public SMIMEAAnalysis SmimeaAnalysis { get; private set; } = new SMIMEAAnalysis();
 
+        /// <summary>Gets the email address validation analysis.</summary>
+        /// <value>Syntax/DNS/SMTP checks for a mailbox.</value>
+        public EmailAddressValidationAnalysis EmailAddressValidationAnalysis { get; private set; } = new EmailAddressValidationAnalysis();
+
         /// <summary>
         /// Gets the DNS block list analysis.
         /// </summary>

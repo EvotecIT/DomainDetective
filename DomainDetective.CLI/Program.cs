@@ -105,6 +105,13 @@ internal static class Program {
             config.AddCommand<TestSmimeaCommand>("TestSMIMEA")
                 .WithDescription("Query SMIMEA record for an email address")
                 .WithExample(new[] { "TestSMIMEA", "user@example.com" });
+            config.AddCommand<ValidateEmailCommand>("ValidateEmail")
+                .WithDescription("Validate an email address")
+                .WithExample(new[] { "ValidateEmail", "user@example.com" })
+                .WithExample(new[] { "ValidateEmail", "user@example.com", "--smtp", "--catch-all" });
+            config.AddCommand<ValidateEmailCommand>("email-validate")
+                .WithDescription("Validate an email address (alias)")
+                .WithExample(new[] { "email-validate", "user@example.com" });
             config.AddCommand<TestRpkiCommand>("TestRPKI")
                 .WithDescription("Validate RPKI origins for domain IPs")
                 .WithExample(new[] { "TestRPKI", "example.com" });

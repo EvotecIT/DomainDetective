@@ -123,6 +123,7 @@ See TODO.md for the current backlog and roadmap.
 | ------------------------------ | -------------------------- | ----------------------------- |
 | `Test-DDEmailArcRecord`        | `Test-EmailArc`            | Validate ARC headers          |
 | `Test-DDEmailAutoDiscover`     | `Test-EmailAutoDiscover`   | Check mail client discovery   |
+| `Test-DDEmailAddress`          | `Test-EmailAddress`        | Validate mailbox reachability |
 | `Test-DDEmailBimiRecord`       | `Test-EmailBimi`           | Verify BIMI record            |
 | `Test-DDEmailDkimRecord`       | `Test-EmailDkim`           | Verify DKIM selectors         |
 | `Test-DDEmailDmarcRecord`      | `Test-EmailDmarc`          | Verify DMARC policy           |
@@ -140,6 +141,36 @@ See TODO.md for the current backlog and roadmap.
 | `Test-DDEmailSmtpBanner`       | `Test-EmailSmtpBanner`     | Inspect SMTP banner           |
 | `Test-DDDmarcAggregate`        | `Test-EmailDmarcAggregate` | Parse DMARC aggregate reports |
 | `New-DDDmarcRecord`            | `New-DmarcRecord`          | Build DMARC record            |
+
+### Email Address Validation
+
+PowerShell example:
+```powershell
+Test-DDEmailAddress -EmailAddress "user@example.com" -SmtpProbe -CheckCatchAll
+```
+
+CLI example:
+```bash
+DomainDetective.CLI ValidateEmail user@example.com --smtp --catch-all --smtp-max-hosts 2
+```
+
+SMTP rules example:
+```powershell
+Test-DDEmailAddress -EmailAddress "user@example.com" -SmtpProbe -SmtpRulesPath "./smtp-rules.json"
+```
+
+```bash
+DomainDetective.CLI ValidateEmail user@example.com --smtp --smtp-rules ./smtp-rules.json --no-builtin-smtp-rules
+```
+
+Optional controls:
+- Use `-EnableProviderWebChecks` (or `--provider-web`) to enable provider web checks when available.
+- Use `-ProtonAuthCookie`/`-ProtonUid` (or `--proton-auth`/`--proton-uid`) to enable Proton checks (requires a valid AUTH cookie and `x-pm-uid`).
+- Use `-SmtpRulesPath` (or `--smtp-rules`) to supply custom SMTP rules JSON and `-DisableBuiltinSmtpRules` to ignore built-in rules.
+- Use `-AllowB2CCatchAll` (or `--allow-b2c-catch-all`) to allow catch-all probing for consumer providers.
+- Use `-B2CProvidersPath` (or `--b2c-providers`) to override the B2C provider list.
+- Built-in SMTP rules are enabled by default. See `Docs/EmailSmtpRules.md` for schema, examples, and Proton auth notes.
+- Provider web checks are currently implemented for Yahoo, Microsoft consumer domains, and Proton (with auth).
 
 ### Web
 
