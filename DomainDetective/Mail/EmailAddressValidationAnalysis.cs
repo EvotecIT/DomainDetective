@@ -1005,6 +1005,9 @@ public sealed class EmailAddressValidationAnalysis {
             if (string.IsNullOrWhiteSpace(host)) {
                 return;
             }
+            if (host == null) {
+                return;
+            }
             var normalized = host.Trim().Trim('.');
             if (normalized.Length == 0) {
                 return;
@@ -1026,9 +1029,9 @@ public sealed class EmailAddressValidationAnalysis {
     }
 
     private static string BuildFromAddress(string? fromAddress, string domain) {
-        var trimmed = fromAddress?.Trim();
+        var trimmed = fromAddress == null ? null : fromAddress.Trim();
         if (!string.IsNullOrWhiteSpace(trimmed)) {
-            return trimmed;
+            return trimmed ?? string.Empty;
         }
         if (!string.IsNullOrWhiteSpace(domain)) {
             return $"postmaster@{domain}";
@@ -1086,7 +1089,7 @@ public sealed class EmailAddressValidationAnalysis {
         return ContainsOrdinalIgnoreCase(response, "starttls") || ContainsOrdinalIgnoreCase(response, "tls required");
     }
 
-    private static bool ContainsOrdinalIgnoreCase(string source, string value) {
+    private static bool ContainsOrdinalIgnoreCase(string? source, string value) {
         if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(value)) {
             return false;
         }
@@ -1141,10 +1144,14 @@ public sealed class EmailAddressValidationAnalysis {
     }
 
     private static int ParseStatusCode(string? response) {
-        if (string.IsNullOrWhiteSpace(response) || response.Length < SmtpStatusCodeLength) {
+        if (string.IsNullOrWhiteSpace(response)) {
             return -1;
         }
-        if (int.TryParse(response.Substring(0, SmtpStatusCodeLength), out var code)) {
+        var value = response ?? string.Empty;
+        if (value.Length < SmtpStatusCodeLength) {
+            return -1;
+        }
+        if (int.TryParse(value.Substring(0, SmtpStatusCodeLength), out var code)) {
             return code;
         }
         return -1;
@@ -1391,7 +1398,8 @@ public sealed class EmailAddressValidationAnalysis {
             return null;
         }
 
-        var normalized = normalizedEmail.Trim().ToLowerInvariant();
+        var normalizedValue = normalizedEmail ?? string.Empty;
+        var normalized = normalizedValue.Trim().ToLowerInvariant();
         var hash = ComputeMd5(normalized);
         var url = $"https://www.gravatar.com/avatar/{hash}?d=404";
 
@@ -1434,7 +1442,8 @@ public sealed class EmailAddressValidationAnalysis {
             baseUrl += "/";
         }
 
-        var encoded = Uri.EscapeDataString(normalizedEmail.Trim().ToLowerInvariant());
+        var normalizedValue = normalizedEmail ?? string.Empty;
+        var encoded = Uri.EscapeDataString(normalizedValue.Trim().ToLowerInvariant());
         var url = $"{baseUrl}breachedaccount/{encoded}?truncateResponse=true";
 
         try {

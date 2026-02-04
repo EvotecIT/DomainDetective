@@ -37,8 +37,11 @@ public static class EmailValidationData {
             return false;
         }
         var set = GetSet(overridePath, _roleAccounts);
-        var trimmed = localPart?.Trim();
+        var trimmed = localPart == null ? null : localPart.Trim();
         if (string.IsNullOrWhiteSpace(trimmed)) {
+            return false;
+        }
+        if (trimmed == null) {
             return false;
         }
         return set.Contains(trimmed);
@@ -65,6 +68,9 @@ public static class EmailValidationData {
     /// <summary>Returns true when <paramref name="domain"/> or any parent suffix is present in the set.</summary>
     private static bool IsDomainOrSubdomain(string? domain, HashSet<string> set) {
         if (string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
+        if (domain == null) {
             return false;
         }
         var clean = domain.Trim().Trim('.').ToLowerInvariant();
@@ -158,8 +164,11 @@ public static class EmailValidationData {
             return false;
         }
         var set = await GetSetAsync(overridePath, _roleAccounts, cancellationToken).ConfigureAwait(false);
-        var trimmed = localPart?.Trim();
+        var trimmed = localPart == null ? null : localPart.Trim();
         if (string.IsNullOrWhiteSpace(trimmed)) {
+            return false;
+        }
+        if (trimmed == null) {
             return false;
         }
         return set.Contains(trimmed);
