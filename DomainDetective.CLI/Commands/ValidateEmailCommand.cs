@@ -31,6 +31,10 @@ internal sealed class ValidateEmailSettings : CommandSettings {
     [CommandOption("--smtp-timeout <SECONDS>")]
     public int SmtpTimeoutSeconds { get; set; } = 20;
 
+    /// <summary>Allow invalid SMTP TLS certificates when STARTTLS is used.</summary>
+    [CommandOption("--smtp-allow-invalid-cert")]
+    public bool AllowInvalidSmtpCertificates { get; set; }
+
     /// <summary>Max SMTP hosts to try.</summary>
     [CommandOption("--smtp-max-hosts <COUNT>")]
     public int SmtpMaxHosts { get; set; } = 1;
@@ -162,6 +166,7 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
             CheckCatchAll = settings.CheckCatchAll,
             SmtpPort = settings.SmtpPort,
             SmtpTimeout = TimeSpan.FromSeconds(settings.SmtpTimeoutSeconds),
+            AllowInvalidSmtpCertificates = settings.AllowInvalidSmtpCertificates,
             SmtpMaxHosts = settings.SmtpMaxHosts,
             SmtpRetryCount = settings.SmtpRetryCount,
             SmtpRetryDelay = TimeSpan.FromSeconds(settings.SmtpRetryDelaySeconds),

@@ -54,6 +54,10 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public int SmtpTimeoutSeconds = 20;
 
+    /// <summary>Allow invalid SMTP TLS certificates when STARTTLS is used.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter AllowInvalidSmtpCertificates;
+
     /// <summary>Max SMTP hosts to try.</summary>
     [Parameter(Mandatory = false)]
     public int SmtpMaxHosts = 1;
@@ -170,6 +174,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
             CheckCatchAll = CheckCatchAll.IsPresent,
             SmtpPort = SmtpPort,
             SmtpTimeout = System.TimeSpan.FromSeconds(SmtpTimeoutSeconds),
+            AllowInvalidSmtpCertificates = AllowInvalidSmtpCertificates.IsPresent,
             SmtpMaxHosts = SmtpMaxHosts,
             SmtpRetryCount = SmtpRetryCount,
             SmtpRetryDelay = System.TimeSpan.FromSeconds(SmtpRetryDelaySeconds),

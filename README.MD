@@ -168,9 +168,12 @@ Optional controls:
 - Use `-ProtonAuthCookie`/`-ProtonUid` (or `--proton-auth`/`--proton-uid`) to enable Proton checks (requires a valid AUTH cookie and `x-pm-uid`).
 - Use `-SmtpRulesPath` (or `--smtp-rules`) to supply custom SMTP rules JSON and `-DisableBuiltinSmtpRules` to ignore built-in rules.
 - Use `-AllowB2CCatchAll` (or `--allow-b2c-catch-all`) to allow catch-all probing for consumer providers.
+- Use `-AllowInvalidSmtpCertificates` (or `--smtp-allow-invalid-cert`) to skip SMTP TLS certificate validation (not recommended).
 - Use `-B2CProvidersPath` (or `--b2c-providers`) to override the B2C provider list.
 - Built-in SMTP rules are enabled by default. See `Docs/EmailSmtpRules.md` for schema, examples, and Proton auth notes.
 - Provider web checks are currently implemented for Yahoo, Microsoft consumer domains, and Proton (with auth).
+- Provider web checks rely on undocumented endpoints and may change or rate-limit without notice.
+- Avoid passing Proton auth values via command line where they may appear in shell history or process listings.
 
 ### Web
 

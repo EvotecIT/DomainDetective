@@ -79,6 +79,10 @@ public sealed class EmailAddressValidationAnalysis {
     private const string ProtonAvailabilityApi = "https://account.proton.me/api/users/available";
     private const string ProtonAvailabilityLegacyApi = "https://account.protonmail.com/api/users/available";
     private const string ProtonUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private const int MaxSuggestionDistance = 2;
+    private const int MaxSmtpResponseLines = 50;
+    private const int SmtpStatusCodeLength = 3;
+    private const int TooManyRequestsStatusCode = 429;
     /// <summary>DNS configuration used for lookups.</summary>
     public DnsConfiguration? DnsConfiguration { get; set; }
 
@@ -130,12 +134,12 @@ public sealed class EmailAddressValidationAnalysis {
 
         var localPart = Syntax.Username ?? string.Empty;
         var domain = Syntax.Domain ?? string.Empty;
-        Misc.IsRoleAccount = EmailValidationData.IsRoleAccount(NormalizeRoleLocalPart(localPart), options.RoleAccountsPath);
-        Misc.IsDisposable = EmailValidationData.IsDisposableDomain(domain, options.DisposableDomainsPath);
+        Misc.IsRoleAccount = await EmailValidationData.IsRoleAccountAsync(NormalizeRoleLocalPart(localPart), options.RoleAccountsPath, cancellationToken).ConfigureAwait(false);
+        Misc.IsDisposable = await EmailValidationData.IsDisposableDomainAsync(domain, options.DisposableDomainsPath, cancellationToken).ConfigureAwait(false);
         if (options.CheckFreeProvider) {
-            Misc.IsFreeProvider = EmailValidationData.IsFreeProvider(domain, options.FreeProvidersPath);
+            Misc.IsFreeProvider = await EmailValidationData.IsFreeProviderAsync(domain, options.FreeProvidersPath, cancellationToken).ConfigureAwait(false);
         }
-        Misc.IsB2C = EmailValidationData.IsB2CProvider(domain, options.B2CProvidersPath);
+        Misc.IsB2C = await EmailValidationData.IsB2CProviderAsync(domain, options.B2CProvidersPath, cancellationToken).ConfigureAwait(false);
         if (!Misc.IsB2C && options.CheckFreeProvider) {
             Misc.IsB2C = Misc.IsFreeProvider;
         }
@@ -169,11 +173,11 @@ public sealed class EmailAddressValidationAnalysis {
         }
 
         if (options.CheckGravatar) {
-            Misc.GravatarUrl = await TryResolveGravatarAsync(Syntax.NormalizedEmail, options, cancellationToken);
+            Misc.GravatarUrl = await TryResolveGravatarAsync(Syntax.NormalizedEmail, options, logger, cancellationToken);
         }
 
         if (options.CheckHaveIBeenPwned && !string.IsNullOrWhiteSpace(options.HaveIBeenPwnedApiKey)) {
-            Misc.HaveIBeenPwned = await TryCheckHaveIBeenPwnedAsync(Syntax.NormalizedEmail, options, cancellationToken);
+            Misc.HaveIBeenPwned = await TryCheckHaveIBeenPwnedAsync(Syntax.NormalizedEmail, options, logger, cancellationToken);
         }
 
         IsReachable = ComputeReachability(Syntax, Mx, Smtp, Misc);
@@ -227,14 +231,19 @@ public sealed class EmailAddressValidationAnalysis {
             return result;
         }
 
-        var trimmed = emailAddress.Trim();
-        if (trimmed.Contains('<') || trimmed.Contains('>')) {
+        var trimmed = emailAddress!.Trim();
+        if (trimmed.IndexOf('<') >= 0 || trimmed.IndexOf('>') >= 0) {
             result.IsValidSyntax = false;
             result.Error = "Display names are not allowed in this validator.";
             return result;
         }
 
         if (!MailboxAddress.TryParse(trimmed, out var mailbox)) {
+            result.IsValidSyntax = false;
+            result.Error = "Invalid email syntax.";
+            return result;
+        }
+        if (mailbox == null) {
             result.IsValidSyntax = false;
             result.Error = "Invalid email syntax.";
             return result;
@@ -303,20 +312,27 @@ public sealed class EmailAddressValidationAnalysis {
         string? best = null;
         int bestDistance = int.MaxValue;
         foreach (var provider in CommonProviderDomains) {
+            if (Math.Abs(domain.Length - provider.Length) > MaxSuggestionDistance) {
+                continue;
+            }
             var distance = ComputeLevenshteinDistance(domain, provider);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = provider;
+                if (bestDistance == 0) {
+                    break;
+                }
             }
         }
 
-        if (best == null || bestDistance > 2) {
+        if (best == null || bestDistance > MaxSuggestionDistance) {
             return null;
         }
 
         return $"{localPart}@{best}";
     }
 
+    /// <summary>Computes the Levenshtein distance between two strings.</summary>
     private static int ComputeLevenshteinDistance(string source, string target) {
         if (string.IsNullOrEmpty(source)) {
             return target?.Length ?? 0;
@@ -409,7 +425,7 @@ public sealed class EmailAddressValidationAnalysis {
         if (options.DisableCatchAllForB2C && Misc.IsB2C) {
             enableCatchAll = false;
         }
-        var ruleMatch = EmailSmtpRuleResolver.Resolve(domain, Mx.Records, options.SmtpRulesPath, options.UseBuiltinSmtpRules);
+        var ruleMatch = await EmailSmtpRuleResolver.ResolveAsync(domain, Mx.Records, options.SmtpRulesPath, options.UseBuiltinSmtpRules, cancellationToken).ConfigureAwait(false);
         if (ruleMatch != null) {
             if (ruleMatch.DisableCatchAll.HasValue) {
                 enableCatchAll = !ruleMatch.DisableCatchAll.Value;
@@ -438,7 +454,7 @@ public sealed class EmailAddressValidationAnalysis {
                 return;
             }
             if (!string.IsNullOrWhiteSpace(Smtp.Error)) {
-                Smtp.AttemptErrors[candidate] = Smtp.Error;
+                Smtp.AttemptErrors[candidate] = Smtp.Error ?? string.Empty;
             }
         }
     }
@@ -455,6 +471,9 @@ public sealed class EmailAddressValidationAnalysis {
                     await Task.Delay(retryDelay, cancellationToken);
                 }
                 continue;
+            }
+            if (Smtp.IsPermanentFailure && !Smtp.IsGreylisted) {
+                return true;
             }
             if (Smtp.IsTemporaryFailure || Smtp.IsGreylisted) {
                 if (attempt < retryCount && retryDelay > TimeSpan.Zero) {
@@ -474,7 +493,7 @@ public sealed class EmailAddressValidationAnalysis {
         }
 
         if (IsYahooDomain(domain)) {
-            var exists = await TryCheckYahooAccountAsync(emailAddress, options, cancellationToken);
+            var exists = await TryCheckYahooAccountAsync(emailAddress, options, logger, cancellationToken);
             if (exists.HasValue) {
                 Smtp.Checked = true;
                 Smtp.UsedProviderWebCheck = true;
@@ -489,7 +508,7 @@ public sealed class EmailAddressValidationAnalysis {
         }
 
         if (IsMicrosoftConsumerDomain(domain)) {
-            var exists = await TryCheckMicrosoftAccountAsync(emailAddress, options, cancellationToken);
+            var exists = await TryCheckMicrosoftAccountAsync(emailAddress, options, logger, cancellationToken);
             if (exists.HasValue) {
                 Smtp.Checked = true;
                 Smtp.UsedProviderWebCheck = true;
@@ -507,7 +526,7 @@ public sealed class EmailAddressValidationAnalysis {
             if (string.IsNullOrWhiteSpace(options.ProtonAuthCookie) || string.IsNullOrWhiteSpace(options.ProtonUid)) {
                 logger.WriteVerbose("Provider web check skipped for Proton (missing auth cookie or uid).");
             } else {
-                var exists = await TryCheckProtonAccountAsync(emailAddress, options, cancellationToken);
+                var exists = await TryCheckProtonAccountAsync(emailAddress, options, logger, cancellationToken);
                 if (exists.HasValue) {
                     Smtp.Checked = true;
                     Smtp.UsedProviderWebCheck = true;
@@ -540,7 +559,7 @@ public sealed class EmailAddressValidationAnalysis {
         return ProtonDomains.Contains(clean);
     }
 
-    private async Task<bool?> TryCheckYahooAccountAsync(string emailAddress, EmailAddressValidationOptions options, CancellationToken cancellationToken) {
+    private async Task<bool?> TryCheckYahooAccountAsync(string emailAddress, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         var at = emailAddress.IndexOf('@');
         if (at <= 0) {
             return null;
@@ -621,12 +640,13 @@ public sealed class EmailAddressValidationAnalysis {
                 }
             }
             return false;
-        } catch {
+        } catch (Exception ex) {
+            logger.WriteVerbose("Yahoo provider check failed: {0}", ex.Message);
             return null;
         }
     }
 
-    private async Task<bool?> TryCheckMicrosoftAccountAsync(string emailAddress, EmailAddressValidationOptions options, CancellationToken cancellationToken) {
+    private async Task<bool?> TryCheckMicrosoftAccountAsync(string emailAddress, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         try {
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(options.HttpTimeout);
@@ -672,12 +692,13 @@ public sealed class EmailAddressValidationAnalysis {
                 6 => true,
                 _ => null
             };
-        } catch {
+        } catch (Exception ex) {
+            logger.WriteVerbose("Microsoft provider check failed: {0}", ex.Message);
             return null;
         }
     }
 
-    private async Task<bool?> TryCheckProtonAccountAsync(string emailAddress, EmailAddressValidationOptions options, CancellationToken cancellationToken) {
+    private async Task<bool?> TryCheckProtonAccountAsync(string emailAddress, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         var at = emailAddress.IndexOf('@');
         if (at <= 0) {
             return null;
@@ -704,7 +725,8 @@ public sealed class EmailAddressValidationAnalysis {
                 exists = await TryQueryProtonAvailabilityAsync(client, ProtonAvailabilityLegacyApi, username, emailAddress, cookieHeader, uidHeader, timeoutCts.Token).ConfigureAwait(false);
             }
             return exists;
-        } catch {
+        } catch (Exception ex) {
+            logger.WriteVerbose("Proton provider check failed: {0}", ex.Message);
             return null;
         }
     }
@@ -716,9 +738,9 @@ public sealed class EmailAddressValidationAnalysis {
             return false;
         }
 
-        uidHeader = options.ProtonUid.Trim();
-        var authCookie = options.ProtonAuthCookie.Trim();
-        if (authCookie.Contains("AUTH-", StringComparison.OrdinalIgnoreCase) && authCookie.Contains("=")) {
+        uidHeader = (options.ProtonUid ?? string.Empty).Trim();
+        var authCookie = (options.ProtonAuthCookie ?? string.Empty).Trim();
+        if (authCookie.IndexOf("AUTH-", StringComparison.OrdinalIgnoreCase) >= 0 && authCookie.Contains("=")) {
             cookieHeader = authCookie;
         } else {
             cookieHeader = $"AUTH-{uidHeader}={authCookie}";
@@ -763,7 +785,7 @@ public sealed class EmailAddressValidationAnalysis {
         if (response.StatusCode == HttpStatusCode.Conflict) {
             return true;
         }
-        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.TooManyRequests) {
+        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden || (int)response.StatusCode == TooManyRequestsStatusCode) {
             return null;
         }
         if (!response.IsSuccessStatusCode) {
@@ -859,7 +881,7 @@ public sealed class EmailAddressValidationAnalysis {
 
             var helloName = string.IsNullOrWhiteSpace(options.SmtpHelloName)
                 ? domain
-                : options.SmtpHelloName.Trim();
+                : options.SmtpHelloName!.Trim();
             var capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
             var supportsStartTls = capabilities.Contains("STARTTLS");
 
@@ -916,7 +938,12 @@ public sealed class EmailAddressValidationAnalysis {
                 if (!IsPositiveResponse(startResp)) {
                     return false;
                 }
-                sslStream = new SslStream(network, false, static (_, _, _, _) => true);
+                sslStream = new SslStream(network, false, (_, _, _, errors) => {
+                    if (options.AllowInvalidSmtpCertificates) {
+                        return true;
+                    }
+                    return errors == SslPolicyErrors.None;
+                });
                 await sslStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
                 activeStream = sslStream;
                 ResetIo(activeStream);
@@ -969,6 +996,7 @@ public sealed class EmailAddressValidationAnalysis {
         Smtp.UsedProviderWebCheck = false;
     }
 
+    /// <summary>Builds a prioritized list of SMTP hosts to probe.</summary>
     private List<string> BuildSmtpCandidates(string domain) {
         var candidates = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -977,8 +1005,12 @@ public sealed class EmailAddressValidationAnalysis {
             if (string.IsNullOrWhiteSpace(host)) {
                 return;
             }
-            if (seen.Add(host)) {
-                candidates.Add(host);
+            var normalized = host.Trim().Trim('.');
+            if (normalized.Length == 0) {
+                return;
+            }
+            if (seen.Add(normalized)) {
+                candidates.Add(normalized);
             }
         }
 
@@ -994,8 +1026,9 @@ public sealed class EmailAddressValidationAnalysis {
     }
 
     private static string BuildFromAddress(string? fromAddress, string domain) {
-        if (!string.IsNullOrWhiteSpace(fromAddress)) {
-            return fromAddress.Trim();
+        var trimmed = fromAddress?.Trim();
+        if (!string.IsNullOrWhiteSpace(trimmed)) {
+            return trimmed;
         }
         if (!string.IsNullOrWhiteSpace(domain)) {
             return $"postmaster@{domain}";
@@ -1024,20 +1057,20 @@ public sealed class EmailAddressValidationAnalysis {
             smtp.IsDeliverable = false;
         }
 
-        if (code == 452 || code == 552 || response.Contains("mailbox full", StringComparison.OrdinalIgnoreCase) || response.Contains("over quota", StringComparison.OrdinalIgnoreCase) || response.Contains("quota", StringComparison.OrdinalIgnoreCase)) {
+        if (code == 452 || code == 552 || ContainsOrdinalIgnoreCase(response, "mailbox full") || ContainsOrdinalIgnoreCase(response, "over quota") || ContainsOrdinalIgnoreCase(response, "quota")) {
             smtp.HasFullInbox = true;
         }
 
-        if (response.Contains("disabled", StringComparison.OrdinalIgnoreCase) || response.Contains("inactive", StringComparison.OrdinalIgnoreCase)) {
+        if (ContainsOrdinalIgnoreCase(response, "disabled") || ContainsOrdinalIgnoreCase(response, "inactive")) {
             smtp.IsDisabled = true;
         }
 
-        if (code == 421 || code == 450 || code == 451 || response.Contains("greylist", StringComparison.OrdinalIgnoreCase) || response.Contains("try again later", StringComparison.OrdinalIgnoreCase) || response.Contains("temporar", StringComparison.OrdinalIgnoreCase)) {
+        if (code == 421 || code == 450 || code == 451 || ContainsOrdinalIgnoreCase(response, "greylist") || ContainsOrdinalIgnoreCase(response, "try again later") || ContainsOrdinalIgnoreCase(response, "temporar")) {
             smtp.IsGreylisted = true;
             smtp.IsTemporaryFailure = true;
         }
 
-        if (code >= 500 && code < 600 && response.Contains("user unknown", StringComparison.OrdinalIgnoreCase)) {
+        if (code >= 500 && code < 600 && ContainsOrdinalIgnoreCase(response, "user unknown")) {
             logger.WriteVerbose("SMTP reported user unknown.");
         }
     }
@@ -1050,7 +1083,14 @@ public sealed class EmailAddressValidationAnalysis {
         if (code == 530 || code == 538) {
             return true;
         }
-        return response.Contains("starttls", StringComparison.OrdinalIgnoreCase) || response.Contains("tls required", StringComparison.OrdinalIgnoreCase);
+        return ContainsOrdinalIgnoreCase(response, "starttls") || ContainsOrdinalIgnoreCase(response, "tls required");
+    }
+
+    private static bool ContainsOrdinalIgnoreCase(string source, string value) {
+        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(value)) {
+            return false;
+        }
+        return source.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static StreamReader CreateSmtpReader(Stream stream) {
@@ -1101,7 +1141,10 @@ public sealed class EmailAddressValidationAnalysis {
     }
 
     private static int ParseStatusCode(string? response) {
-        if (!string.IsNullOrWhiteSpace(response) && response.Length >= 3 && int.TryParse(response.Substring(0, 3), out var code)) {
+        if (string.IsNullOrWhiteSpace(response) || response.Length < SmtpStatusCodeLength) {
+            return -1;
+        }
+        if (int.TryParse(response.Substring(0, SmtpStatusCodeLength), out var code)) {
             return code;
         }
         return -1;
@@ -1117,9 +1160,13 @@ public sealed class EmailAddressValidationAnalysis {
         if (line == null) {
             return null;
         }
-        var code = line.Length >= 3 ? line.Substring(0, 3) : string.Empty;
+        var code = line.Length >= SmtpStatusCodeLength ? line.Substring(0, SmtpStatusCodeLength) : string.Empty;
         var lastLine = line;
-        while (line.Length >= 4 && line[3] == '-') {
+        int linesRead = 1;
+        while (line.Length >= SmtpStatusCodeLength + 1 && line[SmtpStatusCodeLength] == '-') {
+            if (linesRead >= MaxSmtpResponseLines) {
+                break;
+            }
             line = await reader.ReadLineAsync().WaitWithCancellation(token);
             if (line == null) {
                 break;
@@ -1129,6 +1176,7 @@ public sealed class EmailAddressValidationAnalysis {
             } else {
                 break;
             }
+            linesRead++;
         }
         return lastLine;
     }
@@ -1140,20 +1188,27 @@ public sealed class EmailAddressValidationAnalysis {
             return lines;
         }
         lines.Add(line);
-        var code = line.Length >= 3 ? line.Substring(0, 3) : string.Empty;
-        while (line.Length >= 4 && line[3] == '-') {
+        var code = line.Length >= SmtpStatusCodeLength ? line.Substring(0, SmtpStatusCodeLength) : string.Empty;
+        int linesRead = 1;
+        while (line.Length >= SmtpStatusCodeLength + 1 && line[SmtpStatusCodeLength] == '-') {
+            if (linesRead >= MaxSmtpResponseLines) {
+                break;
+            }
             line = await reader.ReadLineAsync().WaitWithCancellation(token);
             if (line == null) {
                 break;
             }
             lines.Add(line);
-            if (line.StartsWith(code, StringComparison.Ordinal) && line.Length >= 4 && line[3] != '-') {
+            if (line.StartsWith(code, StringComparison.Ordinal) && line.Length >= SmtpStatusCodeLength + 1 && line[SmtpStatusCodeLength] != '-') {
                 break;
             }
+            linesRead++;
         }
         return lines;
     }
 
+    /// <summary>Establishes a SOCKS5 CONNECT tunnel to the target host and port.</summary>
+    /// <para>Supports anonymous and username/password authentication.</para>
     private static async Task EstablishSocks5TunnelAsync(Stream stream, string host, int port, EmailSmtpProxyOptions proxy, CancellationToken token) {
         var methods = new List<byte> { 0x00 };
         var useAuth = !string.IsNullOrWhiteSpace(proxy.Username) || !string.IsNullOrWhiteSpace(proxy.Password);
@@ -1180,23 +1235,38 @@ public sealed class EmailAddressValidationAnalysis {
         if (response[1] == 0x02) {
             var username = proxy.Username ?? string.Empty;
             var password = proxy.Password ?? string.Empty;
-            var userBytes = Encoding.ASCII.GetBytes(username);
-            var passBytes = Encoding.ASCII.GetBytes(password);
-            if (userBytes.Length > 255 || passBytes.Length > 255) {
-                throw new IOException("SOCKS5 proxy credentials are too long.");
-            }
+            byte[]? userBytes = null;
+            byte[]? passBytes = null;
+            byte[]? auth = null;
+            try {
+                userBytes = Encoding.ASCII.GetBytes(username);
+                passBytes = Encoding.ASCII.GetBytes(password);
+                if (userBytes.Length > 255 || passBytes.Length > 255) {
+                    throw new IOException("SOCKS5 proxy credentials are too long.");
+                }
 
-            var auth = new byte[3 + userBytes.Length + passBytes.Length];
-            auth[0] = 0x01;
-            auth[1] = (byte)userBytes.Length;
-            Buffer.BlockCopy(userBytes, 0, auth, 2, userBytes.Length);
-            auth[2 + userBytes.Length] = (byte)passBytes.Length;
-            Buffer.BlockCopy(passBytes, 0, auth, 3 + userBytes.Length, passBytes.Length);
+                auth = new byte[3 + userBytes.Length + passBytes.Length];
+                auth[0] = 0x01;
+                auth[1] = (byte)userBytes.Length;
+                Buffer.BlockCopy(userBytes, 0, auth, 2, userBytes.Length);
+                auth[2 + userBytes.Length] = (byte)passBytes.Length;
+                Buffer.BlockCopy(passBytes, 0, auth, 3 + userBytes.Length, passBytes.Length);
 
-            await stream.WriteAsync(auth, 0, auth.Length, token);
-            var authResp = await ReadExactAsync(stream, 2, token);
-            if (authResp[1] != 0x00) {
-                throw new IOException("SOCKS5 proxy authentication failed.");
+                await stream.WriteAsync(auth, 0, auth.Length, token);
+                var authResp = await ReadExactAsync(stream, 2, token);
+                if (authResp[1] != 0x00) {
+                    throw new IOException("SOCKS5 proxy authentication failed.");
+                }
+            } finally {
+                if (auth != null) {
+                    Array.Clear(auth, 0, auth.Length);
+                }
+                if (userBytes != null) {
+                    Array.Clear(userBytes, 0, userBytes.Length);
+                }
+                if (passBytes != null) {
+                    Array.Clear(passBytes, 0, passBytes.Length);
+                }
             }
         }
 
@@ -1316,12 +1386,13 @@ public sealed class EmailAddressValidationAnalysis {
         return parsed;
     }
 
-    private async Task<string?> TryResolveGravatarAsync(string? normalizedEmail, EmailAddressValidationOptions options, CancellationToken cancellationToken) {
+    private async Task<string?> TryResolveGravatarAsync(string? normalizedEmail, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(normalizedEmail)) {
             return null;
         }
 
-        var hash = ComputeMd5(normalizedEmail.Trim().ToLowerInvariant());
+        var normalized = normalizedEmail.Trim().ToLowerInvariant();
+        var hash = ComputeMd5(normalized);
         var url = $"https://www.gravatar.com/avatar/{hash}?d=404";
 
         try {
@@ -1343,20 +1414,22 @@ public sealed class EmailAddressValidationAnalysis {
                 }
             }
             return null;
-        } catch {
+        } catch (Exception ex) {
+            logger.WriteVerbose("Gravatar check failed: {0}", ex.Message);
             return null;
         }
     }
 
-    private async Task<bool?> TryCheckHaveIBeenPwnedAsync(string? normalizedEmail, EmailAddressValidationOptions options, CancellationToken cancellationToken) {
+    private async Task<bool?> TryCheckHaveIBeenPwnedAsync(string? normalizedEmail, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(normalizedEmail) || string.IsNullOrWhiteSpace(options.HaveIBeenPwnedApiKey)) {
             return null;
         }
 
-        var baseUrl = options.HaveIBeenPwnedBaseUrl?.Trim();
+        var baseUrl = options.HaveIBeenPwnedBaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl)) {
             return null;
         }
+        baseUrl = baseUrl.Trim();
         if (!baseUrl.EndsWith("/", StringComparison.Ordinal)) {
             baseUrl += "/";
         }
@@ -1370,7 +1443,7 @@ public sealed class EmailAddressValidationAnalysis {
             var client = (HttpClientFactory ?? new SharedHttpClient()).CreateClient();
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.UserAgent.ParseAdd("DomainDetective");
-            request.Headers.TryAddWithoutValidation("hibp-api-key", options.HaveIBeenPwnedApiKey);
+            request.Headers.TryAddWithoutValidation("hibp-api-key", options.HaveIBeenPwnedApiKey!);
             using var response = await client.SendAsync(request, timeoutCts.Token).ConfigureAwait(false);
             if (response.IsSuccessStatusCode) {
                 return true;
@@ -1379,7 +1452,8 @@ public sealed class EmailAddressValidationAnalysis {
                 return false;
             }
             return null;
-        } catch {
+        } catch (Exception ex) {
+            logger.WriteVerbose("Have I Been Pwned check failed: {0}", ex.Message);
             return null;
         }
     }

@@ -41,6 +41,9 @@ public sealed class EmailAddressValidationOptions {
     /// <summary>Timeout for SMTP probing.</summary>
     public TimeSpan SmtpTimeout { get; set; } = TimeSpan.FromSeconds(20);
 
+    /// <summary>Allow invalid SMTP TLS certificates when STARTTLS is used.</summary>
+    public bool AllowInvalidSmtpCertificates { get; set; }
+
     /// <summary>Maximum number of SMTP hosts to try (from MX records).</summary>
     public int SmtpMaxHosts { get; set; } = 1;
 

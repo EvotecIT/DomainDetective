@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DomainDetective;
 
@@ -33,7 +35,11 @@ public static class EmailSmtpRuleResolver {
     private static readonly Lazy<EmailSmtpRuleSet?> _builtinRules = new(LoadBuiltinRules);
 
     public static EmailSmtpRuleMatch? Resolve(string? domain, IEnumerable<string>? mxHosts, string? rulesPath, bool useBuiltin) {
-        var rules = LoadRules(rulesPath, useBuiltin);
+        return ResolveAsync(domain, mxHosts, rulesPath, useBuiltin).GetAwaiter().GetResult();
+    }
+
+    public static async Task<EmailSmtpRuleMatch?> ResolveAsync(string? domain, IEnumerable<string>? mxHosts, string? rulesPath, bool useBuiltin, CancellationToken cancellationToken = default) {
+        var rules = await LoadRulesAsync(rulesPath, useBuiltin, cancellationToken).ConfigureAwait(false);
         if (rules == null) {
             return null;
         }
@@ -51,6 +57,9 @@ public static class EmailSmtpRuleResolver {
 
         if (mxHosts != null) {
             foreach (var host in mxHosts) {
+                if (string.IsNullOrWhiteSpace(host)) {
+                    continue;
+                }
                 var normalized = NormalizeKey(host);
                 if (normalized.Length == 0) {
                     continue;
@@ -92,38 +101,49 @@ public static class EmailSmtpRuleResolver {
     }
 
     private static EmailSmtpRuleSet? LoadRules(string? path, bool useBuiltin) {
+        return LoadRulesAsync(path, useBuiltin, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    private static async Task<EmailSmtpRuleSet?> LoadRulesAsync(string? path, bool useBuiltin, CancellationToken cancellationToken) {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) {
             return useBuiltin ? _builtinRules.Value : null;
         }
 
         var fullPath = Path.GetFullPath(path);
-        var lastWrite = File.GetLastWriteTimeUtc(fullPath);
-
+        DateTime lastWrite;
         lock (_cacheLock) {
+            lastWrite = File.GetLastWriteTimeUtc(fullPath);
             if (_rulesCache.TryGetValue(fullPath, out var cached) && cached.LastWriteUtc == lastWrite) {
                 return cached.Rules;
             }
-
-            var json = File.ReadAllText(fullPath);
-            var options = new JsonSerializerOptions {
-                PropertyNameCaseInsensitive = true,
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
-            };
-            var rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
-            if (rules?.ByDomain != null) {
-                rules.ByDomain = NormalizeDictionary(rules.ByDomain);
-            }
-            if (rules?.ByMx != null) {
-                rules.ByMx = NormalizeDictionary(rules.ByMx);
-            }
-            if (rules?.ByMxSuffix != null) {
-                rules.ByMxSuffix = NormalizeDictionary(rules.ByMxSuffix, NormalizeSuffix);
-            }
-
-            _rulesCache[fullPath] = new CachedRules(lastWrite, rules);
-            return rules;
         }
+
+        string json;
+        using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+            using var reader = new StreamReader(stream);
+            json = await reader.ReadToEndAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false);
+        }
+        var options = new JsonSerializerOptions {
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true
+        };
+        var rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
+        if (rules?.ByDomain != null) {
+            rules.ByDomain = NormalizeDictionary(rules.ByDomain);
+        }
+        if (rules?.ByMx != null) {
+            rules.ByMx = NormalizeDictionary(rules.ByMx);
+        }
+        if (rules?.ByMxSuffix != null) {
+            rules.ByMxSuffix = NormalizeDictionary(rules.ByMxSuffix, NormalizeSuffix);
+        }
+
+        lastWrite = File.GetLastWriteTimeUtc(fullPath);
+        lock (_cacheLock) {
+            _rulesCache[fullPath] = new CachedRules(lastWrite, rules);
+        }
+        return rules;
     }
 
     private static EmailSmtpRuleSet? LoadBuiltinRules() {
@@ -164,7 +184,7 @@ public static class EmailSmtpRuleResolver {
         return normalized;
     }
 
-    private static string NormalizeKey(string value) {
+    private static string NormalizeKey(string? value) {
         return (value ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
     }
 
@@ -173,7 +193,7 @@ public static class EmailSmtpRuleResolver {
         if (trimmed.Length == 0) {
             return string.Empty;
         }
-        return trimmed.StartsWith('.') ? trimmed : "." + trimmed;
+        return trimmed.StartsWith(".", StringComparison.Ordinal) ? trimmed : "." + trimmed;
     }
 
     private sealed class CachedRules {

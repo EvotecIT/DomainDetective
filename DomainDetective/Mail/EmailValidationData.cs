@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace DomainDetective;
 
@@ -35,7 +37,11 @@ public static class EmailValidationData {
             return false;
         }
         var set = GetSet(overridePath, _roleAccounts);
-        return set.Contains(localPart.Trim());
+        var trimmed = localPart?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed)) {
+            return false;
+        }
+        return set.Contains(trimmed);
     }
 
     /// <summary>Returns true when <paramref name="domain"/> is a known free provider.</summary>
@@ -56,14 +62,18 @@ public static class EmailValidationData {
         return IsDomainOrSubdomain(domain, set);
     }
 
-    private static bool IsDomainOrSubdomain(string domain, HashSet<string> set) {
+    /// <summary>Returns true when <paramref name="domain"/> or any parent suffix is present in the set.</summary>
+    private static bool IsDomainOrSubdomain(string? domain, HashSet<string> set) {
+        if (string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
         var clean = domain.Trim().Trim('.').ToLowerInvariant();
         if (set.Contains(clean)) {
             return true;
         }
-        var idx = clean.IndexOf('.', StringComparison.Ordinal);
+        var idx = clean.IndexOf('.');
         while (idx > 0 && idx < clean.Length - 1) {
-            var suffix = clean[(idx + 1)..];
+            var suffix = clean.Substring(idx + 1);
             if (set.Contains(suffix)) {
                 return true;
             }
@@ -105,15 +115,16 @@ public static class EmailValidationData {
         }
 
         var fullPath = Path.GetFullPath(path);
-        var lastWrite = File.GetLastWriteTimeUtc(fullPath);
-
+        DateTime lastWrite;
         lock (_cacheLock) {
+            lastWrite = File.GetLastWriteTimeUtc(fullPath);
             if (_fileCache.TryGetValue(fullPath, out var cached) && cached.LastWriteUtc == lastWrite) {
                 return cached.Set;
             }
+        }
 
-            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using var reader = new StreamReader(fullPath);
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var reader = new StreamReader(fullPath)) {
             string? line;
             while ((line = reader.ReadLine()) != null) {
                 line = line.Trim();
@@ -122,10 +133,96 @@ public static class EmailValidationData {
                 }
                 set.Add(line);
             }
-
-            _fileCache[fullPath] = new CachedSet(lastWrite, set);
-            return set;
         }
+
+        lastWrite = File.GetLastWriteTimeUtc(fullPath);
+        lock (_cacheLock) {
+            _fileCache[fullPath] = new CachedSet(lastWrite, set);
+        }
+
+        return set;
+    }
+
+    /// <summary>Returns true when <paramref name="domain"/> is a known disposable provider.</summary>
+    public static async Task<bool> IsDisposableDomainAsync(string? domain, string? overridePath = null, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
+        var set = await GetSetAsync(overridePath, _disposableDomains, cancellationToken).ConfigureAwait(false);
+        return IsDomainOrSubdomain(domain, set);
+    }
+
+    /// <summary>Returns true when <paramref name="localPart"/> matches a role account.</summary>
+    public static async Task<bool> IsRoleAccountAsync(string? localPart, string? overridePath = null, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(localPart)) {
+            return false;
+        }
+        var set = await GetSetAsync(overridePath, _roleAccounts, cancellationToken).ConfigureAwait(false);
+        var trimmed = localPart?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed)) {
+            return false;
+        }
+        return set.Contains(trimmed);
+    }
+
+    /// <summary>Returns true when <paramref name="domain"/> is a known free provider.</summary>
+    public static async Task<bool> IsFreeProviderAsync(string? domain, string? overridePath = null, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
+        var set = await GetSetAsync(overridePath, _freeProviders, cancellationToken).ConfigureAwait(false);
+        return IsDomainOrSubdomain(domain, set);
+    }
+
+    /// <summary>Returns true when <paramref name="domain"/> is a known B2C provider.</summary>
+    public static async Task<bool> IsB2CProviderAsync(string? domain, string? overridePath = null, CancellationToken cancellationToken = default) {
+        if (string.IsNullOrWhiteSpace(domain)) {
+            return false;
+        }
+        var set = await GetSetAsync(overridePath, _b2cProviders, cancellationToken).ConfigureAwait(false);
+        return IsDomainOrSubdomain(domain, set);
+    }
+
+    private static async Task<HashSet<string>> GetSetAsync(string? overridePath, Lazy<HashSet<string>> builtin, CancellationToken cancellationToken) {
+        var custom = await TryLoadSetFromFileAsync(overridePath, cancellationToken).ConfigureAwait(false);
+        return custom ?? builtin.Value;
+    }
+
+    private static async Task<HashSet<string>?> TryLoadSetFromFileAsync(string? path, CancellationToken cancellationToken) {
+        if (string.IsNullOrWhiteSpace(path)) {
+            return null;
+        }
+        if (!File.Exists(path)) {
+            return null;
+        }
+
+        var fullPath = Path.GetFullPath(path);
+        DateTime lastWrite;
+        lock (_cacheLock) {
+            lastWrite = File.GetLastWriteTimeUtc(fullPath);
+            if (_fileCache.TryGetValue(fullPath, out var cached) && cached.LastWriteUtc == lastWrite) {
+                return cached.Set;
+            }
+        }
+
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) {
+            using var reader = new StreamReader(stream);
+            string? line;
+            while ((line = await reader.ReadLineAsync().WaitWithCancellation(cancellationToken).ConfigureAwait(false)) != null) {
+                line = line.Trim();
+                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal)) {
+                    continue;
+                }
+                set.Add(line);
+            }
+        }
+
+        lastWrite = File.GetLastWriteTimeUtc(fullPath);
+        lock (_cacheLock) {
+            _fileCache[fullPath] = new CachedSet(lastWrite, set);
+        }
+        return set;
     }
 
     private sealed class CachedSet {

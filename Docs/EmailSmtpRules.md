@@ -53,6 +53,8 @@ Test-DDEmailAddress -EmailAddress "user@example.com" -SmtpProbe -SmtpRulesPath "
 Proton account checks require a valid authenticated session.
 Provide the `AUTH-<uid>` cookie value and the `x-pm-uid` header value from an active Proton session.
 If the values are missing or invalid, DomainDetective falls back to SMTP probing.
+Provider web checks rely on undocumented endpoints and may change or rate-limit without notice.
+Avoid passing Proton auth values on the command line where they may be visible in shell history or process listings.
 
 PowerShell example:
 ```powershell
