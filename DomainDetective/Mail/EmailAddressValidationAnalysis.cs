@@ -430,6 +430,7 @@ public sealed class EmailAddressValidationAnalysis {
 
         var smtpPort = providerPolicy?.SmtpPortOverride ?? options.SmtpPort;
         var smtpTimeout = providerPolicy?.SmtpTimeoutOverride ?? options.SmtpTimeout;
+        var probeDelay = options.SmtpProbeDelay < TimeSpan.Zero ? TimeSpan.Zero : options.SmtpProbeDelay;
         var enableCatchAll = options.CheckCatchAll && !(providerPolicy?.DisableCatchAll ?? false);
         if (options.DisableCatchAllForB2C && Misc.IsB2C) {
             enableCatchAll = false;
@@ -456,6 +457,9 @@ public sealed class EmailAddressValidationAnalysis {
                 break;
             }
             attempted++;
+            if (attempted > 1 && probeDelay > TimeSpan.Zero) {
+                await Task.Delay(probeDelay, cancellationToken);
+            }
             ResetSmtpAttemptState();
             Smtp.AttemptedHosts.Add(candidate);
             bool completed = await TryAnalyzeSmtpHostAsync(emailAddress, domain, candidate, smtpPort, smtpTimeout, enableCatchAll, options, logger, cancellationToken);

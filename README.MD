@@ -169,12 +169,15 @@ Optional controls:
 - Use `-SmtpRulesPath` (or `--smtp-rules`) to supply custom SMTP rules JSON and `-DisableBuiltinSmtpRules` to ignore built-in rules.
 - Use `-AllowB2CCatchAll` (or `--allow-b2c-catch-all`) to allow catch-all probing for consumer providers.
 - Use `-AllowInvalidSmtpCertificates` (or `--smtp-allow-invalid-cert`) to skip SMTP TLS certificate validation (not recommended).
+- Use `-SmtpTimeoutSeconds`/`-SmtpRetryDelaySeconds` (or `--smtp-timeout`/`--smtp-retry-delay`) to tune SMTP timing.
 - Use `-B2CProvidersPath` (or `--b2c-providers`) to override the B2C provider list.
 - Use `-DisableFreeProvidersAsB2C` (or `--no-free-as-b2c`) to avoid treating free providers as B2C when no explicit match exists.
+- Use `-SmtpProbeDelaySeconds` (or `--smtp-delay`) to add a delay between SMTP probe attempts for rate limiting.
 - Built-in SMTP rules are enabled by default. See `Docs/EmailSmtpRules.md` for schema, examples, and Proton auth notes.
 - Provider web checks are currently implemented for Yahoo, Microsoft consumer domains, and Proton (with auth).
 - Provider web checks rely on undocumented endpoints and may change or rate-limit without notice.
 - Avoid passing Proton auth values via command line where they may appear in shell history or process listings.
+- SMTP probing can trigger abuse protections on some providers; apply delays for bulk runs and consider proxies when needed.
 
 ### Web
 

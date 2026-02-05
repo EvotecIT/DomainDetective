@@ -44,6 +44,9 @@ public sealed class EmailAddressValidationOptions {
     /// <summary>Allow invalid SMTP TLS certificates when STARTTLS is used.</summary>
     public bool AllowInvalidSmtpCertificates { get; set; }
 
+    /// <summary>Delay between SMTP probe attempts.</summary>
+    public TimeSpan SmtpProbeDelay { get; set; } = TimeSpan.Zero;
+
     /// <summary>Maximum number of SMTP hosts to try (from MX records).</summary>
     public int SmtpMaxHosts { get; set; } = 1;
 

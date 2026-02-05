@@ -35,6 +35,10 @@ internal sealed class ValidateEmailSettings : CommandSettings {
     [CommandOption("--smtp-allow-invalid-cert")]
     public bool AllowInvalidSmtpCertificates { get; set; }
 
+    /// <summary>Delay between SMTP probe attempts (seconds).</summary>
+    [CommandOption("--smtp-delay <SECONDS>")]
+    public int SmtpProbeDelaySeconds { get; set; }
+
     /// <summary>Max SMTP hosts to try.</summary>
     [CommandOption("--smtp-max-hosts <COUNT>")]
     public int SmtpMaxHosts { get; set; } = 1;
@@ -178,6 +182,10 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
             AnsiConsole.MarkupLine("[red]Invalid SMTP retry delay. Must be zero or greater.[/]");
             return 1;
         }
+        if (settings.SmtpProbeDelaySeconds < 0) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP delay. Must be zero or greater.[/]");
+            return 1;
+        }
 
         var dnsEndpoint = DnsEndpoint.System;
         if (!string.IsNullOrWhiteSpace(settings.DnsEndpoint)) {
@@ -196,6 +204,7 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
             SmtpPort = settings.SmtpPort,
             SmtpTimeout = TimeSpan.FromSeconds(settings.SmtpTimeoutSeconds),
             AllowInvalidSmtpCertificates = settings.AllowInvalidSmtpCertificates,
+            SmtpProbeDelay = TimeSpan.FromSeconds(settings.SmtpProbeDelaySeconds),
             SmtpMaxHosts = settings.SmtpMaxHosts,
             SmtpRetryCount = settings.SmtpRetryCount,
             SmtpRetryDelay = TimeSpan.FromSeconds(settings.SmtpRetryDelaySeconds),

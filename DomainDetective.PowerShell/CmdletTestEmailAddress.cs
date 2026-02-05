@@ -58,6 +58,10 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter AllowInvalidSmtpCertificates;
 
+    /// <summary>Delay between SMTP probe attempts in seconds.</summary>
+    [Parameter(Mandatory = false)]
+    public int SmtpProbeDelaySeconds;
+
     /// <summary>Max SMTP hosts to try.</summary>
     [Parameter(Mandatory = false)]
     public int SmtpMaxHosts = 1;
@@ -179,6 +183,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
             SmtpPort = SmtpPort,
             SmtpTimeout = System.TimeSpan.FromSeconds(SmtpTimeoutSeconds),
             AllowInvalidSmtpCertificates = AllowInvalidSmtpCertificates.IsPresent,
+            SmtpProbeDelay = System.TimeSpan.FromSeconds(SmtpProbeDelaySeconds),
             SmtpMaxHosts = SmtpMaxHosts,
             SmtpRetryCount = SmtpRetryCount,
             SmtpRetryDelay = System.TimeSpan.FromSeconds(SmtpRetryDelaySeconds),
