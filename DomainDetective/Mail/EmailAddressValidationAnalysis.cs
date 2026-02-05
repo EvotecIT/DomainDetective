@@ -1128,18 +1128,20 @@ public sealed class EmailAddressValidationAnalysis {
         return ContainsOrdinalIgnoreCase(response, "starttls") || ContainsOrdinalIgnoreCase(response, "tls required");
     }
 
+    private static readonly char[] CrLfChars = { '\r', '\n' };
+
     private static bool ContainsOrdinalIgnoreCase(string? source, string value) {
-        if (string.IsNullOrEmpty(source) || string.IsNullOrEmpty(value)) {
+        if (source == null || value == null || source.Length == 0 || value.Length == 0) {
             return false;
         }
         return source.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static bool ContainsCrLf(string? value) {
-        if (string.IsNullOrEmpty(value)) {
+        if (value == null || value.Length == 0) {
             return false;
         }
-        return value.IndexOfAny(new[] { '\r', '\n' }) >= 0;
+        return value.IndexOfAny(CrLfChars) >= 0;
     }
 
     private static StreamReader CreateSmtpReader(Stream stream) {
