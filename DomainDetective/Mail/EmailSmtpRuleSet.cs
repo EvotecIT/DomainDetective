@@ -128,7 +128,12 @@ public static class EmailSmtpRuleResolver {
             ReadCommentHandling = JsonCommentHandling.Skip,
             AllowTrailingCommas = true
         };
-        var rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
+        EmailSmtpRuleSet? rules;
+        try {
+            rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
+        } catch (JsonException ex) {
+            throw new InvalidDataException($"Failed to parse SMTP rules JSON at '{fullPath}'.", ex);
+        }
         if (rules?.ByDomain != null) {
             rules.ByDomain = NormalizeDictionary(rules.ByDomain);
         }
@@ -139,7 +144,6 @@ public static class EmailSmtpRuleResolver {
             rules.ByMxSuffix = NormalizeDictionary(rules.ByMxSuffix, NormalizeSuffix);
         }
 
-        lastWrite = File.GetLastWriteTimeUtc(fullPath);
         lock (_cacheLock) {
             _rulesCache[fullPath] = new CachedRules(lastWrite, rules);
         }
@@ -159,7 +163,12 @@ public static class EmailSmtpRuleResolver {
             ReadCommentHandling = JsonCommentHandling.Skip,
             AllowTrailingCommas = true
         };
-        var rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
+        EmailSmtpRuleSet? rules;
+        try {
+            rules = JsonSerializer.Deserialize<EmailSmtpRuleSet>(json, options);
+        } catch (JsonException ex) {
+            throw new InvalidDataException("Failed to parse built-in SMTP rules JSON.", ex);
+        }
         if (rules?.ByDomain != null) {
             rules.ByDomain = NormalizeDictionary(rules.ByDomain);
         }

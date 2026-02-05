@@ -170,6 +170,7 @@ Optional controls:
 - Use `-AllowB2CCatchAll` (or `--allow-b2c-catch-all`) to allow catch-all probing for consumer providers.
 - Use `-AllowInvalidSmtpCertificates` (or `--smtp-allow-invalid-cert`) to skip SMTP TLS certificate validation (not recommended).
 - Use `-B2CProvidersPath` (or `--b2c-providers`) to override the B2C provider list.
+- Use `-DisableFreeProvidersAsB2C` (or `--no-free-as-b2c`) to avoid treating free providers as B2C when no explicit match exists.
 - Built-in SMTP rules are enabled by default. See `Docs/EmailSmtpRules.md` for schema, examples, and Proton auth notes.
 - Provider web checks are currently implemented for Yahoo, Microsoft consumer domains, and Proton (with auth).
 - Provider web checks rely on undocumented endpoints and may change or rate-limit without notice.

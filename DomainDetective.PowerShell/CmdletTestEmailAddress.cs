@@ -126,6 +126,10 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
     [Parameter(Mandatory = false)]
     public string? B2CProvidersPath;
 
+    /// <summary>Do not treat free providers as B2C.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter DisableFreeProvidersAsB2C;
+
     /// <summary>SMTP rules JSON path.</summary>
     [Parameter(Mandatory = false)]
     public string? SmtpRulesPath;
@@ -192,6 +196,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
             RoleAccountsPath = RoleAccountsPath,
             FreeProvidersPath = FreeProvidersPath,
             B2CProvidersPath = B2CProvidersPath,
+            TreatFreeProvidersAsB2C = !DisableFreeProvidersAsB2C.IsPresent,
             SmtpRulesPath = SmtpRulesPath,
             UseBuiltinSmtpRules = !DisableBuiltinSmtpRules.IsPresent
         };

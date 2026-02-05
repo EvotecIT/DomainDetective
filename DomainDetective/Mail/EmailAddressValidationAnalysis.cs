@@ -79,6 +79,7 @@ public sealed class EmailAddressValidationAnalysis {
     private const string ProtonAvailabilityApi = "https://account.proton.me/api/users/available";
     private const string ProtonAvailabilityLegacyApi = "https://account.protonmail.com/api/users/available";
     private const string ProtonUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(1);
     private const int MaxSuggestionDistance = 2;
     private const int MaxSmtpResponseLines = 50;
     private const int SmtpStatusCodeLength = 3;
@@ -140,7 +141,7 @@ public sealed class EmailAddressValidationAnalysis {
             Misc.IsFreeProvider = await EmailValidationData.IsFreeProviderAsync(domain, options.FreeProvidersPath, cancellationToken).ConfigureAwait(false);
         }
         Misc.IsB2C = await EmailValidationData.IsB2CProviderAsync(domain, options.B2CProvidersPath, cancellationToken).ConfigureAwait(false);
-        if (!Misc.IsB2C && options.CheckFreeProvider) {
+        if (!Misc.IsB2C && options.CheckFreeProvider && options.TreatFreeProvidersAsB2C) {
             Misc.IsB2C = Misc.IsFreeProvider;
         }
 
@@ -157,18 +158,21 @@ public sealed class EmailAddressValidationAnalysis {
             }
         }
 
-        if (options.CheckSmtp && (!options.CheckMx || (Mx.AcceptsMail && !Mx.HasNullMx))) {
-            EmailSmtpProviderPolicy? providerPolicy = null;
-            if (options.ApplyProviderPolicies && Misc.ProviderKind != MailProviderKind.Unknown) {
-                providerPolicy = EmailSmtpProviderPolicyResolver.Resolve(Misc.ProviderKind, options);
-            }
+        if (options.CheckSmtp) {
+            var allowSmtp = !options.CheckMx || (Mx.AcceptsMail && !Mx.HasNullMx);
+            if (allowSmtp) {
+                EmailSmtpProviderPolicy? providerPolicy = null;
+                if (options.ApplyProviderPolicies && Misc.ProviderKind != MailProviderKind.Unknown) {
+                    providerPolicy = EmailSmtpProviderPolicyResolver.Resolve(Misc.ProviderKind, options);
+                }
 
-            bool smtpResolved = false;
-            if (options.EnableProviderWebChecks) {
-                smtpResolved = await TryProviderWebCheckAsync(emailAddress, domain, options, logger, cancellationToken);
-            }
-            if (!smtpResolved) {
-                await AnalyzeSmtpAsync(emailAddress, domain, options, providerPolicy, logger, cancellationToken);
+                bool smtpResolved = false;
+                if (options.EnableProviderWebChecks) {
+                    smtpResolved = await TryProviderWebCheckAsync(emailAddress, domain, options, logger, cancellationToken);
+                }
+                if (!smtpResolved) {
+                    await AnalyzeSmtpAsync(emailAddress, domain, options, providerPolicy, logger, cancellationToken);
+                }
             }
         }
 
@@ -232,6 +236,11 @@ public sealed class EmailAddressValidationAnalysis {
         }
 
         var trimmed = emailAddress!.Trim();
+        if (ContainsCrLf(trimmed)) {
+            result.IsValidSyntax = false;
+            result.Error = "Email address contains invalid characters.";
+            return result;
+        }
         if (trimmed.IndexOf('<') >= 0 || trimmed.IndexOf('>') >= 0) {
             result.IsValidSyntax = false;
             result.Error = "Display names are not allowed in this validator.";
@@ -585,16 +594,30 @@ public sealed class EmailAddressValidationAnalysis {
                 return null;
             }
 
-            var cookies = string.Join("; ", cookieValues);
+            var cookiePairs = new List<string>();
+            foreach (var cookie in cookieValues) {
+                if (string.IsNullOrWhiteSpace(cookie)) {
+                    continue;
+                }
+                var parts = cookie.Split(new[] { ';' }, 2);
+                var pair = parts.Length > 0 ? parts[0].Trim() : string.Empty;
+                if (pair.Length > 0) {
+                    cookiePairs.Add(pair);
+                }
+            }
+            if (cookiePairs.Count == 0) {
+                return null;
+            }
+            var cookies = string.Join("; ", cookiePairs);
             var getBody = await getResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-            var acrumbMatch = Regex.Match(cookies, "s=(?<acrumb>[^;]*)&d", RegexOptions.IgnoreCase);
+            var acrumbMatch = Regex.Match(cookies, "s=(?<acrumb>[^;]*)&d", RegexOptions.IgnoreCase, RegexTimeout);
             if (!acrumbMatch.Success) {
                 return null;
             }
             var acrumb = acrumbMatch.Groups["acrumb"].Value;
 
-            var sessionMatch = Regex.Match(getBody, "name=\"sessionIndex\"\\s+value=\"(?<sessionIndex>[^\"]+)\"", RegexOptions.IgnoreCase);
+            var sessionMatch = Regex.Match(getBody, "name=\"sessionIndex\"\\s+value=\"(?<sessionIndex>[^\"]+)\"", RegexOptions.IgnoreCase, RegexTimeout);
             if (!sessionMatch.Success) {
                 return null;
             }
@@ -882,10 +905,18 @@ public sealed class EmailAddressValidationAnalysis {
             var helloName = string.IsNullOrWhiteSpace(options.SmtpHelloName)
                 ? domain
                 : options.SmtpHelloName!.Trim();
+            if (ContainsCrLf(helloName) || ContainsCrLf(emailAddress)) {
+                Smtp.Error = "SMTP command contains invalid characters.";
+                return false;
+            }
             var capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
             var supportsStartTls = capabilities.Contains("STARTTLS");
 
             var fromAddress = BuildFromAddress(options.SmtpFromAddress, domain);
+            if (ContainsCrLf(fromAddress)) {
+                Smtp.Error = "SMTP command contains invalid characters.";
+                return false;
+            }
             (string? mailResp, string? rcptResp) = await SendMailRcptAsync(writer, reader, fromAddress, emailAddress, timeoutCts.Token);
             Smtp.MailFromResponse = mailResp;
             Smtp.MailFromStatusCode = ParseStatusCode(mailResp);
@@ -939,10 +970,14 @@ public sealed class EmailAddressValidationAnalysis {
                     return false;
                 }
                 sslStream = new SslStream(network, false, (_, _, _, errors) => {
-                    if (options.AllowInvalidSmtpCertificates) {
+                    if (errors == SslPolicyErrors.None) {
                         return true;
                     }
-                    return errors == SslPolicyErrors.None;
+                    if (options.AllowInvalidSmtpCertificates) {
+                        logger.WriteVerbose("SMTP TLS certificate validation bypassed: {0}", errors);
+                        return true;
+                    }
+                    return false;
                 });
                 await sslStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
                 activeStream = sslStream;
@@ -1094,6 +1129,13 @@ public sealed class EmailAddressValidationAnalysis {
             return false;
         }
         return source.IndexOf(value, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool ContainsCrLf(string? value) {
+        if (string.IsNullOrEmpty(value)) {
+            return false;
+        }
+        return value.IndexOfAny(new[] { '\r', '\n' }) >= 0;
     }
 
     private static StreamReader CreateSmtpReader(Stream stream) {

@@ -77,6 +77,9 @@ public sealed class EmailAddressValidationOptions {
     /// <summary>Include free-provider classification.</summary>
     public bool CheckFreeProvider { get; set; } = true;
 
+    /// <summary>Treat free providers as B2C when no explicit B2C match exists.</summary>
+    public bool TreatFreeProvidersAsB2C { get; set; } = true;
+
     /// <summary>Apply provider-specific SMTP policies when available.</summary>
     public bool ApplyProviderPolicies { get; set; } = true;
 

@@ -115,6 +115,10 @@ internal sealed class ValidateEmailSettings : CommandSettings {
     [CommandOption("--b2c-providers <PATH>")]
     public string? B2CProvidersPath { get; set; }
 
+    /// <summary>Do not treat free providers as B2C.</summary>
+    [CommandOption("--no-free-as-b2c")]
+    public bool DisableFreeProvidersAsB2C { get; set; }
+
     /// <summary>SMTP rules JSON path.</summary>
     [CommandOption("--smtp-rules <PATH>")]
     public string? SmtpRulesPath { get; set; }
@@ -150,6 +154,31 @@ internal sealed class ValidateEmailSettings : CommandSettings {
 internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings> {
     /// <inheritdoc/>
     public override async Task<int> ExecuteAsync(CommandContext context, ValidateEmailSettings settings) {
+        if (settings.SmtpPort < 1 || settings.SmtpPort > 65535) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP port. Must be between 1 and 65535.[/]");
+            return 1;
+        }
+        if (settings.SmtpProxyPort < 1 || settings.SmtpProxyPort > 65535) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP proxy port. Must be between 1 and 65535.[/]");
+            return 1;
+        }
+        if (settings.SmtpTimeoutSeconds < 0) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP timeout. Must be zero or greater.[/]");
+            return 1;
+        }
+        if (settings.SmtpMaxHosts < 1) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP max hosts. Must be 1 or greater.[/]");
+            return 1;
+        }
+        if (settings.SmtpRetryCount < 0) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP retry count. Must be zero or greater.[/]");
+            return 1;
+        }
+        if (settings.SmtpRetryDelaySeconds < 0) {
+            AnsiConsole.MarkupLine("[red]Invalid SMTP retry delay. Must be zero or greater.[/]");
+            return 1;
+        }
+
         var dnsEndpoint = DnsEndpoint.System;
         if (!string.IsNullOrWhiteSpace(settings.DnsEndpoint)) {
             if (!Enum.TryParse(settings.DnsEndpoint, true, out dnsEndpoint)) {
@@ -184,6 +213,7 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
             RoleAccountsPath = settings.RoleAccountsPath,
             FreeProvidersPath = settings.FreeProvidersPath,
             B2CProvidersPath = settings.B2CProvidersPath,
+            TreatFreeProvidersAsB2C = !settings.DisableFreeProvidersAsB2C,
             SmtpRulesPath = settings.SmtpRulesPath,
             UseBuiltinSmtpRules = !settings.DisableBuiltinSmtpRules
         };
@@ -198,6 +228,10 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
 
         await hc.VerifyEmailAddress(settings.Email, options, Program.CancellationToken);
         var result = hc.EmailAddressValidationAnalysis;
+        if (result == null) {
+            AnsiConsole.MarkupLine("[red]Email validation results are unavailable.[/]");
+            return 1;
+        }
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(result, JsonOptions.Default);

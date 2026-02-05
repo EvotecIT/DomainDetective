@@ -141,7 +141,6 @@ public static class EmailValidationData {
             }
         }
 
-        lastWrite = File.GetLastWriteTimeUtc(fullPath);
         lock (_cacheLock) {
             _fileCache[fullPath] = new CachedSet(lastWrite, set);
         }
@@ -227,7 +226,6 @@ public static class EmailValidationData {
             }
         }
 
-        lastWrite = File.GetLastWriteTimeUtc(fullPath);
         lock (_cacheLock) {
             _fileCache[fullPath] = new CachedSet(lastWrite, set);
         }
