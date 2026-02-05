@@ -207,7 +207,7 @@ public sealed class CmdletTestEmailAddress : ExportableAsyncPSCmdlet {
         };
         if (!string.IsNullOrWhiteSpace(SmtpProxyHost)) {
             options.SmtpProxy = new EmailSmtpProxyOptions {
-                Host = SmtpProxyHost,
+                Host = SmtpProxyHost ?? string.Empty,
                 Port = SmtpProxyPort,
                 Username = SmtpProxyUsername,
                 Password = SmtpProxyPassword
