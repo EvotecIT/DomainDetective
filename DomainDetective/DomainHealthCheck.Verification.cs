@@ -164,6 +164,7 @@ namespace DomainDetective {
                 [HealthCheckType.DNSAMPLIFICATION] = () => VerifyDnsAmplification(domainName, cancellationToken),
                 [HealthCheckType.DNSOVERTLS] = () => VerifyDnsOverTls(domainName, cancellationToken),
                 [HealthCheckType.FLATTENINGSERVICE] = () => VerifyFlatteningServiceAsync(domainName, cancellationToken),
+                [HealthCheckType.APEXADDRESS] = () => VerifyApexAddresses(domainName, cancellationToken),
                 [HealthCheckType.THREATINTEL] = () => VerifyThreatIntel(domainName, cancellationToken),
                 [HealthCheckType.THREATFEED] = () => VerifyThreatFeed(domainName, cancellationToken),
 	                [HealthCheckType.DIRECTORYEXPOSURE] = () => VerifyDirectoryExposure(domainName, cancellationToken),
