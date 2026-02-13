@@ -188,11 +188,10 @@ internal sealed class ValidateEmailCommand : AsyncCommand<ValidateEmailSettings>
         }
 
         var dnsEndpoint = DnsEndpoint.System;
-        if (!string.IsNullOrWhiteSpace(settings.DnsEndpoint)) {
-            if (!Enum.TryParse(settings.DnsEndpoint, true, out dnsEndpoint)) {
-                AnsiConsole.MarkupLine($"[yellow]Invalid --dns-endpoint value: {settings.DnsEndpoint}. Using system DNS.[/]");
-                dnsEndpoint = DnsEndpoint.System;
-            }
+        if (!string.IsNullOrWhiteSpace(settings.DnsEndpoint) &&
+            !Enum.TryParse(settings.DnsEndpoint, true, out dnsEndpoint)) {
+            AnsiConsole.MarkupLine($"[yellow]Invalid --dns-endpoint value: {settings.DnsEndpoint}. Using system DNS.[/]");
+            dnsEndpoint = DnsEndpoint.System;
         }
 
         var hc = new DomainHealthCheck(dnsEndpoint);

@@ -86,11 +86,11 @@ public static class EmailSmtpRuleResolver {
                 }
 
                 if (suffixRules != null) {
-                    foreach (var suffixRule in suffixRules) {
-                        if (!normalized.EndsWith(suffixRule.Suffix, StringComparison.OrdinalIgnoreCase)) {
+                    foreach (var (suffix, policy) in suffixRules) {
+                        if (!normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) {
                             continue;
                         }
-                        ApplyPolicy(match, suffixRule.Policy);
+                        ApplyPolicy(match, policy);
                         matched = true;
                         break;
                     }

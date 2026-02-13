@@ -312,10 +312,8 @@ public sealed class EmailAddressValidationAnalysis {
             return null;
         }
 
-        foreach (var provider in CommonProviderDomains) {
-            if (domain.Equals(provider, StringComparison.OrdinalIgnoreCase)) {
-                return null;
-            }
+        if (CommonProviderDomains.Any(provider => domain.Equals(provider, StringComparison.OrdinalIgnoreCase))) {
+            return null;
         }
 
         string? best = null;
@@ -860,16 +858,41 @@ public sealed class EmailAddressValidationAnalysis {
         public string? Name { get; set; }
     }
 
+    private sealed class SmtpSessionIo : IDisposable {
+        public Stream ActiveStream { get; private set; }
+        public StreamReader Reader { get; private set; }
+        public StreamWriter Writer { get; private set; }
+        public SslStream? TlsStream { get; private set; }
+
+        public SmtpSessionIo(NetworkStream network) {
+            ActiveStream = network;
+            Reader = CreateSmtpReader(network);
+            Writer = CreateSmtpWriter(network);
+        }
+
+        public void UpgradeToTls(SslStream tlsStream) {
+            Reader.Dispose();
+            Writer.Dispose();
+            TlsStream?.Dispose();
+            TlsStream = tlsStream;
+            ActiveStream = tlsStream;
+            Reader = CreateSmtpReader(tlsStream);
+            Writer = CreateSmtpWriter(tlsStream);
+        }
+
+        public void Dispose() {
+            Reader.Dispose();
+            Writer.Dispose();
+            TlsStream?.Dispose();
+        }
+    }
+
     private async Task<bool> TryAnalyzeSmtpHostOnceAsync(string emailAddress, string domain, string host, int smtpPort, TimeSpan smtpTimeout, bool enableCatchAll, EmailAddressValidationOptions options, InternalLogger logger, CancellationToken cancellationToken) {
         Smtp.Host = host;
         Smtp.Port = smtpPort;
         Smtp.VerificationMethod = "Smtp";
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(smtpTimeout);
-
-        StreamReader? reader = null;
-        StreamWriter? writer = null;
-        SslStream? sslStream = null;
 
         try {
             using var client = new TcpClient();
@@ -886,21 +909,12 @@ public sealed class EmailAddressValidationAnalysis {
             if (proxy?.IsConfigured == true) {
                 await EstablishSocks5TunnelAsync(network, host, smtpPort, proxy, timeoutCts.Token);
             }
-            Stream activeStream = network;
-            reader = CreateSmtpReader(activeStream);
-            writer = CreateSmtpWriter(activeStream);
+            using var sessionIo = new SmtpSessionIo(network);
             bool tlsUpgraded = false;
             bool startTlsRequired = false;
             bool startTlsFailed = false;
 
-            void ResetIo(Stream stream) {
-                reader?.Dispose();
-                writer?.Dispose();
-                reader = CreateSmtpReader(stream);
-                writer = CreateSmtpWriter(stream);
-            }
-
-            var banner = await ReadResponseAsync(reader, timeoutCts.Token);
+            var banner = await ReadResponseAsync(sessionIo.Reader, timeoutCts.Token);
             if (banner == null) {
                 Smtp.Error = "No SMTP banner received.";
                 return false;
@@ -915,7 +929,7 @@ public sealed class EmailAddressValidationAnalysis {
                 Smtp.Error = "SMTP command contains invalid characters.";
                 return false;
             }
-            var capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
+            var capabilities = await SendEhloAsync(sessionIo.Writer, sessionIo.Reader, helloName, timeoutCts.Token);
             var supportsStartTls = capabilities.Contains("STARTTLS");
 
             var fromAddress = BuildFromAddress(options.SmtpFromAddress, domain);
@@ -923,7 +937,7 @@ public sealed class EmailAddressValidationAnalysis {
                 Smtp.Error = "SMTP command contains invalid characters.";
                 return false;
             }
-            (string? mailResp, string? rcptResp) = await SendMailRcptAsync(writer, reader, fromAddress, emailAddress, timeoutCts.Token);
+            (string? mailResp, string? rcptResp) = await SendMailRcptAsync(sessionIo.Writer, sessionIo.Reader, fromAddress, emailAddress, timeoutCts.Token);
             Smtp.MailFromResponse = mailResp;
             Smtp.MailFromStatusCode = ParseStatusCode(mailResp);
             Smtp.RcptToResponse = rcptResp;
@@ -938,9 +952,9 @@ public sealed class EmailAddressValidationAnalysis {
                     if (upgraded) {
                         tlsUpgraded = true;
                         ResetSmtpFlags();
-                        capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
+                        capabilities = await SendEhloAsync(sessionIo.Writer, sessionIo.Reader, helloName, timeoutCts.Token);
                         supportsStartTls = capabilities.Contains("STARTTLS");
-                        (mailResp, rcptResp) = await SendMailRcptAsync(writer, reader, fromAddress, emailAddress, timeoutCts.Token);
+                        (mailResp, rcptResp) = await SendMailRcptAsync(sessionIo.Writer, sessionIo.Reader, fromAddress, emailAddress, timeoutCts.Token);
                         Smtp.MailFromResponse = mailResp;
                         Smtp.MailFromStatusCode = ParseStatusCode(mailResp);
                         Smtp.RcptToResponse = rcptResp;
@@ -960,29 +974,29 @@ public sealed class EmailAddressValidationAnalysis {
             bool canCheckCatchAll = !startTlsRequired || (tlsUpgraded && !startTlsFailed);
             if (enableCatchAll && canCheckCatchAll && !string.IsNullOrWhiteSpace(domain) && !ContainsCrLf(domain)) {
                 var randomLocal = $"dd-{Guid.NewGuid():N}";
-                await writer.WriteLineAsync($"RCPT TO:<{randomLocal}@{domain}>").WaitWithCancellation(timeoutCts.Token);
-                var catchResp = await ReadResponseAsync(reader, timeoutCts.Token);
+                await sessionIo.Writer.WriteLineAsync($"RCPT TO:<{randomLocal}@{domain}>").WaitWithCancellation(timeoutCts.Token);
+                var catchResp = await ReadResponseAsync(sessionIo.Reader, timeoutCts.Token);
                 Smtp.CatchAllResponse = catchResp;
                 if (IsPositiveResponse(catchResp)) {
                     Smtp.IsCatchAll = true;
                 }
             }
 
-            await writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
-            await writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
+            await sessionIo.Writer.WriteLineAsync("QUIT").WaitWithCancellation(timeoutCts.Token);
+            await sessionIo.Writer.FlushAsync().WaitWithCancellation(timeoutCts.Token);
             try {
-                await reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
+                await sessionIo.Reader.ReadLineAsync().WaitWithCancellation(timeoutCts.Token);
             } catch (IOException) {
                 // ignore disconnect after QUIT
             }
 
             async Task<bool> TryStartTlsAsync() {
-                await writer.WriteLineAsync("STARTTLS").WaitWithCancellation(timeoutCts.Token);
-                var startResp = await ReadResponseAsync(reader, timeoutCts.Token);
+                await sessionIo.Writer.WriteLineAsync("STARTTLS").WaitWithCancellation(timeoutCts.Token);
+                var startResp = await ReadResponseAsync(sessionIo.Reader, timeoutCts.Token);
                 if (!IsPositiveResponse(startResp)) {
                     return false;
                 }
-                sslStream = new SslStream(network, false, (_, _, _, errors) => {
+                var tlsStream = new SslStream(network, false, (_, _, _, errors) => {
                     if (errors == SslPolicyErrors.None) {
                         return true;
                     }
@@ -992,9 +1006,8 @@ public sealed class EmailAddressValidationAnalysis {
                     }
                     return false;
                 });
-                await sslStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
-                activeStream = sslStream;
-                ResetIo(activeStream);
+                await tlsStream.AuthenticateAsClientAsync(host).WaitWithCancellation(timeoutCts.Token);
+                sessionIo.UpgradeToTls(tlsStream);
                 return true;
             }
 
@@ -1013,10 +1026,6 @@ public sealed class EmailAddressValidationAnalysis {
             Smtp.Error = ex.Message;
             logger.WriteVerbose("SMTP probe failed: {0}", ex.Message);
             return false;
-        } finally {
-            reader?.Dispose();
-            writer?.Dispose();
-            sslStream?.Dispose();
         }
     }
 
@@ -1175,7 +1184,7 @@ public sealed class EmailAddressValidationAnalysis {
         var success = IsPositiveResponse(lines.LastOrDefault());
         if (!success) {
             await writer.WriteLineAsync($"HELO {helloName}").WaitWithCancellation(token);
-            var helo = await ReadResponseAsync(reader, token);
+            await ReadResponseAsync(reader, token);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
         var capabilities = ParseEhloCapabilities(lines);
@@ -1405,12 +1414,7 @@ public sealed class EmailAddressValidationAnalysis {
     }
 
     private static bool ContainsNonAscii(string value) {
-        foreach (var ch in value) {
-            if (ch > 127) {
-                return true;
-            }
-        }
-        return false;
+        return value.Any(static ch => ch > 127);
     }
 
     private static string NormalizeRoleLocalPart(string localPart) {
@@ -1424,8 +1428,7 @@ public sealed class EmailAddressValidationAnalysis {
 
     private static List<(int Priority, string Host, bool IsNull)> ParseMxRecords(IEnumerable<DnsAnswer> records) {
         var parsed = new List<(int, string, bool)>();
-        foreach (var record in records ?? Array.Empty<DnsAnswer>()) {
-            var data = record.Data ?? record.DataRaw;
+        foreach (var data in (records ?? Array.Empty<DnsAnswer>()).Select(static record => record.Data ?? record.DataRaw)) {
             if (string.IsNullOrWhiteSpace(data)) {
                 continue;
             }
