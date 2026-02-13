@@ -1,5 +1,8 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using DnsClientX;
@@ -7,7 +10,6 @@ using DomainDetective.DesiredState;
 using Xunit;
 #if !NET472
 using DomainDetective.PowerShell;
-using Pwsh = System.Management.Automation.PowerShell;
 #endif
 
 namespace DomainDetective.Tests;
@@ -22,47 +24,172 @@ public sealed class TestDesiredStateIntegration {
     }
 
 #if !NET472
+    private sealed class PowerShellProcessResult {
+        public int ExitCode { get; }
+        public string StandardOutput { get; }
+        public string StandardError { get; }
+
+        public PowerShellProcessResult(int exitCode, string standardOutput, string standardError) {
+            ExitCode = exitCode;
+            StandardOutput = standardOutput;
+            StandardError = standardError;
+        }
+    }
+
+    private static PowerShellProcessResult RunPowerShellScript(string script, TimeSpan timeout) {
+        var executable = ResolvePowerShellExecutable();
+        var startInfo = new ProcessStartInfo {
+            FileName = executable,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && string.Equals(executable, "powershell", StringComparison.OrdinalIgnoreCase)) {
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+        }
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(script);
+
+        using var process = Process.Start(startInfo);
+        if (process == null) {
+            throw new InvalidOperationException($"Failed to start {executable}.");
+        }
+
+        var stdOutTask = process.StandardOutput.ReadToEndAsync();
+        var stdErrTask = process.StandardError.ReadToEndAsync();
+        var timeoutMs = (int)Math.Min(timeout.TotalMilliseconds, int.MaxValue);
+        if (!process.WaitForExit(timeoutMs)) {
+            try {
+                process.Kill(entireProcessTree: true);
+            } catch {
+            }
+            throw new TimeoutException($"PowerShell script exceeded timeout of {timeout}.");
+        }
+
+        Task.WaitAll(stdOutTask, stdErrTask);
+        return new PowerShellProcessResult(process.ExitCode, stdOutTask.Result, stdErrTask.Result);
+    }
+
+    private static JsonElement RunPowerShellJson(string script, TimeSpan timeout) {
+        var result = RunPowerShellScript(script, timeout);
+        if (result.ExitCode != 0) {
+            throw new InvalidOperationException($"PowerShell exited with {result.ExitCode}. StdErr: {result.StandardError}");
+        }
+
+        var json = ExtractLastNonEmptyLine(result.StandardOutput);
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
+
+    private static string ExtractLastNonEmptyLine(string output) {
+        if (string.IsNullOrWhiteSpace(output)) {
+            throw new InvalidOperationException("PowerShell output is empty.");
+        }
+
+        var lines = output
+            .Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+        if (lines.Length == 0) {
+            throw new InvalidOperationException("PowerShell output did not contain any data.");
+        }
+
+        return lines[^1];
+    }
+
+    private static string ResolvePowerShellExecutable() {
+        if (CommandExists("pwsh")) {
+            return "pwsh";
+        }
+        if (CommandExists("powershell")) {
+            return "powershell";
+        }
+
+        throw new InvalidOperationException("PowerShell executable not found on PATH.");
+    }
+
+    private static bool CommandExists(string command) {
+        var checker = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "where" : "which";
+        var startInfo = new ProcessStartInfo {
+            FileName = checker,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add(command);
+
+        using var process = Process.Start(startInfo);
+        if (process == null) {
+            return false;
+        }
+
+        process.WaitForExit(2000);
+        return process.ExitCode == 0;
+    }
+
+    private static string EscapePowerShellString(string value) {
+        return value.Replace("'", "''");
+    }
+
     [IntegrationFact]
     public void DslScriptBlock_BuildsConfiguration() {
-        using var ps = Pwsh.Create();
-        ps.AddCommand("Import-Module").AddArgument(typeof(CmdletNewDesiredState).Assembly.Location).Invoke();
-        ps.Commands.Clear();
+        var modulePath = typeof(CmdletNewDesiredState).Assembly.Location;
+        Assert.False(string.IsNullOrWhiteSpace(modulePath));
+        var escapedModule = EscapePowerShellString(modulePath);
 
-        ps.AddScript(@"
-$cfg = New-DDDesiredState {
+        var script = $@"
+$ProgressPreference = 'SilentlyContinue'
+$VerbosePreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+$InformationPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+Import-Module '{escapedModule}'
+$cfg = New-DDDesiredState {{
   New-DDDesiredStateDmarc -Enabled $true
   New-DDDesiredStateSpf -Enabled $true
-}
-$cfg
-");
-        var results = ps.Invoke();
+}}
+[pscustomobject]@{{
+  DmarcEnabled = $cfg.Defaults.Dmarc.Enabled
+  SpfEnabled = $cfg.Defaults.Spf.Enabled
+}} | ConvertTo-Json -Compress
+";
 
-        Assert.False(ps.HadErrors);
-        var config = results.Single().BaseObject as DesiredStateConfiguration;
-        Assert.NotNull(config);
-        Assert.True(config.Defaults.Dmarc?.Enabled ?? false);
-        Assert.True(config.Defaults.Spf?.Enabled ?? false);
+        var payload = RunPowerShellJson(script, TimeSpan.FromMinutes(2));
+        Assert.True(payload.GetProperty("DmarcEnabled").GetBoolean());
+        Assert.True(payload.GetProperty("SpfEnabled").GetBoolean());
     }
 
     [IntegrationFact]
     public void TestDesiredStateCmdlet_Executes_EndToEnd() {
-        var domain = GetIntegrationDomain().Replace("'", "''");
-        using var ps = Pwsh.Create();
-        ps.AddCommand("Import-Module").AddArgument(typeof(CmdletTestDesiredState).Assembly.Location).Invoke();
-        ps.Commands.Clear();
+        var modulePath = typeof(CmdletTestDesiredState).Assembly.Location;
+        Assert.False(string.IsNullOrWhiteSpace(modulePath));
+        var escapedModule = EscapePowerShellString(modulePath);
+        var domain = EscapePowerShellString(GetIntegrationDomain());
 
-        ps.AddScript($@"
+        var script = $@"
+$ProgressPreference = 'SilentlyContinue'
+$VerbosePreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+$InformationPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
+Import-Module '{escapedModule}'
 $cfg = New-DDDesiredState {{
   New-DDDesiredStateDmarc -Enabled $true
   New-DDDesiredStateSpf -Enabled $true
   New-DDDesiredStateDkim -Enabled $true
 }}
-Test-DDDesiredState -DomainName '{domain}' -Configuration $cfg
-");
+$results = Test-DDDesiredState -DomainName '{domain}' -Configuration $cfg
+[pscustomobject]@{{ Count = @($results).Count }} | ConvertTo-Json -Compress
+";
 
-        var results = ps.Invoke();
-        Assert.False(ps.HadErrors);
-        Assert.NotEmpty(results);
+        var payload = RunPowerShellJson(script, TimeSpan.FromMinutes(5));
+        Assert.True(payload.GetProperty("Count").GetInt32() > 0);
     }
 #endif
 
