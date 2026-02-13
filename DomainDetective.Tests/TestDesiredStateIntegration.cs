@@ -70,7 +70,9 @@ public sealed class TestDesiredStateIntegration {
             throw new TimeoutException($"PowerShell script exceeded timeout of {timeout}.");
         }
 
-        Task.WaitAll(stdOutTask, stdErrTask);
+        if (!Task.WaitAll(new Task[] { stdOutTask, stdErrTask }, timeoutMs)) {
+            throw new TimeoutException($"PowerShell output read exceeded timeout of {timeout}.");
+        }
         return new PowerShellProcessResult(process.ExitCode, stdOutTask.Result, stdErrTask.Result);
     }
 
@@ -81,8 +83,12 @@ public sealed class TestDesiredStateIntegration {
         }
 
         var json = ExtractLastNonEmptyLine(result.StandardOutput);
-        using var doc = JsonDocument.Parse(json);
-        return doc.RootElement.Clone();
+        try {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.Clone();
+        } catch (JsonException ex) {
+            throw new InvalidOperationException("PowerShell returned non-JSON output.", ex);
+        }
     }
 
     private static string ExtractLastNonEmptyLine(string output) {
@@ -129,7 +135,13 @@ public sealed class TestDesiredStateIntegration {
             return false;
         }
 
-        process.WaitForExit(2000);
+        if (!process.WaitForExit(2000)) {
+            try {
+                process.Kill(entireProcessTree: true);
+            } catch {
+            }
+            return false;
+        }
         return process.ExitCode == 0;
     }
 
