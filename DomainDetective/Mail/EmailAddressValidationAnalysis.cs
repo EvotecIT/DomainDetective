@@ -890,6 +890,8 @@ public sealed class EmailAddressValidationAnalysis {
             reader = CreateSmtpReader(activeStream);
             writer = CreateSmtpWriter(activeStream);
             bool tlsUpgraded = false;
+            bool startTlsRequired = false;
+            bool startTlsFailed = false;
 
             void ResetIo(Stream stream) {
                 reader?.Dispose();
@@ -928,28 +930,35 @@ public sealed class EmailAddressValidationAnalysis {
             Smtp.RcptToStatusCode = ParseStatusCode(rcptResp);
 
             bool requireTls = ResponseRequiresStartTls(mailResp) || ResponseRequiresStartTls(rcptResp);
-            if (requireTls && supportsStartTls && !tlsUpgraded) {
-                var upgraded = await TryStartTlsAsync();
-                if (upgraded) {
-                    Smtp.RequiresStartTls = true;
-                    tlsUpgraded = true;
-                    ResetSmtpFlags();
-                    capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
-                    supportsStartTls = capabilities.Contains("STARTTLS");
-                    (mailResp, rcptResp) = await SendMailRcptAsync(writer, reader, fromAddress, emailAddress, timeoutCts.Token);
-                    Smtp.MailFromResponse = mailResp;
-                    Smtp.MailFromStatusCode = ParseStatusCode(mailResp);
-                    Smtp.RcptToResponse = rcptResp;
-                    Smtp.RcptToStatusCode = ParseStatusCode(rcptResp);
-                } else {
-                    Smtp.RequiresStartTls = true;
-                    Smtp.Error ??= "STARTTLS required but negotiation failed.";
+            if (requireTls) {
+                startTlsRequired = true;
+                Smtp.RequiresStartTls = true;
+                if (supportsStartTls && !tlsUpgraded) {
+                    var upgraded = await TryStartTlsAsync();
+                    if (upgraded) {
+                        tlsUpgraded = true;
+                        ResetSmtpFlags();
+                        capabilities = await SendEhloAsync(writer, reader, helloName, timeoutCts.Token);
+                        supportsStartTls = capabilities.Contains("STARTTLS");
+                        (mailResp, rcptResp) = await SendMailRcptAsync(writer, reader, fromAddress, emailAddress, timeoutCts.Token);
+                        Smtp.MailFromResponse = mailResp;
+                        Smtp.MailFromStatusCode = ParseStatusCode(mailResp);
+                        Smtp.RcptToResponse = rcptResp;
+                        Smtp.RcptToStatusCode = ParseStatusCode(rcptResp);
+                    } else {
+                        startTlsFailed = true;
+                        Smtp.Error ??= "STARTTLS required but negotiation failed.";
+                    }
+                } else if (!supportsStartTls) {
+                    startTlsFailed = true;
+                    Smtp.Error ??= "STARTTLS required but server does not advertise STARTTLS.";
                 }
             }
 
             InterpretSmtpResponse(rcptResp, Smtp, logger);
 
-            if (enableCatchAll && !Smtp.RequiresStartTls && !string.IsNullOrWhiteSpace(domain)) {
+            bool canCheckCatchAll = !startTlsRequired || (tlsUpgraded && !startTlsFailed);
+            if (enableCatchAll && canCheckCatchAll && !string.IsNullOrWhiteSpace(domain) && !ContainsCrLf(domain)) {
                 var randomLocal = $"dd-{Guid.NewGuid():N}";
                 await writer.WriteLineAsync($"RCPT TO:<{randomLocal}@{domain}>").WaitWithCancellation(timeoutCts.Token);
                 var catchResp = await ReadResponseAsync(reader, timeoutCts.Token);
@@ -1425,17 +1434,19 @@ public sealed class EmailAddressValidationAnalysis {
                 continue;
             }
             int priority = 0;
-            string host;
+            bool hasPriority = false;
+            string hostRaw;
             if (parts.Length == 1) {
-                host = parts[0].Trim().Trim('.');
+                hostRaw = parts[0].Trim();
             } else {
-                int.TryParse(parts[0], out priority);
-                host = parts[1].Trim().Trim('.');
+                hasPriority = int.TryParse(parts[0], out priority);
+                hostRaw = parts[1].Trim();
             }
-            if (string.IsNullOrWhiteSpace(host)) {
+            bool isNull = hostRaw == "." && (parts.Length == 1 || (hasPriority && priority == 0));
+            string host = isNull ? string.Empty : hostRaw.Trim('.');
+            if (string.IsNullOrWhiteSpace(host) && !isNull) {
                 continue;
             }
-            bool isNull = host == ".";
             parsed.Add((priority, host, isNull));
         }
         return parsed;

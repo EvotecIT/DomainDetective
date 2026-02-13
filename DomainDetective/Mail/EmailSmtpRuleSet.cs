@@ -46,6 +46,21 @@ public static class EmailSmtpRuleResolver {
 
         var match = new EmailSmtpRuleMatch();
         bool matched = false;
+        List<(string Suffix, EmailSmtpRulePolicy Policy)>? suffixRules = null;
+        if (rules.ByMxSuffix != null) {
+            suffixRules = new List<(string Suffix, EmailSmtpRulePolicy Policy)>();
+            foreach (var suffixRule in rules.ByMxSuffix) {
+                var suffix = NormalizeSuffix(suffixRule.Key);
+                if (suffix.Length == 0 || suffixRule.Value == null) {
+                    continue;
+                }
+                suffixRules.Add((suffix, suffixRule.Value));
+            }
+            suffixRules.Sort((left, right) => {
+                int lengthCompare = right.Suffix.Length.CompareTo(left.Suffix.Length);
+                return lengthCompare != 0 ? lengthCompare : StringComparer.OrdinalIgnoreCase.Compare(left.Suffix, right.Suffix);
+            });
+        }
 
         if (!string.IsNullOrWhiteSpace(domain) && rules.ByDomain != null) {
             var key = NormalizeKey(domain);
@@ -70,16 +85,14 @@ public static class EmailSmtpRuleResolver {
                     matched = true;
                 }
 
-                if (rules.ByMxSuffix != null) {
-                    foreach (var suffixRule in rules.ByMxSuffix) {
-                        var suffix = NormalizeSuffix(suffixRule.Key);
-                        if (suffix.Length == 0) {
+                if (suffixRules != null) {
+                    foreach (var suffixRule in suffixRules) {
+                        if (!normalized.EndsWith(suffixRule.Suffix, StringComparison.OrdinalIgnoreCase)) {
                             continue;
                         }
-                        if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) {
-                            ApplyPolicy(match, suffixRule.Value);
-                            matched = true;
-                        }
+                        ApplyPolicy(match, suffixRule.Policy);
+                        matched = true;
+                        break;
                     }
                 }
             }

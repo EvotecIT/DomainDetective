@@ -1,3 +1,4 @@
+using DnsClientX;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -66,6 +67,31 @@ public sealed class TestEmailAddressValidation {
     }
 
     [Fact]
+    public async Task NullMxMarksDomainAsNotAcceptingMail() {
+        var options = CreateOptions();
+        options.CheckMx = true;
+
+        var analysis = new EmailAddressValidationAnalysis {
+            DnsConfiguration = new DnsConfiguration {
+                QueryDnsOverride = (_, recordType) => recordType switch {
+                    DnsRecordType.MX => Task.FromResult(new[] { new DnsAnswer { DataRaw = "0 .", Type = DnsRecordType.MX } }),
+                    DnsRecordType.A => Task.FromResult(new[] { new DnsAnswer { DataRaw = "192.0.2.10", Type = DnsRecordType.A } }),
+                    DnsRecordType.AAAA => Task.FromResult(new[] { new DnsAnswer { DataRaw = "2001:db8::10", Type = DnsRecordType.AAAA } }),
+                    _ => Task.FromResult(System.Array.Empty<DnsAnswer>())
+                }
+            }
+        };
+        await analysis.AnalyzeAsync("user@example.com", options, new InternalLogger(false));
+
+        Assert.True(analysis.Mx.Checked);
+        Assert.True(analysis.Mx.HasNullMx);
+        Assert.False(analysis.Mx.AcceptsMail);
+        Assert.False(analysis.Mx.UsedApexFallback);
+        Assert.Empty(analysis.Mx.Records);
+        Assert.Equal(EmailReachabilityStatus.Invalid, analysis.IsReachable);
+    }
+
+    [Fact]
     public async Task DisposableOverrideReplacesBuiltin() {
         var temp = System.IO.Path.GetTempFileName();
         try {
@@ -81,7 +107,7 @@ public sealed class TestEmailAddressValidation {
             await builtin.AnalyzeAsync("user@mailinator.com", options, new InternalLogger(false));
             Assert.False(builtin.Misc.IsDisposable);
         } finally {
-            try { System.IO.File.Delete(temp); } catch { }
+            TryDeleteFile(temp);
         }
     }
 
@@ -97,7 +123,19 @@ public sealed class TestEmailAddressValidation {
             await analysis.AnalyzeAsync("user@custom-b2c.test", options, new InternalLogger(false));
             Assert.True(analysis.Misc.IsB2C);
         } finally {
-            try { System.IO.File.Delete(temp); } catch { }
+            TryDeleteFile(temp);
+        }
+    }
+
+    private static void TryDeleteFile(string path) {
+        try {
+            if (System.IO.File.Exists(path)) {
+                System.IO.File.Delete(path);
+            }
+        } catch (System.IO.IOException) {
+            // best-effort cleanup for temporary test files
+        } catch (System.UnauthorizedAccessException) {
+            // best-effort cleanup for temporary test files
         }
     }
 }
