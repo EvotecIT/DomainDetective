@@ -197,6 +197,13 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--expiring-within-days", "45", "--critical-expiring-within-days", "10", "--json" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
                 .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("CertificateInventoryReuse")
+                .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryReuse", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryReuse", "--include-singletons", "--max-certificates", "500", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryReuseCommand>("cert-inventory-reuse")
+                .WithDescription("Map certificate reuse and endpoint assignment across persisted snapshots (alias)");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);

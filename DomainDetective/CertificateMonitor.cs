@@ -443,6 +443,27 @@ namespace DomainDetective {
                 maxEndpoints);
         }
 
+        /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="includeSingleEndpointCertificates">When true, includes certificates used by only one endpoint.</param>
+        /// <param name="minEndpointCount">Minimum endpoint count required per certificate.</param>
+        /// <param name="maxCertificates">Maximum certificate rows returned.</param>
+        /// <param name="maxEndpointsPerCertificate">Maximum endpoint references returned per certificate row.</param>
+        public CertificateInventoryReuseSummary BuildInventoryReuse(
+            DateTimeOffset? sinceUtc = null,
+            bool includeSingleEndpointCertificates = false,
+            int minEndpointCount = 2,
+            int maxCertificates = 300,
+            int maxEndpointsPerCertificate = 30) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryReuseAnalyzer.BuildReuse(
+                snapshots,
+                includeSingleEndpointCertificates,
+                minEndpointCount,
+                maxCertificates,
+                maxEndpointsPerCertificate);
+        }
+
         /// <summary>Queries persisted inventory entries using structured filters.</summary>
         /// <param name="query">Query options.</param>
         public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {
