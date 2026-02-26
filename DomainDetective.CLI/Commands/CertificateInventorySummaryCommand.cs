@@ -94,10 +94,13 @@ internal sealed class CertificateInventorySummaryCommand : AsyncCommand<Certific
         overview.AddRow("Missing ServerAuth EKU", summary.MissingServerAuthEndpointCount.ToString());
         overview.AddRow("ClientAuth EKU", summary.ClientAuthEndpointCount.ToString());
         overview.AddRow("SecureEmail EKU", summary.SecureEmailEndpointCount.ToString());
+        overview.AddRow("Self-Signed", summary.SelfSignedEndpointCount.ToString());
+        overview.AddRow("Incomplete Chains", summary.IncompleteChainEndpointCount.ToString());
         AnsiConsole.Write(overview);
 
         RenderCountTable("Service Distribution", summary.ServiceCounts);
         RenderCountTable("Issuer Distribution", summary.IssuerCounts);
+        RenderCountTable("Root Distribution", summary.RootIssuerCounts);
 
         if (summary.ExpiringSoon.Count > 0) {
             var expiring = new Table().Border(TableBorder.Rounded);

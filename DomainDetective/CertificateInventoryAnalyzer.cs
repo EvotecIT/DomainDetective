@@ -15,8 +15,11 @@ namespace DomainDetective {
         public int MissingServerAuthEndpointCount { get; set; }
         public int ClientAuthEndpointCount { get; set; }
         public int SecureEmailEndpointCount { get; set; }
+        public int SelfSignedEndpointCount { get; set; }
+        public int IncompleteChainEndpointCount { get; set; }
         public Dictionary<string, int> ServiceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> IssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> RootIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateExpiringEndpoint> ExpiringSoon { get; set; } = new();
     }
 
@@ -90,6 +93,15 @@ namespace DomainDetective {
                 if (entry.AllowsSecureEmail) {
                     summary.SecureEmailEndpointCount++;
                 }
+                if (entry.IsSelfSigned) {
+                    summary.SelfSignedEndpointCount++;
+                }
+                if (!entry.ChainComplete && entry.IsReachable && !entry.IsSelfSigned) {
+                    summary.IncompleteChainEndpointCount++;
+                }
+
+                var rootIssuer = PickRootIssuer(entry);
+                Increment(summary.RootIssuerCounts, rootIssuer);
 
                 if (!entry.NotAfterUtc.HasValue) {
                     continue;
@@ -150,6 +162,19 @@ namespace DomainDetective {
                 port = 443;
             }
             return $"{host}:{port}";
+        }
+
+        private static string PickRootIssuer(CertificateInventoryEntry entry) {
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerNormalized)) {
+                return entry.CertificateRootIssuerNormalized!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerOrganization)) {
+                return entry.CertificateRootIssuerOrganization!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuer)) {
+                return CertificateIssuerClassifier.Classify(entry.CertificateRootIssuer).NormalizedName;
+            }
+            return "Unknown";
         }
     }
 }

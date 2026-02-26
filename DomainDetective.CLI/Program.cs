@@ -172,7 +172,8 @@ internal static class Program {
                 .WithDescription("Query persisted certificate inventory snapshots with filters")
                 .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "api", "--service", "HTTPS" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--issuer-contains", "digicert", "--expiring-within-days", "30", "--json" })
-                .WithExample(new[] { "CertificateInventoryQuery", "--client-auth-only", "--chain-incomplete-only", "--max-results", "500" });
+                .WithExample(new[] { "CertificateInventoryQuery", "--client-auth-only", "--chain-incomplete-only", "--max-results", "500" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--root-contains", "isrg", "--service", "HTTPS" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
                 .WithDescription("Query persisted certificate inventory snapshots (alias)");
 

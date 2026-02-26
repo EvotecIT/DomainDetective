@@ -55,6 +55,16 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--issuer-contains <TEXT>")]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Root issuer/subject substring filter.</summary>
+    [Description("Root issuer/subject substring filter.")]
+    [CommandOption("--root-contains <TEXT>")]
+    public string? RootContains { get; set; }
+
+    /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
+    [Description("Leaf certificate thumbprint exact-match filter.")]
+    [CommandOption("--thumbprint <HEX>")]
+    public string? ThumbprintEquals { get; set; }
+
     /// <summary>Only include certificates from recognized public CAs.</summary>
     [Description("Only include certificates from recognized public CAs.")]
     [CommandOption("--known-ca-only")]
@@ -165,6 +175,8 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             SanContains = settings.SanContains,
             ServiceEquals = settings.ServiceEquals,
             IssuerContains = settings.IssuerContains,
+            RootContains = settings.RootContains,
+            ThumbprintEquals = settings.ThumbprintEquals,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : null,
             ValidOnly = settings.ValidOnly ? true : null,
             ExpiredOnly = settings.ExpiredOnly ? true : null,
@@ -209,6 +221,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         rows.AddColumn("Port");
         rows.AddColumn("Service");
         rows.AddColumn("Issuer");
+        rows.AddColumn("Root");
         rows.AddColumn("Expires");
         rows.AddColumn("Known CA");
         rows.AddColumn("Valid");
@@ -218,6 +231,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             var entry = observed.Entry;
             var host = entry.ResolvedHost ?? entry.Host;
             var issuer = entry.CertificateIssuerNormalized ?? entry.CertificateIssuerOrganization ?? entry.CertificateIssuer ?? "-";
+            var root = entry.CertificateRootIssuerNormalized ?? entry.CertificateRootIssuerOrganization ?? entry.CertificateRootIssuer ?? entry.CertificateRootSubject ?? "-";
             var expires = entry.NotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
             var authFlags = BuildAuthFlags(entry);
             rows.AddRow(
@@ -226,6 +240,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
                 entry.Port.ToString(),
                 entry.Service ?? "-",
                 issuer,
+                root,
                 expires,
                 entry.IsKnownCertificateAuthority ? "Yes" : "No",
                 entry.Valid ? "Yes" : "No",

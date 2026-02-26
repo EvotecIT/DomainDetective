@@ -16,8 +16,11 @@ namespace DomainDetective.Tests {
                         Port = 443,
                         Service = "HTTPS",
                         NotAfterUtc = now.AddDays(5),
+                        ChainComplete = true,
+                        IsReachable = true,
                         AllowsServerAuthentication = true,
-                        CertificateIssuer = "CN=R3, O=Let's Encrypt, C=US"
+                        CertificateIssuer = "CN=R3, O=Let's Encrypt, C=US",
+                        CertificateRootIssuerNormalized = "ISRG Root X1"
                     }
                 }
             };
@@ -31,8 +34,11 @@ namespace DomainDetective.Tests {
                         Port = 443,
                         Service = "HTTPS",
                         NotAfterUtc = now.AddDays(120),
+                        ChainComplete = true,
+                        IsReachable = true,
                         AllowsServerAuthentication = true,
-                        CertificateIssuerNormalized = "Let's Encrypt"
+                        CertificateIssuerNormalized = "Let's Encrypt",
+                        CertificateRootIssuerNormalized = "ISRG Root X1"
                     },
                     new() {
                         Host = "portal.example.com",
@@ -40,9 +46,12 @@ namespace DomainDetective.Tests {
                         Port = 8443,
                         Service = "HTTPS-Alt",
                         NotAfterUtc = now.AddDays(-2),
+                        ChainComplete = false,
+                        IsReachable = true,
                         AllowsServerAuthentication = false,
                         AllowsClientAuthentication = true,
-                        CertificateIssuer = "CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US"
+                        CertificateIssuer = "CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US",
+                        CertificateRootIssuerNormalized = "DigiCert Global Root G2"
                     },
                     new() {
                         Host = "mail.example.com",
@@ -50,9 +59,13 @@ namespace DomainDetective.Tests {
                         Port = 443,
                         Service = "HTTPS",
                         NotAfterUtc = now.AddDays(20),
+                        ChainComplete = true,
+                        IsReachable = true,
+                        IsSelfSigned = true,
                         AllowsServerAuthentication = true,
                         AllowsSecureEmail = true,
-                        CertificateIssuerOrganization = "Contoso Security"
+                        CertificateIssuerOrganization = "Contoso Security",
+                        CertificateRootIssuerNormalized = "Contoso Root CA"
                     }
                 }
             };
@@ -67,11 +80,16 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.MissingServerAuthEndpointCount);
             Assert.Equal(1, summary.ClientAuthEndpointCount);
             Assert.Equal(1, summary.SecureEmailEndpointCount);
+            Assert.Equal(1, summary.SelfSignedEndpointCount);
+            Assert.Equal(1, summary.IncompleteChainEndpointCount);
             Assert.Equal(2, summary.ServiceCounts["HTTPS"]);
             Assert.Equal(1, summary.ServiceCounts["HTTPS-Alt"]);
             Assert.Equal(1, summary.IssuerCounts["Let's Encrypt"]);
             Assert.Equal(1, summary.IssuerCounts["DigiCert"]);
             Assert.Equal(1, summary.IssuerCounts["Contoso Security"]);
+            Assert.Equal(1, summary.RootIssuerCounts["ISRG Root X1"]);
+            Assert.Equal(1, summary.RootIssuerCounts["DigiCert Global Root G2"]);
+            Assert.Equal(1, summary.RootIssuerCounts["Contoso Root CA"]);
             Assert.Single(summary.ExpiringSoon);
             Assert.Equal("mail.example.com", summary.ExpiringSoon[0].Host);
         }

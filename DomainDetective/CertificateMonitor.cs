@@ -305,6 +305,11 @@ namespace DomainDetective {
             var analysis = entry.Analysis;
             var certificate = analysis.Certificate;
             var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);
+            var chain = analysis.Chain != null && analysis.Chain.Count > 0
+                ? analysis.Chain
+                : (certificate != null ? new List<X509Certificate2> { certificate } : new List<X509Certificate2>());
+            var root = chain.Count > 0 ? chain[chain.Count - 1] : null;
+            var rootIdentity = CertificateIssuerClassifier.Classify(root);
             var snapshotEntry = new CertificateInventoryEntry {
                 Host = entry.Host,
                 ResolvedHost = entry.ResolvedHost,
@@ -319,6 +324,13 @@ namespace DomainDetective {
                 CertificateIssuerOrganization = issuerIdentity.Organization,
                 CertificateIssuerNormalized = issuerIdentity.NormalizedName,
                 CertificateAuthorityFamily = issuerIdentity.AuthorityFamily,
+                CertificateRootSubject = root?.Subject,
+                CertificateRootIssuer = root?.Issuer,
+                CertificateRootThumbprint = root?.Thumbprint,
+                CertificateRootIssuerOrganization = rootIdentity.Organization,
+                CertificateRootIssuerNormalized = rootIdentity.NormalizedName,
+                CertificateChainLength = chain.Count,
+                CertificateIntermediateCount = Math.Max(0, chain.Count - 2),
                 IsKnownCertificateAuthority = issuerIdentity.IsKnownAuthority,
                 NotBeforeUtc = certificate?.NotBefore.ToUniversalTime(),
                 NotAfterUtc = certificate?.NotAfter.ToUniversalTime(),
@@ -345,6 +357,17 @@ namespace DomainDetective {
             };
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
+            foreach (var chainElement in chain) {
+                if (!string.IsNullOrWhiteSpace(chainElement.Subject)) {
+                    snapshotEntry.CertificateChainSubjects.Add(chainElement.Subject);
+                }
+                if (!string.IsNullOrWhiteSpace(chainElement.Issuer)) {
+                    snapshotEntry.CertificateChainIssuers.Add(chainElement.Issuer);
+                }
+                if (!string.IsNullOrWhiteSpace(chainElement.Thumbprint)) {
+                    snapshotEntry.CertificateChainThumbprints.Add(chainElement.Thumbprint);
+                }
+            }
             return snapshotEntry;
         }
 
@@ -465,6 +488,28 @@ namespace DomainDetective {
                 }
             }
 
+            var rootContains = query.RootContains;
+            if (!string.IsNullOrWhiteSpace(rootContains)) {
+                var rootNeedle = rootContains!.Trim();
+                var rootHaystack = entry.CertificateRootIssuerNormalized ??
+                                   entry.CertificateRootIssuerOrganization ??
+                                   entry.CertificateRootIssuer ??
+                                   entry.CertificateRootSubject ??
+                                   string.Empty;
+                if (rootHaystack.IndexOf(rootNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var thumbprintEquals = query.ThumbprintEquals;
+            if (!string.IsNullOrWhiteSpace(thumbprintEquals)) {
+                var expectedThumbprint = NormalizeThumbprint(thumbprintEquals);
+                var actualThumbprint = NormalizeThumbprint(entry.CertificateThumbprint);
+                if (expectedThumbprint.Length == 0 || !actualThumbprint.Equals(expectedThumbprint, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
             if (query.KnownAuthorityOnly.HasValue && query.KnownAuthorityOnly.Value && !entry.IsKnownCertificateAuthority) {
                 return false;
             }
@@ -524,6 +569,15 @@ namespace DomainDetective {
             }
 
             return true;
+        }
+
+        private static string NormalizeThumbprint(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return string.Empty;
+            }
+
+            var chars = value.Where(c => !char.IsWhiteSpace(c) && c != ':').ToArray();
+            return new string(chars).Trim().ToUpperInvariant();
         }
 
         /// <summary>Disposes timer resources.</summary>

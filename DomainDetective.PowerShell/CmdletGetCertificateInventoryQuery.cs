@@ -50,6 +50,14 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? IssuerContains { get; set; }
 
+    /// <summary>Root issuer/subject substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? RootContains { get; set; }
+
+    /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? ThumbprintEquals { get; set; }
+
     /// <summary>Only include certificates from recognized public CAs.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter KnownCaOnly { get; set; }
@@ -138,6 +146,8 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             SanContains = SanContains,
             ServiceEquals = ServiceEquals,
             IssuerContains = IssuerContains,
+            RootContains = RootContains,
+            ThumbprintEquals = ThumbprintEquals,
             KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : null,
             ValidOnly = ValidOnly.IsPresent ? true : null,
             ExpiredOnly = ExpiredOnly.IsPresent ? true : null,

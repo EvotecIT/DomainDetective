@@ -24,6 +24,8 @@ namespace DomainDetective.Tests {
                             Port = 443,
                             CertificateSubject = "CN=api.example.com, O=Example Corp",
                             CertificateIssuerNormalized = "DigiCert",
+                            CertificateThumbprint = "AA11BB22CC33DD44",
+                            CertificateRootIssuerNormalized = "ISRG Root X1",
                             IsKnownCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "api.example.com", "api-int.example.com" },
                             NotAfterUtc = now.AddDays(8),
@@ -43,6 +45,8 @@ namespace DomainDetective.Tests {
                             Port = 8443,
                             CertificateSubject = "CN=internal.example.com, O=Contoso Internal PKI",
                             CertificateIssuerNormalized = "Contoso PKI",
+                            CertificateThumbprint = "EE55FF66",
+                            CertificateRootIssuerNormalized = "Contoso Root CA",
                             IsKnownCertificateAuthority = false,
                             SubjectAlternativeNames = new List<string> { "internal.example.com", "mtls.example.com" },
                             NotAfterUtc = now.AddDays(50),
@@ -63,6 +67,8 @@ namespace DomainDetective.Tests {
                             Port = 443,
                             CertificateSubject = "CN=old.example.com, O=Example Legacy",
                             CertificateIssuerNormalized = "DigiCert",
+                            CertificateThumbprint = "11223344AABB",
+                            CertificateRootIssuerNormalized = "DigiCert Global Root G2",
                             IsKnownCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "old.example.com" },
                             NotAfterUtc = now.AddDays(-1),
@@ -153,6 +159,22 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, unreachable.MatchedEntryCount);
                 Assert.Single(unreachable.Entries);
                 Assert.Equal("old.example.com", unreachable.Entries[0].Entry.Host);
+
+                var rootFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootContains = "isrg",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, rootFilter.MatchedEntryCount);
+                Assert.Single(rootFilter.Entries);
+                Assert.Equal("api.example.com", rootFilter.Entries[0].Entry.Host);
+
+                var thumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ThumbprintEquals = "aa11:bb22 cc33dd44",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, thumbprintFilter.MatchedEntryCount);
+                Assert.Single(thumbprintFilter.Entries);
+                Assert.Equal("api.example.com", thumbprintFilter.Entries[0].Entry.Host);
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);

@@ -42,6 +42,14 @@ namespace DomainDetective.Tests {
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateSerialNumber));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootSubject));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootIssuer));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootThumbprint));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerNormalized));
+                    Assert.True(entry.CertificateChainLength >= 1);
+                    Assert.True(entry.CertificateChainSubjects.Count >= 1);
+                    Assert.True(entry.CertificateChainIssuers.Count >= 1);
+                    Assert.True(entry.CertificateChainThumbprints.Count >= 1);
                 });
             } finally {
                 if (Directory.Exists(tempDir)) {

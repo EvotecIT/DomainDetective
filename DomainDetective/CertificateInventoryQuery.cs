@@ -13,6 +13,8 @@ namespace DomainDetective {
         public string? SanContains { get; set; }
         public string? ServiceEquals { get; set; }
         public string? IssuerContains { get; set; }
+        public string? RootContains { get; set; }
+        public string? ThumbprintEquals { get; set; }
         public bool? KnownAuthorityOnly { get; set; }
         public bool? ValidOnly { get; set; }
         public bool? ExpiredOnly { get; set; }
