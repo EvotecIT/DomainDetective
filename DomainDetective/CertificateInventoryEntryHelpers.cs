@@ -23,9 +23,14 @@ internal static class CertificateInventoryEntryHelpers
 
     public static IEnumerable<string> EnumerateChainSources(CertificateInventoryEntry entry)
     {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(entry.CertificateChainSource))
         {
-            yield return entry.CertificateChainSource!;
+            var primary = entry.CertificateChainSource!.Trim();
+            if (seen.Add(primary))
+            {
+                yield return primary;
+            }
         }
 
         if (entry.CertificateChainSources == null)
@@ -40,7 +45,11 @@ internal static class CertificateInventoryEntryHelpers
                 continue;
             }
 
-            yield return source;
+            var normalized = source.Trim();
+            if (seen.Add(normalized))
+            {
+                yield return normalized;
+            }
         }
     }
 

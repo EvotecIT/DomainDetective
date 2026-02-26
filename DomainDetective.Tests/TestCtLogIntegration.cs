@@ -12,6 +12,11 @@ namespace DomainDetective.Tests;
 
 public class TestCtLogIntegration
 {
+    public TestCtLogIntegration()
+    {
+        CtLogAggregator.ResetSharedStateForTests();
+    }
+
     [Fact]
     public async Task CertificateAnalysisExposesEntries()
     {

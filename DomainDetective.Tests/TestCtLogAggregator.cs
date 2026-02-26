@@ -101,7 +101,7 @@ public class TestCtLogAggregator
         aggregator.ApiTemplates.Clear();
         aggregator.ApiTemplates.Add("https://api-rate1/{0}");
         aggregator.ApiTemplates.Add("https://api-rate2/{0}");
-        aggregator.MinimumRequestSpacing = TimeSpan.FromMilliseconds(150);
+        aggregator.MinimumRequestSpacing = TimeSpan.FromSeconds(2);
         aggregator.RetryDelay = TimeSpan.Zero;
         aggregator.DelayOverride = (delay, _) =>
         {
@@ -294,6 +294,75 @@ public class TestCtLogAggregator
         Assert.Equal(19, entries[0].GetProperty("id").GetInt32());
         Assert.Equal(2, handler.RequestCount);
         Assert.Contains(observedDelays, delay => delay >= retryAfter);
+    }
+
+    [Fact]
+    public async Task ShodanCacheDoesNotVaryByApiKeyForSameFingerprint()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[{\"id\":33}]}")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableShodanSource = true;
+        aggregator.ShodanApiUrlTemplate = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+        aggregator.CacheTtl = TimeSpan.FromMinutes(10);
+
+        aggregator.ShodanApiKey = "key-a";
+        var first = await aggregator.QueryAsync("fp123");
+        aggregator.ShodanApiKey = "key-b";
+        var second = await aggregator.QueryAsync("fp123");
+
+        Assert.Single(first);
+        Assert.Single(second);
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CensysEnabledWithEmptyTemplateRecordsConfigurationError()
+    {
+        var handler = new SequenceHandler(Array.Empty<HttpResponseMessage>());
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableCensysSource = true;
+        aggregator.CensysApiId = "id";
+        aggregator.CensysApiSecret = "secret";
+        aggregator.CensysApiUrlTemplate = string.Empty;
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Empty(entries);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Contains(aggregator.LastTemplateFormatErrors, error =>
+            error.IndexOf("CensysApiUrlTemplate", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            error.IndexOf("empty", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    [Fact]
+    public async Task ShodanEnabledWithEmptyTemplateRecordsConfigurationError()
+    {
+        var handler = new SequenceHandler(Array.Empty<HttpResponseMessage>());
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableShodanSource = true;
+        aggregator.ShodanApiKey = "key";
+        aggregator.ShodanApiUrlTemplate = string.Empty;
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Empty(entries);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Contains(aggregator.LastTemplateFormatErrors, error =>
+            error.IndexOf("ShodanApiUrlTemplate", StringComparison.OrdinalIgnoreCase) >= 0 &&
+            error.IndexOf("empty", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json)

@@ -18,6 +18,12 @@ namespace DomainDetective;
 /// </summary>
 public sealed class CtLogAggregator
 {
+    private enum CtResponseParserKind
+    {
+        Standard = 0,
+        ShodanMatches = 1
+    }
+
     private sealed class CacheItem
     {
         public DateTimeOffset CreatedUtc { get; init; }
@@ -29,6 +35,7 @@ public sealed class CtLogAggregator
         string SourceName,
         string Url,
         string CacheKey,
+        CtResponseParserKind ResponseParser = CtResponseParserKind.Standard,
         Dictionary<string, string>? Headers = null);
 
     private static readonly ConcurrentDictionary<string, CacheItem> SharedResponseCache = new(StringComparer.Ordinal);
@@ -53,9 +60,9 @@ public sealed class CtLogAggregator
     public string CensysApiUrlTemplate { get; set; } = string.Empty;
     /// <summary>Enable Shodan certificate discovery using the configured API key.</summary>
     public bool EnableShodanSource { get; set; }
-    /// <summary>Shodan API key used by <see cref="ShodanApiUrlTemplate"/>.</summary>
+    /// <summary>Shodan API key used by <see cref="ShodanApiUrlTemplate"/>. The key is sent as a URL query parameter by Shodan API design and may appear in proxy/access logs.</summary>
     public string? ShodanApiKey { get; set; }
-    /// <summary>Shodan API URL template. Use {0} for SHA-256 fingerprint and {1} for URL-encoded API key.</summary>
+    /// <summary>Shodan API URL template. Use {0} for SHA-256 fingerprint and {1} for URL-encoded API key. The API key remains in the outbound request URL per Shodan API requirements.</summary>
     public string ShodanApiUrlTemplate { get; set; } = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
     /// <summary>Names of discovery sources configured for the last <see cref="QueryAsync"/> call.</summary>
     public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
@@ -141,7 +148,7 @@ public sealed class CtLogAggregator
         {
             _lastQueriedSources = new[] { "override" };
             var json = await QueryOverride(fingerprint).ConfigureAwait(false);
-            AppendEntries(ParseEntries(json), results);
+            AppendEntries(ParseEntries(json, CtResponseParserKind.Standard), results);
             return results;
         }
 
@@ -225,54 +232,73 @@ public sealed class CtLogAggregator
 
         if (EnableCensysSource && !string.IsNullOrWhiteSpace(CensysApiId) && !string.IsNullOrWhiteSpace(CensysApiSecret))
         {
-            if (TryFormatTemplate(CensysApiUrlTemplate, out var url, out var formatError, fingerprint))
+            if (string.IsNullOrWhiteSpace(CensysApiUrlTemplate))
             {
-                var authorization = BuildBasicAuthorizationHeader(CensysApiId!, CensysApiSecret!);
-                var cacheKey = $"censys:{url}:{CensysApiId}";
-                if (seenCacheKeys.Add(cacheKey))
+                templateFormatErrors.Add("CensysApiUrlTemplate: source enabled but template is empty.");
+            }
+            else
+            {
+                if (TryFormatTemplate(CensysApiUrlTemplate, out var url, out var formatError, fingerprint))
                 {
-                    requests.Add(new CtDiscoveryRequest(
-                        "censys",
-                        url,
-                        cacheKey,
-                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            ["Authorization"] = authorization
-                        }));
-
-                    if (seenSources.Add("censys"))
+                    var authorization = BuildBasicAuthorizationHeader(CensysApiId!, CensysApiSecret!);
+                    var cacheKey = $"censys:{url}:{CensysApiId}";
+                    if (seenCacheKeys.Add(cacheKey))
                     {
-                        discoverySources.Add("censys");
+                        requests.Add(new CtDiscoveryRequest(
+                            "censys",
+                            url,
+                            cacheKey,
+                            CtResponseParserKind.Standard,
+                            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                ["Authorization"] = authorization
+                            }));
+
+                        if (seenSources.Add("censys"))
+                        {
+                            discoverySources.Add("censys");
+                        }
                     }
                 }
-            }
-            else if (!string.IsNullOrWhiteSpace(formatError))
-            {
-                templateFormatErrors.Add($"CensysApiUrlTemplate: {formatError}");
+                else if (!string.IsNullOrWhiteSpace(formatError))
+                {
+                    templateFormatErrors.Add($"CensysApiUrlTemplate: {formatError}");
+                }
             }
         }
 
         if (EnableShodanSource && !string.IsNullOrWhiteSpace(ShodanApiKey))
         {
-            var escapedApiKey = Uri.EscapeDataString(ShodanApiKey);
-            if (TryFormatTemplate(ShodanApiUrlTemplate, out var url, out var formatError, fingerprint, escapedApiKey))
+            if (string.IsNullOrWhiteSpace(ShodanApiUrlTemplate))
             {
-                // Shodan query uses the field-selector syntax with a literal colon.
-                // Keep source names fixed so query-string API keys are not surfaced in display/log paths.
-                var cacheKey = $"shodan:{url}";
-                if (seenCacheKeys.Add(cacheKey))
+                templateFormatErrors.Add("ShodanApiUrlTemplate: source enabled but template is empty.");
+            }
+            else
+            {
+                var escapedApiKey = Uri.EscapeDataString(ShodanApiKey);
+                if (TryFormatTemplate(ShodanApiUrlTemplate, out var url, out var formatError, fingerprint, escapedApiKey))
                 {
-                    requests.Add(new CtDiscoveryRequest("shodan", url, cacheKey));
-
-                    if (seenSources.Add("shodan"))
+                    // Shodan query uses the field-selector syntax with a literal colon.
+                    // Keep source names fixed so query-string API keys are not surfaced in display/log paths.
+                    var cacheKey = $"shodan:{ShodanApiUrlTemplate}:{fingerprint}";
+                    if (seenCacheKeys.Add(cacheKey))
                     {
-                        discoverySources.Add("shodan");
+                        requests.Add(new CtDiscoveryRequest(
+                            "shodan",
+                            url,
+                            cacheKey,
+                            CtResponseParserKind.ShodanMatches));
+
+                        if (seenSources.Add("shodan"))
+                        {
+                            discoverySources.Add("shodan");
+                        }
                     }
                 }
-            }
-            else if (!string.IsNullOrWhiteSpace(formatError))
-            {
-                templateFormatErrors.Add($"ShodanApiUrlTemplate: {formatError}");
+                else if (!string.IsNullOrWhiteSpace(formatError))
+                {
+                    templateFormatErrors.Add($"ShodanApiUrlTemplate: {formatError}");
+                }
             }
         }
 
@@ -301,7 +327,7 @@ public sealed class CtLogAggregator
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    return ParseEntries(json, request.SourceName);
+                    return ParseEntries(json, request.ResponseParser);
                 }
 
                 if (!ShouldRetryStatusCode(response.StatusCode) || attempt == attempts)
@@ -505,7 +531,7 @@ public sealed class CtLogAggregator
         return TimeSpan.FromTicks(ticks);
     }
 
-    private static IReadOnlyList<JsonElement> ParseEntries(string json, string sourceName = "")
+    private static IReadOnlyList<JsonElement> ParseEntries(string json, CtResponseParserKind parserKind)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -516,7 +542,7 @@ public sealed class CtLogAggregator
         {
             var parsed = new List<JsonElement>();
             using var doc = JsonDocument.Parse(json);
-            if (sourceName.Equals("shodan", StringComparison.OrdinalIgnoreCase) &&
+            if (parserKind == CtResponseParserKind.ShodanMatches &&
                 doc.RootElement.ValueKind == JsonValueKind.Object &&
                 doc.RootElement.TryGetProperty("matches", out var matches))
             {
