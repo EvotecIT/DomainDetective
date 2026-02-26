@@ -458,8 +458,6 @@ namespace DomainDetective {
 #endif
             var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
 
-            _ctLogAggregator.ApiTemplates.Clear();
-            _ctLogAggregator.ApiTemplates.AddRange(CtLogApiTemplates);
             _ctLogAggregator.QueryOverride = CtLogQueryOverride;
             _ctLogAggregator.EnableCensysSource = EnableCensysCtSource;
             _ctLogAggregator.EnableShodanSource = EnableShodanCtSource;

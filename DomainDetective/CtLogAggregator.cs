@@ -46,7 +46,7 @@ public sealed class CtLogAggregator
     public List<string> ApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
     /// <summary>Enable Censys certificate discovery using the configured API credentials.</summary>
     public bool EnableCensysSource { get; set; }
-    /// <summary>Censys API identifier (used with <see cref="CensysApiSecret"/>).</summary>
+    /// <summary>Censys API identifier (used with <see cref="CensysApiSecret"/>). Shared response cache isolation is keyed by this identifier.</summary>
     public string? CensysApiId { get; set; }
     /// <summary>Censys API secret (used with <see cref="CensysApiId"/>).</summary>
     public string? CensysApiSecret { get; set; }
@@ -62,6 +62,7 @@ public sealed class CtLogAggregator
     public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
 
     private string[] _lastQueriedSources = Array.Empty<string>();
+
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
         get {
@@ -197,17 +198,18 @@ public sealed class CtLogAggregator
             }
 
             var sourceName = InferSourceName(url, "crt.sh");
+            var cacheKey = $"template:{url}";
+            if (!seenCacheKeys.Add(cacheKey))
+            {
+                continue;
+            }
+
             requests.Add(new CtDiscoveryRequest
             {
                 SourceName = sourceName,
                 Url = url,
-                CacheKey = $"template:{url}"
+                CacheKey = cacheKey
             });
-            if (!seenCacheKeys.Add($"template:{url}"))
-            {
-                requests.RemoveAt(requests.Count - 1);
-                continue;
-            }
 
             if (seenSources.Add(sourceName))
             {

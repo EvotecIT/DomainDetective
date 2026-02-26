@@ -214,6 +214,33 @@ public class TestCtLogAggregator
         Assert.Contains("shodan", aggregator.LastQueriedSources);
     }
 
+    [Fact]
+    public async Task ContinuesWhenTemplateSourceFailsButShodanSucceeds()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.ServiceUnavailable, string.Empty),
+            CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[{\"id\":42}]}")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.ApiTemplates.Add("https://crt.sh/?sha256={0}&output=json");
+        aggregator.EnableShodanSource = true;
+        aggregator.ShodanApiKey = "key";
+        aggregator.MaxAttemptsPerRequest = 1;
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Single(entries);
+        Assert.Equal(42, entries[0].GetProperty("id").GetInt32());
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains("crt.sh", aggregator.LastQueriedSources);
+        Assert.Contains("shodan", aggregator.LastQueriedSources);
+    }
+
     private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json)
     {
         return new HttpResponseMessage(statusCode)
