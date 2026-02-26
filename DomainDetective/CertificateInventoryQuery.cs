@@ -9,10 +9,21 @@ namespace DomainDetective {
         public DateTimeOffset? SinceUtc { get; set; }
         public DateTimeOffset? UntilUtc { get; set; }
         public string? HostContains { get; set; }
+        public string? SubjectContains { get; set; }
+        public string? SanContains { get; set; }
         public string? ServiceEquals { get; set; }
         public string? IssuerContains { get; set; }
         public bool? KnownAuthorityOnly { get; set; }
+        public bool? ValidOnly { get; set; }
         public bool? ExpiredOnly { get; set; }
+        public bool? ChainCompleteOnly { get; set; }
+        public bool? HostnameMatchOnly { get; set; }
+        public bool? SelfSignedOnly { get; set; }
+        public bool? ReachableOnly { get; set; }
+        public bool? PresentInCtOnly { get; set; }
+        public bool? AllowsServerAuthOnly { get; set; }
+        public bool? AllowsClientAuthOnly { get; set; }
+        public bool? AllowsSecureEmailOnly { get; set; }
         public int? ExpiringWithinDays { get; set; }
         public int MaxResults { get; set; } = 500;
     }

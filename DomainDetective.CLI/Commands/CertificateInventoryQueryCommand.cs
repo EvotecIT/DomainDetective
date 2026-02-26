@@ -35,6 +35,16 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--host-contains <TEXT>")]
     public string? HostContains { get; set; }
 
+    /// <summary>Certificate subject substring filter.</summary>
+    [Description("Certificate subject substring filter.")]
+    [CommandOption("--subject-contains <TEXT>")]
+    public string? SubjectContains { get; set; }
+
+    /// <summary>Subject alternative name substring filter.</summary>
+    [Description("Subject alternative name substring filter.")]
+    [CommandOption("--san-contains <TEXT>")]
+    public string? SanContains { get; set; }
+
     /// <summary>Service equality filter (for example HTTPS, HTTPS-Alt, Custom TLS).</summary>
     [Description("Service equality filter (for example HTTPS, HTTPS-Alt, Custom TLS).")]
     [CommandOption("--service <NAME>")]
@@ -50,10 +60,55 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--known-ca-only")]
     public bool KnownCaOnly { get; set; }
 
+    /// <summary>Only include entries where certificate validation succeeded.</summary>
+    [Description("Only include entries where certificate validation succeeded.")]
+    [CommandOption("--valid-only")]
+    public bool ValidOnly { get; set; }
+
     /// <summary>Only include expired certificates.</summary>
     [Description("Only include expired certificates.")]
     [CommandOption("--expired-only")]
     public bool ExpiredOnly { get; set; }
+
+    /// <summary>Only include entries with incomplete chains.</summary>
+    [Description("Only include entries with incomplete chains.")]
+    [CommandOption("--chain-incomplete-only")]
+    public bool ChainIncompleteOnly { get; set; }
+
+    /// <summary>Only include entries where hostname validation failed.</summary>
+    [Description("Only include entries where hostname validation failed.")]
+    [CommandOption("--hostname-mismatch-only")]
+    public bool HostnameMismatchOnly { get; set; }
+
+    /// <summary>Only include self-signed certificates.</summary>
+    [Description("Only include self-signed certificates.")]
+    [CommandOption("--self-signed-only")]
+    public bool SelfSignedOnly { get; set; }
+
+    /// <summary>Only include unreachable endpoints.</summary>
+    [Description("Only include unreachable endpoints.")]
+    [CommandOption("--unreachable-only")]
+    public bool UnreachableOnly { get; set; }
+
+    /// <summary>Only include certificates observed in CT logs.</summary>
+    [Description("Only include certificates observed in CT logs.")]
+    [CommandOption("--ct-only")]
+    public bool CtOnly { get; set; }
+
+    /// <summary>Only include certificates that allow server authentication EKU.</summary>
+    [Description("Only include certificates that allow server authentication EKU.")]
+    [CommandOption("--server-auth-only")]
+    public bool ServerAuthOnly { get; set; }
+
+    /// <summary>Only include certificates that allow client authentication EKU.</summary>
+    [Description("Only include certificates that allow client authentication EKU.")]
+    [CommandOption("--client-auth-only")]
+    public bool ClientAuthOnly { get; set; }
+
+    /// <summary>Only include certificates that allow secure email EKU.</summary>
+    [Description("Only include certificates that allow secure email EKU.")]
+    [CommandOption("--secure-email-only")]
+    public bool SecureEmailOnly { get; set; }
 
     /// <summary>Only include certificates expiring within this many days.</summary>
     [Description("Only include certificates expiring within this many days.")]
@@ -106,10 +161,21 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             SinceUtc = ToUtc(settings.SinceUtc),
             UntilUtc = ToUtc(settings.UntilUtc),
             HostContains = settings.HostContains,
+            SubjectContains = settings.SubjectContains,
+            SanContains = settings.SanContains,
             ServiceEquals = settings.ServiceEquals,
             IssuerContains = settings.IssuerContains,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : null,
+            ValidOnly = settings.ValidOnly ? true : null,
             ExpiredOnly = settings.ExpiredOnly ? true : null,
+            ChainCompleteOnly = settings.ChainIncompleteOnly ? false : null,
+            HostnameMatchOnly = settings.HostnameMismatchOnly ? false : null,
+            SelfSignedOnly = settings.SelfSignedOnly ? true : null,
+            ReachableOnly = settings.UnreachableOnly ? false : null,
+            PresentInCtOnly = settings.CtOnly ? true : null,
+            AllowsServerAuthOnly = settings.ServerAuthOnly ? true : null,
+            AllowsClientAuthOnly = settings.ClientAuthOnly ? true : null,
+            AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,
             ExpiringWithinDays = settings.ExpiringWithinDays,
             MaxResults = settings.MaxResults
         };
@@ -145,11 +211,15 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         rows.AddColumn("Issuer");
         rows.AddColumn("Expires");
         rows.AddColumn("Known CA");
+        rows.AddColumn("Valid");
+        rows.AddColumn("Chain");
+        rows.AddColumn("Auth");
         foreach (var observed in result.Entries.OrderByDescending(x => x.CapturedAtUtc)) {
             var entry = observed.Entry;
             var host = entry.ResolvedHost ?? entry.Host;
             var issuer = entry.CertificateIssuerNormalized ?? entry.CertificateIssuerOrganization ?? entry.CertificateIssuer ?? "-";
             var expires = entry.NotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
+            var authFlags = BuildAuthFlags(entry);
             rows.AddRow(
                 observed.CapturedAtUtc.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss"),
                 host,
@@ -157,10 +227,28 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
                 entry.Service ?? "-",
                 issuer,
                 expires,
-                entry.IsKnownCertificateAuthority ? "Yes" : "No");
+                entry.IsKnownCertificateAuthority ? "Yes" : "No",
+                entry.Valid ? "Yes" : "No",
+                entry.ChainComplete ? "Complete" : "Incomplete",
+                authFlags);
         }
         AnsiConsole.Write(rows);
         return Task.FromResult(0);
+    }
+
+    private static string BuildAuthFlags(CertificateInventoryEntry entry) {
+        var flags = string.Empty;
+        if (entry.AllowsServerAuthentication) {
+            flags += "S";
+        }
+        if (entry.AllowsClientAuthentication) {
+            flags += "C";
+        }
+        if (entry.AllowsSecureEmail) {
+            flags += "E";
+        }
+
+        return flags.Length == 0 ? "-" : flags;
     }
 
     private static string ResolveCacheDirectory(string? configured) {

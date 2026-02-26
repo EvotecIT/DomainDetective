@@ -408,6 +408,26 @@ namespace DomainDetective {
                 }
             }
 
+            var subjectContains = query.SubjectContains;
+            if (!string.IsNullOrWhiteSpace(subjectContains)) {
+                var subjectNeedle = subjectContains!.Trim();
+                var subjectHaystack = entry.CertificateSubject ?? string.Empty;
+                if (subjectHaystack.IndexOf(subjectNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var sanContains = query.SanContains;
+            if (!string.IsNullOrWhiteSpace(sanContains)) {
+                var sanNeedle = sanContains!.Trim();
+                var hasMatch = entry.SubjectAlternativeNames != null &&
+                               entry.SubjectAlternativeNames.Any(san => !string.IsNullOrWhiteSpace(san) &&
+                                                                        san.IndexOf(sanNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!hasMatch) {
+                    return false;
+                }
+            }
+
             var serviceEquals = query.ServiceEquals;
             if (!string.IsNullOrWhiteSpace(serviceEquals)) {
                 var expectedService = serviceEquals!.Trim();
@@ -432,11 +452,47 @@ namespace DomainDetective {
                 return false;
             }
 
+            if (query.ValidOnly.HasValue && query.ValidOnly.Value != entry.Valid) {
+                return false;
+            }
+
             if (query.ExpiredOnly.HasValue) {
-                var isExpired = entry.NotAfterUtc.HasValue && entry.NotAfterUtc.Value <= now;
+                var isExpired = entry.NotAfterUtc.HasValue ? entry.NotAfterUtc.Value <= now : entry.Expired;
                 if (query.ExpiredOnly.Value != isExpired) {
                     return false;
                 }
+            }
+
+            if (query.ChainCompleteOnly.HasValue && query.ChainCompleteOnly.Value != entry.ChainComplete) {
+                return false;
+            }
+
+            if (query.HostnameMatchOnly.HasValue && query.HostnameMatchOnly.Value != entry.HostnameMatch) {
+                return false;
+            }
+
+            if (query.SelfSignedOnly.HasValue && query.SelfSignedOnly.Value != entry.IsSelfSigned) {
+                return false;
+            }
+
+            if (query.ReachableOnly.HasValue && query.ReachableOnly.Value != entry.IsReachable) {
+                return false;
+            }
+
+            if (query.PresentInCtOnly.HasValue && query.PresentInCtOnly.Value != entry.PresentInCtLogs) {
+                return false;
+            }
+
+            if (query.AllowsServerAuthOnly.HasValue && query.AllowsServerAuthOnly.Value != entry.AllowsServerAuthentication) {
+                return false;
+            }
+
+            if (query.AllowsClientAuthOnly.HasValue && query.AllowsClientAuthOnly.Value != entry.AllowsClientAuthentication) {
+                return false;
+            }
+
+            if (query.AllowsSecureEmailOnly.HasValue && query.AllowsSecureEmailOnly.Value != entry.AllowsSecureEmail) {
+                return false;
             }
 
             if (query.ExpiringWithinDays.HasValue) {
