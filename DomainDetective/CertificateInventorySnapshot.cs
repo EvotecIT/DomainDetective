@@ -16,9 +16,17 @@ namespace DomainDetective {
     /// </summary>
     public sealed class CertificateInventoryEntry {
         public string Host { get; set; } = string.Empty;
+        public string? ResolvedHost { get; set; }
         public string Url { get; set; } = string.Empty;
+        public string Scheme { get; set; } = "https";
+        public int Port { get; set; } = 443;
+        public string Service { get; set; } = "HTTPS";
         public string? CertificateSubject { get; set; }
         public string? CertificateIssuer { get; set; }
+        public string? CertificateIssuerOrganization { get; set; }
+        public string? CertificateIssuerNormalized { get; set; }
+        public string? CertificateAuthorityFamily { get; set; }
+        public bool IsKnownCertificateAuthority { get; set; }
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
         public bool Valid { get; set; }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -35,6 +36,10 @@ namespace DomainDetective.Tests {
                     Assert.True(entry.HasEnhancedKeyUsageExtension);
                     Assert.True(entry.AllowsServerAuthentication);
                     Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid, entry.ExtendedKeyUsageOids);
+                    Assert.Equal("HTTPS", entry.Service);
+                    Assert.Equal(443, entry.Port);
+                    Assert.Equal("https", entry.Scheme);
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized));
                 });
             } finally {
                 if (Directory.Exists(tempDir)) {
@@ -69,6 +74,61 @@ namespace DomainDetective.Tests {
                     Directory.Delete(tempDir, true);
                 }
             }
+        }
+
+        [Fact]
+        public async Task BuildInventorySummaryReadsPersistedSnapshots() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = true,
+                    AnalysisOverride = async (host, port, logger, cancellationToken) => {
+                        var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        analysis.Url = host;
+                        analysis.IsReachable = true;
+                        return analysis;
+                    }
+                };
+
+                await monitor.Analyze(new[] { "https://api.example.test:8443" }, 443, showProgress: false);
+                var summary = monitor.BuildInventorySummary();
+
+                Assert.Equal(1, summary.SnapshotCount);
+                Assert.Equal(1, summary.UniqueEndpointCount);
+                Assert.Equal(1, summary.ServiceCounts["HTTPS-Alt"]);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task AnalyzeUsesPortFromInputUrlWhenSpecified() {
+            var capturedPorts = new ConcurrentBag<int>();
+            var capturedUrls = new ConcurrentBag<string>();
+            var monitor = new CertificateMonitor {
+                PersistInventorySnapshots = false,
+                AnalysisOverride = (host, port, logger, cancellationToken) => {
+                    capturedPorts.Add(port);
+                    capturedUrls.Add(host);
+                    return Task.FromResult(new CertificateAnalysis {
+                        Url = host,
+                        IsReachable = true
+                    });
+                }
+            };
+
+            await monitor.Analyze(new[] { "api.example.test:8443", "https://portal.example.test" }, 443, showProgress: false);
+
+            Assert.Contains(8443, capturedPorts);
+            Assert.Contains(443, capturedPorts);
+            Assert.Contains("https://api.example.test:8443/", capturedUrls);
+            Assert.Contains("https://portal.example.test/", capturedUrls);
         }
 
         private static X509Certificate2 CreateSelfSignedWithEku(string oidValue) {

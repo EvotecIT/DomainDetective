@@ -25,6 +25,16 @@ namespace DomainDetective {
         public class Entry {
             /// <summary>Host that was checked.</summary>
             public string Host { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint URL used for the check.</summary>
+            public string Url { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint host name.</summary>
+            public string ResolvedHost { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint scheme.</summary>
+            public string Scheme { get; init; } = "https";
+            /// <summary>Resolved endpoint port.</summary>
+            public int Port { get; init; } = 443;
+            /// <summary>Best-effort service classification derived from endpoint details.</summary>
+            public string Service { get; init; } = "HTTPS";
             /// <summary>Certificate expiry date.</summary>
             public DateTime ExpiryDate { get; init; }
             /// <summary>Whether the certificate chain was validated successfully.</summary>
@@ -162,19 +172,37 @@ namespace DomainDetective {
                     await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
                     tasks.Add(Task.Run(async () => {
                         try {
+                            CertificateServiceDescriptor target;
+                            try {
+                                target = CertificateServiceClassifier.Resolve(host, port);
+                            } catch {
+                                target = new CertificateServiceDescriptor {
+                                    Url = host,
+                                    Host = host,
+                                    Scheme = Uri.UriSchemeHttps,
+                                    Port = port,
+                                    Service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, port)
+                                };
+                            }
+
                             CertificateAnalysis analysis;
                             if (AnalysisOverride != null) {
-                                analysis = await AnalysisOverride(host, port, logger, cancellationToken).ConfigureAwait(false);
+                                analysis = await AnalysisOverride(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
                             } else {
                                 analysis = new CertificateAnalysis
                                 {
                                     CaptureTlsDetails = true
                                 };
-                                await analysis.AnalyzeUrl(host, port, logger, cancellationToken).ConfigureAwait(false);
+                                await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
                             }
 
                             entries[index] = new Entry {
                                 Host = host,
+                                Url = target.Url,
+                                ResolvedHost = target.Host,
+                                Scheme = target.Scheme,
+                                Port = target.Port,
+                                Service = target.Service,
                                 ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
                                 Valid = analysis.IsValid,
                                 Expired = analysis.IsExpired,
@@ -276,11 +304,20 @@ namespace DomainDetective {
         private static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
             var analysis = entry.Analysis;
             var certificate = analysis.Certificate;
+            var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);
             var snapshotEntry = new CertificateInventoryEntry {
                 Host = entry.Host,
-                Url = analysis.Url,
+                ResolvedHost = entry.ResolvedHost,
+                Url = string.IsNullOrWhiteSpace(entry.Url) ? analysis.Url : entry.Url,
+                Scheme = entry.Scheme,
+                Port = entry.Port,
+                Service = entry.Service,
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,
+                CertificateIssuerOrganization = issuerIdentity.Organization,
+                CertificateIssuerNormalized = issuerIdentity.NormalizedName,
+                CertificateAuthorityFamily = issuerIdentity.AuthorityFamily,
+                IsKnownCertificateAuthority = issuerIdentity.IsKnownAuthority,
                 NotBeforeUtc = certificate?.NotBefore.ToUniversalTime(),
                 NotAfterUtc = certificate?.NotAfter.ToUniversalTime(),
                 Valid = entry.Valid,
@@ -307,6 +344,21 @@ namespace DomainDetective {
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
             return snapshotEntry;
+        }
+
+        /// <summary>Builds a normalized summary view for persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="expiringWithinDays">Threshold window for expiring certificates.</param>
+        /// <param name="maxExpiringEndpoints">Maximum number of expiring endpoints in the summary.</param>
+        public CertificateInventorySummary BuildInventorySummary(
+            DateTimeOffset? sinceUtc = null,
+            int expiringWithinDays = 30,
+            int maxExpiringEndpoints = 200) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryAnalyzer.BuildSummary(
+                snapshots,
+                expiringWithinDays,
+                maxExpiringEndpoints);
         }
 
         /// <summary>Disposes timer resources.</summary>
