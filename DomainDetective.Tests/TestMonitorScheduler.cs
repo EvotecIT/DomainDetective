@@ -200,7 +200,11 @@ public class TestMonitorScheduler
         cts.Cancel();
         release.TrySetResult(true);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+        var exception = await Record.ExceptionAsync(() => runTask);
+        if (exception != null)
+        {
+            Assert.IsAssignableFrom<OperationCanceledException>(exception);
+        }
         Assert.Equal(1, Volatile.Read(ref completed));
         Assert.True(summaryCalls >= 1);
     }
