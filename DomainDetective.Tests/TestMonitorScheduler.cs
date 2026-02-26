@@ -111,4 +111,54 @@ public class TestMonitorScheduler
         scheduler.Stop();
         Assert.Null(timerField.GetValue(scheduler));
     }
+
+    [Fact]
+    public async Task RunAsync_ProcessesDomainsInParallelWhenConfigured()
+    {
+        var running = 0;
+        var maxRunning = 0;
+        var scheduler = new MonitorScheduler
+        {
+            MaxDomainParallelism = 3,
+            SummaryOverride = async domain =>
+            {
+                var current = Interlocked.Increment(ref running);
+                while (true)
+                {
+                    var observed = Volatile.Read(ref maxRunning);
+                    if (current <= observed)
+                    {
+                        break;
+                    }
+                    if (Interlocked.CompareExchange(ref maxRunning, current, observed) == observed)
+                    {
+                        break;
+                    }
+                }
+
+                try
+                {
+                    await Task.Delay(80);
+                    return new DomainSummary { HasMxRecord = true, ExpiryDate = "2025" };
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref running);
+                }
+            },
+            CertificateOverride = _ => Task.FromResult(new CertificateMonitor.Entry
+            {
+                Host = "example.com",
+                Expired = false,
+                ExpiryDate = System.DateTime.UtcNow.AddDays(100),
+                Analysis = new CertificateAnalysis()
+            }),
+            BgpOverride = (_, _) => Task.FromResult(new System.Collections.Generic.Dictionary<string, int>())
+        };
+        scheduler.Domains.AddRange(new[] { "a.example.com", "b.example.com", "c.example.com", "d.example.com" });
+
+        await scheduler.RunAsync();
+
+        Assert.True(maxRunning >= 2);
+    }
 }

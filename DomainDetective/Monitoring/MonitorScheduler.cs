@@ -23,6 +23,8 @@ public class MonitorScheduler
 
     /// <summary>Interval between runs.</summary>
     public TimeSpan Interval { get; set; } = TimeSpan.FromHours(24);
+    /// <summary>Maximum number of domains analyzed concurrently in one run.</summary>
+    public int MaxDomainParallelism { get; set; } = 4;
 
     /// <summary>Notification sender.</summary>
     public INotificationSender? Notifier { get; set; }
@@ -36,6 +38,7 @@ public class MonitorScheduler
     private readonly ConcurrentDictionary<string, DomainSummary> _previous = new();
     private readonly ConcurrentDictionary<string, Dictionary<string, int>> _bgpPrevious = new();
     private readonly SemaphoreSlim _runLock = new(1, 1);
+    private readonly SemaphoreSlim _notifyLock = new(1, 1);
     private PeriodicTimer? _timer;
     private CancellationTokenSource? _cts;
     private Task? _loopTask;
@@ -77,61 +80,112 @@ public class MonitorScheduler
 
         try
         {
-            foreach (var domain in Domains)
+            var domains = Domains
+                .Where(domain => !string.IsNullOrWhiteSpace(domain))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (domains.Count == 0)
+            {
+                return;
+            }
+
+            var parallelism = Math.Max(1, MaxDomainParallelism);
+            using var gate = new SemaphoreSlim(parallelism, parallelism);
+            var tasks = new List<Task>(domains.Count);
+            foreach (var domain in domains)
             {
                 ct.ThrowIfCancellationRequested();
-                var summary = SummaryOverride != null
-                    ? await SummaryOverride(domain)
-                    : await BuildSummaryAsync(domain, ct);
-
-                if (_previous.TryGetValue(domain, out var prev))
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                tasks.Add(Task.Run(async () =>
                 {
-                    if (!AreSummariesEqual(prev, summary) && Notifier != null)
+                    try
                     {
-                        await Notifier.SendAsync($"Changes detected for {domain}", ct);
+                        await RunDomainAsync(domain, ct).ConfigureAwait(false);
                     }
-                }
-                _previous[domain] = summary;
-
-                var cert = CertificateOverride != null
-                    ? await CertificateOverride(domain)
-                    : await CheckCertificateAsync(domain, ct);
-
-                if (cert.Expired && Notifier != null)
-                {
-                    await Notifier.SendAsync($"Certificate expired for {domain}", ct);
-                }
-                else if (!cert.Expired && (cert.ExpiryDate - DateTime.UtcNow).TotalDays <= 30 && Notifier != null)
-                {
-                    await Notifier.SendAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct);
-                }
-
-                var prefixes = BgpOverride != null
-                    ? await BgpOverride(domain, ct)
-                    : await BgpPrefixMonitor.QueryPrefixesAsync(domain, ct);
-                if (_bgpPrevious.TryGetValue(domain, out var prevPrefixes))
-                {
-                    foreach (var kv in prefixes)
+                    finally
                     {
-                        if (prevPrefixes.TryGetValue(kv.Key, out var prevAsn))
-                        {
-                            if (prevAsn != kv.Value && Notifier != null)
-                            {
-                                await Notifier.SendAsync($"Prefix {kv.Key} for {domain} changed from AS{prevAsn} to AS{kv.Value}", ct);
-                            }
-                        }
-                        else if (Notifier != null)
-                        {
-                            await Notifier.SendAsync($"Prefix {kv.Key} for {domain} announced by AS{kv.Value}", ct);
-                        }
+                        gate.Release();
                     }
-                }
-                _bgpPrevious[domain] = prefixes;
+                }, ct));
             }
+
+            await Task.WhenAll(tasks).ConfigureAwait(false);
         }
         finally
         {
             _runLock.Release();
+        }
+    }
+
+    private async Task RunDomainAsync(string domain, CancellationToken ct)
+    {
+        var summary = SummaryOverride != null
+            ? await SummaryOverride(domain).ConfigureAwait(false)
+            : await BuildSummaryAsync(domain, ct).ConfigureAwait(false);
+
+        if (_previous.TryGetValue(domain, out var prev))
+        {
+            if (!AreSummariesEqual(prev, summary))
+            {
+                await SendNotificationAsync($"Changes detected for {domain}", ct).ConfigureAwait(false);
+            }
+        }
+        _previous[domain] = summary;
+
+        var cert = CertificateOverride != null
+            ? await CertificateOverride(domain).ConfigureAwait(false)
+            : await CheckCertificateAsync(domain, ct).ConfigureAwait(false);
+
+        if (cert.Expired)
+        {
+            await SendNotificationAsync($"Certificate expired for {domain}", ct).ConfigureAwait(false);
+        }
+        else if (!cert.Expired && (cert.ExpiryDate - DateTime.UtcNow).TotalDays <= 30)
+        {
+            await SendNotificationAsync($"Certificate for {domain} expires on {cert.ExpiryDate:yyyy-MM-dd}", ct).ConfigureAwait(false);
+        }
+
+        var prefixes = BgpOverride != null
+            ? await BgpOverride(domain, ct).ConfigureAwait(false)
+            : await BgpPrefixMonitor.QueryPrefixesAsync(domain, ct).ConfigureAwait(false);
+        if (_bgpPrevious.TryGetValue(domain, out var prevPrefixes))
+        {
+            foreach (var kv in prefixes)
+            {
+                if (prevPrefixes.TryGetValue(kv.Key, out var prevAsn))
+                {
+                    if (prevAsn != kv.Value)
+                    {
+                        await SendNotificationAsync($"Prefix {kv.Key} for {domain} changed from AS{prevAsn} to AS{kv.Value}", ct).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    await SendNotificationAsync($"Prefix {kv.Key} for {domain} announced by AS{kv.Value}", ct).ConfigureAwait(false);
+                }
+            }
+        }
+        _bgpPrevious[domain] = prefixes;
+    }
+
+    private async Task SendNotificationAsync(string message, CancellationToken ct)
+    {
+        if (Notifier == null)
+        {
+            return;
+        }
+
+        await _notifyLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (Notifier != null)
+            {
+                await Notifier.SendAsync(message, ct).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            _notifyLock.Release();
         }
     }
 
