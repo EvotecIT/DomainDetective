@@ -23,8 +23,76 @@ namespace DomainDetective {
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
+        public string AuthenticationProfile { get; set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         public List<string> Oids { get; } = new();
         public List<string> FriendlyNames { get; } = new();
+    }
+
+    /// <summary>
+    /// Normalizes EKU flags into a stable authentication profile name.
+    /// </summary>
+    public static class CertificateAuthenticationProfileClassifier {
+        public const string NoEkuExtension = "NoEkuExtension";
+        public const string EkuPresentNoUsages = "EkuPresentNoUsages";
+        public const string AnyExtendedKeyUsage = "AnyExtendedKeyUsage";
+        public const string ServerAuthOnly = "ServerAuthOnly";
+        public const string ClientAuthOnly = "ClientAuthOnly";
+        public const string ServerAndClientAuth = "ServerAndClientAuth";
+        public const string SecureEmailOnly = "SecureEmailOnly";
+        public const string MixedOrCustom = "MixedOrCustom";
+
+        public static string Classify(CertificateExtendedKeyUsageInfo? info) {
+            if (info == null) {
+                return NoEkuExtension;
+            }
+
+            return Classify(
+                info.HasEnhancedKeyUsageExtension,
+                info.HasAnyExtendedKeyUsageOid,
+                info.AllowsServerAuthentication,
+                info.AllowsClientAuthentication,
+                info.AllowsSecureEmail,
+                info.Oids);
+        }
+
+        public static string Classify(
+            bool hasEnhancedKeyUsageExtension,
+            bool hasAnyExtendedKeyUsageOid,
+            bool allowsServerAuthentication,
+            bool allowsClientAuthentication,
+            bool allowsSecureEmail,
+            IReadOnlyCollection<string>? oids = null) {
+            if (!hasEnhancedKeyUsageExtension) {
+                return NoEkuExtension;
+            }
+
+            if (hasAnyExtendedKeyUsageOid) {
+                return AnyExtendedKeyUsage;
+            }
+
+            if (allowsServerAuthentication && allowsClientAuthentication && !allowsSecureEmail) {
+                return ServerAndClientAuth;
+            }
+
+            if (allowsServerAuthentication && !allowsClientAuthentication && !allowsSecureEmail) {
+                return ServerAuthOnly;
+            }
+
+            if (!allowsServerAuthentication && allowsClientAuthentication && !allowsSecureEmail) {
+                return ClientAuthOnly;
+            }
+
+            if (!allowsServerAuthentication && !allowsClientAuthentication && allowsSecureEmail) {
+                return SecureEmailOnly;
+            }
+
+            var oidCount = oids?.Count ?? 0;
+            if (oidCount == 0) {
+                return EkuPresentNoUsages;
+            }
+
+            return MixedOrCustom;
+        }
     }
 
     /// <summary>
@@ -79,6 +147,7 @@ namespace DomainDetective {
             result.AllowsServerAuthentication = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(ServerAuthenticationOid, StringComparer.Ordinal);
             result.AllowsClientAuthentication = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(ClientAuthenticationOid, StringComparer.Ordinal);
             result.AllowsSecureEmail = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(SecureEmailOid, StringComparer.Ordinal);
+            result.AuthenticationProfile = CertificateAuthenticationProfileClassifier.Classify(result);
 
             foreach (var oid in result.Oids) {
                 if (KnownFriendlyNames.TryGetValue(oid, out var knownName)) {

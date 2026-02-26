@@ -24,10 +24,16 @@ namespace DomainDetective.Tests {
                             Port = 443,
                             CertificateSubject = "CN=api.example.com, O=Example Corp",
                             CertificateIssuerNormalized = "DigiCert",
+                            CertificateAuthorityFamily = "DigiCert",
                             CertificateThumbprint = "AA11BB22CC33DD44",
                             CertificateRootIssuerNormalized = "ISRG Root X1",
+                            CertificateRootAuthorityFamily = "LetsEncrypt",
                             IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "api.example.com", "api-int.example.com" },
+                            CtDiscoverySources = new List<string> { "crt.sh", "shodan" },
+                            CertificateChainSource = "tls-handshake",
+                            CertificateChainSources = new List<string> { "tls-handshake", "local-build-online" },
                             NotAfterUtc = now.AddDays(8),
                             Valid = true,
                             ChainComplete = true,
@@ -36,7 +42,8 @@ namespace DomainDetective.Tests {
                             PresentInCtLogs = true,
                             AllowsServerAuthentication = true,
                             AllowsClientAuthentication = false,
-                            AllowsSecureEmail = false
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
                         },
                         new() {
                             Host = "internal.example.com",
@@ -48,7 +55,11 @@ namespace DomainDetective.Tests {
                             CertificateThumbprint = "EE55FF66",
                             CertificateRootIssuerNormalized = "Contoso Root CA",
                             IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
                             SubjectAlternativeNames = new List<string> { "internal.example.com", "mtls.example.com" },
+                            CtDiscoverySources = new List<string>(),
+                            CertificateChainSource = "local-build-no-check",
+                            CertificateChainSources = new List<string> { "local-build-no-check" },
                             NotAfterUtc = now.AddDays(50),
                             Valid = false,
                             ChainComplete = false,
@@ -58,7 +69,8 @@ namespace DomainDetective.Tests {
                             PresentInCtLogs = false,
                             AllowsServerAuthentication = false,
                             AllowsClientAuthentication = true,
-                            AllowsSecureEmail = false
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly
                         },
                         new() {
                             Host = "old.example.com",
@@ -67,10 +79,15 @@ namespace DomainDetective.Tests {
                             Port = 443,
                             CertificateSubject = "CN=old.example.com, O=Example Legacy",
                             CertificateIssuerNormalized = "DigiCert",
+                            CertificateAuthorityFamily = "DigiCert",
                             CertificateThumbprint = "11223344AABB",
                             CertificateRootIssuerNormalized = "DigiCert Global Root G2",
+                            CertificateRootAuthorityFamily = "DigiCert",
                             IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "old.example.com" },
+                            CtDiscoverySources = new List<string> { "crt.sh" },
+                            CertificateChainSource = "tls-handshake",
                             NotAfterUtc = now.AddDays(-1),
                             Valid = false,
                             Expired = true,
@@ -80,7 +97,8 @@ namespace DomainDetective.Tests {
                             PresentInCtLogs = true,
                             AllowsServerAuthentication = true,
                             AllowsClientAuthentication = false,
-                            AllowsSecureEmail = false
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
                         }
                     }
                 };
@@ -176,6 +194,39 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, thumbprintFilter.MatchedEntryCount);
                 Assert.Single(thumbprintFilter.Entries);
                 Assert.Equal("api.example.com", thumbprintFilter.Entries[0].Entry.Host);
+
+                var authProfileFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AuthenticationProfileEquals = "ClientAuthOnly",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, authProfileFilter.MatchedEntryCount);
+                Assert.Single(authProfileFilter.Entries);
+                Assert.Equal("internal.example.com", authProfileFilter.Entries[0].Entry.Host);
+
+                var ctSourceFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    CtSourceContains = "shod",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctSourceFilter.MatchedEntryCount);
+                Assert.Single(ctSourceFilter.Entries);
+                Assert.Equal("api.example.com", ctSourceFilter.Entries[0].Entry.Host);
+
+                var chainSourceFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ChainSourceContains = "handshake",
+                    MaxResults = 10
+                });
+                Assert.Equal(2, chainSourceFilter.MatchedEntryCount);
+                Assert.Equal(2, chainSourceFilter.Entries.Count);
+
+                var familyFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    AuthorityFamilyEquals = "digicert",
+                    RootAuthorityFamilyEquals = "digicert",
+                    KnownRootAuthorityOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, familyFilter.MatchedEntryCount);
+                Assert.Single(familyFilter.Entries);
+                Assert.Equal("old.example.com", familyFilter.Entries[0].Entry.Host);
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);

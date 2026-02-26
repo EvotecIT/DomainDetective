@@ -59,6 +59,10 @@ namespace DomainDetective {
 
         /// <summary>Gets the certificate chain.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Most recent source used to populate <see cref="Chain"/>.</summary>
+        public string ChainSource { get; private set; } = string.Empty;
+        /// <summary>Ordered unique list of chain acquisition sources observed during analysis.</summary>
+        public List<string> ChainSourceHistory { get; } = new();
         /// <summary>Gets OCSP endpoints from the certificate.</summary>
         public List<string> OcspUrls { get; } = new();
         /// <summary>Gets CRL endpoints from the certificate.</summary>
@@ -110,6 +114,8 @@ namespace DomainDetective {
         public List<string> ExtendedKeyUsageOids { get; } = new();
         /// <summary>List of EKU friendly names for the certificate.</summary>
         public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
+        /// <summary>Normalized EKU authentication profile for filtering/reporting.</summary>
+        public string AuthenticationProfile { get; private set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
         /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
@@ -163,6 +169,10 @@ namespace DomainDetective {
         private readonly List<JsonElement> _ctLogEntries = new();
         private readonly List<string> _ctDiscoverySources = new();
         private readonly CtLogAggregator _ctLogAggregator = new();
+        private const string ChainSourceTlsHandshake = "tls-handshake";
+        private const string ChainSourceSslStreamBuild = "sslstream-build";
+        private const string ChainSourceLocalBuildOnline = "local-build-online";
+        private const string ChainSourceLocalBuildNoCheck = "local-build-no-check";
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -222,6 +232,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
@@ -237,9 +248,10 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                    Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
+                    RecordChainSource(ChainSourceTlsHandshake);
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);  
                     IsValid = policyErrors == SslPolicyErrors.None;       
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -290,6 +302,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
+                                    RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
                             } catch (Exception ex) {
@@ -509,6 +522,7 @@ namespace DomainDetective {
         public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
             Certificate = new X509Certificate2(certificate.RawData);
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             var chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             IsValid = chain.Build(certificate);
@@ -516,6 +530,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(SkipRevocation ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
@@ -555,7 +570,24 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(revocationMode == X509RevocationMode.NoCheck ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             return true;
+        }
+
+        private void ResetChainSourceTracking() {
+            ChainSource = string.Empty;
+            ChainSourceHistory.Clear();
+        }
+
+        private void RecordChainSource(string source) {
+            if (string.IsNullOrWhiteSpace(source)) {
+                return;
+            }
+
+            ChainSource = source;
+            if (!ChainSourceHistory.Contains(source, StringComparer.OrdinalIgnoreCase)) {
+                ChainSourceHistory.Add(source);
+            }
         }
 
         private void PopulateSubjectAlternativeNames() {
@@ -690,6 +722,7 @@ namespace DomainDetective {
             AllowsServerAuthentication = false;
             AllowsClientAuthentication = false;
             AllowsSecureEmail = false;
+            AuthenticationProfile = CertificateAuthenticationProfileClassifier.NoEkuExtension;
             ExtendedKeyUsageOids.Clear();
             ExtendedKeyUsageFriendlyNames.Clear();
 
@@ -699,6 +732,9 @@ namespace DomainDetective {
             AllowsServerAuthentication = parsed.AllowsServerAuthentication;
             AllowsClientAuthentication = parsed.AllowsClientAuthentication;
             AllowsSecureEmail = parsed.AllowsSecureEmail;
+            AuthenticationProfile = string.IsNullOrWhiteSpace(parsed.AuthenticationProfile)
+                ? CertificateAuthenticationProfileClassifier.Classify(parsed)
+                : parsed.AuthenticationProfile;
             ExtendedKeyUsageOids.AddRange(parsed.Oids);
             ExtendedKeyUsageFriendlyNames.AddRange(parsed.FriendlyNames);
         }

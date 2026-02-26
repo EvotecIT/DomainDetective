@@ -19,6 +19,9 @@ namespace DomainDetective.Tests {
                         ChainComplete = true,
                         IsReachable = true,
                         AllowsServerAuthentication = true,
+                        AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                        CertificateChainSource = "tls-handshake",
+                        CtDiscoverySources = new List<string> { "crt.sh" },
                         CertificateIssuer = "CN=R3, O=Let's Encrypt, C=US",
                         CertificateRootIssuerNormalized = "ISRG Root X1"
                     }
@@ -37,6 +40,9 @@ namespace DomainDetective.Tests {
                         ChainComplete = true,
                         IsReachable = true,
                         AllowsServerAuthentication = true,
+                        AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                        CertificateChainSource = "tls-handshake",
+                        CtDiscoverySources = new List<string> { "crt.sh", "shodan" },
                         CertificateIssuerNormalized = "Let's Encrypt",
                         CertificateRootIssuerNormalized = "ISRG Root X1"
                     },
@@ -50,6 +56,8 @@ namespace DomainDetective.Tests {
                         IsReachable = true,
                         AllowsServerAuthentication = false,
                         AllowsClientAuthentication = true,
+                        AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                        CertificateChainSource = "local-build-no-check",
                         CertificateIssuer = "CN=DigiCert TLS RSA SHA256 2020 CA1, O=DigiCert Inc, C=US",
                         CertificateRootIssuerNormalized = "DigiCert Global Root G2"
                     },
@@ -64,6 +72,8 @@ namespace DomainDetective.Tests {
                         IsSelfSigned = true,
                         AllowsServerAuthentication = true,
                         AllowsSecureEmail = true,
+                        AuthenticationProfile = CertificateAuthenticationProfileClassifier.MixedOrCustom,
+                        CertificateChainSource = "local-build-online",
                         CertificateIssuerOrganization = "Contoso Security",
                         CertificateRootIssuerNormalized = "Contoso Root CA"
                     }
@@ -90,6 +100,14 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, summary.RootIssuerCounts["ISRG Root X1"]);
             Assert.Equal(1, summary.RootIssuerCounts["DigiCert Global Root G2"]);
             Assert.Equal(1, summary.RootIssuerCounts["Contoso Root CA"]);
+            Assert.Equal(1, summary.AuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ServerAuthOnly]);
+            Assert.Equal(1, summary.AuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.ClientAuthOnly]);
+            Assert.Equal(1, summary.AuthenticationProfileCounts[CertificateAuthenticationProfileClassifier.MixedOrCustom]);
+            Assert.Equal(1, summary.ChainSourceCounts["tls-handshake"]);
+            Assert.Equal(1, summary.ChainSourceCounts["local-build-no-check"]);
+            Assert.Equal(1, summary.CtSourceCounts["crt.sh"]);
+            Assert.Equal(1, summary.CtSourceCounts["shodan"]);
+            Assert.Equal(2, summary.CtSourceCounts["none"]);
             Assert.Single(summary.ExpiringSoon);
             Assert.Equal("mail.example.com", summary.ExpiringSoon[0].Host);
         }

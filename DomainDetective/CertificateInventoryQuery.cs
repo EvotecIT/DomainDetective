@@ -20,12 +20,22 @@ namespace DomainDetective {
         public string? ServiceEquals { get; set; }
         /// <summary>Case-insensitive issuer substring filter.</summary>
         public string? IssuerContains { get; set; }
+        /// <summary>Case-insensitive CA family exact-match filter for the leaf issuer.</summary>
+        public string? AuthorityFamilyEquals { get; set; }
         /// <summary>Case-insensitive root issuer/subject substring filter.</summary>
         public string? RootContains { get; set; }
+        /// <summary>Case-insensitive CA family exact-match filter for the root issuer.</summary>
+        public string? RootAuthorityFamilyEquals { get; set; }
+        /// <summary>Case-insensitive CT source substring filter (matches any configured discovery source).</summary>
+        public string? CtSourceContains { get; set; }
+        /// <summary>Case-insensitive chain source substring filter (matches the latest or historical chain source).</summary>
+        public string? ChainSourceContains { get; set; }
         /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
         public string? ThumbprintEquals { get; set; }
         /// <summary>When true, only include certificates from recognized authorities.</summary>
         public bool? KnownAuthorityOnly { get; set; }
+        /// <summary>When true, only include certificates chaining to recognized root authorities.</summary>
+        public bool? KnownRootAuthorityOnly { get; set; }
         /// <summary>When set, include only entries whose certificate validity equals this value.</summary>
         public bool? ValidOnly { get; set; }
         /// <summary>When set, include only entries whose expiry state equals this value.</summary>
@@ -46,6 +56,8 @@ namespace DomainDetective {
         public bool? AllowsClientAuthOnly { get; set; }
         /// <summary>When set, include only entries whose secure-email EKU state equals this value.</summary>
         public bool? AllowsSecureEmailOnly { get; set; }
+        /// <summary>Case-insensitive authentication profile exact-match filter.</summary>
+        public string? AuthenticationProfileEquals { get; set; }
         /// <summary>Only include certificates expiring within this many days (future dates only).</summary>
         public int? ExpiringWithinDays { get; set; }
         /// <summary>Maximum number of entries returned in <see cref="CertificateInventoryQueryResult.Entries"/>.</summary>
