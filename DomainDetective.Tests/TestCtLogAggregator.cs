@@ -1,9 +1,9 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Linq;
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective;
@@ -169,6 +169,48 @@ public class TestCtLogAggregator
         Assert.Single(handler.RequestUrls);
         Assert.Contains("key=abc%2Bxyz%2F123", handler.RequestUrls[0], StringComparison.Ordinal);
         Assert.Contains("ssl.cert.fingerprint.sha256:fp123", handler.RequestUrls[0], StringComparison.Ordinal);
+        Assert.Contains("shodan", aggregator.LastQueriedSources);
+    }
+
+    [Fact]
+    public async Task SkipsCensysWhenCredentialsMissing()
+    {
+        var handler = new SequenceHandler(Array.Empty<HttpResponseMessage>());
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableCensysSource = true;
+        aggregator.CensysApiId = "id-only";
+        aggregator.CensysApiSecret = null;
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fingerprintvalue");
+
+        Assert.Empty(entries);
+        Assert.Equal(0, handler.RequestCount);
+        Assert.DoesNotContain("censys", aggregator.LastQueriedSources);
+    }
+
+    [Fact]
+    public async Task ShodanEmptyMatchesDoesNotCreateCtEvidence()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[]}")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableShodanSource = true;
+        aggregator.ShodanApiKey = "key";
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Empty(entries);
+        Assert.Equal(1, handler.RequestCount);
         Assert.Contains("shodan", aggregator.LastQueriedSources);
     }
 

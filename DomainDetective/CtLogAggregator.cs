@@ -50,18 +50,18 @@ public sealed class CtLogAggregator
     public string? CensysApiId { get; set; }
     /// <summary>Censys API secret (used with <see cref="CensysApiId"/>).</summary>
     public string? CensysApiSecret { get; set; }
-    /// <summary>Censys certificate API URL template. Use {0} for SHA-256 fingerprint.</summary>
-    public string CensysApiUrlTemplate { get; set; } = "https://search.censys.io/api/v2/certificates/{0}";
+    /// <summary>Censys certificate API URL template. Use {0} for SHA-256 fingerprint. Empty by default and must be explicitly configured.</summary>
+    public string CensysApiUrlTemplate { get; set; } = string.Empty;
     /// <summary>Enable Shodan certificate discovery using the configured API key.</summary>
     public bool EnableShodanSource { get; set; }
     /// <summary>Shodan API key used by <see cref="ShodanApiUrlTemplate"/>.</summary>
     public string? ShodanApiKey { get; set; }
     /// <summary>Shodan API URL template. Use {0} for SHA-256 fingerprint and {1} for URL-encoded API key.</summary>
     public string ShodanApiUrlTemplate { get; set; } = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
-    /// <summary>Names of discovery sources queried in the last <see cref="QueryAsync"/> call.</summary>
+    /// <summary>Names of discovery sources configured for the last <see cref="QueryAsync"/> call.</summary>
     public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
 
-    private readonly List<string> _lastQueriedSources = new();
+    private string[] _lastQueriedSources = Array.Empty<string>();
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
         get {
@@ -127,7 +127,7 @@ public sealed class CtLogAggregator
     public async Task<IReadOnlyList<JsonElement>> QueryAsync(string fingerprint, CancellationToken cancellationToken = default)
     {
         var results = new List<JsonElement>();
-        _lastQueriedSources.Clear();
+        _lastQueriedSources = Array.Empty<string>();
         if (string.IsNullOrWhiteSpace(fingerprint))
         {
             return results;
@@ -135,13 +135,15 @@ public sealed class CtLogAggregator
 
         if (QueryOverride != null)
         {
-            _lastQueriedSources.Add("override");
+            _lastQueriedSources = new[] { "override" };
             var json = await QueryOverride(fingerprint).ConfigureAwait(false);
             AppendEntries(ParseEntries(json), results);
             return results;
         }
 
-        var requests = BuildDiscoveryRequests(fingerprint);
+        var discoverySources = new List<string>();
+        var requests = BuildDiscoveryRequests(fingerprint, discoverySources);
+        _lastQueriedSources = discoverySources.ToArray();
         if (requests.Count == 0)
         {
             return results;
@@ -180,10 +182,11 @@ public sealed class CtLogAggregator
         return results;
     }
 
-    private List<CtDiscoveryRequest> BuildDiscoveryRequests(string fingerprint)
+    private List<CtDiscoveryRequest> BuildDiscoveryRequests(string fingerprint, ICollection<string> discoverySources)
     {
         var requests = new List<CtDiscoveryRequest>();
         var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenCacheKeys = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var template in ApiTemplates)
         {
@@ -200,9 +203,15 @@ public sealed class CtLogAggregator
                 Url = url,
                 CacheKey = $"template:{url}"
             });
+            if (!seenCacheKeys.Add($"template:{url}"))
+            {
+                requests.RemoveAt(requests.Count - 1);
+                continue;
+            }
+
             if (seenSources.Add(sourceName))
             {
-                _lastQueriedSources.Add(sourceName);
+                discoverySources.Add(sourceName);
             }
         }
 
@@ -212,19 +221,24 @@ public sealed class CtLogAggregator
             if (!string.IsNullOrWhiteSpace(url))
             {
                 var authorization = BuildBasicAuthorizationHeader(CensysApiId!, CensysApiSecret!);
-                requests.Add(new CtDiscoveryRequest
+                var cacheKey = $"censys:{url}:{CensysApiId}";
+                if (seenCacheKeys.Add(cacheKey))
                 {
-                    SourceName = "censys",
-                    Url = url,
-                    CacheKey = $"censys:{url}:{CensysApiId}",
-                    Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    requests.Add(new CtDiscoveryRequest
                     {
-                        ["Authorization"] = authorization
+                        SourceName = "censys",
+                        Url = url,
+                        CacheKey = cacheKey,
+                        Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["Authorization"] = authorization
+                        }
+                    });
+
+                    if (seenSources.Add("censys"))
+                    {
+                        discoverySources.Add("censys");
                     }
-                });
-                if (seenSources.Add("censys"))
-                {
-                    _lastQueriedSources.Add("censys");
                 }
             }
         }
@@ -235,15 +249,20 @@ public sealed class CtLogAggregator
             var url = SafeFormat(ShodanApiUrlTemplate, fingerprint, escapedApiKey);
             if (!string.IsNullOrWhiteSpace(url))
             {
-                requests.Add(new CtDiscoveryRequest
+                var cacheKey = $"shodan:{url}";
+                if (seenCacheKeys.Add(cacheKey))
                 {
-                    SourceName = "shodan",
-                    Url = url,
-                    CacheKey = $"shodan:{url}"
-                });
-                if (seenSources.Add("shodan"))
-                {
-                    _lastQueriedSources.Add("shodan");
+                    requests.Add(new CtDiscoveryRequest
+                    {
+                        SourceName = "shodan",
+                        Url = url,
+                        CacheKey = cacheKey
+                    });
+
+                    if (seenSources.Add("shodan"))
+                    {
+                        discoverySources.Add("shodan");
+                    }
                 }
             }
         }
@@ -270,7 +289,7 @@ public sealed class CtLogAggregator
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                    return ParseEntries(json);
+                    return ParseEntries(json, request.SourceName);
                 }
 
                 if (!ShouldRetryStatusCode(response.StatusCode) || attempt == attempts)
@@ -422,7 +441,7 @@ public sealed class CtLogAggregator
         return TimeSpan.FromTicks(ticks);
     }
 
-    private static IReadOnlyList<JsonElement> ParseEntries(string json)
+    private static IReadOnlyList<JsonElement> ParseEntries(string json, string sourceName = "")
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -433,6 +452,22 @@ public sealed class CtLogAggregator
         {
             var parsed = new List<JsonElement>();
             using var doc = JsonDocument.Parse(json);
+            if (sourceName.Equals("shodan", StringComparison.OrdinalIgnoreCase) &&
+                doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("matches", out var matches))
+            {
+                if (matches.ValueKind != JsonValueKind.Array)
+                {
+                    return Array.Empty<JsonElement>();
+                }
+
+                foreach (var match in matches.EnumerateArray())
+                {
+                    parsed.Add(match.Clone());
+                }
+                return parsed;
+            }
+
             if (doc.RootElement.ValueKind == JsonValueKind.Array)
             {
                 foreach (var entry in doc.RootElement.EnumerateArray())
