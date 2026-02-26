@@ -152,5 +152,37 @@ namespace DomainDetective.Tests {
             Assert.Single(withUnchanged.Endpoints);
             Assert.Equal("Unchanged", withUnchanged.Endpoints[0].Status);
         }
+
+        [Fact]
+        public void BuildDiffReturnsNullPreviousWhenSelectorPredatesInventory() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-2),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "app.example.com", ResolvedHost = "app.example.com", Port = 443, CertificateThumbprint = "A1" }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() { Host = "app.example.com", ResolvedHost = "app.example.com", Port = 443, CertificateThumbprint = "A2" }
+                    }
+                }
+            };
+
+            var diff = CertificateInventoryDiffAnalyzer.BuildDiff(
+                snapshots,
+                previousCapturedAtUtc: now.AddDays(-10),
+                currentCapturedAtUtc: now);
+
+            Assert.Null(diff.PreviousCapturedAtUtc);
+            Assert.Equal(now.AddHours(-1), diff.CurrentCapturedAtUtc);
+            Assert.Equal(0, diff.PreviousEndpointCount);
+            Assert.Equal(1, diff.CurrentEndpointCount);
+            Assert.Equal(1, diff.AddedCount);
+            Assert.Equal(0, diff.RemovedCount);
+            Assert.Equal(0, diff.ChangedCount);
+        }
     }
 }

@@ -111,6 +111,7 @@ namespace DomainDetective.Tests {
                     HostContains = "example.com",
                     MaxResults = 1
                 });
+                Assert.Equal(3, limited.MatchedEntryCount);
                 Assert.True(limited.Truncated);
                 Assert.Single(limited.Entries);
 

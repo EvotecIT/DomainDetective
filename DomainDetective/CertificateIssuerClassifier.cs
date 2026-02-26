@@ -23,14 +23,20 @@ namespace DomainDetective {
             public string AuthorityFamily { get; init; } = string.Empty;
             public string NormalizedName { get; init; } = string.Empty;
             public string[] Tokens { get; init; } = Array.Empty<string>();
+            public string[] ExactCommonNames { get; init; } = Array.Empty<string>();
         }
 
         private static readonly IssuerRule[] Rules = {
-            new() { AuthorityFamily = "LetsEncrypt", NormalizedName = "Let's Encrypt", Tokens = new[] { "let's encrypt", "lets encrypt", "isrg", "acme", "r3", "e1", "e5" } },
+            new() {
+                AuthorityFamily = "LetsEncrypt",
+                NormalizedName = "Let's Encrypt",
+                Tokens = new[] { "let's encrypt", "lets encrypt", "isrg", "acme" },
+                ExactCommonNames = new[] { "R3", "E1", "E5" }
+            },
             new() { AuthorityFamily = "DigiCert", NormalizedName = "DigiCert", Tokens = new[] { "digicert" } },
             new() { AuthorityFamily = "Sectigo", NormalizedName = "Sectigo", Tokens = new[] { "sectigo", "comodo", "comodoca" } },
             new() { AuthorityFamily = "GlobalSign", NormalizedName = "GlobalSign", Tokens = new[] { "globalsign" } },
-            new() { AuthorityFamily = "GoogleTrustServices", NormalizedName = "Google Trust Services", Tokens = new[] { "google trust services", "gts" } },
+            new() { AuthorityFamily = "GoogleTrustServices", NormalizedName = "Google Trust Services", Tokens = new[] { "google trust services" } },
             new() { AuthorityFamily = "AmazonTrustServices", NormalizedName = "Amazon Trust Services", Tokens = new[] { "amazon trust services", "amazon rsa", "amazon root" } },
             new() { AuthorityFamily = "Cloudflare", NormalizedName = "Cloudflare", Tokens = new[] { "cloudflare" } },
             new() { AuthorityFamily = "Microsoft", NormalizedName = "Microsoft", Tokens = new[] { "microsoft" } },
@@ -51,6 +57,21 @@ namespace DomainDetective {
             var commonName = ExtractDistinguishedNameField(rawIssuer, "CN");
             var haystack = $"{organization} {commonName} {rawIssuer}".ToLowerInvariant();
             foreach (var rule in Rules) {
+                if (rule.ExactCommonNames.Length > 0 && !string.IsNullOrWhiteSpace(commonName)) {
+                    foreach (var exactCommonName in rule.ExactCommonNames) {
+                        if (string.Equals(commonName, exactCommonName, StringComparison.OrdinalIgnoreCase)) {
+                            return new CertificateIssuerIdentity {
+                                RawIssuer = rawIssuer,
+                                Organization = organization,
+                                CommonName = commonName,
+                                NormalizedName = rule.NormalizedName,
+                                AuthorityFamily = rule.AuthorityFamily,
+                                IsKnownAuthority = true
+                            };
+                        }
+                    }
+                }
+
                 foreach (var token in rule.Tokens) {
                     if (haystack.IndexOf(token, StringComparison.Ordinal) >= 0) {
                         return new CertificateIssuerIdentity {

@@ -60,7 +60,7 @@ public class SmimeCertificateAnalysis {
         var chainValid = chain.Build(Certificate);
         IsTrustedRoot = !chain.ChainStatus.Any(s => s.Status == X509ChainStatusFlags.UntrustedRoot);
         var usage = CertificateExtendedKeyUsageAnalyzer.Analyze(Certificate);
-        HasSecureEmailEku = usage.AllowsSecureEmail;
+        HasSecureEmailEku = usage.Oids.Contains(CertificateExtendedKeyUsageAnalyzer.SecureEmailOid, StringComparer.Ordinal);
         IsValid = chainValid && HasSecureEmailEku && IsTrustedRoot;
         Chain.Clear();
         foreach (var element in chain.ChainElements) {

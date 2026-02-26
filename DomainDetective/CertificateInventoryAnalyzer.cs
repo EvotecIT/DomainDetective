@@ -56,7 +56,13 @@ namespace DomainDetective {
                 }
 
                 summary.SnapshotCount++;
-                foreach (var entry in snapshot.Entries ?? new List<CertificateInventoryEntry>()) {
+                IEnumerable<CertificateInventoryEntry> entries;
+                if (snapshot.Entries != null) {
+                    entries = snapshot.Entries;
+                } else {
+                    entries = Array.Empty<CertificateInventoryEntry>();
+                }
+                foreach (var entry in entries) {
                     if (entry == null) {
                         continue;
                     }

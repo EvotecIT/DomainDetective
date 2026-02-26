@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
@@ -90,8 +91,15 @@ namespace DomainDetective {
         public bool RsaPssSignature { get; private set; }
         /// <summary>Indicates if the certificate contains an EKU extension.</summary>
         public bool HasEnhancedKeyUsageExtension { get; private set; }
-        /// <summary>Indicates if the certificate contains the Any EKU value.</summary>
-        public bool HasAnyExtendedKeyUsage { get; private set; }
+        /// <summary>Indicates if the certificate contains the Any EKU OID value.</summary>
+        public bool HasAnyExtendedKeyUsageOid { get; private set; }
+
+        [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HasAnyExtendedKeyUsage {
+            get { return HasAnyExtendedKeyUsageOid; }
+            private set { HasAnyExtendedKeyUsageOid = value; }
+        }
         /// <summary>Indicates if the certificate allows server authentication.</summary>
         public bool AllowsServerAuthentication { get; private set; }
         /// <summary>Indicates if the certificate allows client authentication.</summary>
@@ -636,7 +644,7 @@ namespace DomainDetective {
 
         private void PopulateExtendedKeyUsageInfo(X509Certificate2? certificate) {
             HasEnhancedKeyUsageExtension = false;
-            HasAnyExtendedKeyUsage = false;
+            HasAnyExtendedKeyUsageOid = false;
             AllowsServerAuthentication = false;
             AllowsClientAuthentication = false;
             AllowsSecureEmail = false;
@@ -645,7 +653,7 @@ namespace DomainDetective {
 
             var parsed = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
             HasEnhancedKeyUsageExtension = parsed.HasEnhancedKeyUsageExtension;
-            HasAnyExtendedKeyUsage = parsed.HasAnyExtendedKeyUsage;
+            HasAnyExtendedKeyUsageOid = parsed.HasAnyExtendedKeyUsageOid;
             AllowsServerAuthentication = parsed.AllowsServerAuthentication;
             AllowsClientAuthentication = parsed.AllowsClientAuthentication;
             AllowsSecureEmail = parsed.AllowsSecureEmail;

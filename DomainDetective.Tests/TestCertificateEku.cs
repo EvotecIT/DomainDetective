@@ -16,7 +16,7 @@ namespace DomainDetective.Tests {
             await analysis.AnalyzeCertificate(cert);
 
             Assert.True(analysis.HasEnhancedKeyUsageExtension);
-            Assert.False(analysis.HasAnyExtendedKeyUsage);
+            Assert.False(analysis.HasAnyExtendedKeyUsageOid);
             Assert.True(analysis.AllowsServerAuthentication);
             Assert.True(analysis.AllowsClientAuthentication);
             Assert.False(analysis.AllowsSecureEmail);
@@ -47,6 +47,22 @@ namespace DomainDetective.Tests {
                 var analysis = new SmimeCertificateAnalysis();
                 analysis.AnalyzeFile(tempPath);
                 Assert.True(analysis.HasSecureEmailEku);
+            } finally {
+                if (File.Exists(tempPath)) {
+                    File.Delete(tempPath);
+                }
+            }
+        }
+
+        [Fact]
+        public void SmimeAnalysisDoesNotTreatAnyEkuAsSecureEmail() {
+            using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.AnyExtendedKeyUsageOid);
+            var tempPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".cer");
+            File.WriteAllBytes(tempPath, cert.Export(X509ContentType.Cert));
+            try {
+                var analysis = new SmimeCertificateAnalysis();
+                analysis.AnalyzeFile(tempPath);
+                Assert.False(analysis.HasSecureEmailEku);
             } finally {
                 if (File.Exists(tempPath)) {
                     File.Delete(tempPath);

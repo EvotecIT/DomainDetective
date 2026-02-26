@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace DomainDetective {
     /// <summary>
@@ -45,6 +46,7 @@ namespace DomainDetective {
         public bool IsSelfSigned { get; set; }
         public bool HostnameMatch { get; set; }
         public bool PresentInCtLogs { get; set; }
+        /// <summary>Days to expiry as observed at snapshot capture time.</summary>
         public int DaysToExpire { get; set; }
         public int DaysValid { get; set; }
         public string Protocol { get; set; } = string.Empty;
@@ -54,7 +56,15 @@ namespace DomainDetective {
         public bool Sha1Signature { get; set; }
         public bool RsaPssSignature { get; set; }
         public bool HasEnhancedKeyUsageExtension { get; set; }
-        public bool HasAnyExtendedKeyUsage { get; set; }
+        public bool HasAnyExtendedKeyUsageOid { get; set; }
+
+        [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HasAnyExtendedKeyUsage {
+            get { return HasAnyExtendedKeyUsageOid; }
+            set { HasAnyExtendedKeyUsageOid = value; }
+        }
+
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }

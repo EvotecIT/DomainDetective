@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -10,7 +11,15 @@ namespace DomainDetective {
     /// </summary>
     public sealed class CertificateExtendedKeyUsageInfo {
         public bool HasEnhancedKeyUsageExtension { get; set; }
-        public bool HasAnyExtendedKeyUsage { get; set; }
+        public bool HasAnyExtendedKeyUsageOid { get; set; }
+
+        [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HasAnyExtendedKeyUsage {
+            get { return HasAnyExtendedKeyUsageOid; }
+            set { HasAnyExtendedKeyUsageOid = value; }
+        }
+
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
@@ -57,10 +66,10 @@ namespace DomainDetective {
                 }
             }
 
-            result.HasAnyExtendedKeyUsage = result.Oids.Contains(AnyExtendedKeyUsageOid, StringComparer.Ordinal);
-            result.AllowsServerAuthentication = result.HasAnyExtendedKeyUsage || result.Oids.Contains(ServerAuthenticationOid, StringComparer.Ordinal);
-            result.AllowsClientAuthentication = result.HasAnyExtendedKeyUsage || result.Oids.Contains(ClientAuthenticationOid, StringComparer.Ordinal);
-            result.AllowsSecureEmail = result.HasAnyExtendedKeyUsage || result.Oids.Contains(SecureEmailOid, StringComparer.Ordinal);
+            result.HasAnyExtendedKeyUsageOid = result.Oids.Contains(AnyExtendedKeyUsageOid, StringComparer.Ordinal);
+            result.AllowsServerAuthentication = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(ServerAuthenticationOid, StringComparer.Ordinal);
+            result.AllowsClientAuthentication = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(ClientAuthenticationOid, StringComparer.Ordinal);
+            result.AllowsSecureEmail = result.HasAnyExtendedKeyUsageOid || result.Oids.Contains(SecureEmailOid, StringComparer.Ordinal);
 
             foreach (var oid in result.Oids) {
                 if (KnownFriendlyNames.TryGetValue(oid, out var knownName)) {
@@ -70,7 +79,7 @@ namespace DomainDetective {
 
                 try {
                     result.FriendlyNames.Add(new Oid(oid).FriendlyName ?? oid);
-                } catch {
+                } catch (CryptographicException) {
                     result.FriendlyNames.Add(oid);
                 }
             }

@@ -31,5 +31,24 @@ namespace DomainDetective.Tests {
             Assert.Equal("Contoso Security", classified.NormalizedName);
             Assert.Null(classified.AuthorityFamily);
         }
+
+        [Fact]
+        public void ClassifyDoesNotUseShortLetsEncryptTokensAsSubstrings() {
+            var issuer = "CN=CorpR3 Issuing CA, O=Example Security, C=US";
+            var classified = CertificateIssuerClassifier.Classify(issuer);
+
+            Assert.False(classified.IsKnownAuthority);
+            Assert.Equal("Example Security", classified.NormalizedName);
+        }
+
+        [Fact]
+        public void ClassifyDetectsLetsEncryptByExactIntermediateCommonName() {
+            var issuer = "CN=R3, O=Internal PKI Name Collision Test, C=US";
+            var classified = CertificateIssuerClassifier.Classify(issuer);
+
+            Assert.True(classified.IsKnownAuthority);
+            Assert.Equal("Let's Encrypt", classified.NormalizedName);
+            Assert.Equal("LetsEncrypt", classified.AuthorityFamily);
+        }
     }
 }

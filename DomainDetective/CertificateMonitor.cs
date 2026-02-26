@@ -53,7 +53,7 @@ namespace DomainDetective {
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
         /// <summary>Optional override for certificate analysis (primarily for testing).</summary>
-        public Func<string, int, InternalLogger, CancellationToken, Task<CertificateAnalysis>>? AnalysisOverride { private get; set; }
+        internal Func<string, int, InternalLogger, CancellationToken, Task<CertificateAnalysis>>? AnalysisOverride { get; set; }
         private IReadOnlyList<string> _monitorHosts = Array.Empty<string>();
         private int _monitorPort;
         private InternalLogger? _monitorLogger;
@@ -64,8 +64,8 @@ namespace DomainDetective {
 
         /// <summary>Duration cached files are kept.</summary>
         public TimeSpan CacheRetention { get; set; } = TimeSpan.FromDays(7);
-        /// <summary>Persist monitor runs as inventory snapshots.</summary>
-        public bool PersistInventorySnapshots { get; set; } = true;
+        /// <summary>Persist monitor runs as inventory snapshots (opt-in).</summary>
+        public bool PersistInventorySnapshots { get; set; }
 
         /// <summary>Directory used for persisted inventory snapshots.</summary>
         public string InventoryDirectory => Path.Combine(CacheDirectory, "inventory");
@@ -76,7 +76,14 @@ namespace DomainDetective {
                     return;
                 }
 
+                var inventoryRoot = Path.GetFullPath(InventoryDirectory)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
                 foreach (var file in Directory.GetFiles(CacheDirectory, "*", SearchOption.AllDirectories)) {
+                    var fullFilePath = Path.GetFullPath(file);
+                    if (fullFilePath.StartsWith(inventoryRoot, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+
                     if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > CacheRetention) {
                         File.Delete(file);
                     }
@@ -230,7 +237,7 @@ namespace DomainDetective {
             }
 
             if (PersistInventorySnapshots) {
-                SaveInventorySnapshot(port);
+                SaveInventorySnapshot(port, logger);
             }
         }
 
@@ -257,9 +264,7 @@ namespace DomainDetective {
                 return Array.Empty<CertificateInventorySnapshot>();
             }
 
-            var files = Directory.GetFiles(InventoryDirectory, "*.json", SearchOption.TopDirectoryOnly)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var files = Directory.GetFiles(InventoryDirectory, "*.json", SearchOption.TopDirectoryOnly);
 
             var snapshots = new List<CertificateInventorySnapshot>();
             foreach (var file in files) {
@@ -278,10 +283,12 @@ namespace DomainDetective {
                 }
             }
 
-            return snapshots;
+            return snapshots
+                .OrderBy(snapshot => snapshot.CapturedAtUtc)
+                .ToList();
         }
 
-        private void SaveInventorySnapshot(int port) {
+        private void SaveInventorySnapshot(int port, InternalLogger? logger) {
             try {
                 Directory.CreateDirectory(InventoryDirectory);
                 var snapshot = new CertificateInventorySnapshot {
@@ -296,8 +303,8 @@ namespace DomainDetective {
                 var filePath = Path.Combine(InventoryDirectory, fileName);
                 var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
                 File.WriteAllText(filePath, json, Encoding.UTF8);
-            } catch {
-                // best effort persistence; monitoring should continue even when disk writes fail
+            } catch (Exception ex) {
+                logger?.WriteWarning("Failed to persist certificate inventory snapshot: {0}", ex.Message);
             }
         }
 
@@ -350,7 +357,7 @@ namespace DomainDetective {
                 Sha1Signature = analysis.Sha1Signature,
                 RsaPssSignature = analysis.RsaPssSignature,
                 HasEnhancedKeyUsageExtension = analysis.HasEnhancedKeyUsageExtension,
-                HasAnyExtendedKeyUsage = analysis.HasAnyExtendedKeyUsage,
+                HasAnyExtendedKeyUsageOid = analysis.HasAnyExtendedKeyUsageOid,
                 AllowsServerAuthentication = analysis.AllowsServerAuthentication,
                 AllowsClientAuthentication = analysis.AllowsClientAuthentication,
                 AllowsSecureEmail = analysis.AllowsSecureEmail
@@ -469,6 +476,7 @@ namespace DomainDetective {
         public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {
             var effectiveQuery = query ?? new CertificateInventoryQuery();
             var result = new CertificateInventoryQueryResult();
+            var maxResults = Math.Max(0, effectiveQuery.MaxResults);
             var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
                 .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
                 .ToList();
@@ -486,9 +494,9 @@ namespace DomainDetective {
                     }
 
                     result.MatchedEntryCount++;
-                    if (result.Entries.Count >= Math.Max(0, effectiveQuery.MaxResults)) {
+                    if (result.Entries.Count >= maxResults) {
                         result.Truncated = true;
-                        return result;
+                        continue;
                     }
 
                     result.Entries.Add(new CertificateInventoryObservedEntry {

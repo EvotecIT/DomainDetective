@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -23,18 +24,59 @@ public sealed class CtLogAggregator
     }
 
     private static readonly ConcurrentDictionary<string, CacheItem> SharedResponseCache = new(StringComparer.Ordinal);
-    private static readonly SemaphoreSlim SharedRequestGate = new(1, 1);
+    private static readonly object SharedRequestGateLock = new();
+    private static SemaphoreSlim SharedRequestGate = new(1, 1);
     private static readonly object SharedCacheMaintenanceLock = new();
+    private static readonly object SharedConfigurationLock = new();
     private static DateTimeOffset _lastRequestUtc = DateTimeOffset.MinValue;
+    private static TimeSpan _sharedCacheTtl = TimeSpan.FromMinutes(30);
+    private static int _sharedMaxCacheEntries = 20000;
+    private static TimeSpan _sharedMinimumRequestSpacing = TimeSpan.FromMilliseconds(250);
 
     /// <summary>CT log API templates containing a {0} placeholder for the fingerprint.</summary>
     public List<string> ApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
-    /// <summary>How long successful CT responses should be cached.</summary>
-    public TimeSpan CacheTtl { get; set; } = TimeSpan.FromMinutes(30);
-    /// <summary>Maximum number of shared cached CT responses kept in memory.</summary>
-    public int MaxCacheEntries { get; set; } = 20000;
+    /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
+    public TimeSpan CacheTtl {
+        get {
+            lock (SharedConfigurationLock) {
+                return _sharedCacheTtl;
+            }
+        }
+        set {
+            lock (SharedConfigurationLock) {
+                _sharedCacheTtl = value;
+            }
+        }
+    }
+
+    /// <summary>Maximum number of shared cached CT responses kept in memory (shared across all instances).</summary>
+    public int MaxCacheEntries {
+        get {
+            lock (SharedConfigurationLock) {
+                return _sharedMaxCacheEntries;
+            }
+        }
+        set {
+            lock (SharedConfigurationLock) {
+                _sharedMaxCacheEntries = value;
+            }
+        }
+    }
+
     /// <summary>Minimum spacing between outbound CT requests across all aggregator instances.</summary>
-    public TimeSpan MinimumRequestSpacing { get; set; } = TimeSpan.FromMilliseconds(250);
+    public TimeSpan MinimumRequestSpacing {
+        get {
+            lock (SharedConfigurationLock) {
+                return _sharedMinimumRequestSpacing;
+            }
+        }
+        set {
+            lock (SharedConfigurationLock) {
+                _sharedMinimumRequestSpacing = value;
+            }
+        }
+    }
+
     /// <summary>Maximum retry attempts per request when transient failures occur.</summary>
     public int MaxAttemptsPerRequest { get; set; } = 3;
     /// <summary>Base delay applied between retries.</summary>
@@ -125,7 +167,7 @@ public sealed class CtLogAggregator
                     return Array.Empty<JsonElement>();
                 }
             }
-            catch (Exception ex) when (IsTransientException(ex) && attempt < attempts)
+            catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < attempts)
             {
                 // Continue with retry path.
             }
@@ -148,7 +190,13 @@ public sealed class CtLogAggregator
             return;
         }
 
-        await SharedRequestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        SemaphoreSlim requestGate;
+        lock (SharedRequestGateLock)
+        {
+            requestGate = SharedRequestGate;
+        }
+
+        await requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var now = DateTimeOffset.UtcNow;
@@ -162,7 +210,7 @@ public sealed class CtLogAggregator
         }
         finally
         {
-            SharedRequestGate.Release();
+            requestGate.Release();
         }
     }
 
@@ -182,10 +230,14 @@ public sealed class CtLogAggregator
         await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
     }
 
-    private static bool IsTransientException(Exception exception)
+    private static bool IsTransientException(Exception exception, CancellationToken cancellationToken)
     {
+        if (exception is TaskCanceledException)
+        {
+            return !cancellationToken.IsCancellationRequested;
+        }
+
         return exception is HttpRequestException ||
-               exception is TaskCanceledException ||
                exception is TimeoutException;
     }
 
@@ -196,7 +248,6 @@ public sealed class CtLogAggregator
                statusCode == HttpStatusCode.BadGateway ||
                statusCode == HttpStatusCode.ServiceUnavailable ||
                statusCode == HttpStatusCode.GatewayTimeout ||
-               statusCode == HttpStatusCode.InternalServerError ||
                value == 429 ||
                value == 425;
     }
@@ -209,7 +260,16 @@ public sealed class CtLogAggregator
         }
 
         var multiplier = Math.Max(1, attempt);
-        var ticks = RetryDelay.Ticks * multiplier;
+        long ticks;
+        try
+        {
+            ticks = checked(RetryDelay.Ticks * (long)multiplier);
+        }
+        catch (OverflowException)
+        {
+            return TimeSpan.MaxValue;
+        }
+
         if (ticks <= 0 || ticks >= TimeSpan.MaxValue.Ticks)
         {
             return TimeSpan.MaxValue;
@@ -254,7 +314,7 @@ public sealed class CtLogAggregator
     {
         foreach (var entry in entries)
         {
-            results.Add(entry.Clone());
+            results.Add(entry);
         }
     }
 
@@ -295,7 +355,7 @@ public sealed class CtLogAggregator
         {
             CreatedUtc = now,
             ExpiresUtc = now + ttl,
-            Entries = entries.Select(entry => entry.Clone()).ToList()
+            Entries = entries.ToList()
         };
 
         TrimCacheIfNeeded();
@@ -347,9 +407,21 @@ public sealed class CtLogAggregator
         return SharedHttpClient.Instance;
     }
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
     internal static void ResetSharedStateForTests()
     {
         SharedResponseCache.Clear();
         _lastRequestUtc = DateTimeOffset.MinValue;
+        lock (SharedConfigurationLock)
+        {
+            _sharedCacheTtl = TimeSpan.FromMinutes(30);
+            _sharedMaxCacheEntries = 20000;
+            _sharedMinimumRequestSpacing = TimeSpan.FromMilliseconds(250);
+        }
+
+        lock (SharedRequestGateLock)
+        {
+            SharedRequestGate = new SemaphoreSlim(1, 1);
+        }
     }
 }

@@ -181,7 +181,7 @@ namespace DomainDetective {
                 }
             }
 
-            return ordered.Count > 0 ? ordered[0] : null;
+            return null;
         }
 
         private static Dictionary<string, CertificateInventoryEntry> BuildEndpointMap(CertificateInventorySnapshot? snapshot) {
