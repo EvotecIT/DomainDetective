@@ -159,6 +159,21 @@ internal static class Program {
                 .WithDescription("Open most recent run directory or scan.json")
                 .WithExample(new[] { "RunsOpen", "--subject", "example.com" })
                 .WithExample(new[] { "RunsOpen", "--dir", "/path/to/run" });
+
+            // Certificate inventory utilities
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("CertificateInventorySummary")
+                .WithDescription("Summarize persisted certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventorySummary", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventorySummary", "--cache-dir", "./cert-monitor", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventorySummaryCommand>("cert-inventory-summary")
+                .WithDescription("Summarize persisted certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("CertificateInventoryQuery")
+                .WithDescription("Query persisted certificate inventory snapshots with filters")
+                .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "api", "--service", "HTTPS" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--issuer-contains", "digicert", "--expiring-within-days", "30", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
+                .WithDescription("Query persisted certificate inventory snapshots (alias)");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);
