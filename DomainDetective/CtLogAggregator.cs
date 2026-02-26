@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,6 +24,14 @@ public sealed class CtLogAggregator
         public List<JsonElement> Entries { get; init; } = new();
     }
 
+    private sealed class CtDiscoveryRequest
+    {
+        public string SourceName { get; init; } = string.Empty;
+        public string Url { get; init; } = string.Empty;
+        public string CacheKey { get; init; } = string.Empty;
+        public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
     private static readonly ConcurrentDictionary<string, CacheItem> SharedResponseCache = new(StringComparer.Ordinal);
     private static readonly object SharedRequestGateLock = new();
     private static SemaphoreSlim SharedRequestGate = new(1, 1);
@@ -35,6 +44,24 @@ public sealed class CtLogAggregator
 
     /// <summary>CT log API templates containing a {0} placeholder for the fingerprint.</summary>
     public List<string> ApiTemplates { get; } = new() { "https://crt.sh/?sha256={0}&output=json" };
+    /// <summary>Enable Censys certificate discovery using the configured API credentials.</summary>
+    public bool EnableCensysSource { get; set; }
+    /// <summary>Censys API identifier (used with <see cref="CensysApiSecret"/>).</summary>
+    public string? CensysApiId { get; set; }
+    /// <summary>Censys API secret (used with <see cref="CensysApiId"/>).</summary>
+    public string? CensysApiSecret { get; set; }
+    /// <summary>Censys certificate API URL template. Use {0} for SHA-256 fingerprint.</summary>
+    public string CensysApiUrlTemplate { get; set; } = "https://search.censys.io/api/v2/certificates/{0}";
+    /// <summary>Enable Shodan certificate discovery using the configured API key.</summary>
+    public bool EnableShodanSource { get; set; }
+    /// <summary>Shodan API key used by <see cref="ShodanApiUrlTemplate"/>.</summary>
+    public string? ShodanApiKey { get; set; }
+    /// <summary>Shodan API URL template. Use {0} for SHA-256 fingerprint and {1} for URL-encoded API key.</summary>
+    public string ShodanApiUrlTemplate { get; set; } = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
+    /// <summary>Names of discovery sources queried in the last <see cref="QueryAsync"/> call.</summary>
+    public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
+
+    private readonly List<string> _lastQueriedSources = new();
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
         get {
@@ -100,6 +127,7 @@ public sealed class CtLogAggregator
     public async Task<IReadOnlyList<JsonElement>> QueryAsync(string fingerprint, CancellationToken cancellationToken = default)
     {
         var results = new List<JsonElement>();
+        _lastQueriedSources.Clear();
         if (string.IsNullOrWhiteSpace(fingerprint))
         {
             return results;
@@ -107,31 +135,37 @@ public sealed class CtLogAggregator
 
         if (QueryOverride != null)
         {
+            _lastQueriedSources.Add("override");
             var json = await QueryOverride(fingerprint).ConfigureAwait(false);
             AppendEntries(ParseEntries(json), results);
+            return results;
+        }
+
+        var requests = BuildDiscoveryRequests(fingerprint);
+        if (requests.Count == 0)
+        {
             return results;
         }
 
         var client = CreateClient(out var dispose);
         try
         {
-            foreach (var template in ApiTemplates)
+            foreach (var request in requests)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var url = string.Format(template, fingerprint);
-                if (TryGetCachedEntries(url, out var cachedEntries))
+                if (TryGetCachedEntries(request.CacheKey, out var cachedEntries))
                 {
                     AppendEntries(cachedEntries, results);
                     continue;
                 }
 
-                var fetchedEntries = await FetchEntriesWithRetryAsync(client, url, cancellationToken).ConfigureAwait(false);
+                var fetchedEntries = await FetchEntriesWithRetryAsync(client, request, cancellationToken).ConfigureAwait(false);
                 if (fetchedEntries.Count == 0)
                 {
                     continue;
                 }
 
-                CacheEntries(url, fetchedEntries);
+                CacheEntries(request.CacheKey, fetchedEntries);
                 AppendEntries(fetchedEntries, results);
             }
         }
@@ -146,7 +180,78 @@ public sealed class CtLogAggregator
         return results;
     }
 
-    private async Task<IReadOnlyList<JsonElement>> FetchEntriesWithRetryAsync(HttpClient client, string url, CancellationToken cancellationToken)
+    private List<CtDiscoveryRequest> BuildDiscoveryRequests(string fingerprint)
+    {
+        var requests = new List<CtDiscoveryRequest>();
+        var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var template in ApiTemplates)
+        {
+            var url = SafeFormat(template, fingerprint);
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                continue;
+            }
+
+            var sourceName = InferSourceName(url, "crt.sh");
+            requests.Add(new CtDiscoveryRequest
+            {
+                SourceName = sourceName,
+                Url = url,
+                CacheKey = $"template:{url}"
+            });
+            if (seenSources.Add(sourceName))
+            {
+                _lastQueriedSources.Add(sourceName);
+            }
+        }
+
+        if (EnableCensysSource && !string.IsNullOrWhiteSpace(CensysApiId) && !string.IsNullOrWhiteSpace(CensysApiSecret))
+        {
+            var url = SafeFormat(CensysApiUrlTemplate, fingerprint);
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                var authorization = BuildBasicAuthorizationHeader(CensysApiId!, CensysApiSecret!);
+                requests.Add(new CtDiscoveryRequest
+                {
+                    SourceName = "censys",
+                    Url = url,
+                    CacheKey = $"censys:{url}:{CensysApiId}",
+                    Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Authorization"] = authorization
+                    }
+                });
+                if (seenSources.Add("censys"))
+                {
+                    _lastQueriedSources.Add("censys");
+                }
+            }
+        }
+
+        if (EnableShodanSource && !string.IsNullOrWhiteSpace(ShodanApiKey))
+        {
+            var escapedApiKey = Uri.EscapeDataString(ShodanApiKey);
+            var url = SafeFormat(ShodanApiUrlTemplate, fingerprint, escapedApiKey);
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                requests.Add(new CtDiscoveryRequest
+                {
+                    SourceName = "shodan",
+                    Url = url,
+                    CacheKey = $"shodan:{url}"
+                });
+                if (seenSources.Add("shodan"))
+                {
+                    _lastQueriedSources.Add("shodan");
+                }
+            }
+        }
+
+        return requests;
+    }
+
+    private async Task<IReadOnlyList<JsonElement>> FetchEntriesWithRetryAsync(HttpClient client, CtDiscoveryRequest request, CancellationToken cancellationToken)
     {
         var attempts = Math.Max(1, MaxAttemptsPerRequest);
         for (var attempt = 1; attempt <= attempts; attempt++)
@@ -155,7 +260,13 @@ public sealed class CtLogAggregator
             try
             {
                 await WaitForRateLimitAsync(cancellationToken).ConfigureAwait(false);
-                using var response = await client.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                using var message = new HttpRequestMessage(HttpMethod.Get, request.Url);
+                foreach (var header in request.Headers)
+                {
+                    message.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                }
+
+                using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -180,6 +291,39 @@ public sealed class CtLogAggregator
         }
 
         return Array.Empty<JsonElement>();
+    }
+
+    private static string BuildBasicAuthorizationHeader(string apiId, string apiSecret)
+    {
+        var encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{apiId}:{apiSecret}"));
+        return $"Basic {encoded}";
+    }
+
+    private static string SafeFormat(string template, params object[] args)
+    {
+        if (string.IsNullOrWhiteSpace(template))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return string.Format(template, args);
+        }
+        catch (FormatException)
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string InferSourceName(string url, string fallback)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && !string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return uri.Host;
+        }
+
+        return fallback;
     }
 
     private async Task WaitForRateLimitAsync(CancellationToken cancellationToken)
@@ -318,7 +462,7 @@ public sealed class CtLogAggregator
         }
     }
 
-    private bool TryGetCachedEntries(string url, out IReadOnlyList<JsonElement> entries)
+    private bool TryGetCachedEntries(string cacheKey, out IReadOnlyList<JsonElement> entries)
     {
         entries = Array.Empty<JsonElement>();
         var ttl = CacheTtl;
@@ -327,14 +471,14 @@ public sealed class CtLogAggregator
             return false;
         }
 
-        if (!SharedResponseCache.TryGetValue(url, out var cached))
+        if (!SharedResponseCache.TryGetValue(cacheKey, out var cached))
         {
             return false;
         }
 
         if (cached.ExpiresUtc < DateTimeOffset.UtcNow)
         {
-            SharedResponseCache.TryRemove(url, out _);
+            SharedResponseCache.TryRemove(cacheKey, out _);
             return false;
         }
 
@@ -342,7 +486,7 @@ public sealed class CtLogAggregator
         return true;
     }
 
-    private void CacheEntries(string url, IReadOnlyList<JsonElement> entries)
+    private void CacheEntries(string cacheKey, IReadOnlyList<JsonElement> entries)
     {
         var ttl = CacheTtl;
         if (ttl <= TimeSpan.Zero || entries.Count == 0)
@@ -351,7 +495,7 @@ public sealed class CtLogAggregator
         }
 
         var now = DateTimeOffset.UtcNow;
-        SharedResponseCache[url] = new CacheItem
+        SharedResponseCache[cacheKey] = new CacheItem
         {
             CreatedUtc = now,
             ExpiresUtc = now + ttl,

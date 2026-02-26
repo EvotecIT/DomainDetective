@@ -137,8 +137,31 @@ namespace DomainDetective {
 
         /// <summary>CT log API templates. Each entry should contain a {0} placeholder for the SHA-256 fingerprint.</summary>
         public List<string> CtLogApiTemplates => _ctLogAggregator.ApiTemplates;
+        /// <summary>Enables Censys certificate discovery source during CT lookups.</summary>
+        public bool EnableCensysCtSource { get; set; }
+        /// <summary>Censys API identifier used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiId { get; set; }
+        /// <summary>Censys API secret used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiSecret { get; set; }
+        /// <summary>Censys URL template with {0} placeholder for the SHA-256 fingerprint.</summary>
+        public string CensysCtApiUrlTemplate {
+            get { return _ctLogAggregator.CensysApiUrlTemplate; }
+            set { _ctLogAggregator.CensysApiUrlTemplate = value; }
+        }
+        /// <summary>Enables Shodan certificate discovery source during CT lookups.</summary>
+        public bool EnableShodanCtSource { get; set; }
+        /// <summary>Shodan API key used when <see cref="EnableShodanCtSource"/> is true.</summary>
+        public string? ShodanApiKey { get; set; }
+        /// <summary>Shodan URL template with {0} fingerprint and {1} URL-encoded API key placeholders.</summary>
+        public string ShodanCtApiUrlTemplate {
+            get { return _ctLogAggregator.ShodanApiUrlTemplate; }
+            set { _ctLogAggregator.ShodanApiUrlTemplate = value; }
+        }
+        /// <summary>Discovery sources queried for certificate evidence in the latest CT lookup.</summary>
+        public IReadOnlyList<string> CtDiscoverySources => _ctDiscoverySources;
 
         private readonly List<JsonElement> _ctLogEntries = new();
+        private readonly List<string> _ctDiscoverySources = new();
         private readonly CtLogAggregator _ctLogAggregator = new();
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
@@ -407,6 +430,7 @@ namespace DomainDetective {
         {
             PresentInCtLogs = false;
             _ctLogEntries.Clear();
+            _ctDiscoverySources.Clear();
             if (Certificate == null)
             {
                 return;
@@ -424,10 +448,28 @@ namespace DomainDetective {
             _ctLogAggregator.ApiTemplates.Clear();
             _ctLogAggregator.ApiTemplates.AddRange(CtLogApiTemplates);
             _ctLogAggregator.QueryOverride = CtLogQueryOverride;
+            _ctLogAggregator.EnableCensysSource = EnableCensysCtSource;
+            _ctLogAggregator.EnableShodanSource = EnableShodanCtSource;
+            _ctLogAggregator.CensysApiId = FirstNonEmpty(CensysApiId, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_ID"));
+            _ctLogAggregator.CensysApiSecret = FirstNonEmpty(CensysApiSecret, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_SECRET"));
+            _ctLogAggregator.ShodanApiKey = FirstNonEmpty(ShodanApiKey, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_SHODAN_API_KEY"));
 
             var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
             _ctLogEntries.AddRange(entries);
+            _ctDiscoverySources.AddRange(_ctLogAggregator.LastQueriedSources);
             PresentInCtLogs = _ctLogEntries.Count > 0;
+        }
+
+        private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {
+            if (!string.IsNullOrWhiteSpace(explicitValue)) {
+                return explicitValue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fallbackValue)) {
+                return fallbackValue;
+            }
+
+            return null;
         }
 
         /// <summary>

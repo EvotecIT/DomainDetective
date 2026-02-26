@@ -14,6 +14,7 @@ public class TestCtLogIntegration
         await analysis.AnalyzeCertificate(cert);
         Assert.True(analysis.PresentInCtLogs);
         Assert.Single(analysis.CtLogEntries);
+        Assert.Contains("override", analysis.CtDiscoverySources);
         Assert.Equal(5, analysis.CtLogEntries[0].GetProperty("id").GetInt32());
     }
 }

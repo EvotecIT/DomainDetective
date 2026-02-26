@@ -382,6 +382,7 @@ namespace DomainDetective {
                 AllowsClientAuthentication = analysis.AllowsClientAuthentication,
                 AllowsSecureEmail = analysis.AllowsSecureEmail
             };
+            snapshotEntry.CtDiscoverySources.AddRange(analysis.CtDiscoverySources);
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
             foreach (var chainElement in chain) {

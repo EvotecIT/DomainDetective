@@ -36,6 +36,7 @@ namespace DomainDetective.Tests {
                     Assert.True(entry.HasEnhancedKeyUsageExtension);
                     Assert.True(entry.AllowsServerAuthentication);
                     Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid, entry.ExtendedKeyUsageOids);
+                    Assert.Contains("override", entry.CtDiscoverySources);
                     Assert.Equal("HTTPS", entry.Service);
                     Assert.Equal(443, entry.Port);
                     Assert.Equal("https", entry.Scheme);

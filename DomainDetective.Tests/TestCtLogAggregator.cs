@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Linq;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using DomainDetective;
@@ -114,6 +116,62 @@ public class TestCtLogAggregator
         Assert.Equal(2, handler.RequestCount);
     }
 
+    [Fact]
+    public async Task QueriesCensysWhenEnabledWithCredentials()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.OK, "{\"result\":{\"fingerprint\":\"abc\"}}")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableCensysSource = true;
+        aggregator.CensysApiId = "id-123";
+        aggregator.CensysApiSecret = "secret-456";
+        aggregator.CensysApiUrlTemplate = "https://search.censys.io/api/v2/certificates/{0}";
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fingerprintvalue");
+
+        Assert.Single(entries);
+        Assert.Equal("abc", entries[0].GetProperty("result").GetProperty("fingerprint").GetString());
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Single(handler.RequestUrls);
+        Assert.Equal("https://search.censys.io/api/v2/certificates/fingerprintvalue", handler.RequestUrls[0]);
+        Assert.Single(handler.AuthorizationHeaders);
+        var expected = "Basic " + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("id-123:secret-456"));
+        Assert.Equal(expected, handler.AuthorizationHeaders[0]);
+        Assert.Contains("censys", aggregator.LastQueriedSources);
+    }
+
+    [Fact]
+    public async Task QueriesShodanWhenEnabledWithApiKey()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.OK, "{\"matches\":[{\"source\":\"shodan\"}]}")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.EnableShodanSource = true;
+        aggregator.ShodanApiKey = "abc+xyz/123";
+        aggregator.ShodanApiUrlTemplate = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Single(entries);
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Single(handler.RequestUrls);
+        Assert.Contains("key=abc%2Bxyz%2F123", handler.RequestUrls[0], StringComparison.Ordinal);
+        Assert.Contains("ssl.cert.fingerprint.sha256:fp123", handler.RequestUrls[0], StringComparison.Ordinal);
+        Assert.Contains("shodan", aggregator.LastQueriedSources);
+    }
+
     private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json)
     {
         return new HttpResponseMessage(statusCode)
@@ -126,6 +184,8 @@ public class TestCtLogAggregator
     {
         private readonly ConcurrentQueue<HttpResponseMessage> _responses;
         private int _requestCount;
+        private readonly ConcurrentQueue<string> _requestUrls = new();
+        private readonly ConcurrentQueue<string> _authorizationHeaders = new();
 
         public SequenceHandler(IEnumerable<HttpResponseMessage> responses)
         {
@@ -133,10 +193,18 @@ public class TestCtLogAggregator
         }
 
         public int RequestCount => Volatile.Read(ref _requestCount);
+        public IReadOnlyList<string> RequestUrls => _requestUrls.ToList();
+        public IReadOnlyList<string> AuthorizationHeaders => _authorizationHeaders.ToList();
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _requestCount);
+            _requestUrls.Enqueue(request.RequestUri?.ToString() ?? string.Empty);
+            if (request.Headers.TryGetValues("Authorization", out var authorization))
+            {
+                _authorizationHeaders.Enqueue(authorization.FirstOrDefault() ?? string.Empty);
+            }
+
             if (_responses.TryDequeue(out var response))
             {
                 return Task.FromResult(response);
