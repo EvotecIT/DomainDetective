@@ -62,7 +62,28 @@ public class MonitorScheduler
     /// <summary>Stops the scheduler.</summary>
     public void Stop()
     {
+        StopAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>Stops the scheduler asynchronously.</summary>
+    public async Task StopAsync()
+    {
         _cts?.Cancel();
+        if (_loopTask != null)
+        {
+            try
+            {
+                await _loopTask.ConfigureAwait(false);
+            }
+            catch (TaskCanceledException)
+            {
+                // ignore cancellation
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore cancellation
+            }
+        }
         _timer?.Dispose();
         _timer = null;
         _cts?.Dispose();
@@ -90,26 +111,53 @@ public class MonitorScheduler
             }
 
             var parallelism = Math.Max(1, MaxDomainParallelism);
-            using var gate = new SemaphoreSlim(parallelism, parallelism);
+            var gate = new SemaphoreSlim(parallelism, parallelism);
             var tasks = new List<Task>(domains.Count);
-            foreach (var domain in domains)
+            var schedulingCanceled = false;
+            try
             {
-                ct.ThrowIfCancellationRequested();
-                await gate.WaitAsync(ct).ConfigureAwait(false);
-                tasks.Add(Task.Run(async () =>
+                foreach (var domain in domains)
                 {
                     try
                     {
-                        await RunDomainAsync(domain, ct).ConfigureAwait(false);
+                        ct.ThrowIfCancellationRequested();
+                        await gate.WaitAsync(ct).ConfigureAwait(false);
                     }
-                    finally
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
                     {
-                        gate.Release();
+                        schedulingCanceled = true;
+                        break;
                     }
-                }, ct));
+
+                    tasks.Add(ProcessDomainAsync(domain));
+                }
+
+                if (tasks.Count > 0)
+                {
+                    await Task.WhenAll(tasks).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                gate.Dispose();
             }
 
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+            if (schedulingCanceled)
+            {
+                ct.ThrowIfCancellationRequested();
+            }
+
+            async Task ProcessDomainAsync(string domain)
+            {
+                try
+                {
+                    await RunDomainAsync(domain, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }
         }
         finally
         {
@@ -170,7 +218,8 @@ public class MonitorScheduler
 
     private async Task SendNotificationAsync(string message, CancellationToken ct)
     {
-        if (Notifier == null)
+        var notifier = Notifier;
+        if (notifier == null)
         {
             return;
         }
@@ -178,10 +227,7 @@ public class MonitorScheduler
         await _notifyLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            if (Notifier != null)
-            {
-                await Notifier.SendAsync(message, ct).ConfigureAwait(false);
-            }
+            await notifier.SendAsync(message, ct).ConfigureAwait(false);
         }
         finally
         {
@@ -206,8 +252,17 @@ public class MonitorScheduler
 
     private static async Task<CertificateMonitor.Entry> CheckCertificateAsync(string domain, CancellationToken ct)
     {
-        var monitor = new CertificateMonitor();
+        using var monitor = new CertificateMonitor();
         await monitor.Analyze(new[] { $"https://{domain}" }, 443, new InternalLogger(), ct);
-        return monitor.Results.First();
+        return monitor.Results.FirstOrDefault() ?? new CertificateMonitor.Entry
+        {
+            Host = domain,
+            Url = $"https://{domain}",
+            ResolvedHost = domain,
+            Scheme = Uri.UriSchemeHttps,
+            Port = 443,
+            Service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, 443),
+            Analysis = new CertificateAnalysis()
+        };
     }
 }

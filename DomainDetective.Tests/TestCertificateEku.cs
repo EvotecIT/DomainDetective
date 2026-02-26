@@ -70,6 +70,16 @@ namespace DomainDetective.Tests {
             }
         }
 
+        [Fact]
+        public void AnalyzeMalformedEkuExtensionDoesNotThrow() {
+            using var cert = CreateSelfSignedWithRawEku(new byte[] { 0x30, 0x01, 0x06 });
+
+            var usage = CertificateExtendedKeyUsageAnalyzer.Analyze(cert);
+
+            Assert.True(usage.HasEnhancedKeyUsageExtension);
+            Assert.Empty(usage.Oids);
+        }
+
         private static X509Certificate2 CreateSelfSignedWithEku(params string[] ekuOids) {
             using var rsa = RSA.Create(2048);
             var request = new CertificateRequest("CN=eku.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -80,6 +90,15 @@ namespace DomainDetective.Tests {
                 }
                 request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(collection, false));
             }
+
+            var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+            return new X509Certificate2(cert.Export(X509ContentType.Cert));
+        }
+
+        private static X509Certificate2 CreateSelfSignedWithRawEku(byte[] rawEkuExtension) {
+            using var rsa = RSA.Create(2048);
+            var request = new CertificateRequest("CN=eku.test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            request.CertificateExtensions.Add(new X509Extension(new Oid("2.5.29.37"), rawEkuExtension, false));
 
             var cert = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
             return new X509Certificate2(cert.Export(X509ContentType.Cert));

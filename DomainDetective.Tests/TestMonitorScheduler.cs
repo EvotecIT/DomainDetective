@@ -161,4 +161,47 @@ public class TestMonitorScheduler
 
         Assert.True(maxRunning >= 2);
     }
+
+    [Fact]
+    public async Task RunAsyncCancellationWaitsForInFlightDomains()
+    {
+        var started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = 0;
+        var summaryCalls = 0;
+        using var cts = new CancellationTokenSource();
+
+        var scheduler = new MonitorScheduler
+        {
+            MaxDomainParallelism = 1,
+            SummaryOverride = async _ =>
+            {
+                if (Interlocked.Increment(ref summaryCalls) == 1)
+                {
+                    started.TrySetResult(true);
+                    await release.Task;
+                    Volatile.Write(ref completed, 1);
+                }
+                return new DomainSummary { HasMxRecord = true, ExpiryDate = "2025" };
+            },
+            CertificateOverride = _ => Task.FromResult(new CertificateMonitor.Entry
+            {
+                Host = "example.com",
+                Expired = false,
+                ExpiryDate = System.DateTime.UtcNow.AddDays(100),
+                Analysis = new CertificateAnalysis()
+            }),
+            BgpOverride = (_, _) => Task.FromResult(new System.Collections.Generic.Dictionary<string, int>())
+        };
+        scheduler.Domains.AddRange(new[] { "a.example.com", "b.example.com" });
+
+        var runTask = scheduler.RunAsync(cts.Token);
+        await started.Task;
+        cts.Cancel();
+        release.TrySetResult(true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+        Assert.Equal(1, Volatile.Read(ref completed));
+        Assert.True(summaryCalls >= 1);
+    }
 }

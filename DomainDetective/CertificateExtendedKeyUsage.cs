@@ -56,13 +56,22 @@ namespace DomainDetective {
 
             result.HasEnhancedKeyUsageExtension = true;
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var oid in ekuExtensions.SelectMany(extension => extension.EnhancedKeyUsages.Cast<Oid>())) {
-                if (string.IsNullOrWhiteSpace(oid.Value)) {
+            foreach (var extension in ekuExtensions) {
+                OidCollection usages;
+                try {
+                    usages = extension.EnhancedKeyUsages;
+                } catch (CryptographicException) {
                     continue;
                 }
 
-                if (seen.Add(oid.Value)) {
-                    result.Oids.Add(oid.Value);
+                foreach (var oid in usages.Cast<Oid>()) {
+                    if (string.IsNullOrWhiteSpace(oid.Value)) {
+                        continue;
+                    }
+
+                    if (seen.Add(oid.Value)) {
+                        result.Oids.Add(oid.Value);
+                    }
                 }
             }
 

@@ -78,7 +78,7 @@ namespace DomainDetective {
 
                 var inventoryRoot = Path.GetFullPath(InventoryDirectory)
                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                foreach (var file in Directory.GetFiles(CacheDirectory, "*", SearchOption.AllDirectories)) {
+                foreach (var file in Directory.EnumerateFiles(CacheDirectory, "*", SearchOption.AllDirectories)) {
                     var fullFilePath = Path.GetFullPath(file);
                     if (fullFilePath.StartsWith(inventoryRoot, StringComparison.OrdinalIgnoreCase)) {
                         continue;
@@ -89,7 +89,7 @@ namespace DomainDetective {
                     }
                 }
 
-                foreach (var directory in Directory.GetDirectories(CacheDirectory, "*", SearchOption.AllDirectories)
+                foreach (var directory in Directory.EnumerateDirectories(CacheDirectory, "*", SearchOption.AllDirectories)
                              .OrderByDescending(x => x.Length)) {
                     if (!Directory.EnumerateFileSystemEntries(directory).Any()) {
                         Directory.Delete(directory);
@@ -170,68 +170,88 @@ namespace DomainDetective {
                 var entries = new Entry?[list.Count];
                 var parallelism = Math.Max(1, MaxParallelism);
                 int processed = 0;
-                using var gate = new SemaphoreSlim(parallelism, parallelism);
+                var gate = new SemaphoreSlim(parallelism, parallelism);
                 var tasks = new List<Task>(list.Count);
-                for (var i = 0; i < list.Count; i++) {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var index = i;
-                    var host = list[index];
-                    await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    tasks.Add(Task.Run(async () => {
+                var schedulingCanceled = false;
+                try {
+                    for (var i = 0; i < list.Count; i++) {
                         try {
-                            CertificateServiceDescriptor target;
-                            try {
-                                target = CertificateServiceClassifier.Resolve(host, port);
-                            } catch {
-                                target = new CertificateServiceDescriptor {
-                                    Url = host,
-                                    Host = host,
-                                    Scheme = Uri.UriSchemeHttps,
-                                    Port = port,
-                                    Service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, port)
-                                };
-                            }
-
-                            CertificateAnalysis analysis;
-                            if (AnalysisOverride != null) {
-                                analysis = await AnalysisOverride(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
-                            } else {
-                                analysis = new CertificateAnalysis
-                                {
-                                    CaptureTlsDetails = true
-                                };
-                                await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
-                            }
-
-                            entries[index] = new Entry {
-                                Host = host,
-                                Url = target.Url,
-                                ResolvedHost = target.Host,
-                                Scheme = target.Scheme,
-                                Port = target.Port,
-                                Service = target.Service,
-                                ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
-                                Valid = analysis.IsValid,
-                                Expired = analysis.IsExpired,
-                                ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
-                                Protocol = analysis.TlsProtocol,
-                                Analysis = analysis
-                            };
-
-                            var done = Interlocked.Increment(ref processed);
-                            if (showProgress) {
-                                logger.WriteProgress("CertificateMonitor", host, done * 100d / list.Count, done, list.Count);
-                            }
-                        } finally {
-                            gate.Release();
+                            cancellationToken.ThrowIfCancellationRequested();
+                            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                            schedulingCanceled = true;
+                            break;
                         }
-                    }, cancellationToken));
+
+                        var index = i;
+                        var host = list[index];
+                        tasks.Add(ProcessHostAsync(index, host));
+                    }
+
+                    if (tasks.Count > 0) {
+                        await Task.WhenAll(tasks).ConfigureAwait(false);
+                    }
+                } finally {
+                    gate.Dispose();
                 }
 
-                await Task.WhenAll(tasks).ConfigureAwait(false);
+                if (schedulingCanceled) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
                 foreach (var entry in entries) {
                     if (entry != null) {
                         Results.Add(entry);
+                    }
+                }
+
+                async Task ProcessHostAsync(int index, string host) {
+                    try {
+                        CertificateServiceDescriptor target;
+                        try {
+                            target = CertificateServiceClassifier.Resolve(host, port);
+                        } catch (ArgumentException) {
+                            target = new CertificateServiceDescriptor {
+                                Url = host,
+                                Host = host,
+                                Scheme = Uri.UriSchemeHttps,
+                                Port = port,
+                                Service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, port)
+                            };
+                        }
+
+                        CertificateAnalysis analysis;
+                        if (AnalysisOverride != null) {
+                            analysis = await AnalysisOverride(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                        } else {
+                            analysis = new CertificateAnalysis
+                            {
+                                CaptureTlsDetails = true
+                            };
+                            await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                        }
+
+                        entries[index] = new Entry {
+                            Host = host,
+                            Url = target.Url,
+                            ResolvedHost = target.Host,
+                            Scheme = target.Scheme,
+                            Port = target.Port,
+                            Service = target.Service,
+                            ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
+                            Valid = analysis.IsValid,
+                            Expired = analysis.IsExpired,
+                            ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
+                            Protocol = analysis.TlsProtocol,
+                            Analysis = analysis
+                        };
+
+                        var done = Interlocked.Increment(ref processed);
+                        if (showProgress) {
+                            logger.WriteProgress("CertificateMonitor", host, done * 100d / list.Count, done, list.Count);
+                        }
+                    } finally {
+                        gate.Release();
                     }
                 }
             }
@@ -244,7 +264,7 @@ namespace DomainDetective {
         /// <summary>Number of hosts with valid certificates.</summary>
         public int ValidCount => Results.Count(e => e.Valid && !e.Expired);
         /// <summary>Number of hosts with certificates expiring soon.</summary>
-        public int ExpiringCount => Results.Count(e => e.Valid && !e.Expired && (e.ExpiryDate - DateTime.Now).TotalDays <= ExpiryWarningDays);
+        public int ExpiringCount => Results.Count(e => e.Valid && !e.Expired && (e.ExpiryDate - DateTime.UtcNow).TotalDays <= ExpiryWarningDays);
         /// <summary>Number of hosts with expired certificates.</summary>
         public int ExpiredCount => Results.Count(e => e.Expired);
         /// <summary>Number of hosts where validation failed.</summary>
