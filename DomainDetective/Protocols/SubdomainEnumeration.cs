@@ -25,6 +25,8 @@ public class SubdomainEnumeration
     public Func<string, DnsRecordType, Task<DnsAnswer[]>>? QueryDnsOverride { private get; set; }
     /// <summary>Override passive enumeration logic for testing.</summary>
     public Func<string, CancellationToken, Task<IEnumerable<string>>>? PassiveLookupOverride { private get; set; }
+    /// <summary>Override passive HTTP fetch logic for testing.</summary>
+    internal Func<string, CancellationToken, Task<string>>? PassiveHttpGetOverride { private get; set; }
 
     /// <summary>URL template for crt.sh lookups.</summary>
     public string CrtShUrlTemplate { get; set; } = "https://crt.sh/?q=%25.{0}&output=json";
@@ -104,9 +106,18 @@ public class SubdomainEnumeration
 
     private async Task<IEnumerable<string>> QueryPassiveFromUrl(string url, CancellationToken ct)
     {
-        using var resp = await _client.GetAsync(url, ct);
-        resp.EnsureSuccessStatusCode();
-        var json = await resp.Content.ReadAsStringAsync();
+        string json;
+        if (PassiveHttpGetOverride != null)
+        {
+            json = await PassiveHttpGetOverride(url, ct);
+        }
+        else
+        {
+            using var resp = await _client.GetAsync(url, ct);
+            resp.EnsureSuccessStatusCode();
+            json = await resp.Content.ReadAsStringAsync();
+        }
+
         using var doc = JsonDocument.Parse(json);
 
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
