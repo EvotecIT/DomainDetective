@@ -30,6 +30,12 @@ public sealed class SubdomainsAnalysis : IHasAssessments
     /// <summary>CT query template used for fetching candidate subdomains.</summary>
     public string CrtShUrlTemplate { get; set; } = "https://crt.sh/?q=%25.{0}&output=json";
 
+    /// <summary>Fallback CT query template used when crt.sh is unavailable.</summary>
+    public string CertSpotterUrlTemplate { get; set; } = "https://api.certspotter.com/v1/issuances?domain={0}&include_subdomains=true&expand=dns_names";
+
+    /// <summary>When true (default), queries Cert Spotter when crt.sh cannot be reached.</summary>
+    public bool UseCertSpotterFallback { get; set; } = true;
+
     /// <summary>
     /// Optional override returning the JSON payload for a given CT URL.
     /// Used by tests and offline callers.
@@ -185,23 +191,50 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         Reset();
         Subject = DomainHelper.ValidateIdn(domain);
 
-        string json;
-        try
+        var payloads = new List<string>(2);
+        string? failure = null;
+        var crtShUrl = BuildCrtShUrl(Subject);
+        if (!string.IsNullOrWhiteSpace(crtShUrl))
         {
-            var url = string.Format(CrtShUrlTemplate, Subject);
-            json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                payloads.Add(await FetchJsonAsync(crtShUrl!, cancellationToken).ConfigureAwait(false));
+            }
+            catch (Exception ex)
+            {
+                failure = ex.Message;
+                logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
+            }
         }
-        catch (Exception ex)
+
+        if (payloads.Count == 0 && UseCertSpotterFallback)
+        {
+            var fallbackUrl = BuildCertSpotterUrl(Subject);
+            if (!string.IsNullOrWhiteSpace(fallbackUrl))
+            {
+                try
+                {
+                    payloads.Add(await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false));
+                }
+                catch (Exception ex)
+                {
+                    failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
+                    logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
+                }
+            }
+        }
+
+        if (payloads.Count == 0)
         {
             QuerySucceeded = false;
-            FailureReason = ex.Message;
+            FailureReason = failure ?? "No CT source succeeded.";
             Assessments.Add(new Assessment
             {
                 Severity = AssessmentSeverity.Error,
                 Category = "Subdomains",
                 Code = SubdomainCodes.CtQueryFailed,
                 Target = Subject,
-                Message = $"CT query failed: {ex.Message}"
+                Message = $"CT query failed: {FailureReason}"
             });
             return;
         }
@@ -211,7 +244,14 @@ public sealed class SubdomainsAnalysis : IHasAssessments
 
         try
         {
-            ParseCtJson(json, Subject, issuerCounts, subdomainMap, logger);
+            foreach (var payload in payloads)
+            {
+                ParseCtJson(payload, Subject, issuerCounts, subdomainMap, logger);
+                if (ResultsCapped)
+                {
+                    break;
+                }
+            }
             QuerySucceeded = true;
         }
         catch (Exception ex)
@@ -665,6 +705,26 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
     }
 
+    private string? BuildCrtShUrl(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(CrtShUrlTemplate))
+        {
+            return null;
+        }
+
+        return string.Format(CrtShUrlTemplate, domain);
+    }
+
+    private string? BuildCertSpotterUrl(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(CertSpotterUrlTemplate))
+        {
+            return null;
+        }
+
+        return string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain));
+    }
+
     private void ParseCtJson(
         string json,
         string baseDomain,
@@ -693,26 +753,26 @@ public sealed class SubdomainsAnalysis : IHasAssessments
 
             CertificateObservationCount++;
 
-            var issuer = GetString(item, "issuer_name");
+            var issuer = GetIssuerName(item);
             if (!string.IsNullOrWhiteSpace(issuer))
             {
                 issuerCounts[issuer!] = issuerCounts.TryGetValue(issuer!, out var c) ? c + 1 : 1;
             }
 
-            var ts = GetString(item, "entry_timestamp");
+            var ts = GetString(item, "entry_timestamp") ?? GetString(item, "not_before");
             if (TryParseTimestamp(ts, out var entryTs))
             {
                 FirstSeenUtc = !FirstSeenUtc.HasValue ? entryTs : (entryTs < FirstSeenUtc.Value ? entryTs : FirstSeenUtc.Value);
                 LastSeenUtc = !LastSeenUtc.HasValue ? entryTs : (entryTs > LastSeenUtc.Value ? entryTs : LastSeenUtc.Value);
             }
 
-            var namesRaw = GetString(item, "name_value");
-            if (string.IsNullOrWhiteSpace(namesRaw))
+            var candidateNames = GetCandidateNames(item);
+            if (candidateNames.Count == 0)
             {
                 continue;
             }
 
-            foreach (var name in namesRaw!.Split('\n'))
+            foreach (var name in candidateNames)
             {
                 var normalized = NormalizeCandidate(name);
                 if (normalized == null)
@@ -904,6 +964,62 @@ public sealed class SubdomainsAnalysis : IHasAssessments
         }
 
         return p.ValueKind == JsonValueKind.String ? p.GetString() : p.ToString();
+    }
+
+    private static string? GetIssuerName(JsonElement obj)
+    {
+        var direct = GetString(obj, "issuer_name");
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        if (obj.ValueKind != JsonValueKind.Object || !obj.TryGetProperty("issuer", out var issuer))
+        {
+            return null;
+        }
+
+        if (issuer.ValueKind == JsonValueKind.String)
+        {
+            return issuer.GetString();
+        }
+
+        if (issuer.ValueKind == JsonValueKind.Object)
+        {
+            return GetString(issuer, "name") ?? GetString(issuer, "common_name") ?? GetString(issuer, "organization");
+        }
+
+        return null;
+    }
+
+    private static List<string> GetCandidateNames(JsonElement obj)
+    {
+        var names = new List<string>();
+
+        var nameValue = GetString(obj, "name_value");
+        if (!string.IsNullOrWhiteSpace(nameValue))
+        {
+            names.AddRange(nameValue!.Split('\n'));
+        }
+
+        if (obj.ValueKind == JsonValueKind.Object &&
+            obj.TryGetProperty("dns_names", out var dnsNames) &&
+            dnsNames.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var dnsName in dnsNames.EnumerateArray())
+            {
+                if (dnsName.ValueKind == JsonValueKind.String)
+                {
+                    var value = dnsName.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        names.Add(value!);
+                    }
+                }
+            }
+        }
+
+        return names;
     }
 
     private static bool TryParseTimestamp(string? value, out DateTimeOffset result)

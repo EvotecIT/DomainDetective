@@ -26,6 +26,12 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
     /// <summary>CT query template for exact-name query (covers apex-only certificates).</summary>
     public string CrtShExactUrlTemplate { get; set; } = "https://crt.sh/?q={0}&output=json";
 
+    /// <summary>Fallback CT query template used when crt.sh queries fail.</summary>
+    public string CertSpotterUrlTemplate { get; set; } = "https://api.certspotter.com/v1/issuances?domain={0}&include_subdomains=true&expand=dns_names";
+
+    /// <summary>When true (default), queries Cert Spotter if all crt.sh queries fail.</summary>
+    public bool UseCertSpotterFallback { get; set; } = true;
+
     /// <summary>
     /// Optional override returning the JSON payload for a given CT URL.
     /// Used by tests and offline callers.
@@ -125,15 +131,51 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
         try
         {
+            var anyPayloadParsed = false;
+            string? lastFailure = null;
             foreach (var url in urls)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
-                ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                try
+                {
+                    var json = await FetchJsonAsync(url, cancellationToken).ConfigureAwait(false);
+                    ParseCtJson(json, now, issuerCounts, certs, bucketAgg, logger);
+                    anyPayloadParsed = true;
+                }
+                catch (Exception ex)
+                {
+                    lastFailure = ex.Message;
+                    logger?.WriteVerbose("Primary CT source failed for {0}: {1}", Subject, ex.Message);
+                }
+
                 if (ResultsCapped)
                 {
                     break;
                 }
+            }
+
+            if (!anyPayloadParsed && UseCertSpotterFallback)
+            {
+                var fallbackUrl = BuildCertSpotterUrl(Subject!);
+                if (!string.IsNullOrWhiteSpace(fallbackUrl))
+                {
+                    try
+                    {
+                        var fallbackJson = await FetchJsonAsync(fallbackUrl!, cancellationToken).ConfigureAwait(false);
+                        ParseCtJson(fallbackJson, now, issuerCounts, certs, bucketAgg, logger);
+                        anyPayloadParsed = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastFailure = lastFailure == null ? ex.Message : $"{lastFailure}; fallback failed: {ex.Message}";
+                        logger?.WriteVerbose("Fallback CT source failed for {0}: {1}", Subject, ex.Message);
+                    }
+                }
+            }
+
+            if (!anyPayloadParsed)
+            {
+                throw new InvalidOperationException(lastFailure ?? "No CT source succeeded.");
             }
 
             QuerySucceeded = true;
@@ -290,6 +332,16 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         return list.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    private string? BuildCertSpotterUrl(string domain)
+    {
+        if (string.IsNullOrWhiteSpace(CertSpotterUrlTemplate))
+        {
+            return null;
+        }
+
+        return string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain));
+    }
+
     private async Task<string> FetchJsonAsync(string url, CancellationToken cancellationToken)
     {
         if (QueryOverride != null)
@@ -310,7 +362,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
             string? commonName,
             string? nameValue,
             string? serialNumber,
-            int? id,
+            string? id,
             DateTimeOffset? entryTimestampUtc,
             DateTimeOffset? notBeforeUtc,
             DateTimeOffset? notAfterUtc)
@@ -329,7 +381,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         public string? CommonName { get; }
         public string? NameValue { get; }
         public string? SerialNumber { get; }
-        public int? Id { get; }
+        public string? Id { get; }
         public DateTimeOffset? EntryTimestampUtc { get; }
         public DateTimeOffset? NotBeforeUtc { get; }
         public DateTimeOffset? NotAfterUtc { get; }
@@ -398,13 +450,13 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
 
     private static CtRow ReadCtRow(JsonElement item)
     {
-        var issuerName = GetString(item, "issuer_name");
-        var commonName = GetString(item, "common_name");
-        var nameValue = GetString(item, "name_value");
+        var issuerName = GetIssuerName(item);
+        var commonName = GetCommonName(item);
+        var nameValue = GetNameValue(item);
         var serial = GetString(item, "serial_number");
-        var id = GetInt(item, "id") ?? GetInt(item, "min_cert_id");
+        var id = GetString(item, "id") ?? GetString(item, "min_cert_id");
 
-        var entryTs = ParseTimestamp(GetString(item, "entry_timestamp"));
+        var entryTs = ParseTimestamp(GetString(item, "entry_timestamp") ?? GetString(item, "not_before"));
         var notBefore = ParseTimestamp(GetString(item, "not_before"));
         var notAfter = ParseTimestamp(GetString(item, "not_after"));
 
@@ -622,7 +674,7 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
     }
 
     private static string BuildCertificateKey(
-        int? id,
+        string? id,
         string? issuerName,
         string? serial,
         DateTimeOffset? notBefore,
@@ -630,9 +682,10 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         string? commonName,
         string? nameValue)
     {
-        if (id.HasValue && id.Value > 0)
+        var keyId = (id ?? string.Empty).Trim();
+        if (keyId.Length > 0)
         {
-            return "id:" + id.Value.ToString(CultureInfo.InvariantCulture);
+            return "id:" + keyId;
         }
 
         var issuer = (issuerName ?? string.Empty).Trim();
@@ -646,6 +699,96 @@ public sealed class CertificateTransparencyTimelineAnalysis : IHasAssessments
         if (nv.Length > 512) nv = nv.Substring(0, 512);
         if (cn.Length > 256) cn = cn.Substring(0, 256);
         return $"{issuer}|{ser}|{nb}|{na}|{cn}|{nv}";
+    }
+
+    private static string? GetIssuerName(JsonElement item)
+    {
+        var direct = GetString(item, "issuer_name");
+        if (!string.IsNullOrWhiteSpace(direct))
+        {
+            return direct;
+        }
+
+        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("issuer", out var issuer))
+        {
+            return null;
+        }
+
+        if (issuer.ValueKind == JsonValueKind.String)
+        {
+            return issuer.GetString();
+        }
+
+        if (issuer.ValueKind == JsonValueKind.Object)
+        {
+            return GetString(issuer, "name") ?? GetString(issuer, "common_name") ?? GetString(issuer, "organization");
+        }
+
+        return null;
+    }
+
+    private static string? GetCommonName(JsonElement item)
+    {
+        var commonName = GetString(item, "common_name");
+        if (!string.IsNullOrWhiteSpace(commonName))
+        {
+            return commonName;
+        }
+
+        if (item.ValueKind == JsonValueKind.Object &&
+            item.TryGetProperty("dns_names", out var dnsNames) &&
+            dnsNames.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var dnsName in dnsNames.EnumerateArray())
+            {
+                if (dnsName.ValueKind == JsonValueKind.String)
+                {
+                    var value = dnsName.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetNameValue(JsonElement item)
+    {
+        var nameValue = GetString(item, "name_value");
+        if (!string.IsNullOrWhiteSpace(nameValue))
+        {
+            return nameValue;
+        }
+
+        if (item.ValueKind != JsonValueKind.Object ||
+            !item.TryGetProperty("dns_names", out var dnsNames) ||
+            dnsNames.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var values = new List<string>();
+        foreach (var dnsName in dnsNames.EnumerateArray())
+        {
+            if (dnsName.ValueKind == JsonValueKind.String)
+            {
+                var value = dnsName.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    values.Add(value!);
+                }
+            }
+        }
+
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join("\n", values);
     }
 
     private static bool DetectWildcard(string? commonName, string? nameValue)

@@ -29,6 +29,12 @@ public class SubdomainEnumeration
     /// <summary>URL template for crt.sh lookups.</summary>
     public string CrtShUrlTemplate { get; set; } = "https://crt.sh/?q=%25.{0}&output=json";
 
+    /// <summary>Fallback URL template for Cert Spotter lookups.</summary>
+    public string CertSpotterUrlTemplate { get; set; } = "https://api.certspotter.com/v1/issuances?domain={0}&include_subdomains=true&expand=dns_names";
+
+    /// <summary>When true (default), tries Cert Spotter if crt.sh fails.</summary>
+    public bool UseCertSpotterFallback { get; set; } = true;
+
     /// <summary>List of subdomains discovered via brute force.</summary>
     public List<string> BruteForceResults { get; private set; } = new();
 
@@ -53,23 +59,88 @@ public class SubdomainEnumeration
             return await PassiveLookupOverride(domain, ct);
         }
 
-        var url = string.Format(CrtShUrlTemplate, domain);
+        string? failure = null;
+        if (!string.IsNullOrWhiteSpace(CrtShUrlTemplate))
+        {
+            try
+            {
+                return await QueryPassiveFromUrl(string.Format(CrtShUrlTemplate, domain), ct);
+            }
+            catch (Exception ex)
+            {
+                failure = ex.Message;
+            }
+        }
+
+        if (UseCertSpotterFallback && !string.IsNullOrWhiteSpace(CertSpotterUrlTemplate))
+        {
+            try
+            {
+                return await QueryPassiveFromUrl(string.Format(CertSpotterUrlTemplate, Uri.EscapeDataString(domain)), ct);
+            }
+            catch (Exception ex)
+            {
+                failure = failure == null ? ex.Message : $"{failure}; fallback failed: {ex.Message}";
+            }
+        }
+
+        throw new InvalidOperationException(failure ?? "No passive CT source succeeded.");
+    }
+
+    private static string? GetString(JsonElement obj, string propertyName)
+    {
+        if (obj.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        if (!obj.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+    }
+
+    private async Task<IEnumerable<string>> QueryPassiveFromUrl(string url, CancellationToken ct)
+    {
         using var resp = await _client.GetAsync(url, ct);
         resp.EnsureSuccessStatusCode();
         var json = await resp.Content.ReadAsStringAsync();
         using var doc = JsonDocument.Parse(json);
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
         var list = new List<string>();
         foreach (var item in doc.RootElement.EnumerateArray())
         {
-            if (item.TryGetProperty("name_value", out var nv))
+            var namesRaw = GetString(item, "name_value");
+            if (!string.IsNullOrWhiteSpace(namesRaw))
             {
-                var vals = nv.GetString();
-                if (vals != null && !string.IsNullOrWhiteSpace(vals))
+                list.AddRange(namesRaw!.Split('\n'));
+            }
+
+            if (item.ValueKind == JsonValueKind.Object &&
+                item.TryGetProperty("dns_names", out var dnsNames) &&
+                dnsNames.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var dnsName in dnsNames.EnumerateArray())
                 {
-                    list.AddRange(vals.Split('\n'));
+                    if (dnsName.ValueKind == JsonValueKind.String)
+                    {
+                        var value = dnsName.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            list.Add(value!);
+                        }
+                    }
                 }
             }
         }
+
         return list.Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
