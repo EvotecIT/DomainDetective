@@ -361,6 +361,98 @@ namespace DomainDetective {
                 maxExpiringEndpoints);
         }
 
+        /// <summary>Queries persisted inventory entries using structured filters.</summary>
+        /// <param name="query">Query options.</param>
+        public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {
+            var effectiveQuery = query ?? new CertificateInventoryQuery();
+            var result = new CertificateInventoryQueryResult();
+            var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
+                .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
+                .ToList();
+            var now = DateTimeOffset.UtcNow;
+            foreach (var snapshot in snapshots) {
+                if (effectiveQuery.UntilUtc.HasValue && snapshot.CapturedAtUtc > effectiveQuery.UntilUtc.Value) {
+                    continue;
+                }
+
+                result.ScannedSnapshotCount++;
+                foreach (var entry in snapshot.Entries) {
+                    result.ScannedEntryCount++;
+                    if (!MatchesQuery(entry, effectiveQuery, now)) {
+                        continue;
+                    }
+
+                    result.MatchedEntryCount++;
+                    if (result.Entries.Count >= Math.Max(0, effectiveQuery.MaxResults)) {
+                        result.Truncated = true;
+                        return result;
+                    }
+
+                    result.Entries.Add(new CertificateInventoryObservedEntry {
+                        CapturedAtUtc = snapshot.CapturedAtUtc,
+                        Entry = entry
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        private static bool MatchesQuery(CertificateInventoryEntry entry, CertificateInventoryQuery query, DateTimeOffset now) {
+            var hostContains = query.HostContains;
+            if (!string.IsNullOrWhiteSpace(hostContains)) {
+                var hostNeedle = hostContains!.Trim();
+                var hostHaystack = entry.ResolvedHost ?? entry.Host;
+                if (hostHaystack.IndexOf(hostNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var serviceEquals = query.ServiceEquals;
+            if (!string.IsNullOrWhiteSpace(serviceEquals)) {
+                var expectedService = serviceEquals!.Trim();
+                var actualService = string.IsNullOrWhiteSpace(entry.Service)
+                    ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
+                    : entry.Service ?? string.Empty;
+                if (!actualService.Equals(expectedService, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
+            var issuerContains = query.IssuerContains;
+            if (!string.IsNullOrWhiteSpace(issuerContains)) {
+                var issuerNeedle = issuerContains!.Trim();
+                var issuerHaystack = entry.CertificateIssuerNormalized ?? entry.CertificateIssuerOrganization ?? entry.CertificateIssuer ?? string.Empty;
+                if (issuerHaystack.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            if (query.KnownAuthorityOnly.HasValue && query.KnownAuthorityOnly.Value && !entry.IsKnownCertificateAuthority) {
+                return false;
+            }
+
+            if (query.ExpiredOnly.HasValue) {
+                var isExpired = entry.NotAfterUtc.HasValue && entry.NotAfterUtc.Value <= now;
+                if (query.ExpiredOnly.Value != isExpired) {
+                    return false;
+                }
+            }
+
+            if (query.ExpiringWithinDays.HasValue) {
+                if (!entry.NotAfterUtc.HasValue) {
+                    return false;
+                }
+
+                var threshold = now.AddDays(Math.Max(0, query.ExpiringWithinDays.Value));
+                if (entry.NotAfterUtc.Value > threshold || entry.NotAfterUtc.Value <= now) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>Disposes timer resources.</summary>
         public void Dispose() {
             Stop();
