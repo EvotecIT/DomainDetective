@@ -386,9 +386,9 @@ namespace DomainDetective {
                 AllowsClientAuthentication = analysis.AllowsClientAuthentication,
                 AllowsSecureEmail = analysis.AllowsSecureEmail,
                 AuthenticationProfile = analysis.AuthenticationProfile,
-                CertificateChainSource = analysis.ChainSource
+                CertificateChainSource = analysis.ChainSource,
+                CtDiscoverySources = analysis.CtDiscoverySources.ToArray()
             };
-            snapshotEntry.CtDiscoverySources.AddRange(analysis.CtDiscoverySources);
             snapshotEntry.CertificateChainSources.AddRange(analysis.ChainSourceHistory);
             snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
             snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
@@ -633,7 +633,7 @@ namespace DomainDetective {
             var chainSourceContains = query.ChainSourceContains;
             if (!string.IsNullOrWhiteSpace(chainSourceContains)) {
                 var chainNeedle = chainSourceContains!.Trim();
-                var hasChainSourceMatch = EnumerateChainSources(entry).Any(source =>
+                var hasChainSourceMatch = CertificateInventoryEntryHelpers.EnumerateChainSources(entry).Any(source =>
                     source.IndexOf(chainNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
                 if (!hasChainSourceMatch) {
                     return false;
@@ -703,7 +703,7 @@ namespace DomainDetective {
             var authenticationProfileEquals = query.AuthenticationProfileEquals;
             if (!string.IsNullOrWhiteSpace(authenticationProfileEquals)) {
                 var expectedProfile = authenticationProfileEquals!.Trim();
-                var actualProfile = ResolveAuthenticationProfile(entry);
+                var actualProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry);
                 if (!actualProfile.Equals(expectedProfile, StringComparison.OrdinalIgnoreCase)) {
                     return false;
                 }
@@ -721,38 +721,6 @@ namespace DomainDetective {
             }
 
             return true;
-        }
-
-        private static string ResolveAuthenticationProfile(CertificateInventoryEntry entry) {
-            if (!string.IsNullOrWhiteSpace(entry.AuthenticationProfile)) {
-                return entry.AuthenticationProfile!;
-            }
-
-            return CertificateAuthenticationProfileClassifier.Classify(
-                entry.HasEnhancedKeyUsageExtension,
-                entry.HasAnyExtendedKeyUsageOid,
-                entry.AllowsServerAuthentication,
-                entry.AllowsClientAuthentication,
-                entry.AllowsSecureEmail,
-                entry.ExtendedKeyUsageOids);
-        }
-
-        private static IEnumerable<string> EnumerateChainSources(CertificateInventoryEntry entry) {
-            if (!string.IsNullOrWhiteSpace(entry.CertificateChainSource)) {
-                yield return entry.CertificateChainSource!;
-            }
-
-            if (entry.CertificateChainSources == null) {
-                yield break;
-            }
-
-            foreach (var source in entry.CertificateChainSources) {
-                if (string.IsNullOrWhiteSpace(source)) {
-                    continue;
-                }
-
-                yield return source;
-            }
         }
 
         private static string NormalizeThumbprint(string? value) {

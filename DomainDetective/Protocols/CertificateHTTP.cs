@@ -167,7 +167,7 @@ namespace DomainDetective {
         public IReadOnlyList<string> CtDiscoverySources => _ctDiscoverySources;
 
         private readonly List<JsonElement> _ctLogEntries = new();
-        private readonly List<string> _ctDiscoverySources = new();
+        private volatile string[] _ctDiscoverySources = Array.Empty<string>();
         private readonly CtLogAggregator _ctLogAggregator = new();
         private const string ChainSourceTlsHandshake = "tls-handshake";
         private const string ChainSourceSslStreamBuild = "sslstream-build";
@@ -443,7 +443,7 @@ namespace DomainDetective {
         {
             PresentInCtLogs = false;
             _ctLogEntries.Clear();
-            _ctDiscoverySources.Clear();
+            _ctDiscoverySources = Array.Empty<string>();
             if (Certificate == null)
             {
                 return;
@@ -467,7 +467,10 @@ namespace DomainDetective {
 
             var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
             _ctLogEntries.AddRange(entries);
-            _ctDiscoverySources.AddRange(_ctLogAggregator.LastQueriedSources);
+            _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
+                .Where(source => !string.IsNullOrWhiteSpace(source))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
         }
 

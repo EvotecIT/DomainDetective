@@ -48,7 +48,7 @@ namespace DomainDetective.Tests {
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootIssuer));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootThumbprint));
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerNormalized));
-                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateChainSource));
+                    Assert.False(string.IsNullOrWhiteSpace(entry.CertificateChainSource));
                     Assert.NotEmpty(entry.CertificateChainSources);
                     Assert.True(entry.CertificateChainLength >= 1);
                     Assert.True(entry.CertificateChainSubjects.Count >= 1);

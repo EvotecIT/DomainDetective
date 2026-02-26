@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -24,13 +25,11 @@ public sealed class CtLogAggregator
         public List<JsonElement> Entries { get; init; } = new();
     }
 
-    private sealed class CtDiscoveryRequest
-    {
-        public string SourceName { get; init; } = string.Empty;
-        public string Url { get; init; } = string.Empty;
-        public string CacheKey { get; init; } = string.Empty;
-        public Dictionary<string, string> Headers { get; init; } = new(StringComparer.OrdinalIgnoreCase);
-    }
+    private sealed record CtDiscoveryRequest(
+        string SourceName,
+        string Url,
+        string CacheKey,
+        Dictionary<string, string>? Headers = null);
 
     private static readonly ConcurrentDictionary<string, CacheItem> SharedResponseCache = new(StringComparer.Ordinal);
     private static readonly object SharedRequestGateLock = new();
@@ -60,8 +59,11 @@ public sealed class CtLogAggregator
     public string ShodanApiUrlTemplate { get; set; } = "https://api.shodan.io/shodan/host/search?key={1}&query=ssl.cert.fingerprint.sha256:{0}";
     /// <summary>Names of discovery sources configured for the last <see cref="QueryAsync"/> call.</summary>
     public IReadOnlyList<string> LastQueriedSources => _lastQueriedSources;
+    /// <summary>Template-format errors captured in the last <see cref="QueryAsync"/> call.</summary>
+    public IReadOnlyList<string> LastTemplateFormatErrors => _lastTemplateFormatErrors;
 
-    private string[] _lastQueriedSources = Array.Empty<string>();
+    private volatile string[] _lastQueriedSources = Array.Empty<string>();
+    private volatile string[] _lastTemplateFormatErrors = Array.Empty<string>();
 
     /// <summary>How long successful CT responses should be cached (shared across all instances).</summary>
     public TimeSpan CacheTtl {
@@ -129,6 +131,7 @@ public sealed class CtLogAggregator
     {
         var results = new List<JsonElement>();
         _lastQueriedSources = Array.Empty<string>();
+        _lastTemplateFormatErrors = Array.Empty<string>();
         if (string.IsNullOrWhiteSpace(fingerprint))
         {
             return results;
@@ -143,8 +146,10 @@ public sealed class CtLogAggregator
         }
 
         var discoverySources = new List<string>();
-        var requests = BuildDiscoveryRequests(fingerprint, discoverySources);
+        var templateFormatErrors = new List<string>();
+        var requests = BuildDiscoveryRequests(fingerprint, discoverySources, templateFormatErrors);
         _lastQueriedSources = discoverySources.ToArray();
+        _lastTemplateFormatErrors = templateFormatErrors.ToArray();
         if (requests.Count == 0)
         {
             return results;
@@ -183,7 +188,10 @@ public sealed class CtLogAggregator
         return results;
     }
 
-    private List<CtDiscoveryRequest> BuildDiscoveryRequests(string fingerprint, ICollection<string> discoverySources)
+    private List<CtDiscoveryRequest> BuildDiscoveryRequests(
+        string fingerprint,
+        ICollection<string> discoverySources,
+        ICollection<string> templateFormatErrors)
     {
         var requests = new List<CtDiscoveryRequest>();
         var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -191,9 +199,12 @@ public sealed class CtLogAggregator
 
         foreach (var template in ApiTemplates)
         {
-            var url = SafeFormat(template, fingerprint);
-            if (string.IsNullOrWhiteSpace(url))
+            if (!TryFormatTemplate(template, out var url, out var formatError, fingerprint))
             {
+                if (!string.IsNullOrWhiteSpace(formatError))
+                {
+                    templateFormatErrors.Add($"ApiTemplates: {formatError}");
+                }
                 continue;
             }
 
@@ -204,12 +215,7 @@ public sealed class CtLogAggregator
                 continue;
             }
 
-            requests.Add(new CtDiscoveryRequest
-            {
-                SourceName = sourceName,
-                Url = url,
-                CacheKey = cacheKey
-            });
+            requests.Add(new CtDiscoveryRequest(sourceName, url, cacheKey));
 
             if (seenSources.Add(sourceName))
             {
@@ -219,23 +225,20 @@ public sealed class CtLogAggregator
 
         if (EnableCensysSource && !string.IsNullOrWhiteSpace(CensysApiId) && !string.IsNullOrWhiteSpace(CensysApiSecret))
         {
-            var url = SafeFormat(CensysApiUrlTemplate, fingerprint);
-            if (!string.IsNullOrWhiteSpace(url))
+            if (TryFormatTemplate(CensysApiUrlTemplate, out var url, out var formatError, fingerprint))
             {
                 var authorization = BuildBasicAuthorizationHeader(CensysApiId!, CensysApiSecret!);
                 var cacheKey = $"censys:{url}:{CensysApiId}";
                 if (seenCacheKeys.Add(cacheKey))
                 {
-                    requests.Add(new CtDiscoveryRequest
-                    {
-                        SourceName = "censys",
-                        Url = url,
-                        CacheKey = cacheKey,
-                        Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    requests.Add(new CtDiscoveryRequest(
+                        "censys",
+                        url,
+                        cacheKey,
+                        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                         {
                             ["Authorization"] = authorization
-                        }
-                    });
+                        }));
 
                     if (seenSources.Add("censys"))
                     {
@@ -243,29 +246,33 @@ public sealed class CtLogAggregator
                     }
                 }
             }
+            else if (!string.IsNullOrWhiteSpace(formatError))
+            {
+                templateFormatErrors.Add($"CensysApiUrlTemplate: {formatError}");
+            }
         }
 
         if (EnableShodanSource && !string.IsNullOrWhiteSpace(ShodanApiKey))
         {
             var escapedApiKey = Uri.EscapeDataString(ShodanApiKey);
-            var url = SafeFormat(ShodanApiUrlTemplate, fingerprint, escapedApiKey);
-            if (!string.IsNullOrWhiteSpace(url))
+            if (TryFormatTemplate(ShodanApiUrlTemplate, out var url, out var formatError, fingerprint, escapedApiKey))
             {
+                // Shodan query uses the field-selector syntax with a literal colon.
+                // Keep source names fixed so query-string API keys are not surfaced in display/log paths.
                 var cacheKey = $"shodan:{url}";
                 if (seenCacheKeys.Add(cacheKey))
                 {
-                    requests.Add(new CtDiscoveryRequest
-                    {
-                        SourceName = "shodan",
-                        Url = url,
-                        CacheKey = cacheKey
-                    });
+                    requests.Add(new CtDiscoveryRequest("shodan", url, cacheKey));
 
                     if (seenSources.Add("shodan"))
                     {
                         discoverySources.Add("shodan");
                     }
                 }
+            }
+            else if (!string.IsNullOrWhiteSpace(formatError))
+            {
+                templateFormatErrors.Add($"ShodanApiUrlTemplate: {formatError}");
             }
         }
 
@@ -282,9 +289,12 @@ public sealed class CtLogAggregator
             {
                 await WaitForRateLimitAsync(cancellationToken).ConfigureAwait(false);
                 using var message = new HttpRequestMessage(HttpMethod.Get, request.Url);
-                foreach (var header in request.Headers)
+                if (request.Headers != null)
                 {
-                    message.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    foreach (var header in request.Headers)
+                    {
+                        message.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    }
                 }
 
                 using var response = await client.SendAsync(message, cancellationToken).ConfigureAwait(false);
@@ -298,16 +308,23 @@ public sealed class CtLogAggregator
                 {
                     return Array.Empty<JsonElement>();
                 }
+
+                var delay = MaxDelay(ComputeBackoff(attempt), ComputeRetryAfterDelay(response));
+                if (delay > TimeSpan.Zero)
+                {
+                    await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
+                }
+                continue;
             }
             catch (Exception ex) when (IsTransientException(ex, cancellationToken) && attempt < attempts)
             {
                 // Continue with retry path.
             }
 
-            var delay = ComputeBackoff(attempt);
-            if (delay > TimeSpan.Zero)
+            var backoffDelay = ComputeBackoff(attempt);
+            if (backoffDelay > TimeSpan.Zero)
             {
-                await DelayAsync(delay, cancellationToken).ConfigureAwait(false);
+                await DelayAsync(backoffDelay, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -320,20 +337,29 @@ public sealed class CtLogAggregator
         return $"Basic {encoded}";
     }
 
-    private static string SafeFormat(string template, params object[] args)
+    private static bool TryFormatTemplate(string template, out string formatted, out string? formatError, params object[] args)
     {
+        formatted = string.Empty;
+        formatError = null;
         if (string.IsNullOrWhiteSpace(template))
         {
-            return string.Empty;
+            return false;
         }
 
         try
         {
-            return string.Format(template, args);
+            formatted = string.Format(CultureInfo.InvariantCulture, template, args);
+            if (string.IsNullOrWhiteSpace(formatted))
+            {
+                return false;
+            }
+
+            return true;
         }
-        catch (FormatException)
+        catch (FormatException ex)
         {
-            return string.Empty;
+            formatError = ex.Message;
+            return false;
         }
     }
 
@@ -344,7 +370,13 @@ public sealed class CtLogAggregator
             return uri.Host;
         }
 
-        return fallback;
+        if (string.IsNullOrWhiteSpace(fallback))
+        {
+            return "unknown";
+        }
+
+        var normalized = fallback.Trim();
+        return normalized.Length <= 80 ? normalized : normalized.Substring(0, 80);
     }
 
     private async Task WaitForRateLimitAsync(CancellationToken cancellationToken)
@@ -417,6 +449,36 @@ public sealed class CtLogAggregator
                value == 425;
     }
 
+    private static TimeSpan ComputeRetryAfterDelay(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter == null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (retryAfter.Delta.HasValue && retryAfter.Delta.Value > TimeSpan.Zero)
+        {
+            return retryAfter.Delta.Value;
+        }
+
+        if (retryAfter.Date.HasValue)
+        {
+            var delta = retryAfter.Date.Value - DateTimeOffset.UtcNow;
+            if (delta > TimeSpan.Zero)
+            {
+                return delta;
+            }
+        }
+
+        return TimeSpan.Zero;
+    }
+
+    private static TimeSpan MaxDelay(TimeSpan first, TimeSpan second)
+    {
+        return first >= second ? first : second;
+    }
+
     private TimeSpan ComputeBackoff(int attempt)
     {
         if (RetryDelay <= TimeSpan.Zero)
@@ -458,6 +520,7 @@ public sealed class CtLogAggregator
                 doc.RootElement.ValueKind == JsonValueKind.Object &&
                 doc.RootElement.TryGetProperty("matches", out var matches))
             {
+                // Expected Shodan shape: { "matches": [ { ... }, ... ] }
                 if (matches.ValueKind != JsonValueKind.Array)
                 {
                     return Array.Empty<JsonElement>();

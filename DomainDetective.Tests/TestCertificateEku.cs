@@ -21,7 +21,7 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.AllowsClientAuthentication);
             Assert.False(analysis.AllowsSecureEmail);
             Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, analysis.AuthenticationProfile);
-            Assert.True(!string.IsNullOrWhiteSpace(analysis.ChainSource));
+            Assert.False(string.IsNullOrWhiteSpace(analysis.ChainSource));
             Assert.NotEmpty(analysis.ChainSourceHistory);
             Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid, analysis.ExtendedKeyUsageOids);
             Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ClientAuthenticationOid, analysis.ExtendedKeyUsageOids);

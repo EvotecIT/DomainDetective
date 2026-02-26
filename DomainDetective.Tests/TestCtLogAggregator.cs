@@ -241,12 +241,78 @@ public class TestCtLogAggregator
         Assert.Contains("shodan", aggregator.LastQueriedSources);
     }
 
+    [Fact]
+    public async Task SkipsInvalidTemplateAndRecordsFormatError()
+    {
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse(HttpStatusCode.OK, "[{\"id\":88}]")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.ApiTemplates.Add("https://api-valid/{0}");
+        aggregator.ApiTemplates.Add("https://api-invalid/{0");
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.RetryDelay = TimeSpan.Zero;
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Single(entries);
+        Assert.Equal(88, entries[0].GetProperty("id").GetInt32());
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Single(aggregator.LastTemplateFormatErrors);
+        Assert.Contains("ApiTemplates", aggregator.LastTemplateFormatErrors[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UsesRetryAfterDelayWhenPresent()
+    {
+        var retryAfter = TimeSpan.FromSeconds(4);
+        var observedDelays = new List<TimeSpan>();
+        var handler = new SequenceHandler(new[]
+        {
+            CreateJsonResponse((HttpStatusCode)429, string.Empty, retryAfter: retryAfter),
+            CreateJsonResponse(HttpStatusCode.OK, "[{\"id\":19}]")
+        });
+
+        var aggregator = new CtLogAggregator { HttpHandlerFactory = () => handler };
+        aggregator.ApiTemplates.Clear();
+        aggregator.ApiTemplates.Add("https://api-rate-limit/{0}");
+        aggregator.MaxAttemptsPerRequest = 2;
+        aggregator.RetryDelay = TimeSpan.FromMilliseconds(50);
+        aggregator.MinimumRequestSpacing = TimeSpan.Zero;
+        aggregator.DelayOverride = (delay, _) =>
+        {
+            observedDelays.Add(delay);
+            return Task.CompletedTask;
+        };
+
+        var entries = await aggregator.QueryAsync("fp123");
+
+        Assert.Single(entries);
+        Assert.Equal(19, entries[0].GetProperty("id").GetInt32());
+        Assert.Equal(2, handler.RequestCount);
+        Assert.Contains(observedDelays, delay => delay >= retryAfter);
+    }
+
     private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json)
     {
         return new HttpResponseMessage(statusCode)
         {
             Content = new StringContent(json)
         };
+    }
+
+    private static HttpResponseMessage CreateJsonResponse(HttpStatusCode statusCode, string json, TimeSpan? retryAfter)
+    {
+        var response = CreateJsonResponse(statusCode, json);
+        if (retryAfter.HasValue)
+        {
+            response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(retryAfter.Value);
+        }
+
+        return response;
     }
 
     private sealed class SequenceHandler : HttpMessageHandler

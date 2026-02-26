@@ -92,8 +92,8 @@ namespace DomainDetective {
 
                 var issuer = PickIssuer(entry);
                 Increment(summary.IssuerCounts, issuer);
-                Increment(summary.AuthenticationProfileCounts, ResolveAuthenticationProfile(entry));
-                Increment(summary.ChainSourceCounts, PickChainSource(entry));
+                Increment(summary.AuthenticationProfileCounts, CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry));
+                Increment(summary.ChainSourceCounts, CertificateInventoryEntryHelpers.PickChainSource(entry));
                 IncrementCtSources(summary.CtSourceCounts, entry);
 
                 if (!entry.AllowsServerAuthentication) {
@@ -187,36 +187,6 @@ namespace DomainDetective {
                 return CertificateIssuerClassifier.Classify(entry.CertificateRootIssuer).NormalizedName;
             }
             return "Unknown";
-        }
-
-        private static string ResolveAuthenticationProfile(CertificateInventoryEntry entry) {
-            if (!string.IsNullOrWhiteSpace(entry.AuthenticationProfile)) {
-                return entry.AuthenticationProfile!;
-            }
-
-            return CertificateAuthenticationProfileClassifier.Classify(
-                entry.HasEnhancedKeyUsageExtension,
-                entry.HasAnyExtendedKeyUsageOid,
-                entry.AllowsServerAuthentication,
-                entry.AllowsClientAuthentication,
-                entry.AllowsSecureEmail,
-                entry.ExtendedKeyUsageOids);
-        }
-
-        private static string PickChainSource(CertificateInventoryEntry entry) {
-            if (!string.IsNullOrWhiteSpace(entry.CertificateChainSource)) {
-                return entry.CertificateChainSource!;
-            }
-
-            if (entry.CertificateChainSources != null) {
-                foreach (var source in entry.CertificateChainSources) {
-                    if (!string.IsNullOrWhiteSpace(source)) {
-                        return source;
-                    }
-                }
-            }
-
-            return "unknown";
         }
 
         private static void IncrementCtSources(Dictionary<string, int> counters, CertificateInventoryEntry entry) {
