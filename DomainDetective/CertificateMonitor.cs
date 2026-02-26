@@ -401,6 +401,27 @@ namespace DomainDetective {
                 maxEndpoints);
         }
 
+        /// <summary>Builds a point-in-time diff between two inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="previousCapturedAtUtc">Optional previous snapshot timestamp selector.</param>
+        /// <param name="currentCapturedAtUtc">Optional current snapshot timestamp selector.</param>
+        /// <param name="includeUnchanged">When true, includes unchanged endpoints in results.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryDiffSummary BuildInventoryDiff(
+            DateTimeOffset? sinceUtc = null,
+            DateTimeOffset? previousCapturedAtUtc = null,
+            DateTimeOffset? currentCapturedAtUtc = null,
+            bool includeUnchanged = false,
+            int maxEndpoints = 500) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryDiffAnalyzer.BuildDiff(
+                snapshots,
+                previousCapturedAtUtc,
+                currentCapturedAtUtc,
+                includeUnchanged,
+                maxEndpoints);
+        }
+
         /// <summary>Queries persisted inventory entries using structured filters.</summary>
         /// <param name="query">Query options.</param>
         public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {

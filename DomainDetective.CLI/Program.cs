@@ -183,6 +183,13 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("cert-inventory-drift")
                 .WithDescription("Analyze certificate drift and rotation across persisted snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("CertificateInventoryDiff")
+                .WithDescription("Compare two certificate inventory snapshots")
+                .WithExample(new[] { "CertificateInventoryDiff", "--since-utc", "2026-01-01" })
+                .WithExample(new[] { "CertificateInventoryDiff", "--previous-utc", "2026-02-01", "--current-utc", "2026-02-15", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDiffCommand>("cert-inventory-diff")
+                .WithDescription("Compare two certificate inventory snapshots (alias)");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);
