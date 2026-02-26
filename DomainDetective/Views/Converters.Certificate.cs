@@ -35,6 +35,13 @@ public static partial class Converters {
             KeySize = analysis.KeySize,
             WeakKey = analysis.WeakKey,
             Sha1Signature = analysis.Sha1Signature,
+            HasEnhancedKeyUsageExtension = analysis.HasEnhancedKeyUsageExtension,
+            HasAnyExtendedKeyUsageOid = analysis.HasAnyExtendedKeyUsageOid,
+            AllowsServerAuthentication = analysis.AllowsServerAuthentication,
+            AllowsClientAuthentication = analysis.AllowsClientAuthentication,
+            AllowsSecureEmail = analysis.AllowsSecureEmail,
+            ExtendedKeyUsageOids = analysis.ExtendedKeyUsageOids,
+            ExtendedKeyUsageFriendlyNames = analysis.ExtendedKeyUsageFriendlyNames,
             Assessments = analysis.Assessments,
             Status = status,
             WarningCount = warnCount,
@@ -76,6 +83,13 @@ public class CertificateInfo {
     public int KeySize { get; set; }
     public bool WeakKey { get; set; }
     public bool Sha1Signature { get; set; }
+    public bool HasEnhancedKeyUsageExtension { get; set; }
+    public bool HasAnyExtendedKeyUsageOid { get; set; }
+    public bool AllowsServerAuthentication { get; set; }
+    public bool AllowsClientAuthentication { get; set; }
+    public bool AllowsSecureEmail { get; set; }
+    public IReadOnlyList<string> ExtendedKeyUsageOids { get; set; } = null!;
+    public IReadOnlyList<string> ExtendedKeyUsageFriendlyNames { get; set; } = null!;
     public IReadOnlyList<Assessment> Assessments { get; set; } = null!;
     public string Status { get; set; } = null!;
     public int WarningCount { get; set; }

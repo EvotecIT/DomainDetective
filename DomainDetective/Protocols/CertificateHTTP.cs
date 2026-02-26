@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Net;
 using System.Net.Http;
 using System.Net.Security;
@@ -88,6 +89,27 @@ namespace DomainDetective {
         public bool Sha1Signature { get; private set; }
         /// <summary>Indicates if the certificate uses RSA-PSS for its signature.</summary>
         public bool RsaPssSignature { get; private set; }
+        /// <summary>Indicates if the certificate contains an EKU extension.</summary>
+        public bool HasEnhancedKeyUsageExtension { get; private set; }
+        /// <summary>Indicates if the certificate contains the Any EKU OID value.</summary>
+        public bool HasAnyExtendedKeyUsageOid { get; private set; }
+
+        [Obsolete("Use HasAnyExtendedKeyUsageOid.")]
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool HasAnyExtendedKeyUsage {
+            get { return HasAnyExtendedKeyUsageOid; }
+            private set { HasAnyExtendedKeyUsageOid = value; }
+        }
+        /// <summary>Indicates if the certificate allows server authentication.</summary>
+        public bool AllowsServerAuthentication { get; private set; }
+        /// <summary>Indicates if the certificate allows client authentication.</summary>
+        public bool AllowsClientAuthentication { get; private set; }
+        /// <summary>Indicates if the certificate allows secure email usage.</summary>
+        public bool AllowsSecureEmail { get; private set; }
+        /// <summary>List of EKU OIDs on the certificate.</summary>
+        public List<string> ExtendedKeyUsageOids { get; } = new();
+        /// <summary>List of EKU friendly names for the certificate.</summary>
+        public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
         /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
@@ -574,6 +596,12 @@ namespace DomainDetective {
         private void PopulateKeyInfo() {
             var certificate = Certificate;
             if (certificate == null) {
+                KeyAlgorithm = string.Empty;
+                KeySize = 0;
+                WeakKey = false;
+                Sha1Signature = false;
+                RsaPssSignature = false;
+                PopulateExtendedKeyUsageInfo(null);
                 return;
             }
             KeyAlgorithm = certificate.PublicKey?.Oid?.FriendlyName ?? certificate.PublicKey?.Oid?.Value ?? string.Empty;
@@ -611,6 +639,26 @@ namespace DomainDetective {
                             oid == "1.2.840.10040.4.3" ||
                             oid == "1.3.14.3.2.29";
             RsaPssSignature = oid == "1.2.840.113549.1.1.10";
+            PopulateExtendedKeyUsageInfo(certificate);
+        }
+
+        private void PopulateExtendedKeyUsageInfo(X509Certificate2? certificate) {
+            HasEnhancedKeyUsageExtension = false;
+            HasAnyExtendedKeyUsageOid = false;
+            AllowsServerAuthentication = false;
+            AllowsClientAuthentication = false;
+            AllowsSecureEmail = false;
+            ExtendedKeyUsageOids.Clear();
+            ExtendedKeyUsageFriendlyNames.Clear();
+
+            var parsed = CertificateExtendedKeyUsageAnalyzer.Analyze(certificate);
+            HasEnhancedKeyUsageExtension = parsed.HasEnhancedKeyUsageExtension;
+            HasAnyExtendedKeyUsageOid = parsed.HasAnyExtendedKeyUsageOid;
+            AllowsServerAuthentication = parsed.AllowsServerAuthentication;
+            AllowsClientAuthentication = parsed.AllowsClientAuthentication;
+            AllowsSecureEmail = parsed.AllowsSecureEmail;
+            ExtendedKeyUsageOids.AddRange(parsed.Oids);
+            ExtendedKeyUsageFriendlyNames.AddRange(parsed.FriendlyNames);
         }
 
 #pragma warning disable CA2000 // Dispose objects before losing scope - returned TcpClient is disposed by caller

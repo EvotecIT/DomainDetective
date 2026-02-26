@@ -2,6 +2,7 @@ using DnsClientX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -152,5 +153,36 @@ public class TestSubdomainsAnalysis
         await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
 
         Assert.Contains(analysis.Assessments, a => a.Code == SubdomainCodes.AiInfrastructureExposed);
+    }
+
+    [Fact]
+    public async Task FallsBackToCertSpotterWhenCrtShFails()
+    {
+        const string certSpotterJson = @"
+[
+  { ""id"": ""12345"", ""dns_names"": [""api.example.com"", ""example.com""], ""not_before"": ""2026-01-01T00:00:00Z"", ""not_after"": ""2027-01-01T00:00:00Z"" }
+]";
+
+        var analysis = new SubdomainsAnalysis
+        {
+            VerifyStillResolves = false,
+            QueryOverride = (url, _) =>
+            {
+                if (url.Contains("crt.sh", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new HttpRequestException("Simulated crt.sh outage.");
+                }
+
+                return Task.FromResult(certSpotterJson);
+            }
+        };
+
+        await analysis.AnalyzeAsync("example.com", new InternalLogger(), CancellationToken.None);
+
+        Assert.True(analysis.QuerySucceeded);
+        Assert.Equal(1, analysis.CertificateObservationCount);
+        Assert.Contains(analysis.Subdomains, s => s.Name == "api.example.com");
+        Assert.DoesNotContain(analysis.Subdomains, s => s.Name == "example.com");
+        Assert.DoesNotContain(analysis.Assessments, a => a.Code == SubdomainCodes.CtQueryFailed);
     }
 }

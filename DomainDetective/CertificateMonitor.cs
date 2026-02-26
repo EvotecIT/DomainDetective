@@ -4,8 +4,11 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 using PeriodicTimer = System.Threading.PeriodicTimer;
 
 namespace DomainDetective {
@@ -22,6 +25,16 @@ namespace DomainDetective {
         public class Entry {
             /// <summary>Host that was checked.</summary>
             public string Host { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint URL used for the check.</summary>
+            public string Url { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint host name.</summary>
+            public string ResolvedHost { get; init; } = string.Empty;
+            /// <summary>Resolved endpoint scheme.</summary>
+            public string Scheme { get; init; } = "https";
+            /// <summary>Resolved endpoint port.</summary>
+            public int Port { get; init; } = 443;
+            /// <summary>Best-effort service classification derived from endpoint details.</summary>
+            public string Service { get; init; } = "HTTPS";
             /// <summary>Certificate expiry date.</summary>
             public DateTime ExpiryDate { get; init; }
             /// <summary>Whether the certificate chain was validated successfully.</summary>
@@ -39,6 +52,8 @@ namespace DomainDetective {
         private PeriodicTimer? _timer;
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
+        /// <summary>Optional override for certificate analysis (primarily for testing).</summary>
+        internal Func<string, int, InternalLogger, CancellationToken, Task<CertificateAnalysis>>? AnalysisOverride { get; set; }
         private IReadOnlyList<string> _monitorHosts = Array.Empty<string>();
         private int _monitorPort;
         private InternalLogger? _monitorLogger;
@@ -49,6 +64,11 @@ namespace DomainDetective {
 
         /// <summary>Duration cached files are kept.</summary>
         public TimeSpan CacheRetention { get; set; } = TimeSpan.FromDays(7);
+        /// <summary>Persist monitor runs as inventory snapshots (opt-in).</summary>
+        public bool PersistInventorySnapshots { get; set; }
+
+        /// <summary>Directory used for persisted inventory snapshots.</summary>
+        public string InventoryDirectory => Path.Combine(CacheDirectory, "inventory");
 
         private void CleanExpiredCacheEntries() {
             try {
@@ -56,9 +76,23 @@ namespace DomainDetective {
                     return;
                 }
 
-                foreach (var file in Directory.GetFiles(CacheDirectory)) {
+                var inventoryRoot = Path.GetFullPath(InventoryDirectory)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                foreach (var file in Directory.EnumerateFiles(CacheDirectory, "*", SearchOption.AllDirectories)) {
+                    var fullFilePath = Path.GetFullPath(file);
+                    if (fullFilePath.StartsWith(inventoryRoot, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+
                     if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > CacheRetention) {
                         File.Delete(file);
+                    }
+                }
+
+                foreach (var directory in Directory.EnumerateDirectories(CacheDirectory, "*", SearchOption.AllDirectories)
+                             .OrderByDescending(x => x.Length)) {
+                    if (!Directory.EnumerateFileSystemEntries(directory).Any()) {
+                        Directory.Delete(directory);
                     }
                 }
             } catch {
@@ -71,6 +105,8 @@ namespace DomainDetective {
 
         /// <summary>Threshold in days for considering a certificate expiring soon.</summary>
         public int ExpiryWarningDays { get; set; } = 30;
+        /// <summary>Maximum number of hosts analyzed in parallel per run.</summary>
+        public int MaxParallelism { get; set; } = 8;
 
         /// <summary>Collection of monitoring results.</summary>
         public List<Entry> Results { get; } = new();
@@ -130,35 +166,105 @@ namespace DomainDetective {
             logger ??= new InternalLogger();
             Results.Clear();
             var list = hosts.ToList();
-            int processed = 0;
-            foreach (var host in list) {
-                cancellationToken.ThrowIfCancellationRequested();
-                processed++;
-                if (showProgress) {
-                    logger.WriteProgress("CertificateMonitor", host, processed * 100d / list.Count, processed, list.Count);
+            if (list.Count > 0) {
+                var entries = new Entry?[list.Count];
+                var parallelism = Math.Max(1, MaxParallelism);
+                int processed = 0;
+                var gate = new SemaphoreSlim(parallelism, parallelism);
+                var tasks = new List<Task>(list.Count);
+                var schedulingCanceled = false;
+                try {
+                    for (var i = 0; i < list.Count; i++) {
+                        try {
+                            cancellationToken.ThrowIfCancellationRequested();
+                            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        } catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                            schedulingCanceled = true;
+                            break;
+                        }
+
+                        var index = i;
+                        var host = list[index];
+                        tasks.Add(ProcessHostAsync(index, host));
+                    }
+
+                    if (tasks.Count > 0) {
+                        await Task.WhenAll(tasks).ConfigureAwait(false);
+                    }
+                } finally {
+                    gate.Dispose();
                 }
-                var analysis = new CertificateAnalysis
-                {
-                    CaptureTlsDetails = true
-                };
-                await analysis.AnalyzeUrl(host, port, logger, cancellationToken);
-                var entry = new Entry {
-                    Host = host,
-                    ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
-                    Valid = analysis.IsValid,
-                    Expired = analysis.IsExpired,
-                    ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
-                    Protocol = analysis.TlsProtocol,
-                    Analysis = analysis
-                };
-                Results.Add(entry);
+
+                if (schedulingCanceled) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                foreach (var entry in entries) {
+                    if (entry != null) {
+                        Results.Add(entry);
+                    }
+                }
+
+                async Task ProcessHostAsync(int index, string host) {
+                    try {
+                        CertificateServiceDescriptor target;
+                        try {
+                            target = CertificateServiceClassifier.Resolve(host, port);
+                        } catch (ArgumentException) {
+                            target = new CertificateServiceDescriptor {
+                                Url = host,
+                                Host = host,
+                                Scheme = Uri.UriSchemeHttps,
+                                Port = port,
+                                Service = CertificateServiceClassifier.GuessService(Uri.UriSchemeHttps, port)
+                            };
+                        }
+
+                        CertificateAnalysis analysis;
+                        if (AnalysisOverride != null) {
+                            analysis = await AnalysisOverride(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                        } else {
+                            analysis = new CertificateAnalysis
+                            {
+                                CaptureTlsDetails = true
+                            };
+                            await analysis.AnalyzeUrl(target.Url, target.Port, logger, cancellationToken).ConfigureAwait(false);
+                        }
+
+                        entries[index] = new Entry {
+                            Host = host,
+                            Url = target.Url,
+                            ResolvedHost = target.Host,
+                            Scheme = target.Scheme,
+                            Port = target.Port,
+                            Service = target.Service,
+                            ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
+                            Valid = analysis.IsValid,
+                            Expired = analysis.IsExpired,
+                            ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
+                            Protocol = analysis.TlsProtocol,
+                            Analysis = analysis
+                        };
+
+                        var done = Interlocked.Increment(ref processed);
+                        if (showProgress) {
+                            logger.WriteProgress("CertificateMonitor", host, done * 100d / list.Count, done, list.Count);
+                        }
+                    } finally {
+                        gate.Release();
+                    }
+                }
+            }
+
+            if (PersistInventorySnapshots) {
+                SaveInventorySnapshot(port, logger);
             }
         }
 
         /// <summary>Number of hosts with valid certificates.</summary>
         public int ValidCount => Results.Count(e => e.Valid && !e.Expired);
         /// <summary>Number of hosts with certificates expiring soon.</summary>
-        public int ExpiringCount => Results.Count(e => e.Valid && !e.Expired && (e.ExpiryDate - DateTime.Now).TotalDays <= ExpiryWarningDays);
+        public int ExpiringCount => Results.Count(e => e.Valid && !e.Expired && (e.ExpiryDate - DateTime.UtcNow).TotalDays <= ExpiryWarningDays);
         /// <summary>Number of hosts with expired certificates.</summary>
         public int ExpiredCount => Results.Count(e => e.Expired);
         /// <summary>Number of hosts where validation failed.</summary>
@@ -170,6 +276,400 @@ namespace DomainDetective {
         public int IncompleteChainCount => Results.Count(e => !e.ChainComplete && e.Analysis.Certificate != null);
         /// <summary>Number of hosts where the chain status couldn't be determined.</summary>
         public int UnknownChainCount => Results.Count(e => e.Analysis.Certificate == null);
+
+        /// <summary>Loads persisted inventory snapshots from disk.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        public IReadOnlyList<CertificateInventorySnapshot> LoadInventorySnapshots(DateTimeOffset? sinceUtc = null) {
+            if (!Directory.Exists(InventoryDirectory)) {
+                return Array.Empty<CertificateInventorySnapshot>();
+            }
+
+            var files = Directory.GetFiles(InventoryDirectory, "*.json", SearchOption.TopDirectoryOnly);
+
+            var snapshots = new List<CertificateInventorySnapshot>();
+            foreach (var file in files) {
+                try {
+                    var json = File.ReadAllText(file, Encoding.UTF8);
+                    var snapshot = JsonSerializer.Deserialize<CertificateInventorySnapshot>(json, JsonOptions.Default);
+                    if (snapshot == null) {
+                        continue;
+                    }
+                    if (sinceUtc.HasValue && snapshot.CapturedAtUtc < sinceUtc.Value) {
+                        continue;
+                    }
+                    snapshots.Add(snapshot);
+                } catch {
+                    // ignore invalid inventory files
+                }
+            }
+
+            return snapshots
+                .OrderBy(snapshot => snapshot.CapturedAtUtc)
+                .ToList();
+        }
+
+        private void SaveInventorySnapshot(int port, InternalLogger? logger) {
+            try {
+                Directory.CreateDirectory(InventoryDirectory);
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = port
+                };
+                foreach (var entry in Results) {
+                    snapshot.Entries.Add(ToInventoryEntry(entry));
+                }
+
+                var fileName = $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_{port}.json";
+                var filePath = Path.Combine(InventoryDirectory, fileName);
+                var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
+                File.WriteAllText(filePath, json, Encoding.UTF8);
+            } catch (Exception ex) {
+                logger?.WriteWarning("Failed to persist certificate inventory snapshot: {0}", ex.Message);
+            }
+        }
+
+        private static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
+            var analysis = entry.Analysis;
+            var certificate = analysis.Certificate;
+            var issuerIdentity = CertificateIssuerClassifier.Classify(certificate);
+            var chain = analysis.Chain != null && analysis.Chain.Count > 0
+                ? analysis.Chain
+                : (certificate != null ? new List<X509Certificate2> { certificate } : new List<X509Certificate2>());
+            var root = chain.Count > 0 ? chain[chain.Count - 1] : null;
+            var rootIdentity = CertificateIssuerClassifier.Classify(root);
+            var snapshotEntry = new CertificateInventoryEntry {
+                Host = entry.Host,
+                ResolvedHost = entry.ResolvedHost,
+                Url = string.IsNullOrWhiteSpace(entry.Url) ? analysis.Url : entry.Url,
+                Scheme = entry.Scheme,
+                Port = entry.Port,
+                Service = entry.Service,
+                CertificateSubject = certificate?.Subject,
+                CertificateIssuer = certificate?.Issuer,
+                CertificateThumbprint = certificate?.Thumbprint,
+                CertificateSerialNumber = certificate?.SerialNumber,
+                CertificateIssuerOrganization = issuerIdentity.Organization,
+                CertificateIssuerNormalized = issuerIdentity.NormalizedName,
+                CertificateAuthorityFamily = issuerIdentity.AuthorityFamily,
+                CertificateRootSubject = root?.Subject,
+                CertificateRootIssuer = root?.Issuer,
+                CertificateRootThumbprint = root?.Thumbprint,
+                CertificateRootIssuerOrganization = rootIdentity.Organization,
+                CertificateRootIssuerNormalized = rootIdentity.NormalizedName,
+                CertificateChainLength = chain.Count,
+                CertificateIntermediateCount = Math.Max(0, chain.Count - 2),
+                IsKnownCertificateAuthority = issuerIdentity.IsKnownAuthority,
+                NotBeforeUtc = certificate?.NotBefore.ToUniversalTime(),
+                NotAfterUtc = certificate?.NotAfter.ToUniversalTime(),
+                Valid = entry.Valid,
+                Expired = entry.Expired,
+                ChainComplete = entry.ChainComplete,
+                IsReachable = analysis.IsReachable,
+                IsSelfSigned = analysis.IsSelfSigned,
+                HostnameMatch = analysis.HostnameMatch,
+                PresentInCtLogs = analysis.PresentInCtLogs,
+                DaysToExpire = analysis.DaysToExpire,
+                DaysValid = analysis.DaysValid,
+                Protocol = entry.Protocol.ToString(),
+                KeyAlgorithm = analysis.KeyAlgorithm,
+                KeySize = analysis.KeySize,
+                WeakKey = analysis.WeakKey,
+                Sha1Signature = analysis.Sha1Signature,
+                RsaPssSignature = analysis.RsaPssSignature,
+                HasEnhancedKeyUsageExtension = analysis.HasEnhancedKeyUsageExtension,
+                HasAnyExtendedKeyUsageOid = analysis.HasAnyExtendedKeyUsageOid,
+                AllowsServerAuthentication = analysis.AllowsServerAuthentication,
+                AllowsClientAuthentication = analysis.AllowsClientAuthentication,
+                AllowsSecureEmail = analysis.AllowsSecureEmail
+            };
+            snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
+            snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
+            foreach (var chainElement in chain) {
+                if (!string.IsNullOrWhiteSpace(chainElement.Subject)) {
+                    snapshotEntry.CertificateChainSubjects.Add(chainElement.Subject);
+                }
+                if (!string.IsNullOrWhiteSpace(chainElement.Issuer)) {
+                    snapshotEntry.CertificateChainIssuers.Add(chainElement.Issuer);
+                }
+                if (!string.IsNullOrWhiteSpace(chainElement.Thumbprint)) {
+                    snapshotEntry.CertificateChainThumbprints.Add(chainElement.Thumbprint);
+                }
+            }
+            return snapshotEntry;
+        }
+
+        /// <summary>Builds a normalized summary view for persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="expiringWithinDays">Threshold window for expiring certificates.</param>
+        /// <param name="maxExpiringEndpoints">Maximum number of expiring endpoints in the summary.</param>
+        public CertificateInventorySummary BuildInventorySummary(
+            DateTimeOffset? sinceUtc = null,
+            int expiringWithinDays = 30,
+            int maxExpiringEndpoints = 200) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryAnalyzer.BuildSummary(
+                snapshots,
+                expiringWithinDays,
+                maxExpiringEndpoints);
+        }
+
+        /// <summary>Builds endpoint-level certificate drift history from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="changedOnly">When true, only returns endpoints with observed changes.</param>
+        /// <param name="maxEndpoints">Maximum number of endpoint rows returned.</param>
+        public CertificateInventoryDriftSummary BuildInventoryDrift(
+            DateTimeOffset? sinceUtc = null,
+            bool changedOnly = false,
+            int maxEndpoints = 200) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly,
+                maxEndpoints);
+        }
+
+        /// <summary>Builds a point-in-time diff between two inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="previousCapturedAtUtc">Optional previous snapshot timestamp selector.</param>
+        /// <param name="currentCapturedAtUtc">Optional current snapshot timestamp selector.</param>
+        /// <param name="includeUnchanged">When true, includes unchanged endpoints in results.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryDiffSummary BuildInventoryDiff(
+            DateTimeOffset? sinceUtc = null,
+            DateTimeOffset? previousCapturedAtUtc = null,
+            DateTimeOffset? currentCapturedAtUtc = null,
+            bool includeUnchanged = false,
+            int maxEndpoints = 500) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryDiffAnalyzer.BuildDiff(
+                snapshots,
+                previousCapturedAtUtc,
+                currentCapturedAtUtc,
+                includeUnchanged,
+                maxEndpoints);
+        }
+
+        /// <summary>Builds endpoint-level certificate risk posture from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="includeNoRisk">When true, includes endpoints without detected risk findings.</param>
+        /// <param name="expiringWithinDays">Warning window for expiring certificates.</param>
+        /// <param name="criticalExpiringWithinDays">Critical window for expiring certificates.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryRiskSummary BuildInventoryRisk(
+            DateTimeOffset? sinceUtc = null,
+            bool includeNoRisk = false,
+            int expiringWithinDays = 30,
+            int criticalExpiringWithinDays = 7,
+            int maxEndpoints = 300) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk,
+                expiringWithinDays,
+                criticalExpiringWithinDays,
+                maxEndpoints);
+        }
+
+        /// <summary>Builds certificate reuse and assignment mapping from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="includeSingleEndpointCertificates">When true, includes certificates used by only one endpoint.</param>
+        /// <param name="minEndpointCount">Minimum endpoint count required per certificate.</param>
+        /// <param name="maxCertificates">Maximum certificate rows returned.</param>
+        /// <param name="maxEndpointsPerCertificate">Maximum endpoint references returned per certificate row.</param>
+        public CertificateInventoryReuseSummary BuildInventoryReuse(
+            DateTimeOffset? sinceUtc = null,
+            bool includeSingleEndpointCertificates = false,
+            int minEndpointCount = 2,
+            int maxCertificates = 300,
+            int maxEndpointsPerCertificate = 30) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryReuseAnalyzer.BuildReuse(
+                snapshots,
+                includeSingleEndpointCertificates,
+                minEndpointCount,
+                maxCertificates,
+                maxEndpointsPerCertificate);
+        }
+
+        /// <summary>Queries persisted inventory entries using structured filters.</summary>
+        /// <param name="query">Query options.</param>
+        public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {
+            var effectiveQuery = query ?? new CertificateInventoryQuery();
+            var result = new CertificateInventoryQueryResult();
+            var maxResults = Math.Max(0, effectiveQuery.MaxResults);
+            var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
+                .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
+                .ToList();
+            var now = DateTimeOffset.UtcNow;
+            foreach (var snapshot in snapshots) {
+                if (effectiveQuery.UntilUtc.HasValue && snapshot.CapturedAtUtc > effectiveQuery.UntilUtc.Value) {
+                    continue;
+                }
+
+                result.ScannedSnapshotCount++;
+                foreach (var entry in snapshot.Entries) {
+                    result.ScannedEntryCount++;
+                    if (!MatchesQuery(entry, effectiveQuery, now)) {
+                        continue;
+                    }
+
+                    result.MatchedEntryCount++;
+                    if (result.Entries.Count >= maxResults) {
+                        result.Truncated = true;
+                        continue;
+                    }
+
+                    result.Entries.Add(new CertificateInventoryObservedEntry {
+                        CapturedAtUtc = snapshot.CapturedAtUtc,
+                        Entry = entry
+                    });
+                }
+            }
+
+            return result;
+        }
+
+        private static bool MatchesQuery(CertificateInventoryEntry entry, CertificateInventoryQuery query, DateTimeOffset now) {
+            var hostContains = query.HostContains;
+            if (!string.IsNullOrWhiteSpace(hostContains)) {
+                var hostNeedle = hostContains!.Trim();
+                var hostHaystack = entry.ResolvedHost ?? entry.Host;
+                if (hostHaystack.IndexOf(hostNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var subjectContains = query.SubjectContains;
+            if (!string.IsNullOrWhiteSpace(subjectContains)) {
+                var subjectNeedle = subjectContains!.Trim();
+                var subjectHaystack = entry.CertificateSubject ?? string.Empty;
+                if (subjectHaystack.IndexOf(subjectNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var sanContains = query.SanContains;
+            if (!string.IsNullOrWhiteSpace(sanContains)) {
+                var sanNeedle = sanContains!.Trim();
+                var hasMatch = entry.SubjectAlternativeNames != null &&
+                               entry.SubjectAlternativeNames.Any(san => !string.IsNullOrWhiteSpace(san) &&
+                                                                        san.IndexOf(sanNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!hasMatch) {
+                    return false;
+                }
+            }
+
+            var serviceEquals = query.ServiceEquals;
+            if (!string.IsNullOrWhiteSpace(serviceEquals)) {
+                var expectedService = serviceEquals!.Trim();
+                var actualService = string.IsNullOrWhiteSpace(entry.Service)
+                    ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
+                    : entry.Service ?? string.Empty;
+                if (!actualService.Equals(expectedService, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
+            var issuerContains = query.IssuerContains;
+            if (!string.IsNullOrWhiteSpace(issuerContains)) {
+                var issuerNeedle = issuerContains!.Trim();
+                var issuerHaystack = entry.CertificateIssuerNormalized ?? entry.CertificateIssuerOrganization ?? entry.CertificateIssuer ?? string.Empty;
+                if (issuerHaystack.IndexOf(issuerNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var rootContains = query.RootContains;
+            if (!string.IsNullOrWhiteSpace(rootContains)) {
+                var rootNeedle = rootContains!.Trim();
+                var rootHaystack = entry.CertificateRootIssuerNormalized ??
+                                   entry.CertificateRootIssuerOrganization ??
+                                   entry.CertificateRootIssuer ??
+                                   entry.CertificateRootSubject ??
+                                   string.Empty;
+                if (rootHaystack.IndexOf(rootNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    return false;
+                }
+            }
+
+            var thumbprintEquals = query.ThumbprintEquals;
+            if (!string.IsNullOrWhiteSpace(thumbprintEquals)) {
+                var expectedThumbprint = NormalizeThumbprint(thumbprintEquals);
+                var actualThumbprint = NormalizeThumbprint(entry.CertificateThumbprint);
+                if (expectedThumbprint.Length == 0 || !actualThumbprint.Equals(expectedThumbprint, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
+            if (query.KnownAuthorityOnly.HasValue && query.KnownAuthorityOnly.Value && !entry.IsKnownCertificateAuthority) {
+                return false;
+            }
+
+            if (query.ValidOnly.HasValue && query.ValidOnly.Value != entry.Valid) {
+                return false;
+            }
+
+            if (query.ExpiredOnly.HasValue) {
+                var isExpired = entry.NotAfterUtc.HasValue ? entry.NotAfterUtc.Value <= now : entry.Expired;
+                if (query.ExpiredOnly.Value != isExpired) {
+                    return false;
+                }
+            }
+
+            if (query.ChainCompleteOnly.HasValue && query.ChainCompleteOnly.Value != entry.ChainComplete) {
+                return false;
+            }
+
+            if (query.HostnameMatchOnly.HasValue && query.HostnameMatchOnly.Value != entry.HostnameMatch) {
+                return false;
+            }
+
+            if (query.SelfSignedOnly.HasValue && query.SelfSignedOnly.Value != entry.IsSelfSigned) {
+                return false;
+            }
+
+            if (query.ReachableOnly.HasValue && query.ReachableOnly.Value != entry.IsReachable) {
+                return false;
+            }
+
+            if (query.PresentInCtOnly.HasValue && query.PresentInCtOnly.Value != entry.PresentInCtLogs) {
+                return false;
+            }
+
+            if (query.AllowsServerAuthOnly.HasValue && query.AllowsServerAuthOnly.Value != entry.AllowsServerAuthentication) {
+                return false;
+            }
+
+            if (query.AllowsClientAuthOnly.HasValue && query.AllowsClientAuthOnly.Value != entry.AllowsClientAuthentication) {
+                return false;
+            }
+
+            if (query.AllowsSecureEmailOnly.HasValue && query.AllowsSecureEmailOnly.Value != entry.AllowsSecureEmail) {
+                return false;
+            }
+
+            if (query.ExpiringWithinDays.HasValue) {
+                if (!entry.NotAfterUtc.HasValue) {
+                    return false;
+                }
+
+                var threshold = now.AddDays(Math.Max(0, query.ExpiringWithinDays.Value));
+                if (entry.NotAfterUtc.Value > threshold || entry.NotAfterUtc.Value <= now) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string NormalizeThumbprint(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return string.Empty;
+            }
+
+            var chars = value.Where(c => !char.IsWhiteSpace(c) && c != ':').ToArray();
+            return new string(chars).Trim().ToUpperInvariant();
+        }
 
         /// <summary>Disposes timer resources.</summary>
         public void Dispose() {
