@@ -118,6 +118,37 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public async Task BuildInventoryRiskReadsPersistedSnapshots() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try {
+                using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid);
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir,
+                    PersistInventorySnapshots = true,
+                    AnalysisOverride = async (host, port, logger, cancellationToken) => {
+                        var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+                        await analysis.AnalyzeCertificate(cert, cancellationToken);
+                        analysis.Url = host;
+                        analysis.IsReachable = true;
+                        return analysis;
+                    }
+                };
+
+                await monitor.Analyze(new[] { "https://api.example.test:8443" }, 443, showProgress: false);
+                var risk = monitor.BuildInventoryRisk(includeNoRisk: true);
+
+                Assert.Equal(1, risk.SnapshotCount);
+                Assert.Equal(1, risk.EndpointCount);
+                Assert.Single(risk.Endpoints);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
         public async Task AnalyzeUsesPortFromInputUrlWhenSpecified() {
             var capturedPorts = new ConcurrentBag<int>();
             var capturedUrls = new ConcurrentBag<string>();

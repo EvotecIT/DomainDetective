@@ -422,6 +422,27 @@ namespace DomainDetective {
                 maxEndpoints);
         }
 
+        /// <summary>Builds endpoint-level certificate risk posture from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="includeNoRisk">When true, includes endpoints without detected risk findings.</param>
+        /// <param name="expiringWithinDays">Warning window for expiring certificates.</param>
+        /// <param name="criticalExpiringWithinDays">Critical window for expiring certificates.</param>
+        /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
+        public CertificateInventoryRiskSummary BuildInventoryRisk(
+            DateTimeOffset? sinceUtc = null,
+            bool includeNoRisk = false,
+            int expiringWithinDays = 30,
+            int criticalExpiringWithinDays = 7,
+            int maxEndpoints = 300) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk,
+                expiringWithinDays,
+                criticalExpiringWithinDays,
+                maxEndpoints);
+        }
+
         /// <summary>Queries persisted inventory entries using structured filters.</summary>
         /// <param name="query">Query options.</param>
         public CertificateInventoryQueryResult QueryInventoryEntries(CertificateInventoryQuery? query = null) {
