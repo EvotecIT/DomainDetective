@@ -1,0 +1,47 @@
+using System;
+using System.Collections.Generic;
+
+namespace DomainDetective {
+    /// <summary>
+    /// Represents one persisted certificate inventory snapshot.
+    /// </summary>
+    public sealed class CertificateInventorySnapshot {
+        public DateTimeOffset CapturedAtUtc { get; set; }
+        public int Port { get; set; }
+        public List<CertificateInventoryEntry> Entries { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Represents one host entry inside a certificate inventory snapshot.
+    /// </summary>
+    public sealed class CertificateInventoryEntry {
+        public string Host { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string? CertificateSubject { get; set; }
+        public string? CertificateIssuer { get; set; }
+        public DateTimeOffset? NotBeforeUtc { get; set; }
+        public DateTimeOffset? NotAfterUtc { get; set; }
+        public bool Valid { get; set; }
+        public bool Expired { get; set; }
+        public bool ChainComplete { get; set; }
+        public bool IsReachable { get; set; }
+        public bool IsSelfSigned { get; set; }
+        public bool HostnameMatch { get; set; }
+        public bool PresentInCtLogs { get; set; }
+        public int DaysToExpire { get; set; }
+        public int DaysValid { get; set; }
+        public string Protocol { get; set; } = string.Empty;
+        public string KeyAlgorithm { get; set; } = string.Empty;
+        public int KeySize { get; set; }
+        public bool WeakKey { get; set; }
+        public bool Sha1Signature { get; set; }
+        public bool RsaPssSignature { get; set; }
+        public bool HasEnhancedKeyUsageExtension { get; set; }
+        public bool HasAnyExtendedKeyUsage { get; set; }
+        public bool AllowsServerAuthentication { get; set; }
+        public bool AllowsClientAuthentication { get; set; }
+        public bool AllowsSecureEmail { get; set; }
+        public List<string> ExtendedKeyUsageOids { get; set; } = new();
+        public List<string> SubjectAlternativeNames { get; set; } = new();
+    }
+}

@@ -59,10 +59,8 @@ public class SmimeCertificateAnalysis {
         var chain = new X509Chain { ChainPolicy = { RevocationMode = X509RevocationMode.NoCheck } };
         var chainValid = chain.Build(Certificate);
         IsTrustedRoot = !chain.ChainStatus.Any(s => s.Status == X509ChainStatusFlags.UntrustedRoot);
-        HasSecureEmailEku = Certificate.Extensions
-            .OfType<X509EnhancedKeyUsageExtension>()
-            .SelectMany(e => e.EnhancedKeyUsages.Cast<Oid>())
-            .Any(o => o.Value == "1.3.6.1.5.5.7.3.4");
+        var usage = CertificateExtendedKeyUsageAnalyzer.Analyze(Certificate);
+        HasSecureEmailEku = usage.AllowsSecureEmail;
         IsValid = chainValid && HasSecureEmailEku && IsTrustedRoot;
         Chain.Clear();
         foreach (var element in chain.ChainElements) {

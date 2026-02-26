@@ -4,8 +4,11 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Authentication;
 using System.IO;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DomainDetective.Helpers;
 using PeriodicTimer = System.Threading.PeriodicTimer;
 
 namespace DomainDetective {
@@ -39,6 +42,8 @@ namespace DomainDetective {
         private PeriodicTimer? _timer;
         private CancellationTokenSource? _cts;
         private Task? _loopTask;
+        /// <summary>Optional override for certificate analysis (primarily for testing).</summary>
+        public Func<string, int, InternalLogger, CancellationToken, Task<CertificateAnalysis>>? AnalysisOverride { private get; set; }
         private IReadOnlyList<string> _monitorHosts = Array.Empty<string>();
         private int _monitorPort;
         private InternalLogger? _monitorLogger;
@@ -49,6 +54,11 @@ namespace DomainDetective {
 
         /// <summary>Duration cached files are kept.</summary>
         public TimeSpan CacheRetention { get; set; } = TimeSpan.FromDays(7);
+        /// <summary>Persist monitor runs as inventory snapshots.</summary>
+        public bool PersistInventorySnapshots { get; set; } = true;
+
+        /// <summary>Directory used for persisted inventory snapshots.</summary>
+        public string InventoryDirectory => Path.Combine(CacheDirectory, "inventory");
 
         private void CleanExpiredCacheEntries() {
             try {
@@ -56,9 +66,16 @@ namespace DomainDetective {
                     return;
                 }
 
-                foreach (var file in Directory.GetFiles(CacheDirectory)) {
+                foreach (var file in Directory.GetFiles(CacheDirectory, "*", SearchOption.AllDirectories)) {
                     if (DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > CacheRetention) {
                         File.Delete(file);
+                    }
+                }
+
+                foreach (var directory in Directory.GetDirectories(CacheDirectory, "*", SearchOption.AllDirectories)
+                             .OrderByDescending(x => x.Length)) {
+                    if (!Directory.EnumerateFileSystemEntries(directory).Any()) {
+                        Directory.Delete(directory);
                     }
                 }
             } catch {
@@ -71,6 +88,8 @@ namespace DomainDetective {
 
         /// <summary>Threshold in days for considering a certificate expiring soon.</summary>
         public int ExpiryWarningDays { get; set; } = 30;
+        /// <summary>Maximum number of hosts analyzed in parallel per run.</summary>
+        public int MaxParallelism { get; set; } = 8;
 
         /// <summary>Collection of monitoring results.</summary>
         public List<Entry> Results { get; } = new();
@@ -130,28 +149,60 @@ namespace DomainDetective {
             logger ??= new InternalLogger();
             Results.Clear();
             var list = hosts.ToList();
-            int processed = 0;
-            foreach (var host in list) {
-                cancellationToken.ThrowIfCancellationRequested();
-                processed++;
-                if (showProgress) {
-                    logger.WriteProgress("CertificateMonitor", host, processed * 100d / list.Count, processed, list.Count);
+            if (list.Count > 0) {
+                var entries = new Entry?[list.Count];
+                var parallelism = Math.Max(1, MaxParallelism);
+                int processed = 0;
+                using var gate = new SemaphoreSlim(parallelism, parallelism);
+                var tasks = new List<Task>(list.Count);
+                for (var i = 0; i < list.Count; i++) {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var index = i;
+                    var host = list[index];
+                    await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    tasks.Add(Task.Run(async () => {
+                        try {
+                            CertificateAnalysis analysis;
+                            if (AnalysisOverride != null) {
+                                analysis = await AnalysisOverride(host, port, logger, cancellationToken).ConfigureAwait(false);
+                            } else {
+                                analysis = new CertificateAnalysis
+                                {
+                                    CaptureTlsDetails = true
+                                };
+                                await analysis.AnalyzeUrl(host, port, logger, cancellationToken).ConfigureAwait(false);
+                            }
+
+                            entries[index] = new Entry {
+                                Host = host,
+                                ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
+                                Valid = analysis.IsValid,
+                                Expired = analysis.IsExpired,
+                                ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
+                                Protocol = analysis.TlsProtocol,
+                                Analysis = analysis
+                            };
+
+                            var done = Interlocked.Increment(ref processed);
+                            if (showProgress) {
+                                logger.WriteProgress("CertificateMonitor", host, done * 100d / list.Count, done, list.Count);
+                            }
+                        } finally {
+                            gate.Release();
+                        }
+                    }, cancellationToken));
                 }
-                var analysis = new CertificateAnalysis
-                {
-                    CaptureTlsDetails = true
-                };
-                await analysis.AnalyzeUrl(host, port, logger, cancellationToken);
-                var entry = new Entry {
-                    Host = host,
-                    ExpiryDate = analysis.Certificate?.NotAfter ?? DateTime.MinValue,
-                    Valid = analysis.IsValid,
-                    Expired = analysis.IsExpired,
-                    ChainComplete = analysis.Chain.Count > 1 && analysis.IsValid,
-                    Protocol = analysis.TlsProtocol,
-                    Analysis = analysis
-                };
-                Results.Add(entry);
+
+                await Task.WhenAll(tasks).ConfigureAwait(false);
+                foreach (var entry in entries) {
+                    if (entry != null) {
+                        Results.Add(entry);
+                    }
+                }
+            }
+
+            if (PersistInventorySnapshots) {
+                SaveInventorySnapshot(port);
             }
         }
 
@@ -170,6 +221,93 @@ namespace DomainDetective {
         public int IncompleteChainCount => Results.Count(e => !e.ChainComplete && e.Analysis.Certificate != null);
         /// <summary>Number of hosts where the chain status couldn't be determined.</summary>
         public int UnknownChainCount => Results.Count(e => e.Analysis.Certificate == null);
+
+        /// <summary>Loads persisted inventory snapshots from disk.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        public IReadOnlyList<CertificateInventorySnapshot> LoadInventorySnapshots(DateTimeOffset? sinceUtc = null) {
+            if (!Directory.Exists(InventoryDirectory)) {
+                return Array.Empty<CertificateInventorySnapshot>();
+            }
+
+            var files = Directory.GetFiles(InventoryDirectory, "*.json", SearchOption.TopDirectoryOnly)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var snapshots = new List<CertificateInventorySnapshot>();
+            foreach (var file in files) {
+                try {
+                    var json = File.ReadAllText(file, Encoding.UTF8);
+                    var snapshot = JsonSerializer.Deserialize<CertificateInventorySnapshot>(json, JsonOptions.Default);
+                    if (snapshot == null) {
+                        continue;
+                    }
+                    if (sinceUtc.HasValue && snapshot.CapturedAtUtc < sinceUtc.Value) {
+                        continue;
+                    }
+                    snapshots.Add(snapshot);
+                } catch {
+                    // ignore invalid inventory files
+                }
+            }
+
+            return snapshots;
+        }
+
+        private void SaveInventorySnapshot(int port) {
+            try {
+                Directory.CreateDirectory(InventoryDirectory);
+                var snapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = port
+                };
+                foreach (var entry in Results) {
+                    snapshot.Entries.Add(ToInventoryEntry(entry));
+                }
+
+                var fileName = $"{snapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_{port}.json";
+                var filePath = Path.Combine(InventoryDirectory, fileName);
+                var json = JsonSerializer.Serialize(snapshot, JsonOptions.Default);
+                File.WriteAllText(filePath, json, Encoding.UTF8);
+            } catch {
+                // best effort persistence; monitoring should continue even when disk writes fail
+            }
+        }
+
+        private static CertificateInventoryEntry ToInventoryEntry(Entry entry) {
+            var analysis = entry.Analysis;
+            var certificate = analysis.Certificate;
+            var snapshotEntry = new CertificateInventoryEntry {
+                Host = entry.Host,
+                Url = analysis.Url,
+                CertificateSubject = certificate?.Subject,
+                CertificateIssuer = certificate?.Issuer,
+                NotBeforeUtc = certificate?.NotBefore.ToUniversalTime(),
+                NotAfterUtc = certificate?.NotAfter.ToUniversalTime(),
+                Valid = entry.Valid,
+                Expired = entry.Expired,
+                ChainComplete = entry.ChainComplete,
+                IsReachable = analysis.IsReachable,
+                IsSelfSigned = analysis.IsSelfSigned,
+                HostnameMatch = analysis.HostnameMatch,
+                PresentInCtLogs = analysis.PresentInCtLogs,
+                DaysToExpire = analysis.DaysToExpire,
+                DaysValid = analysis.DaysValid,
+                Protocol = entry.Protocol.ToString(),
+                KeyAlgorithm = analysis.KeyAlgorithm,
+                KeySize = analysis.KeySize,
+                WeakKey = analysis.WeakKey,
+                Sha1Signature = analysis.Sha1Signature,
+                RsaPssSignature = analysis.RsaPssSignature,
+                HasEnhancedKeyUsageExtension = analysis.HasEnhancedKeyUsageExtension,
+                HasAnyExtendedKeyUsage = analysis.HasAnyExtendedKeyUsage,
+                AllowsServerAuthentication = analysis.AllowsServerAuthentication,
+                AllowsClientAuthentication = analysis.AllowsClientAuthentication,
+                AllowsSecureEmail = analysis.AllowsSecureEmail
+            };
+            snapshotEntry.ExtendedKeyUsageOids.AddRange(analysis.ExtendedKeyUsageOids);
+            snapshotEntry.SubjectAlternativeNames.AddRange(analysis.SubjectAlternativeNames);
+            return snapshotEntry;
+        }
 
         /// <summary>Disposes timer resources.</summary>
         public void Dispose() {
