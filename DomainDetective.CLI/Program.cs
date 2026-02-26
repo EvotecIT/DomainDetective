@@ -175,6 +175,13 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryQuery", "--client-auth-only", "--chain-incomplete-only", "--max-results", "500" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryQueryCommand>("cert-inventory-query")
                 .WithDescription("Query persisted certificate inventory snapshots (alias)");
+
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("CertificateInventoryDrift")
+                .WithDescription("Analyze certificate drift and rotation across persisted snapshots")
+                .WithExample(new[] { "CertificateInventoryDrift", "--since-utc", "2026-01-01", "--changed-only" })
+                .WithExample(new[] { "CertificateInventoryDrift", "--max-endpoints", "500", "--json" });
+            config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryDriftCommand>("cert-inventory-drift")
+                .WithDescription("Analyze certificate drift and rotation across persisted snapshots (alias)");
         });
         try {
             return await app.RunAsync(args).WaitAsync(cts.Token);

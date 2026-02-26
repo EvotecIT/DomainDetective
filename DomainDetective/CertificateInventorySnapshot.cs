@@ -23,6 +23,8 @@ namespace DomainDetective {
         public string Service { get; set; } = "HTTPS";
         public string? CertificateSubject { get; set; }
         public string? CertificateIssuer { get; set; }
+        public string? CertificateThumbprint { get; set; }
+        public string? CertificateSerialNumber { get; set; }
         public string? CertificateIssuerOrganization { get; set; }
         public string? CertificateIssuerNormalized { get; set; }
         public string? CertificateAuthorityFamily { get; set; }

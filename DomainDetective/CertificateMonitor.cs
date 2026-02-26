@@ -314,6 +314,8 @@ namespace DomainDetective {
                 Service = entry.Service,
                 CertificateSubject = certificate?.Subject,
                 CertificateIssuer = certificate?.Issuer,
+                CertificateThumbprint = certificate?.Thumbprint,
+                CertificateSerialNumber = certificate?.SerialNumber,
                 CertificateIssuerOrganization = issuerIdentity.Organization,
                 CertificateIssuerNormalized = issuerIdentity.NormalizedName,
                 CertificateAuthorityFamily = issuerIdentity.AuthorityFamily,
@@ -359,6 +361,21 @@ namespace DomainDetective {
                 snapshots,
                 expiringWithinDays,
                 maxExpiringEndpoints);
+        }
+
+        /// <summary>Builds endpoint-level certificate drift history from persisted inventory snapshots.</summary>
+        /// <param name="sinceUtc">Optional lower bound for snapshot capture time.</param>
+        /// <param name="changedOnly">When true, only returns endpoints with observed changes.</param>
+        /// <param name="maxEndpoints">Maximum number of endpoint rows returned.</param>
+        public CertificateInventoryDriftSummary BuildInventoryDrift(
+            DateTimeOffset? sinceUtc = null,
+            bool changedOnly = false,
+            int maxEndpoints = 200) {
+            var snapshots = LoadInventorySnapshots(sinceUtc);
+            return CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly,
+                maxEndpoints);
         }
 
         /// <summary>Queries persisted inventory entries using structured filters.</summary>

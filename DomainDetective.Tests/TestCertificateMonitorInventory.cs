@@ -40,6 +40,8 @@ namespace DomainDetective.Tests {
                     Assert.Equal(443, entry.Port);
                     Assert.Equal("https", entry.Scheme);
                     Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateThumbprint));
+                    Assert.True(!string.IsNullOrWhiteSpace(entry.CertificateSerialNumber));
                 });
             } finally {
                 if (Directory.Exists(tempDir)) {
