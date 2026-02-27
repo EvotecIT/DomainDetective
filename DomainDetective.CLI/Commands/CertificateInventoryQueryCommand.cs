@@ -262,6 +262,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         summary.AddRow("Matched Unique Endpoints", result.MatchedUniqueEndpointCount.ToString());
         summary.AddRow("Returned Entries", result.Entries.Count.ToString());
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
+        if (result.EntriesTruncatedByMaxResults > 0) {
+            summary.AddRow("Truncated by Max Results", result.EntriesTruncatedByMaxResults.ToString());
+        }
         if (settings.LatestOnly) {
             summary.AddRow("Latest Per Endpoint", "Yes");
             summary.AddRow("Skipped Older Endpoint Entries", result.SkippedByLatestPerEndpointCount.ToString());

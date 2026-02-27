@@ -125,6 +125,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, result.MatchedEntryCount);
                 Assert.Equal(1, result.MatchedUniqueEndpointCount);
                 Assert.Equal(0, result.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, result.EntriesTruncatedByMaxResults);
+                Assert.Equal(result.MatchedEntryCount, result.Entries.Count + result.EntriesTruncatedByMaxResults);
                 Assert.Single(result.Entries);
                 Assert.Equal("api.example.com", result.Entries[0].Entry.Host);
                 Assert.Equal(1, result.MatchedServiceCounts["HTTPS"]);
@@ -143,6 +145,8 @@ namespace DomainDetective.Tests {
                 Assert.Equal(3, limited.MatchedEntryCount);
                 Assert.Equal(3, limited.MatchedUniqueEndpointCount);
                 Assert.True(limited.Truncated);
+                Assert.Equal(2, limited.EntriesTruncatedByMaxResults);
+                Assert.Equal(limited.MatchedEntryCount, limited.Entries.Count + limited.EntriesTruncatedByMaxResults);
                 Assert.Single(limited.Entries);
                 Assert.Equal(2, limited.MatchedServiceCounts["HTTPS"]);
                 Assert.Equal(1, limited.MatchedServiceCounts["Custom TLS"]);
@@ -348,6 +352,7 @@ namespace DomainDetective.Tests {
                     MaxResults = 10
                 });
                 Assert.Equal(1, withoutLatestOnly.MatchedEntryCount);
+                Assert.Equal(0, withoutLatestOnly.EntriesTruncatedByMaxResults);
                 Assert.Single(withoutLatestOnly.Entries);
                 Assert.Equal("api.example.com", withoutLatestOnly.Entries[0].Entry.Host);
 
@@ -359,6 +364,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(2, latestOnly.MatchedEntryCount);
                 Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(1, latestOnly.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
                 Assert.Equal(2, latestOnly.Entries.Count);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["New CA"]);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["Legacy CA"]);
@@ -371,6 +377,7 @@ namespace DomainDetective.Tests {
                 });
                 Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
                 Assert.Equal(1, latestOnlyOldCa.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, latestOnlyOldCa.EntriesTruncatedByMaxResults);
                 Assert.Empty(latestOnlyOldCa.Entries);
             } finally {
                 if (Directory.Exists(tempDir)) {
@@ -472,6 +479,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, latestOnly.MatchedEntryCount);
                 Assert.Equal(1, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(2, latestOnly.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
                 Assert.Single(latestOnly.Entries);
                 Assert.Equal("Newest CA", latestOnly.Entries[0].Entry.CertificateIssuerNormalized);
             } finally {
