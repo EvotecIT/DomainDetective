@@ -129,9 +129,10 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
                 string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
                 expiry,
                 string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!,
-                string.IsNullOrWhiteSpace(endpoint.CurrentChainSource) ? "-" : endpoint.CurrentChainSource!);
+                NormalizeChainSource(endpoint.CurrentChainSource));
         }
         AnsiConsole.Write(rows);
+        AnsiConsole.MarkupLine("[grey]Flags: C=Certificate, I=Issuer, E=Expiry, S=Service, A=AuthProfile, H=ChainSource[/]");
 
         return Task.FromResult(0);
     }
@@ -158,6 +159,18 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         }
 
         return flags.Length == 0 ? "-" : flags;
+    }
+
+    private static string NormalizeChainSource(string? source) {
+        if (string.IsNullOrWhiteSpace(source)) {
+            return "-";
+        }
+
+        if (source.Equals("unknown", StringComparison.OrdinalIgnoreCase)) {
+            return "-";
+        }
+
+        return source;
     }
 
     private static string ResolveCacheDirectory(string? configured) {

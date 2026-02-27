@@ -148,5 +148,65 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, changedOnly.EndpointCount);
             Assert.Empty(changedOnly.Endpoints);
         }
+
+        [Fact]
+        public void BuildDriftChangedOnlyIncludesAuthProfileAndChainSourceChanges() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "authchain.example.com",
+                            ResolvedHost = "authchain.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "CONST-THUMBPRINT",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "authchain.example.com",
+                            ResolvedHost = "authchain.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "CONST-THUMBPRINT",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                            CertificateChainSource = "local-build-no-check"
+                        }
+                    }
+                }
+            };
+
+            var changedOnly = CertificateInventoryDriftAnalyzer.BuildDrift(snapshots, changedOnly: true, maxEndpoints: 100);
+
+            Assert.Equal(1, changedOnly.EndpointCount);
+            Assert.Equal(1, changedOnly.EndpointsWithAnyChange);
+            Assert.Equal(0, changedOnly.EndpointsWithCertificateChange);
+            Assert.Equal(0, changedOnly.EndpointsWithIssuerChange);
+            Assert.Equal(0, changedOnly.EndpointsWithExpiryChange);
+            Assert.Equal(0, changedOnly.EndpointsWithServiceChange);
+            Assert.Equal(1, changedOnly.EndpointsWithAuthenticationProfileChange);
+            Assert.Equal(1, changedOnly.EndpointsWithChainSourceChange);
+            var endpoint = Assert.Single(changedOnly.Endpoints);
+            Assert.False(endpoint.CertificateChanged);
+            Assert.False(endpoint.IssuerChanged);
+            Assert.False(endpoint.ExpiryChanged);
+            Assert.False(endpoint.ServiceChanged);
+            Assert.True(endpoint.AuthenticationProfileChanged);
+            Assert.True(endpoint.ChainSourceChanged);
+            Assert.NotNull(endpoint.LastChangedAtUtc);
+        }
     }
 }

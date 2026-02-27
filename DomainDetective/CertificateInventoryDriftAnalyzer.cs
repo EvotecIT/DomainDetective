@@ -132,6 +132,15 @@ namespace DomainDetective {
                     chainSources.Add(chainSource);
                 }
 
+                var previousAuthenticationProfile = previous != null
+                    ? CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(previous.Entry)
+                    : null;
+                var currentAuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(latest.Entry);
+                var previousChainSource = previous != null
+                    ? CertificateInventoryEntryHelpers.PickChainSource(previous.Entry)
+                    : null;
+                var currentChainSource = CertificateInventoryEntryHelpers.PickChainSource(latest.Entry);
+
                 var row = new CertificateInventoryEndpointDrift {
                     Host = latest.Entry.ResolvedHost ?? latest.Entry.Host,
                     Port = latest.Entry.Port > 0 ? latest.Entry.Port : 443,
@@ -152,15 +161,11 @@ namespace DomainDetective {
                     IssuerChanged = issuers.Count > 1,
                     ExpiryChanged = expiries.Count > 1,
                     ServiceChanged = services.Count > 1,
-                    PreviousAuthenticationProfile = previous != null
-                        ? CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(previous.Entry)
-                        : null,
-                    CurrentAuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(latest.Entry),
+                    PreviousAuthenticationProfile = previousAuthenticationProfile,
+                    CurrentAuthenticationProfile = currentAuthenticationProfile,
                     AuthenticationProfileChanged = authenticationProfiles.Count > 1,
-                    PreviousChainSource = previous != null
-                        ? CertificateInventoryEntryHelpers.PickChainSource(previous.Entry)
-                        : null,
-                    CurrentChainSource = CertificateInventoryEntryHelpers.PickChainSource(latest.Entry),
+                    PreviousChainSource = previousChainSource,
+                    CurrentChainSource = currentChainSource,
                     ChainSourceChanged = chainSources.Count > 1,
                     LastChangedAtUtc = FindLastChangedAt(observations)
                 };
