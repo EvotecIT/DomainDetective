@@ -212,6 +212,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--thumbprint", "AA11BB22CC33DD44EE55FF6677889900AABBCCDD", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--root-thumbprint", "5A3F4D2C1B0099887766554433221100AABBCCDD", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--serial-number", "00AA11BB22CC33DD44EE55FF66778899", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--auth-profile", "ServerAuthOnly", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--client-auth-only", "--minimum-severity", "High", "--json" });
             config.AddCommand<DomainDetective.CLI.Commands.CertificateInventoryRiskCommand>("cert-inventory-risk")
                 .WithDescription("Assess certificate risk posture across persisted snapshots (alias)");

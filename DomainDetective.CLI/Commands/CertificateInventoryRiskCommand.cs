@@ -103,6 +103,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--serial-number <HEX>")]
     public string? SerialNumberEquals { get; set; }
 
+    /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
+    [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
+    [CommandOption("--auth-profile <NAME>")]
+    public string? AuthenticationProfileEquals { get; set; }
+
     /// <summary>Only include endpoints with recognized public CAs as the leaf issuer.</summary>
     [Description("Only include endpoints with recognized public CAs as the leaf issuer.")]
     [CommandOption("--known-ca-only")]
@@ -215,6 +220,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             serialNumberEquals: settings.SerialNumberEquals,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
+            authenticationProfileEquals: settings.AuthenticationProfileEquals,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);

@@ -966,6 +966,7 @@ namespace DomainDetective.Tests {
                             AllowsSecureEmail = false,
                             IsKnownCertificateAuthority = true,
                             PresentInCtLogs = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
                             WeakKey = true
                         },
                         new() {
@@ -984,6 +985,7 @@ namespace DomainDetective.Tests {
                             AllowsSecureEmail = false,
                             IsKnownCertificateAuthority = true,
                             PresentInCtLogs = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
                             WeakKey = true
                         },
                         new() {
@@ -1002,6 +1004,7 @@ namespace DomainDetective.Tests {
                             AllowsSecureEmail = true,
                             IsKnownCertificateAuthority = true,
                             PresentInCtLogs = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.SecureEmailOnly,
                             WeakKey = true
                         },
                         new() {
@@ -1020,6 +1023,7 @@ namespace DomainDetective.Tests {
                             AllowsSecureEmail = true,
                             IsKnownCertificateAuthority = true,
                             PresentInCtLogs = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.MixedOrCustom,
                             WeakKey = true
                         }
                     }
@@ -1081,6 +1085,44 @@ namespace DomainDetective.Tests {
                 clientAuthOnly: true);
             Assert.Single(serverAndClient.Endpoints);
             Assert.Equal("full-auth.example.com", serverAndClient.Endpoints[0].Host);
+
+            var filteredByAuthenticationProfile = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authenticationProfileEquals: "serverauthonly");
+            Assert.Single(filteredByAuthenticationProfile.Endpoints);
+            Assert.Equal("server-auth-only.example.com", filteredByAuthenticationProfile.Endpoints[0].Host);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, filteredByAuthenticationProfile.Endpoints[0].AuthenticationProfile);
+
+            var filteredByMissingAuthenticationProfile = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authenticationProfileEquals: "not-present");
+            Assert.Empty(filteredByMissingAuthenticationProfile.Endpoints);
+
+            var filteredByWhitespaceAuthenticationProfile = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authenticationProfileEquals: "   ");
+            Assert.Equal(4, filteredByWhitespaceAuthenticationProfile.Endpoints.Count);
         }
 
         [Fact]
