@@ -173,6 +173,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryQuery", "--host-contains", "api", "--service", "HTTPS" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--issuer-contains", "digicert", "--expiring-within-days", "30", "--json" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--client-auth-only", "--chain-incomplete-only", "--max-results", "500" })
+                .WithExample(new[] { "CertificateInventoryQuery", "--invalid-only", "--reachable-only", "--json" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--root-contains", "isrg", "--service", "HTTPS" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--authority-family", "LetsEncrypt", "--known-root-ca-only", "--auth-profile", "ServerAuthOnly" })
                 .WithExample(new[] { "CertificateInventoryQuery", "--unknown-ca-only", "--show-breakdown" })
