@@ -155,6 +155,9 @@ namespace DomainDetective {
             bool? selfSignedOnly = null,
             bool? weakKeyOnly = null,
             bool? sha1SignatureOnly = null,
+            bool? expiredOnly = null,
+            bool? notYetValidOnly = null,
+            bool? currentlyValidOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -353,6 +356,16 @@ namespace DomainDetective {
                     continue;
                 }
                 if (sha1SignatureOnly.HasValue && row.Sha1Signature != sha1SignatureOnly.Value) {
+                    continue;
+                }
+                if (expiredOnly.HasValue && row.Expired != expiredOnly.Value) {
+                    continue;
+                }
+                if (notYetValidOnly.HasValue && row.NotYetValid != notYetValidOnly.Value) {
+                    continue;
+                }
+                var currentlyValid = !row.Expired && !row.NotYetValid;
+                if (currentlyValidOnly.HasValue && currentlyValid != currentlyValidOnly.Value) {
                     continue;
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {
