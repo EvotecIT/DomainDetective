@@ -19,7 +19,9 @@ namespace DomainDetective.Tests {
                             Service = "HTTPS",
                             CertificateThumbprint = "AAA111",
                             CertificateIssuerNormalized = "Let's Encrypt",
-                            NotAfterUtc = now.AddDays(30)
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
                         },
                         new() {
                             Host = "portal.example.com",
@@ -28,7 +30,9 @@ namespace DomainDetective.Tests {
                             Service = "HTTPS",
                             CertificateThumbprint = "ZZZ999",
                             CertificateIssuerNormalized = "DigiCert",
-                            NotAfterUtc = now.AddDays(90)
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
                         }
                     }
                 },
@@ -43,7 +47,9 @@ namespace DomainDetective.Tests {
                             Service = "HTTPS-Alt",
                             CertificateThumbprint = "BBB222",
                             CertificateIssuerNormalized = "DigiCert",
-                            NotAfterUtc = now.AddDays(365)
+                            NotAfterUtc = now.AddDays(365),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                            CertificateChainSource = "local-build-no-check"
                         },
                         new() {
                             Host = "portal.example.com",
@@ -52,7 +58,9 @@ namespace DomainDetective.Tests {
                             Service = "HTTPS",
                             CertificateThumbprint = "ZZZ999",
                             CertificateIssuerNormalized = "DigiCert",
-                            NotAfterUtc = now.AddDays(90)
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
                         }
                     }
                 }
@@ -67,6 +75,8 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, drift.EndpointsWithIssuerChange);
             Assert.Equal(1, drift.EndpointsWithExpiryChange);
             Assert.Equal(1, drift.EndpointsWithServiceChange);
+            Assert.Equal(1, drift.EndpointsWithAuthenticationProfileChange);
+            Assert.Equal(1, drift.EndpointsWithChainSourceChange);
             Assert.Equal(2, drift.Endpoints.Count);
 
             var api = drift.Endpoints.Single(x => x.Host == "api.example.com");
@@ -74,8 +84,14 @@ namespace DomainDetective.Tests {
             Assert.True(api.IssuerChanged);
             Assert.True(api.ExpiryChanged);
             Assert.True(api.ServiceChanged);
+            Assert.True(api.AuthenticationProfileChanged);
+            Assert.True(api.ChainSourceChanged);
             Assert.Equal("AAA111", api.PreviousCertificateId);
             Assert.Equal("BBB222", api.CurrentCertificateId);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAuthOnly, api.PreviousAuthenticationProfile);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ClientAuthOnly, api.CurrentAuthenticationProfile);
+            Assert.Equal("tls-handshake", api.PreviousChainSource);
+            Assert.Equal("local-build-no-check", api.CurrentChainSource);
             Assert.NotNull(api.LastChangedAtUtc);
             Assert.Equal(2, api.ObservationCount);
             Assert.Equal(2, api.DistinctCertificateCount);
@@ -85,6 +101,8 @@ namespace DomainDetective.Tests {
             Assert.False(portal.IssuerChanged);
             Assert.False(portal.ExpiryChanged);
             Assert.False(portal.ServiceChanged);
+            Assert.False(portal.AuthenticationProfileChanged);
+            Assert.False(portal.ChainSourceChanged);
             Assert.Null(portal.LastChangedAtUtc);
         }
 

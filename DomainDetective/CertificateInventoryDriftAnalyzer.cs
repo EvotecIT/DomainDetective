@@ -15,6 +15,8 @@ namespace DomainDetective {
         public int EndpointsWithIssuerChange { get; set; }
         public int EndpointsWithExpiryChange { get; set; }
         public int EndpointsWithServiceChange { get; set; }
+        public int EndpointsWithAuthenticationProfileChange { get; set; }
+        public int EndpointsWithChainSourceChange { get; set; }
         public List<CertificateInventoryEndpointDrift> Endpoints { get; set; } = new();
     }
 
@@ -39,6 +41,12 @@ namespace DomainDetective {
         public bool IssuerChanged { get; set; }
         public bool ExpiryChanged { get; set; }
         public bool ServiceChanged { get; set; }
+        public string? PreviousAuthenticationProfile { get; set; }
+        public string? CurrentAuthenticationProfile { get; set; }
+        public bool AuthenticationProfileChanged { get; set; }
+        public string? PreviousChainSource { get; set; }
+        public string? CurrentChainSource { get; set; }
+        public bool ChainSourceChanged { get; set; }
         public DateTimeOffset? LastChangedAtUtc { get; set; }
     }
 
@@ -98,6 +106,8 @@ namespace DomainDetective {
                 var issuers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var expiries = new HashSet<string>(StringComparer.Ordinal);
                 var services = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var authenticationProfiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var chainSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var observation in observations) {
                     certificateIds.Add(BuildCertificateId(observation.Entry));
@@ -114,6 +124,12 @@ namespace DomainDetective {
                         ? CertificateServiceClassifier.GuessService(observation.Entry.Scheme ?? "https", observation.Entry.Port)
                         : observation.Entry.Service!;
                     services.Add(service);
+
+                    var authenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(observation.Entry);
+                    authenticationProfiles.Add(authenticationProfile);
+
+                    var chainSource = CertificateInventoryEntryHelpers.PickChainSource(observation.Entry);
+                    chainSources.Add(chainSource);
                 }
 
                 var row = new CertificateInventoryEndpointDrift {
@@ -136,6 +152,16 @@ namespace DomainDetective {
                     IssuerChanged = issuers.Count > 1,
                     ExpiryChanged = expiries.Count > 1,
                     ServiceChanged = services.Count > 1,
+                    PreviousAuthenticationProfile = previous != null
+                        ? CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(previous.Entry)
+                        : null,
+                    CurrentAuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(latest.Entry),
+                    AuthenticationProfileChanged = authenticationProfiles.Count > 1,
+                    PreviousChainSource = previous != null
+                        ? CertificateInventoryEntryHelpers.PickChainSource(previous.Entry)
+                        : null,
+                    CurrentChainSource = CertificateInventoryEntryHelpers.PickChainSource(latest.Entry),
+                    ChainSourceChanged = chainSources.Count > 1,
                     LastChangedAtUtc = FindLastChangedAt(observations)
                 };
 
@@ -143,7 +169,9 @@ namespace DomainDetective {
                     !row.CertificateChanged &&
                     !row.IssuerChanged &&
                     !row.ExpiryChanged &&
-                    !row.ServiceChanged) {
+                    !row.ServiceChanged &&
+                    !row.AuthenticationProfileChanged &&
+                    !row.ChainSourceChanged) {
                     continue;
                 }
 
@@ -155,7 +183,15 @@ namespace DomainDetective {
             summary.EndpointsWithIssuerChange = driftRows.Count(row => row.IssuerChanged);
             summary.EndpointsWithExpiryChange = driftRows.Count(row => row.ExpiryChanged);
             summary.EndpointsWithServiceChange = driftRows.Count(row => row.ServiceChanged);
-            summary.EndpointsWithAnyChange = driftRows.Count(row => row.CertificateChanged || row.IssuerChanged || row.ExpiryChanged || row.ServiceChanged);
+            summary.EndpointsWithAuthenticationProfileChange = driftRows.Count(row => row.AuthenticationProfileChanged);
+            summary.EndpointsWithChainSourceChange = driftRows.Count(row => row.ChainSourceChanged);
+            summary.EndpointsWithAnyChange = driftRows.Count(row =>
+                row.CertificateChanged ||
+                row.IssuerChanged ||
+                row.ExpiryChanged ||
+                row.ServiceChanged ||
+                row.AuthenticationProfileChanged ||
+                row.ChainSourceChanged);
 
             summary.Endpoints = driftRows
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
@@ -204,7 +240,19 @@ namespace DomainDetective {
             var currentService = string.IsNullOrWhiteSpace(current.Service)
                 ? CertificateServiceClassifier.GuessService(current.Scheme ?? "https", current.Port)
                 : current.Service!;
-            return !string.Equals(previousService, currentService, StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(previousService, currentService, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            var previousAuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(previous);
+            var currentAuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(current);
+            if (!string.Equals(previousAuthenticationProfile, currentAuthenticationProfile, StringComparison.OrdinalIgnoreCase)) {
+                return true;
+            }
+
+            var previousChainSource = CertificateInventoryEntryHelpers.PickChainSource(previous);
+            var currentChainSource = CertificateInventoryEntryHelpers.PickChainSource(current);
+            return !string.Equals(previousChainSource, currentChainSource, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {

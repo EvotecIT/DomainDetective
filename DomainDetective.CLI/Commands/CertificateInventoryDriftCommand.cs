@@ -92,6 +92,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Issuer Change", drift.EndpointsWithIssuerChange.ToString());
         summary.AddRow("Expiry Change", drift.EndpointsWithExpiryChange.ToString());
         summary.AddRow("Service Change", drift.EndpointsWithServiceChange.ToString());
+        summary.AddRow("Auth Profile Change", drift.EndpointsWithAuthenticationProfileChange.ToString());
+        summary.AddRow("Chain Source Change", drift.EndpointsWithChainSourceChange.ToString());
         AnsiConsole.Write(summary);
 
         if (drift.Endpoints.Count == 0) {
@@ -109,6 +111,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.AddColumn("Last Change");
         rows.AddColumn("Current Issuer");
         rows.AddColumn("Current Expiry");
+        rows.AddColumn("Auth Profile");
+        rows.AddColumn("Chain Source");
         foreach (var endpoint in drift.Endpoints
                      .OrderByDescending(x => x.LastChangedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)) {
@@ -123,7 +127,9 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
                 changed,
                 lastChange,
                 string.IsNullOrWhiteSpace(endpoint.CurrentIssuer) ? "-" : endpoint.CurrentIssuer!,
-                expiry);
+                expiry,
+                string.IsNullOrWhiteSpace(endpoint.CurrentAuthenticationProfile) ? "-" : endpoint.CurrentAuthenticationProfile!,
+                string.IsNullOrWhiteSpace(endpoint.CurrentChainSource) ? "-" : endpoint.CurrentChainSource!);
         }
         AnsiConsole.Write(rows);
 
@@ -143,6 +149,12 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         }
         if (endpoint.ServiceChanged) {
             flags += "S";
+        }
+        if (endpoint.AuthenticationProfileChanged) {
+            flags += "A";
+        }
+        if (endpoint.ChainSourceChanged) {
+            flags += "H";
         }
 
         return flags.Length == 0 ? "-" : flags;
