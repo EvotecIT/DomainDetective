@@ -746,6 +746,21 @@ namespace DomainDetective {
                 return false;
             }
 
+            if (query.WeakKeyOnly.HasValue && query.WeakKeyOnly.Value != entry.WeakKey) {
+                return false;
+            }
+
+            if (query.Sha1SignatureOnly.HasValue && query.Sha1SignatureOnly.Value != entry.Sha1Signature) {
+                return false;
+            }
+
+            if (query.NotYetValidOnly.HasValue) {
+                var isNotYetValid = entry.NotBeforeUtc.HasValue && entry.NotBeforeUtc.Value > now;
+                if (query.NotYetValidOnly.Value != isNotYetValid) {
+                    return false;
+                }
+            }
+
             var authenticationProfileEquals = query.AuthenticationProfileEquals;
             if (!string.IsNullOrWhiteSpace(authenticationProfileEquals)) {
                 var expectedProfile = authenticationProfileEquals!.Trim();

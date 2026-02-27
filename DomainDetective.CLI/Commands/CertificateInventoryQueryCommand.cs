@@ -151,6 +151,21 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--secure-email-only")]
     public bool SecureEmailOnly { get; set; }
 
+    /// <summary>Only include certificates that use weak keys.</summary>
+    [Description("Only include certificates that use weak keys.")]
+    [CommandOption("--weak-key-only")]
+    public bool WeakKeyOnly { get; set; }
+
+    /// <summary>Only include certificates signed with SHA-1.</summary>
+    [Description("Only include certificates signed with SHA-1.")]
+    [CommandOption("--sha1-signature-only")]
+    public bool Sha1SignatureOnly { get; set; }
+
+    /// <summary>Only include certificates that are not yet valid (NotBeforeUtc is in the future).</summary>
+    [Description("Only include certificates that are not yet valid (NotBeforeUtc is in the future).")]
+    [CommandOption("--not-yet-valid-only")]
+    public bool NotYetValidOnly { get; set; }
+
     /// <summary>Only include certificates expiring within this many days.</summary>
     [Description("Only include certificates expiring within this many days.")]
     [CommandOption("--expiring-within-days <DAYS>")]
@@ -206,6 +221,14 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AnsiConsole.MarkupLine("[red]--expired-only cannot be combined with --expiring-within-days.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ExpiredOnly && settings.NotYetValidOnly) {
+            AnsiConsole.MarkupLine("[red]--expired-only cannot be combined with --not-yet-valid-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ValidOnly && settings.NotYetValidOnly) {
+            AnsiConsole.MarkupLine("[red]--valid-only cannot be combined with --not-yet-valid-only.[/]");
+            return Task.FromResult(1);
+        }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
@@ -240,6 +263,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AllowsServerAuthOnly = settings.ServerAuthOnly ? true : null,
             AllowsClientAuthOnly = settings.ClientAuthOnly ? true : null,
             AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,
+            WeakKeyOnly = settings.WeakKeyOnly ? true : null,
+            Sha1SignatureOnly = settings.Sha1SignatureOnly ? true : null,
+            NotYetValidOnly = settings.NotYetValidOnly ? true : null,
             ExpiringWithinDays = settings.ExpiringWithinDays,
             AuthenticationProfileEquals = settings.AuthenticationProfileEquals,
             LatestPerEndpointOnly = settings.LatestOnly,
