@@ -234,6 +234,11 @@ namespace DomainDetective.Tests {
                 maxEndpoints: 100);
 
             Assert.Equal(1, risk.EndpointCount);
+            Assert.Equal(0, risk.CriticalCount);
+            Assert.Equal(1, risk.HighCount);
+            Assert.Equal(0, risk.MediumCount);
+            Assert.Equal(0, risk.LowCount);
+            Assert.Equal(0, risk.NoRiskCount);
             Assert.Single(risk.Endpoints);
 
             var future = risk.Endpoints[0];
@@ -243,6 +248,8 @@ namespace DomainDetective.Tests {
             Assert.Equal("High", future.Severity);
             Assert.Contains("CertificateNotYetValid", future.Reasons);
             Assert.DoesNotContain("CertificateValidationFailed", future.Reasons);
+            Assert.True(risk.ReasonCounts.TryGetValue("CertificateNotYetValid", out var notYetValidCount) && notYetValidCount == 1);
+            Assert.False(risk.ReasonCounts.ContainsKey("CertificateValidationFailed"));
         }
     }
 }
