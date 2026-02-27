@@ -31,6 +31,7 @@ namespace DomainDetective {
         /// <summary>Certificate validity start timestamp in UTC from the observed endpoint certificate.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
+        public int? DaysUntilValid { get; set; }
         public int? DaysToExpire { get; set; }
         public int Score { get; set; }
         public string Severity { get; set; } = "None";
@@ -172,6 +173,7 @@ namespace DomainDetective {
             // even when upstream snapshots incorrectly persist Valid=true.
             if (row.NotBeforeUtc.HasValue && row.NotBeforeUtc.Value > now) {
                 row.NotYetValid = true;
+                row.DaysUntilValid = Math.Max(0, (int)Math.Ceiling((row.NotBeforeUtc.Value - now).TotalDays));
                 score += 60;
                 row.Reasons.Add("CertificateNotYetValid");
             }
