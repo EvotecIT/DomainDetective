@@ -5,10 +5,14 @@ using System.Management.Automation;
 namespace DomainDetective.PowerShell;
 
 /// <summary>Builds endpoint-level certificate drift from persisted inventory snapshots.</summary>
-/// <para>Detects certificate rotation and issuer/expiry/service/auth-profile/chain-source drift between observations for each endpoint, including severity and change-kind classification.</para>
+/// <para>Detects certificate rotation and issuer/expiry/service/auth-profile/chain-source drift between observations for each endpoint, including severity and change-kind classification with optional minimum-severity filtering.</para>
 /// <example>
 ///   <summary>Show only changed endpoints from the last 14 days</summary>
 ///   <code>Get-DDCertificateInventoryDrift -SinceUtc (Get-Date).ToUniversalTime().AddDays(-14) -ChangedOnly</code>
+/// </example>
+/// <example>
+///   <summary>Show only medium and high severity drift rows</summary>
+///   <code>Get-DDCertificateInventoryDrift -MinimumSeverity Medium</code>
 /// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryDrift")]
 [Alias("Get-CertificateInventoryDrift")]
@@ -31,6 +35,11 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 200;
 
+    /// <summary>Optional minimum drift severity filter.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateSet("None", "Low", "Medium", "High")]
+    public string? MinimumSeverity { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         var monitor = new CertificateMonitor {
@@ -46,7 +55,8 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
         var summary = monitor.BuildInventoryDrift(
             sinceUtc: since,
             changedOnly: ChangedOnly.IsPresent,
-            maxEndpoints: MaxEndpoints);
+            maxEndpoints: MaxEndpoints,
+            minimumSeverity: MinimumSeverity);
         WriteObject(summary);
     }
 

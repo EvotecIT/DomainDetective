@@ -36,6 +36,11 @@ internal sealed class CertificateInventoryDriftSettings : CommandSettings {
     [DefaultValue(200)]
     public int MaxEndpoints { get; set; } = 200;
 
+    /// <summary>Optional minimum drift severity filter (none, low, medium, high).</summary>
+    [Description("Optional minimum drift severity filter (none, low, medium, high).")]
+    [CommandOption("--minimum-severity <SEVERITY>")]
+    public string? MinimumSeverity { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -58,6 +63,11 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             return Task.FromResult(1);
         }
 
+        if (!TryNormalizeSeverity(settings.MinimumSeverity, out var minimumSeverity)) {
+            AnsiConsole.MarkupLine("[red]--minimum-severity must be one of: none, low, medium, high.[/]");
+            return Task.FromResult(1);
+        }
+
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
@@ -68,7 +78,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         var drift = monitor.BuildInventoryDrift(
             sinceUtc: sinceUtc,
             changedOnly: settings.ChangedOnly,
-            maxEndpoints: settings.MaxEndpoints);
+            maxEndpoints: settings.MaxEndpoints,
+            minimumSeverity: minimumSeverity);
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(drift, JsonOptions.Default);
@@ -87,6 +98,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
+        summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
         summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
         summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
@@ -206,5 +218,32 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             dt = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
         }
         return dt.ToUniversalTime();
+    }
+
+    private static bool TryNormalizeSeverity(string? value, out string? normalized) {
+        normalized = null;
+        if (string.IsNullOrWhiteSpace(value)) {
+            return true;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Equals("none", StringComparison.OrdinalIgnoreCase)) {
+            normalized = "None";
+            return true;
+        }
+        if (trimmed.Equals("low", StringComparison.OrdinalIgnoreCase)) {
+            normalized = "Low";
+            return true;
+        }
+        if (trimmed.Equals("medium", StringComparison.OrdinalIgnoreCase)) {
+            normalized = "Medium";
+            return true;
+        }
+        if (trimmed.Equals("high", StringComparison.OrdinalIgnoreCase)) {
+            normalized = "High";
+            return true;
+        }
+
+        return false;
     }
 }

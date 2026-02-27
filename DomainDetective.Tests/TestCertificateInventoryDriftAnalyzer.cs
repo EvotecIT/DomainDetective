@@ -320,5 +320,150 @@ namespace DomainDetective.Tests {
             Assert.Equal("Medium", endpoint.DriftSeverity);
             Assert.Equal(new[] { "certificate", "chain-source" }, endpoint.ChangeKinds);
         }
+
+        [Fact]
+        public void BuildDriftMinimumSeverityFiltersRowsByThreshold() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "none.example.com",
+                            ResolvedHost = "none.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "NONE-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "low.example.com",
+                            ResolvedHost = "low.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "LOW-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "medium.example.com",
+                            ResolvedHost = "medium.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "MEDIUM-OLD",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(45),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "high.example.com",
+                            ResolvedHost = "high.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "HIGH-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "none.example.com",
+                            ResolvedHost = "none.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "NONE-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "low.example.com",
+                            ResolvedHost = "low.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "LOW-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(60),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "medium.example.com",
+                            ResolvedHost = "medium.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "MEDIUM-NEW",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(45),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "high.example.com",
+                            ResolvedHost = "high.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "HIGH-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(90),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                }
+            };
+
+            var mediumAndHigh = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                minimumSeverity: "medium");
+
+            Assert.Equal(4, mediumAndHigh.EndpointCount);
+            Assert.Equal(2, mediumAndHigh.Endpoints.Count);
+            Assert.Equal(2, mediumAndHigh.EndpointsWithAnyChange);
+            Assert.Equal(1, mediumAndHigh.EndpointsWithHighSeverityDrift);
+            Assert.Equal(1, mediumAndHigh.EndpointsWithMediumSeverityDrift);
+            Assert.Equal(0, mediumAndHigh.EndpointsWithLowSeverityDrift);
+            Assert.Contains(mediumAndHigh.Endpoints, endpoint => endpoint.Host == "medium.example.com");
+            Assert.Contains(mediumAndHigh.Endpoints, endpoint => endpoint.Host == "high.example.com");
+            Assert.DoesNotContain(mediumAndHigh.Endpoints, endpoint => endpoint.Host == "low.example.com");
+            Assert.DoesNotContain(mediumAndHigh.Endpoints, endpoint => endpoint.Host == "none.example.com");
+
+            var highOnly = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                minimumSeverity: "HIGH");
+
+            var endpointHigh = Assert.Single(highOnly.Endpoints);
+            Assert.Equal("high.example.com", endpointHigh.Host);
+            Assert.Equal(1, highOnly.EndpointsWithAnyChange);
+            Assert.Equal(1, highOnly.EndpointsWithHighSeverityDrift);
+            Assert.Equal(0, highOnly.EndpointsWithMediumSeverityDrift);
+            Assert.Equal(0, highOnly.EndpointsWithLowSeverityDrift);
+        }
+
+        [Fact]
+        public void BuildDriftThrowsForInvalidMinimumSeverity() {
+            Assert.Throws<ArgumentException>(() =>
+                CertificateInventoryDriftAnalyzer.BuildDrift(
+                    Array.Empty<CertificateInventorySnapshot>(),
+                    minimumSeverity: "critical"));
+        }
     }
 }
