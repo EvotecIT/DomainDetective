@@ -209,6 +209,7 @@ internal static class Program {
                 .WithExample(new[] { "CertificateInventoryRisk", "--authority-family", "LetsEncrypt", "--root-authority-family", "LetsEncrypt", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--ct-source-contains", "crt.sh", "--chain-source-contains", "tls-handshake", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--unknown-ca-only", "--unknown-root-ca-only", "--json" })
+                .WithExample(new[] { "CertificateInventoryRisk", "--host-contains", "api.example.com", "--service", "HTTPS", "--port", "443", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--thumbprint", "AA11BB22CC33DD44EE55FF6677889900AABBCCDD", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--root-thumbprint", "5A3F4D2C1B0099887766554433221100AABBCCDD", "--json" })
                 .WithExample(new[] { "CertificateInventoryRisk", "--serial-number", "00AA11BB22CC33DD44EE55FF66778899", "--json" })

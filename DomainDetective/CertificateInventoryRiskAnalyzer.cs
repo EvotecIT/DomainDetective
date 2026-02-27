@@ -145,6 +145,9 @@ namespace DomainDetective {
             string? thumbprintEquals = null,
             string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
+            string? hostContains = null,
+            string? serviceEquals = null,
+            int? portEquals = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -177,6 +180,15 @@ namespace DomainDetective {
             var rootThumbprintExpected = hasRootThumbprintFilter ? NormalizeHexIdentifier(rootThumbprintEquals) : string.Empty;
             var hasSerialNumberFilter = !string.IsNullOrWhiteSpace(serialNumberEquals);
             var serialNumberExpected = hasSerialNumberFilter ? NormalizeHexIdentifier(serialNumberEquals) : string.Empty;
+            var hasHostFilter = !string.IsNullOrWhiteSpace(hostContains);
+            var hostNeedle = hasHostFilter ? hostContains!.Trim() : string.Empty;
+            var hasServiceFilter = !string.IsNullOrWhiteSpace(serviceEquals);
+            var serviceExpected = hasServiceFilter ? serviceEquals!.Trim() : string.Empty;
+            var hasPortFilter = portEquals.HasValue;
+            var portExpected = hasPortFilter ? portEquals!.Value : 0;
+            if (hasPortFilter && (portExpected <= 0 || portExpected > 65535)) {
+                throw new ArgumentOutOfRangeException(nameof(portEquals), "portEquals must be between 1 and 65535.");
+            }
             var hasAuthenticationProfileFilter = !string.IsNullOrWhiteSpace(authenticationProfileEquals);
             var authenticationProfileExpected = hasAuthenticationProfileFilter ? authenticationProfileEquals!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
@@ -305,6 +317,15 @@ namespace DomainDetective {
                         !string.Equals(rowSerialNumber, serialNumberExpected, StringComparison.OrdinalIgnoreCase)) {
                         continue;
                     }
+                }
+                if (hasHostFilter && row.Host.IndexOf(hostNeedle, StringComparison.OrdinalIgnoreCase) < 0) {
+                    continue;
+                }
+                if (hasServiceFilter && !string.Equals(row.Service, serviceExpected, StringComparison.OrdinalIgnoreCase)) {
+                    continue;
+                }
+                if (hasPortFilter && row.Port != portExpected) {
+                    continue;
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {
                     continue;

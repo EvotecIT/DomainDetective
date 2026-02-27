@@ -586,6 +586,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskThrowsForInvalidPortEquals() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var ex = Assert.Throws<ArgumentOutOfRangeException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                portEquals: 70000));
+            Assert.Equal("portEquals", ex.ParamName);
+        }
+
+        [Fact]
         public void BuildRiskTreatsNoneAsNoAdditionalFilterAndSupportsCaseInsensitiveSeverity() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
@@ -940,6 +957,111 @@ namespace DomainDetective.Tests {
                 reasonContains: null,
                 issuerContains: "not-present");
             Assert.Empty(filteredByMissingIssuer.Endpoints);
+        }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByHostServiceAndPort() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "api-alt.example.com",
+                            ResolvedHost = "api-alt.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "mail.example.com",
+                            ResolvedHost = "mail.example.com",
+                            Port = 25,
+                            Service = "SMTP TLS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByHost = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                hostContains: "api");
+            Assert.Equal(2, filteredByHost.Endpoints.Count);
+            Assert.Contains(filteredByHost.Endpoints, endpoint => string.Equals(endpoint.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(filteredByHost.Endpoints, endpoint => string.Equals(endpoint.Host, "api-alt.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByService = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                serviceEquals: "https-alt");
+            Assert.Single(filteredByService.Endpoints);
+            Assert.Equal("api-alt.example.com", filteredByService.Endpoints[0].Host);
+
+            var filteredByPort = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                portEquals: 25);
+            Assert.Single(filteredByPort.Endpoints);
+            Assert.Equal("mail.example.com", filteredByPort.Endpoints[0].Host);
+
+            var filteredByHostServiceAndPort = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                hostContains: "api",
+                serviceEquals: "HTTPS-Alt",
+                portEquals: 8443);
+            Assert.Single(filteredByHostServiceAndPort.Endpoints);
+            Assert.Equal("api-alt.example.com", filteredByHostServiceAndPort.Endpoints[0].Host);
+
+            var filteredByMissingService = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                serviceEquals: "not-present");
+            Assert.Empty(filteredByMissingService.Endpoints);
+
+            var filteredByWhitespaceHostAndService = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                hostContains: "   ",
+                serviceEquals: "   ");
+            Assert.Equal(3, filteredByWhitespaceHostAndService.Endpoints.Count);
         }
 
         [Fact]
