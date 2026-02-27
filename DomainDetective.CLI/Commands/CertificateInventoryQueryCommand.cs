@@ -116,6 +116,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--valid-only")]
     public bool ValidOnly { get; set; }
 
+    /// <summary>Only include entries where certificate validation failed.</summary>
+    [Description("Only include entries where certificate validation failed.")]
+    [CommandOption("--invalid-only")]
+    public bool InvalidOnly { get; set; }
+
     /// <summary>Only include expired certificates.</summary>
     [Description("Only include expired certificates.")]
     [CommandOption("--expired-only")]
@@ -126,25 +131,50 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--chain-incomplete-only")]
     public bool ChainIncompleteOnly { get; set; }
 
+    /// <summary>Only include entries with complete certificate chains.</summary>
+    [Description("Only include entries with complete certificate chains.")]
+    [CommandOption("--chain-complete-only")]
+    public bool ChainCompleteOnly { get; set; }
+
     /// <summary>Only include entries where hostname validation failed.</summary>
     [Description("Only include entries where hostname validation failed.")]
     [CommandOption("--hostname-mismatch-only")]
     public bool HostnameMismatchOnly { get; set; }
+
+    /// <summary>Only include entries where hostname validation succeeded.</summary>
+    [Description("Only include entries where hostname validation succeeded.")]
+    [CommandOption("--hostname-match-only")]
+    public bool HostnameMatchOnly { get; set; }
 
     /// <summary>Only include self-signed certificates.</summary>
     [Description("Only include self-signed certificates.")]
     [CommandOption("--self-signed-only")]
     public bool SelfSignedOnly { get; set; }
 
+    /// <summary>Only include certificates that are not self-signed.</summary>
+    [Description("Only include certificates that are not self-signed.")]
+    [CommandOption("--not-self-signed-only")]
+    public bool NotSelfSignedOnly { get; set; }
+
     /// <summary>Only include unreachable endpoints.</summary>
     [Description("Only include unreachable endpoints.")]
     [CommandOption("--unreachable-only")]
     public bool UnreachableOnly { get; set; }
 
+    /// <summary>Only include reachable endpoints.</summary>
+    [Description("Only include reachable endpoints.")]
+    [CommandOption("--reachable-only")]
+    public bool ReachableOnly { get; set; }
+
     /// <summary>Only include certificates observed in CT logs.</summary>
     [Description("Only include certificates observed in CT logs.")]
     [CommandOption("--ct-only")]
     public bool CtOnly { get; set; }
+
+    /// <summary>Only include certificates not observed in CT logs.</summary>
+    [Description("Only include certificates not observed in CT logs.")]
+    [CommandOption("--ct-missing-only")]
+    public bool CtMissingOnly { get; set; }
 
     /// <summary>Only include certificates that allow server authentication EKU.</summary>
     [Description("Only include certificates that allow server authentication EKU.")]
@@ -231,6 +261,30 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AnsiConsole.MarkupLine("[red]--known-root-ca-only cannot be combined with --unknown-root-ca-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ValidOnly && settings.InvalidOnly) {
+            AnsiConsole.MarkupLine("[red]--valid-only cannot be combined with --invalid-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.ChainIncompleteOnly && settings.ChainCompleteOnly) {
+            AnsiConsole.MarkupLine("[red]--chain-incomplete-only cannot be combined with --chain-complete-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.HostnameMismatchOnly && settings.HostnameMatchOnly) {
+            AnsiConsole.MarkupLine("[red]--hostname-mismatch-only cannot be combined with --hostname-match-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.SelfSignedOnly && settings.NotSelfSignedOnly) {
+            AnsiConsole.MarkupLine("[red]--self-signed-only cannot be combined with --not-self-signed-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.UnreachableOnly && settings.ReachableOnly) {
+            AnsiConsole.MarkupLine("[red]--unreachable-only cannot be combined with --reachable-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.CtOnly && settings.CtMissingOnly) {
+            AnsiConsole.MarkupLine("[red]--ct-only cannot be combined with --ct-missing-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ExpiringWithinDays.HasValue && settings.ExpiringWithinDays.Value < 0) {
             AnsiConsole.MarkupLine("[red]--expiring-within-days must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -271,13 +325,13 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             ThumbprintEquals = settings.ThumbprintEquals,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             KnownRootAuthorityOnly = settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
-            ValidOnly = settings.ValidOnly ? true : null,
+            ValidOnly = settings.ValidOnly ? true : settings.InvalidOnly ? false : null,
             ExpiredOnly = settings.ExpiredOnly ? true : null,
-            ChainCompleteOnly = settings.ChainIncompleteOnly ? false : null,
-            HostnameMatchOnly = settings.HostnameMismatchOnly ? false : null,
-            SelfSignedOnly = settings.SelfSignedOnly ? true : null,
-            ReachableOnly = settings.UnreachableOnly ? false : null,
-            PresentInCtOnly = settings.CtOnly ? true : null,
+            ChainCompleteOnly = settings.ChainIncompleteOnly ? false : settings.ChainCompleteOnly ? true : null,
+            HostnameMatchOnly = settings.HostnameMismatchOnly ? false : settings.HostnameMatchOnly ? true : null,
+            SelfSignedOnly = settings.SelfSignedOnly ? true : settings.NotSelfSignedOnly ? false : null,
+            ReachableOnly = settings.UnreachableOnly ? false : settings.ReachableOnly ? true : null,
+            PresentInCtOnly = settings.CtOnly ? true : settings.CtMissingOnly ? false : null,
             AllowsServerAuthOnly = settings.ServerAuthOnly ? true : null,
             AllowsClientAuthOnly = settings.ClientAuthOnly ? true : null,
             AllowsSecureEmailOnly = settings.SecureEmailOnly ? true : null,

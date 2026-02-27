@@ -233,6 +233,42 @@ namespace DomainDetective.Tests {
                 Assert.Single(validCt.Entries);
                 Assert.Equal("api.example.com", validCt.Entries[0].Entry.Host);
 
+                var invalidOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ValidOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, invalidOnly.MatchedEntryCount);
+                Assert.Equal(2, invalidOnly.Entries.Count);
+                Assert.Contains(invalidOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(invalidOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var chainCompleteOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ChainCompleteOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, chainCompleteOnly.MatchedEntryCount);
+                Assert.Equal(2, chainCompleteOnly.Entries.Count);
+                Assert.Contains(chainCompleteOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(chainCompleteOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var hostnameMatchOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostnameMatchOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, hostnameMatchOnly.MatchedEntryCount);
+                Assert.Equal(2, hostnameMatchOnly.Entries.Count);
+                Assert.Contains(hostnameMatchOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(hostnameMatchOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var notSelfSignedOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SelfSignedOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, notSelfSignedOnly.MatchedEntryCount);
+                Assert.Equal(2, notSelfSignedOnly.Entries.Count);
+                Assert.Contains(notSelfSignedOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(notSelfSignedOnly.Entries, observed => string.Equals(observed.Entry.Host, "old.example.com", StringComparison.OrdinalIgnoreCase));
+
                 var unreachable = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ReachableOnly = false,
                     MaxResults = 10
@@ -240,6 +276,23 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, unreachable.MatchedEntryCount);
                 Assert.Single(unreachable.Entries);
                 Assert.Equal("old.example.com", unreachable.Entries[0].Entry.Host);
+
+                var reachableOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    ReachableOnly = true,
+                    MaxResults = 10
+                });
+                Assert.Equal(2, reachableOnly.MatchedEntryCount);
+                Assert.Equal(2, reachableOnly.Entries.Count);
+                Assert.Contains(reachableOnly.Entries, observed => string.Equals(observed.Entry.Host, "api.example.com", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(reachableOnly.Entries, observed => string.Equals(observed.Entry.Host, "internal.example.com", StringComparison.OrdinalIgnoreCase));
+
+                var ctMissingOnly = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    PresentInCtOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, ctMissingOnly.MatchedEntryCount);
+                Assert.Single(ctMissingOnly.Entries);
+                Assert.Equal("internal.example.com", ctMissingOnly.Entries[0].Entry.Host);
 
                 var rootFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     RootContains = "isrg",

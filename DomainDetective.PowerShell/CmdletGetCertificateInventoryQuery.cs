@@ -19,6 +19,10 @@ namespace DomainDetective.PowerShell;
 ///   <code>Get-DDCertificateInventoryQuery -AuthorityFamilyEquals LetsEncrypt -KnownRootCaOnly -CtSourceContains shodan</code>
 /// </example>
 /// <example>
+///   <summary>Find invalid but reachable endpoints</summary>
+///   <code>Get-DDCertificateInventoryQuery -InvalidOnly -ReachableOnly</code>
+/// </example>
+/// <example>
 ///   <summary>Return only latest endpoint observations</summary>
 ///   <code>Get-DDCertificateInventoryQuery -LatestOnly -HostContains \"example.com\"</code>
 /// </example>
@@ -90,13 +94,25 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter KnownCaOnly { get; set; }
 
+    /// <summary>Only include certificates from unrecognized or private CAs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter UnknownCaOnly { get; set; }
+
     /// <summary>Only include certificates chaining to recognized public root CAs.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter KnownRootCaOnly { get; set; }
 
+    /// <summary>Only include certificates chaining to unrecognized or private root CAs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter UnknownRootCaOnly { get; set; }
+
     /// <summary>Only include entries with valid certificates.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ValidOnly { get; set; }
+
+    /// <summary>Only include entries with invalid certificates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter InvalidOnly { get; set; }
 
     /// <summary>Only include expired certificates.</summary>
     [Parameter(Mandatory = false)]
@@ -106,21 +122,41 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter ChainIncompleteOnly { get; set; }
 
+    /// <summary>Only include entries with complete chains.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ChainCompleteOnly { get; set; }
+
     /// <summary>Only include entries where hostname validation failed.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter HostnameMismatchOnly { get; set; }
+
+    /// <summary>Only include entries where hostname validation succeeded.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter HostnameMatchOnly { get; set; }
 
     /// <summary>Only include self-signed certificates.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter SelfSignedOnly { get; set; }
 
+    /// <summary>Only include certificates that are not self-signed.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NotSelfSignedOnly { get; set; }
+
     /// <summary>Only include unreachable endpoints.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter UnreachableOnly { get; set; }
 
+    /// <summary>Only include reachable endpoints.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ReachableOnly { get; set; }
+
     /// <summary>Only include certificates observed in CT logs.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter CtOnly { get; set; }
+
+    /// <summary>Only include certificates not observed in CT logs.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CtMissingOnly { get; set; }
 
     /// <summary>Only include certificates allowing server authentication EKU.</summary>
     [Parameter(Mandatory = false)]
@@ -133,6 +169,18 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     /// <summary>Only include certificates allowing secure email EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter SecureEmailOnly { get; set; }
+
+    /// <summary>Only include certificates that use weak keys.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter WeakKeyOnly { get; set; }
+
+    /// <summary>Only include certificates signed with SHA-1.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter Sha1SignatureOnly { get; set; }
+
+    /// <summary>Only include certificates that are not yet valid.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NotYetValidOnly { get; set; }
 
     /// <summary>Only include certificates expiring within this many days.</summary>
     [Parameter(Mandatory = false)]
@@ -154,12 +202,92 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
 
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
+        if (KnownCaOnly.IsPresent && UnknownCaOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-KnownCaOnly cannot be combined with -UnknownCaOnly.", nameof(UnknownCaOnly)),
+                "KnownAndUnknownCaConflict",
+                ErrorCategory.InvalidArgument,
+                UnknownCaOnly));
+            return;
+        }
+        if (KnownRootCaOnly.IsPresent && UnknownRootCaOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-KnownRootCaOnly cannot be combined with -UnknownRootCaOnly.", nameof(UnknownRootCaOnly)),
+                "KnownAndUnknownRootCaConflict",
+                ErrorCategory.InvalidArgument,
+                UnknownRootCaOnly));
+            return;
+        }
+        if (ValidOnly.IsPresent && InvalidOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ValidOnly cannot be combined with -InvalidOnly.", nameof(InvalidOnly)),
+                "ValidAndInvalidConflict",
+                ErrorCategory.InvalidArgument,
+                InvalidOnly));
+            return;
+        }
+        if (ChainIncompleteOnly.IsPresent && ChainCompleteOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ChainIncompleteOnly cannot be combined with -ChainCompleteOnly.", nameof(ChainCompleteOnly)),
+                "ChainIncompleteAndCompleteConflict",
+                ErrorCategory.InvalidArgument,
+                ChainCompleteOnly));
+            return;
+        }
+        if (HostnameMismatchOnly.IsPresent && HostnameMatchOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-HostnameMismatchOnly cannot be combined with -HostnameMatchOnly.", nameof(HostnameMatchOnly)),
+                "HostnameMismatchAndMatchConflict",
+                ErrorCategory.InvalidArgument,
+                HostnameMatchOnly));
+            return;
+        }
+        if (SelfSignedOnly.IsPresent && NotSelfSignedOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-SelfSignedOnly cannot be combined with -NotSelfSignedOnly.", nameof(NotSelfSignedOnly)),
+                "SelfSignedAndNotSelfSignedConflict",
+                ErrorCategory.InvalidArgument,
+                NotSelfSignedOnly));
+            return;
+        }
+        if (UnreachableOnly.IsPresent && ReachableOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-UnreachableOnly cannot be combined with -ReachableOnly.", nameof(ReachableOnly)),
+                "UnreachableAndReachableConflict",
+                ErrorCategory.InvalidArgument,
+                ReachableOnly));
+            return;
+        }
+        if (CtOnly.IsPresent && CtMissingOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-CtOnly cannot be combined with -CtMissingOnly.", nameof(CtMissingOnly)),
+                "CtPresentAndMissingConflict",
+                ErrorCategory.InvalidArgument,
+                CtMissingOnly));
+            return;
+        }
         if (ExpiredOnly.IsPresent && ExpiringWithinDays.HasValue) {
             ThrowTerminatingError(new ErrorRecord(
                 new ArgumentException("-ExpiredOnly cannot be combined with -ExpiringWithinDays.", nameof(ExpiringWithinDays)),
                 "ExpiredAndExpiringConflict",
                 ErrorCategory.InvalidArgument,
                 ExpiringWithinDays));
+            return;
+        }
+        if (ExpiredOnly.IsPresent && NotYetValidOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ExpiredOnly cannot be combined with -NotYetValidOnly.", nameof(NotYetValidOnly)),
+                "ExpiredAndNotYetValidConflict",
+                ErrorCategory.InvalidArgument,
+                NotYetValidOnly));
+            return;
+        }
+        if (ValidOnly.IsPresent && NotYetValidOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ValidOnly cannot be combined with -NotYetValidOnly.", nameof(NotYetValidOnly)),
+                "ValidAndNotYetValidConflict",
+                ErrorCategory.InvalidArgument,
+                NotYetValidOnly));
             return;
         }
 
@@ -193,18 +321,21 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             CtTemplateErrorContains = CtTemplateErrorContains,
             ChainSourceContains = ChainSourceContains,
             ThumbprintEquals = ThumbprintEquals,
-            KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : null,
-            KnownRootAuthorityOnly = KnownRootCaOnly.IsPresent ? true : null,
-            ValidOnly = ValidOnly.IsPresent ? true : null,
+            KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
+            KnownRootAuthorityOnly = KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
+            ValidOnly = ValidOnly.IsPresent ? true : InvalidOnly.IsPresent ? false : null,
             ExpiredOnly = ExpiredOnly.IsPresent ? true : null,
-            ChainCompleteOnly = ChainIncompleteOnly.IsPresent ? false : null,
-            HostnameMatchOnly = HostnameMismatchOnly.IsPresent ? false : null,
-            SelfSignedOnly = SelfSignedOnly.IsPresent ? true : null,
-            ReachableOnly = UnreachableOnly.IsPresent ? false : null,
-            PresentInCtOnly = CtOnly.IsPresent ? true : null,
+            ChainCompleteOnly = ChainIncompleteOnly.IsPresent ? false : ChainCompleteOnly.IsPresent ? true : null,
+            HostnameMatchOnly = HostnameMismatchOnly.IsPresent ? false : HostnameMatchOnly.IsPresent ? true : null,
+            SelfSignedOnly = SelfSignedOnly.IsPresent ? true : NotSelfSignedOnly.IsPresent ? false : null,
+            ReachableOnly = UnreachableOnly.IsPresent ? false : ReachableOnly.IsPresent ? true : null,
+            PresentInCtOnly = CtOnly.IsPresent ? true : CtMissingOnly.IsPresent ? false : null,
             AllowsServerAuthOnly = ServerAuthOnly.IsPresent ? true : null,
             AllowsClientAuthOnly = ClientAuthOnly.IsPresent ? true : null,
             AllowsSecureEmailOnly = SecureEmailOnly.IsPresent ? true : null,
+            WeakKeyOnly = WeakKeyOnly.IsPresent ? true : null,
+            Sha1SignatureOnly = Sha1SignatureOnly.IsPresent ? true : null,
+            NotYetValidOnly = NotYetValidOnly.IsPresent ? true : null,
             ExpiringWithinDays = ExpiringWithinDays,
             AuthenticationProfileEquals = AuthenticationProfileEquals,
             LatestPerEndpointOnly = LatestOnly.IsPresent,
