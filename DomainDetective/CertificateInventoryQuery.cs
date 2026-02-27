@@ -91,6 +91,10 @@ namespace DomainDetective {
         public int ScannedEntryCount { get; set; }
         /// <summary>Number of scanned entries skipped because an entry for the same endpoint was already evaluated in latest-only mode. Always 0 when latest-only mode is disabled.</summary>
         public int SkippedByLatestPerEndpointCount { get; set; }
+        /// <summary>Number of entries evaluated against query filters after latest-only deduplication.</summary>
+        public int EvaluatedEntryCount { get; set; }
+        /// <summary>Number of evaluated entries excluded by query filters.</summary>
+        public int ExcludedByFiltersCount { get; set; }
         /// <summary>Number of entries matching filters (including truncated matches).</summary>
         public int MatchedEntryCount { get; set; }
         /// <summary>Number of unique endpoints represented by matched entries (host+port key, including truncated matches).</summary>
