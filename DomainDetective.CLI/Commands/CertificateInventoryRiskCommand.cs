@@ -188,6 +188,36 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--non-sha1-signature-only")]
     public bool NonSha1SignatureOnly { get; set; }
 
+    /// <summary>Only include endpoints with expired certificates.</summary>
+    [Description("Only include endpoints with expired certificates.")]
+    [CommandOption("--expired-only")]
+    public bool ExpiredOnly { get; set; }
+
+    /// <summary>Only include endpoints with non-expired certificates.</summary>
+    [Description("Only include endpoints with non-expired certificates.")]
+    [CommandOption("--not-expired-only")]
+    public bool NotExpiredOnly { get; set; }
+
+    /// <summary>Only include endpoints with certificates that are not yet valid.</summary>
+    [Description("Only include endpoints with certificates that are not yet valid.")]
+    [CommandOption("--not-yet-valid-only")]
+    public bool NotYetValidOnly { get; set; }
+
+    /// <summary>Only include endpoints with certificates that are already valid (not in future).</summary>
+    [Description("Only include endpoints with certificates that are already valid (not in future).")]
+    [CommandOption("--already-valid-only")]
+    public bool AlreadyValidOnly { get; set; }
+
+    /// <summary>Only include endpoints currently within certificate validity window.</summary>
+    [Description("Only include endpoints currently within certificate validity window.")]
+    [CommandOption("--currently-valid-only")]
+    public bool CurrentlyValidOnly { get; set; }
+
+    /// <summary>Only include endpoints currently outside certificate validity window.</summary>
+    [Description("Only include endpoints currently outside certificate validity window.")]
+    [CommandOption("--currently-invalid-only")]
+    public bool CurrentlyInvalidOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Description("Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).")]
     [CommandOption("--auth-profile <NAME>")]
@@ -293,6 +323,18 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             AnsiConsole.MarkupLine("[red]--sha1-signature-only cannot be combined with --non-sha1-signature-only.[/]");
             return Task.FromResult(1);
         }
+        if (settings.ExpiredOnly && settings.NotExpiredOnly) {
+            AnsiConsole.MarkupLine("[red]--expired-only cannot be combined with --not-expired-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.NotYetValidOnly && settings.AlreadyValidOnly) {
+            AnsiConsole.MarkupLine("[red]--not-yet-valid-only cannot be combined with --already-valid-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.CurrentlyValidOnly && settings.CurrentlyInvalidOnly) {
+            AnsiConsole.MarkupLine("[red]--currently-valid-only cannot be combined with --currently-invalid-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.KnownCaOnly && settings.UnknownCaOnly) {
             AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
             return Task.FromResult(1);
@@ -345,6 +387,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             selfSignedOnly: settings.SelfSignedOnly ? true : settings.CaSignedOnly ? false : null,
             weakKeyOnly: settings.WeakKeyOnly ? true : settings.StrongKeyOnly ? false : null,
             sha1SignatureOnly: settings.Sha1SignatureOnly ? true : settings.NonSha1SignatureOnly ? false : null,
+            expiredOnly: settings.ExpiredOnly ? true : settings.NotExpiredOnly ? false : null,
+            notYetValidOnly: settings.NotYetValidOnly ? true : settings.AlreadyValidOnly ? false : null,
+            currentlyValidOnly: settings.CurrentlyValidOnly ? true : settings.CurrentlyInvalidOnly ? false : null,
             knownAuthorityOnly: settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             knownRootAuthorityOnly: settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             authenticationProfileEquals: settings.AuthenticationProfileEquals,

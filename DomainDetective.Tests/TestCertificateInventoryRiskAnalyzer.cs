@@ -1384,6 +1384,123 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByValidityState() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired.example.com",
+                            ResolvedHost = "expired.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(-120),
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "notyetvalid.example.com",
+                            ResolvedHost = "notyetvalid.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotBeforeUtc = now.AddDays(5),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = false,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "currentlyvalid.example.com",
+                            ResolvedHost = "currentlyvalid.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotBeforeUtc = now.AddDays(-10),
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var expiredOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiredOnly: true);
+            Assert.Single(expiredOnly.Endpoints);
+            Assert.Equal("expired.example.com", expiredOnly.Endpoints[0].Host);
+
+            var notExpiredOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiredOnly: false);
+            Assert.Equal(2, notExpiredOnly.Endpoints.Count);
+            Assert.Contains(notExpiredOnly.Endpoints, endpoint => endpoint.Host.Equals("notyetvalid.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(notExpiredOnly.Endpoints, endpoint => endpoint.Host.Equals("currentlyvalid.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var notYetValidOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                notYetValidOnly: true);
+            Assert.Single(notYetValidOnly.Endpoints);
+            Assert.Equal("notyetvalid.example.com", notYetValidOnly.Endpoints[0].Host);
+
+            var alreadyValidOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                notYetValidOnly: false);
+            Assert.Equal(2, alreadyValidOnly.Endpoints.Count);
+            Assert.Contains(alreadyValidOnly.Endpoints, endpoint => endpoint.Host.Equals("expired.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(alreadyValidOnly.Endpoints, endpoint => endpoint.Host.Equals("currentlyvalid.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var currentlyValidOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                currentlyValidOnly: true);
+            Assert.Single(currentlyValidOnly.Endpoints);
+            Assert.Equal("currentlyvalid.example.com", currentlyValidOnly.Endpoints[0].Host);
+
+            var currentlyInvalidOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                currentlyValidOnly: false);
+            Assert.Equal(2, currentlyInvalidOnly.Endpoints.Count);
+            Assert.Contains(currentlyInvalidOnly.Endpoints, endpoint => endpoint.Host.Equals("expired.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(currentlyInvalidOnly.Endpoints, endpoint => endpoint.Host.Equals("notyetvalid.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var currentlyInvalidAndNotExpired = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                currentlyValidOnly: false,
+                expiredOnly: false);
+            Assert.Single(currentlyInvalidAndNotExpired.Endpoints);
+            Assert.Equal("notyetvalid.example.com", currentlyInvalidAndNotExpired.Endpoints[0].Host);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsByAuthUsageFlags() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

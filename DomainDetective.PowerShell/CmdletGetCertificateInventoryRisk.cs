@@ -163,6 +163,30 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter NonSha1SignatureOnly { get; set; }
 
+    /// <summary>Only include endpoints with expired certificates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter ExpiredOnly { get; set; }
+
+    /// <summary>Only include endpoints with non-expired certificates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NotExpiredOnly { get; set; }
+
+    /// <summary>Only include endpoints with certificates that are not yet valid.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NotYetValidOnly { get; set; }
+
+    /// <summary>Only include endpoints with certificates that are already valid (not in future).</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter AlreadyValidOnly { get; set; }
+
+    /// <summary>Only include endpoints currently within certificate validity window.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CurrentlyValidOnly { get; set; }
+
+    /// <summary>Only include endpoints currently outside certificate validity window.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CurrentlyInvalidOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -277,6 +301,30 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 NonSha1SignatureOnly));
             return;
         }
+        if (ExpiredOnly.IsPresent && NotExpiredOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-ExpiredOnly cannot be combined with -NotExpiredOnly.", nameof(NotExpiredOnly)),
+                "ExpiryStateConflict",
+                ErrorCategory.InvalidArgument,
+                NotExpiredOnly));
+            return;
+        }
+        if (NotYetValidOnly.IsPresent && AlreadyValidOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-NotYetValidOnly cannot be combined with -AlreadyValidOnly.", nameof(AlreadyValidOnly)),
+                "NotYetValidStateConflict",
+                ErrorCategory.InvalidArgument,
+                AlreadyValidOnly));
+            return;
+        }
+        if (CurrentlyValidOnly.IsPresent && CurrentlyInvalidOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-CurrentlyValidOnly cannot be combined with -CurrentlyInvalidOnly.", nameof(CurrentlyInvalidOnly)),
+                "CurrentValidityStateConflict",
+                ErrorCategory.InvalidArgument,
+                CurrentlyInvalidOnly));
+            return;
+        }
 
         var monitor = new CertificateMonitor {
             CacheDirectory = ResolveCacheDirectory(CacheDirectory),
@@ -315,6 +363,9 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             selfSignedOnly: SelfSignedOnly.IsPresent ? true : CaSignedOnly.IsPresent ? false : null,
             weakKeyOnly: WeakKeyOnly.IsPresent ? true : StrongKeyOnly.IsPresent ? false : null,
             sha1SignatureOnly: Sha1SignatureOnly.IsPresent ? true : NonSha1SignatureOnly.IsPresent ? false : null,
+            expiredOnly: ExpiredOnly.IsPresent ? true : NotExpiredOnly.IsPresent ? false : null,
+            notYetValidOnly: NotYetValidOnly.IsPresent ? true : AlreadyValidOnly.IsPresent ? false : null,
+            currentlyValidOnly: CurrentlyValidOnly.IsPresent ? true : CurrentlyInvalidOnly.IsPresent ? false : null,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,

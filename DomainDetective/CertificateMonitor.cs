@@ -494,6 +494,9 @@ namespace DomainDetective {
         /// <param name="selfSignedOnly">When set, only returns endpoint rows whose self-signed state equals this value.</param>
         /// <param name="weakKeyOnly">When set, only returns endpoint rows whose weak-key state equals this value.</param>
         /// <param name="sha1SignatureOnly">When set, only returns endpoint rows whose SHA-1 signature state equals this value.</param>
+        /// <param name="expiredOnly">When set, only returns endpoint rows whose expiry state equals this value.</param>
+        /// <param name="notYetValidOnly">When set, only returns endpoint rows whose not-yet-valid state equals this value.</param>
+        /// <param name="currentlyValidOnly">When set, only returns endpoint rows whose current validity-window state equals this value.</param>
         /// <param name="knownAuthorityOnly">When set, only returns endpoint rows whose recognized-issuer state equals this value.</param>
         /// <param name="knownRootAuthorityOnly">When set, only returns endpoint rows whose recognized-root-issuer state equals this value.</param>
         /// <param name="authenticationProfileEquals">Optional authentication-profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</param>
@@ -527,6 +530,9 @@ namespace DomainDetective {
             bool? selfSignedOnly = null,
             bool? weakKeyOnly = null,
             bool? sha1SignatureOnly = null,
+            bool? expiredOnly = null,
+            bool? notYetValidOnly = null,
+            bool? currentlyValidOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -561,6 +567,9 @@ namespace DomainDetective {
                 selfSignedOnly,
                 weakKeyOnly,
                 sha1SignatureOnly,
+                expiredOnly,
+                notYetValidOnly,
+                currentlyValidOnly,
                 knownAuthorityOnly,
                 knownRootAuthorityOnly,
                 authenticationProfileEquals,
