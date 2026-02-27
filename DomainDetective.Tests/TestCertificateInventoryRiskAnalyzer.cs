@@ -177,12 +177,18 @@ namespace DomainDetective.Tests {
                 maxEndpoints: 100);
 
             Assert.Equal(1, risk.EndpointCount);
+            Assert.Equal(1, risk.CriticalCount);
+            Assert.Equal(0, risk.HighCount);
+            Assert.Equal(0, risk.MediumCount);
+            Assert.Equal(0, risk.LowCount);
+            Assert.Equal(0, risk.NoRiskCount);
             Assert.Single(risk.Endpoints);
 
             var future = risk.Endpoints[0];
             Assert.Equal("future.example.com", future.Host);
             Assert.Equal(notBeforeUtc, future.NotBeforeUtc);
             Assert.True(future.NotYetValid);
+            // 60 (not yet valid) + 45 (validation failed) is capped to 100 by design.
             Assert.Equal(100, future.Score);
             Assert.Equal("Critical", future.Severity);
             Assert.Contains("CertificateNotYetValid", future.Reasons);
