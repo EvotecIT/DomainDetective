@@ -142,6 +142,7 @@ namespace DomainDetective.Tests {
         [Fact]
         public void BuildRiskFlagsNotYetValidCertificates() {
             var now = DateTimeOffset.UtcNow;
+            var notBeforeUtc = now.AddDays(2);
             var snapshots = new[] {
                 new CertificateInventorySnapshot {
                     CapturedAtUtc = now,
@@ -152,7 +153,7 @@ namespace DomainDetective.Tests {
                             ResolvedHost = "future.example.com",
                             Port = 443,
                             Service = "HTTPS",
-                            NotBeforeUtc = now.AddDays(2),
+                            NotBeforeUtc = notBeforeUtc,
                             NotAfterUtc = now.AddDays(180),
                             Valid = false,
                             Expired = false,
@@ -180,7 +181,9 @@ namespace DomainDetective.Tests {
 
             var future = risk.Endpoints[0];
             Assert.Equal("future.example.com", future.Host);
+            Assert.Equal(notBeforeUtc, future.NotBeforeUtc);
             Assert.True(future.NotYetValid);
+            Assert.Equal(100, future.Score);
             Assert.Equal("Critical", future.Severity);
             Assert.Contains("CertificateNotYetValid", future.Reasons);
             Assert.Contains("CertificateValidationFailed", future.Reasons);

@@ -33,9 +33,9 @@ namespace DomainDetective {
         public int? DaysToExpire { get; set; }
         public int Score { get; set; }
         public string Severity { get; set; } = "None";
-        public bool NotYetValid { get; set; }
         public bool Valid { get; set; }
         public bool Expired { get; set; }
+        public bool NotYetValid { get; set; }
         public bool ChainComplete { get; set; }
         public bool HostnameMatch { get; set; }
         public bool IsReachable { get; set; }
@@ -186,6 +186,8 @@ namespace DomainDetective {
                 }
             }
 
+            // Keep the generic validation failure reason alongside specific root causes
+            // (for example NotYetValid) so broad dashboards can still aggregate by validation.
             if (!row.Valid && row.IsReachable) {
                 score += 45;
                 row.Reasons.Add("CertificateValidationFailed");
