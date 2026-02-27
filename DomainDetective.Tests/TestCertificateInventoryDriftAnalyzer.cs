@@ -80,6 +80,10 @@ namespace DomainDetective.Tests {
             Assert.Equal(1, drift.EndpointsWithHighSeverityDrift);
             Assert.Equal(0, drift.EndpointsWithMediumSeverityDrift);
             Assert.Equal(0, drift.EndpointsWithLowSeverityDrift);
+            Assert.Equal(0, drift.EndpointsExcludedByChangedOnly);
+            Assert.Equal(0, drift.EndpointsExcludedByMinimumSeverity);
+            Assert.Equal(0, drift.EndpointsExcludedByChangeKindFilter);
+            Assert.Equal(0, drift.EndpointsExcludedByFilters);
             Assert.Equal(2, drift.Endpoints.Count);
 
             var api = drift.Endpoints.Single(x => x.Host == "api.example.com");
@@ -658,6 +662,130 @@ namespace DomainDetective.Tests {
             var endpoint = Assert.Single(all.Endpoints);
             Assert.Equal("both.example.com", endpoint.Host);
             Assert.Equal(new[] { "certificate", "chain-source" }, endpoint.ChangeKinds);
+        }
+
+        [Fact]
+        public void BuildDriftTracksFilterExclusionCounters() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "unchanged.example.com",
+                            ResolvedHost = "unchanged.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "UNCHANGED-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "low.example.com",
+                            ResolvedHost = "low.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "LOW-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(20),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "medium-nomatch.example.com",
+                            ResolvedHost = "medium-nomatch.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "MEDIUM-OLD",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(40),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "included.example.com",
+                            ResolvedHost = "included.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "INCLUDED-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(40),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "unchanged.example.com",
+                            ResolvedHost = "unchanged.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "UNCHANGED-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "low.example.com",
+                            ResolvedHost = "low.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "LOW-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(60),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "medium-nomatch.example.com",
+                            ResolvedHost = "medium-nomatch.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "MEDIUM-NEW",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(40),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "included.example.com",
+                            ResolvedHost = "included.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "INCLUDED-THUMB",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(40),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ClientAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                }
+            };
+
+            var summary = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: true,
+                maxEndpoints: 100,
+                minimumSeverity: "medium",
+                requiredChangeKinds: new[] { "auth-profile" },
+                changeKindMatchMode: "any");
+
+            Assert.Equal(4, summary.EndpointCount);
+            Assert.Equal(1, summary.EndpointsMatchingFilters);
+            Assert.Equal(1, summary.EndpointsExcludedByChangedOnly);
+            Assert.Equal(1, summary.EndpointsExcludedByMinimumSeverity);
+            Assert.Equal(1, summary.EndpointsExcludedByChangeKindFilter);
+            Assert.Equal(3, summary.EndpointsExcludedByFilters);
+            var endpoint = Assert.Single(summary.Endpoints);
+            Assert.Equal("included.example.com", endpoint.Host);
         }
 
         [Fact]

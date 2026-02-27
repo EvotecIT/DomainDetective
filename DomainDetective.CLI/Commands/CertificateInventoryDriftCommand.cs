@@ -132,6 +132,10 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
         summary.AddRow("Endpoints Matching Filters", drift.EndpointsMatchingFilters.ToString());
+        summary.AddRow("Excluded by Filters", drift.EndpointsExcludedByFilters.ToString());
+        summary.AddRow("Excluded by ChangedOnly", drift.EndpointsExcludedByChangedOnly.ToString());
+        summary.AddRow("Excluded by Severity", drift.EndpointsExcludedByMinimumSeverity.ToString());
+        summary.AddRow("Excluded by Change Kind", drift.EndpointsExcludedByChangeKindFilter.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Change Kind Filter", drift.AppliedChangeKinds.Count == 0 ? "Any" : string.Join(", ", drift.AppliedChangeKinds));
