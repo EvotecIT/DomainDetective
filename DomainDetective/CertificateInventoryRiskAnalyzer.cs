@@ -31,6 +31,7 @@ namespace DomainDetective {
         /// <summary>Certificate validity start timestamp in UTC from the observed endpoint certificate.</summary>
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
+        /// <summary>Days until certificate validity start when <see cref="NotYetValid"/> is true; otherwise null.</summary>
         public int? DaysUntilValid { get; set; }
         public int? DaysToExpire { get; set; }
         public int Score { get; set; }
@@ -126,6 +127,7 @@ namespace DomainDetective {
 
             summary.Endpoints = rows
                 .OrderByDescending(row => row.Score)
+                .ThenBy(row => row.DaysUntilValid ?? int.MaxValue)
                 .ThenBy(row => row.DaysToExpire ?? int.MaxValue)
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
