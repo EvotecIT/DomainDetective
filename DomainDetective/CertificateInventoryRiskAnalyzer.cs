@@ -114,13 +114,16 @@ namespace DomainDetective {
             int expiringWithinDays = 30,
             int criticalExpiringWithinDays = 7,
             int maxEndpoints = 300,
-            string? minimumSeverity = null) {
+            string? minimumSeverity = null,
+            string? reasonContains = null) {
             var summary = new CertificateInventoryRiskSummary();
             var latestByEndpoint = new Dictionary<string, LatestEntryState>(StringComparer.OrdinalIgnoreCase);
             var hasMinimumSeverity = TryResolveMinimumSeverity(minimumSeverity, out var minimumSeverityScore, out _);
             if (!string.IsNullOrWhiteSpace(minimumSeverity) && !hasMinimumSeverity) {
                 throw new ArgumentException($"minimumSeverity must be one of: {MinimumSeverityAcceptedValues}.", nameof(minimumSeverity));
             }
+            var hasReasonFilter = !string.IsNullOrWhiteSpace(reasonContains);
+            var reasonNeedle = hasReasonFilter ? reasonContains!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -170,6 +173,13 @@ namespace DomainDetective {
                 }
                 if (hasMinimumSeverity && row.Score < minimumSeverityScore) {
                     continue;
+                }
+                if (hasReasonFilter) {
+                    var matchesReason = row.Reasons.Any(reason =>
+                        reason.IndexOf(reasonNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesReason) {
+                        continue;
+                    }
                 }
 
                 rows.Add(row);

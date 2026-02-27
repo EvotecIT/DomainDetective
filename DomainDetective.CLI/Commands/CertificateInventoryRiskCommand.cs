@@ -53,6 +53,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--minimum-severity <LEVEL>")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).</summary>
+    [Description("Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).")]
+    [CommandOption("--reason-contains <TEXT>")]
+    public string? ReasonContains { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -109,7 +114,8 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             expiringWithinDays: settings.ExpiringWithinDays,
             criticalExpiringWithinDays: settings.CriticalExpiringWithinDays,
             maxEndpoints: settings.MaxEndpoints,
-            minimumSeverity: normalizedMinimumSeverity);
+            minimumSeverity: normalizedMinimumSeverity,
+            reasonContains: settings.ReasonContains);
 
         if (settings.Json) {
             Console.WriteLine(JsonSerializer.Serialize(risk, JsonOptions.Default));

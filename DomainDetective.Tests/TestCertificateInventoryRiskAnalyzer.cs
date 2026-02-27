@@ -610,5 +610,86 @@ namespace DomainDetective.Tests {
             Assert.Equal(2, withNoneSeverityDefaultInclude.Endpoints.Count);
             Assert.DoesNotContain(withNoneSeverityDefaultInclude.Endpoints, endpoint => string.Equals(endpoint.Host, "healthy-case.example.com", StringComparison.OrdinalIgnoreCase));
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByReasonContains() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "expired-reason.example.com",
+                            ResolvedHost = "expired-reason.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-2),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "weak-reason.example.com",
+                            ResolvedHost = "weak-reason.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "healthy-reason.example.com",
+                            ResolvedHost = "healthy-reason.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByWeakKey = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "wEaK");
+            Assert.Single(filteredByWeakKey.Endpoints);
+            Assert.Equal("weak-reason.example.com", filteredByWeakKey.Endpoints[0].Host);
+            Assert.Contains("WeakKey", filteredByWeakKey.Endpoints[0].Reasons);
+
+            var filteredByMissingReason = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "does-not-exist");
+            Assert.Empty(filteredByMissingReason.Endpoints);
+        }
     }
 }

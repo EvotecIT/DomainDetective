@@ -54,6 +54,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateSet("None", "Low", "Medium", "High", "Critical")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).</summary>
+    [Parameter(Mandatory = false)]
+    public string? ReasonContains { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -81,7 +85,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             expiringWithinDays: ExpiringWithinDays,
             criticalExpiringWithinDays: CriticalExpiringWithinDays,
             maxEndpoints: MaxEndpoints,
-            minimumSeverity: MinimumSeverity);
+            minimumSeverity: MinimumSeverity,
+            reasonContains: ReasonContains);
         WriteObject(risk);
     }
 
