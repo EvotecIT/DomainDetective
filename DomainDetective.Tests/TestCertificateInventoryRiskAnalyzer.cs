@@ -1557,6 +1557,126 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByRootThumbprintEquals() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "root-thumbprint-a.example.com",
+                            ResolvedHost = "root-thumbprint-a.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateRootThumbprint = "5A3F4D2C1B0099887766554433221100AABBCCDD",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "root-thumbprint-b.example.com",
+                            ResolvedHost = "root-thumbprint-b.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateRootThumbprint = "00112233445566778899AABBCCDDEEFF00112233",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "root-thumbprint-missing.example.com",
+                            ResolvedHost = "root-thumbprint-missing.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByRootThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                rootThumbprintEquals: "5a3f:4d2c1b00 99887766554433221100aabbccdd");
+            Assert.Single(filteredByRootThumbprint.Endpoints);
+            Assert.Equal("root-thumbprint-a.example.com", filteredByRootThumbprint.Endpoints[0].Host);
+            Assert.Equal("5A3F4D2C1B0099887766554433221100AABBCCDD", filteredByRootThumbprint.Endpoints[0].CertificateRootThumbprint);
+            Assert.DoesNotContain(filteredByRootThumbprint.Endpoints, endpoint => string.Equals(endpoint.Host, "root-thumbprint-missing.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByMissingRootThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                rootThumbprintEquals: "not-present");
+            Assert.Empty(filteredByMissingRootThumbprint.Endpoints);
+
+            var filteredByWhitespaceRootThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                rootThumbprintEquals: "   ");
+            Assert.Equal(3, filteredByWhitespaceRootThumbprint.Endpoints.Count);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsBySerialNumberEquals() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {

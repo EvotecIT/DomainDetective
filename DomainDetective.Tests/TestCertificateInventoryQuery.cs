@@ -29,6 +29,7 @@ namespace DomainDetective.Tests {
                             CertificateSerialNumber = "00AA11BB22CC33DD",
                             CertificateRootIssuerNormalized = "ISRG Root X1",
                             CertificateRootAuthorityFamily = "LetsEncrypt",
+                            CertificateRootThumbprint = "5A3F4D2C1B0099887766554433221100AABBCCDD",
                             IsKnownCertificateAuthority = true,
                             IsKnownRootCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "api.example.com", "api-int.example.com" },
@@ -56,6 +57,7 @@ namespace DomainDetective.Tests {
                             CertificateThumbprint = "EE55FF66",
                             CertificateSerialNumber = "EE55FF667788",
                             CertificateRootIssuerNormalized = "Contoso Root CA",
+                            CertificateRootThumbprint = "DEADBEEF00112233445566778899AABBCCDDEEFF",
                             IsKnownCertificateAuthority = false,
                             IsKnownRootCertificateAuthority = false,
                             SubjectAlternativeNames = new List<string> { "internal.example.com", "mtls.example.com" },
@@ -87,6 +89,7 @@ namespace DomainDetective.Tests {
                             CertificateSerialNumber = "11223344AABBCCDD",
                             CertificateRootIssuerNormalized = "DigiCert Global Root G2",
                             CertificateRootAuthorityFamily = "DigiCert",
+                            CertificateRootThumbprint = "00112233445566778899AABBCCDDEEFF00112233",
                             IsKnownCertificateAuthority = true,
                             IsKnownRootCertificateAuthority = true,
                             SubjectAlternativeNames = new List<string> { "old.example.com" },
@@ -333,6 +336,21 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, rootFilter.MatchedEntryCount);
                 Assert.Single(rootFilter.Entries);
                 Assert.Equal("api.example.com", rootFilter.Entries[0].Entry.Host);
+
+                var rootThumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootThumbprintEquals = "5a3f:4d2c1b00 99887766554433221100aabbccdd",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, rootThumbprintFilter.MatchedEntryCount);
+                Assert.Single(rootThumbprintFilter.Entries);
+                Assert.Equal("api.example.com", rootThumbprintFilter.Entries[0].Entry.Host);
+
+                var missingRootThumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    RootThumbprintEquals = "not-present",
+                    MaxResults = 10
+                });
+                Assert.Equal(0, missingRootThumbprintFilter.MatchedEntryCount);
+                Assert.Empty(missingRootThumbprintFilter.Entries);
 
                 var thumbprintFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ThumbprintEquals = "aa11:bb22 cc33dd44",

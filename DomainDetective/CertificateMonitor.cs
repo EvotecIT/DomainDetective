@@ -482,6 +482,7 @@ namespace DomainDetective {
         /// <param name="ctTemplateErrorContains">Optional CT template/configuration error substring filter.</param>
         /// <param name="chainSourceContains">Optional chain-source substring filter (for example tls-handshake, aia-download).</param>
         /// <param name="thumbprintEquals">Optional leaf-certificate thumbprint exact-match filter (hex string expected).</param>
+        /// <param name="rootThumbprintEquals">Optional root-certificate thumbprint exact-match filter (hex string expected).</param>
         /// <param name="serialNumberEquals">Optional leaf-certificate serial-number exact-match filter (hex string expected).</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
@@ -501,6 +502,7 @@ namespace DomainDetective {
             string? ctTemplateErrorContains = null,
             string? chainSourceContains = null,
             string? thumbprintEquals = null,
+            string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
@@ -521,6 +523,7 @@ namespace DomainDetective {
                 ctTemplateErrorContains,
                 chainSourceContains,
                 thumbprintEquals,
+                rootThumbprintEquals,
                 serialNumberEquals,
                 serverAuthOnly,
                 clientAuthOnly,
@@ -730,6 +733,15 @@ namespace DomainDetective {
                 var expectedThumbprint = NormalizeHexIdentifier(thumbprintEquals);
                 var actualThumbprint = NormalizeHexIdentifier(entry.CertificateThumbprint);
                 if (expectedThumbprint.Length == 0 || !actualThumbprint.Equals(expectedThumbprint, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
+            var rootThumbprintEquals = query.RootThumbprintEquals;
+            if (!string.IsNullOrWhiteSpace(rootThumbprintEquals)) {
+                var expectedRootThumbprint = NormalizeHexIdentifier(rootThumbprintEquals);
+                var actualRootThumbprint = NormalizeHexIdentifier(entry.CertificateRootThumbprint);
+                if (expectedRootThumbprint.Length == 0 || !actualRootThumbprint.Equals(expectedRootThumbprint, StringComparison.OrdinalIgnoreCase)) {
                     return false;
                 }
             }
