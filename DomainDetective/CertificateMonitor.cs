@@ -695,7 +695,7 @@ namespace DomainDetective {
                 }
             }
 
-            if (query.KnownAuthorityOnly.HasValue && query.KnownAuthorityOnly.Value && !entry.IsKnownCertificateAuthority) {
+            if (query.KnownAuthorityOnly.HasValue && query.KnownAuthorityOnly.Value != entry.IsKnownCertificateAuthority) {
                 return false;
             }
 
