@@ -316,5 +316,53 @@ namespace DomainDetective.Tests {
             Assert.Equal("later-valid.example.com", risk.Endpoints[1].Host);
             Assert.Equal(3, risk.Endpoints[1].DaysUntilValid);
         }
+
+        [Fact]
+        public void BuildRiskIncludesAuthenticationProfileAndEkuFlags() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "mtls.example.com",
+                            ResolvedHost = "mtls.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            AllowsServerAuthentication = true,
+                            AllowsClientAuthentication = true,
+                            AllowsSecureEmail = false,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAndClientAuth
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100);
+
+            Assert.Equal(1, risk.EndpointCount);
+            Assert.Single(risk.Endpoints);
+
+            var endpoint = risk.Endpoints[0];
+            Assert.Equal("mtls.example.com", endpoint.Host);
+            Assert.True(endpoint.AllowsServerAuthentication);
+            Assert.True(endpoint.AllowsClientAuthentication);
+            Assert.False(endpoint.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, endpoint.AuthenticationProfile);
+        }
     }
 }
