@@ -59,6 +59,7 @@ namespace DomainDetective {
         public bool IsReachable { get; set; }
         public bool IsSelfSigned { get; set; }
         public bool IsKnownCertificateAuthority { get; set; }
+        public bool IsKnownRootCertificateAuthority { get; set; }
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
@@ -144,6 +145,8 @@ namespace DomainDetective {
             string? thumbprintEquals = null,
             string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
+            bool? knownAuthorityOnly = null,
+            bool? knownRootAuthorityOnly = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -300,6 +303,12 @@ namespace DomainDetective {
                         continue;
                     }
                 }
+                if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {
+                    continue;
+                }
+                if (knownRootAuthorityOnly.HasValue && knownRootAuthorityOnly.Value != row.IsKnownRootCertificateAuthority) {
+                    continue;
+                }
                 // Auth-usage filters only narrow returned endpoint rows.
                 // Summary counts/reason distributions stay computed across the full endpoint set.
                 if (serverAuthOnly && !row.AllowsServerAuthentication) {
@@ -363,6 +372,7 @@ namespace DomainDetective {
                 IsReachable = entry.IsReachable,
                 IsSelfSigned = entry.IsSelfSigned,
                 IsKnownCertificateAuthority = entry.IsKnownCertificateAuthority,
+                IsKnownRootCertificateAuthority = entry.IsKnownRootCertificateAuthority,
                 AllowsServerAuthentication = entry.AllowsServerAuthentication,
                 AllowsClientAuthentication = entry.AllowsClientAuthentication,
                 AllowsSecureEmail = entry.AllowsSecureEmail,

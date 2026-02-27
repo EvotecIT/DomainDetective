@@ -1266,6 +1266,127 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByKnownAuthorityState() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "known-leaf-known-root.example.com",
+                            ResolvedHost = "known-leaf-known-root.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "unknown-leaf-known-root.example.com",
+                            ResolvedHost = "unknown-leaf-known-root.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "known-leaf-unknown-root.example.com",
+                            ResolvedHost = "known-leaf-unknown-root.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            IsKnownRootCertificateAuthority = false,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "unknown-leaf-unknown-root.example.com",
+                            ResolvedHost = "unknown-leaf-unknown-root.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = false,
+                            IsKnownRootCertificateAuthority = false,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var knownLeafOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                knownAuthorityOnly: true);
+            Assert.Equal(2, knownLeafOnly.Endpoints.Count);
+            Assert.Contains(knownLeafOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "known-leaf-known-root.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(knownLeafOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "known-leaf-unknown-root.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var unknownLeafOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                knownAuthorityOnly: false);
+            Assert.Equal(2, unknownLeafOnly.Endpoints.Count);
+            Assert.Contains(unknownLeafOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-leaf-known-root.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(unknownLeafOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-leaf-unknown-root.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var knownRootOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                knownRootAuthorityOnly: true);
+            Assert.Equal(2, knownRootOnly.Endpoints.Count);
+            Assert.Contains(knownRootOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "known-leaf-known-root.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(knownRootOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-leaf-known-root.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var unknownRootOnly = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                knownRootAuthorityOnly: false);
+            Assert.Equal(2, unknownRootOnly.Endpoints.Count);
+            Assert.Contains(unknownRootOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "known-leaf-unknown-root.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(unknownRootOnly.Endpoints, endpoint => string.Equals(endpoint.Host, "unknown-leaf-unknown-root.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var unknownLeafAndUnknownRoot = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                knownAuthorityOnly: false,
+                knownRootAuthorityOnly: false);
+            Assert.Single(unknownLeafAndUnknownRoot.Endpoints);
+            Assert.Equal("unknown-leaf-unknown-root.example.com", unknownLeafAndUnknownRoot.Endpoints[0].Host);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsBySourceFilters() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
