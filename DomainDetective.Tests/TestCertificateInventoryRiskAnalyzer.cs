@@ -681,6 +681,28 @@ namespace DomainDetective.Tests {
             Assert.Equal("weak-reason.example.com", filteredByWeakKey.Endpoints[0].Host);
             Assert.Contains("WeakKey", filteredByWeakKey.Endpoints[0].Reasons);
 
+            var filteredByExpiredWithoutNoRisk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "expired");
+            Assert.Single(filteredByExpiredWithoutNoRisk.Endpoints);
+            Assert.Equal("expired-reason.example.com", filteredByExpiredWithoutNoRisk.Endpoints[0].Host);
+            Assert.Contains("CertificateExpired", filteredByExpiredWithoutNoRisk.Endpoints[0].Reasons);
+
+            var filteredByNoneWithoutNoRisk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "none");
+            Assert.Empty(filteredByNoneWithoutNoRisk.Endpoints);
+
             var filteredByMissingReason = CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
                 includeNoRisk: true,

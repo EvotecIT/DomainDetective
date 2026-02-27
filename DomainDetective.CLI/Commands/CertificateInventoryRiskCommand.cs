@@ -53,8 +53,8 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--minimum-severity <LEVEL>")]
     public string? MinimumSeverity { get; set; }
 
-    /// <summary>Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).</summary>
-    [Description("Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).")]
+    /// <summary>Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</summary>
+    [Description("Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).")]
     [CommandOption("--reason-contains <TEXT>")]
     public string? ReasonContains { get; set; }
 

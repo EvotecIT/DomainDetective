@@ -175,6 +175,8 @@ namespace DomainDetective {
                     continue;
                 }
                 if (hasReasonFilter) {
+                    // Like minimum severity, reason filtering only narrows returned endpoint rows.
+                    // Summary counts/reason distributions stay computed across the full endpoint set.
                     var matchesReason = row.Reasons.Any(reason =>
                         reason.IndexOf(reasonNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
                     if (!matchesReason) {

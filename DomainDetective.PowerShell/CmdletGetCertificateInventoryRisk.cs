@@ -54,7 +54,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateSet("None", "Low", "Medium", "High", "Critical")]
     public string? MinimumSeverity { get; set; }
 
-    /// <summary>Optional case-insensitive reason substring filter (for example Expired, WeakKey, CtNotObserved).</summary>
+    /// <summary>Optional case-insensitive reason substring filter (for example CertificateExpired, WeakKey, CtNotObserved).</summary>
     [Parameter(Mandatory = false)]
     public string? ReasonContains { get; set; }
 
