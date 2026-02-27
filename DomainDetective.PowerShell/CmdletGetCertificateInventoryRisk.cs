@@ -14,6 +14,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Include healthy endpoints and tune expiry thresholds</summary>
 ///   <code>Get-DDCertificateInventoryRisk -IncludeHealthy -ExpiringWithinDays 45 -CriticalExpiringWithinDays 10</code>
 /// </example>
+/// <example>
+///   <summary>Return only high and critical endpoint rows</summary>
+///   <code>Get-DDCertificateInventoryRisk -MinimumSeverity High</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryRisk")]
 [Alias("Get-CertificateInventoryRisk")]
 [OutputType(typeof(CertificateInventoryRiskSummary))]
@@ -45,6 +49,11 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 300;
 
+    /// <summary>Optional minimum severity filter (None, Low, Medium, High, Critical).</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateSet("None", "Low", "Medium", "High", "Critical")]
+    public string? MinimumSeverity { get; set; }
+
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
         if (CriticalExpiringWithinDays > ExpiringWithinDays) {
@@ -71,7 +80,8 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             includeNoRisk: IncludeHealthy.IsPresent,
             expiringWithinDays: ExpiringWithinDays,
             criticalExpiringWithinDays: CriticalExpiringWithinDays,
-            maxEndpoints: MaxEndpoints);
+            maxEndpoints: MaxEndpoints,
+            minimumSeverity: MinimumSeverity);
         WriteObject(risk);
     }
 

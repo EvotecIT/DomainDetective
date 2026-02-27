@@ -414,5 +414,102 @@ namespace DomainDetective.Tests {
             Assert.False(endpoint.AllowsSecureEmail);
             Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, endpoint.AuthenticationProfile);
         }
+
+        [Fact]
+        public void BuildRiskAppliesMinimumSeverityFilterToReturnedEndpoints() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "critical.example.com",
+                            ResolvedHost = "critical.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = false,
+                            IsReachable = true,
+                            HostnameMatch = false,
+                            AllowsServerAuthentication = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "medium.example.com",
+                            ResolvedHost = "medium.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "healthy.example.com",
+                            ResolvedHost = "healthy.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var risk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: "High");
+
+            Assert.Equal(3, risk.EndpointCount);
+            Assert.Equal(1, risk.CriticalCount);
+            Assert.Equal(0, risk.HighCount);
+            Assert.Equal(1, risk.MediumCount);
+            Assert.Equal(0, risk.LowCount);
+            Assert.Equal(1, risk.NoRiskCount);
+            Assert.Single(risk.Endpoints);
+            Assert.Equal("critical.example.com", risk.Endpoints[0].Host);
+            Assert.Equal("Critical", risk.Endpoints[0].Severity);
+        }
+
+        [Fact]
+        public void BuildRiskThrowsForInvalidMinimumSeverity() {
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = DateTimeOffset.UtcNow,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry>()
+                }
+            };
+
+            var ex = Assert.Throws<ArgumentException>(() => CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: "Sev1"));
+            Assert.Equal("minimumSeverity", ex.ParamName);
+        }
     }
 }
