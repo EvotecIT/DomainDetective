@@ -73,6 +73,21 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--root-authority-family <NAME>")]
     public string? RootAuthorityFamilyEquals { get; set; }
 
+    /// <summary>Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</summary>
+    [Description("Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).")]
+    [CommandOption("--ct-source-contains <TEXT>")]
+    public string? CtSourceContains { get; set; }
+
+    /// <summary>Optional CT template/configuration error substring filter.</summary>
+    [Description("Optional CT template/configuration error substring filter.")]
+    [CommandOption("--ct-template-error-contains <TEXT>")]
+    public string? CtTemplateErrorContains { get; set; }
+
+    /// <summary>Optional chain-source substring filter (for example tls-handshake, aia-download).</summary>
+    [Description("Optional chain-source substring filter (for example tls-handshake, aia-download).")]
+    [CommandOption("--chain-source-contains <TEXT>")]
+    public string? ChainSourceContains { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Description("Only include endpoints whose certificate allows server authentication EKU.")]
     [CommandOption("--server-auth-only")]
@@ -149,6 +164,9 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             issuerContains: settings.IssuerContains,
             authorityFamilyEquals: settings.AuthorityFamilyEquals,
             rootAuthorityFamilyEquals: settings.RootAuthorityFamilyEquals,
+            ctSourceContains: settings.CtSourceContains,
+            ctTemplateErrorContains: settings.CtTemplateErrorContains,
+            chainSourceContains: settings.ChainSourceContains,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);

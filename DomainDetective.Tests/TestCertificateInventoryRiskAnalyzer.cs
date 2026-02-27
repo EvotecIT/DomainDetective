@@ -1264,5 +1264,179 @@ namespace DomainDetective.Tests {
                 rootAuthorityFamilyEquals: "   ");
             Assert.Equal(5, filteredByWhitespaceFamily.Endpoints.Count);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsBySourceFilters() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "crtsh-source.example.com",
+                            ResolvedHost = "crtsh-source.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true,
+                            CtDiscoverySources = new[] { "crt.sh", "shodan" },
+                            CtTemplateFormatErrors = new[] { "ShodanApiUrlTemplate" },
+                            CertificateChainSource = "tls-handshake",
+                            CertificateChainSources = new List<string> { "tls-handshake", "cert-spotter" }
+                        },
+                        new() {
+                            Host = "censys-source.example.com",
+                            ResolvedHost = "censys-source.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true,
+                            CtDiscoverySources = new[] { "censys" },
+                            CtTemplateFormatErrors = new[] { "CensysApiUrlTemplate" },
+                            CertificateChainSource = "aia-download",
+                            CertificateChainSources = new List<string> { "aia-download" }
+                        },
+                        new() {
+                            Host = "historical-chain-source.example.com",
+                            ResolvedHost = "historical-chain-source.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true,
+                            CtDiscoverySources = new[] { "internal-scan" },
+                            CertificateChainSource = string.Empty,
+                            CertificateChainSources = new List<string> { "cached-chain-bundle" }
+                        }
+                    }
+                }
+            };
+
+            var filteredByCtSource = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: "crt.sh");
+            Assert.Single(filteredByCtSource.Endpoints);
+            Assert.Equal("crtsh-source.example.com", filteredByCtSource.Endpoints[0].Host);
+            Assert.Contains("crt.sh", filteredByCtSource.Endpoints[0].CtDiscoverySources, StringComparer.OrdinalIgnoreCase);
+
+            var filteredByTemplateError = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: "censysapi");
+            Assert.Single(filteredByTemplateError.Endpoints);
+            Assert.Equal("censys-source.example.com", filteredByTemplateError.Endpoints[0].Host);
+
+            var filteredByPrimaryChainSource = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: "aia-download");
+            Assert.Single(filteredByPrimaryChainSource.Endpoints);
+            Assert.Equal("censys-source.example.com", filteredByPrimaryChainSource.Endpoints[0].Host);
+
+            var filteredByHistoricalChainSource = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: "cached-chain");
+            Assert.Single(filteredByHistoricalChainSource.Endpoints);
+            Assert.Equal("historical-chain-source.example.com", filteredByHistoricalChainSource.Endpoints[0].Host);
+            Assert.Equal(string.Empty, filteredByHistoricalChainSource.Endpoints[0].ChainSource);
+            Assert.Contains("cached-chain-bundle", filteredByHistoricalChainSource.Endpoints[0].ChainSources, StringComparer.OrdinalIgnoreCase);
+
+            var filteredByCtAndChain = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: "shodan",
+                ctTemplateErrorContains: null,
+                chainSourceContains: "tls-handshake");
+            Assert.Single(filteredByCtAndChain.Endpoints);
+            Assert.Equal("crtsh-source.example.com", filteredByCtAndChain.Endpoints[0].Host);
+
+            var filteredByWhitespaceSourceFilters = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: "   ",
+                ctTemplateErrorContains: "   ",
+                chainSourceContains: "   ");
+            // Whitespace-only source filters are treated as absent, so all three risk-bearing entries are returned.
+            Assert.Equal(3, filteredByWhitespaceSourceFilters.Endpoints.Count);
+        }
     }
 }
