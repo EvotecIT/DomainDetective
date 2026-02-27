@@ -33,6 +33,7 @@ namespace DomainDetective {
         public int Port { get; set; }
         public string Service { get; set; } = string.Empty;
         public string CertificateThumbprint { get; set; } = string.Empty;
+        public string CertificateRootThumbprint { get; set; } = string.Empty;
         public string CertificateSerialNumber { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
@@ -141,6 +142,7 @@ namespace DomainDetective {
             string? ctTemplateErrorContains = null,
             string? chainSourceContains = null,
             string? thumbprintEquals = null,
+            string? rootThumbprintEquals = null,
             string? serialNumberEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
@@ -167,6 +169,8 @@ namespace DomainDetective {
             var chainSourceNeedle = hasChainSourceFilter ? chainSourceContains!.Trim() : string.Empty;
             var hasThumbprintFilter = !string.IsNullOrWhiteSpace(thumbprintEquals);
             var thumbprintExpected = hasThumbprintFilter ? NormalizeHexIdentifier(thumbprintEquals) : string.Empty;
+            var hasRootThumbprintFilter = !string.IsNullOrWhiteSpace(rootThumbprintEquals);
+            var rootThumbprintExpected = hasRootThumbprintFilter ? NormalizeHexIdentifier(rootThumbprintEquals) : string.Empty;
             var hasSerialNumberFilter = !string.IsNullOrWhiteSpace(serialNumberEquals);
             var serialNumberExpected = hasSerialNumberFilter ? NormalizeHexIdentifier(serialNumberEquals) : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
@@ -282,6 +286,13 @@ namespace DomainDetective {
                         continue;
                     }
                 }
+                if (hasRootThumbprintFilter) {
+                    var rowRootThumbprint = NormalizeHexIdentifier(row.CertificateRootThumbprint);
+                    if (rootThumbprintExpected.Length == 0 ||
+                        !string.Equals(rowRootThumbprint, rootThumbprintExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                }
                 if (hasSerialNumberFilter) {
                     var rowSerialNumber = NormalizeHexIdentifier(row.CertificateSerialNumber);
                     if (serialNumberExpected.Length == 0 ||
@@ -337,6 +348,7 @@ namespace DomainDetective {
                     ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
                     : entry.Service!,
                 CertificateThumbprint = entry.CertificateThumbprint?.Trim() ?? string.Empty,
+                CertificateRootThumbprint = entry.CertificateRootThumbprint?.Trim() ?? string.Empty,
                 CertificateSerialNumber = entry.CertificateSerialNumber?.Trim() ?? string.Empty,
                 Issuer = PickIssuer(entry),
                 RootIssuer = PickRoot(entry),

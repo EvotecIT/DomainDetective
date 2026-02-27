@@ -90,6 +90,10 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? ThumbprintEquals { get; set; }
 
+    /// <summary>Root certificate thumbprint exact-match filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? RootThumbprintEquals { get; set; }
+
     /// <summary>Leaf certificate serial-number exact-match filter (hex string expected).</summary>
     [Parameter(Mandatory = false)]
     public string? SerialNumberEquals { get; set; }
@@ -361,6 +365,7 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             CtTemplateErrorContains = CtTemplateErrorContains,
             ChainSourceContains = ChainSourceContains,
             ThumbprintEquals = ThumbprintEquals,
+            RootThumbprintEquals = RootThumbprintEquals,
             SerialNumberEquals = SerialNumberEquals,
             KnownAuthorityOnly = KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             KnownRootAuthorityOnly = KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,

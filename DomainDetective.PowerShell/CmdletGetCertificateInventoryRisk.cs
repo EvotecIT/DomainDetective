@@ -86,6 +86,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? ThumbprintEquals { get; set; }
 
+    /// <summary>Optional root-certificate thumbprint exact-match filter (hex string expected).</summary>
+    [Parameter(Mandatory = false)]
+    public string? RootThumbprintEquals { get; set; }
+
     /// <summary>Optional leaf-certificate serial-number exact-match filter (hex string expected).</summary>
     [Parameter(Mandatory = false)]
     public string? SerialNumberEquals { get; set; }
@@ -138,6 +142,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             ctTemplateErrorContains: CtTemplateErrorContains,
             chainSourceContains: ChainSourceContains,
             thumbprintEquals: ThumbprintEquals,
+            rootThumbprintEquals: RootThumbprintEquals,
             serialNumberEquals: SerialNumberEquals,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,

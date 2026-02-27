@@ -93,6 +93,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--thumbprint <HEX>")]
     public string? ThumbprintEquals { get; set; }
 
+    /// <summary>Optional root-certificate thumbprint exact-match filter (hex string expected).</summary>
+    [Description("Optional root-certificate thumbprint exact-match filter (hex string expected).")]
+    [CommandOption("--root-thumbprint <HEX>")]
+    public string? RootThumbprintEquals { get; set; }
+
     /// <summary>Optional leaf-certificate serial-number exact-match filter (hex string expected).</summary>
     [Description("Optional leaf-certificate serial-number exact-match filter (hex string expected).")]
     [CommandOption("--serial-number <HEX>")]
@@ -178,6 +183,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             ctTemplateErrorContains: settings.CtTemplateErrorContains,
             chainSourceContains: settings.ChainSourceContains,
             thumbprintEquals: settings.ThumbprintEquals,
+            rootThumbprintEquals: settings.RootThumbprintEquals,
             serialNumberEquals: settings.SerialNumberEquals,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
