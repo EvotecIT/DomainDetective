@@ -481,6 +481,7 @@ namespace DomainDetective {
         /// <param name="ctSourceContains">Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</param>
         /// <param name="ctTemplateErrorContains">Optional CT template/configuration error substring filter.</param>
         /// <param name="chainSourceContains">Optional chain-source substring filter (for example tls-handshake, aia-download).</param>
+        /// <param name="thumbprintEquals">Optional leaf-certificate thumbprint exact-match filter.</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
@@ -498,6 +499,7 @@ namespace DomainDetective {
             string? ctSourceContains = null,
             string? ctTemplateErrorContains = null,
             string? chainSourceContains = null,
+            string? thumbprintEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -516,6 +518,7 @@ namespace DomainDetective {
                 ctSourceContains,
                 ctTemplateErrorContains,
                 chainSourceContains,
+                thumbprintEquals,
                 serverAuthOnly,
                 clientAuthOnly,
                 secureEmailOnly);

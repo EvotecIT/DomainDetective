@@ -1438,5 +1438,121 @@ namespace DomainDetective.Tests {
             // Whitespace-only source filters are treated as absent, so all three risk-bearing entries are returned.
             Assert.Equal(3, filteredByWhitespaceSourceFilters.Endpoints.Count);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByThumbprintEquals() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "thumbprint-a.example.com",
+                            ResolvedHost = "thumbprint-a.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = "AA11BB22CC33DD44EE55FF6677889900AABBCCDD",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "thumbprint-b.example.com",
+                            ResolvedHost = "thumbprint-b.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateThumbprint = "11223344556677889900AABBCCDDEEFF00112233",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "thumbprint-missing.example.com",
+                            ResolvedHost = "thumbprint-missing.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredByThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: "aa11bb22cc33dd44ee55ff6677889900aabbccdd");
+            Assert.Single(filteredByThumbprint.Endpoints);
+            Assert.Equal("thumbprint-a.example.com", filteredByThumbprint.Endpoints[0].Host);
+            Assert.Equal("AA11BB22CC33DD44EE55FF6677889900AABBCCDD", filteredByThumbprint.Endpoints[0].CertificateThumbprint);
+
+            var filteredByMissingThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: "not-present");
+            Assert.Empty(filteredByMissingThumbprint.Endpoints);
+
+            var filteredByWhitespaceThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: "   ");
+            Assert.Equal(3, filteredByWhitespaceThumbprint.Endpoints.Count);
+        }
     }
 }
