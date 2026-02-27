@@ -542,7 +542,9 @@ namespace DomainDetective {
                         }
                     }
 
+                    result.EvaluatedEntryCount++;
                     if (!MatchesQuery(entry, effectiveQuery, now)) {
+                        result.ExcludedByFiltersCount++;
                         continue;
                     }
 

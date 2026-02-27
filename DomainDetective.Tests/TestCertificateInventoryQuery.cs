@@ -122,10 +122,14 @@ namespace DomainDetective.Tests {
 
                 Assert.Equal(1, result.ScannedSnapshotCount);
                 Assert.Equal(3, result.ScannedEntryCount);
+                Assert.Equal(3, result.EvaluatedEntryCount);
+                Assert.Equal(2, result.ExcludedByFiltersCount);
                 Assert.Equal(1, result.MatchedEntryCount);
                 Assert.Equal(1, result.MatchedUniqueEndpointCount);
                 Assert.Equal(0, result.SkippedByLatestPerEndpointCount);
                 Assert.Equal(0, result.EntriesTruncatedByMaxResults);
+                Assert.Equal(result.ScannedEntryCount, result.SkippedByLatestPerEndpointCount + result.EvaluatedEntryCount);
+                Assert.Equal(result.EvaluatedEntryCount, result.MatchedEntryCount + result.ExcludedByFiltersCount);
                 Assert.Equal(result.MatchedEntryCount, result.Entries.Count + result.EntriesTruncatedByMaxResults);
                 Assert.Single(result.Entries);
                 Assert.Equal("api.example.com", result.Entries[0].Entry.Host);
@@ -142,10 +146,13 @@ namespace DomainDetective.Tests {
                     HostContains = "example.com",
                     MaxResults = 1
                 });
+                Assert.Equal(3, limited.EvaluatedEntryCount);
+                Assert.Equal(0, limited.ExcludedByFiltersCount);
                 Assert.Equal(3, limited.MatchedEntryCount);
                 Assert.Equal(3, limited.MatchedUniqueEndpointCount);
                 Assert.True(limited.Truncated);
                 Assert.Equal(2, limited.EntriesTruncatedByMaxResults);
+                Assert.Equal(limited.EvaluatedEntryCount, limited.MatchedEntryCount + limited.ExcludedByFiltersCount);
                 Assert.Equal(limited.MatchedEntryCount, limited.Entries.Count + limited.EntriesTruncatedByMaxResults);
                 Assert.Single(limited.Entries);
                 Assert.Equal(2, limited.MatchedServiceCounts["HTTPS"]);
@@ -168,10 +175,13 @@ namespace DomainDetective.Tests {
                     HostContains = "example.com",
                     MaxResults = 0
                 });
+                Assert.Equal(3, zeroCap.EvaluatedEntryCount);
+                Assert.Equal(0, zeroCap.ExcludedByFiltersCount);
                 Assert.Equal(3, zeroCap.MatchedEntryCount);
                 Assert.Equal(3, zeroCap.EntriesTruncatedByMaxResults);
                 Assert.True(zeroCap.Truncated);
                 Assert.Empty(zeroCap.Entries);
+                Assert.Equal(zeroCap.EvaluatedEntryCount, zeroCap.MatchedEntryCount + zeroCap.ExcludedByFiltersCount);
                 Assert.Equal(zeroCap.MatchedEntryCount, zeroCap.Entries.Count + zeroCap.EntriesTruncatedByMaxResults);
 
                 var expired = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
@@ -361,8 +371,11 @@ namespace DomainDetective.Tests {
                     IssuerContains = "old ca",
                     MaxResults = 10
                 });
+                Assert.Equal(3, withoutLatestOnly.EvaluatedEntryCount);
+                Assert.Equal(2, withoutLatestOnly.ExcludedByFiltersCount);
                 Assert.Equal(1, withoutLatestOnly.MatchedEntryCount);
                 Assert.Equal(0, withoutLatestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(withoutLatestOnly.EvaluatedEntryCount, withoutLatestOnly.MatchedEntryCount + withoutLatestOnly.ExcludedByFiltersCount);
                 Assert.Single(withoutLatestOnly.Entries);
                 Assert.Equal("api.example.com", withoutLatestOnly.Entries[0].Entry.Host);
 
@@ -374,7 +387,11 @@ namespace DomainDetective.Tests {
                 Assert.Equal(2, latestOnly.MatchedEntryCount);
                 Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(1, latestOnly.SkippedByLatestPerEndpointCount);
+                Assert.Equal(2, latestOnly.EvaluatedEntryCount);
+                Assert.Equal(0, latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnly.ScannedEntryCount, latestOnly.SkippedByLatestPerEndpointCount + latestOnly.EvaluatedEntryCount);
+                Assert.Equal(latestOnly.EvaluatedEntryCount, latestOnly.MatchedEntryCount + latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(2, latestOnly.Entries.Count);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["New CA"]);
                 Assert.Equal(1, latestOnly.MatchedIssuerCounts["Legacy CA"]);
@@ -387,7 +404,11 @@ namespace DomainDetective.Tests {
                 });
                 Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
                 Assert.Equal(1, latestOnlyOldCa.SkippedByLatestPerEndpointCount);
+                Assert.Equal(2, latestOnlyOldCa.EvaluatedEntryCount);
+                Assert.Equal(2, latestOnlyOldCa.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnlyOldCa.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnlyOldCa.ScannedEntryCount, latestOnlyOldCa.SkippedByLatestPerEndpointCount + latestOnlyOldCa.EvaluatedEntryCount);
+                Assert.Equal(latestOnlyOldCa.EvaluatedEntryCount, latestOnlyOldCa.MatchedEntryCount + latestOnlyOldCa.ExcludedByFiltersCount);
                 Assert.Empty(latestOnlyOldCa.Entries);
             } finally {
                 if (Directory.Exists(tempDir)) {
@@ -489,7 +510,11 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, latestOnly.MatchedEntryCount);
                 Assert.Equal(1, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(2, latestOnly.SkippedByLatestPerEndpointCount);
+                Assert.Equal(1, latestOnly.EvaluatedEntryCount);
+                Assert.Equal(0, latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnly.ScannedEntryCount, latestOnly.SkippedByLatestPerEndpointCount + latestOnly.EvaluatedEntryCount);
+                Assert.Equal(latestOnly.EvaluatedEntryCount, latestOnly.MatchedEntryCount + latestOnly.ExcludedByFiltersCount);
                 Assert.Single(latestOnly.Entries);
                 Assert.Equal("Newest CA", latestOnly.Entries[0].Entry.CertificateIssuerNormalized);
             } finally {

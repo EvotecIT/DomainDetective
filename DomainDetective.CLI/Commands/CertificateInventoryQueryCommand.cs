@@ -258,16 +258,18 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         summary.AddColumn("Value");
         summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
         summary.AddRow("Scanned Entries", result.ScannedEntryCount.ToString());
+        if (settings.LatestOnly) {
+            summary.AddRow("Latest Per Endpoint", "Yes");
+            summary.AddRow("Skipped Older Endpoint Entries", result.SkippedByLatestPerEndpointCount.ToString());
+        }
+        summary.AddRow("Evaluated Entries", result.EvaluatedEntryCount.ToString());
+        summary.AddRow("Excluded by Filters", result.ExcludedByFiltersCount.ToString());
         summary.AddRow("Matched Entries", result.MatchedEntryCount.ToString());
         summary.AddRow("Matched Unique Endpoints", result.MatchedUniqueEndpointCount.ToString());
         summary.AddRow("Returned Entries", result.Entries.Count.ToString());
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
         if (result.EntriesTruncatedByMaxResults > 0) {
             summary.AddRow("Truncated by Max Results", result.EntriesTruncatedByMaxResults.ToString());
-        }
-        if (settings.LatestOnly) {
-            summary.AddRow("Latest Per Endpoint", "Yes");
-            summary.AddRow("Skipped Older Endpoint Entries", result.SkippedByLatestPerEndpointCount.ToString());
         }
         AnsiConsole.Write(summary);
 
