@@ -20,6 +20,9 @@ namespace DomainDetective.Tests {
             Assert.True(analysis.AllowsServerAuthentication);
             Assert.True(analysis.AllowsClientAuthentication);
             Assert.False(analysis.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.ServerAndClientAuth, analysis.AuthenticationProfile);
+            Assert.False(string.IsNullOrWhiteSpace(analysis.ChainSource));
+            Assert.NotEmpty(analysis.ChainSourceHistory);
             Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ServerAuthenticationOid, analysis.ExtendedKeyUsageOids);
             Assert.Contains(CertificateExtendedKeyUsageAnalyzer.ClientAuthenticationOid, analysis.ExtendedKeyUsageOids);
         }
@@ -35,7 +38,22 @@ namespace DomainDetective.Tests {
             Assert.False(analysis.AllowsServerAuthentication);
             Assert.False(analysis.AllowsClientAuthentication);
             Assert.False(analysis.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.NoEkuExtension, analysis.AuthenticationProfile);
             Assert.Empty(analysis.ExtendedKeyUsageOids);
+        }
+
+        [Fact]
+        public async Task AnalyzeCertificateWithAnyEkuUsesAnyProfile() {
+            using var cert = CreateSelfSignedWithEku(CertificateExtendedKeyUsageAnalyzer.AnyExtendedKeyUsageOid);
+            var analysis = new CertificateAnalysis { CtLogQueryOverride = _ => Task.FromResult("[]") };
+
+            await analysis.AnalyzeCertificate(cert);
+
+            Assert.True(analysis.HasAnyExtendedKeyUsageOid);
+            Assert.True(analysis.AllowsServerAuthentication);
+            Assert.True(analysis.AllowsClientAuthentication);
+            Assert.True(analysis.AllowsSecureEmail);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.AnyExtendedKeyUsage, analysis.AuthenticationProfile);
         }
 
         [Fact]
@@ -78,6 +96,7 @@ namespace DomainDetective.Tests {
 
             Assert.True(usage.HasEnhancedKeyUsageExtension);
             Assert.Empty(usage.Oids);
+            Assert.Equal(CertificateAuthenticationProfileClassifier.EkuPresentNoUsages, usage.AuthenticationProfile);
         }
 
         private static X509Certificate2 CreateSelfSignedWithEku(params string[] ekuOids) {

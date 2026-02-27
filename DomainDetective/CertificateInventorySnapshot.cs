@@ -26,17 +26,21 @@ namespace DomainDetective {
         public string? CertificateIssuer { get; set; }
         public string? CertificateThumbprint { get; set; }
         public string? CertificateSerialNumber { get; set; }
+        public string? CertificateIssuerCommonName { get; set; }
         public string? CertificateIssuerOrganization { get; set; }
         public string? CertificateIssuerNormalized { get; set; }
         public string? CertificateAuthorityFamily { get; set; }
         public string? CertificateRootSubject { get; set; }
         public string? CertificateRootIssuer { get; set; }
+        public string? CertificateRootIssuerCommonName { get; set; }
         public string? CertificateRootIssuerOrganization { get; set; }
         public string? CertificateRootIssuerNormalized { get; set; }
+        public string? CertificateRootAuthorityFamily { get; set; }
         public string? CertificateRootThumbprint { get; set; }
         public int CertificateChainLength { get; set; }
         public int CertificateIntermediateCount { get; set; }
         public bool IsKnownCertificateAuthority { get; set; }
+        public bool IsKnownRootCertificateAuthority { get; set; }
         public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
         public bool Valid { get; set; }
@@ -46,6 +50,8 @@ namespace DomainDetective {
         public bool IsSelfSigned { get; set; }
         public bool HostnameMatch { get; set; }
         public bool PresentInCtLogs { get; set; }
+        /// <summary>CT/discovery sources queried when evaluating certificate presence.</summary>
+        public IReadOnlyList<string> CtDiscoverySources { get; set; } = Array.Empty<string>();
         /// <summary>Days to expiry as observed at snapshot capture time.</summary>
         public int DaysToExpire { get; set; }
         public int DaysValid { get; set; }
@@ -68,6 +74,9 @@ namespace DomainDetective {
         public bool AllowsServerAuthentication { get; set; }
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
+        public string AuthenticationProfile { get; set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
+        public string? CertificateChainSource { get; set; }
+        public List<string> CertificateChainSources { get; set; } = new();
         public List<string> ExtendedKeyUsageOids { get; set; } = new();
         public List<string> SubjectAlternativeNames { get; set; } = new();
         public List<string> CertificateChainSubjects { get; set; } = new();

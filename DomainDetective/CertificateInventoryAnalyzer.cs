@@ -20,6 +20,9 @@ namespace DomainDetective {
         public Dictionary<string, int> ServiceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> IssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public Dictionary<string, int> RootIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> AuthenticationProfileCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> ChainSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, int> CtSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
         public List<CertificateExpiringEndpoint> ExpiringSoon { get; set; } = new();
     }
 
@@ -89,6 +92,9 @@ namespace DomainDetective {
 
                 var issuer = PickIssuer(entry);
                 Increment(summary.IssuerCounts, issuer);
+                Increment(summary.AuthenticationProfileCounts, CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry));
+                Increment(summary.ChainSourceCounts, CertificateInventoryEntryHelpers.PickChainSource(entry));
+                IncrementCtSources(summary.CtSourceCounts, entry);
 
                 if (!entry.AllowsServerAuthentication) {
                     summary.MissingServerAuthEndpointCount++;
@@ -181,6 +187,28 @@ namespace DomainDetective {
                 return CertificateIssuerClassifier.Classify(entry.CertificateRootIssuer).NormalizedName;
             }
             return "Unknown";
+        }
+
+        private static void IncrementCtSources(Dictionary<string, int> counters, CertificateInventoryEntry entry) {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (entry.CtDiscoverySources != null) {
+                foreach (var source in entry.CtDiscoverySources) {
+                    if (string.IsNullOrWhiteSpace(source)) {
+                        continue;
+                    }
+
+                    var normalized = source.Trim();
+                    if (!seen.Add(normalized)) {
+                        continue;
+                    }
+
+                    Increment(counters, normalized);
+                }
+            }
+
+            if (seen.Count == 0) {
+                Increment(counters, "none");
+            }
         }
     }
 }

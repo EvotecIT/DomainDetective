@@ -59,6 +59,10 @@ namespace DomainDetective {
 
         /// <summary>Gets the certificate chain.</summary>
         public List<X509Certificate2> Chain { get; } = new();
+        /// <summary>Most recent source used to populate <see cref="Chain"/>.</summary>
+        public string ChainSource { get; private set; } = string.Empty;
+        /// <summary>Ordered unique list of chain acquisition sources observed during analysis.</summary>
+        public List<string> ChainSourceHistory { get; } = new();
         /// <summary>Gets OCSP endpoints from the certificate.</summary>
         public List<string> OcspUrls { get; } = new();
         /// <summary>Gets CRL endpoints from the certificate.</summary>
@@ -110,6 +114,8 @@ namespace DomainDetective {
         public List<string> ExtendedKeyUsageOids { get; } = new();
         /// <summary>List of EKU friendly names for the certificate.</summary>
         public List<string> ExtendedKeyUsageFriendlyNames { get; } = new();
+        /// <summary>Normalized EKU authentication profile for filtering/reporting.</summary>
+        public string AuthenticationProfile { get; private set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
         /// <summary>Gets the negotiated TLS protocol when <see cref="CaptureTlsDetails"/> is true.</summary>
         public SslProtocols TlsProtocol { get; private set; }
         /// <summary>Indicates if TLS 1.3 was negotiated.</summary>
@@ -137,9 +143,36 @@ namespace DomainDetective {
 
         /// <summary>CT log API templates. Each entry should contain a {0} placeholder for the SHA-256 fingerprint.</summary>
         public List<string> CtLogApiTemplates => _ctLogAggregator.ApiTemplates;
+        /// <summary>Enables Censys certificate discovery source during CT lookups.</summary>
+        public bool EnableCensysCtSource { get; set; }
+        /// <summary>Censys API identifier used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiId { get; set; }
+        /// <summary>Censys API secret used when <see cref="EnableCensysCtSource"/> is true.</summary>
+        public string? CensysApiSecret { get; set; }
+        /// <summary>Censys URL template with {0} placeholder for the SHA-256 fingerprint.</summary>
+        public string CensysCtApiUrlTemplate {
+            get { return _ctLogAggregator.CensysApiUrlTemplate; }
+            set { _ctLogAggregator.CensysApiUrlTemplate = value; }
+        }
+        /// <summary>Enables Shodan certificate discovery source during CT lookups.</summary>
+        public bool EnableShodanCtSource { get; set; }
+        /// <summary>Shodan API key used when <see cref="EnableShodanCtSource"/> is true.</summary>
+        public string? ShodanApiKey { get; set; }
+        /// <summary>Shodan URL template with {0} fingerprint and {1} URL-encoded API key placeholders.</summary>
+        public string ShodanCtApiUrlTemplate {
+            get { return _ctLogAggregator.ShodanApiUrlTemplate; }
+            set { _ctLogAggregator.ShodanApiUrlTemplate = value; }
+        }
+        /// <summary>Discovery sources queried for certificate evidence in the latest CT lookup.</summary>
+        public IReadOnlyList<string> CtDiscoverySources => _ctDiscoverySources;
 
         private readonly List<JsonElement> _ctLogEntries = new();
+        private volatile string[] _ctDiscoverySources = Array.Empty<string>();
         private readonly CtLogAggregator _ctLogAggregator = new();
+        private const string ChainSourceTlsHandshake = "tls-handshake";
+        private const string ChainSourceSslStreamBuild = "sslstream-build";
+        private const string ChainSourceLocalBuildOnline = "local-build-online";
+        private const string ChainSourceLocalBuildNoCheck = "local-build-no-check";
 
         /// <summary>Structured assessments captured during certificate checks.</summary>
         public List<Assessment> Assessments { get; } = new();
@@ -199,6 +232,7 @@ namespace DomainDetective {
             url = builder.ToString();
             Url = url;
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             using var _collector = AssessmentCollector.ForAnalysis(logger, this, category: "CERT", target: url);
             using (var handler = new HttpClientHandler { AllowAutoRedirect = true, MaxAutomaticRedirections = 10, CheckCertificateRevocationList = !SkipRevocation }) {
                 handler.ServerCertificateCustomValidationCallback = (HttpRequestMessage requestMessage, X509Certificate2? certificate, X509Chain? chain, SslPolicyErrors policyErrors) => {
@@ -214,9 +248,10 @@ namespace DomainDetective {
                     Chain.Clear();
                     if (chain != null) {
                         foreach (var element in chain.ChainElements) {
-                    Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
+                            Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                         }
                     }
+                    RecordChainSource(ChainSourceTlsHandshake);
                     IsSelfSigned = IsSelfSignedCertificate(Certificate);  
                     IsValid = policyErrors == SslPolicyErrors.None;       
                     HostnameMatch = (policyErrors & SslPolicyErrors.RemoteCertificateNameMismatch) == 0;
@@ -267,6 +302,7 @@ namespace DomainDetective {
                                     foreach (var element in xchain.ChainElements) {
                                         Chain.Add(new X509Certificate2(element.Certificate.Export(X509ContentType.Cert)));
                                     }
+                                    RecordChainSource(ChainSourceSslStreamBuild);
                                     IsSelfSigned = IsSelfSignedCertificate(Certificate);
                                 }
                             } catch (Exception ex) {
@@ -407,6 +443,7 @@ namespace DomainDetective {
         {
             PresentInCtLogs = false;
             _ctLogEntries.Clear();
+            _ctDiscoverySources = Array.Empty<string>();
             if (Certificate == null)
             {
                 return;
@@ -421,13 +458,32 @@ namespace DomainDetective {
 #endif
             var fingerprint = BitConverter.ToString(hashBytes).Replace("-", string.Empty).ToLowerInvariant();
 
-            _ctLogAggregator.ApiTemplates.Clear();
-            _ctLogAggregator.ApiTemplates.AddRange(CtLogApiTemplates);
             _ctLogAggregator.QueryOverride = CtLogQueryOverride;
+            _ctLogAggregator.EnableCensysSource = EnableCensysCtSource;
+            _ctLogAggregator.EnableShodanSource = EnableShodanCtSource;
+            _ctLogAggregator.CensysApiId = FirstNonEmpty(CensysApiId, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_ID"));
+            _ctLogAggregator.CensysApiSecret = FirstNonEmpty(CensysApiSecret, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_CENSYS_API_SECRET"));
+            _ctLogAggregator.ShodanApiKey = FirstNonEmpty(ShodanApiKey, Environment.GetEnvironmentVariable("DOMAINDETECTIVE_SHODAN_API_KEY"));
 
             var entries = await _ctLogAggregator.QueryAsync(fingerprint, cancellationToken).ConfigureAwait(false);
             _ctLogEntries.AddRange(entries);
+            _ctDiscoverySources = _ctLogAggregator.LastQueriedSources
+                .Where(source => !string.IsNullOrWhiteSpace(source))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
             PresentInCtLogs = _ctLogEntries.Count > 0;
+        }
+
+        private static string? FirstNonEmpty(string? explicitValue, string? fallbackValue) {
+            if (!string.IsNullOrWhiteSpace(explicitValue)) {
+                return explicitValue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(fallbackValue)) {
+                return fallbackValue;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -467,6 +523,7 @@ namespace DomainDetective {
         public async Task AnalyzeCertificate(X509Certificate2 certificate, CancellationToken cancellationToken = default) {
             Certificate = new X509Certificate2(certificate.RawData);
             IsSelfSigned = false;
+            ResetChainSourceTracking();
             var chain = new X509Chain();
             chain.ChainPolicy.RevocationMode = SkipRevocation ? X509RevocationMode.NoCheck : X509RevocationMode.Online;
             IsValid = chain.Build(certificate);
@@ -474,6 +531,7 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(SkipRevocation ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             IsSelfSigned = IsSelfSignedCertificate(Certificate);
             PopulateKeyInfo();
             DaysToExpire = (int)(certificate.NotAfter - DateTime.Now).TotalDays;
@@ -513,7 +571,24 @@ namespace DomainDetective {
             foreach (var element in chain.ChainElements) {
                 Chain.Add(new X509Certificate2(element.Certificate.RawData));
             }
+            RecordChainSource(revocationMode == X509RevocationMode.NoCheck ? ChainSourceLocalBuildNoCheck : ChainSourceLocalBuildOnline);
             return true;
+        }
+
+        private void ResetChainSourceTracking() {
+            ChainSource = string.Empty;
+            ChainSourceHistory.Clear();
+        }
+
+        private void RecordChainSource(string source) {
+            if (string.IsNullOrWhiteSpace(source)) {
+                return;
+            }
+
+            ChainSource = source;
+            if (!ChainSourceHistory.Contains(source, StringComparer.OrdinalIgnoreCase)) {
+                ChainSourceHistory.Add(source);
+            }
         }
 
         private void PopulateSubjectAlternativeNames() {
@@ -648,6 +723,7 @@ namespace DomainDetective {
             AllowsServerAuthentication = false;
             AllowsClientAuthentication = false;
             AllowsSecureEmail = false;
+            AuthenticationProfile = CertificateAuthenticationProfileClassifier.NoEkuExtension;
             ExtendedKeyUsageOids.Clear();
             ExtendedKeyUsageFriendlyNames.Clear();
 
@@ -657,6 +733,9 @@ namespace DomainDetective {
             AllowsServerAuthentication = parsed.AllowsServerAuthentication;
             AllowsClientAuthentication = parsed.AllowsClientAuthentication;
             AllowsSecureEmail = parsed.AllowsSecureEmail;
+            AuthenticationProfile = string.IsNullOrWhiteSpace(parsed.AuthenticationProfile)
+                ? CertificateAuthenticationProfileClassifier.Classify(parsed)
+                : parsed.AuthenticationProfile;
             ExtendedKeyUsageOids.AddRange(parsed.Oids);
             ExtendedKeyUsageFriendlyNames.AddRange(parsed.FriendlyNames);
         }
