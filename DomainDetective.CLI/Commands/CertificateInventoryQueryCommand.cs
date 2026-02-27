@@ -2,6 +2,7 @@ using DomainDetective.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -171,8 +172,8 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--json")]
     public bool Json { get; set; }
 
-    /// <summary>Show matched-entry breakdown tables (service/issuer/auth/chain/CT).</summary>
-    [Description("Show matched-entry breakdown tables (service/issuer/auth/chain/CT).")]
+    /// <summary>Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).</summary>
+    [Description("Show matched-entry breakdown tables (service/issuer/auth/chain/CT) for table output (ignored with --json).")]
     [CommandOption("--show-breakdown")]
     public bool ShowBreakdown { get; set; }
 }
@@ -323,9 +324,14 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         return flags.Length == 0 ? "-" : flags;
     }
 
-    private static void RenderCountTable(string title, System.Collections.Generic.Dictionary<string, int> counters) {
+    private static void RenderCountTable(string title, Dictionary<string, int> counters) {
+        if (counters.Count == 0) {
+            return;
+        }
+
         var table = new Table().Border(TableBorder.Rounded);
-        table.Title = new TableTitle(title);
+        var suffix = counters.Count > 20 ? $" (Top 20 of {counters.Count})" : string.Empty;
+        table.Title = new TableTitle($"{title}{suffix}");
         table.AddColumn("Name");
         table.AddColumn("Count");
         foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Take(20)) {

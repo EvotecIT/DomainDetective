@@ -762,6 +762,9 @@ namespace DomainDetective {
 
         private static string BuildEndpointKey(CertificateInventoryEntry entry) {
             var host = entry.ResolvedHost ?? entry.Host;
+            if (string.IsNullOrWhiteSpace(host)) {
+                host = "unknown-host";
+            }
             var port = entry.Port;
             if (port <= 0) {
                 port = 443;
@@ -831,16 +834,16 @@ namespace DomainDetective {
 
         private static string ExtractCtTemplateErrorCategory(string error) {
             if (string.IsNullOrWhiteSpace(error)) {
-                return "unknown";
+                return "Unknown";
             }
 
             var separatorIndex = error.IndexOf(':');
             if (separatorIndex <= 0) {
-                return "unknown";
+                return "Unknown";
             }
 
             var category = error.Substring(0, separatorIndex).Trim();
-            return string.IsNullOrWhiteSpace(category) ? "unknown" : category;
+            return string.IsNullOrWhiteSpace(category) ? "Unknown" : category;
         }
 
         /// <summary>Disposes timer resources.</summary>
