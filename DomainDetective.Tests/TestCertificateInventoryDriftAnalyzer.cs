@@ -516,6 +516,51 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftRequiredChangeKindsEmptyArrayMatchesDefaultBehavior() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var implicitAny = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100);
+            var explicitAny = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: Array.Empty<string>());
+
+            Assert.Equal(implicitAny.EndpointCount, explicitAny.EndpointCount);
+            Assert.Equal(implicitAny.EndpointsMatchingFilters, explicitAny.EndpointsMatchingFilters);
+            Assert.Equal(implicitAny.EndpointsWithAnyChange, explicitAny.EndpointsWithAnyChange);
+            Assert.Equal(implicitAny.EndpointsWithHighSeverityDrift, explicitAny.EndpointsWithHighSeverityDrift);
+            Assert.Equal(implicitAny.EndpointsWithMediumSeverityDrift, explicitAny.EndpointsWithMediumSeverityDrift);
+            Assert.Equal(implicitAny.EndpointsWithLowSeverityDrift, explicitAny.EndpointsWithLowSeverityDrift);
+            Assert.Equal(
+                implicitAny.Endpoints.Select(endpoint => endpoint.Host).OrderBy(host => host),
+                explicitAny.Endpoints.Select(endpoint => endpoint.Host).OrderBy(host => host));
+            Assert.Empty(explicitAny.AppliedChangeKinds);
+        }
+
+        [Fact]
+        public void BuildDriftRequiredChangeKindsDeduplicateMixedCaseValues() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var filtered = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: new[] { "SERVICE", "service", "AuthProfile", "auth-profile" });
+
+            Assert.Equal(4, filtered.EndpointCount);
+            Assert.Equal(1, filtered.EndpointsMatchingFilters);
+            Assert.Equal(
+                new[] { "auth-profile", "service" },
+                filtered.AppliedChangeKinds.OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase));
+            var endpoint = Assert.Single(filtered.Endpoints);
+            Assert.Equal("high.example.com", endpoint.Host);
+        }
+
+        [Fact]
         public void BuildDriftChangedOnlyAndChangeKindFilterCanBeUsedTogether() {
             var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
 

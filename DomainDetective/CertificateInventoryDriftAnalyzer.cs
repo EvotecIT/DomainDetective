@@ -87,6 +87,7 @@ namespace DomainDetective {
             var grouped = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
             var minimumSeverityRank = ParseMinimumSeverityRank(minimumSeverity);
             var normalizedChangeKinds = ParseRequiredChangeKinds(requiredChangeKinds);
+            var normalizedChangeKindSet = new HashSet<string>(normalizedChangeKinds, StringComparer.OrdinalIgnoreCase);
             summary.AppliedChangeKinds.AddRange(normalizedChangeKinds);
 
             foreach (var snapshot in snapshots ?? Array.Empty<CertificateInventorySnapshot>()) {
@@ -203,7 +204,7 @@ namespace DomainDetective {
                     continue;
                 }
 
-                if (normalizedChangeKinds.Count > 0 && !row.ChangeKinds.Any(kind => normalizedChangeKinds.Contains(kind))) {
+                if (normalizedChangeKindSet.Count > 0 && !row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind))) {
                     continue;
                 }
 
