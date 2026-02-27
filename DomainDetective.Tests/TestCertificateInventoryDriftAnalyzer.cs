@@ -682,6 +682,46 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftChangeKindMatchAllWithNoRequiredKindsBehavesLikeNoChangeKindFilter() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var baseline = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100);
+            var withAllMode = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: Array.Empty<string>(),
+                changeKindMatchMode: "all");
+
+            Assert.Equal(baseline.EndpointCount, withAllMode.EndpointCount);
+            Assert.Equal(baseline.EndpointsMatchingFilters, withAllMode.EndpointsMatchingFilters);
+            Assert.Equal(baseline.EndpointsWithAnyChange, withAllMode.EndpointsWithAnyChange);
+            Assert.Equal(baseline.Endpoints.Select(endpoint => endpoint.Host), withAllMode.Endpoints.Select(endpoint => endpoint.Host));
+            Assert.Empty(withAllMode.AppliedChangeKinds);
+            Assert.Equal("All", withAllMode.AppliedChangeKindMatchMode);
+        }
+
+        [Fact]
+        public void TryNormalizeChangeKindMatchModeHandlesExpectedValues() {
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode(null, out var nullMode));
+            Assert.Equal("Any", nullMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("  ", out var whitespaceMode));
+            Assert.Equal("Any", whitespaceMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("ANY", out var anyMode));
+            Assert.Equal("Any", anyMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("aLl", out var allMode));
+            Assert.Equal("All", allMode);
+
+            Assert.False(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("strict", out _));
+        }
+
+        [Fact]
         public void BuildDriftThrowsForInvalidRequiredChangeKind() {
             var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
 

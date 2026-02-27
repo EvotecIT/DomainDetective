@@ -211,10 +211,13 @@ namespace DomainDetective {
                 }
 
                 if (normalizedChangeKindSet.Count > 0) {
-                    var rowChangeKindSet = new HashSet<string>(row.ChangeKinds, StringComparer.OrdinalIgnoreCase);
-                    var include = normalizedChangeKindMatchMode.Equals(ChangeKindMatchAll, StringComparison.OrdinalIgnoreCase)
-                        ? normalizedChangeKindSet.All(kind => rowChangeKindSet.Contains(kind))
-                        : row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind));
+                    var include = true;
+                    if (normalizedChangeKindMatchMode.Equals(ChangeKindMatchAll, StringComparison.OrdinalIgnoreCase)) {
+                        var rowChangeKindSet = new HashSet<string>(row.ChangeKinds, StringComparer.OrdinalIgnoreCase);
+                        include = normalizedChangeKindSet.All(kind => rowChangeKindSet.Contains(kind));
+                    } else {
+                        include = row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind));
+                    }
                     if (!include) {
                         continue;
                     }

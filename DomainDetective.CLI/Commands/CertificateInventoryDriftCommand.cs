@@ -96,6 +96,9 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
                 normalizedChangeKinds.Add(normalizedChangeKind);
             }
         }
+        if (normalizedChangeKinds.Count == 0 && changeKindMatchMode.Equals("All", StringComparison.OrdinalIgnoreCase)) {
+            AnsiConsole.MarkupLine("[yellow]--change-kind-match all has no effect without --change-kind.[/]");
+        }
 
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
@@ -132,7 +135,9 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Change Kind Filter", drift.AppliedChangeKinds.Count == 0 ? "Any" : string.Join(", ", drift.AppliedChangeKinds));
-        summary.AddRow("Change Kind Match", drift.AppliedChangeKindMatchMode);
+        if (drift.AppliedChangeKinds.Count > 0) {
+            summary.AddRow("Change Kind Match", drift.AppliedChangeKindMatchMode);
+        }
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
         summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
         summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
