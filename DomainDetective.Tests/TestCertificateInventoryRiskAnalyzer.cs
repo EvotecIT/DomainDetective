@@ -786,5 +786,160 @@ namespace DomainDetective.Tests {
                 reasonContains: "does-not-exist");
             Assert.Empty(filteredByMissingReason.Endpoints);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsByIssuerContains() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "digicert-issuer.example.com",
+                            ResolvedHost = "digicert-issuer.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(5),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true,
+                            CertificateIssuerNormalized = "DigiCert TLS RSA SHA256 2020 CA1",
+                            CertificateRootIssuerNormalized = "DigiCert Global Root G2"
+                        },
+                        new() {
+                            Host = "isrg-root.example.com",
+                            ResolvedHost = "isrg-root.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(4),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateIssuerNormalized = "R3",
+                            CertificateRootIssuerNormalized = "ISRG Root X1"
+                        },
+                        new() {
+                            Host = "other-issuer.example.com",
+                            ResolvedHost = "other-issuer.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(3),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateIssuerNormalized = "Contoso Trust Services",
+                            CertificateRootIssuerNormalized = "Contoso Root CA"
+                        },
+                        new() {
+                            Host = "healthy-contoso-issuer.example.com",
+                            ResolvedHost = "healthy-contoso-issuer.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateIssuerNormalized = "Contoso Trust Services",
+                            CertificateRootIssuerNormalized = "Contoso Root CA"
+                        }
+                    }
+                }
+            };
+
+            var filteredByLeafIssuer = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: "digicert");
+            Assert.Single(filteredByLeafIssuer.Endpoints);
+            Assert.Equal("digicert-issuer.example.com", filteredByLeafIssuer.Endpoints[0].Host);
+            Assert.Contains("DigiCert", filteredByLeafIssuer.Endpoints[0].Issuer, StringComparison.OrdinalIgnoreCase);
+
+            var filteredByRootIssuer = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: "isrg");
+            Assert.Single(filteredByRootIssuer.Endpoints);
+            Assert.Equal("isrg-root.example.com", filteredByRootIssuer.Endpoints[0].Host);
+            Assert.Contains("ISRG", filteredByRootIssuer.Endpoints[0].RootIssuer, StringComparison.OrdinalIgnoreCase);
+
+            var filteredByIssuerWithoutNoRisk = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: "contoso");
+            Assert.Single(filteredByIssuerWithoutNoRisk.Endpoints);
+            Assert.Equal("other-issuer.example.com", filteredByIssuerWithoutNoRisk.Endpoints[0].Host);
+            Assert.DoesNotContain(filteredByIssuerWithoutNoRisk.Endpoints, endpoint => string.Equals(endpoint.Host, "healthy-contoso-issuer.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByIssuerAndReason = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: "WeakKey",
+                issuerContains: "digicert");
+            Assert.Single(filteredByIssuerAndReason.Endpoints);
+            Assert.Equal("digicert-issuer.example.com", filteredByIssuerAndReason.Endpoints[0].Host);
+
+            var filteredByWhitespaceIssuer = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: "   ");
+            Assert.Equal(4, filteredByWhitespaceIssuer.Endpoints.Count);
+
+            var filteredByMissingIssuer = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: "not-present");
+            Assert.Empty(filteredByMissingIssuer.Endpoints);
+        }
     }
 }
