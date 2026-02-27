@@ -11,6 +11,10 @@ namespace DomainDetective {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
         public int EndpointsMatchingFilters { get; set; }
+        public int EndpointsExcludedByChangedOnly { get; set; }
+        public int EndpointsExcludedByMinimumSeverity { get; set; }
+        public int EndpointsExcludedByChangeKindFilter { get; set; }
+        public int EndpointsExcludedByFilters { get; set; }
         public List<string> AppliedChangeKinds { get; set; } = new();
         public string AppliedChangeKindMatchMode { get; set; } = "Any";
         public int EndpointsWithAnyChange { get; set; }
@@ -203,10 +207,12 @@ namespace DomainDetective {
                 row.DriftSeverity = ClassifyDriftSeverity(row);
 
                 if (changedOnly && row.ChangeKinds.Count == 0) {
+                    summary.EndpointsExcludedByChangedOnly++;
                     continue;
                 }
 
                 if (GetSeverityRank(row.DriftSeverity) < minimumSeverityRank) {
+                    summary.EndpointsExcludedByMinimumSeverity++;
                     continue;
                 }
 
@@ -219,6 +225,7 @@ namespace DomainDetective {
                         include = row.ChangeKinds.Any(kind => normalizedChangeKindSet.Contains(kind));
                     }
                     if (!include) {
+                        summary.EndpointsExcludedByChangeKindFilter++;
                         continue;
                     }
                 }
@@ -228,6 +235,10 @@ namespace DomainDetective {
 
             summary.EndpointCount = grouped.Count;
             summary.EndpointsMatchingFilters = driftRows.Count;
+            summary.EndpointsExcludedByFilters =
+                summary.EndpointsExcludedByChangedOnly +
+                summary.EndpointsExcludedByMinimumSeverity +
+                summary.EndpointsExcludedByChangeKindFilter;
             summary.EndpointsWithCertificateChange = driftRows.Count(row => row.CertificateChanged);
             summary.EndpointsWithIssuerChange = driftRows.Count(row => row.IssuerChanged);
             summary.EndpointsWithExpiryChange = driftRows.Count(row => row.ExpiryChanged);
