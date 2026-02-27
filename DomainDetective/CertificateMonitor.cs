@@ -565,7 +565,7 @@ namespace DomainDetective {
             }
 
             result.MatchedUniqueEndpointCount = matchedEndpointKeys.Count;
-            result.EntriesTruncatedByMaxResults = Math.Max(0, result.MatchedEntryCount - result.Entries.Count);
+            result.EntriesTruncatedByMaxResults = result.MatchedEntryCount - result.Entries.Count;
             return result;
         }
 

@@ -164,6 +164,16 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, limited.MatchedCtSourceCounts["none"]);
                 Assert.Equal(1, limited.MatchedCtTemplateErrorCounts["CensysApiUrlTemplate"]);
 
+                var zeroCap = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    MaxResults = 0
+                });
+                Assert.Equal(3, zeroCap.MatchedEntryCount);
+                Assert.Equal(3, zeroCap.EntriesTruncatedByMaxResults);
+                Assert.True(zeroCap.Truncated);
+                Assert.Empty(zeroCap.Entries);
+                Assert.Equal(zeroCap.MatchedEntryCount, zeroCap.Entries.Count + zeroCap.EntriesTruncatedByMaxResults);
+
                 var expired = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     ExpiredOnly = true,
                     MaxResults = 10
