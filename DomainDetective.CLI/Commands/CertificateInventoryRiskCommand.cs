@@ -88,6 +88,11 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--chain-source-contains <TEXT>")]
     public string? ChainSourceContains { get; set; }
 
+    /// <summary>Optional leaf-certificate thumbprint exact-match filter (hex string expected).</summary>
+    [Description("Optional leaf-certificate thumbprint exact-match filter (hex string expected).")]
+    [CommandOption("--thumbprint <HEX>")]
+    public string? ThumbprintEquals { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Description("Only include endpoints whose certificate allows server authentication EKU.")]
     [CommandOption("--server-auth-only")]
@@ -167,6 +172,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
             ctSourceContains: settings.CtSourceContains,
             ctTemplateErrorContains: settings.CtTemplateErrorContains,
             chainSourceContains: settings.ChainSourceContains,
+            thumbprintEquals: settings.ThumbprintEquals,
             serverAuthOnly: settings.ServerAuthOnly,
             clientAuthOnly: settings.ClientAuthOnly,
             secureEmailOnly: settings.SecureEmailOnly);
