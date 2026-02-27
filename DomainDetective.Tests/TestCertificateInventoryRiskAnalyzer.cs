@@ -1555,5 +1555,125 @@ namespace DomainDetective.Tests {
                 thumbprintEquals: "   ");
             Assert.Equal(3, filteredByWhitespaceThumbprint.Endpoints.Count);
         }
+
+        [Fact]
+        public void BuildRiskFiltersReturnedEndpointsBySerialNumberEquals() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "serial-a.example.com",
+                            ResolvedHost = "serial-a.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateSerialNumber = "00AA11BB22CC33DD44EE55FF66778899",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "serial-b.example.com",
+                            ResolvedHost = "serial-b.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            CertificateSerialNumber = "11223344556677889900AABBCCDDEEFF",
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "serial-missing.example.com",
+                            ResolvedHost = "serial-missing.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(90),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        }
+                    }
+                }
+            };
+
+            var filteredBySerialNumber = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                serialNumberEquals: "00aa:11bb 22cc33dd44ee55ff66778899");
+            Assert.Single(filteredBySerialNumber.Endpoints);
+            Assert.Equal("serial-a.example.com", filteredBySerialNumber.Endpoints[0].Host);
+            Assert.Equal("00AA11BB22CC33DD44EE55FF66778899", filteredBySerialNumber.Endpoints[0].CertificateSerialNumber);
+            Assert.DoesNotContain(filteredBySerialNumber.Endpoints, endpoint => string.Equals(endpoint.Host, "serial-missing.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var filteredByMissingSerialNumber = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                serialNumberEquals: "not-present");
+            Assert.Empty(filteredByMissingSerialNumber.Endpoints);
+
+            var filteredByWhitespaceSerialNumber = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: null,
+                reasonContains: null,
+                issuerContains: null,
+                authorityFamilyEquals: null,
+                rootAuthorityFamilyEquals: null,
+                ctSourceContains: null,
+                ctTemplateErrorContains: null,
+                chainSourceContains: null,
+                thumbprintEquals: null,
+                serialNumberEquals: "   ");
+            Assert.Equal(3, filteredByWhitespaceSerialNumber.Endpoints.Count);
+        }
     }
 }
