@@ -15,6 +15,7 @@ namespace DomainDetective {
         public int EndpointsExcludedByMinimumSeverity { get; set; }
         public int EndpointsExcludedByChangeKindFilter { get; set; }
         public int EndpointsExcludedByFilters { get; set; }
+        public int EndpointsTruncatedByMaxEndpoints { get; set; }
         public List<string> AppliedChangeKinds { get; set; } = new();
         public string AppliedChangeKindMatchMode { get; set; } = "Any";
         public int EndpointsWithAnyChange { get; set; }
@@ -249,12 +250,14 @@ namespace DomainDetective {
             summary.EndpointsWithHighSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase));
             summary.EndpointsWithMediumSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase));
             summary.EndpointsWithLowSeverityDrift = driftRows.Count(row => row.DriftSeverity.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase));
+            var effectiveMaxEndpoints = Math.Max(0, maxEndpoints);
+            summary.EndpointsTruncatedByMaxEndpoints = Math.Max(0, driftRows.Count - effectiveMaxEndpoints);
 
             summary.Endpoints = driftRows
                 .OrderByDescending(row => row.LastChangedAtUtc ?? DateTimeOffset.MinValue)
                 .ThenBy(row => row.Host, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(row => row.Port)
-                .Take(Math.Max(0, maxEndpoints))
+                .Take(effectiveMaxEndpoints)
                 .ToList();
 
             return summary;
