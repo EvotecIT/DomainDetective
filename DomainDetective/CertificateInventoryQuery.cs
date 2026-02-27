@@ -90,10 +90,10 @@ namespace DomainDetective {
         /// Includes snapshots later skipped by <see cref="CertificateInventoryQuery.UntilUtc"/>.
         /// </summary>
         public int LoadedSnapshotCount { get; set; }
-        /// <summary>Number of snapshots scanned.</summary>
-        public int ScannedSnapshotCount { get; set; }
         /// <summary>Number of loaded snapshots skipped because they are newer than <see cref="CertificateInventoryQuery.UntilUtc"/>.</summary>
         public int SkippedSnapshotCountByUntilUtc { get; set; }
+        /// <summary>Number of snapshots scanned after <see cref="CertificateInventoryQuery.UntilUtc"/> filtering.</summary>
+        public int ScannedSnapshotCount { get; set; }
         /// <summary>Number of entries scanned.</summary>
         public int ScannedEntryCount { get; set; }
         /// <summary>Number of scanned entries skipped because an entry for the same endpoint was already evaluated in latest-only mode. Always 0 when latest-only mode is disabled.</summary>
