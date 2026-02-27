@@ -256,7 +256,9 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         var summary = new Table().Border(TableBorder.Rounded);
         summary.AddColumn("Metric");
         summary.AddColumn("Value");
-        summary.AddRow("Loaded Snapshots", result.LoadedSnapshotCount.ToString());
+        if (result.SkippedSnapshotCountByUntilUtc > 0) {
+            summary.AddRow("Loaded Snapshots", result.LoadedSnapshotCount.ToString());
+        }
         summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
         if (result.SkippedSnapshotCountByUntilUtc > 0) {
             summary.AddRow("Skipped by UntilUtc", result.SkippedSnapshotCountByUntilUtc.ToString());

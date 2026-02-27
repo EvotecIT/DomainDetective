@@ -85,7 +85,10 @@ namespace DomainDetective {
     /// Query response containing matched entries and high-level counters.
     /// </summary>
     public sealed class CertificateInventoryQueryResult {
-        /// <summary>Number of snapshots loaded for evaluation (after since filtering).</summary>
+        /// <summary>
+        /// Number of snapshots loaded for evaluation after <see cref="CertificateInventoryQuery.SinceUtc"/> filtering.
+        /// Includes snapshots later skipped by <see cref="CertificateInventoryQuery.UntilUtc"/>.
+        /// </summary>
         public int LoadedSnapshotCount { get; set; }
         /// <summary>Number of snapshots scanned.</summary>
         public int ScannedSnapshotCount { get; set; }
