@@ -120,7 +120,9 @@ namespace DomainDetective.Tests {
                 };
                 var result = monitor.QueryInventoryEntries(query);
 
+                Assert.Equal(1, result.LoadedSnapshotCount);
                 Assert.Equal(1, result.ScannedSnapshotCount);
+                Assert.Equal(0, result.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(3, result.ScannedEntryCount);
                 Assert.Equal(3, result.EvaluatedEntryCount);
                 Assert.Equal(2, result.ExcludedByFiltersCount);
@@ -128,6 +130,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, result.MatchedUniqueEndpointCount);
                 Assert.Equal(0, result.SkippedByLatestPerEndpointCount);
                 Assert.Equal(0, result.EntriesTruncatedByMaxResults);
+                Assert.Equal(result.LoadedSnapshotCount, result.ScannedSnapshotCount + result.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(result.ScannedEntryCount, result.SkippedByLatestPerEndpointCount + result.EvaluatedEntryCount);
                 Assert.Equal(result.EvaluatedEntryCount, result.MatchedEntryCount + result.ExcludedByFiltersCount);
                 Assert.Equal(result.MatchedEntryCount, result.Entries.Count + result.EntriesTruncatedByMaxResults);
@@ -146,12 +149,16 @@ namespace DomainDetective.Tests {
                     HostContains = "example.com",
                     MaxResults = 1
                 });
+                Assert.Equal(1, limited.LoadedSnapshotCount);
+                Assert.Equal(1, limited.ScannedSnapshotCount);
+                Assert.Equal(0, limited.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(3, limited.EvaluatedEntryCount);
                 Assert.Equal(0, limited.ExcludedByFiltersCount);
                 Assert.Equal(3, limited.MatchedEntryCount);
                 Assert.Equal(3, limited.MatchedUniqueEndpointCount);
                 Assert.True(limited.Truncated);
                 Assert.Equal(2, limited.EntriesTruncatedByMaxResults);
+                Assert.Equal(limited.LoadedSnapshotCount, limited.ScannedSnapshotCount + limited.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(limited.EvaluatedEntryCount, limited.MatchedEntryCount + limited.ExcludedByFiltersCount);
                 Assert.Equal(limited.MatchedEntryCount, limited.Entries.Count + limited.EntriesTruncatedByMaxResults);
                 Assert.Single(limited.Entries);
@@ -175,12 +182,16 @@ namespace DomainDetective.Tests {
                     HostContains = "example.com",
                     MaxResults = 0
                 });
+                Assert.Equal(1, zeroCap.LoadedSnapshotCount);
+                Assert.Equal(1, zeroCap.ScannedSnapshotCount);
+                Assert.Equal(0, zeroCap.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(3, zeroCap.EvaluatedEntryCount);
                 Assert.Equal(0, zeroCap.ExcludedByFiltersCount);
                 Assert.Equal(3, zeroCap.MatchedEntryCount);
                 Assert.Equal(3, zeroCap.EntriesTruncatedByMaxResults);
                 Assert.True(zeroCap.Truncated);
                 Assert.Empty(zeroCap.Entries);
+                Assert.Equal(zeroCap.LoadedSnapshotCount, zeroCap.ScannedSnapshotCount + zeroCap.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(zeroCap.EvaluatedEntryCount, zeroCap.MatchedEntryCount + zeroCap.ExcludedByFiltersCount);
                 Assert.Equal(zeroCap.MatchedEntryCount, zeroCap.Entries.Count + zeroCap.EntriesTruncatedByMaxResults);
 
@@ -371,10 +382,14 @@ namespace DomainDetective.Tests {
                     IssuerContains = "old ca",
                     MaxResults = 10
                 });
+                Assert.Equal(2, withoutLatestOnly.LoadedSnapshotCount);
+                Assert.Equal(2, withoutLatestOnly.ScannedSnapshotCount);
+                Assert.Equal(0, withoutLatestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(3, withoutLatestOnly.EvaluatedEntryCount);
                 Assert.Equal(2, withoutLatestOnly.ExcludedByFiltersCount);
                 Assert.Equal(1, withoutLatestOnly.MatchedEntryCount);
                 Assert.Equal(0, withoutLatestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(withoutLatestOnly.LoadedSnapshotCount, withoutLatestOnly.ScannedSnapshotCount + withoutLatestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(withoutLatestOnly.EvaluatedEntryCount, withoutLatestOnly.MatchedEntryCount + withoutLatestOnly.ExcludedByFiltersCount);
                 Assert.Single(withoutLatestOnly.Entries);
                 Assert.Equal("api.example.com", withoutLatestOnly.Entries[0].Entry.Host);
@@ -384,12 +399,16 @@ namespace DomainDetective.Tests {
                     LatestPerEndpointOnly = true,
                     MaxResults = 10
                 });
+                Assert.Equal(2, latestOnly.LoadedSnapshotCount);
+                Assert.Equal(2, latestOnly.ScannedSnapshotCount);
+                Assert.Equal(0, latestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(2, latestOnly.MatchedEntryCount);
                 Assert.Equal(2, latestOnly.MatchedUniqueEndpointCount);
                 Assert.Equal(1, latestOnly.SkippedByLatestPerEndpointCount);
                 Assert.Equal(2, latestOnly.EvaluatedEntryCount);
                 Assert.Equal(0, latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnly.LoadedSnapshotCount, latestOnly.ScannedSnapshotCount + latestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(latestOnly.ScannedEntryCount, latestOnly.SkippedByLatestPerEndpointCount + latestOnly.EvaluatedEntryCount);
                 Assert.Equal(latestOnly.EvaluatedEntryCount, latestOnly.MatchedEntryCount + latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(2, latestOnly.Entries.Count);
@@ -402,14 +421,303 @@ namespace DomainDetective.Tests {
                     LatestPerEndpointOnly = true,
                     MaxResults = 10
                 });
+                Assert.Equal(2, latestOnlyOldCa.LoadedSnapshotCount);
+                Assert.Equal(2, latestOnlyOldCa.ScannedSnapshotCount);
+                Assert.Equal(0, latestOnlyOldCa.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(0, latestOnlyOldCa.MatchedEntryCount);
                 Assert.Equal(1, latestOnlyOldCa.SkippedByLatestPerEndpointCount);
                 Assert.Equal(2, latestOnlyOldCa.EvaluatedEntryCount);
                 Assert.Equal(2, latestOnlyOldCa.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnlyOldCa.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnlyOldCa.LoadedSnapshotCount, latestOnlyOldCa.ScannedSnapshotCount + latestOnlyOldCa.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(latestOnlyOldCa.ScannedEntryCount, latestOnlyOldCa.SkippedByLatestPerEndpointCount + latestOnlyOldCa.EvaluatedEntryCount);
                 Assert.Equal(latestOnlyOldCa.EvaluatedEntryCount, latestOnlyOldCa.MatchedEntryCount + latestOnlyOldCa.ExcludedByFiltersCount);
                 Assert.Empty(latestOnlyOldCa.Entries);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesTracksSkippedSnapshotsByUntilUtc() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var newestSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "newer.example.com",
+                            ResolvedHost = "newer.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "New CA",
+                            SubjectAlternativeNames = new List<string> { "newer.example.com" },
+                            NotAfterUtc = now.AddDays(20),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var olderSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-30),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "older.example.com",
+                            ResolvedHost = "older.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Old CA",
+                            SubjectAlternativeNames = new List<string> { "older.example.com" },
+                            NotAfterUtc = now.AddDays(10),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var newestFile = Path.Combine(inventoryDir, $"{newestSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(newestFile, JsonSerializer.Serialize(newestSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var olderFile = Path.Combine(inventoryDir, $"{olderSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(olderFile, JsonSerializer.Serialize(olderSnapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var filteredByUntil = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    UntilUtc = now.AddMinutes(-10),
+                    MaxResults = 10
+                });
+
+                Assert.Equal(2, filteredByUntil.LoadedSnapshotCount);
+                Assert.Equal(1, filteredByUntil.ScannedSnapshotCount);
+                Assert.Equal(1, filteredByUntil.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(1, filteredByUntil.ScannedEntryCount);
+                Assert.Equal(0, filteredByUntil.SkippedByLatestPerEndpointCount);
+                Assert.Equal(1, filteredByUntil.EvaluatedEntryCount);
+                Assert.Equal(0, filteredByUntil.ExcludedByFiltersCount);
+                Assert.Equal(1, filteredByUntil.MatchedEntryCount);
+                Assert.Equal(1, filteredByUntil.MatchedUniqueEndpointCount);
+                Assert.Equal(0, filteredByUntil.EntriesTruncatedByMaxResults);
+                Assert.Equal(filteredByUntil.LoadedSnapshotCount, filteredByUntil.ScannedSnapshotCount + filteredByUntil.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(filteredByUntil.ScannedEntryCount, filteredByUntil.SkippedByLatestPerEndpointCount + filteredByUntil.EvaluatedEntryCount);
+                Assert.Equal(filteredByUntil.EvaluatedEntryCount, filteredByUntil.MatchedEntryCount + filteredByUntil.ExcludedByFiltersCount);
+                var entry = Assert.Single(filteredByUntil.Entries);
+                Assert.Equal("older.example.com", entry.Entry.Host);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesUntilUtcCanExcludeAllSnapshots() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var firstSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "first.example.com",
+                            ResolvedHost = "first.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "First CA",
+                            SubjectAlternativeNames = new List<string> { "first.example.com" },
+                            NotAfterUtc = now.AddDays(20),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var secondSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-15),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "second.example.com",
+                            ResolvedHost = "second.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Second CA",
+                            SubjectAlternativeNames = new List<string> { "second.example.com" },
+                            NotAfterUtc = now.AddDays(10),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var firstFile = Path.Combine(inventoryDir, $"{firstSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(firstFile, JsonSerializer.Serialize(firstSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var secondFile = Path.Combine(inventoryDir, $"{secondSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(secondFile, JsonSerializer.Serialize(secondSnapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var fullySkipped = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "example.com",
+                    UntilUtc = now.AddMinutes(-30),
+                    MaxResults = 10
+                });
+
+                Assert.Equal(2, fullySkipped.LoadedSnapshotCount);
+                Assert.Equal(0, fullySkipped.ScannedSnapshotCount);
+                Assert.Equal(2, fullySkipped.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(0, fullySkipped.ScannedEntryCount);
+                Assert.Equal(0, fullySkipped.SkippedByLatestPerEndpointCount);
+                Assert.Equal(0, fullySkipped.EvaluatedEntryCount);
+                Assert.Equal(0, fullySkipped.ExcludedByFiltersCount);
+                Assert.Equal(0, fullySkipped.MatchedEntryCount);
+                Assert.Equal(0, fullySkipped.MatchedUniqueEndpointCount);
+                Assert.Equal(0, fullySkipped.EntriesTruncatedByMaxResults);
+                Assert.False(fullySkipped.Truncated);
+                Assert.Equal(fullySkipped.LoadedSnapshotCount, fullySkipped.ScannedSnapshotCount + fullySkipped.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(fullySkipped.ScannedEntryCount, fullySkipped.SkippedByLatestPerEndpointCount + fullySkipped.EvaluatedEntryCount);
+                Assert.Equal(fullySkipped.EvaluatedEntryCount, fullySkipped.MatchedEntryCount + fullySkipped.ExcludedByFiltersCount);
+                Assert.Empty(fullySkipped.Entries);
+            } finally {
+                if (Directory.Exists(tempDir)) {
+                    Directory.Delete(tempDir, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void QueryInventoryEntriesLatestPerEndpointOnlyWorksWithUntilUtcWindow() {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            var inventoryDir = Path.Combine(tempDir, "inventory");
+            Directory.CreateDirectory(inventoryDir);
+            try {
+                var now = DateTimeOffset.UtcNow;
+                var newestSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-5),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Newest CA",
+                            SubjectAlternativeNames = new List<string> { "api.example.com" },
+                            NotAfterUtc = now.AddDays(30),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var middleSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-20),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Middle CA",
+                            SubjectAlternativeNames = new List<string> { "api.example.com" },
+                            NotAfterUtc = now.AddDays(20),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+                var oldestSnapshot = new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddMinutes(-40),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "api.example.com",
+                            ResolvedHost = "api.example.com",
+                            Service = "HTTPS",
+                            Port = 443,
+                            CertificateIssuerNormalized = "Oldest CA",
+                            SubjectAlternativeNames = new List<string> { "api.example.com" },
+                            NotAfterUtc = now.AddDays(10),
+                            Valid = true,
+                            ChainComplete = true,
+                            HostnameMatch = true,
+                            IsReachable = true,
+                            AllowsServerAuthentication = true,
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly
+                        }
+                    }
+                };
+
+                var newestFile = Path.Combine(inventoryDir, $"{newestSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(newestFile, JsonSerializer.Serialize(newestSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var middleFile = Path.Combine(inventoryDir, $"{middleSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(middleFile, JsonSerializer.Serialize(middleSnapshot, JsonOptions.Default), Encoding.UTF8);
+                var oldestFile = Path.Combine(inventoryDir, $"{oldestSnapshot.CapturedAtUtc:yyyyMMddTHHmmssfffffffZ}_443.json");
+                File.WriteAllText(oldestFile, JsonSerializer.Serialize(oldestSnapshot, JsonOptions.Default), Encoding.UTF8);
+
+                var monitor = new CertificateMonitor {
+                    CacheDirectory = tempDir
+                };
+
+                var latestWithUntil = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    HostContains = "api.example.com",
+                    LatestPerEndpointOnly = true,
+                    UntilUtc = now.AddMinutes(-10),
+                    MaxResults = 10
+                });
+
+                Assert.Equal(3, latestWithUntil.LoadedSnapshotCount);
+                Assert.Equal(2, latestWithUntil.ScannedSnapshotCount);
+                Assert.Equal(1, latestWithUntil.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(2, latestWithUntil.ScannedEntryCount);
+                Assert.Equal(1, latestWithUntil.SkippedByLatestPerEndpointCount);
+                Assert.Equal(1, latestWithUntil.EvaluatedEntryCount);
+                Assert.Equal(0, latestWithUntil.ExcludedByFiltersCount);
+                Assert.Equal(1, latestWithUntil.MatchedEntryCount);
+                Assert.Equal(1, latestWithUntil.MatchedUniqueEndpointCount);
+                Assert.Equal(0, latestWithUntil.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestWithUntil.LoadedSnapshotCount, latestWithUntil.ScannedSnapshotCount + latestWithUntil.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(latestWithUntil.ScannedEntryCount, latestWithUntil.SkippedByLatestPerEndpointCount + latestWithUntil.EvaluatedEntryCount);
+                Assert.Equal(latestWithUntil.EvaluatedEntryCount, latestWithUntil.MatchedEntryCount + latestWithUntil.ExcludedByFiltersCount);
+                var entry = Assert.Single(latestWithUntil.Entries);
+                Assert.Equal("Middle CA", entry.Entry.CertificateIssuerNormalized);
             } finally {
                 if (Directory.Exists(tempDir)) {
                     Directory.Delete(tempDir, true);
@@ -505,7 +813,9 @@ namespace DomainDetective.Tests {
                     MaxResults = 10
                 });
 
+                Assert.Equal(3, latestOnly.LoadedSnapshotCount);
                 Assert.Equal(3, latestOnly.ScannedSnapshotCount);
+                Assert.Equal(0, latestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(3, latestOnly.ScannedEntryCount);
                 Assert.Equal(1, latestOnly.MatchedEntryCount);
                 Assert.Equal(1, latestOnly.MatchedUniqueEndpointCount);
@@ -513,6 +823,7 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, latestOnly.EvaluatedEntryCount);
                 Assert.Equal(0, latestOnly.ExcludedByFiltersCount);
                 Assert.Equal(0, latestOnly.EntriesTruncatedByMaxResults);
+                Assert.Equal(latestOnly.LoadedSnapshotCount, latestOnly.ScannedSnapshotCount + latestOnly.SkippedSnapshotCountByUntilUtc);
                 Assert.Equal(latestOnly.ScannedEntryCount, latestOnly.SkippedByLatestPerEndpointCount + latestOnly.EvaluatedEntryCount);
                 Assert.Equal(latestOnly.EvaluatedEntryCount, latestOnly.MatchedEntryCount + latestOnly.ExcludedByFiltersCount);
                 Assert.Single(latestOnly.Entries);
