@@ -19,6 +19,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Show only certificate and auth-profile drift kinds</summary>
 ///   <code>Get-DDCertificateInventoryDrift -ChangeKind Certificate,AuthProfile</code>
 /// </example>
+/// <example>
+///   <summary>Require all selected change kinds to match</summary>
+///   <code>Get-DDCertificateInventoryDrift -ChangeKind Certificate,Issuer -ChangeKindMatch All</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryDrift")]
 [Alias("Get-CertificateInventoryDrift")]
 [OutputType(typeof(CertificateInventoryDriftSummary))]
@@ -49,6 +53,11 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
     [Parameter(Mandatory = false)]
     [ValidateSet("Certificate", "Issuer", "Expiry", "Service", "AuthProfile", "ChainSource")]
     public string[]? ChangeKind { get; set; }
+
+    /// <summary>Change-kind matching mode: Any returns rows matching any selected kind; All requires all selected kinds.</summary>
+    [Parameter(Mandatory = false)]
+    [ValidateSet("Any", "All")]
+    public string ChangeKindMatch { get; set; } = "Any";
 
     /// <summary>Executes the cmdlet.</summary>
     protected override void ProcessRecord() {
@@ -83,7 +92,8 @@ public sealed class CmdletGetCertificateInventoryDrift : PSCmdlet {
             changedOnly: ChangedOnly.IsPresent,
             maxEndpoints: MaxEndpoints,
             minimumSeverity: MinimumSeverity,
-            requiredChangeKinds: requiredChangeKinds);
+            requiredChangeKinds: requiredChangeKinds,
+            changeKindMatchMode: ChangeKindMatch);
         WriteObject(summary);
     }
 

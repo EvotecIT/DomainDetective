@@ -578,6 +578,89 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftChangeKindMatchAllRequiresAllKinds() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-4),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "both.example.com",
+                            ResolvedHost = "both.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "BOTH-OLD",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        },
+                        new() {
+                            Host = "certificate-only.example.com",
+                            ResolvedHost = "certificate-only.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "CERT-OLD",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                },
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now.AddHours(-1),
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "both.example.com",
+                            ResolvedHost = "both.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "BOTH-NEW",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "local-build-online"
+                        },
+                        new() {
+                            Host = "certificate-only.example.com",
+                            ResolvedHost = "certificate-only.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            CertificateThumbprint = "CERT-NEW",
+                            CertificateIssuerNormalized = "DigiCert",
+                            NotAfterUtc = now.AddDays(30),
+                            AuthenticationProfile = CertificateAuthenticationProfileClassifier.ServerAuthOnly,
+                            CertificateChainSource = "tls-handshake"
+                        }
+                    }
+                }
+            };
+
+            var any = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: new[] { "certificate", "chain-source" },
+                changeKindMatchMode: "any");
+            Assert.Equal(2, any.EndpointsMatchingFilters);
+
+            var all = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: new[] { "certificate", "chain-source" },
+                changeKindMatchMode: "all");
+            Assert.Equal(1, all.EndpointsMatchingFilters);
+            Assert.Equal("All", all.AppliedChangeKindMatchMode);
+            var endpoint = Assert.Single(all.Endpoints);
+            Assert.Equal("both.example.com", endpoint.Host);
+            Assert.Equal(new[] { "certificate", "chain-source" }, endpoint.ChangeKinds);
+        }
+
+        [Fact]
         public void BuildDriftThrowsForInvalidMinimumSeverity() {
             var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
 
@@ -585,6 +668,57 @@ namespace DomainDetective.Tests {
                 CertificateInventoryDriftAnalyzer.BuildDrift(
                     snapshots,
                     minimumSeverity: "critical"));
+        }
+
+        [Fact]
+        public void BuildDriftThrowsForInvalidChangeKindMatchMode() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            Assert.Throws<ArgumentException>(() =>
+                CertificateInventoryDriftAnalyzer.BuildDrift(
+                    snapshots,
+                    requiredChangeKinds: new[] { "certificate" },
+                    changeKindMatchMode: "strict"));
+        }
+
+        [Fact]
+        public void BuildDriftChangeKindMatchAllWithNoRequiredKindsBehavesLikeNoChangeKindFilter() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var baseline = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100);
+            var withAllMode = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: Array.Empty<string>(),
+                changeKindMatchMode: "all");
+
+            Assert.Equal(baseline.EndpointCount, withAllMode.EndpointCount);
+            Assert.Equal(baseline.EndpointsMatchingFilters, withAllMode.EndpointsMatchingFilters);
+            Assert.Equal(baseline.EndpointsWithAnyChange, withAllMode.EndpointsWithAnyChange);
+            Assert.Equal(baseline.Endpoints.Select(endpoint => endpoint.Host), withAllMode.Endpoints.Select(endpoint => endpoint.Host));
+            Assert.Empty(withAllMode.AppliedChangeKinds);
+            Assert.Equal("All", withAllMode.AppliedChangeKindMatchMode);
+        }
+
+        [Fact]
+        public void TryNormalizeChangeKindMatchModeHandlesExpectedValues() {
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode(null, out var nullMode));
+            Assert.Equal("Any", nullMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("  ", out var whitespaceMode));
+            Assert.Equal("Any", whitespaceMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("ANY", out var anyMode));
+            Assert.Equal("Any", anyMode);
+
+            Assert.True(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("aLl", out var allMode));
+            Assert.Equal("All", allMode);
+
+            Assert.False(CertificateInventoryDriftAnalyzer.TryNormalizeChangeKindMatchMode("strict", out _));
         }
 
         [Fact]
