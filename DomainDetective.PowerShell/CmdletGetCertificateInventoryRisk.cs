@@ -86,6 +86,10 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? ThumbprintEquals { get; set; }
 
+    /// <summary>Optional leaf-certificate serial-number exact-match filter (hex string expected).</summary>
+    [Parameter(Mandatory = false)]
+    public string? SerialNumberEquals { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ServerAuthOnly { get; set; }
@@ -134,6 +138,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             ctTemplateErrorContains: CtTemplateErrorContains,
             chainSourceContains: ChainSourceContains,
             thumbprintEquals: ThumbprintEquals,
+            serialNumberEquals: SerialNumberEquals,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);

@@ -33,6 +33,7 @@ namespace DomainDetective {
         public int Port { get; set; }
         public string Service { get; set; } = string.Empty;
         public string CertificateThumbprint { get; set; } = string.Empty;
+        public string CertificateSerialNumber { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
         public string AuthorityFamily { get; set; } = string.Empty;
@@ -140,6 +141,7 @@ namespace DomainDetective {
             string? ctTemplateErrorContains = null,
             string? chainSourceContains = null,
             string? thumbprintEquals = null,
+            string? serialNumberEquals = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -164,7 +166,9 @@ namespace DomainDetective {
             var hasChainSourceFilter = !string.IsNullOrWhiteSpace(chainSourceContains);
             var chainSourceNeedle = hasChainSourceFilter ? chainSourceContains!.Trim() : string.Empty;
             var hasThumbprintFilter = !string.IsNullOrWhiteSpace(thumbprintEquals);
-            var thumbprintExpected = hasThumbprintFilter ? thumbprintEquals!.Trim() : string.Empty;
+            var thumbprintExpected = hasThumbprintFilter ? NormalizeHexIdentifier(thumbprintEquals) : string.Empty;
+            var hasSerialNumberFilter = !string.IsNullOrWhiteSpace(serialNumberEquals);
+            var serialNumberExpected = hasSerialNumberFilter ? NormalizeHexIdentifier(serialNumberEquals) : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -271,9 +275,19 @@ namespace DomainDetective {
                         continue;
                     }
                 }
-                if (hasThumbprintFilter &&
-                    !string.Equals(row.CertificateThumbprint, thumbprintExpected, StringComparison.OrdinalIgnoreCase)) {
-                    continue;
+                if (hasThumbprintFilter) {
+                    var rowThumbprint = NormalizeHexIdentifier(row.CertificateThumbprint);
+                    if (thumbprintExpected.Length == 0 ||
+                        !string.Equals(rowThumbprint, thumbprintExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
+                }
+                if (hasSerialNumberFilter) {
+                    var rowSerialNumber = NormalizeHexIdentifier(row.CertificateSerialNumber);
+                    if (serialNumberExpected.Length == 0 ||
+                        !string.Equals(rowSerialNumber, serialNumberExpected, StringComparison.OrdinalIgnoreCase)) {
+                        continue;
+                    }
                 }
                 // Auth-usage filters only narrow returned endpoint rows.
                 // Summary counts/reason distributions stay computed across the full endpoint set.
@@ -323,6 +337,7 @@ namespace DomainDetective {
                     ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
                     : entry.Service!,
                 CertificateThumbprint = entry.CertificateThumbprint?.Trim() ?? string.Empty,
+                CertificateSerialNumber = entry.CertificateSerialNumber?.Trim() ?? string.Empty,
                 Issuer = PickIssuer(entry),
                 RootIssuer = PickRoot(entry),
                 AuthorityFamily = entry.CertificateAuthorityFamily ?? string.Empty,
@@ -488,6 +503,15 @@ namespace DomainDetective {
                 .Select(value => value.Trim())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+        }
+
+        private static string NormalizeHexIdentifier(string? value) {
+            if (string.IsNullOrWhiteSpace(value)) {
+                return string.Empty;
+            }
+
+            var chars = value.Where(c => !char.IsWhiteSpace(c) && c != ':').ToArray();
+            return new string(chars).Trim().ToUpperInvariant();
         }
 
         private static string PickIssuer(CertificateInventoryEntry entry) {
