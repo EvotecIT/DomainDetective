@@ -507,6 +507,10 @@ namespace DomainDetective {
             var result = new CertificateInventoryQueryResult();
             var maxResults = Math.Max(0, effectiveQuery.MaxResults);
             var matchedEndpointKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var latestOnly = effectiveQuery.LatestPerEndpointOnly;
+            var observedEndpointKeys = latestOnly
+                ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                : null;
             var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
                 .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
                 .ToList();
@@ -519,12 +523,23 @@ namespace DomainDetective {
                 result.ScannedSnapshotCount++;
                 foreach (var entry in snapshot.Entries) {
                     result.ScannedEntryCount++;
+                    string? endpointKey = null;
+                    if (latestOnly) {
+                        endpointKey = BuildEndpointKey(entry);
+                        if (observedEndpointKeys == null || !observedEndpointKeys.Add(endpointKey)) {
+                            continue;
+                        }
+                    }
+
                     if (!MatchesQuery(entry, effectiveQuery, now)) {
                         continue;
                     }
 
                     result.MatchedEntryCount++;
-                    matchedEndpointKeys.Add(BuildEndpointKey(entry));
+                    if (endpointKey == null) {
+                        endpointKey = BuildEndpointKey(entry);
+                    }
+                    matchedEndpointKeys.Add(endpointKey);
                     IncrementMatchedBreakdown(result, entry);
                     if (result.Entries.Count >= maxResults) {
                         result.Truncated = true;

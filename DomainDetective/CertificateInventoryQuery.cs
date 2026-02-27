@@ -62,6 +62,11 @@ namespace DomainDetective {
         public string? AuthenticationProfileEquals { get; set; }
         /// <summary>Only include certificates expiring within this many days (future dates only).</summary>
         public int? ExpiringWithinDays { get; set; }
+        /// <summary>
+        /// When true, only evaluate the latest observed entry per endpoint (host+port) within the selected snapshot window.
+        /// Older observations for that same endpoint are skipped even if they would otherwise match filters.
+        /// </summary>
+        public bool LatestPerEndpointOnly { get; set; }
         /// <summary>Maximum number of entries returned in <see cref="CertificateInventoryQueryResult.Entries"/>.</summary>
         public int MaxResults { get; set; } = 500;
     }

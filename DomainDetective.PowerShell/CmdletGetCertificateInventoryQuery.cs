@@ -18,6 +18,10 @@ namespace DomainDetective.PowerShell;
 ///   <summary>Filter by CA families and CT source</summary>
 ///   <code>Get-DDCertificateInventoryQuery -AuthorityFamilyEquals LetsEncrypt -KnownRootCaOnly -CtSourceContains shodan</code>
 /// </example>
+/// <example>
+///   <summary>Return only latest endpoint observations</summary>
+///   <code>Get-DDCertificateInventoryQuery -LatestOnly -HostContains \"example.com\"</code>
+/// </example>
 [Cmdlet(VerbsCommon.Get, "DDCertificateInventoryQuery")]
 [Alias("Get-CertificateInventoryQuery")]
 [OutputType(typeof(CertificateInventoryQueryResult))]
@@ -139,6 +143,10 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
 
+    /// <summary>Only evaluate the latest observed entry per endpoint (host+port) in the selected snapshot window.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter LatestOnly { get; set; }
+
     /// <summary>Maximum number of results returned.</summary>
     [Parameter(Mandatory = false)]
     [ValidateRange(0, int.MaxValue)]
@@ -199,6 +207,7 @@ public sealed class CmdletGetCertificateInventoryQuery : PSCmdlet {
             AllowsSecureEmailOnly = SecureEmailOnly.IsPresent ? true : null,
             ExpiringWithinDays = ExpiringWithinDays,
             AuthenticationProfileEquals = AuthenticationProfileEquals,
+            LatestPerEndpointOnly = LatestOnly.IsPresent,
             MaxResults = MaxResults
         };
 
