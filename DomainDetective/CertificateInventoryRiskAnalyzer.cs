@@ -152,6 +152,9 @@ namespace DomainDetective {
             bool? chainCompleteOnly = null,
             bool? reachableOnly = null,
             bool? hostnameMatchOnly = null,
+            bool? selfSignedOnly = null,
+            bool? weakKeyOnly = null,
+            bool? sha1SignatureOnly = null,
             bool? knownAuthorityOnly = null,
             bool? knownRootAuthorityOnly = null,
             string? authenticationProfileEquals = null,
@@ -341,6 +344,15 @@ namespace DomainDetective {
                     continue;
                 }
                 if (hostnameMatchOnly.HasValue && row.HostnameMatch != hostnameMatchOnly.Value) {
+                    continue;
+                }
+                if (selfSignedOnly.HasValue && row.IsSelfSigned != selfSignedOnly.Value) {
+                    continue;
+                }
+                if (weakKeyOnly.HasValue && row.WeakKey != weakKeyOnly.Value) {
+                    continue;
+                }
+                if (sha1SignatureOnly.HasValue && row.Sha1Signature != sha1SignatureOnly.Value) {
                     continue;
                 }
                 if (knownAuthorityOnly.HasValue && knownAuthorityOnly.Value != row.IsKnownCertificateAuthority) {

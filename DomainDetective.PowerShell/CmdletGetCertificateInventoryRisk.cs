@@ -139,6 +139,30 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public SwitchParameter HostnameMismatchOnly { get; set; }
 
+    /// <summary>Only include endpoints using self-signed certificates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter SelfSignedOnly { get; set; }
+
+    /// <summary>Only include endpoints using CA-signed certificates.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter CaSignedOnly { get; set; }
+
+    /// <summary>Only include endpoints with weak keys.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter WeakKeyOnly { get; set; }
+
+    /// <summary>Only include endpoints without weak keys.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter StrongKeyOnly { get; set; }
+
+    /// <summary>Only include endpoints using SHA-1 signatures.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter Sha1SignatureOnly { get; set; }
+
+    /// <summary>Only include endpoints not using SHA-1 signatures.</summary>
+    [Parameter(Mandatory = false)]
+    public SwitchParameter NonSha1SignatureOnly { get; set; }
+
     /// <summary>Optional authentication profile exact-match filter (for example ServerAuthOnly, ClientAuthOnly, MixedOrCustom).</summary>
     [Parameter(Mandatory = false)]
     public string? AuthenticationProfileEquals { get; set; }
@@ -229,6 +253,30 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
                 HostnameMismatchOnly));
             return;
         }
+        if (SelfSignedOnly.IsPresent && CaSignedOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-SelfSignedOnly cannot be combined with -CaSignedOnly.", nameof(CaSignedOnly)),
+                "SelfSignedConflict",
+                ErrorCategory.InvalidArgument,
+                CaSignedOnly));
+            return;
+        }
+        if (WeakKeyOnly.IsPresent && StrongKeyOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-WeakKeyOnly cannot be combined with -StrongKeyOnly.", nameof(StrongKeyOnly)),
+                "WeakKeyConflict",
+                ErrorCategory.InvalidArgument,
+                StrongKeyOnly));
+            return;
+        }
+        if (Sha1SignatureOnly.IsPresent && NonSha1SignatureOnly.IsPresent) {
+            ThrowTerminatingError(new ErrorRecord(
+                new ArgumentException("-Sha1SignatureOnly cannot be combined with -NonSha1SignatureOnly.", nameof(NonSha1SignatureOnly)),
+                "Sha1SignatureConflict",
+                ErrorCategory.InvalidArgument,
+                NonSha1SignatureOnly));
+            return;
+        }
 
         var monitor = new CertificateMonitor {
             CacheDirectory = ResolveCacheDirectory(CacheDirectory),
@@ -264,6 +312,9 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             chainCompleteOnly: ChainCompleteOnly.IsPresent ? true : ChainIncompleteOnly.IsPresent ? false : null,
             reachableOnly: ReachableOnly.IsPresent ? true : UnreachableOnly.IsPresent ? false : null,
             hostnameMatchOnly: HostnameMatchOnly.IsPresent ? true : HostnameMismatchOnly.IsPresent ? false : null,
+            selfSignedOnly: SelfSignedOnly.IsPresent ? true : CaSignedOnly.IsPresent ? false : null,
+            weakKeyOnly: WeakKeyOnly.IsPresent ? true : StrongKeyOnly.IsPresent ? false : null,
+            sha1SignatureOnly: Sha1SignatureOnly.IsPresent ? true : NonSha1SignatureOnly.IsPresent ? false : null,
             knownAuthorityOnly: KnownCaOnly.IsPresent ? true : UnknownCaOnly.IsPresent ? false : null,
             knownRootAuthorityOnly: KnownRootCaOnly.IsPresent ? true : UnknownRootCaOnly.IsPresent ? false : null,
             authenticationProfileEquals: AuthenticationProfileEquals,

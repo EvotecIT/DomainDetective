@@ -1263,6 +1263,127 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildRiskFiltersReturnedEndpointsBySelfSignedAndCryptoState() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "selfsigned-weak-sha1.example.com",
+                            ResolvedHost = "selfsigned-weak-sha1.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(45),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsSelfSigned = true,
+                            IsKnownCertificateAuthority = false,
+                            PresentInCtLogs = false,
+                            WeakKey = true,
+                            Sha1Signature = true
+                        },
+                        new() {
+                            Host = "casigned-strong-modern.example.com",
+                            ResolvedHost = "casigned-strong-modern.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = false,
+                            Sha1Signature = false
+                        },
+                        new() {
+                            Host = "casigned-weak-modern.example.com",
+                            ResolvedHost = "casigned-weak-modern.example.com",
+                            Port = 8443,
+                            Service = "HTTPS-Alt",
+                            NotAfterUtc = now.AddDays(45),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsSelfSigned = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true,
+                            Sha1Signature = false
+                        }
+                    }
+                }
+            };
+
+            var selfSigned = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                selfSignedOnly: true);
+            Assert.Single(selfSigned.Endpoints);
+            Assert.Equal("selfsigned-weak-sha1.example.com", selfSigned.Endpoints[0].Host);
+
+            var caSigned = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                selfSignedOnly: false);
+            Assert.Equal(2, caSigned.Endpoints.Count);
+            Assert.Contains(caSigned.Endpoints, endpoint => endpoint.Host.Equals("casigned-strong-modern.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(caSigned.Endpoints, endpoint => endpoint.Host.Equals("casigned-weak-modern.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var weakKey = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                weakKeyOnly: true);
+            Assert.Equal(2, weakKey.Endpoints.Count);
+            Assert.Contains(weakKey.Endpoints, endpoint => endpoint.Host.Equals("selfsigned-weak-sha1.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(weakKey.Endpoints, endpoint => endpoint.Host.Equals("casigned-weak-modern.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var strongKey = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                weakKeyOnly: false);
+            Assert.Single(strongKey.Endpoints);
+            Assert.Equal("casigned-strong-modern.example.com", strongKey.Endpoints[0].Host);
+
+            var sha1 = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                sha1SignatureOnly: true);
+            Assert.Single(sha1.Endpoints);
+            Assert.Equal("selfsigned-weak-sha1.example.com", sha1.Endpoints[0].Host);
+
+            var nonSha1 = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                sha1SignatureOnly: false);
+            Assert.Equal(2, nonSha1.Endpoints.Count);
+            Assert.Contains(nonSha1.Endpoints, endpoint => endpoint.Host.Equals("casigned-strong-modern.example.com", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(nonSha1.Endpoints, endpoint => endpoint.Host.Equals("casigned-weak-modern.example.com", StringComparison.OrdinalIgnoreCase));
+
+            var selfSignedWeakAndSha1 = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                selfSignedOnly: true,
+                weakKeyOnly: true,
+                sha1SignatureOnly: true);
+            Assert.Single(selfSignedWeakAndSha1.Endpoints);
+            Assert.Equal("selfsigned-weak-sha1.example.com", selfSignedWeakAndSha1.Endpoints[0].Host);
+        }
+
+        [Fact]
         public void BuildRiskFiltersReturnedEndpointsByAuthUsageFlags() {
             var now = DateTimeOffset.UtcNow;
             var snapshots = new[] {
