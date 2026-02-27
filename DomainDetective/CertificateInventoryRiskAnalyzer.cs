@@ -28,10 +28,12 @@ namespace DomainDetective {
         public string Service { get; set; } = string.Empty;
         public string Issuer { get; set; } = string.Empty;
         public string RootIssuer { get; set; } = string.Empty;
+        public DateTimeOffset? NotBeforeUtc { get; set; }
         public DateTimeOffset? NotAfterUtc { get; set; }
         public int? DaysToExpire { get; set; }
         public int Score { get; set; }
         public string Severity { get; set; } = "None";
+        public bool NotYetValid { get; set; }
         public bool Valid { get; set; }
         public bool Expired { get; set; }
         public bool ChainComplete { get; set; }
@@ -140,6 +142,7 @@ namespace DomainDetective {
                     : entry.Service!,
                 Issuer = PickIssuer(entry),
                 RootIssuer = PickRoot(entry),
+                NotBeforeUtc = entry.NotBeforeUtc,
                 NotAfterUtc = entry.NotAfterUtc,
                 Valid = entry.Valid,
                 Expired = entry.Expired,
@@ -158,6 +161,12 @@ namespace DomainDetective {
             if (!row.IsReachable) {
                 score += 60;
                 row.Reasons.Add("EndpointUnreachable");
+            }
+
+            if (row.NotBeforeUtc.HasValue && row.NotBeforeUtc.Value > now) {
+                row.NotYetValid = true;
+                score += 60;
+                row.Reasons.Add("CertificateNotYetValid");
             }
 
             if (row.NotAfterUtc.HasValue) {
