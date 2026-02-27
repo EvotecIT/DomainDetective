@@ -10,6 +10,7 @@ namespace DomainDetective {
     public sealed class CertificateInventoryDriftSummary {
         public int SnapshotCount { get; set; }
         public int EndpointCount { get; set; }
+        public int EndpointsMatchingFilters { get; set; }
         public int EndpointsWithAnyChange { get; set; }
         public int EndpointsWithHighSeverityDrift { get; set; }
         public int EndpointsWithMediumSeverityDrift { get; set; }
@@ -72,9 +73,11 @@ namespace DomainDetective {
         public static CertificateInventoryDriftSummary BuildDrift(
             IEnumerable<CertificateInventorySnapshot>? snapshots,
             bool changedOnly = false,
-            int maxEndpoints = 200) {
+            int maxEndpoints = 200,
+            string? minimumSeverity = null) {
             var summary = new CertificateInventoryDriftSummary();
             var grouped = new Dictionary<string, List<Observation>>(StringComparer.OrdinalIgnoreCase);
+            var minimumSeverityRank = ParseMinimumSeverityRank(minimumSeverity);
 
             foreach (var snapshot in snapshots ?? Array.Empty<CertificateInventorySnapshot>()) {
                 if (snapshot == null) {
@@ -186,10 +189,15 @@ namespace DomainDetective {
                     continue;
                 }
 
+                if (GetSeverityRank(row.DriftSeverity) < minimumSeverityRank) {
+                    continue;
+                }
+
                 driftRows.Add(row);
             }
 
             summary.EndpointCount = grouped.Count;
+            summary.EndpointsMatchingFilters = driftRows.Count;
             summary.EndpointsWithCertificateChange = driftRows.Count(row => row.CertificateChanged);
             summary.EndpointsWithIssuerChange = driftRows.Count(row => row.IssuerChanged);
             summary.EndpointsWithExpiryChange = driftRows.Count(row => row.ExpiryChanged);
@@ -335,6 +343,66 @@ namespace DomainDetective {
             }
 
             return DriftSeverityLow;
+        }
+
+        private static int ParseMinimumSeverityRank(string? minimumSeverity) {
+            if (!TryNormalizeSeverity(minimumSeverity, out var normalized)) {
+                throw new ArgumentException("minimumSeverity must be one of: None, Low, Medium, High.", nameof(minimumSeverity));
+            }
+
+            if (string.IsNullOrWhiteSpace(normalized)) {
+                return GetSeverityRank(DriftSeverityNone);
+            }
+
+            return GetSeverityRank(normalized!);
+        }
+
+        /// <summary>
+        /// Attempts to normalize severity text to one of the canonical values: None, Low, Medium, High.
+        /// </summary>
+        /// <param name="value">Input severity text; null/whitespace is treated as no explicit filter.</param>
+        /// <param name="normalized">Canonical severity value, or null when no explicit severity was provided.</param>
+        /// <returns><c>true</c> when input is empty or a recognized severity value; otherwise <c>false</c>.</returns>
+        public static bool TryNormalizeSeverity(string? value, out string? normalized) {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(value)) {
+                return true;
+            }
+
+            var trimmed = value!.Trim();
+            if (trimmed.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityNone;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityLow;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityMedium;
+                return true;
+            }
+            if (trimmed.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase)) {
+                normalized = DriftSeverityHigh;
+                return true;
+            }
+            return false;
+        }
+
+        private static int GetSeverityRank(string severity) {
+            if (severity.Equals(DriftSeverityNone, StringComparison.OrdinalIgnoreCase)) {
+                return 0;
+            }
+            if (severity.Equals(DriftSeverityLow, StringComparison.OrdinalIgnoreCase)) {
+                return 1;
+            }
+            if (severity.Equals(DriftSeverityMedium, StringComparison.OrdinalIgnoreCase)) {
+                return 2;
+            }
+            if (severity.Equals(DriftSeverityHigh, StringComparison.OrdinalIgnoreCase)) {
+                return 3;
+            }
+            throw new ArgumentException("severity must be one of: None, Low, Medium, High.", nameof(severity));
         }
     }
 }

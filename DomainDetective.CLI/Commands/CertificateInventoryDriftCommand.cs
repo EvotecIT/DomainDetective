@@ -36,6 +36,11 @@ internal sealed class CertificateInventoryDriftSettings : CommandSettings {
     [DefaultValue(200)]
     public int MaxEndpoints { get; set; } = 200;
 
+    /// <summary>Optional minimum drift severity filter (none, low, medium, high).</summary>
+    [Description("Optional minimum drift severity filter (none, low, medium, high).")]
+    [CommandOption("--minimum-severity <SEVERITY>")]
+    public string? MinimumSeverity { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -58,6 +63,11 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             return Task.FromResult(1);
         }
 
+        if (!CertificateInventoryDriftAnalyzer.TryNormalizeSeverity(settings.MinimumSeverity, out var minimumSeverity)) {
+            AnsiConsole.MarkupLine("[red]--minimum-severity must be one of: none, low, medium, high.[/]");
+            return Task.FromResult(1);
+        }
+
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
@@ -68,7 +78,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         var drift = monitor.BuildInventoryDrift(
             sinceUtc: sinceUtc,
             changedOnly: settings.ChangedOnly,
-            maxEndpoints: settings.MaxEndpoints);
+            maxEndpoints: settings.MaxEndpoints,
+            minimumSeverity: minimumSeverity);
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(drift, JsonOptions.Default);
@@ -86,7 +97,9 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddColumn("Value");
         summary.AddRow("Snapshots", drift.SnapshotCount.ToString());
         summary.AddRow("Endpoints (Total)", drift.EndpointCount.ToString());
+        summary.AddRow("Endpoints Matching Filters", drift.EndpointsMatchingFilters.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
+        summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
         summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
         summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
@@ -118,9 +131,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         rows.AddColumn("Current Expiry");
         rows.AddColumn("Auth Profile");
         rows.AddColumn("Chain Source");
-        foreach (var endpoint in drift.Endpoints
-                     .OrderByDescending(x => x.LastChangedAtUtc ?? DateTimeOffset.MinValue)
-                     .ThenBy(x => x.Host, StringComparer.OrdinalIgnoreCase)) {
+        foreach (var endpoint in drift.Endpoints) {
             var changed = BuildChangedFlags(endpoint);
             var lastChange = endpoint.LastChangedAtUtc?.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") ?? "-";
             var expiry = endpoint.CurrentNotAfterUtc?.UtcDateTime.ToString("yyyy-MM-dd") ?? "-";
@@ -207,4 +218,5 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         }
         return dt.ToUniversalTime();
     }
+
 }
