@@ -502,6 +502,23 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftZeroMaxEndpointsReturnsNoRowsAndTracksTruncation() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var capped = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 0,
+                minimumSeverity: "low");
+
+            Assert.Equal(4, capped.EndpointCount);
+            Assert.Equal(3, capped.EndpointsMatchingFilters);
+            Assert.Equal(3, capped.EndpointsTruncatedByMaxEndpoints);
+            Assert.Empty(capped.Endpoints);
+            Assert.Equal(capped.EndpointsMatchingFilters, capped.Endpoints.Count + capped.EndpointsTruncatedByMaxEndpoints);
+        }
+
+        [Fact]
         public void BuildDriftChangeKindFilterIncludesOnlyMatchingRows() {
             var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
 
