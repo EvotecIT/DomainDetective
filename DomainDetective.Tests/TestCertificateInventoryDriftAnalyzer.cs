@@ -476,6 +476,63 @@ namespace DomainDetective.Tests {
         }
 
         [Fact]
+        public void BuildDriftChangeKindFilterIncludesOnlyMatchingRows() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var filtered = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                requiredChangeKinds: new[] { "expiry" });
+
+            Assert.Equal(4, filtered.EndpointCount);
+            Assert.Equal(1, filtered.EndpointsMatchingFilters);
+            Assert.Equal(new[] { "expiry" }, filtered.AppliedChangeKinds);
+            var endpoint = Assert.Single(filtered.Endpoints);
+            Assert.Equal("low.example.com", endpoint.Host);
+            Assert.Equal("Low", endpoint.DriftSeverity);
+            Assert.Equal(new[] { "expiry" }, endpoint.ChangeKinds);
+        }
+
+        [Fact]
+        public void BuildDriftChangeKindFilterSupportsAliasesAndWorksWithSeverityThreshold() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var filtered = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: false,
+                maxEndpoints: 100,
+                minimumSeverity: "medium",
+                requiredChangeKinds: new[] { "AuthProfile", "service" });
+
+            Assert.Equal(4, filtered.EndpointCount);
+            Assert.Equal(1, filtered.EndpointsMatchingFilters);
+            Assert.Equal(
+                new[] { "auth-profile", "service" },
+                filtered.AppliedChangeKinds.OrderBy(kind => kind, StringComparer.OrdinalIgnoreCase));
+            var endpoint = Assert.Single(filtered.Endpoints);
+            Assert.Equal("high.example.com", endpoint.Host);
+            Assert.Equal("High", endpoint.DriftSeverity);
+        }
+
+        [Fact]
+        public void BuildDriftChangedOnlyAndChangeKindFilterCanBeUsedTogether() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            var filtered = CertificateInventoryDriftAnalyzer.BuildDrift(
+                snapshots,
+                changedOnly: true,
+                maxEndpoints: 100,
+                requiredChangeKinds: new[] { "certificate" });
+
+            Assert.Equal(4, filtered.EndpointCount);
+            Assert.Equal(1, filtered.EndpointsMatchingFilters);
+            var endpoint = Assert.Single(filtered.Endpoints);
+            Assert.Equal("medium.example.com", endpoint.Host);
+            Assert.Equal("Medium", endpoint.DriftSeverity);
+        }
+
+        [Fact]
         public void BuildDriftThrowsForInvalidMinimumSeverity() {
             var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
 
@@ -483,6 +540,16 @@ namespace DomainDetective.Tests {
                 CertificateInventoryDriftAnalyzer.BuildDrift(
                     snapshots,
                     minimumSeverity: "critical"));
+        }
+
+        [Fact]
+        public void BuildDriftThrowsForInvalidRequiredChangeKind() {
+            var snapshots = CreateThresholdFilterSnapshots(DateTimeOffset.UtcNow);
+
+            Assert.Throws<ArgumentException>(() =>
+                CertificateInventoryDriftAnalyzer.BuildDrift(
+                    snapshots,
+                    requiredChangeKinds: new[] { "certificate", "broken-kind" }));
         }
 
         private static CertificateInventorySnapshot[] CreateThresholdFilterSnapshots(DateTimeOffset now) {

@@ -2,6 +2,7 @@ using DomainDetective.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
@@ -41,6 +42,11 @@ internal sealed class CertificateInventoryDriftSettings : CommandSettings {
     [CommandOption("--minimum-severity <SEVERITY>")]
     public string? MinimumSeverity { get; set; }
 
+    /// <summary>Optional drift change-kind filter (repeat option to include multiple kinds).</summary>
+    [Description("Optional drift change-kind filter (certificate, issuer, expiry, service, auth-profile, chain-source). Repeat option to include multiple kinds.")]
+    [CommandOption("--change-kind <KIND>")]
+    public string[]? ChangeKinds { get; set; }
+
     /// <summary>Output JSON instead of tables.</summary>
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
@@ -68,6 +74,19 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             return Task.FromResult(1);
         }
 
+        var normalizedChangeKinds = new List<string>();
+        var dedupeChangeKinds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rawChangeKind in settings.ChangeKinds ?? Array.Empty<string>()) {
+            if (!CertificateInventoryDriftAnalyzer.TryNormalizeChangeKind(rawChangeKind, out var normalizedChangeKind) || string.IsNullOrWhiteSpace(normalizedChangeKind)) {
+                AnsiConsole.MarkupLine("[red]--change-kind must be one of: certificate, issuer, expiry, service, auth-profile, chain-source.[/]");
+                return Task.FromResult(1);
+            }
+
+            if (dedupeChangeKinds.Add(normalizedChangeKind)) {
+                normalizedChangeKinds.Add(normalizedChangeKind);
+            }
+        }
+
         var cacheDirectory = ResolveCacheDirectory(settings.CacheDirectory);
         var monitor = new CertificateMonitor {
             CacheDirectory = cacheDirectory,
@@ -79,7 +98,8 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
             sinceUtc: sinceUtc,
             changedOnly: settings.ChangedOnly,
             maxEndpoints: settings.MaxEndpoints,
-            minimumSeverity: minimumSeverity);
+            minimumSeverity: minimumSeverity,
+            requiredChangeKinds: normalizedChangeKinds);
 
         if (settings.Json) {
             var json = JsonSerializer.Serialize(drift, JsonOptions.Default);
@@ -100,6 +120,7 @@ internal sealed class CertificateInventoryDriftCommand : AsyncCommand<Certificat
         summary.AddRow("Endpoints Matching Filters", drift.EndpointsMatchingFilters.ToString());
         summary.AddRow("Returned Endpoints", drift.Endpoints.Count.ToString());
         summary.AddRow("Minimum Severity", minimumSeverity ?? "None");
+        summary.AddRow("Change Kind Filter", drift.AppliedChangeKinds.Count == 0 ? "Any" : string.Join(", ", drift.AppliedChangeKinds));
         summary.AddRow("Any Change", drift.EndpointsWithAnyChange.ToString());
         summary.AddRow("High Severity", drift.EndpointsWithHighSeverityDrift.ToString());
         summary.AddRow("Medium Severity", drift.EndpointsWithMediumSeverityDrift.ToString());
