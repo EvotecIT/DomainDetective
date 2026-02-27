@@ -86,9 +86,25 @@ namespace DomainDetective {
         public int ScannedEntryCount { get; set; }
         /// <summary>Number of entries matching filters (including truncated matches).</summary>
         public int MatchedEntryCount { get; set; }
+        /// <summary>Number of unique endpoints represented by matched entries (host+port key, including truncated matches).</summary>
+        public int MatchedUniqueEndpointCount { get; set; }
         /// <summary>Indicates whether matched results exceeded <see cref="CertificateInventoryQuery.MaxResults"/>.</summary>
         public bool Truncated { get; set; }
         /// <summary>Matched entries, limited by the configured maximum.</summary>
         public List<CertificateInventoryObservedEntry> Entries { get; set; } = new();
+        /// <summary>Distribution of matched entries by service.</summary>
+        public Dictionary<string, int> MatchedServiceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by normalized issuer.</summary>
+        public Dictionary<string, int> MatchedIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by normalized root issuer.</summary>
+        public Dictionary<string, int> MatchedRootIssuerCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by authentication profile.</summary>
+        public Dictionary<string, int> MatchedAuthenticationProfileCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by primary chain source.</summary>
+        public Dictionary<string, int> MatchedChainSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by CT discovery source (one entry can increment multiple sources).</summary>
+        public Dictionary<string, int> MatchedCtSourceCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Distribution of matched entries by CT template-error category.</summary>
+        public Dictionary<string, int> MatchedCtTemplateErrorCounts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     }
 }

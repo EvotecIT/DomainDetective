@@ -170,6 +170,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [Description("Output JSON instead of tables.")]
     [CommandOption("--json")]
     public bool Json { get; set; }
+
+    /// <summary>Show matched-entry breakdown tables (service/issuer/auth/chain/CT).</summary>
+    [Description("Show matched-entry breakdown tables (service/issuer/auth/chain/CT).")]
+    [CommandOption("--show-breakdown")]
+    public bool ShowBreakdown { get; set; }
 }
 
 /// <summary>
@@ -247,6 +252,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         summary.AddRow("Scanned Snapshots", result.ScannedSnapshotCount.ToString());
         summary.AddRow("Scanned Entries", result.ScannedEntryCount.ToString());
         summary.AddRow("Matched Entries", result.MatchedEntryCount.ToString());
+        summary.AddRow("Matched Unique Endpoints", result.MatchedUniqueEndpointCount.ToString());
         summary.AddRow("Returned Entries", result.Entries.Count.ToString());
         summary.AddRow("Truncated", result.Truncated ? "Yes" : "No");
         AnsiConsole.Write(summary);
@@ -290,6 +296,15 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
                 authFlags);
         }
         AnsiConsole.Write(rows);
+        if (settings.ShowBreakdown) {
+            RenderCountTable("Matched Services", result.MatchedServiceCounts);
+            RenderCountTable("Matched Issuers", result.MatchedIssuerCounts);
+            RenderCountTable("Matched Root Issuers", result.MatchedRootIssuerCounts);
+            RenderCountTable("Matched Auth Profiles", result.MatchedAuthenticationProfileCounts);
+            RenderCountTable("Matched Chain Sources", result.MatchedChainSourceCounts);
+            RenderCountTable("Matched CT Sources", result.MatchedCtSourceCounts);
+            RenderCountTable("Matched CT Template Errors", result.MatchedCtTemplateErrorCounts);
+        }
         return Task.FromResult(0);
     }
 
@@ -306,6 +321,17 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
         }
 
         return flags.Length == 0 ? "-" : flags;
+    }
+
+    private static void RenderCountTable(string title, System.Collections.Generic.Dictionary<string, int> counters) {
+        var table = new Table().Border(TableBorder.Rounded);
+        table.Title = new TableTitle(title);
+        table.AddColumn("Name");
+        table.AddColumn("Count");
+        foreach (var kv in counters.OrderByDescending(x => x.Value).ThenBy(x => x.Key, StringComparer.OrdinalIgnoreCase).Take(20)) {
+            table.AddRow(kv.Key, kv.Value.ToString());
+        }
+        AnsiConsole.Write(table);
     }
 
     private static string ResolveCacheDirectory(string? configured) {

@@ -506,6 +506,7 @@ namespace DomainDetective {
             var effectiveQuery = query ?? new CertificateInventoryQuery();
             var result = new CertificateInventoryQueryResult();
             var maxResults = Math.Max(0, effectiveQuery.MaxResults);
+            var matchedEndpointKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var snapshots = LoadInventorySnapshots(effectiveQuery.SinceUtc)
                 .OrderByDescending(snapshot => snapshot.CapturedAtUtc)
                 .ToList();
@@ -523,6 +524,8 @@ namespace DomainDetective {
                     }
 
                     result.MatchedEntryCount++;
+                    matchedEndpointKeys.Add(BuildEndpointKey(entry));
+                    IncrementMatchedBreakdown(result, entry);
                     if (result.Entries.Count >= maxResults) {
                         result.Truncated = true;
                         continue;
@@ -535,6 +538,7 @@ namespace DomainDetective {
                 }
             }
 
+            result.MatchedUniqueEndpointCount = matchedEndpointKeys.Count;
             return result;
         }
 
@@ -741,6 +745,102 @@ namespace DomainDetective {
 
             var chars = value.Where(c => !char.IsWhiteSpace(c) && c != ':').ToArray();
             return new string(chars).Trim().ToUpperInvariant();
+        }
+
+        private static void IncrementMatchedBreakdown(CertificateInventoryQueryResult result, CertificateInventoryEntry entry) {
+            var service = string.IsNullOrWhiteSpace(entry.Service)
+                ? CertificateServiceClassifier.GuessService(entry.Scheme ?? "https", entry.Port)
+                : entry.Service!;
+            IncrementCounter(result.MatchedServiceCounts, service);
+            IncrementCounter(result.MatchedIssuerCounts, PickIssuer(entry));
+            IncrementCounter(result.MatchedRootIssuerCounts, PickRootIssuer(entry));
+            IncrementCounter(result.MatchedAuthenticationProfileCounts, CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry));
+            IncrementCounter(result.MatchedChainSourceCounts, CertificateInventoryEntryHelpers.PickChainSource(entry));
+            IncrementCtSources(result.MatchedCtSourceCounts, entry);
+            IncrementCtTemplateErrorCategories(result.MatchedCtTemplateErrorCounts, entry);
+        }
+
+        private static string BuildEndpointKey(CertificateInventoryEntry entry) {
+            var host = entry.ResolvedHost ?? entry.Host;
+            var port = entry.Port;
+            if (port <= 0) {
+                port = 443;
+            }
+            return $"{host}:{port}";
+        }
+
+        private static string PickIssuer(CertificateInventoryEntry entry) {
+            if (!string.IsNullOrWhiteSpace(entry.CertificateIssuerNormalized)) {
+                return entry.CertificateIssuerNormalized!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateIssuerOrganization)) {
+                return entry.CertificateIssuerOrganization!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateIssuer)) {
+                return CertificateIssuerClassifier.Classify(entry.CertificateIssuer).NormalizedName;
+            }
+            return "Unknown";
+        }
+
+        private static string PickRootIssuer(CertificateInventoryEntry entry) {
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerNormalized)) {
+                return entry.CertificateRootIssuerNormalized!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuerOrganization)) {
+                return entry.CertificateRootIssuerOrganization!;
+            }
+            if (!string.IsNullOrWhiteSpace(entry.CertificateRootIssuer)) {
+                return CertificateIssuerClassifier.Classify(entry.CertificateRootIssuer).NormalizedName;
+            }
+            return "Unknown";
+        }
+
+        private static void IncrementCounter(Dictionary<string, int> counters, string key) {
+            if (string.IsNullOrWhiteSpace(key)) {
+                key = "Unknown";
+            }
+
+            counters[key] = counters.TryGetValue(key, out var count) ? count + 1 : 1;
+        }
+
+        private static void IncrementCtSources(Dictionary<string, int> counters, CertificateInventoryEntry entry) {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (entry.CtDiscoverySources != null) {
+                foreach (var source in entry.CtDiscoverySources) {
+                    if (string.IsNullOrWhiteSpace(source)) {
+                        continue;
+                    }
+
+                    var normalized = source.Trim();
+                    if (seen.Add(normalized)) {
+                        IncrementCounter(counters, normalized);
+                    }
+                }
+            }
+
+            if (seen.Count == 0) {
+                IncrementCounter(counters, "none");
+            }
+        }
+
+        private static void IncrementCtTemplateErrorCategories(Dictionary<string, int> counters, CertificateInventoryEntry entry) {
+            foreach (var error in CertificateInventoryEntryHelpers.EnumerateCtTemplateFormatErrors(entry)) {
+                IncrementCounter(counters, ExtractCtTemplateErrorCategory(error));
+            }
+        }
+
+        private static string ExtractCtTemplateErrorCategory(string error) {
+            if (string.IsNullOrWhiteSpace(error)) {
+                return "unknown";
+            }
+
+            var separatorIndex = error.IndexOf(':');
+            if (separatorIndex <= 0) {
+                return "unknown";
+            }
+
+            var category = error.Substring(0, separatorIndex).Trim();
+            return string.IsNullOrWhiteSpace(category) ? "unknown" : category;
         }
 
         /// <summary>Disposes timer resources.</summary>
