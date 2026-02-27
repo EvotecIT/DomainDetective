@@ -70,6 +70,18 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? RootAuthorityFamilyEquals { get; set; }
 
+    /// <summary>Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</summary>
+    [Parameter(Mandatory = false)]
+    public string? CtSourceContains { get; set; }
+
+    /// <summary>Optional CT template/configuration error substring filter.</summary>
+    [Parameter(Mandatory = false)]
+    public string? CtTemplateErrorContains { get; set; }
+
+    /// <summary>Optional chain-source substring filter (for example tls-handshake, aia-download).</summary>
+    [Parameter(Mandatory = false)]
+    public string? ChainSourceContains { get; set; }
+
     /// <summary>Only include endpoints whose certificate allows server authentication EKU.</summary>
     [Parameter(Mandatory = false)]
     public SwitchParameter ServerAuthOnly { get; set; }
@@ -114,6 +126,9 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
             issuerContains: IssuerContains,
             authorityFamilyEquals: AuthorityFamilyEquals,
             rootAuthorityFamilyEquals: RootAuthorityFamilyEquals,
+            ctSourceContains: CtSourceContains,
+            ctTemplateErrorContains: CtTemplateErrorContains,
+            chainSourceContains: ChainSourceContains,
             serverAuthOnly: ServerAuthOnly.IsPresent,
             clientAuthOnly: ClientAuthOnly.IsPresent,
             secureEmailOnly: SecureEmailOnly.IsPresent);

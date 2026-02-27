@@ -478,6 +478,9 @@ namespace DomainDetective {
         /// <param name="issuerContains">Optional case-insensitive issuer/root-issuer substring filter (for example DigiCert, Let's Encrypt, ISRG).</param>
         /// <param name="authorityFamilyEquals">Optional leaf authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
         /// <param name="rootAuthorityFamilyEquals">Optional root authority-family exact-match filter (for example DigiCert, LetsEncrypt).</param>
+        /// <param name="ctSourceContains">Optional CT/discovery source substring filter (for example crt.sh, shodan, censys).</param>
+        /// <param name="ctTemplateErrorContains">Optional CT template/configuration error substring filter.</param>
+        /// <param name="chainSourceContains">Optional chain-source substring filter (for example tls-handshake, aia-download).</param>
         /// <param name="serverAuthOnly">When true, only returns endpoint rows whose certificate allows server authentication EKU.</param>
         /// <param name="clientAuthOnly">When true, only returns endpoint rows whose certificate allows client authentication EKU.</param>
         /// <param name="secureEmailOnly">When true, only returns endpoint rows whose certificate allows secure-email EKU.</param>
@@ -492,6 +495,9 @@ namespace DomainDetective {
             string? issuerContains = null,
             string? authorityFamilyEquals = null,
             string? rootAuthorityFamilyEquals = null,
+            string? ctSourceContains = null,
+            string? ctTemplateErrorContains = null,
+            string? chainSourceContains = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -507,6 +513,9 @@ namespace DomainDetective {
                 issuerContains,
                 authorityFamilyEquals,
                 rootAuthorityFamilyEquals,
+                ctSourceContains,
+                ctTemplateErrorContains,
+                chainSourceContains,
                 serverAuthOnly,
                 clientAuthOnly,
                 secureEmailOnly);

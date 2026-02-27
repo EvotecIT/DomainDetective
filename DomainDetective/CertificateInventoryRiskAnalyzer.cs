@@ -60,6 +60,14 @@ namespace DomainDetective {
         public bool AllowsClientAuthentication { get; set; }
         public bool AllowsSecureEmail { get; set; }
         public string AuthenticationProfile { get; set; } = CertificateAuthenticationProfileClassifier.NoEkuExtension;
+        /// <summary>Primary chain source observed for this endpoint certificate (for example tls-handshake).</summary>
+        public string ChainSource { get; set; } = string.Empty;
+        /// <summary>Observed chain sources for this endpoint certificate (primary plus historical).</summary>
+        public List<string> ChainSources { get; set; } = new();
+        /// <summary>Observed CT/discovery sources (for example crt.sh, shodan, censys).</summary>
+        public List<string> CtDiscoverySources { get; set; } = new();
+        /// <summary>Observed CT template/configuration errors.</summary>
+        public List<string> CtTemplateFormatErrors { get; set; } = new();
         public bool WeakKey { get; set; }
         public bool Sha1Signature { get; set; }
         public bool PresentInCtLogs { get; set; }
@@ -127,6 +135,9 @@ namespace DomainDetective {
             string? issuerContains = null,
             string? authorityFamilyEquals = null,
             string? rootAuthorityFamilyEquals = null,
+            string? ctSourceContains = null,
+            string? ctTemplateErrorContains = null,
+            string? chainSourceContains = null,
             bool serverAuthOnly = false,
             bool clientAuthOnly = false,
             bool secureEmailOnly = false) {
@@ -144,6 +155,12 @@ namespace DomainDetective {
             var authorityFamilyExpected = hasAuthorityFamilyFilter ? authorityFamilyEquals!.Trim() : string.Empty;
             var hasRootAuthorityFamilyFilter = !string.IsNullOrWhiteSpace(rootAuthorityFamilyEquals);
             var rootAuthorityFamilyExpected = hasRootAuthorityFamilyFilter ? rootAuthorityFamilyEquals!.Trim() : string.Empty;
+            var hasCtSourceFilter = !string.IsNullOrWhiteSpace(ctSourceContains);
+            var ctSourceNeedle = hasCtSourceFilter ? ctSourceContains!.Trim() : string.Empty;
+            var hasCtTemplateErrorFilter = !string.IsNullOrWhiteSpace(ctTemplateErrorContains);
+            var ctTemplateErrorNeedle = hasCtTemplateErrorFilter ? ctTemplateErrorContains!.Trim() : string.Empty;
+            var hasChainSourceFilter = !string.IsNullOrWhiteSpace(chainSourceContains);
+            var chainSourceNeedle = hasChainSourceFilter ? chainSourceContains!.Trim() : string.Empty;
             // Intentionally keep includeNoRisk evaluation first; minimum severity then narrows rows further.
             // Example: includeNoRisk=true with minimumSeverity=Low still excludes score=0 endpoints.
 
@@ -223,6 +240,31 @@ namespace DomainDetective {
                         continue;
                     }
                 }
+                // Source filters only narrow returned endpoint rows.
+                // Summary counts/reason distributions stay computed across the full endpoint set.
+                if (hasCtSourceFilter) {
+                    var matchesCtSource = row.CtDiscoverySources.Any(source =>
+                        source.IndexOf(ctSourceNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesCtSource) {
+                        continue;
+                    }
+                }
+                if (hasCtTemplateErrorFilter) {
+                    var matchesCtTemplateError = row.CtTemplateFormatErrors.Any(templateError =>
+                        templateError.IndexOf(ctTemplateErrorNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesCtTemplateError) {
+                        continue;
+                    }
+                }
+                if (hasChainSourceFilter) {
+                    var matchesChainSource =
+                        row.ChainSource.IndexOf(chainSourceNeedle, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        row.ChainSources.Any(source =>
+                            source.IndexOf(chainSourceNeedle, StringComparison.OrdinalIgnoreCase) >= 0);
+                    if (!matchesChainSource) {
+                        continue;
+                    }
+                }
                 // Auth-usage filters only narrow returned endpoint rows.
                 // Summary counts/reason distributions stay computed across the full endpoint set.
                 if (serverAuthOnly && !row.AllowsServerAuthentication) {
@@ -287,6 +329,10 @@ namespace DomainDetective {
                 AllowsClientAuthentication = entry.AllowsClientAuthentication,
                 AllowsSecureEmail = entry.AllowsSecureEmail,
                 AuthenticationProfile = CertificateInventoryEntryHelpers.ResolveAuthenticationProfile(entry),
+                ChainSource = entry.CertificateChainSource ?? string.Empty,
+                ChainSources = NormalizeDistinctValues(entry.CertificateChainSources),
+                CtDiscoverySources = NormalizeDistinctValues(entry.CtDiscoverySources),
+                CtTemplateFormatErrors = NormalizeDistinctValues(entry.CtTemplateFormatErrors),
                 WeakKey = entry.WeakKey,
                 Sha1Signature = entry.Sha1Signature,
                 PresentInCtLogs = entry.PresentInCtLogs
@@ -419,6 +465,18 @@ namespace DomainDetective {
             var host = entry.ResolvedHost ?? entry.Host;
             var port = entry.Port > 0 ? entry.Port : 443;
             return $"{host}:{port}";
+        }
+
+        private static List<string> NormalizeDistinctValues(IEnumerable<string>? values) {
+            if (values == null) {
+                return new List<string>();
+            }
+
+            return values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private static string PickIssuer(CertificateInventoryEntry entry) {
