@@ -48,8 +48,8 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [DefaultValue(300)]
     public int MaxEndpoints { get; set; } = 300;
 
-    /// <summary>Optional minimum severity filter (None, Low, Medium, High, Critical).</summary>
-    [Description("Optional minimum severity filter (None, Low, Medium, High, Critical).")]
+    /// <summary>Optional minimum severity filter (None means no additional score filter).</summary>
+    [Description("Optional minimum severity filter (None means no additional score filter; other values: Low, Medium, High, Critical).")]
     [CommandOption("--minimum-severity <LEVEL>")]
     public string? MinimumSeverity { get; set; }
 
@@ -88,7 +88,7 @@ internal sealed class CertificateInventoryRiskCommand : AsyncCommand<Certificate
         }
         if (!string.IsNullOrWhiteSpace(settings.MinimumSeverity) &&
             !CertificateInventoryRiskAnalyzer.TryResolveMinimumSeverity(settings.MinimumSeverity, out _, out _)) {
-            AnsiConsole.MarkupLine("[red]--minimum-severity must be one of: None, Low, Medium, High, Critical.[/]");
+            AnsiConsole.MarkupLine($"[red]--minimum-severity must be one of: {CertificateInventoryRiskAnalyzer.MinimumSeverityAcceptedValues}.[/]");
             return Task.FromResult(1);
         }
 

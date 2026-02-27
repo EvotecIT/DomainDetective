@@ -49,7 +49,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [ValidateRange(0, int.MaxValue)]
     public int MaxEndpoints { get; set; } = 300;
 
-    /// <summary>Optional minimum severity filter (None, Low, Medium, High, Critical).</summary>
+    /// <summary>Optional minimum severity filter (None means no additional score filter).</summary>
     [Parameter(Mandatory = false)]
     [ValidateSet("None", "Low", "Medium", "High", "Critical")]
     public string? MinimumSeverity { get; set; }

@@ -511,5 +511,94 @@ namespace DomainDetective.Tests {
                 minimumSeverity: "Sev1"));
             Assert.Equal("minimumSeverity", ex.ParamName);
         }
+
+        [Fact]
+        public void BuildRiskTreatsNoneAsNoAdditionalFilterAndSupportsCaseInsensitiveSeverity() {
+            var now = DateTimeOffset.UtcNow;
+            var snapshots = new[] {
+                new CertificateInventorySnapshot {
+                    CapturedAtUtc = now,
+                    Port = 443,
+                    Entries = new List<CertificateInventoryEntry> {
+                        new() {
+                            Host = "critical-case.example.com",
+                            ResolvedHost = "critical-case.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(-1),
+                            Valid = false,
+                            Expired = true,
+                            ChainComplete = false,
+                            IsReachable = true,
+                            HostnameMatch = false,
+                            AllowsServerAuthentication = false,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        },
+                        new() {
+                            Host = "medium-case.example.com",
+                            ResolvedHost = "medium-case.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true,
+                            WeakKey = true
+                        },
+                        new() {
+                            Host = "healthy-case.example.com",
+                            ResolvedHost = "healthy-case.example.com",
+                            Port = 443,
+                            Service = "HTTPS",
+                            NotAfterUtc = now.AddDays(120),
+                            Valid = true,
+                            Expired = false,
+                            ChainComplete = true,
+                            IsReachable = true,
+                            HostnameMatch = true,
+                            AllowsServerAuthentication = true,
+                            IsKnownCertificateAuthority = true,
+                            PresentInCtLogs = true
+                        }
+                    }
+                }
+            };
+
+            var withoutMinimumSeverity = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100);
+
+            var withNoneSeverity = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: "None");
+
+            Assert.Equal(withoutMinimumSeverity.Endpoints.Count, withNoneSeverity.Endpoints.Count);
+            Assert.Equal(
+                string.Join(",", withoutMinimumSeverity.Endpoints.Select(endpoint => endpoint.Host)),
+                string.Join(",", withNoneSeverity.Endpoints.Select(endpoint => endpoint.Host)));
+
+            var withMixedCaseHigh = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: true,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: "hIgH");
+            Assert.Single(withMixedCaseHigh.Endpoints);
+            Assert.Equal("critical-case.example.com", withMixedCaseHigh.Endpoints[0].Host);
+        }
     }
 }
