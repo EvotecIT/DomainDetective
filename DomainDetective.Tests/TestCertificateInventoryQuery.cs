@@ -288,6 +288,26 @@ namespace DomainDetective.Tests {
                 Assert.Equal(2, chainSourceFilter.MatchedEntryCount);
                 Assert.Equal(2, chainSourceFilter.Entries.Count);
 
+                var unknownCaFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    KnownAuthorityOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, unknownCaFilter.MatchedEntryCount);
+                Assert.Single(unknownCaFilter.Entries);
+                Assert.Equal("internal.example.com", unknownCaFilter.Entries[0].Entry.Host);
+                Assert.Equal(unknownCaFilter.LoadedSnapshotCount, unknownCaFilter.ScannedSnapshotCount + unknownCaFilter.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(unknownCaFilter.EvaluatedEntryCount, unknownCaFilter.MatchedEntryCount + unknownCaFilter.ExcludedByFiltersCount);
+
+                var unknownRootCaFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    KnownRootAuthorityOnly = false,
+                    MaxResults = 10
+                });
+                Assert.Equal(1, unknownRootCaFilter.MatchedEntryCount);
+                Assert.Single(unknownRootCaFilter.Entries);
+                Assert.Equal("internal.example.com", unknownRootCaFilter.Entries[0].Entry.Host);
+                Assert.Equal(unknownRootCaFilter.LoadedSnapshotCount, unknownRootCaFilter.ScannedSnapshotCount + unknownRootCaFilter.SkippedSnapshotCountByUntilUtc);
+                Assert.Equal(unknownRootCaFilter.EvaluatedEntryCount, unknownRootCaFilter.MatchedEntryCount + unknownRootCaFilter.ExcludedByFiltersCount);
+
                 var familyFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     AuthorityFamilyEquals = "digicert",
                     RootAuthorityFamilyEquals = "digicert",

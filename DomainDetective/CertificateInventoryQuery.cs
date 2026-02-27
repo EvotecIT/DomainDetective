@@ -34,9 +34,9 @@ namespace DomainDetective {
         public string? ChainSourceContains { get; set; }
         /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
         public string? ThumbprintEquals { get; set; }
-        /// <summary>When true, only include certificates from recognized authorities.</summary>
+        /// <summary>When set, include only entries whose recognized-authority state equals this value.</summary>
         public bool? KnownAuthorityOnly { get; set; }
-        /// <summary>When true, only include certificates chaining to recognized root authorities.</summary>
+        /// <summary>When set, include only entries whose recognized-root-authority state equals this value.</summary>
         public bool? KnownRootAuthorityOnly { get; set; }
         /// <summary>When set, include only entries whose certificate validity equals this value.</summary>
         public bool? ValidOnly { get; set; }

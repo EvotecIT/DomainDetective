@@ -96,10 +96,20 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--known-ca-only")]
     public bool KnownCaOnly { get; set; }
 
+    /// <summary>Only include certificates from unrecognized or private CAs.</summary>
+    [Description("Only include certificates from unrecognized or private CAs.")]
+    [CommandOption("--unknown-ca-only")]
+    public bool UnknownCaOnly { get; set; }
+
     /// <summary>Only include certificates chaining to recognized public root CAs.</summary>
     [Description("Only include certificates chaining to recognized public root CAs.")]
     [CommandOption("--known-root-ca-only")]
     public bool KnownRootCaOnly { get; set; }
+
+    /// <summary>Only include certificates chaining to unrecognized or private root CAs.</summary>
+    [Description("Only include certificates chaining to unrecognized or private root CAs.")]
+    [CommandOption("--unknown-root-ca-only")]
+    public bool UnknownRootCaOnly { get; set; }
 
     /// <summary>Only include entries where certificate validation succeeded.</summary>
     [Description("Only include entries where certificate validation succeeded.")]
@@ -213,6 +223,14 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             AnsiConsole.MarkupLine("[red]--max-results must be 0 or greater.[/]");
             return Task.FromResult(1);
         }
+        if (settings.KnownCaOnly && settings.UnknownCaOnly) {
+            AnsiConsole.MarkupLine("[red]--known-ca-only cannot be combined with --unknown-ca-only.[/]");
+            return Task.FromResult(1);
+        }
+        if (settings.KnownRootCaOnly && settings.UnknownRootCaOnly) {
+            AnsiConsole.MarkupLine("[red]--known-root-ca-only cannot be combined with --unknown-root-ca-only.[/]");
+            return Task.FromResult(1);
+        }
         if (settings.ExpiringWithinDays.HasValue && settings.ExpiringWithinDays.Value < 0) {
             AnsiConsole.MarkupLine("[red]--expiring-within-days must be 0 or greater.[/]");
             return Task.FromResult(1);
@@ -251,8 +269,8 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             CtTemplateErrorContains = settings.CtTemplateErrorContains,
             ChainSourceContains = settings.ChainSourceContains,
             ThumbprintEquals = settings.ThumbprintEquals,
-            KnownAuthorityOnly = settings.KnownCaOnly ? true : null,
-            KnownRootAuthorityOnly = settings.KnownRootCaOnly ? true : null,
+            KnownAuthorityOnly = settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
+            KnownRootAuthorityOnly = settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             ValidOnly = settings.ValidOnly ? true : null,
             ExpiredOnly = settings.ExpiredOnly ? true : null,
             ChainCompleteOnly = settings.ChainIncompleteOnly ? false : null,
