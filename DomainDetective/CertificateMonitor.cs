@@ -526,7 +526,7 @@ namespace DomainDetective {
                     string? endpointKey = null;
                     if (latestOnly) {
                         endpointKey = BuildEndpointKey(entry);
-                        if (!observedEndpointKeys!.Add(endpointKey)) {
+                        if (observedEndpointKeys == null || !observedEndpointKeys.Add(endpointKey)) {
                             continue;
                         }
                     }
