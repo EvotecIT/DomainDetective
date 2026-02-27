@@ -473,7 +473,7 @@ namespace DomainDetective {
         /// <param name="expiringWithinDays">Warning window for expiring certificates.</param>
         /// <param name="criticalExpiringWithinDays">Critical window for expiring certificates.</param>
         /// <param name="maxEndpoints">Maximum endpoint rows returned.</param>
-        /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical).</param>
+        /// <param name="minimumSeverity">Optional minimum endpoint severity filter (None, Low, Medium, High, Critical). Applied after includeNoRisk filtering.</param>
         public CertificateInventoryRiskSummary BuildInventoryRisk(
             DateTimeOffset? sinceUtc = null,
             bool includeNoRisk = false,

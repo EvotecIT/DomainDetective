@@ -599,6 +599,16 @@ namespace DomainDetective.Tests {
                 minimumSeverity: "hIgH");
             Assert.Single(withMixedCaseHigh.Endpoints);
             Assert.Equal("critical-case.example.com", withMixedCaseHigh.Endpoints[0].Host);
+
+            var withNoneSeverityDefaultInclude = CertificateInventoryRiskAnalyzer.BuildRisk(
+                snapshots,
+                includeNoRisk: false,
+                expiringWithinDays: 30,
+                criticalExpiringWithinDays: 7,
+                maxEndpoints: 100,
+                minimumSeverity: "None");
+            Assert.Equal(2, withNoneSeverityDefaultInclude.Endpoints.Count);
+            Assert.DoesNotContain(withNoneSeverityDefaultInclude.Endpoints, endpoint => string.Equals(endpoint.Host, "healthy-case.example.com", StringComparison.OrdinalIgnoreCase));
         }
     }
 }
