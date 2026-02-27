@@ -82,7 +82,7 @@ public sealed class CmdletGetCertificateInventoryRisk : PSCmdlet {
     [Parameter(Mandatory = false)]
     public string? ChainSourceContains { get; set; }
 
-    /// <summary>Optional leaf-certificate thumbprint exact-match filter.</summary>
+    /// <summary>Optional leaf-certificate thumbprint exact-match filter (hex string expected).</summary>
     [Parameter(Mandatory = false)]
     public string? ThumbprintEquals { get; set; }
 

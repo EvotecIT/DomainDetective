@@ -88,8 +88,8 @@ internal sealed class CertificateInventoryRiskSettings : CommandSettings {
     [CommandOption("--chain-source-contains <TEXT>")]
     public string? ChainSourceContains { get; set; }
 
-    /// <summary>Optional leaf-certificate thumbprint exact-match filter.</summary>
-    [Description("Optional leaf-certificate thumbprint exact-match filter.")]
+    /// <summary>Optional leaf-certificate thumbprint exact-match filter (hex string expected).</summary>
+    [Description("Optional leaf-certificate thumbprint exact-match filter (hex string expected).")]
     [CommandOption("--thumbprint <HEX>")]
     public string? ThumbprintEquals { get; set; }
 

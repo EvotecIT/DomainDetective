@@ -1519,6 +1519,7 @@ namespace DomainDetective.Tests {
             Assert.Single(filteredByThumbprint.Endpoints);
             Assert.Equal("thumbprint-a.example.com", filteredByThumbprint.Endpoints[0].Host);
             Assert.Equal("AA11BB22CC33DD44EE55FF6677889900AABBCCDD", filteredByThumbprint.Endpoints[0].CertificateThumbprint);
+            Assert.DoesNotContain(filteredByThumbprint.Endpoints, endpoint => string.Equals(endpoint.Host, "thumbprint-missing.example.com", StringComparison.OrdinalIgnoreCase));
 
             var filteredByMissingThumbprint = CertificateInventoryRiskAnalyzer.BuildRisk(
                 snapshots,
