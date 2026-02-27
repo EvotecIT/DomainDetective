@@ -91,6 +91,11 @@ internal sealed class CertificateInventoryQuerySettings : CommandSettings {
     [CommandOption("--thumbprint <HEX>")]
     public string? ThumbprintEquals { get; set; }
 
+    /// <summary>Leaf certificate serial-number exact-match filter (hex string expected).</summary>
+    [Description("Leaf certificate serial-number exact-match filter (hex string expected).")]
+    [CommandOption("--serial-number <HEX>")]
+    public string? SerialNumberEquals { get; set; }
+
     /// <summary>Only include certificates from recognized public CAs.</summary>
     [Description("Only include certificates from recognized public CAs.")]
     [CommandOption("--known-ca-only")]
@@ -350,6 +355,7 @@ internal sealed class CertificateInventoryQueryCommand : AsyncCommand<Certificat
             CtTemplateErrorContains = settings.CtTemplateErrorContains,
             ChainSourceContains = settings.ChainSourceContains,
             ThumbprintEquals = settings.ThumbprintEquals,
+            SerialNumberEquals = settings.SerialNumberEquals,
             KnownAuthorityOnly = settings.KnownCaOnly ? true : settings.UnknownCaOnly ? false : null,
             KnownRootAuthorityOnly = settings.KnownRootCaOnly ? true : settings.UnknownRootCaOnly ? false : null,
             ValidOnly = settings.ValidOnly ? true : settings.InvalidOnly ? false : null,

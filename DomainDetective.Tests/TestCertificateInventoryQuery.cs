@@ -26,6 +26,7 @@ namespace DomainDetective.Tests {
                             CertificateIssuerNormalized = "DigiCert",
                             CertificateAuthorityFamily = "DigiCert",
                             CertificateThumbprint = "AA11BB22CC33DD44",
+                            CertificateSerialNumber = "00AA11BB22CC33DD",
                             CertificateRootIssuerNormalized = "ISRG Root X1",
                             CertificateRootAuthorityFamily = "LetsEncrypt",
                             IsKnownCertificateAuthority = true,
@@ -53,6 +54,7 @@ namespace DomainDetective.Tests {
                             CertificateSubject = "CN=internal.example.com, O=Contoso Internal PKI",
                             CertificateIssuerNormalized = "Contoso PKI",
                             CertificateThumbprint = "EE55FF66",
+                            CertificateSerialNumber = "EE55FF667788",
                             CertificateRootIssuerNormalized = "Contoso Root CA",
                             IsKnownCertificateAuthority = false,
                             IsKnownRootCertificateAuthority = false,
@@ -82,6 +84,7 @@ namespace DomainDetective.Tests {
                             CertificateIssuerNormalized = "DigiCert",
                             CertificateAuthorityFamily = "DigiCert",
                             CertificateThumbprint = "11223344AABB",
+                            CertificateSerialNumber = "11223344AABBCCDD",
                             CertificateRootIssuerNormalized = "DigiCert Global Root G2",
                             CertificateRootAuthorityFamily = "DigiCert",
                             IsKnownCertificateAuthority = true,
@@ -338,6 +341,21 @@ namespace DomainDetective.Tests {
                 Assert.Equal(1, thumbprintFilter.MatchedEntryCount);
                 Assert.Single(thumbprintFilter.Entries);
                 Assert.Equal("api.example.com", thumbprintFilter.Entries[0].Entry.Host);
+
+                var serialFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SerialNumberEquals = "00aa:11bb 22cc33dd",
+                    MaxResults = 10
+                });
+                Assert.Equal(1, serialFilter.MatchedEntryCount);
+                Assert.Single(serialFilter.Entries);
+                Assert.Equal("api.example.com", serialFilter.Entries[0].Entry.Host);
+
+                var missingSerialFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
+                    SerialNumberEquals = "not-present",
+                    MaxResults = 10
+                });
+                Assert.Equal(0, missingSerialFilter.MatchedEntryCount);
+                Assert.Empty(missingSerialFilter.Entries);
 
                 var authProfileFilter = monitor.QueryInventoryEntries(new CertificateInventoryQuery {
                     AuthenticationProfileEquals = "ClientAuthOnly",

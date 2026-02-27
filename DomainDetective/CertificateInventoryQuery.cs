@@ -34,6 +34,8 @@ namespace DomainDetective {
         public string? ChainSourceContains { get; set; }
         /// <summary>Leaf certificate thumbprint exact-match filter.</summary>
         public string? ThumbprintEquals { get; set; }
+        /// <summary>Leaf certificate serial-number exact-match filter.</summary>
+        public string? SerialNumberEquals { get; set; }
         /// <summary>When set, include only entries whose recognized-authority state equals this value.</summary>
         public bool? KnownAuthorityOnly { get; set; }
         /// <summary>When set, include only entries whose recognized-root-authority state equals this value.</summary>

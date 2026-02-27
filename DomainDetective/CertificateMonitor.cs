@@ -727,9 +727,18 @@ namespace DomainDetective {
 
             var thumbprintEquals = query.ThumbprintEquals;
             if (!string.IsNullOrWhiteSpace(thumbprintEquals)) {
-                var expectedThumbprint = NormalizeThumbprint(thumbprintEquals);
-                var actualThumbprint = NormalizeThumbprint(entry.CertificateThumbprint);
+                var expectedThumbprint = NormalizeHexIdentifier(thumbprintEquals);
+                var actualThumbprint = NormalizeHexIdentifier(entry.CertificateThumbprint);
                 if (expectedThumbprint.Length == 0 || !actualThumbprint.Equals(expectedThumbprint, StringComparison.OrdinalIgnoreCase)) {
+                    return false;
+                }
+            }
+
+            var serialNumberEquals = query.SerialNumberEquals;
+            if (!string.IsNullOrWhiteSpace(serialNumberEquals)) {
+                var expectedSerialNumber = NormalizeHexIdentifier(serialNumberEquals);
+                var actualSerialNumber = NormalizeHexIdentifier(entry.CertificateSerialNumber);
+                if (expectedSerialNumber.Length == 0 || !actualSerialNumber.Equals(expectedSerialNumber, StringComparison.OrdinalIgnoreCase)) {
                     return false;
                 }
             }
@@ -823,7 +832,7 @@ namespace DomainDetective {
             return true;
         }
 
-        private static string NormalizeThumbprint(string? value) {
+        private static string NormalizeHexIdentifier(string? value) {
             if (string.IsNullOrWhiteSpace(value)) {
                 return string.Empty;
             }
